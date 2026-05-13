@@ -43,3 +43,7 @@ The repo uses the default five-label triage vocabulary. See `docs/agents/triage-
 ### Domain docs
 
 This is a single-context repo with a root `CONTEXT.md` and ADRs under `docs/adr/`. See `docs/agents/domain.md`.
+
+### Reference projects
+
+PKSX is based on PKHeX and existing web/cross-platform PKHeX projects. Before planning or implementing PKHeX Engine work, read `docs/architecture/reference-projects.md`.
