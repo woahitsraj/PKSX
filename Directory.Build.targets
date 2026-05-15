@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <PKHeXSourcePath Condition="'$(PKHeXSourcePath)' == '' And $([MSBuild]::IsOsPlatform('Windows'))">C:\Code\PKHeX\PKHeX.Core\PKHeX.Core.csproj</PKHeXSourcePath>
+    <PKHeXSourcePath Condition="'$(PKHeXSourcePath)' == ''">$(HOME)/Code/PKHeX/PKHeX.Core/PKHeX.Core.csproj</PKHeXSourcePath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(UseLocalPKHeX)' == 'true'">
+    <_PKHeXCoreSentinel>;@(PackageReference->'%(Identity)');</_PKHeXCoreSentinel>
+    <_HasPKHeXCoreRef Condition="$(_PKHeXCoreSentinel.Contains(';PKHeX.Core;'))">true</_HasPKHeXCoreRef>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseLocalPKHeX)' == 'true' And '$(_HasPKHeXCoreRef)' == 'true'">
+    <PackageReference Remove="PKHeX.Core" />
+    <ProjectReference Include="$(PKHeXSourcePath)" />
+  </ItemGroup>
+</Project>
