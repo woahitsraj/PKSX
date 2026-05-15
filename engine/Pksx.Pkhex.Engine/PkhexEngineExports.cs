@@ -40,7 +40,7 @@ public static partial class PkhexEngineExports
         catch (Exception ex)
         {
             return EngineJson.Serialize(
-                EngineResult.Fail("pkhex-exception", ex.Message),
+                EngineResult.Fail("unknown-engine-error", ex.Message),
                 EngineJsonContext.Default.EngineResultObject);
         }
     }
@@ -62,7 +62,7 @@ public static partial class PkhexEngineExports
             if ((uint)box >= save.BoxCount)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("box-out-of-range", $"Box {box} is outside the save's box range."),
+                    EngineResult.Fail("invalid-box", $"Box {box} is outside the save's box range."),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -75,7 +75,7 @@ public static partial class PkhexEngineExports
         catch (Exception ex)
         {
             return EngineJson.Serialize(
-                EngineResult.Fail("pkhex-exception", ex.Message),
+                EngineResult.Fail("unknown-engine-error", ex.Message),
                 EngineJsonContext.Default.EngineResultObject);
         }
     }

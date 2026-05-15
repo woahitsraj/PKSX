@@ -21,6 +21,7 @@ This keeps PKSX offline-first while preserving a fast upstream update path throu
   - `ListBoxSmoke(byte[] bytes, string? fileName, int box)` export for early box-slot summary testing.
 - `src/lib/engine/pkhex-engine.ts`
   - A Svelte-side TypeScript loader/adapter for the published .NET runtime.
+  - The public TypeScript contract uses async `EngineApi` methods so the Svelte app can use the same shape for the WebAssembly adapter, mocks, and future worker-backed adapters.
 
 ## Reference project findings
 
@@ -163,6 +164,7 @@ Then the Svelte app can load the facade through `createPkhexEngine('/pkhex-engin
 - Replace JSON string exports with a measured interop strategy if byte arrays or large summaries become expensive.
 - Add a fixture-based browser smoke test once test save files are available.
 - Decide whether the engine should run on the main thread or inside a Web Worker before large save operations are wired into the UI.
+- Generate or expose stronger TypeScript game-version types from PKHeX.Core if UI workflows need exhaustive game branching. Do not maintain a hand-written TypeScript enum that can drift from PKHeX.Core.
 - Investigate the remaining `PKHeX.Core` trim warnings before treating Release publish as production-hardening complete.
 
 ## Remaining warning
