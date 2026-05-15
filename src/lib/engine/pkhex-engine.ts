@@ -1,3 +1,13 @@
+import type {
+	BoxSlotSummary,
+	EngineApi,
+	EngineError,
+	EngineErrorCode,
+	EngineResult,
+	EngineVersion,
+	SaveSummary
+} from './types';
+
 type RawDotnetModule = {
 	dotnet: {
 		create(): Promise<{
@@ -22,49 +32,15 @@ type DotnetPkhexEngineExports = {
 	ListBoxSmoke(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 };
 
-export type EngineResult<T> =
-	| { ok: true; value: T; error: null }
-	| { ok: false; value: null; error: { code: string; message: string } };
+const knownEngineErrorCodes = new Set<EngineErrorCode>([
+	'unsupported-save',
+	'invalid-box',
+	'engine-unavailable',
+	'invalid-engine-response',
+	'unknown-engine-error'
+]);
 
-export type EngineVersion = {
-	pkhexCoreVersion: string;
-	facadeVersion: string;
-};
-
-export type SaveSummary = {
-	fileName?: string;
-	saveType: string;
-	gameVersion: string;
-	generation: number;
-	trainerName?: string;
-	partyCount: number;
-	boxCount: number;
-	boxSlotCount: number;
-};
-
-export type BoxSlotSummary = {
-	box: number;
-	slot: number;
-	speciesId: number;
-	form: number;
-	format: number;
-	level: number;
-	nickname: string;
-	isEgg: boolean;
-	isEmpty: boolean;
-};
-
-export type PkhexEngine = {
-	getVersion(): EngineResult<EngineVersion>;
-	parseSaveSmoke(bytes: Uint8Array, fileName?: string): EngineResult<SaveSummary>;
-	listBoxSmoke(
-		bytes: Uint8Array,
-		fileName: string | undefined,
-		box: number
-	): EngineResult<BoxSlotSummary[]>;
-};
-
-export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<PkhexEngine> {
+export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<EngineApi> {
 	const module = (await import(
 		/* @vite-ignore */ `${basePath}/_framework/dotnet.js`
 	)) as RawDotnetModule;
@@ -76,14 +52,72 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Pkh
 	const engine = exports.Pksx.Pkhex.Engine.PkhexEngineExports;
 
 	return {
-		getVersion: () => parseEngineResult<EngineVersion>(engine.GetVersionJson()),
-		parseSaveSmoke: (bytes, fileName) =>
+		getVersion: async () => parseEngineResult<EngineVersion>(engine.GetVersionJson()),
+		summarizeSave: async (bytes, fileName) =>
 			parseEngineResult<SaveSummary>(engine.ParseSaveSmoke(bytes, fileName)),
-		listBoxSmoke: (bytes, fileName, box) =>
+		listBoxSlots: async (bytes, fileName, box) =>
 			parseEngineResult<BoxSlotSummary[]>(engine.ListBoxSmoke(bytes, fileName, box))
 	};
 }
 
-function parseEngineResult<T>(json: string): EngineResult<T> {
-	return JSON.parse(json) as EngineResult<T>;
+export function parseEngineResult<T>(json: string): EngineResult<T> {
+	try {
+		return normalizeEngineResult(JSON.parse(json));
+	} catch {
+		return engineFailure('invalid-engine-response', 'The PKHeX Engine returned invalid JSON.');
+	}
+}
+
+function normalizeEngineResult<T>(value: unknown): EngineResult<T> {
+	if (!isRecord(value) || typeof value.ok !== 'boolean') {
+		return engineFailure('invalid-engine-response', 'The PKHeX Engine returned an invalid result.');
+	}
+
+	if (value.ok) {
+		if (!('value' in value)) {
+			return engineFailure(
+				'invalid-engine-response',
+				'The PKHeX Engine returned a success without a value.'
+			);
+		}
+
+		return { ok: true, value: value.value as T, error: null };
+	}
+
+	const error = normalizeEngineError(value.error);
+
+	return { ok: false, value: null, error };
+}
+
+function normalizeEngineError(error: unknown): EngineError {
+	if (!isRecord(error)) {
+		return {
+			code: 'invalid-engine-response',
+			message: 'The PKHeX Engine returned a failure without an error.'
+		};
+	}
+
+	const message =
+		typeof error.message === 'string' && error.message.length > 0
+			? error.message
+			: 'The PKHeX Engine failed without an error message.';
+
+	if (typeof error.code !== 'string') {
+		return { code: 'invalid-engine-response', message };
+	}
+
+	return {
+		code: knownEngineErrorCodes.has(error.code as EngineErrorCode)
+			? (error.code as EngineErrorCode)
+			: 'unknown-engine-error',
+		message
+	};
+}
+
+function engineFailure<T>(code: EngineErrorCode, message: string): EngineResult<T> {
+	return { ok: false, value: null, error: { code, message } };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
 }
