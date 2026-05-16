@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  svelte-checks:
+    name: Svelte checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Unit tests
+        run: pnpm test:unit -- --run
+
+  pkhex-engine:
+    name: PKHeX Engine publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install browser WebAssembly workload
+        run: dotnet workload install wasm-tools
+
+      - name: Restore PKHeX Engine
+        run: dotnet restore engine/Pksx.Pkhex.Engine/Pksx.Pkhex.Engine.csproj
+
+      # PKHeX.Core currently emits an upstream IL2104 trim warning during Release publish.
+      # Keep the warning visible in CI; see docs/architecture/pkhex-engine-trim-warnings.md.
+      - name: Publish PKHeX Engine
+        run: dotnet publish engine/Pksx.Pkhex.Engine/Pksx.Pkhex.Engine.csproj --configuration Release --no-restore

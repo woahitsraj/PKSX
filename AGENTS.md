@@ -36,6 +36,8 @@ After completing the code, ask the user if they want a playground link. Only cal
 
 Issues and PRDs for this repo live as GitHub issues on `woahitsraj/pksx`. See `docs/agents/issue-tracker.md`.
 
+When a PR fully resolves an issue, include a GitHub closing keyword in the PR body, such as `Closes #9`, so the issue closes automatically when the PR merges into `main`.
+
 ### Triage labels
 
 The repo uses the default five-label triage vocabulary. See `docs/agents/triage-labels.md`.
