@@ -5,7 +5,7 @@ PKSX is an offline-first Pokemon save management app that uses PKHeX-compatible 
 ## Language
 
 **Save File**:
-A game save loaded into PKSX for inspection, backup, editing, and export.
+A Pokemon save artifact loaded into PKSX for inspection, backup, editing, and export.
 _Avoid_: ROM, game file
 
 **Pokemon Entity**:
@@ -21,12 +21,12 @@ A numbered storage grid inside a save file.
 _Avoid_: bank box, PC page
 
 **Local Library**:
-The app-managed offline collection of imported save files, backups, and bank entries.
+The app-managed durable collection of imported save file artifacts, backups, and future bank data.
 _Avoid_: cloud account, server library
 
 **Backup**:
-A restorable snapshot of a save file or Pokemon entity created before a risky operation.
-_Avoid_: copy, version
+A restorable snapshot of save file bytes created before a risky operation.
+_Avoid_: copy, version, checkpoint, undo
 
 **Export**:
 An explicit user action that writes a save file or Pokemon entity out of PKSX.
@@ -48,6 +48,6 @@ _Avoid_: hover, cursor
 
 - A **Save File** contains zero or one **Party** and zero or more **Boxes**.
 - A **Box** contains zero or more **Pokemon Entities**.
-- The **Local Library** stores **Save Files**, **Backups**, and app-managed Pokemon collections.
+- The **Local Library** stores imported **Save File** artifacts, **Backups**, and app-managed Pokemon collections.
 - The **PKHeX Engine** exposes a **Facade** consumed by the Svelte app.
 - **Export** writes data from the **Local Library** back to user-controlled storage.
