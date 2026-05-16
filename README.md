@@ -1,32 +1,16 @@
-# sv
+# PKSX
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
-
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
-
-```sh
-# create a new project
-npx sv create my-app
-```
-
-To recreate this project with the same configuration:
-
-```sh
-# recreate this project
-pnpm dlx sv@0.15.3 create --template minimal --types ts --add prettier eslint vitest="usages:unit,component" playwright tailwindcss="plugins:typography,forms" sveltekit-adapter="adapter:static" drizzle="database:postgresql+postgresql:postgres.js+docker:yes" better-auth="demo:password" paraglide="languageTags:en+demo:yes" mcp="ide:claude-code,cursor,gemini,opencode,vscode+setup:remote" --install pnpm pksx
-```
+PKSX is an offline-first Pokemon save management app with a controller-friendly SvelteKit UI and a PKHeX.Core-backed WebAssembly engine.
 
 ## Developing
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+Install dependencies with `pnpm install`, then start a development server:
 
 ```sh
-npm run dev
+pnpm dev
 
 # or start the server and open the app in a new browser tab
-npm run dev -- --open
+pnpm dev -- --open
 ```
 
 ## Building
@@ -60,9 +44,9 @@ dotnet workload install wasm-tools
 To create a production version of your app:
 
 ```sh
-npm run build
+pnpm build
 ```
 
-You can preview the production build with `npm run preview`.
+You can preview the production build with `pnpm preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
