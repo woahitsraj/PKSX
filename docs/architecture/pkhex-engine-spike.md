@@ -150,9 +150,7 @@ dotnet publish engine/Pksx.Pkhex.Engine/Pksx.Pkhex.Engine.csproj -c Release -p:U
 After publish, copy the publish output to a static path served by Svelte, for example:
 
 ```sh
-rm -rf static/pkhex-engine
-mkdir -p static/pkhex-engine
-cp -R engine/Pksx.Pkhex.Engine/bin/Release/net10.0/browser-wasm/publish/* static/pkhex-engine/
+pnpm engine:sync
 ```
 
 Then the Svelte app can load the facade through `createPkhexEngine('/pkhex-engine')`.
