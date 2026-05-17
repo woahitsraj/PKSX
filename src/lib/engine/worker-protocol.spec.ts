@@ -3,6 +3,7 @@ import type { EngineResult, EngineVersion, SaveSummary } from './types';
 import {
 	createEngineWorkerProtocolError,
 	createEngineWorkerResponse,
+	parseEngineWorkerInitMessage,
 	parseEngineWorkerMessage,
 	parseEngineWorkerProtocolError,
 	parseEngineWorkerRequest,
@@ -10,6 +11,26 @@ import {
 	parseEngineWorkerStatusMessage
 } from './worker-protocol';
 import type { EngineWorkerGetVersionRequest } from './worker-protocol';
+
+describe('parseEngineWorkerInitMessage', () => {
+	test('parses worker initialization with an explicit engine base path', () => {
+		expect.assertions(1);
+
+		expect(parseEngineWorkerInitMessage({ type: 'init', basePath: '/pkhex-engine' })).toEqual({
+			ok: true,
+			value: { type: 'init', basePath: '/pkhex-engine' }
+		});
+	});
+
+	test('rejects malformed initialization messages', () => {
+		expect.assertions(1);
+
+		expect(parseEngineWorkerInitMessage({ type: 'init', basePath: '' })).toMatchObject({
+			ok: false,
+			error: { code: 'invalid-worker-message' }
+		});
+	});
+});
 
 describe('parseEngineWorkerRequest', () => {
 	test('parses a version request with a required id', () => {
@@ -278,7 +299,7 @@ describe('worker protocol messages', () => {
 	});
 
 	test('parses known message categories and rejects unknown categories', () => {
-		expect.assertions(3);
+		expect.assertions(4);
 
 		const version: EngineResult<EngineVersion> = {
 			ok: true,
@@ -291,6 +312,11 @@ describe('worker protocol messages', () => {
 		).toMatchObject({
 			ok: true,
 			value: { type: 'request' }
+		});
+
+		expect(parseEngineWorkerMessage({ type: 'init', basePath: '/pkhex-engine' })).toMatchObject({
+			ok: true,
+			value: { type: 'init' }
 		});
 
 		expect(
