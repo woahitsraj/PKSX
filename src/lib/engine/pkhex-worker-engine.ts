@@ -21,7 +21,11 @@ import {
 export type EngineWorkerPort = {
 	postMessage(message: EngineWorkerMessage, transfer?: Transferable[]): void;
 	addEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
+	addEventListener(type: 'error', listener: (event: ErrorEvent) => void): void;
+	addEventListener(type: 'messageerror', listener: (event: MessageEvent<unknown>) => void): void;
 	removeEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
+	removeEventListener(type: 'error', listener: (event: ErrorEvent) => void): void;
+	removeEventListener(type: 'messageerror', listener: (event: MessageEvent<unknown>) => void): void;
 };
 
 export type EngineWorkerFactory = () => EngineWorkerPort;
@@ -75,6 +79,20 @@ export function createPkhexWorkerEngine(
 		}
 	};
 
+	const onError = (event: ErrorEvent) => {
+		failWorker({
+			code: 'engine-unavailable',
+			message: event.message || 'The PKHeX Engine worker failed to start.'
+		});
+	};
+
+	const onMessageError = () => {
+		failWorker({
+			code: 'engine-unavailable',
+			message: 'The PKHeX Engine worker received an unreadable message.'
+		});
+	};
+
 	function failWorker(error: EngineError) {
 		failedError = error;
 		resolveStartup(engineFailure(error));
@@ -86,6 +104,8 @@ export function createPkhexWorkerEngine(
 	}
 
 	worker.addEventListener('message', onMessage);
+	worker.addEventListener('error', onError);
+	worker.addEventListener('messageerror', onMessageError);
 	worker.postMessage({ type: 'init', basePath });
 
 	return {

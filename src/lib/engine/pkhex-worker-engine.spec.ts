@@ -9,23 +9,69 @@ type PostedWorkerMessage = {
 
 class FakeWorker implements EngineWorkerPort {
 	readonly posted: PostedWorkerMessage[] = [];
-	private readonly listeners = new Set<(event: MessageEvent<unknown>) => void>();
+	private readonly messageListeners = new Set<(event: MessageEvent<unknown>) => void>();
+	private readonly errorListeners = new Set<(event: ErrorEvent) => void>();
+	private readonly messageErrorListeners = new Set<(event: MessageEvent<unknown>) => void>();
 
 	postMessage(message: EngineWorkerMessage, transfer?: Transferable[]) {
 		this.posted.push({ message, transfer });
 	}
 
-	addEventListener(_type: 'message', listener: (event: MessageEvent<unknown>) => void) {
-		this.listeners.add(listener);
+	addEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
+	addEventListener(type: 'error', listener: (event: ErrorEvent) => void): void;
+	addEventListener(type: 'messageerror', listener: (event: MessageEvent<unknown>) => void): void;
+	addEventListener(
+		type: 'message' | 'error' | 'messageerror',
+		listener: ((event: MessageEvent<unknown>) => void) | ((event: ErrorEvent) => void)
+	) {
+		switch (type) {
+			case 'message':
+				this.messageListeners.add(listener as (event: MessageEvent<unknown>) => void);
+				return;
+			case 'error':
+				this.errorListeners.add(listener as (event: ErrorEvent) => void);
+				return;
+			case 'messageerror':
+				this.messageErrorListeners.add(listener as (event: MessageEvent<unknown>) => void);
+				return;
+		}
 	}
 
-	removeEventListener(_type: 'message', listener: (event: MessageEvent<unknown>) => void) {
-		this.listeners.delete(listener);
+	removeEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
+	removeEventListener(type: 'error', listener: (event: ErrorEvent) => void): void;
+	removeEventListener(type: 'messageerror', listener: (event: MessageEvent<unknown>) => void): void;
+	removeEventListener(
+		type: 'message' | 'error' | 'messageerror',
+		listener: ((event: MessageEvent<unknown>) => void) | ((event: ErrorEvent) => void)
+	) {
+		switch (type) {
+			case 'message':
+				this.messageListeners.delete(listener as (event: MessageEvent<unknown>) => void);
+				return;
+			case 'error':
+				this.errorListeners.delete(listener as (event: ErrorEvent) => void);
+				return;
+			case 'messageerror':
+				this.messageErrorListeners.delete(listener as (event: MessageEvent<unknown>) => void);
+				return;
+		}
 	}
 
 	emit(data: unknown) {
-		for (const listener of this.listeners) {
+		for (const listener of this.messageListeners) {
 			listener({ data } as MessageEvent<unknown>);
+		}
+	}
+
+	emitError(message = 'Worker chunk failed to load.') {
+		for (const listener of this.errorListeners) {
+			listener({ message } as ErrorEvent);
+		}
+	}
+
+	emitMessageError() {
+		for (const listener of this.messageErrorListeners) {
+			listener({ data: undefined } as MessageEvent<unknown>);
 		}
 	}
 }
@@ -175,5 +221,42 @@ describe('createPkhexWorkerEngine', () => {
 			error: { code: 'engine-unavailable', message: 'Runtime failed to load.' }
 		});
 		expect(worker.posted).toHaveLength(1);
+	});
+
+	test('returns engine-unavailable when the worker errors before startup status', async () => {
+		expect.assertions(2);
+
+		const worker = new FakeWorker();
+		const engine = createPkhexWorkerEngine('/pkhex-engine', { createWorker: () => worker });
+		const version = engine.getVersion();
+
+		worker.emitError('Worker chunk failed to load.');
+
+		await expect(version).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'engine-unavailable', message: 'Worker chunk failed to load.' }
+		});
+		await expect(engine.getVersion()).resolves.toMatchObject({
+			ok: false,
+			error: { code: 'engine-unavailable', message: 'Worker chunk failed to load.' }
+		});
+	});
+
+	test('returns engine-unavailable when startup messages cannot be deserialized', async () => {
+		expect.assertions(1);
+
+		const worker = new FakeWorker();
+		const engine = createPkhexWorkerEngine('/pkhex-engine', { createWorker: () => worker });
+		const version = engine.getVersion();
+
+		worker.emitMessageError();
+
+		await expect(version).resolves.toMatchObject({
+			ok: false,
+			error: {
+				code: 'engine-unavailable',
+				message: 'The PKHeX Engine worker received an unreadable message.'
+			}
+		});
 	});
 });
