@@ -1,8 +1,10 @@
 export { createMockEngine } from './mock-engine';
 export { createPkhexEngine, parseEngineResult } from './pkhex-engine';
+export { createPkhexWorkerEngine } from './pkhex-worker-engine';
 export {
 	createEngineWorkerProtocolError,
 	createEngineWorkerResponse,
+	parseEngineWorkerInitMessage,
 	parseEngineWorkerMessage,
 	parseEngineWorkerProtocolError,
 	parseEngineWorkerRequest,
@@ -18,8 +20,10 @@ export type {
 	EngineVersion,
 	SaveSummary
 } from './types';
+export type { EngineWorkerFactory, EngineWorkerPort } from './pkhex-worker-engine';
 export type {
 	EngineWorkerGetVersionRequest,
+	EngineWorkerInitMessage,
 	EngineWorkerListBoxSlotsRequest,
 	EngineWorkerMessage,
 	EngineWorkerMethod,

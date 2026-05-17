@@ -76,6 +76,11 @@ export const saveSummaryResultSchema = engineResultSchema(saveSummarySchema);
 
 export const boxSlotSummaryListResultSchema = engineResultSchema(z.array(boxSlotSummarySchema));
 
+export const engineWorkerInitMessageSchema = z.object({
+	type: z.literal('init'),
+	basePath: z.string().min(1)
+});
+
 export const engineWorkerGetVersionRequestSchema = z.object({
 	type: z.literal('request'),
 	id: engineWorkerRequestIdSchema,
@@ -155,6 +160,7 @@ export const engineWorkerStatusMessageSchema = z.discriminatedUnion('status', [
 ]);
 
 export const engineWorkerMessageSchema = z.union([
+	engineWorkerInitMessageSchema,
 	engineWorkerRequestSchema,
 	engineWorkerResponseSchema,
 	engineWorkerProtocolErrorSchema,
@@ -166,6 +172,8 @@ export type EngineWorkerRequestId = z.infer<typeof engineWorkerRequestIdSchema>;
 export type EngineWorkerMethod = z.infer<typeof engineWorkerMethodSchema>;
 
 export type EngineWorkerStatus = z.infer<typeof engineWorkerStatusSchema>;
+
+export type EngineWorkerInitMessage = z.infer<typeof engineWorkerInitMessageSchema>;
 
 export type EngineWorkerGetVersionRequest = z.infer<typeof engineWorkerGetVersionRequestSchema>;
 
@@ -195,6 +203,12 @@ export type ProtocolParseResult<T> =
 	| { ok: false; id?: EngineWorkerRequestId; error: z.infer<typeof engineErrorSchema> };
 
 type WorkerParseSchema<T> = z.ZodType<T>;
+
+export function parseEngineWorkerInitMessage(
+	value: unknown
+): ProtocolParseResult<EngineWorkerInitMessage> {
+	return parseEngineWorkerValue(engineWorkerInitMessageSchema, value, 'init message');
+}
 
 export function parseEngineWorkerRequest(value: unknown): ProtocolParseResult<EngineWorkerRequest> {
 	return parseEngineWorkerValue(engineWorkerRequestSchema, value, 'request');
