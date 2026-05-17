@@ -30,6 +30,8 @@ Worker hosting gives PKSX a stable execution boundary for expensive engine work.
 
 Byte transfer should use transferable `ArrayBuffer` payloads for save bytes whenever ownership can move to the worker. When the UI still needs to retain the original bytes, PKSX should either copy intentionally or read them again from the **Local Library** rather than relying on accidental shared ownership.
 
+The worker protocol should remain a plain structured-cloneable transport for the public TypeScript `EngineApi` methods. Runtime validation is required because `postMessage` is an untyped boundary and malformed or unknown messages must be normalized. PKSX uses Zod schemas as the source of truth for the worker protocol so TypeScript types are inferred from the same runtime parsers used at the boundary.
+
 The worker should have an explicit initialization state:
 
 - `idle`: worker exists but the .NET runtime has not loaded.
