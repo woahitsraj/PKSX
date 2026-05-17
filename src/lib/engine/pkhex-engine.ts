@@ -37,6 +37,7 @@ const knownEngineErrorCodes = new Set<EngineErrorCode>([
 	'invalid-box',
 	'engine-unavailable',
 	'invalid-engine-response',
+	'invalid-worker-message',
 	'unknown-engine-error'
 ]);
 

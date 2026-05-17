@@ -3,6 +3,7 @@ export type EngineErrorCode =
 	| 'invalid-box'
 	| 'engine-unavailable'
 	| 'invalid-engine-response'
+	| 'invalid-worker-message'
 	| 'unknown-engine-error';
 
 export type EngineError = {
