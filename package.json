@@ -5,6 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
+		"dev:portless": "portless run --name pksx vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
 		"engine:sync": "node scripts/sync-pkhex-engine.ts",
@@ -36,6 +37,7 @@
 		"eslint-plugin-svelte": "^3.17.0",
 		"globals": "^17.4.0",
 		"playwright": "^1.59.1",
+		"portless": "^0.13.0",
 		"prettier": "^3.8.1",
 		"prettier-plugin-svelte": "^3.5.1",
 		"prettier-plugin-tailwindcss": "^0.7.2",
