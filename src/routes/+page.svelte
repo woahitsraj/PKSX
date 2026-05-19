@@ -504,6 +504,7 @@
 		grid-template-columns: repeat(6, minmax(76px, 1fr));
 		grid-template-rows: repeat(5, minmax(82px, 1fr));
 		gap: 8px;
+		min-width: 520px;
 	}
 
 	.slot {
@@ -626,21 +627,8 @@
 			grid-template-columns: 1fr;
 		}
 
-		.party-list {
-			grid-template-columns: repeat(3, minmax(0, 1fr));
-			grid-template-rows: repeat(2, minmax(72px, auto));
-		}
-
-		.box-grid {
-			grid-template-columns: repeat(3, minmax(0, 1fr));
-			grid-template-rows: repeat(10, minmax(76px, auto));
-		}
-	}
-
-	@media (max-width: 520px) {
-		.box-grid,
-		.party-list {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
+		.box-zone {
+			overflow-x: auto;
 		}
 	}
 </style>
