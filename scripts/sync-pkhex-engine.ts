@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 type Options = {
 	configuration: string;
 	properties: string[];
+	skipPublish: boolean;
 };
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -22,7 +23,9 @@ if (options.help) {
 
 await ensureDotnet();
 await ensureWasmTools();
-publishEngine(options);
+if (!options.skipPublish) {
+	publishEngine(options);
+}
 await syncAppBundle(options.configuration);
 
 console.log(`Synced PKHeX Engine assets to ${path.relative(repoRoot, staticEnginePath)}`);
@@ -31,6 +34,7 @@ function parseArgs(args: string[]): Options & { help: boolean } {
 	const parsed: Options & { help: boolean } = {
 		configuration: 'Release',
 		properties: [],
+		skipPublish: false,
 		help: false
 	};
 
@@ -43,6 +47,11 @@ function parseArgs(args: string[]): Options & { help: boolean } {
 
 		if (arg === '--help' || arg === '-h') {
 			parsed.help = true;
+			continue;
+		}
+
+		if (arg === '--skip-publish') {
+			parsed.skipPublish = true;
 			continue;
 		}
 
@@ -192,12 +201,14 @@ function printHelp(): void {
 
 Usage:
   pnpm engine:sync
+  pnpm engine:sync -- --skip-publish
   pnpm engine:sync -- --configuration Debug
   pnpm engine:sync -- --property UseLocalPKHeX=true --property PKHeXSourcePath=/path/to/PKHeX/PKHeX.Core/PKHeX.Core.csproj
 
 Options:
   -c, --configuration <name>  MSBuild configuration to publish. Defaults to Release.
   -p, --property <Name=Value> MSBuild property passed to dotnet publish. May be repeated.
+  --skip-publish              Copy the existing published AppBundle without running dotnet publish.
   -h, --help                 Show this help.
 `);
 }
