@@ -104,11 +104,11 @@
 	<header class="prototype-banner">
 		<div>
 			<p>Throwaway prototype</p>
-			<h1 id="prototype-title">PKSM-inspired storage workspace frame</h1>
+			<h1 id="prototype-title">Transfer Desk</h1>
 		</div>
 		<div class="banner-meter">
-			<span>Transfer Desk</span>
-			<strong>Box-first storage workspace with collapsible Party dock.</strong>
+			<span>Issue #40 UI direction</span>
+			<strong>Soft green Box-first workspace with collapsible Party dock.</strong>
 		</div>
 	</header>
 
@@ -266,6 +266,7 @@
 		grid-template-rows: auto 1fr;
 		gap: 14px;
 		background: #dff4ea;
+		color: #17302a;
 	}
 
 	.prototype-banner {
@@ -313,7 +314,7 @@
 		gap: 4px;
 		padding: 14px;
 		background: #f7f3e8;
-		color: #1f3d34;
+		color: #17302a;
 	}
 
 	.workspace-frame {
@@ -322,7 +323,7 @@
 		grid-template-rows: 1fr auto;
 		gap: 12px;
 		padding: 14px;
-		background: rgba(230, 249, 211, 0.86);
+		background: rgba(246, 251, 243, 0.86);
 	}
 
 	.box-panel-title {
@@ -373,7 +374,7 @@
 	.detail-panel,
 	.status-readout {
 		min-width: 0;
-		border: 2px solid rgba(32, 100, 68, 0.28);
+		border: 2px solid rgba(37, 153, 125, 0.24);
 		background: rgba(255, 255, 255, 0.32);
 	}
 
@@ -450,7 +451,7 @@
 		border: 2px solid rgba(28, 84, 57, 0.22);
 		border-radius: 7px;
 		background: rgba(236, 255, 225, 0.58);
-		color: #183a31;
+		color: #17302a;
 		text-align: left;
 	}
 

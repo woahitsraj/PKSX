@@ -42,8 +42,8 @@
 
 	const placeholderPartySlots: SlotView[] = Array.from({ length: PARTY_SLOT_COUNT }, (_, slot) => ({
 		slot,
-		label: slot === 0 ? 'Lead Slot' : 'Empty',
-		detail: slot === 0 ? 'Fixture party position' : 'Available party position',
+		label: slot === 0 ? 'Pikachu' : 'Empty',
+		detail: slot === 0 ? 'Lv. 5' : '',
 		kind: slot === 0 ? 'pokemon' : 'empty'
 	}));
 
@@ -55,7 +55,7 @@
 				return {
 					slot,
 					label: featured ? 'Pikachu' : 'Empty',
-					detail: featured ? 'Lv. 5 - fixture data' : `Box ${box + 1} slot ${slot + 1}`,
+					detail: featured ? 'Lv. 5' : '',
 					kind: featured ? 'pokemon' : 'empty'
 				};
 			})
@@ -67,6 +67,7 @@
 	let importError = $state<string | null>(null);
 	let statusMessage = $state('Import a Save File to begin.');
 	let busy = $state(false);
+	let partyCollapsed = $state(false);
 	let engine: EngineApi | null = null;
 	let workspaceLoadRequest = 0;
 
@@ -85,6 +86,7 @@
 			? partySlots[navigation.focus.slot]
 			: activeBoxSlots[navigation.focus.slot]
 	);
+	const focusedSlotSummary = $derived(formatFocusedSlotSummary(focusedSlot));
 	const saveSummary = $derived(loadedSave?.workspace.summary ?? null);
 
 	function dispatch(action: NavigationAction) {
@@ -164,6 +166,24 @@
 
 	function closeActionSurface() {
 		dispatch('back');
+	}
+
+	function closeActionSurfaceFromOutside(event: PointerEvent) {
+		if (!navigation.actionSurfaceOpen) {
+			return;
+		}
+
+		const target = event.target;
+
+		if (!(target instanceof Element)) {
+			return;
+		}
+
+		if (target.closest('.slot-cell, .slot-context, .box-switcher, .party-toggle')) {
+			return;
+		}
+
+		closeActionSurface();
 	}
 
 	function isFocused(zone: 'party' | 'box', slot: number) {
@@ -430,7 +450,7 @@
 			slotViews.push({
 				slot,
 				label: 'Empty',
-				detail: 'Available party position',
+				detail: '',
 				kind: 'empty'
 			});
 		}
@@ -446,9 +466,17 @@
 		return {
 			slot: slot.slot,
 			label: slot.isEmpty ? 'Empty' : slot.nickname || `Species ${slot.speciesId}`,
-			detail: slot.isEmpty ? 'Available slot' : `Lv. ${slot.level}`,
+			detail: slot.isEmpty ? '' : `Lv. ${slot.level}`,
 			kind: slot.isEmpty ? 'empty' : 'pokemon'
 		};
+	}
+
+	function formatFocusedSlotSummary(slot: SlotView) {
+		if (slot.kind === 'empty') {
+			return 'Empty';
+		}
+
+		return `${slot.label} ${slot.detail.match(/Lv\. \d+/)?.[0] ?? slot.detail}`;
 	}
 
 	function getErrorMessage(error: unknown) {
@@ -478,8 +506,13 @@
 	<title>PKSX Box</title>
 </svelte:head>
 
-<main class="app-shell" aria-labelledby="screen-title" {@attach gamepadNavigation}>
-	<section class="status-rail" aria-label="Current save summary">
+<main
+	class="app-shell"
+	aria-labelledby="screen-title"
+	onpointerdown={closeActionSurfaceFromOutside}
+	{@attach gamepadNavigation}
+>
+	<header class="status-rail" aria-label="Current save summary">
 		<div>
 			<p class="eyebrow">PKSX</p>
 			<h1 id="screen-title">Box Storage</h1>
@@ -510,7 +543,7 @@
 			</div>
 		{/if}
 		<p class="controller-status">{gamepadStatus}</p>
-	</section>
+	</header>
 
 	{#if importError}
 		<section class="error-strip" role="alert">
@@ -526,8 +559,80 @@
 	<section class="storage-workspace" aria-label="Party and box storage">
 		<div class="grid-shell">
 			<div
+				id="box-grid"
+				class="box-zone"
+				role="grid"
+				tabindex="0"
+				aria-label={`Box ${navigation.activeBox + 1}`}
+				aria-activedescendant={navigation.focus.zone === 'box' ? activeFocusId : undefined}
+				aria-rowcount="5"
+				aria-colcount={BOX_COLUMNS}
+				onkeydown={handleGridKeydown}
+			>
+				<div class="zone-header box-header">
+					<div class="box-switcher" aria-label="Box switcher">
+						<button type="button" aria-label="Previous box" onclick={() => dispatch('previousBox')}
+							>&lt;</button
+						>
+						<div class="box-title">
+							<h2>Box {navigation.activeBox + 1}</h2>
+						</div>
+						<button type="button" aria-label="Next box" onclick={() => dispatch('nextBox')}
+							>&gt;</button
+						>
+					</div>
+				</div>
+				<div class="box-grid">
+					{#each activeBoxSlots as slot (slot.slot)}
+						{@const position = getBoxSlotPosition(slot.slot)}
+						<div class={['slot-cell', isFocused('box', slot.slot) && 'selected']}>
+							<button
+								id={`box-${navigation.activeBox}-slot-${slot.slot}`}
+								class={['slot', 'box-slot', slot.kind, isFocused('box', slot.slot) && 'focused']}
+								type="button"
+								role="gridcell"
+								tabindex="-1"
+								aria-selected={isFocused('box', slot.slot)}
+								aria-rowindex={position.row + 1}
+								aria-colindex={position.column + 1}
+								onclick={() => focusBox(slot.slot)}
+								ondblclick={openFocusedSlot}
+							>
+								<span class="slot-number">{slot.slot + 1}</span>
+								<span class="slot-sprite" aria-hidden="true"></span>
+								<span class="slot-label">{slot.label}</span>
+								{#if slot.detail}
+									<span class="slot-detail">{slot.detail}</span>
+								{/if}
+							</button>
+							{#if navigation.actionSurfaceOpen && isFocused('box', slot.slot)}
+								<div
+									class={[
+										'slot-context',
+										position.column <= 1 && 'align-start',
+										position.column >= BOX_COLUMNS - 2 && 'align-end'
+									]}
+									role="dialog"
+									aria-label="Slot actions"
+								>
+									<p class="slot-context-location">Box {navigation.activeBox + 1}, slot {slot.slot + 1}</p>
+									<button type="button" disabled>View</button>
+									<button type="button" disabled>Move</button>
+									<button type="button" disabled>Export</button>
+								</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			</div>
+
+			<aside class="focus-readout" aria-live="polite">
+				<strong>{focusedSlotSummary}</strong>
+			</aside>
+
+			<div
 				id="party-grid"
-				class="party-zone"
+				class={['party-zone', partyCollapsed && 'collapsed']}
 				role="grid"
 				tabindex="0"
 				aria-label="Party"
@@ -536,13 +641,28 @@
 				aria-colcount="1"
 				onkeydown={handleGridKeydown}
 			>
-				<div class="zone-header">
-					<h2>Party</h2>
-					<span>6 slots</span>
+				<div class="zone-header party-header">
+					<div>
+						<h2>Party</h2>
+						<span>6 slots</span>
+					</div>
+					<button
+						class="party-toggle"
+						type="button"
+						aria-expanded={!partyCollapsed}
+						aria-controls="party-list"
+						onclick={() => (partyCollapsed = !partyCollapsed)}
+					>
+						{partyCollapsed ? 'Show' : 'Hide'}
+					</button>
 				</div>
-				<div class="party-list">
+				<div id="party-list" class="party-list">
 					{#each partySlots as slot (slot.slot)}
-						<div role="row">
+						<div
+							class={['slot-cell', isFocused('party', slot.slot) && 'selected']}
+							role="row"
+							aria-hidden={partyCollapsed ? 'true' : undefined}
+						>
 							<button
 								id={`party-slot-${slot.slot}`}
 								class={[
@@ -561,188 +681,124 @@
 								ondblclick={openFocusedSlot}
 							>
 								<span class="slot-number">P{slot.slot + 1}</span>
+								<span class="slot-sprite" aria-hidden="true"></span>
 								<span class="slot-label">{slot.label}</span>
-								<span class="slot-detail">{slot.detail}</span>
+								{#if slot.detail}
+									<span class="slot-detail">{slot.detail}</span>
+								{/if}
 							</button>
+							{#if navigation.actionSurfaceOpen && isFocused('party', slot.slot)}
+								<div class="slot-context align-start" role="dialog" aria-label="Slot actions">
+									<p class="slot-context-location">Party slot {slot.slot + 1}</p>
+									<button type="button" disabled>View</button>
+									<button type="button" disabled>Move</button>
+									<button type="button" disabled>Export</button>
+								</div>
+							{/if}
 						</div>
 					{/each}
 				</div>
 			</div>
-
-			<div
-				id="box-grid"
-				class="box-zone"
-				role="grid"
-				tabindex="0"
-				aria-label={`Box ${navigation.activeBox + 1}`}
-				aria-activedescendant={navigation.focus.zone === 'box' ? activeFocusId : undefined}
-				aria-rowcount="5"
-				aria-colcount={BOX_COLUMNS}
-				onkeydown={handleGridKeydown}
-			>
-				<div class="zone-header box-header">
-					<div>
-						<h2>Box {navigation.activeBox + 1}</h2>
-						<span>30 slots</span>
-					</div>
-					<div class="box-switcher" aria-label="Box switcher">
-						<button type="button" aria-label="Previous box" onclick={() => dispatch('previousBox')}
-							>L</button
-						>
-						<button type="button" aria-label="Next box" onclick={() => dispatch('nextBox')}
-							>R</button
-						>
-					</div>
-				</div>
-				<div class="box-grid">
-					{#each activeBoxSlots as slot (slot.slot)}
-						{@const position = getBoxSlotPosition(slot.slot)}
-						<button
-							id={`box-${navigation.activeBox}-slot-${slot.slot}`}
-							class={['slot', 'box-slot', slot.kind, isFocused('box', slot.slot) && 'focused']}
-							type="button"
-							role="gridcell"
-							tabindex="-1"
-							aria-selected={isFocused('box', slot.slot)}
-							aria-rowindex={position.row + 1}
-							aria-colindex={position.column + 1}
-							onclick={() => focusBox(slot.slot)}
-							ondblclick={openFocusedSlot}
-						>
-							<span class="slot-number">{slot.slot + 1}</span>
-							<span class="slot-label">{slot.label}</span>
-							<span class="slot-detail">{slot.detail}</span>
-						</button>
-					{/each}
-				</div>
-			</div>
 		</div>
-
-		<aside class="focus-readout" aria-live="polite">
-			<p class="eyebrow">Controller Focus</p>
-			<strong>
-				{navigation.focus.zone === 'party'
-					? `Party slot ${navigation.focus.slot + 1}`
-					: `Box ${navigation.activeBox + 1}, slot ${navigation.focus.slot + 1}`}
-			</strong>
-			<span>{focusedSlot.label} - {focusedSlot.detail}</span>
-		</aside>
 	</section>
-
-	{#if navigation.actionSurfaceOpen}
-		<div class="action-surface" role="dialog" aria-label="Slot actions">
-			<div>
-				<p class="eyebrow">Slot Actions</p>
-				<h2>{focusedSlot.label}</h2>
-				<p>
-					{navigation.focus.zone === 'party'
-						? `Party slot ${navigation.focus.slot + 1}`
-						: `Box ${navigation.activeBox + 1}, slot ${navigation.focus.slot + 1}`}
-				</p>
-			</div>
-			<div class="action-buttons">
-				<button type="button" disabled>Summary</button>
-				<button type="button" disabled>Move</button>
-				<button type="button" onclick={closeActionSurface}>Close</button>
-			</div>
-		</div>
-	{/if}
 </main>
 
 <style>
 	:global(body) {
 		margin: 0;
-		background:
-			linear-gradient(90deg, rgba(46, 125, 112, 0.08) 1px, transparent 1px),
-			linear-gradient(180deg, rgba(46, 125, 112, 0.08) 1px, transparent 1px), #111615;
-		background-size: 34px 34px;
-		color: #ecf5ef;
-		font-family: 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
+		background: #dff4ea;
+		color: #17302a;
+		font-family:
+			-apple-system,
+			BlinkMacSystemFont,
+			'Segoe UI',
+			system-ui,
+			sans-serif;
+		font-weight: 500;
+	}
+
+	:global(strong) {
+		font-weight: 650;
 	}
 
 	button {
+		border: 0;
 		font: inherit;
+		cursor: pointer;
 	}
 
 	.app-shell {
 		min-height: 100vh;
-		padding: 24px;
+		padding: 18px 18px 104px;
 		display: grid;
 		grid-template-rows: auto auto auto 1fr;
-		gap: 18px;
+		gap: 14px;
 	}
 
-	.status-rail,
+	.status-rail > div:first-child,
+	.save-chip,
+	.controller-status,
 	.status-strip,
 	.error-strip,
-	.storage-workspace,
-	.action-surface {
-		border: 1px solid rgba(184, 213, 197, 0.18);
-		background: rgba(16, 24, 22, 0.9);
-		box-shadow: 0 18px 60px rgba(0, 0, 0, 0.25);
+	.storage-workspace {
+		border: 2px solid rgba(17, 72, 48, 0.18);
+		box-shadow: 0 10px 0 rgba(33, 89, 57, 0.12);
 	}
 
 	.status-rail {
 		display: grid;
-		grid-template-columns: minmax(160px, 1fr) auto auto auto auto;
-		align-items: center;
-		gap: 18px;
-		padding: 18px 20px;
+		grid-template-columns: minmax(180px, 1fr) auto auto auto auto;
+		align-items: stretch;
+		gap: 12px;
+		color: #f4fff8;
 	}
 
-	.status-strip,
-	.error-strip {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		padding: 10px 14px;
-		color: #cddbd4;
+	.status-rail > div:first-child {
+		padding: 14px 16px;
+		background: rgba(20, 74, 54, 0.88);
 	}
 
-	.error-strip {
-		border-color: rgba(244, 107, 107, 0.45);
-		background: rgba(62, 20, 22, 0.92);
-		color: #ffd4d4;
-	}
-
-	.eyebrow {
-		margin: 0 0 4px;
-		color: #8fd0b5;
-		font-size: 0.72rem;
-		font-weight: 800;
-		letter-spacing: 0;
-		text-transform: uppercase;
-	}
-
+	.eyebrow,
 	h1,
 	h2,
 	p {
 		margin: 0;
 	}
 
+	.eyebrow,
+	.save-chip span,
+	.controller-status,
+	.zone-header span,
+	.slot-detail,
+	.slot-context-location {
+		font-size: 0.76rem;
+		font-weight: 650;
+		letter-spacing: 0;
+	}
+
+	.eyebrow {
+		color: #d7f5e8;
+	}
+
 	h1 {
-		font-size: 1.65rem;
-		line-height: 1.1;
+		margin-top: 4px;
+		font-size: clamp(1.2rem, 2.5vw, 2rem);
+		line-height: 1.05;
 	}
 
 	h2 {
-		font-size: 1rem;
-		line-height: 1.2;
-	}
-
-	.save-chip,
-	.save-actions button,
-	.controller-status,
-	.focus-readout {
-		border: 1px solid rgba(184, 213, 197, 0.16);
-		background: rgba(232, 241, 235, 0.06);
+		font-size: 1.15rem;
+		line-height: 1.1;
 	}
 
 	.save-chip {
 		display: grid;
-		gap: 2px;
-		padding: 10px 12px;
+		align-content: center;
 		min-width: 150px;
+		gap: 2px;
+		padding: 12px 14px;
+		background: #f7f3e8;
+		color: #17302a;
 	}
 
 	.save-summary {
@@ -767,68 +823,102 @@
 	.save-actions button {
 		min-height: 38px;
 		padding: 0 14px;
-		border-radius: 8px;
-		color: #ecf5ef;
-		cursor: pointer;
-		font-weight: 850;
-	}
-
-	.save-actions button:not(:disabled):hover {
-		border-color: rgba(201, 245, 106, 0.5);
-		background: rgba(201, 245, 106, 0.12);
-	}
-
-	.save-actions button:disabled {
-		cursor: not-allowed;
-		opacity: 0.45;
-	}
-
-	.save-chip span,
-	.controller-status,
-	.zone-header span,
-	.slot-detail,
-	.focus-readout span,
-	.action-surface p {
-		color: #9fb3aa;
-		font-size: 0.82rem;
+		border-radius: 6px;
+		background: #f5f0dd;
+		color: #1c3c31;
+		font-weight: 650;
+		box-shadow: inset 0 -3px 0 rgba(35, 77, 55, 0.16);
 	}
 
 	.controller-status {
-		padding: 10px 12px;
 		max-width: 260px;
+		align-content: center;
+		padding: 12px 14px;
+		background: #f7f3e8;
+		color: #17302a;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.save-actions button:not(:disabled):hover,
+	.box-switcher button:hover,
+	.party-toggle:hover,
+	.slot-context button:hover,
+	.slot-context button:focus-visible {
+		background: #fff8dc;
+	}
+
+	.save-actions button:disabled,
+	.slot-context button:disabled {
+		cursor: not-allowed;
+		opacity: 0.62;
+	}
+
+	.status-strip,
+	.error-strip {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 10px 14px;
+		border-color: rgba(37, 153, 125, 0.2);
+		background: rgba(246, 251, 243, 0.82);
+		color: #17302a;
+	}
+
+	.error-strip {
+		border-color: rgba(176, 61, 61, 0.36);
+		background: rgba(255, 236, 232, 0.92);
+		color: #6f2020;
 	}
 
 	.storage-workspace {
 		position: relative;
 		display: grid;
 		grid-template-rows: 1fr auto;
-		gap: 14px;
-		padding: 18px;
+		gap: 12px;
+		padding: 14px;
+		border: 0;
+		border-radius: 14px;
+		background: #f6fbf3;
+		box-shadow: 0 22px 70px rgba(31, 102, 75, 0.24);
 	}
 
 	.grid-shell {
 		display: grid;
-		grid-template-columns: minmax(150px, 0.34fr) minmax(480px, 1fr);
-		gap: 16px;
-		outline: none;
-	}
-
-	.party-zone,
-	.box-zone {
-		outline: none;
-	}
-
-	.party-zone:focus-visible,
-	.box-zone:focus-visible {
-		box-shadow: 0 0 0 3px rgba(143, 208, 181, 0.45);
+		grid-template-areas:
+			'box'
+			'focus'
+			'party';
+		gap: 10px;
+		min-width: 0;
 	}
 
 	.party-zone,
 	.box-zone {
 		min-width: 0;
+		padding: 10px;
+		border: 2px solid rgba(37, 153, 125, 0.24);
+		border-radius: 12px;
+		background: rgba(255, 255, 255, 0.32);
+	}
+
+	.box-zone {
+		grid-area: box;
+	}
+
+	.box-zone {
+		outline: none;
+	}
+
+	.party-zone {
+		grid-area: party;
+		outline: none;
+	}
+
+	.party-zone:focus-visible,
+	.box-zone:focus-visible {
+		box-shadow: 0 0 0 3px rgba(35, 167, 200, 0.24);
 	}
 
 	.zone-header {
@@ -841,145 +931,279 @@
 	}
 
 	.box-header {
-		align-items: flex-start;
+		display: block;
 	}
 
-	.party-list {
+	.box-switcher {
 		display: grid;
-		grid-template-rows: repeat(6, minmax(70px, 1fr));
-		gap: 8px;
+		grid-template-columns: 48px minmax(0, 1fr) 48px;
+		gap: 10px;
+		align-items: center;
+	}
+
+	.box-switcher button,
+	.party-toggle,
+	.slot-context button {
+		min-height: 38px;
+		border-radius: 6px;
+		background: #f5f0dd;
+		color: #1c3c31;
+		font-weight: 650;
+		box-shadow: inset 0 -3px 0 rgba(35, 77, 55, 0.16);
+	}
+
+	.box-switcher button {
+		font-size: 1.4rem;
+	}
+
+	.box-title {
+		display: grid;
+		justify-items: center;
+		padding: 8px 12px;
+		border-radius: 8px;
+		background: linear-gradient(180deg, #fffbf0, #d9d1bc);
 	}
 
 	.box-grid {
 		display: grid;
-		grid-template-columns: repeat(6, minmax(76px, 1fr));
-		grid-template-rows: repeat(5, minmax(82px, 1fr));
-		gap: 8px;
-		min-width: 520px;
+		grid-template-columns: repeat(6, minmax(52px, 1fr));
+		grid-template-rows: repeat(5, minmax(64px, 1fr));
+		gap: 7px;
+	}
+
+	.party-header > div {
+		display: flex;
+		align-items: baseline;
+		gap: 10px;
+	}
+
+	.party-toggle {
+		min-height: 30px;
+		padding: 0 11px;
+		background: rgba(32, 100, 68, 0.1);
+		box-shadow: none;
+	}
+
+	.party-list {
+		display: grid;
+		grid-template-columns: repeat(6, minmax(96px, 1fr));
+		gap: 7px;
+	}
+
+	.party-zone.collapsed .party-list {
+		display: none;
+	}
+
+	.slot-cell {
+		position: relative;
+		width: 100%;
+		min-width: 0;
+		height: 100%;
+		min-height: 0;
+	}
+
+	.slot-cell.selected {
+		z-index: 12;
 	}
 
 	.slot {
+		position: relative;
 		width: 100%;
 		height: 100%;
 		min-width: 0;
 		display: grid;
+		grid-template-columns: 34px minmax(0, 1fr);
 		grid-template-rows: auto 1fr auto;
-		gap: 4px;
-		padding: 10px;
-		border: 1px solid rgba(184, 213, 197, 0.16);
-		border-radius: 8px;
-		color: #ecf5ef;
+		gap: 4px 7px;
+		align-items: center;
+		padding: 7px;
+		border: 2px solid rgba(28, 84, 57, 0.22);
+		border-radius: 7px;
+		background: rgba(236, 255, 225, 0.58);
+		color: #17302a;
 		text-align: left;
-		background: rgba(232, 241, 235, 0.055);
-		cursor: pointer;
 		transition:
 			border-color 120ms ease,
 			background 120ms ease,
 			transform 120ms ease;
 	}
 
+	.box-slot {
+		grid-template-columns: 1fr;
+		justify-items: center;
+		text-align: center;
+	}
+
 	.slot:hover {
-		border-color: rgba(143, 208, 181, 0.5);
-		background: rgba(232, 241, 235, 0.09);
+		border-color: rgba(35, 167, 200, 0.42);
+		background: rgba(246, 255, 238, 0.82);
 	}
 
 	.slot.focused {
-		border-color: #c9f56a;
-		background:
-			linear-gradient(135deg, rgba(201, 245, 106, 0.2), rgba(143, 208, 181, 0.08)),
-			rgba(232, 241, 235, 0.08);
+		border-color: #fff3a4;
+		background: #fff8c5;
 		box-shadow:
-			0 0 0 2px rgba(201, 245, 106, 0.24),
-			inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+			0 0 0 3px #23a7c8,
+			inset 0 0 0 2px #fff;
 		transform: translateY(-1px);
 	}
 
+	.slot.empty {
+		border-style: dashed;
+		background: rgba(248, 255, 242, 0.26);
+		color: rgba(24, 58, 49, 0.58);
+	}
+
 	.slot-number {
-		color: #8fd0b5;
-		font-size: 0.72rem;
-		font-weight: 800;
+		position: absolute;
+		top: 4px;
+		left: 5px;
+		color: rgba(24, 58, 49, 0.62);
+		font-size: 0.62rem;
+		font-weight: 900;
+	}
+
+	.slot-sprite {
+		width: 29px;
+		aspect-ratio: 1;
+		border-radius: 45% 55% 48% 52%;
+		background:
+			radial-gradient(circle at 36% 30%, rgba(255, 255, 255, 0.9) 0 14%, transparent 15%),
+			#9aa5a0;
+		box-shadow:
+			inset -4px -5px 0 rgba(0, 0, 0, 0.16),
+			0 2px 0 rgba(23, 68, 42, 0.2);
+	}
+
+	.slot.empty .slot-sprite {
+		background: transparent;
+		box-shadow: inset 0 0 0 2px rgba(34, 88, 64, 0.18);
+	}
+
+	.slot-label,
+	.slot-detail {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.slot-label {
-		align-self: center;
-		min-width: 0;
-		overflow-wrap: anywhere;
-		font-weight: 800;
-	}
-
-	.slot.empty .slot-label {
-		color: #aebcb5;
 		font-weight: 650;
 	}
 
-	.box-switcher,
-	.action-buttons {
-		display: flex;
-		gap: 8px;
+	.slot-detail {
+		font-size: 0.76rem;
 	}
 
-	.box-switcher button,
-	.action-buttons button {
-		min-height: 36px;
-		border: 1px solid rgba(184, 213, 197, 0.18);
+	.box-slot .slot-label,
+	.box-slot .slot-detail {
+		max-width: 100%;
+	}
+
+	.slot-context {
+		position: absolute;
+		top: calc(100% + 6px);
+		left: 50%;
+		z-index: 20;
+		width: min(156px, calc(100vw - 24px));
+		display: grid;
+		gap: 4px;
+		padding: 6px;
+		border: 1px solid rgba(12, 47, 35, 0.42);
 		border-radius: 8px;
-		background: rgba(232, 241, 235, 0.08);
-		color: #ecf5ef;
-		cursor: pointer;
-		font-weight: 800;
+		background: rgba(18, 52, 42, 0.98);
+		box-shadow: 0 14px 28px rgba(18, 52, 42, 0.28);
+		transform: translateX(-50%);
 	}
 
-	.box-switcher button {
-		aspect-ratio: 1;
-		width: 40px;
+	.slot-context.align-start {
+		left: 0;
+		transform: none;
 	}
 
-	.box-switcher button:disabled,
-	.action-buttons button:disabled {
-		cursor: not-allowed;
-		opacity: 0.45;
+	.slot-context.align-end {
+		right: 0;
+		left: auto;
+		transform: none;
+	}
+
+	.slot-context-location {
+		margin: 0 0 2px;
+		color: #f6fbf3;
+	}
+
+	.slot-context button {
+		width: 100%;
+		min-height: 34px;
+		padding: 0 12px;
+		text-align: left;
+		box-shadow: none;
 	}
 
 	.focus-readout {
+		grid-area: focus;
+		justify-self: center;
+		z-index: 3;
 		display: grid;
-		gap: 4px;
-		padding: 12px;
+		place-items: center;
+		width: min(340px, calc(100vw - 24px));
+		padding: 8px 12px;
+		border: 2px solid rgba(12, 47, 35, 0.28);
+		border-radius: 12px;
+		background: rgba(11, 43, 34, 0.84);
+		backdrop-filter: blur(8px);
+		color: #f6fbf3;
+		box-shadow: 0 14px 40px rgba(12, 47, 35, 0.24);
 	}
 
-	.action-surface {
-		position: fixed;
-		right: 24px;
-		bottom: 24px;
-		width: min(360px, calc(100vw - 48px));
-		display: grid;
-		gap: 16px;
-		padding: 18px;
-		z-index: 10;
+	.focus-readout strong {
+		font-size: 1rem;
+		line-height: 1.2;
+		text-align: center;
 	}
 
-	.action-surface h2 {
-		font-size: 1.25rem;
-	}
-
-	.action-buttons button {
-		padding: 0 14px;
-	}
-
-	@media (max-width: 860px) {
+	@media (max-width: 920px) {
 		.app-shell {
-			padding: 12px;
+			padding: 10px;
 		}
 
 		.status-rail {
 			grid-template-columns: 1fr;
 		}
 
-		.grid-shell {
+		.save-actions {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.save-chip,
+		.controller-status {
+			min-width: 0;
+		}
+
+		.box-grid {
+			grid-template-columns: repeat(6, minmax(44px, 1fr));
+			grid-auto-rows: minmax(58px, 1fr);
+			gap: 5px;
+		}
+
+		.party-list {
 			grid-template-columns: 1fr;
 		}
 
-		.box-zone {
-			overflow-x: auto;
+		.slot {
+			padding: 5px;
+		}
+
+		.box-slot .slot-label,
+		.box-slot .slot-detail {
+			display: none;
+		}
+
+		.focus-readout {
+			width: min(300px, calc(100vw - 20px));
+			padding: 7px 10px;
 		}
 	}
 </style>
