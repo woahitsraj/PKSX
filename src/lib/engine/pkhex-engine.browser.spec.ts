@@ -4,7 +4,7 @@ import { createPkhexEngine } from './pkhex-engine';
 
 describe('PKHeX Engine browser runtime smoke', () => {
 	test('parses the Emerald Save File fixture through the published browser-wasm bundle', async () => {
-		expect.assertions(9);
+		expect.assertions(12);
 
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
@@ -73,5 +73,29 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		});
 		expect(slots.value[29]).toMatchObject({ box: 0, slot: 29 });
 		expect(fixtureBytes.byteLength).toBe(131088);
+
+		const workspace = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
+		expect(workspace).toMatchObject({
+			ok: true,
+			value: {
+				summary: { saveType: 'SAV3E', partyCount: 5, boxCount: 14 },
+				partySlots: expect.arrayContaining([
+					expect.objectContaining({ slot: 0, speciesId: expect.any(Number) })
+				]),
+				boxSlots: expect.arrayContaining([
+					expect.objectContaining({ box: 0, slot: 0, speciesId: 304 })
+				])
+			}
+		});
+
+		const serialized = await engine.serializeSave(fixtureBytes, '011020251345.sav');
+		expect(serialized).toMatchObject({
+			ok: true,
+			value: { byteLength: 131088 }
+		});
+		if (!serialized.ok) {
+			throw new Error('Expected fixture serialization to succeed.');
+		}
+		expect(serialized.value.bytesBase64.length).toBeGreaterThan(0);
 	});
 });

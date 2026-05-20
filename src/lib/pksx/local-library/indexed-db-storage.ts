@@ -83,6 +83,23 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 		}
 	}
 
+	async listSaves(): Promise<StoredSaveFile[]> {
+		const database = await openLocalLibraryDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction(saveFilesStore, 'readonly');
+			const saveFiles = await requestToPromise<StoredSaveFile[]>(
+				transaction.objectStore(saveFilesStore).getAll()
+			);
+			await transactionDone(transaction);
+
+			return saveFiles
+				.map((saveFile) => ({ ...saveFile }))
+				.sort((left, right) => right.importedAt.localeCompare(left.importedAt));
+		} finally {
+			database.close();
+		}
+	}
+
 	async getSaveBytes(saveFileId: SaveFileId): Promise<Uint8Array | null> {
 		const database = await openLocalLibraryDatabase(this.#databaseName);
 		try {

@@ -4,6 +4,8 @@ import type {
 	EngineError,
 	EngineResult,
 	EngineVersion,
+	SaveWorkspace,
+	SerializedSave,
 	SaveSummary
 } from './types';
 import {
@@ -137,6 +139,34 @@ export function createPkhexWorkerEngine(
 				},
 				[buffer]
 			);
+		},
+		loadSaveWorkspace: (bytes, fileName, box) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'loadSaveWorkspace',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'loadSaveWorkspace',
+					payload: { bytes: buffer, fileName, box }
+				},
+				[buffer]
+			);
+		},
+		serializeSave: (bytes, fileName) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'serializeSave',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'serializeSave',
+					payload: { bytes: buffer, fileName }
+				},
+				[buffer]
+			);
 		}
 	};
 
@@ -151,6 +181,16 @@ export function createPkhexWorkerEngine(
 		request: Extract<EngineWorkerRequest, { method: 'listBoxSlots' }>,
 		transfer: Transferable[]
 	): Promise<EngineResult<BoxSlotSummary[]>>;
+	async function sendRequest(
+		method: 'loadSaveWorkspace',
+		request: Extract<EngineWorkerRequest, { method: 'loadSaveWorkspace' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<SaveWorkspace>>;
+	async function sendRequest(
+		method: 'serializeSave',
+		request: Extract<EngineWorkerRequest, { method: 'serializeSave' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<SerializedSave>>;
 	async function sendRequest(
 		method: EngineWorkerMethod,
 		request: EngineWorkerRequest = { type: 'request', id: createRequestId(), method: 'getVersion' },

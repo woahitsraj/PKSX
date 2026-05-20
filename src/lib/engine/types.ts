@@ -46,6 +46,19 @@ export type BoxSlotSummary = {
 	isEmpty: boolean;
 };
 
+export type PartySlotSummary = Omit<BoxSlotSummary, 'box'>;
+
+export type SaveWorkspace = {
+	summary: SaveSummary;
+	partySlots: PartySlotSummary[];
+	boxSlots: BoxSlotSummary[];
+};
+
+export type SerializedSave = {
+	bytesBase64: string;
+	byteLength: number;
+};
+
 export type EngineApi = {
 	getVersion(): Promise<EngineResult<EngineVersion>>;
 	summarizeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SaveSummary>>;
@@ -54,4 +67,10 @@ export type EngineApi = {
 		fileName: string | undefined,
 		box: number
 	): Promise<EngineResult<BoxSlotSummary[]>>;
+	loadSaveWorkspace(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		box: number
+	): Promise<EngineResult<SaveWorkspace>>;
+	serializeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SerializedSave>>;
 };

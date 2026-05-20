@@ -1,4 +1,14 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import {
+		base64ToBytes,
+		createPkhexWorkerEngine,
+		type EngineApi,
+		type EngineError,
+		type PartySlotSummary,
+		type BoxSlotSummary,
+		type SaveWorkspace
+	} from '$lib/engine';
 	import {
 		applyNavigationAction,
 		BOX_COLUMNS,
@@ -12,47 +22,79 @@
 		type BoxNavigationState,
 		type NavigationAction
 	} from '$lib/pksx/box-navigation';
+	import { IndexedDbLocalLibraryStorage, type StoredSaveFile } from '$lib/pksx/local-library';
 
-	type SlotFixture = {
+	type SlotView = {
 		slot: number;
 		label: string;
 		detail: string;
 		kind: 'pokemon' | 'empty';
 	};
 
-	const boxCount = 3;
-	const partySlots: SlotFixture[] = Array.from({ length: PARTY_SLOT_COUNT }, (_, slot) => ({
+	type LoadedSave = {
+		file: StoredSaveFile;
+		bytes: Uint8Array;
+		workspace: SaveWorkspace;
+	};
+
+	const placeholderBoxCount = 3;
+	const storage = new IndexedDbLocalLibraryStorage();
+
+	const placeholderPartySlots: SlotView[] = Array.from({ length: PARTY_SLOT_COUNT }, (_, slot) => ({
 		slot,
 		label: slot === 0 ? 'Lead Slot' : 'Empty',
 		detail: slot === 0 ? 'Fixture party position' : 'Available party position',
 		kind: slot === 0 ? 'pokemon' : 'empty'
 	}));
 
-	const boxSlotsByBox: SlotFixture[][] = Array.from({ length: boxCount }, (_, box) =>
-		Array.from({ length: BOX_SLOT_COUNT }, (_, slot) => {
-			const featured = box === 0 && slot === 0;
-			return {
-				slot,
-				label: featured ? 'Pikachu' : 'Empty',
-				detail: featured ? 'Lv. 5 - fixture data' : `Box ${box + 1} slot ${slot + 1}`,
-				kind: featured ? 'pokemon' : 'empty'
-			};
-		})
+	const placeholderBoxSlotsByBox: SlotView[][] = Array.from(
+		{ length: placeholderBoxCount },
+		(_, box) =>
+			Array.from({ length: BOX_SLOT_COUNT }, (_, slot) => {
+				const featured = box === 0 && slot === 0;
+				return {
+					slot,
+					label: featured ? 'Pikachu' : 'Empty',
+					detail: featured ? 'Lv. 5 - fixture data' : `Box ${box + 1} slot ${slot + 1}`,
+					kind: featured ? 'pokemon' : 'empty'
+				};
+			})
 	);
 
-	let navigation = $state<BoxNavigationState>(createInitialNavigationState(boxCount));
+	let navigation = $state<BoxNavigationState>(createInitialNavigationState(placeholderBoxCount));
 	let gamepadStatus = $state('No controller detected');
+	let loadedSave = $state<LoadedSave | null>(null);
+	let importError = $state<string | null>(null);
+	let statusMessage = $state('Import a Save File to begin.');
+	let busy = $state(false);
+	let engine: EngineApi | null = null;
+	let workspaceLoadRequest = 0;
 
-	const activeBoxSlots = $derived(boxSlotsByBox[navigation.activeBox]);
+	const boxCount = $derived(loadedSave?.workspace.summary.boxCount ?? placeholderBoxCount);
+	const partySlots = $derived(
+		loadedSave ? createPartySlotViews(loadedSave.workspace.partySlots) : placeholderPartySlots
+	);
+	const activeBoxSlots = $derived(
+		loadedSave
+			? createBoxSlotViews(loadedSave.workspace.boxSlots)
+			: placeholderBoxSlotsByBox[navigation.activeBox]
+	);
 	const activeFocusId = $derived(getFocusId(navigation.focus, navigation.activeBox));
 	const focusedSlot = $derived(
 		navigation.focus.zone === 'party'
 			? partySlots[navigation.focus.slot]
 			: activeBoxSlots[navigation.focus.slot]
 	);
+	const saveSummary = $derived(loadedSave?.workspace.summary ?? null);
 
 	function dispatch(action: NavigationAction) {
+		const previousBox = navigation.activeBox;
 		navigation = applyNavigationAction(navigation, action);
+
+		if (loadedSave && navigation.activeBox !== previousBox) {
+			void loadWorkspaceForSave(loadedSave, navigation.activeBox);
+		}
+
 		queueMicrotask(focusActiveGrid);
 	}
 
@@ -203,6 +245,233 @@
 	function isDirectional(action: NavigationAction) {
 		return action === 'up' || action === 'down' || action === 'left' || action === 'right';
 	}
+
+	onMount(() => {
+		engine = createPkhexWorkerEngine('/pkhex-engine');
+		void restoreMostRecentSave();
+	});
+
+	function openImportPicker() {
+		document.getElementById('save-file-input')?.click();
+	}
+
+	async function handleImport(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+
+		if (!file) {
+			return;
+		}
+
+		busy = true;
+		workspaceLoadRequest += 1;
+		importError = null;
+		statusMessage = `Reading ${file.name}...`;
+
+		try {
+			const bytes = new Uint8Array(await file.arrayBuffer());
+			const workspace = await loadWorkspace(bytes, file.name, 0);
+			const stored = await storage.importSave({ bytes, originalFileName: file.name });
+
+			loadedSave = { file: stored, bytes, workspace };
+			navigation = createInitialNavigationState(workspace.summary.boxCount);
+			statusMessage = `${file.name} loaded.`;
+		} catch (error) {
+			importError = getErrorMessage(error);
+			statusMessage = loadedSave ? 'Import failed. Current save remains loaded.' : 'Import failed.';
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function restoreMostRecentSave() {
+		busy = true;
+		workspaceLoadRequest += 1;
+		importError = null;
+
+		try {
+			const [saveFile] = await storage.listSaves();
+
+			if (!saveFile) {
+				statusMessage = 'Import a Save File to begin.';
+				return;
+			}
+
+			const bytes = await storage.getSaveBytes(saveFile.id);
+			if (!bytes) {
+				statusMessage = 'The most recent Save File is missing its stored bytes.';
+				return;
+			}
+
+			const workspace = await loadWorkspace(bytes, saveFile.originalFileName ?? undefined, 0);
+			loadedSave = { file: saveFile, bytes, workspace };
+			navigation = createInitialNavigationState(workspace.summary.boxCount);
+			statusMessage = `${saveFile.originalFileName ?? 'Save File'} restored from Local Library.`;
+		} catch (error) {
+			importError = getErrorMessage(error);
+			statusMessage = 'Could not restore the most recent Save File.';
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function loadWorkspaceForSave(save: LoadedSave, box: number) {
+		const request = (workspaceLoadRequest += 1);
+		busy = true;
+		importError = null;
+
+		try {
+			const workspace = await loadWorkspace(
+				save.bytes,
+				save.file.originalFileName ?? undefined,
+				box
+			);
+			if (
+				request === workspaceLoadRequest &&
+				navigation.activeBox === box &&
+				loadedSave?.file.id === save.file.id
+			) {
+				loadedSave = { ...save, workspace };
+			}
+		} catch (error) {
+			if (request === workspaceLoadRequest) {
+				importError = getErrorMessage(error);
+			}
+		} finally {
+			if (request === workspaceLoadRequest) {
+				busy = false;
+			}
+		}
+	}
+
+	async function loadWorkspace(bytes: Uint8Array, fileName: string | undefined, box: number) {
+		if (!engine) {
+			throw new Error('The PKHeX Engine is not ready.');
+		}
+
+		const result = await engine.loadSaveWorkspace(bytes, fileName, box);
+
+		if (!result.ok) {
+			throw result.error;
+		}
+
+		return result.value;
+	}
+
+	async function exportLoadedSave() {
+		if (!loadedSave) {
+			return;
+		}
+
+		busy = true;
+		importError = null;
+		statusMessage = 'Serializing Save File...';
+
+		try {
+			const activeEngine = engine;
+			if (!activeEngine) {
+				throw new Error('The PKHeX Engine is not ready.');
+			}
+
+			const result = await activeEngine.serializeSave(
+				loadedSave.bytes,
+				loadedSave.file.originalFileName ?? undefined
+			);
+
+			if (!result.ok) {
+				throw result.error;
+			}
+
+			const bytes = base64ToBytes(result.value.bytesBase64, result.value.byteLength);
+			downloadBytes(bytes, createExportFileName(loadedSave.file.originalFileName));
+			statusMessage = 'Export ready.';
+		} catch (error) {
+			importError = getErrorMessage(error);
+			statusMessage = 'Export failed.';
+		} finally {
+			busy = false;
+		}
+	}
+
+	function downloadBytes(bytes: Uint8Array, fileName: string) {
+		const downloadBytes = new Uint8Array(bytes.byteLength);
+		downloadBytes.set(bytes);
+		const url = URL.createObjectURL(
+			new Blob([downloadBytes.buffer], { type: 'application/octet-stream' })
+		);
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = fileName;
+		document.body.append(link);
+		link.click();
+		link.remove();
+		URL.revokeObjectURL(url);
+	}
+
+	function createExportFileName(fileName: string | null) {
+		if (!fileName) {
+			return 'pksx-export.sav';
+		}
+
+		const lastDot = fileName.lastIndexOf('.');
+		if (lastDot <= 0) {
+			return `${fileName}.pksx`;
+		}
+
+		return `${fileName.slice(0, lastDot)}.pksx${fileName.slice(lastDot)}`;
+	}
+
+	function createPartySlotViews(slots: PartySlotSummary[]): SlotView[] {
+		const slotViews = slots.map((slot) => createSlotView(slot));
+
+		while (slotViews.length < PARTY_SLOT_COUNT) {
+			const slot = slotViews.length;
+			slotViews.push({
+				slot,
+				label: 'Empty',
+				detail: 'Available party position',
+				kind: 'empty'
+			});
+		}
+
+		return slotViews;
+	}
+
+	function createBoxSlotViews(slots: BoxSlotSummary[]): SlotView[] {
+		return slots.map((slot) => createSlotView(slot));
+	}
+
+	function createSlotView(slot: PartySlotSummary | BoxSlotSummary): SlotView {
+		return {
+			slot: slot.slot,
+			label: slot.isEmpty ? 'Empty' : slot.nickname || `Species ${slot.speciesId}`,
+			detail: slot.isEmpty ? 'Available slot' : `Lv. ${slot.level}`,
+			kind: slot.isEmpty ? 'empty' : 'pokemon'
+		};
+	}
+
+	function getErrorMessage(error: unknown) {
+		if (isEngineError(error)) {
+			return error.message;
+		}
+
+		if (error instanceof Error && error.message.length > 0) {
+			return error.message;
+		}
+
+		return 'PKSX could not complete the operation.';
+	}
+
+	function isEngineError(error: unknown): error is EngineError {
+		return (
+			typeof error === 'object' &&
+			error !== null &&
+			'code' in error &&
+			'message' in error &&
+			typeof error.message === 'string'
+		);
+	}
 </script>
 
 <svelte:head>
@@ -215,11 +484,43 @@
 			<p class="eyebrow">PKSX</p>
 			<h1 id="screen-title">Box Storage</h1>
 		</div>
+		<div class="save-actions" aria-label="Save File actions">
+			<input
+				id="save-file-input"
+				class="file-input"
+				type="file"
+				aria-label="Import Save File"
+				onchange={handleImport}
+			/>
+			<button type="button" disabled={busy} onclick={openImportPicker}>Import</button>
+			<button type="button" disabled={busy || !loadedSave} onclick={exportLoadedSave}>Export</button
+			>
+		</div>
 		<div class="save-chip">
-			<span>Fixture save</span>
+			<span>{loadedSave?.file.originalFileName ?? 'No Save File'}</span>
 			<strong>Box {navigation.activeBox + 1}/{boxCount}</strong>
 		</div>
+		{#if saveSummary}
+			<div class="save-chip save-summary">
+				<span>{saveSummary.trainerName ?? 'Unknown trainer'}</span>
+				<strong>
+					Gen {saveSummary.generation} &middot; {saveSummary.partyCount} party &middot; {saveSummary.boxCount}
+					boxes
+				</strong>
+			</div>
+		{/if}
 		<p class="controller-status">{gamepadStatus}</p>
+	</section>
+
+	{#if importError}
+		<section class="error-strip" role="alert">
+			<strong>Import error</strong>
+			<span>{importError}</span>
+		</section>
+	{/if}
+
+	<section class="status-strip" aria-live="polite">
+		<span>{busy ? 'Working...' : statusMessage}</span>
 	</section>
 
 	<section class="storage-workspace" aria-label="Party and box storage">
@@ -285,17 +586,11 @@
 						<span>30 slots</span>
 					</div>
 					<div class="box-switcher" aria-label="Box switcher">
-						<button
-							type="button"
-							aria-label="Previous box"
-							disabled={navigation.activeBox === 0}
-							onclick={() => dispatch('previousBox')}>L</button
+						<button type="button" aria-label="Previous box" onclick={() => dispatch('previousBox')}
+							>L</button
 						>
-						<button
-							type="button"
-							aria-label="Next box"
-							disabled={navigation.activeBox === boxCount - 1}
-							onclick={() => dispatch('nextBox')}>R</button
+						<button type="button" aria-label="Next box" onclick={() => dispatch('nextBox')}
+							>R</button
 						>
 					</div>
 				</div>
@@ -373,11 +668,13 @@
 		min-height: 100vh;
 		padding: 24px;
 		display: grid;
-		grid-template-rows: auto 1fr;
+		grid-template-rows: auto auto auto 1fr;
 		gap: 18px;
 	}
 
 	.status-rail,
+	.status-strip,
+	.error-strip,
 	.storage-workspace,
 	.action-surface {
 		border: 1px solid rgba(184, 213, 197, 0.18);
@@ -387,10 +684,25 @@
 
 	.status-rail {
 		display: grid;
-		grid-template-columns: 1fr auto auto;
+		grid-template-columns: minmax(160px, 1fr) auto auto auto auto;
 		align-items: center;
 		gap: 18px;
 		padding: 18px 20px;
+	}
+
+	.status-strip,
+	.error-strip {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 10px 14px;
+		color: #cddbd4;
+	}
+
+	.error-strip {
+		border-color: rgba(244, 107, 107, 0.45);
+		background: rgba(62, 20, 22, 0.92);
+		color: #ffd4d4;
 	}
 
 	.eyebrow {
@@ -419,6 +731,7 @@
 	}
 
 	.save-chip,
+	.save-actions button,
 	.controller-status,
 	.focus-readout {
 		border: 1px solid rgba(184, 213, 197, 0.16);
@@ -430,6 +743,44 @@
 		gap: 2px;
 		padding: 10px 12px;
 		min-width: 150px;
+	}
+
+	.save-summary {
+		min-width: 220px;
+	}
+
+	.save-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.file-input {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+
+	.save-actions button {
+		min-height: 38px;
+		padding: 0 14px;
+		border-radius: 8px;
+		color: #ecf5ef;
+		cursor: pointer;
+		font-weight: 850;
+	}
+
+	.save-actions button:not(:disabled):hover {
+		border-color: rgba(201, 245, 106, 0.5);
+		background: rgba(201, 245, 106, 0.12);
+	}
+
+	.save-actions button:disabled {
+		cursor: not-allowed;
+		opacity: 0.45;
 	}
 
 	.save-chip span,

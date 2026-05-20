@@ -46,6 +46,28 @@ public sealed record SaveSummary(
             save.BoxSlotCount);
 }
 
+public sealed record PartySlotSummary(
+    int Slot,
+    ushort SpeciesId,
+    byte Form,
+    byte Format,
+    int Level,
+    string Nickname,
+    bool IsEgg,
+    bool IsEmpty)
+{
+    public static PartySlotSummary From(PKM pokemon, int slot) =>
+        new(
+            slot,
+            pokemon.Species,
+            pokemon.Form,
+            pokemon.Format,
+            pokemon.Species == 0 ? 0 : pokemon.CurrentLevel,
+            pokemon.Nickname,
+            pokemon.IsEgg,
+            pokemon.Species == 0);
+}
+
 public sealed record BoxSlotSummary(
     int Box,
     int Slot,
@@ -69,3 +91,10 @@ public sealed record BoxSlotSummary(
             pokemon.IsEgg,
             pokemon.Species == 0);
 }
+
+public sealed record SaveWorkspace(
+    SaveSummary Summary,
+    List<PartySlotSummary> PartySlots,
+    List<BoxSlotSummary> BoxSlots);
+
+public sealed record SerializedSave(string BytesBase64, int ByteLength);

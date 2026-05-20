@@ -2,7 +2,13 @@ import { z } from 'zod/v4';
 
 export const engineWorkerRequestIdSchema = z.string().min(1);
 
-export const engineWorkerMethodSchema = z.enum(['getVersion', 'summarizeSave', 'listBoxSlots']);
+export const engineWorkerMethodSchema = z.enum([
+	'getVersion',
+	'summarizeSave',
+	'listBoxSlots',
+	'loadSaveWorkspace',
+	'serializeSave'
+]);
 
 export const engineWorkerStatusSchema = z.enum(['idle', 'loading', 'ready', 'failed']);
 
@@ -56,6 +62,19 @@ export const boxSlotSummarySchema = z.object({
 	isEmpty: z.boolean()
 });
 
+export const partySlotSummarySchema = boxSlotSummarySchema.omit({ box: true });
+
+export const saveWorkspaceSchema = z.object({
+	summary: saveSummarySchema,
+	partySlots: z.array(partySlotSummarySchema),
+	boxSlots: z.array(boxSlotSummarySchema)
+});
+
+export const serializedSaveSchema = z.object({
+	bytesBase64: z.string(),
+	byteLength: z.number()
+});
+
 const engineResultSchema = <T extends z.ZodType>(valueSchema: T) =>
 	z.discriminatedUnion('ok', [
 		z.object({
@@ -75,6 +94,10 @@ export const engineVersionResultSchema = engineResultSchema(engineVersionSchema)
 export const saveSummaryResultSchema = engineResultSchema(saveSummarySchema);
 
 export const boxSlotSummaryListResultSchema = engineResultSchema(z.array(boxSlotSummarySchema));
+
+export const saveWorkspaceResultSchema = engineResultSchema(saveWorkspaceSchema);
+
+export const serializedSaveResultSchema = engineResultSchema(serializedSaveSchema);
 
 export const engineWorkerInitMessageSchema = z.object({
 	type: z.literal('init'),
@@ -108,10 +131,33 @@ export const engineWorkerListBoxSlotsRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerLoadSaveWorkspaceRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('loadSaveWorkspace'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional(),
+		box: z.number().int()
+	})
+});
+
+export const engineWorkerSerializeSaveRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('serializeSave'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional()
+	})
+});
+
 export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionRequestSchema,
 	engineWorkerSummarizeSaveRequestSchema,
-	engineWorkerListBoxSlotsRequestSchema
+	engineWorkerListBoxSlotsRequestSchema,
+	engineWorkerLoadSaveWorkspaceRequestSchema,
+	engineWorkerSerializeSaveRequestSchema
 ]);
 
 export const engineWorkerGetVersionResponseSchema = z.object({
@@ -135,10 +181,26 @@ export const engineWorkerListBoxSlotsResponseSchema = z.object({
 	result: boxSlotSummaryListResultSchema
 });
 
+export const engineWorkerLoadSaveWorkspaceResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('loadSaveWorkspace'),
+	result: saveWorkspaceResultSchema
+});
+
+export const engineWorkerSerializeSaveResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('serializeSave'),
+	result: serializedSaveResultSchema
+});
+
 export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionResponseSchema,
 	engineWorkerSummarizeSaveResponseSchema,
-	engineWorkerListBoxSlotsResponseSchema
+	engineWorkerListBoxSlotsResponseSchema,
+	engineWorkerLoadSaveWorkspaceResponseSchema,
+	engineWorkerSerializeSaveResponseSchema
 ]);
 
 export const engineWorkerProtocolErrorSchema = z.object({
@@ -182,6 +244,14 @@ export type EngineWorkerSummarizeSaveRequest = z.infer<
 >;
 
 export type EngineWorkerListBoxSlotsRequest = z.infer<typeof engineWorkerListBoxSlotsRequestSchema>;
+
+export type EngineWorkerLoadSaveWorkspaceRequest = z.infer<
+	typeof engineWorkerLoadSaveWorkspaceRequestSchema
+>;
+
+export type EngineWorkerSerializeSaveRequest = z.infer<
+	typeof engineWorkerSerializeSaveRequestSchema
+>;
 
 export type EngineWorkerRequest = z.infer<typeof engineWorkerRequestSchema>;
 

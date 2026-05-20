@@ -39,13 +39,16 @@ describe('box navigation', () => {
 		expect(move({ focus: focusBoxSlot(13) }, 'left').focus).toEqual(focusBoxSlot(12));
 	});
 
-	it('preserves the focused slot coordinate when changing boxes', () => {
-		expect.assertions(4);
+	it('preserves the focused slot coordinate when changing boxes and wraps at edges', () => {
+		expect.assertions(5);
 
 		let state = move({ focus: focusBoxSlot(17), activeBox: 1 }, 'nextBox');
 		expect(state).toMatchObject({ activeBox: 2, focus: focusBoxSlot(17) });
 
 		state = move(state, 'nextBox');
+		expect(state).toMatchObject({ activeBox: 0, focus: focusBoxSlot(17) });
+
+		state = move(state, 'previousBox');
 		expect(state).toMatchObject({ activeBox: 2, focus: focusBoxSlot(17) });
 
 		state = move(state, 'previousBox');

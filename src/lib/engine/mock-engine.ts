@@ -1,4 +1,13 @@
-import type { BoxSlotSummary, EngineApi, EngineResult, EngineVersion, SaveSummary } from './types';
+import type {
+	BoxSlotSummary,
+	EngineApi,
+	EngineResult,
+	EngineVersion,
+	PartySlotSummary,
+	SaveSummary,
+	SaveWorkspace,
+	SerializedSave
+} from './types';
 
 const mockVersion: EngineVersion = {
 	pkhexCoreVersion: 'mock',
@@ -42,6 +51,19 @@ const mockBoxSlots: BoxSlotSummary[] = [
 	}
 ];
 
+const mockPartySlots: PartySlotSummary[] = [
+	{
+		slot: 0,
+		speciesId: 25,
+		form: 0,
+		format: 9,
+		level: 5,
+		nickname: 'Pikachu',
+		isEgg: false,
+		isEmpty: false
+	}
+];
+
 export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi {
 	return {
 		getVersion: async () => success(mockVersion),
@@ -60,10 +82,42 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 
 			return success(mockBoxSlots);
 		},
+		loadSaveWorkspace: async (_bytes, fileName, box) => {
+			if (box !== 0) {
+				return {
+					ok: false,
+					value: null,
+					error: {
+						code: 'invalid-box',
+						message: `Box ${box} is outside the mock save's box range.`
+					}
+				};
+			}
+
+			return success<SaveWorkspace>({
+				summary: { ...mockSaveSummary, fileName },
+				partySlots: mockPartySlots,
+				boxSlots: mockBoxSlots
+			});
+		},
+		serializeSave: async (bytes) =>
+			success<SerializedSave>({
+				bytesBase64: bytesToBase64(bytes),
+				byteLength: bytes.byteLength
+			}),
 		...overrides
 	};
 }
 
 function success<T>(value: T): EngineResult<T> {
 	return { ok: true, value, error: null };
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+	let binary = '';
+	for (const byte of bytes) {
+		binary += String.fromCharCode(byte);
+	}
+
+	return btoa(binary);
 }

@@ -5,6 +5,8 @@ import type {
 	EngineErrorCode,
 	EngineResult,
 	EngineVersion,
+	SaveWorkspace,
+	SerializedSave,
 	SaveSummary
 } from './types';
 
@@ -30,6 +32,8 @@ type DotnetPkhexEngineExports = {
 	GetVersionJson(): string;
 	ParseSaveSmoke(bytes: Uint8Array, fileName?: string): string;
 	ListBoxSmoke(bytes: Uint8Array, fileName: string | undefined, box: number): string;
+	LoadSaveWorkspaceJson(bytes: Uint8Array, fileName: string | undefined, box: number): string;
+	SerializeSaveJson(bytes: Uint8Array, fileName?: string): string;
 };
 
 const knownEngineErrorCodes = new Set<EngineErrorCode>([
@@ -57,7 +61,11 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 		summarizeSave: async (bytes, fileName) =>
 			parseEngineResult<SaveSummary>(engine.ParseSaveSmoke(bytes, fileName)),
 		listBoxSlots: async (bytes, fileName, box) =>
-			parseEngineResult<BoxSlotSummary[]>(engine.ListBoxSmoke(bytes, fileName, box))
+			parseEngineResult<BoxSlotSummary[]>(engine.ListBoxSmoke(bytes, fileName, box)),
+		loadSaveWorkspace: async (bytes, fileName, box) =>
+			parseEngineResult<SaveWorkspace>(engine.LoadSaveWorkspaceJson(bytes, fileName, box)),
+		serializeSave: async (bytes, fileName) =>
+			parseEngineResult<SerializedSave>(engine.SerializeSaveJson(bytes, fileName))
 	};
 }
 

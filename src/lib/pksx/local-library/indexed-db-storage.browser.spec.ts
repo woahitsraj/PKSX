@@ -69,6 +69,35 @@ describe('IndexedDbLocalLibraryStorage', () => {
 		expect(bytesEqual(exportedAgain ?? new Uint8Array(), originalBytes)).toBe(true);
 	});
 
+	it('lists the most recently imported save first', async () => {
+		ids = ['older-save', 'newer-save'];
+		storage = new IndexedDbLocalLibraryStorage({
+			databaseName,
+			idFactory: () => {
+				const id = ids.shift();
+				if (!id) {
+					throw new Error('Test id sequence exhausted');
+				}
+				return id;
+			},
+			now: (() => {
+				const timestamps = ['2026-05-16T12:00:00.000Z', '2026-05-16T13:00:00.000Z'];
+				return () => timestamps.shift() ?? '2026-05-16T14:00:00.000Z';
+			})()
+		});
+
+		const older = await storage.importSave({
+			bytes: new Uint8Array([1]),
+			originalFileName: 'older.sav'
+		});
+		const newer = await storage.importSave({
+			bytes: new Uint8Array([2]),
+			originalFileName: 'newer.sav'
+		});
+
+		await expect(storage.listSaves()).resolves.toStrictEqual([newer, older]);
+	});
+
 	it('creates and lists backup metadata for a save file', async () => {
 		const saveFile = await storage.importSave({
 			bytes: new Uint8Array([1, 3, 3, 7]),
