@@ -4,7 +4,7 @@ import type { EngineApi } from './types';
 
 describe('createMockEngine', () => {
 	test('implements the async EngineApi contract', async () => {
-		expect.assertions(6);
+		expect.assertions(8);
 
 		const engine: EngineApi = createMockEngine();
 
@@ -37,6 +37,23 @@ describe('createMockEngine', () => {
 		expect(slots.value).toEqual(
 			expect.arrayContaining([expect.objectContaining({ box: 0, slot: 0, speciesId: 25 })])
 		);
+
+		const workspace = await engine.loadSaveWorkspace(new Uint8Array(), 'main', 0);
+		expect(workspace).toMatchObject({
+			ok: true,
+			value: {
+				summary: { fileName: 'main' },
+				partySlots: expect.arrayContaining([expect.objectContaining({ slot: 0, speciesId: 25 })]),
+				boxSlots: expect.arrayContaining([
+					expect.objectContaining({ box: 0, slot: 0, speciesId: 25 })
+				])
+			}
+		});
+
+		await expect(engine.serializeSave(new Uint8Array([1, 2, 3]), 'main')).resolves.toMatchObject({
+			ok: true,
+			value: { bytesBase64: 'AQID', byteLength: 3 }
+		});
 	});
 
 	test('returns a typed failure for an invalid box', async () => {

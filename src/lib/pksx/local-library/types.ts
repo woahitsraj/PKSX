@@ -31,6 +31,7 @@ export type CreateBackupInput = {
 export type LocalLibraryStorage = {
 	importSave(input: ImportSaveInput): Promise<StoredSaveFile>;
 	getSave(saveFileId: SaveFileId): Promise<StoredSaveFile | null>;
+	listSaves(): Promise<StoredSaveFile[]>;
 	getSaveBytes(saveFileId: SaveFileId): Promise<Uint8Array | null>;
 	createBackup(input: CreateBackupInput): Promise<BackupMetadata>;
 	listBackups(saveFileId: SaveFileId): Promise<BackupMetadata[]>;

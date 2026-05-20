@@ -1,13 +1,22 @@
 import { parseEngineResult } from './pkhex-engine';
-import type { BoxSlotSummary, EngineResult, EngineVersion, SaveSummary } from './types';
+import type {
+	BoxSlotSummary,
+	EngineResult,
+	EngineVersion,
+	SaveSummary,
+	SaveWorkspace,
+	SerializedSave
+} from './types';
 import {
 	createEngineWorkerProtocolError,
 	createEngineWorkerResponse,
 	parseEngineWorkerInitMessage,
 	parseEngineWorkerRequest,
+	type EngineWorkerLoadSaveWorkspaceRequest,
 	type EngineWorkerListBoxSlotsRequest,
 	type EngineWorkerMessage,
 	type EngineWorkerRequest,
+	type EngineWorkerSerializeSaveRequest,
 	type EngineWorkerStatusMessage,
 	type EngineWorkerSummarizeSaveRequest
 } from './worker-protocol';
@@ -16,6 +25,8 @@ export type DotnetPkhexEngineExports = {
 	GetVersionJson(): string;
 	ParseSaveSmoke(bytes: Uint8Array, fileName?: string): string;
 	ListBoxSmoke(bytes: Uint8Array, fileName: string | undefined, box: number): string;
+	LoadSaveWorkspaceJson(bytes: Uint8Array, fileName: string | undefined, box: number): string;
+	SerializeSaveJson(bytes: Uint8Array, fileName?: string): string;
 };
 
 export type PkhexEngineWorkerRuntimeOptions = {
@@ -106,6 +117,12 @@ export function createPkhexEngineWorkerRuntime({
 			case 'listBoxSlots':
 				postMessage(createEngineWorkerResponse(request, listBoxSlots(engine, request)));
 				return;
+			case 'loadSaveWorkspace':
+				postMessage(createEngineWorkerResponse(request, loadSaveWorkspace(engine, request)));
+				return;
+			case 'serializeSave':
+				postMessage(createEngineWorkerResponse(request, serializeSave(engine, request)));
+				return;
 		}
 	}
 
@@ -150,6 +167,28 @@ function listBoxSlots(
 	);
 }
 
+function loadSaveWorkspace(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerLoadSaveWorkspaceRequest
+): EngineResult<SaveWorkspace> {
+	return parseEngineResult<SaveWorkspace>(
+		engine.LoadSaveWorkspaceJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			request.payload.box
+		)
+	);
+}
+
+function serializeSave(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerSerializeSaveRequest
+): EngineResult<SerializedSave> {
+	return parseEngineResult<SerializedSave>(
+		engine.SerializeSaveJson(new Uint8Array(request.payload.bytes), request.payload.fileName)
+	);
+}
+
 function unavailableResult(request: EngineWorkerRequest) {
 	const result = {
 		ok: false,
@@ -167,6 +206,10 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<SaveSummary>;
 		case 'listBoxSlots':
 			return result satisfies EngineResult<BoxSlotSummary[]>;
+		case 'loadSaveWorkspace':
+			return result satisfies EngineResult<SaveWorkspace>;
+		case 'serializeSave':
+			return result satisfies EngineResult<SerializedSave>;
 	}
 }
 

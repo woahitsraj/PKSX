@@ -65,9 +65,9 @@ export function applyNavigationAction(
 		case 'confirm':
 			return { ...state, actionSurfaceOpen: true };
 		case 'previousBox':
-			return { ...state, activeBox: Math.max(0, state.activeBox - 1) };
+			return { ...state, activeBox: wrapBoxIndex(state.activeBox - 1, state.boxCount) };
 		case 'nextBox':
-			return { ...state, activeBox: Math.min(state.boxCount - 1, state.activeBox + 1) };
+			return { ...state, activeBox: wrapBoxIndex(state.activeBox + 1, state.boxCount) };
 		case 'back':
 			return state;
 	}
@@ -142,4 +142,9 @@ function moveRight(focus: ControllerFocus): ControllerFocus {
 
 function clamp(value: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, value));
+}
+
+function wrapBoxIndex(value: number, boxCount: number): number {
+	const count = Math.max(1, boxCount);
+	return ((value % count) + count) % count;
 }

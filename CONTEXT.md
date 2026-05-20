@@ -8,6 +8,10 @@ PKSX is an offline-first Pokemon save management app that uses PKHeX-compatible 
 A Pokemon save artifact loaded into PKSX for inspection, backup, editing, and export.
 _Avoid_: ROM, game file
 
+**Supported Save File**:
+A Save File that the current PKSX milestone intentionally accepts as in scope.
+_Avoid_: any save, all generations
+
 **Pokemon Entity**:
 A single Pokemon data object contained in a save file, party, box, bank, or import file.
 _Avoid_: monster, creature, record
@@ -63,12 +67,18 @@ _Avoid_: key event, button event
 ## Relationships
 
 - A **Save File** contains zero or one **Party** and zero or more **Boxes**.
+- A **Supported Save File** is a **Save File** that can be loaded through the **PKHeX Engine** for the current milestone.
+- For the first tracer bullet, the committed Pokemon Emerald fixture is the only required **Supported Save File**.
+- A **Save File** is accepted into the **Local Library** only after the **PKHeX Engine** recognizes it as a **Supported Save File**.
+- Until PKSX has a **Local Library** browser, the most recently imported **Save File** is the active **Save File** after reload.
+- Importing the same user-controlled file more than once creates separate **Save File** artifacts in the **Local Library**.
 - A **Party** contains one or more **Slots**.
 - A **Box** contains zero or more **Slots**.
 - A **Slot** contains zero or one **Pokemon Entity**.
 - The **Local Library** stores imported **Save File** artifacts, **Backups**, and app-managed Pokemon collections.
 - The **PKHeX Engine** exposes a **Facade** consumed by the Svelte app.
 - **Export** writes data from the **Local Library** back to user-controlled storage.
+- **Export** names should keep a recognizable connection to the imported **Save File** while distinguishing the exported artifact from the source file.
 - **Controller Focus** belongs to exactly one **Focus Zone** at a time.
 - Mouse and pointer input may move **Controller Focus**, but hover alone is not **Controller Focus**.
 - Clicking a **Slot** moves **Controller Focus** to that **Slot** without opening its **Slot Action Surface**.
@@ -85,4 +95,5 @@ _Avoid_: key event, button event
 - Shoulder navigation preserves the active **Box** slot coordinate when **Controller Focus** is inside a **Box**.
 - The box-first shell may use placeholder **Slot** contents, but placeholders must remain visibly distinct from parsed save data.
 - The box-first shell can prove navigation with local fixture **Slots** before loading **Save File** data through the **PKHeX Engine**.
+- After a **Supported Save File** is loaded, visible **Party** and **Box** **Slots** represent parsed save data instead of placeholder contents.
 - Box-first navigation rules are domain interaction rules and should be testable outside the Svelte view.
