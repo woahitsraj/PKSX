@@ -572,15 +572,11 @@
 						<span>30 slots</span>
 					</div>
 					<div class="box-switcher" aria-label="Box switcher">
-						<button
-							type="button"
-							aria-label="Previous box"
-							onclick={() => dispatch('previousBox')}>L</button
+						<button type="button" aria-label="Previous box" onclick={() => dispatch('previousBox')}
+							>L</button
 						>
-						<button
-							type="button"
-							aria-label="Next box"
-							onclick={() => dispatch('nextBox')}>R</button
+						<button type="button" aria-label="Next box" onclick={() => dispatch('nextBox')}
+							>R</button
 						>
 					</div>
 				</div>
