@@ -68,6 +68,7 @@
 	let statusMessage = $state('Import a Save File to begin.');
 	let busy = $state(false);
 	let engine: EngineApi | null = null;
+	let workspaceLoadRequest = 0;
 
 	const boxCount = $derived(loadedSave?.workspace.summary.boxCount ?? placeholderBoxCount);
 	const partySlots = $derived(
@@ -264,6 +265,7 @@
 		}
 
 		busy = true;
+		workspaceLoadRequest += 1;
 		importError = null;
 		statusMessage = `Reading ${file.name}...`;
 
@@ -285,6 +287,7 @@
 
 	async function restoreMostRecentSave() {
 		busy = true;
+		workspaceLoadRequest += 1;
 		importError = null;
 
 		try {
@@ -314,6 +317,7 @@
 	}
 
 	async function loadWorkspaceForSave(save: LoadedSave, box: number) {
+		const request = (workspaceLoadRequest += 1);
 		busy = true;
 		importError = null;
 
@@ -323,11 +327,21 @@
 				save.file.originalFileName ?? undefined,
 				box
 			);
-			loadedSave = { ...save, workspace };
+			if (
+				request === workspaceLoadRequest &&
+				navigation.activeBox === box &&
+				loadedSave?.file.id === save.file.id
+			) {
+				loadedSave = { ...save, workspace };
+			}
 		} catch (error) {
-			importError = getErrorMessage(error);
+			if (request === workspaceLoadRequest) {
+				importError = getErrorMessage(error);
+			}
 		} finally {
-			busy = false;
+			if (request === workspaceLoadRequest) {
+				busy = false;
+			}
 		}
 	}
 
