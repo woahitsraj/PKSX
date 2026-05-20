@@ -32,9 +32,53 @@ _Avoid_: card, tile
 The app-managed durable collection of imported save file artifacts, backups, and future bank data.
 _Avoid_: cloud account, server library
 
+**Pokemon Storage**:
+The app-managed durable collection of Pokemon Entities that are not currently owned by a Save File. Pokemon Storage lives inside the Local Library and is intended for Bank/Home-style transfer workflows.
+_Avoid_: temporary storage, bank when referring to the app-level collection
+
+**Storage Box**:
+A numbered app-owned storage grid inside Pokemon Storage.
+_Avoid_: save box, PC box
+
+**Pokemon Provenance**:
+Historical metadata describing where a Pokemon Entity entered PKSX, such as the source Save File, source game, source trainer, entry time, and whether it entered through move, copy, import, or transfer.
+_Avoid_: ownership, current location
+
+**Legality Check**:
+A PKHeX Engine evaluation of whether a Pokemon Entity is valid for its species, game, encounter, moves, met data, and current format.
+_Avoid_: validation when referring specifically to Pokemon legality
+
+**Legality Report**:
+The user-facing result of a Legality Check, including pass/fail status, warnings, and fixable problems.
+_Avoid_: raw legality output
+
+**Legality Fix**:
+An engine-backed mutation that attempts to repair one or more fixable problems from a Legality Report.
+_Avoid_: auto-fix when implying a guaranteed or silent repair
+
+**Pokemon Action**:
+A user-invoked operation on a Pokemon Entity, such as move, copy, evolve, export, Legality Check, or Legality Fix.
+_Avoid_: button when referring to the domain operation
+
+**Sprite Catalog**:
+The offline app-packaged mapping from Pokemon display identity to local visual assets used in party, box, and Pokemon Storage views.
+_Avoid_: remote sprites, CDN images
+
+**Peer Transfer**:
+A live connection between two PKSX instances for sending Pokemon Entities or Storage Boxes without requiring cloud sync.
+_Avoid_: cloud sync, account sync
+
 **Backup**:
 A restorable snapshot of save file bytes created before a risky operation.
 _Avoid_: copy, version, checkpoint, undo
+
+**Workspace**:
+The in-app editing state for a loaded Save File before it is exported back to user-controlled storage.
+_Avoid_: open file, session when referring to editable save state
+
+**Dirty Workspace**:
+A Workspace containing user-applied changes that have not yet been exported.
+_Avoid_: unsaved file
 
 **Export**:
 An explicit user action that writes a save file or Pokemon entity out of PKSX.
@@ -75,9 +119,27 @@ _Avoid_: key event, button event
 - A **Party** contains one or more **Slots**.
 - A **Box** contains zero or more **Slots**.
 - A **Slot** contains zero or one **Pokemon Entity**.
-- The **Local Library** stores imported **Save File** artifacts, **Backups**, and app-managed Pokemon collections.
+- The **Local Library** stores imported **Save File** artifacts, **Backups**, and **Pokemon Storage**.
+- A **Workspace** belongs to one loaded **Save File**.
+- A **Dirty Workspace** belongs to one **Workspace**.
+- A **Backup** is created before risky changes to a **Workspace**.
+- **Pokemon Storage** contains **Pokemon Entities** that are outside any **Save File**.
+- **Pokemon Storage** contains one or more **Storage Boxes**.
+- A **Storage Box** contains zero or more **Slots**.
+- A **Storage Box** is owned by PKSX, not by any **Save File**.
+- A **Pokemon Entity** may have **Pokemon Provenance** even when its original **Save File** is no longer in the **Local Library**.
+- **Pokemon Provenance** records historical origin; it does not determine the current owner or location of a **Pokemon Entity**.
+- A **Legality Check** evaluates one **Pokemon Entity**.
+- A **Legality Report** is produced by a **Legality Check**.
+- A **Legality Fix** is based on a **Legality Report** and must be explicitly applied by the user.
+- A **Pokemon Action** applies to one **Pokemon Entity**.
+- The **Sprite Catalog** provides offline visual assets for **Pokemon Entities**.
+- A **Peer Transfer** sends **Pokemon Entities** or **Storage Boxes** between PKSX instances.
+- A **Pokemon Entity** received through **Peer Transfer** enters **Pokemon Storage** before it can be moved into a **Save File**.
 - The **PKHeX Engine** exposes a **Facade** consumed by the Svelte app.
 - **Export** writes data from the **Local Library** back to user-controlled storage.
+- Moving a **Pokemon Entity** from a **Save File** to **Pokemon Storage** removes it from the source **Slot**.
+- Copying a **Pokemon Entity** from a **Save File** to **Pokemon Storage** leaves the source **Slot** unchanged.
 - **Export** names should keep a recognizable connection to the imported **Save File** while distinguishing the exported artifact from the source file.
 - **Controller Focus** belongs to exactly one **Focus Zone** at a time.
 - Mouse and pointer input may move **Controller Focus**, but hover alone is not **Controller Focus**.
