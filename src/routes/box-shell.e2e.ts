@@ -20,6 +20,7 @@ async function openEmptyLibrary(page: Page) {
 			})
 	);
 	await page.reload();
+	await page.waitForLoadState('networkidle');
 	await expect(page.getByText('Import a Save File to begin.')).toBeVisible({ timeout: 15000 });
 }
 
