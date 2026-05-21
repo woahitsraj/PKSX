@@ -44,6 +44,9 @@ jobs:
       - name: Unit tests
         run: pnpm test:unit -- --run
 
+      - name: End-to-end tests
+        run: pnpm test:e2e
+
   pkhex-engine:
     name: PKHeX Engine publish
     runs-on: ubuntu-latest
