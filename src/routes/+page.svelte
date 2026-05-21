@@ -28,6 +28,8 @@
 		slot: number;
 		label: string;
 		detail: string;
+		level: number | null;
+		speciesId: number | null;
 		kind: 'pokemon' | 'empty';
 	};
 
@@ -40,10 +42,60 @@
 	const placeholderBoxCount = 3;
 	const storage = new IndexedDbLocalLibraryStorage();
 
+	const slotPalette = [16, 28, 48, 100, 140, 180, 195, 210, 220, 260, 280, 295, 330, 52];
+	const placeholderBoxNames = [
+		'Starters',
+		'Cinder Pass',
+		'Reef Trial',
+		'Sunroom',
+		'Hex Lab',
+		'Vault A',
+		'Trades',
+		'Breed Pool',
+		'Shiny Den'
+	];
+	const sectionPills = ['Boxes', 'Editor', 'Saves'];
+	const mobileTabs = [
+		{ key: 'boxes', label: 'Boxes', glyph: '▦' },
+		{ key: 'editor', label: 'Editor', glyph: '✎' },
+		{ key: 'saves', label: 'Saves', glyph: '☁' }
+	];
+
+	function slotHue(box: number, slot: number, speciesId: number | null): number {
+		const seed = speciesId && speciesId > 0 ? speciesId : slot * 31 + box * 7;
+		return slotPalette[seed % slotPalette.length];
+	}
+
+	function slotHueSecondary(box: number, slot: number, speciesId: number | null): number | null {
+		const seed = speciesId && speciesId > 0 ? speciesId : slot * 31 + box * 7;
+		if (seed % 3 !== 0) return null;
+		const offset = ((seed * 7) % (slotPalette.length - 1)) + 1;
+		return slotPalette[(seed + offset) % slotPalette.length];
+	}
+
+	function slotStyle(box: number, slot: number, speciesId: number | null): string {
+		const primary = slotHue(box, slot, speciesId);
+		const secondary = slotHueSecondary(box, slot, speciesId);
+		if (secondary === null) {
+			return `--slot-hue: ${primary}`;
+		}
+		return `--slot-hue: ${primary}; --slot-hue-2: ${secondary}`;
+	}
+
+	function boxHue(box: number): number {
+		return slotPalette[box % slotPalette.length];
+	}
+
+	function boxNameFor(box: number): string {
+		return placeholderBoxNames[box] ?? `Box ${String(box + 1).padStart(2, '0')}`;
+	}
+
 	const placeholderPartySlots: SlotView[] = Array.from({ length: PARTY_SLOT_COUNT }, (_, slot) => ({
 		slot,
 		label: slot === 0 ? 'Pikachu' : 'Empty',
 		detail: slot === 0 ? 'Lv. 5' : '',
+		level: slot === 0 ? 5 : null,
+		speciesId: slot === 0 ? 25 : null,
 		kind: slot === 0 ? 'pokemon' : 'empty'
 	}));
 
@@ -56,7 +108,9 @@
 					slot,
 					label: featured ? 'Pikachu' : 'Empty',
 					detail: featured ? 'Lv. 5' : '',
-					kind: featured ? 'pokemon' : 'empty'
+					level: featured ? 5 : null,
+					speciesId: featured ? 25 : null,
+					kind: featured ? ('pokemon' as const) : ('empty' as const)
 				};
 			})
 	);
@@ -68,9 +122,15 @@
 	let statusMessage = $state('Import a Save File to begin.');
 	let busy = $state(false);
 	let partyCollapsed = $state(false);
+	let darkMode = $state(false);
 	let engine: EngineApi | null = null;
 	let workspaceLoadRequest = 0;
 
+	const pikachuSpriteUrl = 'https://img.pokemondb.net/sprites/scarlet-violet/normal/pikachu.png';
+
+	const controllerConnected = $derived(
+		gamepadStatus !== 'No controller detected' && gamepadStatus.length > 0
+	);
 	const boxCount = $derived(loadedSave?.workspace.summary.boxCount ?? placeholderBoxCount);
 	const partySlots = $derived(
 		loadedSave ? createPartySlotViews(loadedSave.workspace.partySlots) : placeholderPartySlots
@@ -88,6 +148,22 @@
 	);
 	const focusedSlotSummary = $derived(formatFocusedSlotSummary(focusedSlot));
 	const saveSummary = $derived(loadedSave?.workspace.summary ?? null);
+	const boxIndices = $derived(Array.from({ length: boxCount }, (_, index) => index));
+	const visibleBoxSlots = $derived(
+		activeBoxSlots.length >= BOX_SLOT_COUNT
+			? activeBoxSlots.slice(0, BOX_SLOT_COUNT)
+			: [
+					...activeBoxSlots,
+					...Array.from({ length: BOX_SLOT_COUNT - activeBoxSlots.length }, (_, index) => ({
+						slot: activeBoxSlots.length + index,
+						label: 'Empty',
+						detail: '',
+						level: null,
+						speciesId: null,
+						kind: 'empty' as const
+					}))
+				]
+	);
 
 	function dispatch(action: NavigationAction) {
 		const previousBox = navigation.activeBox;
@@ -451,6 +527,8 @@
 				slot,
 				label: 'Empty',
 				detail: '',
+				level: null,
+				speciesId: null,
 				kind: 'empty'
 			});
 		}
@@ -467,6 +545,8 @@
 			slot: slot.slot,
 			label: slot.isEmpty ? 'Empty' : slot.nickname || `Species ${slot.speciesId}`,
 			detail: slot.isEmpty ? '' : `Lv. ${slot.level}`,
+			level: slot.isEmpty ? null : slot.level,
+			speciesId: slot.isEmpty ? null : slot.speciesId,
 			kind: slot.isEmpty ? 'empty' : 'pokemon'
 		};
 	}
@@ -503,19 +583,36 @@
 </script>
 
 <svelte:head>
-	<title>PKSX Box</title>
+	<title>PKSX Atelier</title>
 </svelte:head>
 
 <main
-	class="app-shell"
+	class={['app-shell', darkMode && 'dark']}
 	aria-labelledby="screen-title"
 	onpointerdown={closeActionSurfaceFromOutside}
 	{@attach gamepadNavigation}
 >
-	<header class="status-rail" aria-label="Current save summary">
-		<div>
-			<p class="eyebrow">PKSX</p>
-			<h1 id="screen-title">Box Storage</h1>
+	<header class="top-bar" aria-label="Current save summary">
+		<div class="brand-lockup">
+			<div class="brand-mark" aria-hidden="true">P</div>
+			<div>
+				<h1 id="screen-title">PKSX</h1>
+				<p>save editor · atelier</p>
+			</div>
+		</div>
+		<div class="section-pills" aria-label="Available sections">
+			{#each sectionPills as pill (pill)}
+				<span class:active={pill === 'Boxes'}>{pill}</span>
+			{/each}
+		</div>
+		<div class="search-shell" aria-hidden="true">
+			<span>⌕</span>
+			<span
+				>Search {saveSummary?.boxCount
+					? saveSummary.boxCount * (saveSummary.boxSlotCount ?? 30)
+					: 842} creatures…</span
+			>
+			<kbd>⌘K</kbd>
 		</div>
 		<div class="save-actions" aria-label="Save File actions">
 			<input
@@ -529,20 +626,26 @@
 			<button type="button" disabled={busy || !loadedSave} onclick={exportLoadedSave}>Export</button
 			>
 		</div>
-		<div class="save-chip">
-			<span>{loadedSave?.file.originalFileName ?? 'No Save File'}</span>
-			<strong>Box {navigation.activeBox + 1}/{boxCount}</strong>
-		</div>
-		{#if saveSummary}
-			<div class="save-chip save-summary">
-				<span>{saveSummary.trainerName ?? 'Unknown trainer'}</span>
-				<strong>
-					Gen {saveSummary.generation} &middot; {saveSummary.partyCount} party &middot; {saveSummary.boxCount}
-					boxes
-				</strong>
+		<div class="save-chip" title={loadedSave?.file.originalFileName ?? 'No Save File'}>
+			<i aria-hidden="true"></i>
+			<div>
+				<strong>{loadedSave?.file.originalFileName ?? 'No Save File'}</strong>
+				<span>
+					{#if saveSummary?.trainerName}·{saveSummary.trainerName}{:else}Box
+						{navigation.activeBox + 1}/{boxCount}{/if}
+				</span>
 			</div>
-		{/if}
-		<p class="controller-status">{gamepadStatus}</p>
+			<span class="save-chip-status" aria-hidden="true">▾</span>
+		</div>
+		<span class="online-indicator" aria-label="Offline mode">● OFFLINE</span>
+		<button
+			class="theme-toggle"
+			type="button"
+			aria-label={darkMode ? 'Use light mode' : 'Use dark mode'}
+			onclick={() => (darkMode = !darkMode)}
+		>
+			{darkMode ? '☀' : '☾'}
+		</button>
 	</header>
 
 	{#if importError}
@@ -554,82 +657,51 @@
 
 	<section class="status-strip" aria-live="polite">
 		<span>{busy ? 'Working...' : statusMessage}</span>
+		{#if controllerConnected}
+			<span>{gamepadStatus}</span>
+		{/if}
 	</section>
 
 	<section class="storage-workspace" aria-label="Party and box storage">
-		<div class="grid-shell">
-			<div
-				id="box-grid"
-				class="box-zone"
-				role="grid"
-				tabindex="0"
-				aria-label={`Box ${navigation.activeBox + 1}`}
-				aria-activedescendant={navigation.focus.zone === 'box' ? activeFocusId : undefined}
-				aria-rowcount="5"
-				aria-colcount={BOX_COLUMNS}
-				onkeydown={handleGridKeydown}
-			>
-				<div class="zone-header box-header">
-					<div class="box-switcher" aria-label="Box switcher">
-						<button type="button" aria-label="Previous box" onclick={() => dispatch('previousBox')}
-							>&lt;</button
-						>
-						<div class="box-title">
-							<h2>Box {navigation.activeBox + 1}</h2>
-						</div>
-						<button type="button" aria-label="Next box" onclick={() => dispatch('nextBox')}
-							>&gt;</button
-						>
-					</div>
-				</div>
-				<div class="box-grid">
-					{#each activeBoxSlots as slot (slot.slot)}
-						{@const position = getBoxSlotPosition(slot.slot)}
-						<div class={['slot-cell', isFocused('box', slot.slot) && 'selected']}>
-							<button
-								id={`box-${navigation.activeBox}-slot-${slot.slot}`}
-								class={['slot', 'box-slot', slot.kind, isFocused('box', slot.slot) && 'focused']}
-								type="button"
-								role="gridcell"
-								tabindex="-1"
-								aria-selected={isFocused('box', slot.slot)}
-								aria-rowindex={position.row + 1}
-								aria-colindex={position.column + 1}
-								onclick={() => focusBox(slot.slot)}
-								ondblclick={openFocusedSlot}
-							>
-								<span class="slot-number">{slot.slot + 1}</span>
-								<span class="slot-sprite" aria-hidden="true"></span>
-								<span class="slot-label">{slot.label}</span>
-								{#if slot.detail}
-									<span class="slot-detail">{slot.detail}</span>
-								{/if}
-							</button>
-							{#if navigation.actionSurfaceOpen && isFocused('box', slot.slot)}
-								<div
-									class={[
-										'slot-context',
-										position.column <= 1 && 'align-start',
-										position.column >= BOX_COLUMNS - 2 && 'align-end'
-									]}
-									role="dialog"
-									aria-label="Slot actions"
-								>
-									<p class="slot-context-location">Box {navigation.activeBox + 1}, slot {slot.slot + 1}</p>
-									<button type="button" disabled>View</button>
-									<button type="button" disabled>Move</button>
-									<button type="button" disabled>Export</button>
-								</div>
-							{/if}
-						</div>
-					{/each}
-				</div>
+		<nav class="box-sidebar" aria-label="Boxes">
+			<div class="sidebar-heading">
+				<span>Boxes · {boxCount}</span>
+				<span aria-hidden="true">+</span>
 			</div>
+			<div class="box-list">
+				{#each boxIndices as index (index)}
+					<button
+						type="button"
+						class:active={index === navigation.activeBox}
+						aria-current={index === navigation.activeBox ? 'page' : undefined}
+						style={`--box-hue: ${boxHue(index)}`}
+						onclick={() => {
+							if (index > navigation.activeBox) {
+								for (let step = navigation.activeBox; step < index; step += 1) dispatch('nextBox');
+							} else if (index < navigation.activeBox) {
+								for (let step = navigation.activeBox; step > index; step -= 1)
+									dispatch('previousBox');
+							}
+						}}
+					>
+						<i aria-hidden="true"></i>
+						<span>
+							<strong>{boxNameFor(index)}</strong>
+							<small>
+								<em>BOX {String(index + 1).padStart(2, '0')}</em>
+								<b
+									>{index === navigation.activeBox
+										? activeBoxSlots.filter((slot) => slot.kind === 'pokemon').length
+										: '—'}/{BOX_SLOT_COUNT}</b
+								>
+							</small>
+						</span>
+					</button>
+				{/each}
+			</div>
+		</nav>
 
-			<aside class="focus-readout" aria-live="polite">
-				<strong>{focusedSlotSummary}</strong>
-			</aside>
-
+		<div class="workspace-column">
 			<div
 				id="party-grid"
 				class={['party-zone', partyCollapsed && 'collapsed']}
@@ -642,10 +714,6 @@
 				onkeydown={handleGridKeydown}
 			>
 				<div class="zone-header party-header">
-					<div>
-						<h2>Party</h2>
-						<span>6 slots</span>
-					</div>
 					<button
 						class="party-toggle"
 						type="button"
@@ -653,8 +721,10 @@
 						aria-controls="party-list"
 						onclick={() => (partyCollapsed = !partyCollapsed)}
 					>
-						{partyCollapsed ? 'Show' : 'Hide'}
+						<span aria-hidden="true">▾</span>
+						<strong>Party</strong>
 					</button>
+					<span>6 / 6 · on hand</span>
 				</div>
 				<div id="party-list" class="party-list">
 					{#each partySlots as slot (slot.slot)}
@@ -669,11 +739,15 @@
 									'slot',
 									'party-slot',
 									slot.kind,
+									slot.kind === 'pokemon' &&
+										slotHueSecondary(-1, slot.slot, slot.speciesId) !== null &&
+										'dual-type',
 									isFocused('party', slot.slot) && 'focused'
 								]}
 								type="button"
 								role="gridcell"
 								tabindex="-1"
+								style={slotStyle(-1, slot.slot, slot.speciesId)}
 								aria-selected={isFocused('party', slot.slot)}
 								aria-rowindex={slot.slot + 1}
 								aria-colindex="1"
@@ -681,8 +755,15 @@
 								ondblclick={openFocusedSlot}
 							>
 								<span class="slot-number">P{slot.slot + 1}</span>
-								<span class="slot-sprite" aria-hidden="true"></span>
-								<span class="slot-label">{slot.label}</span>
+								{#if slot.kind === 'pokemon'}
+									<img class="slot-sprite" src={pikachuSpriteUrl} alt="" width="96" height="96" />
+								{:else}
+									<span class="slot-sprite empty-sprite" aria-hidden="true"></span>
+								{/if}
+								<span class="slot-label">
+									{#if slot.kind === 'pokemon' && slot.level !== null}<em>L{slot.level}</em>{/if}
+									<span>{slot.label}</span>
+								</span>
 								{#if slot.detail}
 									<span class="slot-detail">{slot.detail}</span>
 								{/if}
@@ -699,22 +780,229 @@
 					{/each}
 				</div>
 			</div>
+
+			<div
+				id="box-grid"
+				class="box-zone"
+				role="grid"
+				tabindex="0"
+				aria-label={`Box ${navigation.activeBox + 1}`}
+				aria-activedescendant={navigation.focus.zone === 'box' ? activeFocusId : undefined}
+				aria-rowcount="5"
+				aria-colcount={BOX_COLUMNS}
+				onkeydown={handleGridKeydown}
+			>
+				<div class="zone-header box-header">
+					<div class="box-title">
+						<h2>{boxNameFor(navigation.activeBox)}</h2>
+						<span>
+							<em>BOX {String(navigation.activeBox + 1).padStart(2, '0')}/{boxCount}</em>
+							<b
+								>{activeBoxSlots.filter((slot) => slot.kind === 'pokemon').length} / {BOX_SLOT_COUNT}
+								occupied</b
+							>
+						</span>
+					</div>
+					<div class="box-switcher" aria-label="Box switcher">
+						<button type="button" aria-label="Previous box" onclick={() => dispatch('previousBox')}
+							>‹</button
+						>
+						<button type="button" aria-label="Next box" onclick={() => dispatch('nextBox')}
+							>›</button
+						>
+					</div>
+				</div>
+				<div class="filter-row" aria-hidden="true">
+					<span>compact</span>
+					<span>sort · slot</span>
+					<span>local</span>
+				</div>
+				<div class="box-grid">
+					{#each visibleBoxSlots as slot (slot.slot)}
+						{@const position = getBoxSlotPosition(slot.slot)}
+						<div class={['slot-cell', isFocused('box', slot.slot) && 'selected']}>
+							<button
+								id={`box-${navigation.activeBox}-slot-${slot.slot}`}
+								class={[
+									'slot',
+									'box-slot',
+									slot.kind,
+									slot.kind === 'pokemon' &&
+										slotHueSecondary(navigation.activeBox, slot.slot, slot.speciesId) !== null &&
+										'dual-type',
+									isFocused('box', slot.slot) && 'focused'
+								]}
+								type="button"
+								role="gridcell"
+								tabindex="-1"
+								style={slotStyle(navigation.activeBox, slot.slot, slot.speciesId)}
+								aria-selected={isFocused('box', slot.slot)}
+								aria-rowindex={position.row + 1}
+								aria-colindex={position.column + 1}
+								onclick={() => focusBox(slot.slot)}
+								ondblclick={openFocusedSlot}
+							>
+								<span class="slot-number">{slot.slot + 1}</span>
+								{#if slot.kind === 'pokemon'}
+									<img class="slot-sprite" src={pikachuSpriteUrl} alt="" width="96" height="96" />
+								{:else}
+									<span class="slot-sprite empty-sprite" aria-hidden="true"></span>
+								{/if}
+								<span class="slot-label">
+									{#if slot.kind === 'pokemon' && slot.level !== null}<em>L{slot.level}</em>{/if}
+									<span>{slot.label}</span>
+								</span>
+								{#if slot.detail}
+									<span class="slot-detail">{slot.detail}</span>
+								{/if}
+							</button>
+							{#if navigation.actionSurfaceOpen && isFocused('box', slot.slot)}
+								<div
+									class={[
+										'slot-context',
+										position.column <= 1 && 'align-start',
+										position.column >= BOX_COLUMNS - 2 && 'align-end'
+									]}
+									role="dialog"
+									aria-label="Slot actions"
+								>
+									<p class="slot-context-location">
+										Box {navigation.activeBox + 1}, slot {slot.slot + 1}
+									</p>
+									<button type="button" disabled>View</button>
+									<button type="button" disabled>Move</button>
+									<button type="button" disabled>Export</button>
+								</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
+				<div class="box-footer">
+					{#if controllerConnected}
+						<span><kbd>A</kbd> Pick</span>
+						<span><kbd>X</kbd> Multi</span>
+						<span><kbd>Y</kbd> Mark</span>
+						<span><kbd>B</kbd> Back</span>
+					{/if}
+					<strong>
+						{#if navigation.focus.zone === 'box'}
+							{@const pos = getBoxSlotPosition(navigation.focus.slot)}
+							SLOT {navigation.focus.slot + 1} · ROW {String.fromCharCode(65 + pos.row)} / COL
+							{pos.column + 1}
+						{:else}
+							PARTY SLOT {navigation.focus.slot + 1}
+						{/if}
+					</strong>
+				</div>
+			</div>
 		</div>
+
+		<aside
+			class="detail-rail"
+			aria-live="polite"
+			style={`--slot-hue: ${slotHue(navigation.activeBox, navigation.focus.slot, focusedSlot.speciesId)}`}
+		>
+			<div class="portrait-card">
+				<small>
+					PORTRAIT · {navigation.focus.zone === 'party'
+						? `PARTY ${navigation.focus.slot + 1}`
+						: `SLOT ${navigation.focus.slot + 1}`}
+				</small>
+				{#if focusedSlot.kind === 'pokemon'}
+					<img src={pikachuSpriteUrl} alt="" width="180" height="180" />
+				{:else}
+					<span class="portrait-empty" aria-hidden="true"></span>
+				{/if}
+			</div>
+			<div class="detail-heading">
+				<div>
+					<h2>{focusedSlot.kind === 'pokemon' ? focusedSlot.label : '—'}</h2>
+					<span>
+						{#if focusedSlot.kind === 'pokemon' && focusedSlot.speciesId}
+							#{String(focusedSlot.speciesId).padStart(4, '0')} · Modest · Updraft
+						{:else}
+							No creature in this slot
+						{/if}
+					</span>
+				</div>
+				<div class="detail-level">
+					<span>LEVEL</span>
+					<strong>{focusedSlot.level ?? '—'}</strong>
+				</div>
+			</div>
+			<div class="stat-grid" aria-label="Stats">
+				{#each [{ key: 'HP', iv: 31, ev: 252 }, { key: 'ATK', iv: 29, ev: 4 }, { key: 'DEF', iv: 25, ev: null }, { key: 'SPA', iv: 31, ev: 252 }, { key: 'SPD', iv: 18, ev: null }, { key: 'SPE', iv: 31, ev: null }] as stat (stat.key)}
+					<div class="stat-row">
+						<span class="stat-key">{stat.key}</span>
+						<span class="stat-bar" aria-hidden="true">
+							<i style={`width: ${focusedSlot.kind === 'pokemon' ? (stat.iv / 31) * 100 : 0}%`}
+							></i>
+						</span>
+						<span class="stat-iv">{focusedSlot.kind === 'pokemon' ? stat.iv : '—'}</span>
+						<span class="stat-ev"
+							>{focusedSlot.kind === 'pokemon' && stat.ev ? `+${stat.ev}` : '—'}</span
+						>
+					</div>
+				{/each}
+			</div>
+			<div class="moveset" aria-label="Moves">
+				<span class="moveset-label">MOVE SET</span>
+				<div class="moveset-grid">
+					{#each ['Ember', 'Gust', 'Flora', 'Roost'] as move, index (move)}
+						<div class="move-chip" style={`--slot-hue: ${slotPalette[(index * 4) % slotPalette.length]}`}>
+							<strong>{focusedSlot.kind === 'pokemon' ? move.toUpperCase() : '—'}</strong>
+							<small>{focusedSlot.kind === 'pokemon' ? 'PP 25/25' : ''}</small>
+						</div>
+					{/each}
+				</div>
+			</div>
+			<div class="detail-footer">
+				<div>
+					<span>OT</span>
+					<strong>{saveSummary?.trainerName ?? 'CASS · 41203'}</strong>
+				</div>
+				<div>
+					<span>ITEM</span>
+					<strong>{focusedSlot.kind === 'pokemon' ? 'Charcoal Ember' : '—'}</strong>
+				</div>
+				<div>
+					<span>MET</span>
+					<strong
+						>{focusedSlot.kind === 'pokemon'
+							? `${boxNameFor(navigation.activeBox)} · Lv. ${focusedSlot.level}`
+							: '—'}</strong
+					>
+				</div>
+			</div>
+		</aside>
 	</section>
+
+	<nav class="mobile-tabbar" aria-label="Sections (mobile)">
+		{#each mobileTabs as tab (tab.key)}
+			<button type="button" class:active={tab.key === 'boxes'}>
+				<span aria-hidden="true">{tab.glyph}</span>
+				<small>{tab.label}</small>
+			</button>
+		{/each}
+	</nav>
 </main>
 
 <style>
+	:global(html),
 	:global(body) {
 		margin: 0;
 		background: #dff4ea;
 		color: #17302a;
-		font-family:
-			-apple-system,
-			BlinkMacSystemFont,
-			'Segoe UI',
-			system-ui,
-			sans-serif;
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
 		font-weight: 500;
+	}
+
+	@media (min-width: 821px) {
+		:global(html),
+		:global(body) {
+			height: 100%;
+			overflow: hidden;
+		}
 	}
 
 	:global(strong) {
@@ -735,7 +1023,6 @@
 		gap: 14px;
 	}
 
-	.status-rail > div:first-child,
 	.save-chip,
 	.controller-status,
 	.status-strip,
@@ -751,11 +1038,6 @@
 		align-items: stretch;
 		gap: 12px;
 		color: #f4fff8;
-	}
-
-	.status-rail > div:first-child {
-		padding: 14px 16px;
-		background: rgba(20, 74, 54, 0.88);
 	}
 
 	.eyebrow,
@@ -971,12 +1253,6 @@
 		gap: 7px;
 	}
 
-	.party-header > div {
-		display: flex;
-		align-items: baseline;
-		gap: 10px;
-	}
-
 	.party-toggle {
 		min-height: 30px;
 		padding: 0 11px;
@@ -1040,11 +1316,6 @@
 	}
 
 	.slot.focused {
-		border-color: #fff3a4;
-		background: #fff8c5;
-		box-shadow:
-			0 0 0 3px #23a7c8,
-			inset 0 0 0 2px #fff;
 		transform: translateY(-1px);
 	}
 
@@ -1068,8 +1339,7 @@
 		aspect-ratio: 1;
 		border-radius: 45% 55% 48% 52%;
 		background:
-			radial-gradient(circle at 36% 30%, rgba(255, 255, 255, 0.9) 0 14%, transparent 15%),
-			#9aa5a0;
+			radial-gradient(circle at 36% 30%, rgba(255, 255, 255, 0.9) 0 14%, transparent 15%), #9aa5a0;
 		box-shadow:
 			inset -4px -5px 0 rgba(0, 0, 0, 0.16),
 			0 2px 0 rgba(23, 68, 42, 0.2);
@@ -1157,12 +1427,6 @@
 		box-shadow: 0 14px 40px rgba(12, 47, 35, 0.24);
 	}
 
-	.focus-readout strong {
-		font-size: 1rem;
-		line-height: 1.2;
-		text-align: center;
-	}
-
 	@media (max-width: 920px) {
 		.app-shell {
 			padding: 10px;
@@ -1204,6 +1468,1282 @@
 		.focus-readout {
 			width: min(300px, calc(100vw - 20px));
 			padding: 7px 10px;
+		}
+	}
+	/* Atelier design layer */
+	:global(body) {
+		background: #f4ecdf;
+		color: #2a241c;
+		font-family:
+			Inter,
+			-apple-system,
+			BlinkMacSystemFont,
+			'Segoe UI',
+			system-ui,
+			sans-serif;
+	}
+
+	.app-shell,
+	.app-shell * {
+		box-sizing: border-box;
+	}
+
+	.app-shell {
+		--paper: #f4ecdf;
+		--paper-hi: #fbf6ec;
+		--paper-deep: #ebe2d2;
+		--ink: #2a241c;
+		--ink-soft: #6b5d4a;
+		--ink-mute: #9b8d76;
+		--rule: rgba(42, 36, 28, 0.08);
+		--rule-hi: rgba(42, 36, 28, 0.14);
+		--rust: #b85838;
+		--rust-wash: rgba(184, 88, 56, 0.1);
+		--rust-ring: rgba(184, 88, 56, 0.35);
+		--gold: #c89a3e;
+		--ok: #7aa86a;
+		--err: #c93d3d;
+		--shadow:
+			0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 4px 12px -6px rgba(70, 50, 30, 0.18),
+			0 2px 4px -2px rgba(70, 50, 30, 0.14);
+		--shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 2px 6px -3px rgba(70, 50, 30, 0.16);
+		--shadow-deep:
+			0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 14px 36px -16px rgba(70, 50, 30, 0.26),
+			0 4px 10px -6px rgba(70, 50, 30, 0.18);
+		height: 100dvh;
+		min-height: 100dvh;
+		padding: 18px;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		overflow: hidden;
+		background:
+			radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.5), transparent 40%),
+			radial-gradient(circle at 80% 90%, rgba(184, 88, 56, 0.05), transparent 50%),
+			repeating-linear-gradient(45deg, transparent 0 6px, rgba(70, 50, 30, 0.012) 6px 7px),
+			var(--paper);
+		color: var(--ink);
+	}
+
+	.app-shell.dark {
+		--paper: #0e0f12;
+		--paper-hi: #181a1e;
+		--paper-deep: #08090b;
+		--ink: #f4f5f7;
+		--ink-soft: #b8bcc4;
+		--ink-mute: #7a8090;
+		--rule: rgba(255, 255, 255, 0.08);
+		--rule-hi: rgba(255, 255, 255, 0.18);
+		--rust: #ff8a5c;
+		--rust-wash: rgba(255, 138, 92, 0.14);
+		--rust-ring: rgba(255, 138, 92, 0.55);
+		--gold: #f0c060;
+		--ok: #7ed99a;
+		--err: #ff6f6a;
+		--shadow:
+			0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 4px 12px -6px rgba(0, 0, 0, 0.7),
+			0 2px 4px -2px rgba(0, 0, 0, 0.6);
+		--shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 2px 6px -3px rgba(0, 0, 0, 0.6);
+		--shadow-deep:
+			0 1px 0 rgba(255, 255, 255, 0.07) inset, 0 14px 36px -16px rgba(0, 0, 0, 0.85),
+			0 4px 10px -6px rgba(0, 0, 0, 0.7);
+		background:
+			radial-gradient(circle at 20% 10%, rgba(255, 138, 92, 0.04), transparent 50%),
+			radial-gradient(circle at 80% 90%, rgba(120, 140, 180, 0.04), transparent 55%), var(--paper);
+	}
+
+	.top-bar,
+	.storage-workspace,
+	.box-sidebar,
+	.party-zone,
+	.box-zone,
+	.detail-rail,
+	.status-strip,
+	.error-strip {
+		border: 0;
+		border-radius: 18px;
+		background: var(--paper-hi);
+		box-shadow: var(--shadow-deep);
+		color: var(--ink);
+	}
+
+	.top-bar {
+		display: grid;
+		grid-template-columns: auto auto minmax(180px, 1fr) auto auto auto auto;
+		align-items: center;
+		gap: 10px;
+		padding: 10px;
+	}
+
+	.brand-lockup {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		min-width: 0;
+	}
+
+	.brand-mark {
+		width: 36px;
+		height: 36px;
+		border-radius: 11px;
+		display: grid;
+		place-items: center;
+		background: var(--ink);
+		color: var(--paper-hi);
+		font-size: 17px;
+		font-weight: 800;
+		box-shadow: var(--shadow);
+	}
+
+	.brand-lockup h1,
+	.zone-header h2,
+	.detail-heading h2 {
+		margin: 0;
+		color: var(--ink);
+		font-size: 1.35rem;
+		font-weight: 800;
+		line-height: 1;
+		letter-spacing: 0;
+	}
+
+	.brand-lockup p,
+	.zone-header span,
+	.detail-heading span,
+	.box-list small,
+	.status-strip,
+	.error-strip {
+		margin: 0;
+		color: var(--ink-soft);
+		font-size: 0.68rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+	}
+
+	.section-pills {
+		display: flex;
+		gap: 2px;
+		padding-left: 10px;
+		border-left: 1px solid var(--rule-hi);
+	}
+
+	.section-pills span {
+		padding: 7px 12px;
+		border-radius: 8px;
+		color: var(--ink-soft);
+		font-size: 0.78rem;
+		font-weight: 650;
+	}
+
+	.section-pills .active {
+		background: var(--rust-wash);
+		color: var(--rust);
+	}
+
+	.search-shell,
+	.save-chip,
+	.save-actions button,
+	.theme-toggle,
+	.box-switcher button,
+	.party-toggle,
+	.slot-context button {
+		border: 0;
+		border-radius: 11px;
+		background: var(--paper-hi);
+		box-shadow: var(--shadow-sm);
+		color: var(--ink);
+	}
+
+	.search-shell {
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 12px;
+		color: var(--ink-soft);
+		font-size: 0.76rem;
+	}
+
+	.search-shell span:nth-child(2),
+	.save-chip strong {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	kbd {
+		padding: 1px 5px;
+		border: 1px solid var(--rule);
+		border-radius: 4px;
+		background: var(--paper-deep);
+		color: var(--ink-soft);
+		font:
+			600 0.62rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+	}
+
+	.save-actions {
+		display: flex;
+		gap: 6px;
+	}
+
+	.save-actions button,
+	.theme-toggle,
+	.box-switcher button,
+	.slot-context button {
+		min-height: 32px;
+		padding: 0 12px;
+		font-size: 0.78rem;
+		font-weight: 700;
+	}
+
+	.save-actions button:not(:disabled):hover,
+	.theme-toggle:hover,
+	.box-switcher button:hover,
+	.party-toggle:hover {
+		background: var(--rust-wash);
+		color: var(--rust);
+	}
+
+	.save-actions button:disabled,
+	.slot-context button:disabled {
+		cursor: not-allowed;
+		opacity: 0.55;
+	}
+
+	.save-chip {
+		min-width: 166px;
+		max-width: 230px;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 7px 11px;
+	}
+
+	.save-chip i {
+		width: 7px;
+		height: 7px;
+		flex: 0 0 auto;
+		border-radius: 999px;
+		background: var(--ok);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok), transparent 70%);
+	}
+
+	.save-chip div {
+		min-width: 0;
+		display: grid;
+		gap: 2px;
+	}
+
+	.save-chip span {
+		color: var(--ink-mute);
+		font:
+			600 0.65rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+	}
+
+	.theme-toggle {
+		width: 34px;
+		padding: 0;
+		font-size: 0.95rem;
+	}
+
+	.file-input {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+
+	.status-strip,
+	.error-strip {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 9px 12px;
+		border-radius: 12px;
+		box-shadow: var(--shadow-sm);
+	}
+
+	.error-strip {
+		color: var(--err);
+	}
+
+	.storage-workspace {
+		flex: 1 1 auto;
+		min-height: 0;
+		display: grid;
+		grid-template-columns: 158px minmax(0, 1fr) 304px;
+		align-items: stretch;
+		gap: 12px;
+		padding: 0;
+		overflow: hidden;
+		background: transparent;
+		box-shadow: none;
+	}
+
+	.box-sidebar,
+	.party-zone,
+	.box-zone,
+	.detail-rail {
+		min-width: 0;
+		min-height: 0;
+		padding: 12px;
+		overflow: hidden;
+	}
+
+	.box-sidebar {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.workspace-column {
+		min-width: 0;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		overflow: hidden;
+	}
+
+	.detail-rail {
+		overflow-y: auto;
+	}
+
+	.sidebar-heading {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 4px 8px 8px;
+		color: var(--ink-mute);
+		font:
+			700 0.61rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.box-list {
+		flex: 1 1 auto;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		overflow-y: auto;
+	}
+
+	.box-list button {
+		--box-hue: 48;
+		width: 100%;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 7px 8px;
+		border: 1px solid transparent;
+		border-radius: 8px;
+		background: transparent;
+		color: var(--ink);
+		text-align: left;
+	}
+
+	.box-list button:hover {
+		background: color-mix(in srgb, oklch(0.92 0.06 var(--box-hue)), transparent 60%);
+	}
+
+	.box-list button.active {
+		border-color: var(--rust-ring);
+		background: var(--rust-wash);
+	}
+
+	.box-list i {
+		width: 5px;
+		height: 26px;
+		border-radius: 3px;
+		background: oklch(0.78 0.12 var(--box-hue));
+	}
+
+	.box-list span {
+		min-width: 0;
+		display: grid;
+		gap: 2px;
+	}
+
+	.box-list strong {
+		font-size: 0.74rem;
+		line-height: 1.15;
+	}
+
+	.box-list small {
+		display: flex;
+		justify-content: space-between;
+		gap: 4px;
+		color: var(--ink-mute);
+		font:
+			650 0.58rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+		letter-spacing: 0.04em;
+	}
+
+	.box-list small em {
+		font-style: normal;
+	}
+
+	.box-list small b {
+		color: var(--ink-soft);
+		font-weight: 700;
+	}
+
+	.zone-header {
+		min-height: auto;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 0;
+		margin-bottom: 10px;
+	}
+
+	.party-header {
+		margin-bottom: 9px;
+	}
+
+	.party-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 0;
+		background: transparent;
+		box-shadow: none;
+	}
+
+	.party-toggle span {
+		display: inline-block;
+		color: var(--ink-soft);
+		transition: transform 160ms ease;
+	}
+
+	.party-zone.collapsed .party-toggle span {
+		transform: rotate(-90deg);
+	}
+
+	.party-list {
+		display: grid;
+		grid-template-columns: repeat(6, minmax(52px, 80px));
+		justify-content: center;
+		gap: 6px;
+	}
+
+	.party-zone.collapsed .party-list {
+		display: none;
+	}
+
+	.box-zone {
+		flex: 1 1 auto;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.box-zone:focus-visible,
+	.party-zone:focus-visible {
+		outline: 3px solid color-mix(in srgb, var(--rust), transparent 65%);
+		outline-offset: 3px;
+	}
+
+	.box-switcher {
+		display: flex;
+		gap: 6px;
+	}
+
+	.box-switcher button {
+		width: 30px;
+		padding: 0;
+		font-size: 1.1rem;
+	}
+
+	.filter-row {
+		display: flex;
+		justify-content: flex-end;
+		gap: 5px;
+		margin-bottom: 10px;
+	}
+
+	.filter-row span {
+		padding: 3px 9px;
+		border: 1px solid var(--rule);
+		border-radius: 6px;
+		background: var(--paper-deep);
+		color: var(--ink-soft);
+		font:
+			600 0.62rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+	}
+
+	.box-grid {
+		flex: 1 1 auto;
+		min-height: 0;
+		display: grid;
+		grid-template-columns: repeat(6, minmax(52px, 80px));
+		grid-template-rows: repeat(5, minmax(52px, 80px));
+		grid-auto-rows: 80px;
+		justify-content: center;
+		align-content: start;
+		gap: 6px;
+		overflow-y: auto;
+		padding: 4px;
+	}
+
+	.slot-cell {
+		position: relative;
+		min-width: 0;
+		min-height: 0;
+	}
+
+	.slot-cell.selected {
+		z-index: 20;
+	}
+
+	.slot {
+		--slot-hue: 48;
+		--slot-hue-2: var(--slot-hue);
+		position: relative;
+		width: 100%;
+		height: 100%;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 0;
+		border-radius: 10px;
+		background: oklch(0.9 0.09 var(--slot-hue));
+		box-shadow: var(--shadow-sm);
+		color: var(--ink);
+		overflow: visible;
+		transition:
+			transform 120ms ease,
+			box-shadow 120ms ease;
+	}
+
+	.slot.dual-type {
+		background: linear-gradient(
+			135deg,
+			oklch(0.9 0.09 var(--slot-hue)) 0%,
+			oklch(0.9 0.09 var(--slot-hue)) 55%,
+			oklch(0.9 0.09 var(--slot-hue-2)) 55%,
+			oklch(0.9 0.09 var(--slot-hue-2)) 100%
+		);
+	}
+
+	.app-shell.dark .slot {
+		background: oklch(0.46 0.11 var(--slot-hue));
+	}
+
+	.app-shell.dark .slot.dual-type {
+		background: linear-gradient(
+			135deg,
+			oklch(0.46 0.11 var(--slot-hue)) 0%,
+			oklch(0.46 0.11 var(--slot-hue)) 55%,
+			oklch(0.46 0.11 var(--slot-hue-2)) 55%,
+			oklch(0.46 0.11 var(--slot-hue-2)) 100%
+		);
+	}
+
+	.slot.pokemon:hover,
+	.slot.focused {
+		transform: translateY(-1px);
+		box-shadow:
+			0 0 0 2.5px var(--rust),
+			var(--shadow);
+	}
+
+	.slot.empty {
+		border: 1.5px dashed var(--rule-hi);
+		background: color-mix(in srgb, var(--paper-deep), transparent 35%);
+		box-shadow: none;
+	}
+
+	.slot.empty.focused {
+		border-style: solid;
+		border-color: var(--rust);
+		box-shadow:
+			0 0 0 2.5px var(--rust),
+			var(--shadow);
+	}
+
+	.box-slot {
+		aspect-ratio: 1;
+	}
+
+	.party-slot {
+		aspect-ratio: 1;
+	}
+
+	.slot-number {
+		position: absolute;
+		top: 4px;
+		left: 5px;
+		color: color-mix(in srgb, var(--ink), transparent 30%);
+		font:
+			700 0.48rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+		letter-spacing: 0.04em;
+	}
+
+	.slot-sprite {
+		width: 76%;
+		height: 76%;
+		aspect-ratio: auto;
+		border-radius: 0;
+		background: none;
+		box-shadow: none;
+		object-fit: contain;
+		image-rendering: auto;
+		pointer-events: none;
+	}
+
+	.empty-sprite {
+		width: 34%;
+		height: 34%;
+		border: 1px solid var(--rule-hi);
+		border-radius: 8px;
+	}
+
+	.slot-label,
+	.slot-detail {
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.box-slot .slot-label,
+	.party-slot .slot-label {
+		position: absolute;
+		left: 4px;
+		right: 4px;
+		bottom: 3px;
+		color: color-mix(in srgb, var(--ink), transparent 22%);
+		font-size: 0.53rem;
+		font-weight: 750;
+		text-align: center;
+	}
+
+	.box-slot .slot-detail,
+	.party-slot .slot-detail {
+		display: none;
+	}
+
+	.slot-context {
+		position: absolute;
+		z-index: 40;
+		top: calc(100% + 8px);
+		left: 50%;
+		width: 150px;
+		display: grid;
+		gap: 6px;
+		padding: 8px;
+		border-radius: 10px;
+		background: var(--paper-hi);
+		box-shadow: var(--shadow-deep);
+		transform: translateX(-50%);
+	}
+
+	.slot-context.align-start {
+		left: 0;
+		transform: none;
+	}
+
+	.slot-context.align-end {
+		right: 0;
+		left: auto;
+		transform: none;
+	}
+
+	.slot-context-location {
+		margin: 0 0 2px;
+		color: var(--ink-mute);
+		font:
+			650 0.62rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+	}
+
+	.box-footer {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 10px;
+		padding-top: 10px;
+		border-top: 1px solid var(--rule);
+		color: var(--ink-soft);
+		font-size: 0.72rem;
+		font-weight: 650;
+	}
+
+	.box-footer strong {
+		margin-left: auto;
+		color: var(--ink-mute);
+		font:
+			650 0.65rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+	}
+
+	.detail-rail {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.portrait-card {
+		position: relative;
+		height: 174px;
+		display: grid;
+		place-items: center;
+		border-radius: 14px;
+		background:
+			repeating-radial-gradient(
+				circle at 30% 35%,
+				transparent 0 24px,
+				rgba(0, 0, 0, 0.025) 24px 25px
+			),
+			radial-gradient(circle at 30% 35%, #fff0a4, #e8c347);
+		overflow: hidden;
+		box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+	}
+
+	.dark .portrait-card {
+		background:
+			repeating-radial-gradient(
+				circle at 30% 35%,
+				transparent 0 24px,
+				rgba(255, 255, 255, 0.04) 24px 25px
+			),
+			radial-gradient(circle at 30% 35%, #685d2e, #312809);
+	}
+
+	.portrait-card img {
+		width: 138px;
+		height: 138px;
+		object-fit: contain;
+	}
+
+	.portrait-card > span {
+		width: 76px;
+		height: 76px;
+		border: 1px solid rgba(0, 0, 0, 0.1);
+		border-radius: 16px;
+	}
+
+	.portrait-card small {
+		position: absolute;
+		top: 10px;
+		left: 12px;
+		color: color-mix(in srgb, var(--ink), transparent 45%);
+		font:
+			650 0.62rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.detail-heading {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 12px;
+	}
+
+	.detail-heading h2 {
+		font-size: 1.45rem;
+	}
+
+	.online-indicator {
+		padding: 6px 10px;
+		border-radius: 10px;
+		background: var(--paper-hi);
+		box-shadow: var(--shadow-sm);
+		color: var(--ok);
+		font:
+			700 0.62rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+		letter-spacing: 0.06em;
+		white-space: nowrap;
+	}
+
+	.save-chip-status {
+		margin-left: auto;
+		color: var(--ink-mute);
+		font-size: 0.7rem;
+	}
+
+	.box-title {
+		display: grid;
+		gap: 2px;
+	}
+
+	.box-title h2 {
+		font-size: 1.45rem;
+	}
+
+	.box-title span {
+		display: flex;
+		gap: 8px;
+		color: var(--ink-mute);
+		font:
+			650 0.62rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+		letter-spacing: 0.04em;
+	}
+
+	.box-title em {
+		font-style: normal;
+	}
+
+	.box-slot .slot-label em,
+	.party-slot .slot-label em {
+		display: block;
+		margin-bottom: 1px;
+		color: color-mix(in srgb, var(--ink), transparent 45%);
+		font:
+			700 0.5rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+		font-style: normal;
+		letter-spacing: 0.04em;
+	}
+
+	.box-slot .slot-label span,
+	.party-slot .slot-label span {
+		display: block;
+	}
+
+	.portrait-card {
+		background:
+			repeating-radial-gradient(
+				circle at 30% 35%,
+				transparent 0 24px,
+				rgba(0, 0, 0, 0.025) 24px 25px
+			),
+			radial-gradient(
+				circle at 30% 35%,
+				oklch(0.94 0.07 var(--slot-hue, 48)),
+				oklch(0.78 0.13 var(--slot-hue, 48))
+			);
+	}
+
+	.app-shell.dark .portrait-card {
+		background:
+			repeating-radial-gradient(
+				circle at 30% 35%,
+				transparent 0 24px,
+				rgba(255, 255, 255, 0.04) 24px 25px
+			),
+			radial-gradient(
+				circle at 30% 35%,
+				oklch(0.5 0.08 var(--slot-hue, 48)),
+				oklch(0.28 0.08 var(--slot-hue, 48))
+			);
+	}
+
+	.portrait-empty {
+		width: 64px;
+		height: 64px;
+		border: 1px dashed var(--rule-hi);
+		border-radius: 16px;
+	}
+
+	.detail-level {
+		display: grid;
+		justify-items: end;
+		gap: 0;
+	}
+
+	.detail-level span {
+		color: var(--ink-mute);
+		font:
+			700 0.58rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+		letter-spacing: 0.06em;
+	}
+
+	.detail-level strong {
+		color: var(--ink);
+		font-size: 2rem;
+		font-weight: 800;
+		line-height: 1;
+	}
+
+	.stat-grid {
+		display: grid;
+		gap: 6px;
+		padding: 10px 12px;
+		border-radius: 12px;
+		background: var(--paper);
+		box-shadow: var(--shadow-sm);
+	}
+
+	.stat-row {
+		display: grid;
+		grid-template-columns: 32px 1fr 28px 36px;
+		align-items: center;
+		gap: 8px;
+		font:
+			700 0.62rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+		letter-spacing: 0.05em;
+	}
+
+	.stat-row .stat-key {
+		color: var(--ink-soft);
+	}
+
+	.stat-row .stat-bar {
+		position: relative;
+		display: block;
+		height: 7px;
+		border-radius: 5px;
+		background: color-mix(in srgb, var(--paper-deep), transparent 25%);
+		overflow: hidden;
+	}
+
+	.stat-row .stat-bar i {
+		position: absolute;
+		inset: 0 auto 0 0;
+		display: block;
+		border-radius: 5px;
+		background: linear-gradient(90deg, var(--rust), oklch(0.7 0.18 32));
+	}
+
+	.stat-row .stat-iv {
+		color: var(--ink);
+		text-align: right;
+	}
+
+	.stat-row .stat-ev {
+		color: var(--ink-mute);
+		text-align: right;
+	}
+
+	.moveset {
+		display: grid;
+		gap: 6px;
+	}
+
+	.moveset-label {
+		color: var(--ink-mute);
+		font:
+			700 0.58rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+		letter-spacing: 0.08em;
+	}
+
+	.moveset-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 6px;
+	}
+
+	.move-chip {
+		--slot-hue: 48;
+		display: grid;
+		gap: 2px;
+		padding: 8px 10px;
+		border-radius: 9px;
+		background: linear-gradient(
+			135deg,
+			oklch(0.92 0.07 var(--slot-hue)),
+			oklch(0.86 0.1 var(--slot-hue))
+		);
+		color: var(--ink);
+	}
+
+	.app-shell.dark .move-chip {
+		background: linear-gradient(
+			135deg,
+			oklch(0.42 0.08 var(--slot-hue)),
+			oklch(0.34 0.09 var(--slot-hue))
+		);
+	}
+
+	.move-chip strong {
+		font-size: 0.72rem;
+		font-weight: 800;
+		letter-spacing: 0.04em;
+	}
+
+	.move-chip small {
+		color: color-mix(in srgb, var(--ink), transparent 35%);
+		font:
+			700 0.58rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+	}
+
+	.detail-footer {
+		display: grid;
+		gap: 4px;
+		padding: 8px 10px;
+		border-top: 1px solid var(--rule);
+	}
+
+	.detail-footer div {
+		display: flex;
+		justify-content: space-between;
+		gap: 10px;
+		font-size: 0.7rem;
+	}
+
+	.detail-footer span {
+		color: var(--ink-mute);
+		font:
+			700 0.58rem ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			monospace;
+		letter-spacing: 0.06em;
+	}
+
+	.detail-footer strong {
+		color: var(--ink);
+		font-weight: 700;
+	}
+
+	.mobile-tabbar {
+		display: none;
+	}
+
+	@media (max-width: 1120px) {
+		.top-bar {
+			grid-template-columns: 1fr auto auto;
+		}
+
+		.section-pills,
+		.search-shell {
+			display: none;
+		}
+
+		.storage-workspace {
+			grid-template-columns: minmax(0, 1fr) 280px;
+		}
+
+		.box-sidebar {
+			display: none;
+		}
+	}
+
+	@media (max-width: 820px) {
+		.app-shell {
+			height: auto;
+			min-height: 100dvh;
+			padding: 10px 10px 78px;
+			gap: 10px;
+			overflow: visible;
+		}
+
+		.storage-workspace,
+		.workspace-column,
+		.box-sidebar,
+		.party-zone,
+		.box-zone,
+		.detail-rail,
+		.box-list,
+		.box-grid {
+			overflow: visible;
+			min-height: 0;
+		}
+
+		.top-bar {
+			grid-template-columns: auto 1fr auto auto auto;
+			border-radius: 14px;
+			gap: 8px;
+			padding: 8px;
+		}
+
+		.save-chip,
+		.online-indicator,
+		.status-strip span:last-child {
+			display: none;
+		}
+
+		.box-header {
+			justify-content: center;
+		}
+
+		.box-title {
+			justify-items: center;
+			text-align: center;
+		}
+
+		.box-switcher {
+			gap: 12px;
+		}
+
+		.box-sidebar,
+		.workspace-column,
+		.detail-rail {
+			position: static;
+			max-height: none;
+		}
+
+		.storage-workspace {
+			display: flex;
+			flex-direction: column;
+			min-height: 0;
+		}
+
+		.workspace-column {
+			order: 1;
+		}
+
+		.detail-rail {
+			order: 2;
+		}
+
+		.party-zone,
+		.box-zone,
+		.detail-rail {
+			border-radius: 14px;
+			padding: 10px;
+		}
+
+		.party-list {
+			grid-template-columns: repeat(6, minmax(44px, 1fr));
+			gap: 6px;
+		}
+
+		.party-slot {
+			min-height: 56px;
+			aspect-ratio: 1;
+			padding: 4px;
+		}
+
+		.party-slot .slot-sprite {
+			width: 42px;
+			height: 42px;
+		}
+
+		.party-slot .slot-label,
+		.party-slot .slot-detail {
+			display: none;
+		}
+
+		.box-grid {
+			grid-template-columns: repeat(5, minmax(50px, 1fr));
+			grid-auto-rows: minmax(50px, 1fr);
+			align-content: start;
+		}
+
+		.box-slot {
+			min-height: 62px;
+		}
+
+		.detail-rail {
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+		}
+
+		.portrait-card {
+			height: 168px;
+		}
+
+		.detail-heading {
+			align-items: flex-start;
+			justify-content: space-between;
+			gap: 8px;
+		}
+
+		.mobile-tabbar {
+			position: fixed;
+			bottom: 0;
+			left: 0;
+			right: 0;
+			z-index: 60;
+			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			gap: 0;
+			padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
+			background: var(--paper-hi);
+			border-top: 1px solid var(--rule);
+			box-shadow: 0 -8px 24px -12px rgba(70, 50, 30, 0.18);
+		}
+
+		.mobile-tabbar button {
+			display: grid;
+			justify-items: center;
+			gap: 2px;
+			padding: 6px 4px;
+			background: transparent;
+			color: var(--ink-mute);
+		}
+
+		.mobile-tabbar button.active {
+			color: var(--rust);
+		}
+
+		.mobile-tabbar button span {
+			font-size: 1.05rem;
+			line-height: 1;
+		}
+
+		.mobile-tabbar button small {
+			font:
+				700 0.58rem ui-monospace,
+				SFMono-Regular,
+				Menlo,
+				monospace;
+			letter-spacing: 0.05em;
+		}
+	}
+
+	@media (max-width: 520px) {
+		.brand-lockup p,
+		.save-actions button:nth-of-type(2),
+		.filter-row,
+		.box-footer span:nth-child(2) {
+			display: none;
+		}
+
+		.brand-lockup h1 {
+			font-size: 1.1rem;
+		}
+
+		.save-actions button {
+			padding: 0 10px;
+		}
+
+		.box-grid {
+			gap: 6px;
 		}
 	}
 </style>
