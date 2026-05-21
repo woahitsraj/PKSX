@@ -19,17 +19,19 @@
 		getBoxSlotPosition,
 		getFocusId,
 		PARTY_SLOT_COUNT,
+		selectActiveBox,
 		type BoxNavigationState,
 		type NavigationAction
 	} from '$lib/pksx/box-navigation';
 	import { IndexedDbLocalLibraryStorage, type StoredSaveFile } from '$lib/pksx/local-library';
-
-	type SlotView = {
-		slot: number;
-		label: string;
-		detail: string;
-		kind: 'pokemon' | 'empty';
-	};
+	import BoxSidebar from '$lib/components/pksx/BoxSidebar.svelte';
+	import DetailRail from '$lib/components/pksx/DetailRail.svelte';
+	import MobileTabbar from '$lib/components/pksx/MobileTabbar.svelte';
+	import SlotActionMenu from '$lib/components/pksx/SlotActionMenu.svelte';
+	import StatusStrip from '$lib/components/pksx/StatusStrip.svelte';
+	import StorageSlot from '$lib/components/pksx/StorageSlot.svelte';
+	import TopBar from '$lib/components/pksx/TopBar.svelte';
+	import type { BoxNavItem, SlotView } from '$lib/components/pksx/types';
 
 	type LoadedSave = {
 		file: StoredSaveFile;
@@ -40,10 +42,49 @@
 	const placeholderBoxCount = 3;
 	const storage = new IndexedDbLocalLibraryStorage();
 
+	const slotPalette = [16, 28, 48, 100, 140, 180, 195, 210, 220, 260, 280, 295, 330, 52];
+	const sectionPills = ['Boxes', 'Editor', 'Saves'];
+	const mobileTabs = [
+		{ key: 'boxes', label: 'Boxes', glyph: '▦' },
+		{ key: 'editor', label: 'Editor', glyph: '✎' },
+		{ key: 'saves', label: 'Saves', glyph: '☁' }
+	];
+
+	function slotHue(box: number, slot: number, speciesId: number | null): number {
+		const seed = speciesId && speciesId > 0 ? speciesId : slot * 31 + box * 7;
+		return slotPalette[seed % slotPalette.length];
+	}
+
+	function slotHueSecondary(box: number, slot: number, speciesId: number | null): number | null {
+		const seed = speciesId && speciesId > 0 ? speciesId : slot * 31 + box * 7;
+		if (seed % 3 !== 0) return null;
+		const offset = ((seed * 7) % (slotPalette.length - 1)) + 1;
+		return slotPalette[(seed + offset) % slotPalette.length];
+	}
+
+	function slotStyle(box: number, slot: number, speciesId: number | null): string {
+		const primary = slotHue(box, slot, speciesId);
+		const secondary = slotHueSecondary(box, slot, speciesId);
+		if (secondary === null) {
+			return `--slot-hue: ${primary}`;
+		}
+		return `--slot-hue: ${primary}; --slot-hue-2: ${secondary}`;
+	}
+
+	function boxHue(box: number): number {
+		return slotPalette[box % slotPalette.length];
+	}
+
+	function boxNameFor(box: number): string {
+		return `Box ${String(box + 1).padStart(2, '0')}`;
+	}
+
 	const placeholderPartySlots: SlotView[] = Array.from({ length: PARTY_SLOT_COUNT }, (_, slot) => ({
 		slot,
-		label: slot === 0 ? 'Lead Slot' : 'Empty',
-		detail: slot === 0 ? 'Fixture party position' : 'Available party position',
+		label: slot === 0 ? 'Pikachu' : 'Empty',
+		detail: slot === 0 ? 'Lv. 5' : '',
+		level: slot === 0 ? 5 : null,
+		speciesId: slot === 0 ? 25 : null,
 		kind: slot === 0 ? 'pokemon' : 'empty'
 	}));
 
@@ -55,8 +96,10 @@
 				return {
 					slot,
 					label: featured ? 'Pikachu' : 'Empty',
-					detail: featured ? 'Lv. 5 - fixture data' : `Box ${box + 1} slot ${slot + 1}`,
-					kind: featured ? 'pokemon' : 'empty'
+					detail: featured ? 'Lv. 5' : '',
+					level: featured ? 5 : null,
+					speciesId: featured ? 25 : null,
+					kind: featured ? ('pokemon' as const) : ('empty' as const)
 				};
 			})
 	);
@@ -67,9 +110,16 @@
 	let importError = $state<string | null>(null);
 	let statusMessage = $state('Import a Save File to begin.');
 	let busy = $state(false);
+	let partyCollapsed = $state(false);
+	let darkMode = $state(false);
 	let engine: EngineApi | null = null;
 	let workspaceLoadRequest = 0;
 
+	const pikachuSpriteUrl = 'https://img.pokemondb.net/sprites/scarlet-violet/normal/pikachu.png';
+
+	const controllerConnected = $derived(
+		gamepadStatus !== 'No controller detected' && gamepadStatus.length > 0
+	);
 	const boxCount = $derived(loadedSave?.workspace.summary.boxCount ?? placeholderBoxCount);
 	const partySlots = $derived(
 		loadedSave ? createPartySlotViews(loadedSave.workspace.partySlots) : placeholderPartySlots
@@ -86,6 +136,34 @@
 			: activeBoxSlots[navigation.focus.slot]
 	);
 	const saveSummary = $derived(loadedSave?.workspace.summary ?? null);
+	const boxIndices = $derived(Array.from({ length: boxCount }, (_, index) => index));
+	const boxNavItems = $derived<BoxNavItem[]>(
+		boxIndices.map((index) => ({
+			index,
+			name: boxNameFor(index),
+			hue: boxHue(index),
+			active: index === navigation.activeBox,
+			occupied:
+				index === navigation.activeBox
+					? activeBoxSlots.filter((slot) => slot.kind === 'pokemon').length
+					: null
+		}))
+	);
+	const visibleBoxSlots = $derived(
+		activeBoxSlots.length >= BOX_SLOT_COUNT
+			? activeBoxSlots.slice(0, BOX_SLOT_COUNT)
+			: [
+					...activeBoxSlots,
+					...Array.from({ length: BOX_SLOT_COUNT - activeBoxSlots.length }, (_, index) => ({
+						slot: activeBoxSlots.length + index,
+						label: 'Empty',
+						detail: '',
+						level: null,
+						speciesId: null,
+						kind: 'empty' as const
+					}))
+				]
+	);
 
 	function dispatch(action: NavigationAction) {
 		const previousBox = navigation.activeBox;
@@ -158,12 +236,41 @@
 		queueMicrotask(focusActiveGrid);
 	}
 
+	function selectBox(index: number) {
+		const previousBox = navigation.activeBox;
+		navigation = selectActiveBox(navigation, index);
+
+		if (loadedSave && navigation.activeBox !== previousBox) {
+			void loadWorkspaceForSave(loadedSave, navigation.activeBox);
+		}
+
+		queueMicrotask(focusActiveGrid);
+	}
+
 	function openFocusedSlot() {
 		dispatch('confirm');
 	}
 
 	function closeActionSurface() {
 		dispatch('back');
+	}
+
+	function closeActionSurfaceFromOutside(event: PointerEvent) {
+		if (!navigation.actionSurfaceOpen) {
+			return;
+		}
+
+		const target = event.target;
+
+		if (!(target instanceof Element)) {
+			return;
+		}
+
+		if (target.closest('.slot-cell, .slot-context, .box-switcher, .party-toggle')) {
+			return;
+		}
+
+		closeActionSurface();
 	}
 
 	function isFocused(zone: 'party' | 'box', slot: number) {
@@ -430,7 +537,9 @@
 			slotViews.push({
 				slot,
 				label: 'Empty',
-				detail: 'Available party position',
+				detail: '',
+				level: null,
+				speciesId: null,
 				kind: 'empty'
 			});
 		}
@@ -446,7 +555,9 @@
 		return {
 			slot: slot.slot,
 			label: slot.isEmpty ? 'Empty' : slot.nickname || `Species ${slot.speciesId}`,
-			detail: slot.isEmpty ? 'Available slot' : `Lv. ${slot.level}`,
+			detail: slot.isEmpty ? '' : `Lv. ${slot.level}`,
+			level: slot.isEmpty ? null : slot.level,
+			speciesId: slot.isEmpty ? null : slot.speciesId,
 			kind: slot.isEmpty ? 'empty' : 'pokemon'
 		};
 	}
@@ -475,59 +586,46 @@
 </script>
 
 <svelte:head>
-	<title>PKSX Box</title>
+	<title>PKSX Atelier</title>
 </svelte:head>
 
-<main class="app-shell" aria-labelledby="screen-title" {@attach gamepadNavigation}>
-	<section class="status-rail" aria-label="Current save summary">
-		<div>
-			<p class="eyebrow">PKSX</p>
-			<h1 id="screen-title">Box Storage</h1>
-		</div>
-		<div class="save-actions" aria-label="Save File actions">
-			<input
-				id="save-file-input"
-				class="file-input"
-				type="file"
-				aria-label="Import Save File"
-				onchange={handleImport}
-			/>
-			<button type="button" disabled={busy} onclick={openImportPicker}>Import</button>
-			<button type="button" disabled={busy || !loadedSave} onclick={exportLoadedSave}>Export</button
-			>
-		</div>
-		<div class="save-chip">
-			<span>{loadedSave?.file.originalFileName ?? 'No Save File'}</span>
-			<strong>Box {navigation.activeBox + 1}/{boxCount}</strong>
-		</div>
-		{#if saveSummary}
-			<div class="save-chip save-summary">
-				<span>{saveSummary.trainerName ?? 'Unknown trainer'}</span>
-				<strong>
-					Gen {saveSummary.generation} &middot; {saveSummary.partyCount} party &middot; {saveSummary.boxCount}
-					boxes
-				</strong>
-			</div>
-		{/if}
-		<p class="controller-status">{gamepadStatus}</p>
-	</section>
+<main
+	class={['app-shell', darkMode && 'dark']}
+	aria-labelledby="screen-title"
+	onpointerdown={closeActionSurfaceFromOutside}
+	{@attach gamepadNavigation}
+>
+	<TopBar
+		{sectionPills}
+		{saveSummary}
+		{boxCount}
+		activeBox={navigation.activeBox}
+		fileName={loadedSave?.file.originalFileName ?? null}
+		{busy}
+		hasLoadedSave={loadedSave !== null}
+		{darkMode}
+		onImport={handleImport}
+		onOpenImportPicker={openImportPicker}
+		onExport={exportLoadedSave}
+		onToggleTheme={() => (darkMode = !darkMode)}
+	/>
 
 	{#if importError}
-		<section class="error-strip" role="alert">
-			<strong>Import error</strong>
-			<span>{importError}</span>
-		</section>
+		<StatusStrip variant="error" label="Import error" message={importError} />
 	{/if}
 
-	<section class="status-strip" aria-live="polite">
-		<span>{busy ? 'Working...' : statusMessage}</span>
-	</section>
+	<StatusStrip
+		message={busy ? 'Working...' : statusMessage}
+		secondary={controllerConnected ? gamepadStatus : null}
+	/>
 
 	<section class="storage-workspace" aria-label="Party and box storage">
-		<div class="grid-shell">
+		<BoxSidebar boxes={boxNavItems} boxSlotCount={BOX_SLOT_COUNT} onSelectBox={selectBox} />
+
+		<div class="workspace-column">
 			<div
 				id="party-grid"
-				class="party-zone"
+				class={['party-zone', partyCollapsed && 'collapsed']}
 				role="grid"
 				tabindex="0"
 				aria-label="Party"
@@ -536,34 +634,44 @@
 				aria-colcount="1"
 				onkeydown={handleGridKeydown}
 			>
-				<div class="zone-header">
-					<h2>Party</h2>
-					<span>6 slots</span>
+				<div class="zone-header party-header">
+					<button
+						class="party-toggle"
+						type="button"
+						aria-expanded={!partyCollapsed}
+						aria-controls="party-list"
+						onclick={() => (partyCollapsed = !partyCollapsed)}
+					>
+						<span aria-hidden="true">▾</span>
+						<strong>Party</strong>
+					</button>
+					<span>6 / 6 · on hand</span>
 				</div>
-				<div class="party-list">
+				<div id="party-list" class="party-list">
 					{#each partySlots as slot (slot.slot)}
-						<div role="row">
-							<button
+						<div
+							class={['slot-cell', isFocused('party', slot.slot) && 'selected']}
+							role="row"
+							aria-hidden={partyCollapsed ? 'true' : undefined}
+						>
+							<StorageSlot
 								id={`party-slot-${slot.slot}`}
-								class={[
-									'slot',
-									'party-slot',
-									slot.kind,
-									isFocused('party', slot.slot) && 'focused'
-								]}
-								type="button"
-								role="gridcell"
-								tabindex="-1"
-								aria-selected={isFocused('party', slot.slot)}
-								aria-rowindex={slot.slot + 1}
-								aria-colindex="1"
-								onclick={() => focusParty(slot.slot)}
-								ondblclick={openFocusedSlot}
-							>
-								<span class="slot-number">P{slot.slot + 1}</span>
-								<span class="slot-label">{slot.label}</span>
-								<span class="slot-detail">{slot.detail}</span>
-							</button>
+								{slot}
+								zone="party"
+								focused={isFocused('party', slot.slot)}
+								dualType={slot.kind === 'pokemon' &&
+									slotHueSecondary(-1, slot.slot, slot.speciesId) !== null}
+								style={slotStyle(-1, slot.slot, slot.speciesId)}
+								rowIndex={slot.slot + 1}
+								colIndex={1}
+								spriteUrl={pikachuSpriteUrl}
+								collapsed={partyCollapsed}
+								onFocusSlot={() => focusParty(slot.slot)}
+								onOpenSlot={openFocusedSlot}
+							/>
+							{#if navigation.actionSurfaceOpen && isFocused('party', slot.slot)}
+								<SlotActionMenu align="start" location={`Party slot ${slot.slot + 1}`} />
+							{/if}
 						</div>
 					{/each}
 				</div>
@@ -581,405 +689,466 @@
 				onkeydown={handleGridKeydown}
 			>
 				<div class="zone-header box-header">
-					<div>
-						<h2>Box {navigation.activeBox + 1}</h2>
-						<span>30 slots</span>
+					<div class="box-title">
+						<h2>{boxNameFor(navigation.activeBox)}</h2>
+						<span>
+							<em>BOX {String(navigation.activeBox + 1).padStart(2, '0')}/{boxCount}</em>
+							<b
+								>{activeBoxSlots.filter((slot) => slot.kind === 'pokemon').length} / {BOX_SLOT_COUNT}
+								occupied</b
+							>
+						</span>
 					</div>
 					<div class="box-switcher" aria-label="Box switcher">
 						<button type="button" aria-label="Previous box" onclick={() => dispatch('previousBox')}
-							>L</button
+							>‹</button
 						>
 						<button type="button" aria-label="Next box" onclick={() => dispatch('nextBox')}
-							>R</button
+							>›</button
 						>
 					</div>
 				</div>
+				<div class="filter-row" aria-hidden="true">
+					<span>compact</span>
+					<span>sort · slot</span>
+					<span>local</span>
+				</div>
 				<div class="box-grid">
-					{#each activeBoxSlots as slot (slot.slot)}
+					{#each visibleBoxSlots as slot (slot.slot)}
 						{@const position = getBoxSlotPosition(slot.slot)}
-						<button
-							id={`box-${navigation.activeBox}-slot-${slot.slot}`}
-							class={['slot', 'box-slot', slot.kind, isFocused('box', slot.slot) && 'focused']}
-							type="button"
-							role="gridcell"
-							tabindex="-1"
-							aria-selected={isFocused('box', slot.slot)}
-							aria-rowindex={position.row + 1}
-							aria-colindex={position.column + 1}
-							onclick={() => focusBox(slot.slot)}
-							ondblclick={openFocusedSlot}
-						>
-							<span class="slot-number">{slot.slot + 1}</span>
-							<span class="slot-label">{slot.label}</span>
-							<span class="slot-detail">{slot.detail}</span>
-						</button>
+						<div class={['slot-cell', isFocused('box', slot.slot) && 'selected']}>
+							<StorageSlot
+								id={`box-${navigation.activeBox}-slot-${slot.slot}`}
+								{slot}
+								zone="box"
+								focused={isFocused('box', slot.slot)}
+								dualType={slot.kind === 'pokemon' &&
+									slotHueSecondary(navigation.activeBox, slot.slot, slot.speciesId) !== null}
+								style={slotStyle(navigation.activeBox, slot.slot, slot.speciesId)}
+								rowIndex={position.row + 1}
+								colIndex={position.column + 1}
+								spriteUrl={pikachuSpriteUrl}
+								onFocusSlot={() => focusBox(slot.slot)}
+								onOpenSlot={openFocusedSlot}
+							/>
+							{#if navigation.actionSurfaceOpen && isFocused('box', slot.slot)}
+								<SlotActionMenu
+									align={position.column <= 1
+										? 'start'
+										: position.column >= BOX_COLUMNS - 2
+											? 'end'
+											: 'center'}
+									location={`Box ${navigation.activeBox + 1}, slot ${slot.slot + 1}`}
+								/>
+							{/if}
+						</div>
 					{/each}
+				</div>
+				<div class="box-footer">
+					{#if controllerConnected}
+						<span><kbd>A</kbd> Pick</span>
+						<span><kbd>X</kbd> Multi</span>
+						<span><kbd>Y</kbd> Mark</span>
+						<span><kbd>B</kbd> Back</span>
+					{/if}
+					<strong>
+						{#if navigation.focus.zone === 'box'}
+							{@const pos = getBoxSlotPosition(navigation.focus.slot)}
+							SLOT {navigation.focus.slot + 1} · ROW {String.fromCharCode(65 + pos.row)} / COL
+							{pos.column + 1}
+						{:else}
+							PARTY SLOT {navigation.focus.slot + 1}
+						{/if}
+					</strong>
 				</div>
 			</div>
 		</div>
 
-		<aside class="focus-readout" aria-live="polite">
-			<p class="eyebrow">Controller Focus</p>
-			<strong>
-				{navigation.focus.zone === 'party'
-					? `Party slot ${navigation.focus.slot + 1}`
-					: `Box ${navigation.activeBox + 1}, slot ${navigation.focus.slot + 1}`}
-			</strong>
-			<span>{focusedSlot.label} - {focusedSlot.detail}</span>
-		</aside>
+		<DetailRail
+			{focusedSlot}
+			focusZone={navigation.focus.zone}
+			focusSlot={navigation.focus.slot}
+			slotHueStyle={`--slot-hue: ${slotHue(navigation.activeBox, navigation.focus.slot, focusedSlot.speciesId)}`}
+			spriteUrl={pikachuSpriteUrl}
+			{saveSummary}
+			activeBoxName={boxNameFor(navigation.activeBox)}
+			{slotPalette}
+		/>
 	</section>
 
-	{#if navigation.actionSurfaceOpen}
-		<div class="action-surface" role="dialog" aria-label="Slot actions">
-			<div>
-				<p class="eyebrow">Slot Actions</p>
-				<h2>{focusedSlot.label}</h2>
-				<p>
-					{navigation.focus.zone === 'party'
-						? `Party slot ${navigation.focus.slot + 1}`
-						: `Box ${navigation.activeBox + 1}, slot ${navigation.focus.slot + 1}`}
-				</p>
-			</div>
-			<div class="action-buttons">
-				<button type="button" disabled>Summary</button>
-				<button type="button" disabled>Move</button>
-				<button type="button" onclick={closeActionSurface}>Close</button>
-			</div>
-		</div>
-	{/if}
+	<MobileTabbar tabs={mobileTabs} />
 </main>
 
 <style>
+	:global(html),
 	:global(body) {
 		margin: 0;
-		background:
-			linear-gradient(90deg, rgba(46, 125, 112, 0.08) 1px, transparent 1px),
-			linear-gradient(180deg, rgba(46, 125, 112, 0.08) 1px, transparent 1px), #111615;
-		background-size: 34px 34px;
-		color: #ecf5ef;
-		font-family: 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
+		background: var(--pksx-color-surface-canvas);
+		color: var(--pksx-color-text-primary);
+		font-family: var(--pksx-font-sans);
+		font-weight: 500;
+	}
+
+	@media (min-width: 821px) {
+		:global(html),
+		:global(body) {
+			height: 100%;
+			overflow: hidden;
+		}
+	}
+
+	:global(strong) {
+		font-weight: 650;
 	}
 
 	button {
+		border: 0;
 		font: inherit;
+		cursor: pointer;
+	}
+
+	.app-shell,
+	.app-shell * {
+		box-sizing: border-box;
 	}
 
 	.app-shell {
-		min-height: 100vh;
-		padding: 24px;
-		display: grid;
-		grid-template-rows: auto auto auto 1fr;
-		gap: 18px;
-	}
-
-	.status-rail,
-	.status-strip,
-	.error-strip,
-	.storage-workspace,
-	.action-surface {
-		border: 1px solid rgba(184, 213, 197, 0.18);
-		background: rgba(16, 24, 22, 0.9);
-		box-shadow: 0 18px 60px rgba(0, 0, 0, 0.25);
-	}
-
-	.status-rail {
-		display: grid;
-		grid-template-columns: minmax(160px, 1fr) auto auto auto auto;
-		align-items: center;
-		gap: 18px;
-		padding: 18px 20px;
-	}
-
-	.status-strip,
-	.error-strip {
+		--paper: var(--pksx-color-surface-canvas);
+		--paper-hi: var(--pksx-color-surface-panel);
+		--paper-deep: var(--pksx-color-surface-subtle);
+		--ink: var(--pksx-color-text-primary);
+		--ink-soft: var(--pksx-color-text-secondary);
+		--ink-mute: var(--pksx-color-text-muted);
+		--rule: var(--pksx-color-border-subtle);
+		--rule-hi: var(--pksx-color-border-strong);
+		--rust: var(--pksx-color-accent-primary);
+		--rust-wash: var(--pksx-color-accent-wash);
+		--rust-ring: var(--pksx-color-accent-ring);
+		--gold: var(--pksx-color-accent-gold);
+		--ok: var(--pksx-color-feedback-success);
+		--err: var(--pksx-color-feedback-danger);
+		--shadow: var(--pksx-shadow-raised);
+		--shadow-sm: var(--pksx-shadow-subtle);
+		--shadow-deep: var(--pksx-shadow-panel);
+		height: 100dvh;
+		min-height: 100dvh;
+		padding: 18px;
 		display: flex;
-		align-items: center;
-		gap: 10px;
-		padding: 10px 14px;
-		color: #cddbd4;
-	}
-
-	.error-strip {
-		border-color: rgba(244, 107, 107, 0.45);
-		background: rgba(62, 20, 22, 0.92);
-		color: #ffd4d4;
-	}
-
-	.eyebrow {
-		margin: 0 0 4px;
-		color: #8fd0b5;
-		font-size: 0.72rem;
-		font-weight: 800;
-		letter-spacing: 0;
-		text-transform: uppercase;
-	}
-
-	h1,
-	h2,
-	p {
-		margin: 0;
-	}
-
-	h1 {
-		font-size: 1.65rem;
-		line-height: 1.1;
-	}
-
-	h2 {
-		font-size: 1rem;
-		line-height: 1.2;
-	}
-
-	.save-chip,
-	.save-actions button,
-	.controller-status,
-	.focus-readout {
-		border: 1px solid rgba(184, 213, 197, 0.16);
-		background: rgba(232, 241, 235, 0.06);
-	}
-
-	.save-chip {
-		display: grid;
-		gap: 2px;
-		padding: 10px 12px;
-		min-width: 150px;
-	}
-
-	.save-summary {
-		min-width: 220px;
-	}
-
-	.save-actions {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-
-	.file-input {
-		position: absolute;
-		width: 1px;
-		height: 1px;
+		flex-direction: column;
+		gap: 12px;
 		overflow: hidden;
-		clip: rect(0 0 0 0);
-		white-space: nowrap;
+		background:
+			radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.5), transparent 40%),
+			radial-gradient(circle at 80% 90%, rgba(184, 88, 56, 0.05), transparent 50%),
+			repeating-linear-gradient(45deg, transparent 0 6px, rgba(70, 50, 30, 0.012) 6px 7px),
+			var(--paper);
+		color: var(--ink);
 	}
 
-	.save-actions button {
-		min-height: 38px;
-		padding: 0 14px;
-		border-radius: 8px;
-		color: #ecf5ef;
-		cursor: pointer;
-		font-weight: 850;
-	}
-
-	.save-actions button:not(:disabled):hover {
-		border-color: rgba(201, 245, 106, 0.5);
-		background: rgba(201, 245, 106, 0.12);
-	}
-
-	.save-actions button:disabled {
-		cursor: not-allowed;
-		opacity: 0.45;
-	}
-
-	.save-chip span,
-	.controller-status,
-	.zone-header span,
-	.slot-detail,
-	.focus-readout span,
-	.action-surface p {
-		color: #9fb3aa;
-		font-size: 0.82rem;
-	}
-
-	.controller-status {
-		padding: 10px 12px;
-		max-width: 260px;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+	.app-shell.dark {
+		background:
+			radial-gradient(circle at 20% 10%, rgba(255, 138, 92, 0.04), transparent 50%),
+			radial-gradient(circle at 80% 90%, rgba(120, 140, 180, 0.04), transparent 55%), var(--paper);
 	}
 
 	.storage-workspace {
-		position: relative;
+		flex: 1 1 auto;
+		min-height: 0;
 		display: grid;
-		grid-template-rows: 1fr auto;
-		gap: 14px;
-		padding: 18px;
+		grid-template-columns: 158px minmax(0, 1fr) 304px;
+		align-items: stretch;
+		gap: 12px;
+		padding: 0;
+		overflow: hidden;
+		background: transparent;
+		box-shadow: none;
 	}
 
-	.grid-shell {
-		display: grid;
-		grid-template-columns: minmax(150px, 0.34fr) minmax(480px, 1fr);
-		gap: 16px;
-		outline: none;
-	}
-
-	.party-zone,
-	.box-zone {
-		outline: none;
-	}
-
-	.party-zone:focus-visible,
-	.box-zone:focus-visible {
-		box-shadow: 0 0 0 3px rgba(143, 208, 181, 0.45);
+	.workspace-column {
+		min-width: 0;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		overflow: hidden;
 	}
 
 	.party-zone,
 	.box-zone {
 		min-width: 0;
+		min-height: 0;
+		padding: 12px;
+		overflow: hidden;
+		border: 0;
+		border-radius: var(--pksx-radius-xl);
+		background: var(--paper-hi);
+		box-shadow: var(--shadow-deep);
+		color: var(--ink);
+		outline: none;
+	}
+
+	.box-zone {
+		flex: 1 1 auto;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.box-zone:focus-visible,
+	.party-zone:focus-visible {
+		outline: 3px solid color-mix(in srgb, var(--rust), transparent 65%);
+		outline-offset: 3px;
 	}
 
 	.zone-header {
-		min-height: 48px;
+		min-height: auto;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
-		padding-bottom: 10px;
+		padding: 0;
+		margin-bottom: 10px;
 	}
 
-	.box-header {
-		align-items: flex-start;
+	.zone-header h2 {
+		margin: 0;
+		color: var(--ink);
+		font-size: 1.35rem;
+		font-weight: 800;
+		line-height: 1;
+		letter-spacing: 0;
+	}
+
+	.zone-header span {
+		margin: 0;
+		color: var(--ink-soft);
+		font-size: 0.68rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+	}
+
+	.party-header {
+		margin-bottom: 9px;
+	}
+
+	.party-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 0;
+		background: transparent;
+		box-shadow: none;
+		color: var(--ink);
+	}
+
+	.party-toggle span {
+		display: inline-block;
+		color: var(--ink-soft);
+		transition: transform 160ms ease;
+	}
+
+	.party-zone.collapsed .party-toggle span {
+		transform: rotate(-90deg);
 	}
 
 	.party-list {
 		display: grid;
-		grid-template-rows: repeat(6, minmax(70px, 1fr));
-		gap: 8px;
+		grid-template-columns: repeat(6, minmax(52px, 80px));
+		justify-content: center;
+		gap: 6px;
 	}
 
-	.box-grid {
+	.party-zone.collapsed .party-list {
+		display: none;
+	}
+
+	.box-title {
 		display: grid;
-		grid-template-columns: repeat(6, minmax(76px, 1fr));
-		grid-template-rows: repeat(5, minmax(82px, 1fr));
-		gap: 8px;
-		min-width: 520px;
+		gap: 2px;
 	}
 
-	.slot {
-		width: 100%;
-		height: 100%;
-		min-width: 0;
-		display: grid;
-		grid-template-rows: auto 1fr auto;
-		gap: 4px;
-		padding: 10px;
-		border: 1px solid rgba(184, 213, 197, 0.16);
-		border-radius: 8px;
-		color: #ecf5ef;
-		text-align: left;
-		background: rgba(232, 241, 235, 0.055);
-		cursor: pointer;
-		transition:
-			border-color 120ms ease,
-			background 120ms ease,
-			transform 120ms ease;
+	.box-title h2 {
+		font-size: 1.45rem;
 	}
 
-	.slot:hover {
-		border-color: rgba(143, 208, 181, 0.5);
-		background: rgba(232, 241, 235, 0.09);
-	}
-
-	.slot.focused {
-		border-color: #c9f56a;
-		background:
-			linear-gradient(135deg, rgba(201, 245, 106, 0.2), rgba(143, 208, 181, 0.08)),
-			rgba(232, 241, 235, 0.08);
-		box-shadow:
-			0 0 0 2px rgba(201, 245, 106, 0.24),
-			inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-		transform: translateY(-1px);
-	}
-
-	.slot-number {
-		color: #8fd0b5;
-		font-size: 0.72rem;
-		font-weight: 800;
-	}
-
-	.slot-label {
-		align-self: center;
-		min-width: 0;
-		overflow-wrap: anywhere;
-		font-weight: 800;
-	}
-
-	.slot.empty .slot-label {
-		color: #aebcb5;
-		font-weight: 650;
-	}
-
-	.box-switcher,
-	.action-buttons {
+	.box-title span {
 		display: flex;
 		gap: 8px;
+		color: var(--ink-mute);
+		font:
+			650 0.62rem var(--pksx-font-mono),
+			monospace;
+		letter-spacing: 0.04em;
 	}
 
-	.box-switcher button,
-	.action-buttons button {
-		min-height: 36px;
-		border: 1px solid rgba(184, 213, 197, 0.18);
-		border-radius: 8px;
-		background: rgba(232, 241, 235, 0.08);
-		color: #ecf5ef;
-		cursor: pointer;
-		font-weight: 800;
+	.box-title em {
+		font-style: normal;
+	}
+
+	.box-switcher {
+		display: flex;
+		gap: 6px;
 	}
 
 	.box-switcher button {
-		aspect-ratio: 1;
-		width: 40px;
+		width: 30px;
+		min-height: 32px;
+		padding: 0;
+		border-radius: var(--pksx-radius-md);
+		background: var(--paper-hi);
+		box-shadow: var(--shadow-sm);
+		color: var(--ink);
+		font-size: 1.1rem;
+		font-weight: 700;
 	}
 
-	.box-switcher button:disabled,
-	.action-buttons button:disabled {
-		cursor: not-allowed;
-		opacity: 0.45;
+	.box-switcher button:hover,
+	.party-toggle:hover {
+		background: var(--rust-wash);
+		color: var(--rust);
 	}
 
-	.focus-readout {
+	.filter-row {
+		display: flex;
+		justify-content: flex-end;
+		gap: 5px;
+		margin-bottom: 10px;
+	}
+
+	.filter-row span {
+		padding: 3px 9px;
+		border: 1px solid var(--rule);
+		border-radius: 6px;
+		background: var(--paper-deep);
+		color: var(--ink-soft);
+		font:
+			600 0.62rem var(--pksx-font-mono),
+			monospace;
+	}
+
+	.box-grid {
+		flex: 1 1 auto;
+		min-height: 0;
 		display: grid;
-		gap: 4px;
-		padding: 12px;
+		grid-template-columns: repeat(6, minmax(52px, 80px));
+		grid-template-rows: repeat(5, minmax(52px, 80px));
+		grid-auto-rows: 80px;
+		justify-content: center;
+		align-content: start;
+		gap: 6px;
+		overflow-y: auto;
+		padding: 4px;
 	}
 
-	.action-surface {
-		position: fixed;
-		right: 24px;
-		bottom: 24px;
-		width: min(360px, calc(100vw - 48px));
-		display: grid;
-		gap: 16px;
-		padding: 18px;
-		z-index: 10;
+	.slot-cell {
+		position: relative;
+		min-width: 0;
+		min-height: 0;
 	}
 
-	.action-surface h2 {
-		font-size: 1.25rem;
+	.slot-cell.selected {
+		z-index: 20;
 	}
 
-	.action-buttons button {
-		padding: 0 14px;
+	.box-footer {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 10px;
+		padding-top: 10px;
+		border-top: 1px solid var(--rule);
+		color: var(--ink-soft);
+		font-size: 0.72rem;
+		font-weight: 650;
 	}
 
-	@media (max-width: 860px) {
+	.box-footer strong {
+		margin-left: auto;
+		color: var(--ink-mute);
+		font:
+			650 0.65rem var(--pksx-font-mono),
+			monospace;
+	}
+
+	@media (max-width: 1120px) {
+		.storage-workspace {
+			grid-template-columns: minmax(0, 1fr) 280px;
+		}
+	}
+
+	@media (max-width: 820px) {
 		.app-shell {
-			padding: 12px;
+			height: auto;
+			min-height: 100dvh;
+			padding: 10px 10px 78px;
+			gap: 10px;
+			overflow: visible;
 		}
 
-		.status-rail {
-			grid-template-columns: 1fr;
+		.storage-workspace,
+		.workspace-column,
+		.party-zone,
+		.box-zone,
+		.box-grid {
+			overflow: visible;
+			min-height: 0;
 		}
 
-		.grid-shell {
-			grid-template-columns: 1fr;
+		.box-header {
+			justify-content: center;
 		}
 
+		.box-title {
+			justify-items: center;
+			text-align: center;
+		}
+
+		.box-switcher {
+			gap: 12px;
+		}
+
+		.workspace-column {
+			order: 1;
+			position: static;
+			max-height: none;
+		}
+
+		.storage-workspace {
+			display: flex;
+			flex-direction: column;
+			min-height: 0;
+		}
+
+		.party-zone,
 		.box-zone {
-			overflow-x: auto;
+			border-radius: var(--pksx-radius-lg);
+			padding: 10px;
+		}
+
+		.party-list {
+			grid-template-columns: repeat(6, minmax(44px, 1fr));
+			gap: 6px;
+		}
+
+		.box-grid {
+			grid-template-columns: repeat(5, minmax(50px, 1fr));
+			grid-template-rows: none;
+			grid-auto-rows: auto;
+			align-content: start;
+		}
+
+		.box-grid .slot-cell {
+			aspect-ratio: 1;
+		}
+	}
+
+	@media (max-width: 520px) {
+		.filter-row,
+		.box-footer span:nth-child(2) {
+			display: none;
+		}
+
+		.box-grid {
+			gap: 6px;
 		}
 	}
 </style>

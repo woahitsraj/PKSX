@@ -81,6 +81,10 @@ export function focusBoxSlot(slot: number): ControllerFocus {
 	return { zone: 'box', slot: clamp(slot, 0, BOX_SLOT_COUNT - 1) };
 }
 
+export function selectActiveBox(state: BoxNavigationState, index: number): BoxNavigationState {
+	return { ...state, activeBox: clamp(index, 0, state.boxCount - 1) };
+}
+
 export function getFocusId(focus: ControllerFocus, activeBox: number): string {
 	return focus.zone === 'party'
 		? `party-slot-${focus.slot}`

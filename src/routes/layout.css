@@ -1,3 +1,62 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
+
+:root {
+	--pksx-font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+	--pksx-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+	--pksx-color-surface-canvas: #f4ecdf;
+	--pksx-color-surface-panel: #fbf6ec;
+	--pksx-color-surface-subtle: #ebe2d2;
+	--pksx-color-text-primary: #2a241c;
+	--pksx-color-text-secondary: #6b5d4a;
+	--pksx-color-text-muted: #9b8d76;
+	--pksx-color-border-subtle: rgba(42, 36, 28, 0.08);
+	--pksx-color-border-strong: rgba(42, 36, 28, 0.14);
+	--pksx-color-accent-primary: #b85838;
+	--pksx-color-accent-wash: rgba(184, 88, 56, 0.1);
+	--pksx-color-accent-ring: rgba(184, 88, 56, 0.35);
+	--pksx-color-accent-gold: #c89a3e;
+	--pksx-color-feedback-success: #7aa86a;
+	--pksx-color-feedback-danger: #c93d3d;
+
+	--pksx-radius-xs: 4px;
+	--pksx-radius-sm: 8px;
+	--pksx-radius-md: 11px;
+	--pksx-radius-lg: 14px;
+	--pksx-radius-xl: 18px;
+
+	--pksx-shadow-raised:
+		0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 4px 12px -6px rgba(70, 50, 30, 0.18),
+		0 2px 4px -2px rgba(70, 50, 30, 0.14);
+	--pksx-shadow-subtle:
+		0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 2px 6px -3px rgba(70, 50, 30, 0.16);
+	--pksx-shadow-panel:
+		0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 14px 36px -16px rgba(70, 50, 30, 0.26),
+		0 4px 10px -6px rgba(70, 50, 30, 0.18);
+}
+
+:root:has(.app-shell.dark) {
+	--pksx-color-surface-canvas: #0e0f12;
+	--pksx-color-surface-panel: #181a1e;
+	--pksx-color-surface-subtle: #08090b;
+	--pksx-color-text-primary: #f4f5f7;
+	--pksx-color-text-secondary: #b8bcc4;
+	--pksx-color-text-muted: #7a8090;
+	--pksx-color-border-subtle: rgba(255, 255, 255, 0.08);
+	--pksx-color-border-strong: rgba(255, 255, 255, 0.18);
+	--pksx-color-accent-primary: #ff8a5c;
+	--pksx-color-accent-wash: rgba(255, 138, 92, 0.14);
+	--pksx-color-accent-ring: rgba(255, 138, 92, 0.55);
+	--pksx-color-accent-gold: #f0c060;
+	--pksx-color-feedback-success: #7ed99a;
+	--pksx-color-feedback-danger: #ff6f6a;
+	--pksx-shadow-raised:
+		0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 4px 12px -6px rgba(0, 0, 0, 0.7),
+		0 2px 4px -2px rgba(0, 0, 0, 0.6);
+	--pksx-shadow-subtle: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 2px 6px -3px rgba(0, 0, 0, 0.6);
+	--pksx-shadow-panel:
+		0 1px 0 rgba(255, 255, 255, 0.07) inset, 0 14px 36px -16px rgba(0, 0, 0, 0.85),
+		0 4px 10px -6px rgba(0, 0, 0, 0.7);
+}

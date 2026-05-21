@@ -34,16 +34,10 @@ Install dependencies:
 pnpm install
 ```
 
-Start the development server:
-
-```sh
-pnpm dev
-```
-
 Start the development server through Portless:
 
 ```sh
-pnpm dev:portless
+pnpm dev
 ```
 
 This serves the app at `https://pksx.localhost`. On first run, Portless may ask to trust its local development CA so it can serve HTTPS locally.
@@ -58,8 +52,7 @@ pnpm dev -- --open
 
 | Command                   | Purpose                                                                                     |
 | ------------------------- | ------------------------------------------------------------------------------------------- |
-| `pnpm dev`                | Start the Vite/SvelteKit dev server.                                                        |
-| `pnpm dev:portless`       | Start the Vite/SvelteKit dev server through Portless at `https://pksx.localhost`.           |
+| `pnpm dev`                | Start the Vite/SvelteKit dev server through Portless at `https://pksx.localhost`.           |
 | `pnpm build`              | Build the static production app.                                                            |
 | `pnpm preview`            | Preview the production build locally.                                                       |
 | `pnpm engine:sync`        | Publish the PKHeX Engine and sync generated browser WASM assets into `static/pkhex-engine`. |

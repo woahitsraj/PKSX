@@ -4,8 +4,7 @@
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
-		"dev": "vite dev",
-		"dev:portless": "portless run --name pksx vite dev",
+		"dev": "portless run vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
 		"engine:sync": "node scripts/sync-pkhex-engine.ts",
