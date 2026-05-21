@@ -19,6 +19,7 @@
 		getBoxSlotPosition,
 		getFocusId,
 		PARTY_SLOT_COUNT,
+		selectActiveBox,
 		type BoxNavigationState,
 		type NavigationAction
 	} from '$lib/pksx/box-navigation';
@@ -236,11 +237,14 @@
 	}
 
 	function selectBox(index: number) {
-		if (index > navigation.activeBox) {
-			for (let step = navigation.activeBox; step < index; step += 1) dispatch('nextBox');
-		} else if (index < navigation.activeBox) {
-			for (let step = navigation.activeBox; step > index; step -= 1) dispatch('previousBox');
+		const previousBox = navigation.activeBox;
+		navigation = selectActiveBox(navigation, index);
+
+		if (loadedSave && navigation.activeBox !== previousBox) {
+			void loadWorkspaceForSave(loadedSave, navigation.activeBox);
 		}
+
+		queueMicrotask(focusActiveGrid);
 	}
 
 	function openFocusedSlot() {

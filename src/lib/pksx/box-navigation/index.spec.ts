@@ -6,6 +6,7 @@ import {
 	focusBoxSlot,
 	focusPartySlot,
 	getFocusId,
+	selectActiveBox,
 	type BoxNavigationState
 } from './index';
 
@@ -58,6 +59,19 @@ describe('box navigation', () => {
 			activeBox: 2,
 			focus: focusPartySlot(3)
 		});
+	});
+
+	it('selects a specific box in one state transition', () => {
+		expect.assertions(3);
+
+		const state = selectActiveBox(
+			{ ...createInitialNavigationState(30), activeBox: 0, focus: focusBoxSlot(17) },
+			29
+		);
+
+		expect(state).toMatchObject({ activeBox: 29, focus: focusBoxSlot(17) });
+		expect(selectActiveBox(state, -1)).toMatchObject({ activeBox: 0 });
+		expect(selectActiveBox(state, 40)).toMatchObject({ activeBox: 29 });
 	});
 
 	it('opens and dismisses the slot action surface without moving focus', () => {
