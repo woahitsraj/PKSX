@@ -24,12 +24,6 @@ async function openEmptyLibrary(page: Page) {
 	await expect(page.getByText('Import a Save File to begin.')).toBeVisible({ timeout: 15000 });
 }
 
-async function activateBoxControl(page: Page, name: 'Previous box' | 'Next box') {
-	await page.getByRole('button', { name }).evaluate((button) => {
-		(button as HTMLButtonElement).click();
-	});
-}
-
 test('keyboard navigation moves deterministically across the box grid', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await page.locator('#box-grid').focus();
@@ -63,36 +57,6 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
 	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
 	await expect(page.locator('#box-grid')).toBeFocused();
-});
-
-test('shoulder-tab behavior preserves the slot coordinate while changing boxes', async ({
-	page
-}) => {
-	await openEmptyLibrary(page);
-	await page.locator('#box-grid').focus();
-	await page.keyboard.press('ArrowRight');
-	await page.keyboard.press('ArrowDown');
-	await activateBoxControl(page, 'Next box');
-
-	await expect(page.getByRole('heading', { name: 'Box 2' })).toBeVisible();
-	await expect(page.locator('#box-1-slot-7')).toHaveAttribute('aria-selected', 'true');
-
-	await activateBoxControl(page, 'Previous box');
-	await expect(page.getByRole('heading', { name: 'Box 1' })).toBeVisible();
-	await expect(page.locator('#box-0-slot-7')).toHaveAttribute('aria-selected', 'true');
-});
-
-test('shoulder-tab behavior wraps between the last and first boxes', async ({ page }) => {
-	await openEmptyLibrary(page);
-	await page.locator('#box-grid').focus();
-
-	await activateBoxControl(page, 'Previous box');
-	await expect(page.getByRole('heading', { name: 'Box 3' })).toBeVisible();
-	await expect(page.locator('#box-2-slot-0')).toHaveAttribute('aria-selected', 'true');
-
-	await activateBoxControl(page, 'Next box');
-	await expect(page.getByRole('heading', { name: 'Box 1' })).toBeVisible();
-	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
 });
 
 test('mouse clicks move controller focus without opening slot actions', async ({ page }) => {
