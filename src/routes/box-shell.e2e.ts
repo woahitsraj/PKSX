@@ -48,12 +48,12 @@ test('shoulder-tab behavior preserves the slot coordinate while changing boxes',
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('ArrowRight');
 	await page.keyboard.press('ArrowDown');
-	await page.keyboard.press('PageDown');
+	await page.keyboard.press(']');
 
 	await expect(page.getByRole('heading', { name: 'Box 2' })).toBeVisible();
 	await expect(page.locator('#box-1-slot-7')).toHaveAttribute('aria-selected', 'true');
 
-	await page.keyboard.press('PageUp');
+	await page.keyboard.press('[');
 	await expect(page.getByRole('heading', { name: 'Box 1' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-7')).toHaveAttribute('aria-selected', 'true');
 });
@@ -62,11 +62,11 @@ test('shoulder-tab behavior wraps between the last and first boxes', async ({ pa
 	await page.goto('/');
 	await page.locator('#box-grid').focus();
 
-	await page.keyboard.press('PageUp');
+	await page.keyboard.press('[');
 	await expect(page.getByRole('heading', { name: 'Box 3' })).toBeVisible();
 	await expect(page.locator('#box-2-slot-0')).toHaveAttribute('aria-selected', 'true');
 
-	await page.keyboard.press('PageDown');
+	await page.keyboard.press(']');
 	await expect(page.getByRole('heading', { name: 'Box 1' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
 });
@@ -86,7 +86,7 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
 
 	await expect(page.getByText('011020251345.sav loaded.')).toBeVisible({ timeout: 15000 });
-	await expect(page.getByText('DIXIE')).toBeVisible();
+	await expect(page.getByText('DIXIE', { exact: true })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	await expect(page.locator('#party-slot-0')).toContainText('1-UP');
 
