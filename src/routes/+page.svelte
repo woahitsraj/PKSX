@@ -134,7 +134,6 @@
 			? partySlots[navigation.focus.slot]
 			: activeBoxSlots[navigation.focus.slot]
 	);
-	const focusedSlotSummary = $derived(formatFocusedSlotSummary(focusedSlot));
 	const saveSummary = $derived(loadedSave?.workspace.summary ?? null);
 	const boxIndices = $derived(Array.from({ length: boxCount }, (_, index) => index));
 	const boxNavItems = $derived<BoxNavItem[]>(
@@ -557,14 +556,6 @@
 			speciesId: slot.isEmpty ? null : slot.speciesId,
 			kind: slot.isEmpty ? 'empty' : 'pokemon'
 		};
-	}
-
-	function formatFocusedSlotSummary(slot: SlotView) {
-		if (slot.kind === 'empty') {
-			return 'Empty';
-		}
-
-		return `${slot.label} ${slot.detail.match(/Lv\. \d+/)?.[0] ?? slot.detail}`;
 	}
 
 	function getErrorMessage(error: unknown) {

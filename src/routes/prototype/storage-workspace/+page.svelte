@@ -37,11 +37,6 @@
 	let selectedZone = $state<'party' | 'box' | null>(null);
 	let selectedSlot = $state<number | null>(null);
 
-	const focusedLabel = $derived(
-		focusZone === 'party'
-			? `Party slot ${focusedSlot + 1}`
-			: `Box ${activeBox + 1}, slot ${focusedSlot + 1}`
-	);
 	const focusedEntity = $derived(
 		focusZone === 'party'
 			? partySlots[Math.min(focusedSlot, partySlots.length - 1)]
@@ -80,7 +75,9 @@
 			return;
 		}
 
-		if (target.closest('.slot-cell, .slot-context, .selected-strip, .box-panel-title, .panel-title')) {
+		if (
+			target.closest('.slot-cell, .slot-context, .selected-strip, .box-panel-title, .panel-title')
+		) {
 			return;
 		}
 
@@ -100,7 +97,11 @@
 	<title>Storage Workspace Prototype</title>
 </svelte:head>
 
-<main class="prototype" aria-labelledby="prototype-title" onpointerdown={closeSelectedSlotFromOutside}>
+<main
+	class="prototype"
+	aria-labelledby="prototype-title"
+	onpointerdown={closeSelectedSlotFromOutside}
+>
 	<header class="prototype-banner">
 		<div>
 			<p>Throwaway prototype</p>
@@ -116,7 +117,8 @@
 		<div class="storage-grid-region">
 			<div class="box-panel" role="grid" aria-label={`${boxTabs[activeBox]} prototype slots`}>
 				<div class="box-panel-title">
-					<button type="button" aria-label="Previous box" onclick={() => switchBox(-1)}>&lt;</button>
+					<button type="button" aria-label="Previous box" onclick={() => switchBox(-1)}>&lt;</button
+					>
 					<div class="box-title">
 						<strong>{boxTabs[activeBox]}</strong>
 					</div>
@@ -124,10 +126,21 @@
 				</div>
 				<div class="box-grid">
 					{#each boxSlots as slot (slot.id)}
-						<div class={['slot-cell', selectedZone === 'box' && selectedSlot === slot.id && 'is-selected']}>
+						<div
+							class={[
+								'slot-cell',
+								selectedZone === 'box' && selectedSlot === slot.id && 'is-selected'
+							]}
+						>
 							<button
 								type="button"
-								class={['slot', 'box-slot', slot.kind, slot.tone, focusZone === 'box' && focusedSlot === slot.id && 'is-focused']}
+								class={[
+									'slot',
+									'box-slot',
+									slot.kind,
+									slot.tone,
+									focusZone === 'box' && focusedSlot === slot.id && 'is-focused'
+								]}
 								aria-pressed={selectedZone === 'box' && selectedSlot === slot.id}
 								onfocus={() => focusSlot('box', slot.id)}
 								onpointerenter={() => focusSlot('box', slot.id)}
@@ -160,7 +173,11 @@
 				</div>
 			</div>
 
-			<div class={['party-panel', partyCollapsed && 'is-collapsed']} role="grid" aria-label="Party prototype slots">
+			<div
+				class={['party-panel', partyCollapsed && 'is-collapsed']}
+				role="grid"
+				aria-label="Party prototype slots"
+			>
 				<div class="panel-title">
 					<div>
 						<strong>Party</strong>
@@ -178,10 +195,20 @@
 				{#if !partyCollapsed}
 					<div id="prototype-party-slots" class="party-slots">
 						{#each partySlots as slot (slot.id)}
-							<div class={['slot-cell', selectedZone === 'party' && selectedSlot === slot.id && 'is-selected']}>
+							<div
+								class={[
+									'slot-cell',
+									selectedZone === 'party' && selectedSlot === slot.id && 'is-selected'
+								]}
+							>
 								<button
 									type="button"
-									class={['slot', slot.kind, slot.tone, focusZone === 'party' && focusedSlot === slot.id && 'is-focused']}
+									class={[
+										'slot',
+										slot.kind,
+										slot.tone,
+										focusZone === 'party' && focusedSlot === slot.id && 'is-focused'
+									]}
 									aria-pressed={selectedZone === 'party' && selectedSlot === slot.id}
 									onfocus={() => focusSlot('party', slot.id)}
 									onpointerenter={() => focusSlot('party', slot.id)}
@@ -194,7 +221,11 @@
 									</span>
 								</button>
 								{#if selectedZone === 'party' && selectedSlot === slot.id}
-									<div class="slot-context align-start" role="menu" aria-label={`${slot.label} actions`}>
+									<div
+										class="slot-context align-start"
+										role="menu"
+										aria-label={`${slot.label} actions`}
+									>
 										<button type="button">View</button>
 										<button type="button">Move</button>
 										<button type="button">Export</button>
@@ -224,12 +255,7 @@
 		margin: 0;
 		background: #10251f;
 		color: #17302a;
-		font-family:
-			-apple-system,
-			BlinkMacSystemFont,
-			'Segoe UI',
-			system-ui,
-			sans-serif;
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
 		font-weight: 500;
 	}
 
@@ -242,12 +268,7 @@
 	}
 
 	:global(button) {
-		font-family:
-			-apple-system,
-			BlinkMacSystemFont,
-			'Segoe UI',
-			system-ui,
-			sans-serif;
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
 	}
 
 	button {
