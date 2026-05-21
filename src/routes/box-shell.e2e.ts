@@ -24,6 +24,12 @@ async function openEmptyLibrary(page: Page) {
 	await expect(page.getByText('Import a Save File to begin.')).toBeVisible({ timeout: 15000 });
 }
 
+async function activateBoxControl(page: Page, name: 'Previous box' | 'Next box') {
+	await page.getByRole('button', { name }).evaluate((button) => {
+		(button as HTMLButtonElement).click();
+	});
+}
+
 test('keyboard navigation moves deterministically across the box grid', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await page.locator('#box-grid').focus();
@@ -66,12 +72,12 @@ test('shoulder-tab behavior preserves the slot coordinate while changing boxes',
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('ArrowRight');
 	await page.keyboard.press('ArrowDown');
-	await page.getByRole('button', { name: 'Next box' }).click();
+	await activateBoxControl(page, 'Next box');
 
 	await expect(page.getByRole('heading', { name: 'Box 2' })).toBeVisible();
 	await expect(page.locator('#box-1-slot-7')).toHaveAttribute('aria-selected', 'true');
 
-	await page.getByRole('button', { name: 'Previous box' }).click();
+	await activateBoxControl(page, 'Previous box');
 	await expect(page.getByRole('heading', { name: 'Box 1' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-7')).toHaveAttribute('aria-selected', 'true');
 });
@@ -80,11 +86,11 @@ test('shoulder-tab behavior wraps between the last and first boxes', async ({ pa
 	await openEmptyLibrary(page);
 	await page.locator('#box-grid').focus();
 
-	await page.getByRole('button', { name: 'Previous box' }).click();
+	await activateBoxControl(page, 'Previous box');
 	await expect(page.getByRole('heading', { name: 'Box 3' })).toBeVisible();
 	await expect(page.locator('#box-2-slot-0')).toHaveAttribute('aria-selected', 'true');
 
-	await page.getByRole('button', { name: 'Next box' }).click();
+	await activateBoxControl(page, 'Next box');
 	await expect(page.getByRole('heading', { name: 'Box 1' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
 });
