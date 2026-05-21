@@ -48,12 +48,12 @@ test('shoulder-tab behavior preserves the slot coordinate while changing boxes',
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('ArrowRight');
 	await page.keyboard.press('ArrowDown');
-	await page.keyboard.press(']');
+	await page.getByRole('button', { name: 'Next box' }).click();
 
 	await expect(page.getByRole('heading', { name: 'Box 2' })).toBeVisible();
 	await expect(page.locator('#box-1-slot-7')).toHaveAttribute('aria-selected', 'true');
 
-	await page.keyboard.press('[');
+	await page.getByRole('button', { name: 'Previous box' }).click();
 	await expect(page.getByRole('heading', { name: 'Box 1' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-7')).toHaveAttribute('aria-selected', 'true');
 });
@@ -62,11 +62,11 @@ test('shoulder-tab behavior wraps between the last and first boxes', async ({ pa
 	await page.goto('/');
 	await page.locator('#box-grid').focus();
 
-	await page.keyboard.press('[');
+	await page.getByRole('button', { name: 'Previous box' }).click();
 	await expect(page.getByRole('heading', { name: 'Box 3' })).toBeVisible();
 	await expect(page.locator('#box-2-slot-0')).toHaveAttribute('aria-selected', 'true');
 
-	await page.keyboard.press(']');
+	await page.getByRole('button', { name: 'Next box' }).click();
 	await expect(page.getByRole('heading', { name: 'Box 1' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
 });
