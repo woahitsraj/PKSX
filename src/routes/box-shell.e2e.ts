@@ -40,8 +40,14 @@ test('keyboard navigation moves deterministically across the box grid', async ({
 	await expect(page.locator('#box-0-slot-6')).toHaveAttribute('aria-selected', 'true');
 
 	await page.keyboard.press('ArrowLeft');
-	await expect(page.locator('#party-slot-1')).toHaveAttribute('aria-selected', 'true');
-	await expect(page.locator('#party-grid')).toBeFocused();
+	await expect(page.locator('#box-0-slot-6')).toHaveAttribute('aria-selected', 'true');
+
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
+
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#party-slot-0')).toHaveAttribute('aria-selected', 'true');
+	await expect(page.locator('#party-slot-0')).toBeFocused();
 });
 
 test('confirm opens slot actions and back restores the grid focus', async ({ page }) => {
@@ -52,11 +58,130 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toContainText('Box 1, slot 2');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toContainText('Slot Action');
+	await expect(
+		page.getByRole('button', {
+			name: 'Create Pokemon unavailable: creation is not implemented yet.'
+		})
+	).toHaveAttribute('aria-disabled', 'true');
+	await expect(
+		page.getByRole('button', { name: 'Move unavailable: Slot is empty.' })
+	).toHaveAttribute('aria-disabled', 'true');
+
+	await expect(page.locator('#slot-action-0')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#slot-action-1')).toBeFocused();
 
 	await page.keyboard.press('Escape');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
 	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
-	await expect(page.locator('#box-grid')).toBeFocused();
+	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+});
+
+test('occupied slot actions expose disabled Pokemon commands and Close dismisses', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+
+	const dialog = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(dialog).toBeVisible();
+	await expect(dialog).toContainText('Pokemon Action');
+	await expect(
+		page.getByRole('button', {
+			name: 'Pokemon Action unavailable: summary view is not implemented yet.'
+		})
+	).toHaveAttribute('aria-disabled', 'true');
+	await expect(
+		page.getByRole('button', {
+			name: 'Create Pokemon unavailable: Slot already contains a Pokemon.'
+		})
+	).toHaveAttribute('aria-disabled', 'true');
+
+	await page.getByRole('button', { name: 'Close' }).click();
+	await expect(dialog).toBeHidden();
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+});
+
+test('keyboard navigation reaches top controls and mobile tabs', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await page.locator('#box-grid').focus();
+
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#party-slot-0')).toBeFocused();
+
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#top-control-0')).toBeFocused();
+
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#top-control-1')).toBeFocused();
+
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#top-control-2')).toBeFocused();
+	await page.keyboard.press(' ');
+	await expect(page.getByRole('button', { name: 'Use light mode' })).toBeVisible();
+
+	await page.locator('#box-0-slot-24').focus();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#box-0-slot-24')).toBeFocused();
+
+	await page.setViewportSize({ width: 420, height: 860 });
+	await page.locator('#box-0-slot-0').focus();
+	for (const key of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown']) {
+		await page.keyboard.press(key);
+	}
+
+	await expect(page.locator('#mobile-tab-1')).toBeFocused();
+	await page.keyboard.press('ArrowLeft');
+	await expect(page.locator('#mobile-tab-0')).toBeFocused();
+});
+
+test('mobile slot actions stay inside the viewport without adding page overflow', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await page.setViewportSize({ width: 420, height: 860 });
+	await page.locator('#box-grid').focus();
+
+	const beforeOpen = await page.evaluate(() => ({
+		bodyScrollHeight: document.body.scrollHeight,
+		htmlScrollHeight: document.documentElement.scrollHeight
+	}));
+
+	for (const key of ['ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowRight']) {
+		await page.keyboard.press(key);
+	}
+	await page.keyboard.press('Enter');
+
+	const afterOpen = await page.evaluate(() => {
+		const dialog = document.querySelector('[role="dialog"][aria-label="Slot actions"]');
+		const selectedSlot = document.querySelector('[aria-selected="true"]');
+		const rect = dialog?.getBoundingClientRect();
+		const slotRect = selectedSlot?.getBoundingClientRect();
+
+		return {
+			bodyScrollHeight: document.body.scrollHeight,
+			htmlScrollHeight: document.documentElement.scrollHeight,
+			dialogBottom: rect?.bottom ?? 0,
+			dialogLeft: rect?.left ?? -1,
+			dialogRight: rect?.right ?? Number.POSITIVE_INFINITY,
+			dialogTop: rect?.top ?? 0,
+			selectedSlotBottom: slotRect?.bottom ?? Number.POSITIVE_INFINITY,
+			tabbarTop:
+				document.querySelector('.mobile-tabbar')?.getBoundingClientRect().top ?? window.innerHeight,
+			viewportHeight: window.innerHeight,
+			viewportWidth: window.innerWidth
+		};
+	});
+
+	expect(afterOpen.bodyScrollHeight).toBeLessThanOrEqual(beforeOpen.bodyScrollHeight);
+	expect(afterOpen.htmlScrollHeight).toBeLessThanOrEqual(beforeOpen.htmlScrollHeight);
+	expect(afterOpen.dialogTop).toBeGreaterThanOrEqual(afterOpen.selectedSlotBottom);
+	expect(afterOpen.dialogBottom).toBeLessThanOrEqual(afterOpen.viewportHeight);
+	expect(afterOpen.dialogBottom).toBeLessThanOrEqual(afterOpen.tabbarTop);
+	expect(afterOpen.dialogLeft).toBeGreaterThanOrEqual(0);
+	expect(afterOpen.dialogRight).toBeLessThanOrEqual(afterOpen.viewportWidth);
 });
 
 test('mouse clicks move controller focus without opening slot actions', async ({ page }) => {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import {
 		base64ToBytes,
 		createPkhexWorkerEngine,
@@ -21,7 +21,8 @@
 		PARTY_SLOT_COUNT,
 		selectActiveBox,
 		type BoxNavigationState,
-		type NavigationAction
+		type NavigationAction,
+		type SlotFocus
 	} from '$lib/pksx/box-navigation';
 	import { IndexedDbLocalLibraryStorage, type StoredSaveFile } from '$lib/pksx/local-library';
 	import BoxSidebar from '$lib/components/pksx/BoxSidebar.svelte';
@@ -112,6 +113,8 @@
 	let busy = $state(false);
 	let partyCollapsed = $state(false);
 	let darkMode = $state(false);
+	let actionSurfaceTop = $state<number | null>(null);
+	let viewportWidth = $state(1024);
 	let engine: EngineApi | null = null;
 	let workspaceLoadRequest = 0;
 
@@ -120,6 +123,7 @@
 	const controllerConnected = $derived(
 		gamepadStatus !== 'No controller detected' && gamepadStatus.length > 0
 	);
+	const mobileTabsAvailable = $derived(viewportWidth <= 820);
 	const boxCount = $derived(loadedSave?.workspace.summary.boxCount ?? placeholderBoxCount);
 	const partySlots = $derived(
 		loadedSave ? createPartySlotViews(loadedSave.workspace.partySlots) : placeholderPartySlots
@@ -130,10 +134,15 @@
 			: placeholderBoxSlotsByBox[navigation.activeBox]
 	);
 	const activeFocusId = $derived(getFocusId(navigation.focus, navigation.activeBox));
+	const activeSlotFocus = $derived<SlotFocus>(
+		navigation.focus.zone === 'party' || navigation.focus.zone === 'box'
+			? navigation.focus
+			: (navigation.actionOrigin ?? { zone: 'box', slot: 0 })
+	);
 	const focusedSlot = $derived(
-		navigation.focus.zone === 'party'
-			? partySlots[navigation.focus.slot]
-			: activeBoxSlots[navigation.focus.slot]
+		activeSlotFocus.zone === 'party'
+			? partySlots[activeSlotFocus.slot]
+			: activeBoxSlots[activeSlotFocus.slot]
 	);
 	const saveSummary = $derived(loadedSave?.workspace.summary ?? null);
 	const boxIndices = $derived(Array.from({ length: boxCount }, (_, index) => index));
@@ -166,29 +175,32 @@
 	);
 
 	function dispatch(action: NavigationAction) {
+		const previousFocus = navigation.focus;
 		const previousBox = navigation.activeBox;
-		navigation = applyNavigationAction(navigation, action);
+		navigation = applyNavigationAction(navigation, action, {
+			actionCount: getActionCountForFocusedSlot(),
+			topControlCount: 3,
+			mobileTabCount: mobileTabs.length,
+			mobileTabsAvailable
+		});
+
+		if (action === 'confirm') {
+			activateFocusedControl(previousFocus);
+		}
 
 		if (loadedSave && navigation.activeBox !== previousBox) {
 			void loadWorkspaceForSave(loadedSave, navigation.activeBox);
 		}
 
-		queueMicrotask(focusActiveGrid);
+		queueMicrotask(focusActiveControl);
+		void updateActionSurfaceAnchor();
 	}
 
-	function focusActiveGrid() {
-		if (navigation.actionSurfaceOpen) {
-			return;
-		}
-
-		if (navigation.focus.zone === 'party') {
-			document.getElementById('party-grid')?.focus();
-		} else {
-			document.getElementById('box-grid')?.focus();
-		}
+	function focusActiveControl() {
+		document.getElementById(activeFocusId)?.focus();
 	}
 
-	function handleGridKeydown(event: KeyboardEvent) {
+	function handleAppKeydown(event: KeyboardEvent) {
 		const action = keyboardAction(event);
 
 		if (!action) {
@@ -228,12 +240,12 @@
 
 	function focusParty(slot: number) {
 		navigation = { ...navigation, focus: focusPartySlot(slot) };
-		queueMicrotask(focusActiveGrid);
+		queueMicrotask(focusActiveControl);
 	}
 
 	function focusBox(slot: number) {
 		navigation = { ...navigation, focus: focusBoxSlot(slot) };
-		queueMicrotask(focusActiveGrid);
+		queueMicrotask(focusActiveControl);
 	}
 
 	function selectBox(index: number) {
@@ -244,7 +256,7 @@
 			void loadWorkspaceForSave(loadedSave, navigation.activeBox);
 		}
 
-		queueMicrotask(focusActiveGrid);
+		queueMicrotask(focusActiveControl);
 	}
 
 	function openFocusedSlot() {
@@ -253,6 +265,76 @@
 
 	function closeActionSurface() {
 		dispatch('back');
+	}
+
+	function focusTopControl(index: number) {
+		navigation = { ...navigation, focus: { zone: 'topbar', index } };
+	}
+
+	function focusMobileTab(index: number) {
+		navigation = { ...navigation, focus: { zone: 'mobileTabs', index } };
+	}
+
+	function focusActionCommand(index: number) {
+		navigation = { ...navigation, focus: { zone: 'actions', index } };
+		queueMicrotask(focusActiveControl);
+	}
+
+	function getActionCountForFocusedSlot() {
+		const slot = focusedSlot;
+		return slot.kind === 'pokemon' ? 8 : 6;
+	}
+
+	function activateFocusedControl(focus = navigation.focus) {
+		if (focus.zone === 'topbar') {
+			switch (focus.index) {
+				case 0:
+					if (!busy) {
+						openImportPicker();
+					}
+					break;
+				case 1:
+					if (!busy && loadedSave) {
+						void exportLoadedSave();
+					}
+					break;
+				case 2:
+					darkMode = !darkMode;
+					break;
+			}
+		}
+	}
+
+	async function updateActionSurfaceAnchor() {
+		if (!navigation.actionSurfaceOpen) {
+			actionSurfaceTop = null;
+			return;
+		}
+
+		await tick();
+
+		if (!window.matchMedia('(max-width: 820px)').matches) {
+			actionSurfaceTop = null;
+			return;
+		}
+
+		const focusElement = document.getElementById(getFocusId(activeSlotFocus, navigation.activeBox));
+		if (!focusElement) {
+			actionSurfaceTop = null;
+			return;
+		}
+
+		const rect = focusElement.getBoundingClientRect();
+		actionSurfaceTop = Math.max(12, rect.bottom + 6);
+	}
+
+	function handleWindowResize() {
+		if (viewportWidth > 820 && navigation.focus.zone === 'mobileTabs') {
+			navigation = { ...navigation, focus: focusBoxSlot(BOX_SLOT_COUNT - BOX_COLUMNS + 1) };
+			queueMicrotask(focusActiveControl);
+		}
+
+		void updateActionSurfaceAnchor();
 	}
 
 	function closeActionSurfaceFromOutside(event: PointerEvent) {
@@ -274,7 +356,7 @@
 	}
 
 	function isFocused(zone: 'party' | 'box', slot: number) {
-		return navigation.focus.zone === zone && navigation.focus.slot === slot;
+		return activeSlotFocus.zone === zone && activeSlotFocus.slot === slot;
 	}
 
 	function gamepadNavigation() {
@@ -589,10 +671,16 @@
 	<title>PKSX Atelier</title>
 </svelte:head>
 
+<svelte:window
+	bind:innerWidth={viewportWidth}
+	onkeydown={handleAppKeydown}
+	onpointerdown={closeActionSurfaceFromOutside}
+	onresize={handleWindowResize}
+/>
+
 <main
 	class={['app-shell', darkMode && 'dark']}
 	aria-labelledby="screen-title"
-	onpointerdown={closeActionSurfaceFromOutside}
 	{@attach gamepadNavigation}
 >
 	<TopBar
@@ -604,6 +692,8 @@
 		{busy}
 		hasLoadedSave={loadedSave !== null}
 		{darkMode}
+		focusIndex={navigation.focus.zone === 'topbar' ? navigation.focus.index : null}
+		onFocusControl={focusTopControl}
 		onImport={handleImport}
 		onOpenImportPicker={openImportPicker}
 		onExport={exportLoadedSave}
@@ -632,7 +722,6 @@
 				aria-activedescendant={navigation.focus.zone === 'party' ? activeFocusId : undefined}
 				aria-rowcount={PARTY_SLOT_COUNT}
 				aria-colcount="1"
-				onkeydown={handleGridKeydown}
 			>
 				<div class="zone-header party-header">
 					<button
@@ -670,7 +759,15 @@
 								onOpenSlot={openFocusedSlot}
 							/>
 							{#if navigation.actionSurfaceOpen && isFocused('party', slot.slot)}
-								<SlotActionMenu align="start" location={`Party slot ${slot.slot + 1}`} />
+								<SlotActionMenu
+									align="start"
+									{slot}
+									location={`Party slot ${slot.slot + 1}`}
+									mobileTop={actionSurfaceTop}
+									activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
+									onFocusCommand={focusActionCommand}
+									onClose={closeActionSurface}
+								/>
 							{/if}
 						</div>
 					{/each}
@@ -686,7 +783,6 @@
 				aria-activedescendant={navigation.focus.zone === 'box' ? activeFocusId : undefined}
 				aria-rowcount="5"
 				aria-colcount={BOX_COLUMNS}
-				onkeydown={handleGridKeydown}
 			>
 				<div class="zone-header box-header">
 					<div class="box-title">
@@ -733,12 +829,18 @@
 							/>
 							{#if navigation.actionSurfaceOpen && isFocused('box', slot.slot)}
 								<SlotActionMenu
-									align={position.column <= 1
+									align={position.column <= 2
 										? 'start'
-										: position.column >= BOX_COLUMNS - 2
+										: position.column >= BOX_COLUMNS - 3
 											? 'end'
 											: 'center'}
+									vertical={position.row === 0 ? 'top' : 'bottom'}
+									{slot}
 									location={`Box ${navigation.activeBox + 1}, slot ${slot.slot + 1}`}
+									mobileTop={actionSurfaceTop}
+									activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
+									onFocusCommand={focusActionCommand}
+									onClose={closeActionSurface}
 								/>
 							{/if}
 						</div>
@@ -752,12 +854,12 @@
 						<span><kbd>B</kbd> Back</span>
 					{/if}
 					<strong>
-						{#if navigation.focus.zone === 'box'}
-							{@const pos = getBoxSlotPosition(navigation.focus.slot)}
-							SLOT {navigation.focus.slot + 1} · ROW {String.fromCharCode(65 + pos.row)} / COL
+						{#if activeSlotFocus.zone === 'box'}
+							{@const pos = getBoxSlotPosition(activeSlotFocus.slot)}
+							SLOT {activeSlotFocus.slot + 1} · ROW {String.fromCharCode(65 + pos.row)} / COL
 							{pos.column + 1}
 						{:else}
-							PARTY SLOT {navigation.focus.slot + 1}
+							PARTY SLOT {activeSlotFocus.slot + 1}
 						{/if}
 					</strong>
 				</div>
@@ -766,9 +868,9 @@
 
 		<DetailRail
 			{focusedSlot}
-			focusZone={navigation.focus.zone}
-			focusSlot={navigation.focus.slot}
-			slotHueStyle={`--slot-hue: ${slotHue(navigation.activeBox, navigation.focus.slot, focusedSlot.speciesId)}`}
+			focusZone={activeSlotFocus.zone}
+			focusSlot={activeSlotFocus.slot}
+			slotHueStyle={`--slot-hue: ${slotHue(navigation.activeBox, activeSlotFocus.slot, focusedSlot.speciesId)}`}
 			spriteUrl={pikachuSpriteUrl}
 			{saveSummary}
 			activeBoxName={boxNameFor(navigation.activeBox)}
@@ -776,7 +878,11 @@
 		/>
 	</section>
 
-	<MobileTabbar tabs={mobileTabs} />
+	<MobileTabbar
+		tabs={mobileTabs}
+		focusIndex={navigation.focus.zone === 'mobileTabs' ? navigation.focus.index : null}
+		onFocusTab={focusMobileTab}
+	/>
 </main>
 
 <style>
@@ -1130,7 +1236,7 @@
 		}
 
 		.box-grid {
-			grid-template-columns: repeat(5, minmax(50px, 1fr));
+			grid-template-columns: repeat(6, minmax(42px, 1fr));
 			grid-template-rows: none;
 			grid-auto-rows: auto;
 			align-content: start;

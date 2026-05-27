@@ -2,10 +2,12 @@ export const PARTY_SLOT_COUNT = 6;
 export const BOX_COLUMNS = 6;
 export const BOX_ROWS = 5;
 export const BOX_SLOT_COUNT = BOX_COLUMNS * BOX_ROWS;
+export const TOP_CONTROL_COUNT = 3;
+export const MOBILE_TAB_COUNT = 3;
 
-export type FocusZone = 'party' | 'box';
+export type FocusZone = 'topbar' | 'party' | 'box' | 'actions' | 'mobileTabs';
 
-export type ControllerFocus =
+export type SlotFocus =
 	| {
 			zone: 'party';
 			slot: number;
@@ -13,6 +15,21 @@ export type ControllerFocus =
 	| {
 			zone: 'box';
 			slot: number;
+	  };
+
+export type ControllerFocus =
+	| {
+			zone: 'topbar';
+			index: number;
+	  }
+	| SlotFocus
+	| {
+			zone: 'actions';
+			index: number;
+	  }
+	| {
+			zone: 'mobileTabs';
+			index: number;
 	  };
 
 export type NavigationAction =
@@ -27,14 +44,23 @@ export type NavigationAction =
 
 export type BoxNavigationState = {
 	focus: ControllerFocus;
+	actionOrigin: SlotFocus | null;
 	activeBox: number;
 	boxCount: number;
 	actionSurfaceOpen: boolean;
 };
 
+export type NavigationOptions = {
+	actionCount?: number;
+	topControlCount?: number;
+	mobileTabCount?: number;
+	mobileTabsAvailable?: boolean;
+};
+
 export function createInitialNavigationState(boxCount: number): BoxNavigationState {
 	return {
 		focus: { zone: 'box', slot: 0 },
+		actionOrigin: null,
 		activeBox: 0,
 		boxCount: Math.max(1, boxCount),
 		actionSurfaceOpen: false
@@ -43,11 +69,38 @@ export function createInitialNavigationState(boxCount: number): BoxNavigationSta
 
 export function applyNavigationAction(
 	state: BoxNavigationState,
-	action: NavigationAction
+	action: NavigationAction,
+	options: NavigationOptions = {}
 ): BoxNavigationState {
-	if (state.actionSurfaceOpen) {
+	const actionCount = Math.max(1, options.actionCount ?? 1);
+	const topControlCount = Math.max(1, options.topControlCount ?? TOP_CONTROL_COUNT);
+	const mobileTabCount = Math.max(1, options.mobileTabCount ?? MOBILE_TAB_COUNT);
+	const mobileTabsAvailable = options.mobileTabsAvailable ?? true;
+
+	if (state.actionSurfaceOpen || state.focus.zone === 'actions') {
+		if (state.focus.zone === 'actions') {
+			switch (action) {
+				case 'up':
+				case 'left':
+					return { ...state, focus: focusActionCommand(state.focus.index - 1, actionCount) };
+				case 'down':
+				case 'right':
+					return { ...state, focus: focusActionCommand(state.focus.index + 1, actionCount) };
+				case 'confirm':
+					if (state.focus.index === actionCount - 1) {
+						return closeActionSurface(state);
+					}
+					return state;
+				case 'back':
+					return closeActionSurface(state);
+				case 'previousBox':
+				case 'nextBox':
+					return state;
+			}
+		}
+
 		if (action === 'back') {
-			return { ...state, actionSurfaceOpen: false };
+			return closeActionSurface(state);
 		}
 
 		return state;
@@ -55,15 +108,23 @@ export function applyNavigationAction(
 
 	switch (action) {
 		case 'up':
-			return { ...state, focus: moveUp(state.focus) };
+			return { ...state, focus: moveUp(state.focus, topControlCount) };
 		case 'down':
-			return { ...state, focus: moveDown(state.focus) };
+			return { ...state, focus: moveDown(state.focus, mobileTabsAvailable) };
 		case 'left':
-			return { ...state, focus: moveLeft(state.focus) };
+			return { ...state, focus: moveLeft(state.focus, topControlCount, mobileTabCount) };
 		case 'right':
-			return { ...state, focus: moveRight(state.focus) };
+			return { ...state, focus: moveRight(state.focus, topControlCount, mobileTabCount) };
 		case 'confirm':
-			return { ...state, actionSurfaceOpen: true };
+			if (isSlotFocus(state.focus)) {
+				return {
+					...state,
+					actionOrigin: state.focus,
+					actionSurfaceOpen: true,
+					focus: focusActionCommand(0, actionCount)
+				};
+			}
+			return state;
 		case 'previousBox':
 			return { ...state, activeBox: wrapBoxIndex(state.activeBox - 1, state.boxCount) };
 		case 'nextBox':
@@ -81,14 +142,35 @@ export function focusBoxSlot(slot: number): ControllerFocus {
 	return { zone: 'box', slot: clamp(slot, 0, BOX_SLOT_COUNT - 1) };
 }
 
+export function focusTopControl(index: number): ControllerFocus {
+	return { zone: 'topbar', index: clamp(index, 0, TOP_CONTROL_COUNT - 1) };
+}
+
+export function focusActionCommand(index: number, actionCount = 1): ControllerFocus {
+	return { zone: 'actions', index: clamp(index, 0, Math.max(1, actionCount) - 1) };
+}
+
+export function focusMobileTab(index: number): ControllerFocus {
+	return { zone: 'mobileTabs', index: clamp(index, 0, MOBILE_TAB_COUNT - 1) };
+}
+
 export function selectActiveBox(state: BoxNavigationState, index: number): BoxNavigationState {
 	return { ...state, activeBox: clamp(index, 0, state.boxCount - 1) };
 }
 
 export function getFocusId(focus: ControllerFocus, activeBox: number): string {
-	return focus.zone === 'party'
-		? `party-slot-${focus.slot}`
-		: `box-${activeBox}-slot-${focus.slot}`;
+	switch (focus.zone) {
+		case 'topbar':
+			return `top-control-${focus.index}`;
+		case 'party':
+			return `party-slot-${focus.slot}`;
+		case 'box':
+			return `box-${activeBox}-slot-${focus.slot}`;
+		case 'actions':
+			return `slot-action-${focus.index}`;
+		case 'mobileTabs':
+			return `mobile-tab-${focus.index}`;
+	}
 }
 
 export function getBoxSlotPosition(slot: number): { row: number; column: number } {
@@ -99,49 +181,98 @@ export function getBoxSlotPosition(slot: number): { row: number; column: number 
 	};
 }
 
-function moveUp(focus: ControllerFocus): ControllerFocus {
-	if (focus.zone === 'party') {
-		return focusPartySlot(focus.slot - 1);
-	}
-
-	return focusBoxSlot(focus.slot - BOX_COLUMNS);
+function closeActionSurface(state: BoxNavigationState): BoxNavigationState {
+	return {
+		...state,
+		focus: state.actionOrigin ?? state.focus,
+		actionOrigin: null,
+		actionSurfaceOpen: false
+	};
 }
 
-function moveDown(focus: ControllerFocus): ControllerFocus {
-	if (focus.zone === 'party') {
-		return focusPartySlot(focus.slot + 1);
-	}
-
-	return focusBoxSlot(focus.slot + BOX_COLUMNS);
+function isSlotFocus(focus: ControllerFocus): focus is SlotFocus {
+	return focus.zone === 'party' || focus.zone === 'box';
 }
 
-function moveLeft(focus: ControllerFocus): ControllerFocus {
-	if (focus.zone === 'party') {
-		return focus;
+function moveUp(focus: ControllerFocus, topControlCount: number): ControllerFocus {
+	switch (focus.zone) {
+		case 'topbar':
+			return focus;
+		case 'party':
+			return focusTopControl(Math.min(focus.slot, topControlCount - 1));
+		case 'box': {
+			const { row, column } = getBoxSlotPosition(focus.slot);
+			if (row === 0) {
+				return focusPartySlot(column);
+			}
+			return focusBoxSlot(focus.slot - BOX_COLUMNS);
+		}
+		case 'mobileTabs':
+			return focusBoxSlot(BOX_SLOT_COUNT - BOX_COLUMNS + Math.min(focus.index, BOX_COLUMNS - 1));
+		case 'actions':
+			return focus;
 	}
-
-	const { row, column } = getBoxSlotPosition(focus.slot);
-
-	if (column === 0) {
-		return focusPartySlot(row);
-	}
-
-	return focusBoxSlot(focus.slot - 1);
 }
 
-function moveRight(focus: ControllerFocus): ControllerFocus {
-	if (focus.zone === 'party') {
-		const row = Math.min(focus.slot, BOX_ROWS - 1);
-		return focusBoxSlot(row * BOX_COLUMNS);
+function moveDown(focus: ControllerFocus, mobileTabsAvailable: boolean): ControllerFocus {
+	switch (focus.zone) {
+		case 'topbar':
+			return focusPartySlot(Math.min(focus.index, PARTY_SLOT_COUNT - 1));
+		case 'party':
+			return focusBoxSlot(Math.min(focus.slot, BOX_COLUMNS - 1));
+		case 'box': {
+			const { row } = getBoxSlotPosition(focus.slot);
+			if (row === BOX_ROWS - 1) {
+				return mobileTabsAvailable ? focusMobileTab(1) : focus;
+			}
+			return focusBoxSlot(focus.slot + BOX_COLUMNS);
+		}
+		case 'mobileTabs':
+		case 'actions':
+			return focus;
 	}
+}
 
-	const { column } = getBoxSlotPosition(focus.slot);
-
-	if (column === BOX_COLUMNS - 1) {
-		return focus;
+function moveLeft(
+	focus: ControllerFocus,
+	topControlCount: number,
+	mobileTabCount: number
+): ControllerFocus {
+	switch (focus.zone) {
+		case 'topbar':
+			return focusTopControl(clamp(focus.index - 1, 0, topControlCount - 1));
+		case 'party':
+			return focusPartySlot(focus.slot - 1);
+		case 'box': {
+			const { column } = getBoxSlotPosition(focus.slot);
+			return column === 0 ? focus : focusBoxSlot(focus.slot - 1);
+		}
+		case 'mobileTabs':
+			return focusMobileTab(clamp(focus.index - 1, 0, mobileTabCount - 1));
+		case 'actions':
+			return focus;
 	}
+}
 
-	return focusBoxSlot(focus.slot + 1);
+function moveRight(
+	focus: ControllerFocus,
+	topControlCount: number,
+	mobileTabCount: number
+): ControllerFocus {
+	switch (focus.zone) {
+		case 'topbar':
+			return focusTopControl(clamp(focus.index + 1, 0, topControlCount - 1));
+		case 'party':
+			return focusPartySlot(focus.slot + 1);
+		case 'box': {
+			const { column } = getBoxSlotPosition(focus.slot);
+			return column === BOX_COLUMNS - 1 ? focus : focusBoxSlot(focus.slot + 1);
+		}
+		case 'mobileTabs':
+			return focusMobileTab(clamp(focus.index + 1, 0, mobileTabCount - 1));
+		case 'actions':
+			return focus;
+	}
 }
 
 function clamp(value: number, min: number, max: number): number {

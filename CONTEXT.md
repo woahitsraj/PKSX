@@ -60,6 +60,14 @@ _Avoid_: auto-fix when implying a guaranteed or silent repair
 A user-invoked operation on a Pokemon Entity, such as move, copy, evolve, export, Legality Check, or Legality Fix.
 _Avoid_: button when referring to the domain operation
 
+**Slot Action**:
+A user-invoked operation on a Slot, whether or not that Slot contains a Pokemon Entity.
+_Avoid_: Pokemon Action when the Slot may be empty
+
+**Create Pokemon**:
+A Slot Action that creates a new Pokemon Entity in an empty Slot.
+_Avoid_: new record, spawn
+
 **Sprite Catalog**:
 The offline app-packaged mapping from Pokemon display identity to local visual assets used in party, box, and Pokemon Storage views.
 _Avoid_: remote sprites, CDN images
@@ -133,6 +141,8 @@ _Avoid_: key event, button event
 - A **Legality Report** is produced by a **Legality Check**.
 - A **Legality Fix** is based on a **Legality Report** and must be explicitly applied by the user.
 - A **Pokemon Action** applies to one **Pokemon Entity**.
+- A **Slot Action** applies to one **Slot**.
+- **Create Pokemon** applies to an empty **Slot**.
 - The **Sprite Catalog** provides offline visual assets for **Pokemon Entities**.
 - A **Peer Transfer** sends **Pokemon Entities** or **Storage Boxes** between PKSX instances.
 - A **Pokemon Entity** received through **Peer Transfer** enters **Pokemon Storage** before it can be moved into a **Save File**.
