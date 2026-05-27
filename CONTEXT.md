@@ -64,6 +64,10 @@ _Avoid_: button when referring to the domain operation
 The offline app-packaged mapping from Pokemon display identity to local visual assets used in party, box, and Pokemon Storage views.
 _Avoid_: remote sprites, CDN images
 
+**Sprite Identity**:
+The PKHeX Engine-projected display identity used to find a Pokemon Entity in the Sprite Catalog.
+_Avoid_: nickname, slot position, UI state
+
 **Peer Transfer**:
 A live connection between two PKSX instances for sending Pokemon Entities or Storage Boxes without requiring cloud sync.
 _Avoid_: cloud sync, account sync
@@ -134,6 +138,9 @@ _Avoid_: key event, button event
 - A **Legality Fix** is based on a **Legality Report** and must be explicitly applied by the user.
 - A **Pokemon Action** applies to one **Pokemon Entity**.
 - The **Sprite Catalog** provides offline visual assets for **Pokemon Entities**.
+- A **Sprite Identity** belongs to one **Pokemon Entity** projection.
+- A **Sprite Identity** describes visible Pokemon characteristics, not save format or current location.
+- A **Sprite Catalog** may or may not contain an asset for a **Sprite Identity**.
 - A **Peer Transfer** sends **Pokemon Entities** or **Storage Boxes** between PKSX instances.
 - A **Pokemon Entity** received through **Peer Transfer** enters **Pokemon Storage** before it can be moved into a **Save File**.
 - The **PKHeX Engine** exposes a **Facade** consumed by the Svelte app.

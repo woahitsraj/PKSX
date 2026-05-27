@@ -10,7 +10,7 @@
 		style: string;
 		rowIndex: number;
 		colIndex: number;
-		spriteUrl: string;
+		spriteUrl: string | null;
 		collapsed?: boolean;
 		onFocusSlot: () => void;
 		onOpenSlot: () => void;
@@ -50,8 +50,10 @@
 	ondblclick={onOpenSlot}
 >
 	<span class="slot-number">{slotNumber}</span>
-	{#if slot.kind === 'pokemon'}
+	{#if slot.kind === 'pokemon' && spriteUrl}
 		<img class="slot-sprite" src={spriteUrl} alt="" width="96" height="96" />
+	{:else if slot.kind === 'pokemon'}
+		<span class="slot-sprite missing-sprite" aria-hidden="true"></span>
 	{:else}
 		<span class="slot-sprite empty-sprite" aria-hidden="true"></span>
 	{/if}
@@ -174,6 +176,26 @@
 		height: 34%;
 		border: 1px solid var(--rule-hi);
 		border-radius: var(--pksx-radius-sm);
+	}
+
+	.missing-sprite {
+		width: 42%;
+		height: 42%;
+		border: 1px solid color-mix(in srgb, var(--ink), transparent 45%);
+		border-radius: var(--pksx-radius-sm);
+		background: color-mix(in srgb, var(--paper), transparent 40%);
+	}
+
+	.missing-sprite::before {
+		content: '?';
+		display: grid;
+		width: 100%;
+		height: 100%;
+		place-items: center;
+		color: color-mix(in srgb, var(--ink), transparent 35%);
+		font:
+			800 1rem var(--pksx-font-mono),
+			monospace;
 	}
 
 	.slot-label,
