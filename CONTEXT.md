@@ -24,6 +24,10 @@ _Avoid_: team, roster
 A numbered storage grid inside a save file.
 _Avoid_: bank box, PC page
 
+**Box Name**:
+A user-facing label for a Box, which may come from the Save File when the Save File supports custom box names.
+_Avoid_: generated title when referring to a save-owned label
+
 **Slot**:
 A position in a party or box that may or may not contain a Pokemon Entity.
 _Avoid_: card, tile
@@ -39,6 +43,10 @@ _Avoid_: temporary storage, bank when referring to the app-level collection
 **Storage Box**:
 A numbered app-owned storage grid inside Pokemon Storage.
 _Avoid_: save box, PC box
+
+**Box Source**:
+The owner that supplies the numbered box grids shown in the box-first shell, such as a Save File or Pokemon Storage.
+_Avoid_: storage source, container
 
 **Pokemon Provenance**:
 Historical metadata describing where a Pokemon Entity entered PKSX, such as the source Save File, source game, source trainer, entry time, and whether it entered through move, copy, import, or transfer.
@@ -118,6 +126,7 @@ _Avoid_: key event, button event
 - Importing the same user-controlled file more than once creates separate **Save File** artifacts in the **Local Library**.
 - A **Party** contains one or more **Slots**.
 - A **Box** contains zero or more **Slots**.
+- A **Box** always has a number and may also have a **Box Name**.
 - A **Slot** contains zero or one **Pokemon Entity**.
 - The **Local Library** stores imported **Save File** artifacts, **Backups**, and **Pokemon Storage**.
 - A **Workspace** belongs to one loaded **Save File**.
@@ -127,6 +136,8 @@ _Avoid_: key event, button event
 - **Pokemon Storage** contains one or more **Storage Boxes**.
 - A **Storage Box** contains zero or more **Slots**.
 - A **Storage Box** is owned by PKSX, not by any **Save File**.
+- A **Box Source** supplies either **Boxes** from a **Save File** or **Storage Boxes** from **Pokemon Storage**.
+- A **Box Source** is presented to the user only when its underlying collection is available in PKSX.
 - A **Pokemon Entity** may have **Pokemon Provenance** even when its original **Save File** is no longer in the **Local Library**.
 - **Pokemon Provenance** records historical origin; it does not determine the current owner or location of a **Pokemon Entity**.
 - A **Legality Check** evaluates one **Pokemon Entity**.
@@ -155,6 +166,7 @@ _Avoid_: key event, button event
 - Back dismisses an open **Slot Action Surface** before it affects broader app navigation.
 - Shoulder navigation changes the active **Box** without changing the current **Focus Zone**.
 - Shoulder navigation preserves the active **Box** slot coordinate when **Controller Focus** is inside a **Box**.
+- Changing the active **Box Source** preserves the active box number and focused **Slot** coordinate when the new **Box Source** has matching coordinates, and clamps to the nearest available box otherwise.
 - The box-first shell may use placeholder **Slot** contents, but placeholders must remain visibly distinct from parsed save data.
 - The box-first shell can prove navigation with local fixture **Slots** before loading **Save File** data through the **PKHeX Engine**.
 - After a **Supported Save File** is loaded, visible **Party** and **Box** **Slots** represent parsed save data instead of placeholder contents.

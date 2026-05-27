@@ -20,3 +20,13 @@ export type BoxNavItem = {
 	active: boolean;
 	occupied: number | null;
 };
+
+export type BoxSourceView = {
+	key: 'save-file' | 'pokemon-storage';
+	label: string;
+	activeBoxLabel: string;
+	activeBoxNumber: number;
+	boxCount: number;
+	occupied: number;
+	capacity: number;
+};
