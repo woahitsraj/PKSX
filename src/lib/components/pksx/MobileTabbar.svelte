@@ -4,14 +4,22 @@
 	interface Props {
 		tabs: MobileTab[];
 		activeKey?: string;
+		focusIndex?: number | null;
+		onFocusTab: (index: number) => void;
 	}
 
-	let { tabs, activeKey = 'boxes' }: Props = $props();
+	let { tabs, activeKey = 'boxes', focusIndex = null, onFocusTab }: Props = $props();
 </script>
 
 <nav class="mobile-tabbar" aria-label="Sections (mobile)">
-	{#each tabs as tab (tab.key)}
-		<button type="button" class:active={tab.key === activeKey}>
+	{#each tabs as tab, index (tab.key)}
+		<button
+			id={`mobile-tab-${index}`}
+			type="button"
+			class={[tab.key === activeKey && 'active', focusIndex === index && 'controller-focused']}
+			onfocus={() => onFocusTab(index)}
+			onclick={() => onFocusTab(index)}
+		>
 			<span aria-hidden="true">{tab.glyph}</span>
 			<small>{tab.label}</small>
 		</button>
@@ -53,6 +61,11 @@
 
 		.mobile-tabbar button.active {
 			color: var(--rust);
+		}
+
+		.mobile-tabbar button.controller-focused {
+			outline: 3px solid color-mix(in srgb, var(--rust), transparent 58%);
+			outline-offset: -2px;
 		}
 
 		.mobile-tabbar button span {

@@ -46,6 +46,7 @@
 	aria-rowindex={rowIndex}
 	aria-colindex={colIndex}
 	aria-hidden={collapsed ? 'true' : undefined}
+	onfocus={onFocusSlot}
 	onclick={onFocusSlot}
 	ondblclick={onOpenSlot}
 >
