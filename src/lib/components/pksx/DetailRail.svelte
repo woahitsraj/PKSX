@@ -10,7 +10,7 @@
 		spriteUrl: string | null;
 		saveSummary: SaveSummary | null;
 		activeBoxName: string;
-		slotPalette: number[];
+		positionLabel: string;
 	}
 
 	let {
@@ -21,97 +21,151 @@
 		spriteUrl,
 		saveSummary,
 		activeBoxName,
-		slotPalette
+		positionLabel
 	}: Props = $props();
 
-	const stats = [
-		{ key: 'HP', iv: 31, ev: 252 },
-		{ key: 'ATK', iv: 29, ev: 4 },
-		{ key: 'DEF', iv: 25, ev: null },
-		{ key: 'SPA', iv: 31, ev: 252 },
-		{ key: 'SPD', iv: 18, ev: null },
-		{ key: 'SPE', iv: 31, ev: null }
-	];
-	const moves = ['Ember', 'Gust', 'Flora', 'Roost'];
+	const isPokemon = $derived(focusedSlot.kind === 'pokemon');
+	const speciesLabel = $derived(
+		isPokemon && focusedSlot.speciesId
+			? `Species #${String(focusedSlot.speciesId).padStart(4, '0')}`
+			: null
+	);
+	const formLabel = $derived(
+		isPokemon && focusedSlot.form !== null && focusedSlot.form > 0
+			? `Form ${focusedSlot.form}`
+			: null
+	);
+	const details = $derived(
+		[
+			focusedSlot.nature,
+			focusedSlot.ability,
+			focusedSlot.heldItem ? `holding ${focusedSlot.heldItem}` : null
+		].filter((value): value is string => typeof value === 'string' && value.length > 0)
+	);
+	const footerRows = $derived(
+		isPokemon
+			? [
+					saveSummary?.trainerName ? { label: 'OT', value: saveSummary.trainerName } : null,
+					focusedSlot.heldItem ? { label: 'Item', value: focusedSlot.heldItem } : null,
+					focusedSlot.metLabel ? { label: 'Met', value: focusedSlot.metLabel } : null,
+					saveSummary?.fileName ? { label: 'Save', value: saveSummary.fileName } : null,
+					{ label: 'Pos', value: positionLabel }
+				].filter((row): row is { label: string; value: string } => row !== null)
+			: []
+	);
+	const hasStats = $derived(isPokemon && focusedSlot.stats && focusedSlot.stats.length > 0);
+	const hasMoves = $derived(isPokemon && focusedSlot.moves && focusedSlot.moves.length > 0);
 </script>
 
-<aside class="detail-rail" aria-live="polite" style={slotHueStyle}>
+<aside
+	class={['detail-rail', !isPokemon && 'empty-state']}
+	aria-label="Active Slot details"
+	aria-live="polite"
+	data-testid="active-slot-detail-rail"
+	style={slotHueStyle}
+>
 	<div class="portrait-card">
-		<small
-			>PORTRAIT · {focusZone === 'party'
-				? `PARTY ${focusSlot + 1}`
-				: `SLOT ${focusSlot + 1}`}</small
-		>
-		{#if focusedSlot.kind === 'pokemon' && spriteUrl}
+		<small>{focusZone === 'party' ? `PARTY ${focusSlot + 1}` : `SLOT ${focusSlot + 1}`}</small>
+		{#if speciesLabel}
+			<span class="species-pill">{speciesLabel.replace('Species ', '')}</span>
+		{/if}
+		{#if isPokemon && spriteUrl}
 			<img src={spriteUrl} alt="" width="180" height="180" />
-		{:else if focusedSlot.kind === 'pokemon'}
+		{:else if isPokemon}
 			<span class="portrait-missing" aria-hidden="true"></span>
 		{:else}
 			<span class="portrait-empty" aria-hidden="true"></span>
 		{/if}
-	</div>
-	<div class="detail-heading">
-		<div>
-			<h2>{focusedSlot.kind === 'pokemon' ? focusedSlot.label : '—'}</h2>
-			<span>
-				{#if focusedSlot.kind === 'pokemon' && focusedSlot.speciesId}
-					#{String(focusedSlot.speciesId).padStart(4, '0')} · Modest · Updraft
-				{:else}
-					No creature in this slot
-				{/if}
-			</span>
-		</div>
-		<div class="detail-level">
-			<span>LEVEL</span>
-			<strong>{focusedSlot.level ?? '—'}</strong>
-		</div>
-	</div>
-	<div class="stat-grid" aria-label="Stats">
-		{#each stats as stat (stat.key)}
-			<div class="stat-row">
-				<span class="stat-key">{stat.key}</span>
-				<span class="stat-bar" aria-hidden="true">
-					<i style={`width: ${focusedSlot.kind === 'pokemon' ? (stat.iv / 31) * 100 : 0}%`}></i>
-				</span>
-				<span class="stat-iv">{focusedSlot.kind === 'pokemon' ? stat.iv : '—'}</span>
-				<span class="stat-ev"
-					>{focusedSlot.kind === 'pokemon' && stat.ev ? `+${stat.ev}` : '—'}</span
-				>
+		{#if isPokemon && focusedSlot.types && focusedSlot.types.length > 0}
+			<div class="type-row" aria-label="Types">
+				{#each focusedSlot.types as type (type.name)}
+					<span class="type-chip" style={`--type-hue: ${type.hue}`}>{type.name}</span>
+				{/each}
 			</div>
-		{/each}
+		{/if}
 	</div>
-	<div class="moveset" aria-label="Moves">
-		<span class="moveset-label">MOVE SET</span>
-		<div class="moveset-grid">
-			{#each moves as move, index (move)}
-				<div
-					class="move-chip"
-					style={`--slot-hue: ${slotPalette[(index * 4) % slotPalette.length]}`}
-				>
-					<strong>{focusedSlot.kind === 'pokemon' ? move.toUpperCase() : '—'}</strong>
-					<small>{focusedSlot.kind === 'pokemon' ? 'PP 25/25' : ''}</small>
+	<div class="detail-heading" class:empty-heading={!isPokemon}>
+		<div>
+			<h2>{isPokemon ? focusedSlot.label : 'Empty slot'}</h2>
+			{#if isPokemon && details.length > 0}
+				<span>{details.join(' · ')}</span>
+			{:else if !isPokemon}
+				<span>No Pokemon stored here</span>
+			{/if}
+		</div>
+		{#if isPokemon && focusedSlot.level !== null}
+			<div class="detail-level">
+				<span>LEVEL</span>
+				<strong>{focusedSlot.level}</strong>
+			</div>
+		{/if}
+	</div>
+
+	{#if isPokemon && (speciesLabel || formLabel || focusedSlot.gender || focusedSlot.isEgg)}
+		<div class="identity-strip" aria-label="Pokemon identity">
+			{#if speciesLabel}<span>{speciesLabel}</span>{/if}
+			{#if focusedSlot.gender}<span>{focusedSlot.gender}</span>{/if}
+			{#if focusedSlot.isEgg}<span>Egg</span>{/if}
+			{#if formLabel}<span>{formLabel}</span>{/if}
+			<span>{focusZone === 'box' ? activeBoxName : 'Party'}</span>
+		</div>
+	{/if}
+
+	{#if hasStats}
+		<div class="stat-panel" aria-label="Stats">
+			<div class="panel-title">
+				<span>Stats</span>
+				<strong>BST {focusedSlot.stats?.reduce((total, stat) => total + stat.value, 0)}</strong>
+			</div>
+			{#each focusedSlot.stats ?? [] as stat (stat.key)}
+				<div class="stat-row">
+					<span class="stat-key">{stat.label}</span>
+					<span class="stat-bar" aria-hidden="true">
+						<i style={`width: ${Math.min(100, Math.round((stat.value / stat.max) * 100))}%`}></i>
+					</span>
+					<strong>{stat.value}</strong>
+					{#if stat.ev}
+						<em>+{stat.ev}</em>
+					{/if}
 				</div>
 			{/each}
 		</div>
-	</div>
-	<div class="detail-footer">
-		<div>
-			<span>OT</span>
-			<strong>{saveSummary?.trainerName ?? 'CASS · 41203'}</strong>
+	{/if}
+
+	{#if hasMoves}
+		<div class="move-panel" aria-label="Move set">
+			<div class="panel-title">
+				<span>Move Set</span>
+			</div>
+			<div class="move-grid">
+				{#each focusedSlot.moves ?? [] as move (move.name)}
+					<div class="move-chip" style={`--type-hue: ${move.hue}`}>
+						<strong>{move.name}</strong>
+						<span>{move.type}</span>
+						{#if move.pp !== null && move.pp !== undefined}
+							<em>{move.pp}</em>
+						{/if}
+					</div>
+				{/each}
+			</div>
 		</div>
-		<div>
-			<span>ITEM</span>
-			<strong>{focusedSlot.kind === 'pokemon' ? 'Charcoal Ember' : '—'}</strong>
+	{/if}
+
+	{#if footerRows.length > 0}
+		<div class="detail-footer" aria-label="Storage metadata">
+			{#each footerRows as row (row.label)}
+				<span>{row.label}</span>
+				<strong>{row.value}</strong>
+			{/each}
 		</div>
-		<div>
-			<span>MET</span>
-			<strong
-				>{focusedSlot.kind === 'pokemon'
-					? `${activeBoxName} · Lv. ${focusedSlot.level}`
-					: '—'}</strong
-			>
+	{/if}
+
+	{#if !isPokemon}
+		<div class="empty-copy">
+			<span>Position</span>
+			<strong>{positionLabel}</strong>
 		</div>
-	</div>
+	{/if}
 </aside>
 
 <style>
@@ -120,8 +174,8 @@
 		min-height: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
-		padding: 12px;
+		gap: 14px;
+		padding: 14px;
 		overflow-y: auto;
 		border: 0;
 		border-radius: var(--pksx-radius-xl);
@@ -130,25 +184,43 @@
 		color: var(--ink);
 	}
 
+	.detail-rail.empty-state {
+		color: var(--ink-soft);
+	}
+
 	.portrait-card {
 		position: relative;
-		height: 174px;
+		height: 232px;
 		display: grid;
 		place-items: center;
 		border-radius: var(--pksx-radius-lg);
 		background:
 			repeating-radial-gradient(
-				circle at 30% 35%,
-				transparent 0 24px,
-				rgba(0, 0, 0, 0.025) 24px 25px
+				circle at 30% 30%,
+				transparent 0 34px,
+				rgba(42, 36, 28, 0.04) 34px 35px
 			),
 			radial-gradient(
-				circle at 30% 35%,
-				oklch(0.94 0.07 var(--slot-hue, 48)),
-				oklch(0.78 0.13 var(--slot-hue, 48))
+				circle at 32% 38%,
+				color-mix(in srgb, var(--paper-hi), #ffc7c7 42%),
+				transparent 46%
+			),
+			linear-gradient(
+				135deg,
+				oklch(0.91 0.08 calc(var(--slot-hue, 48) + 150)),
+				oklch(0.78 0.17 var(--slot-hue, 48))
 			);
 		overflow: hidden;
-		box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+		box-shadow:
+			inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+			0 16px 24px -22px color-mix(in srgb, var(--ink), transparent 45%);
+	}
+
+	.empty-state .portrait-card {
+		height: 180px;
+		background:
+			repeating-radial-gradient(circle at 50% 45%, transparent 0 26px, var(--rule) 26px 27px),
+			var(--paper);
 	}
 
 	:global(.app-shell.dark) .portrait-card {
@@ -166,16 +238,30 @@
 	}
 
 	.portrait-card img {
-		width: 138px;
-		height: 138px;
+		width: min(62%, 168px);
+		height: min(62%, 168px);
 		object-fit: contain;
+		filter: drop-shadow(0 14px 8px color-mix(in srgb, var(--ink), transparent 72%));
 	}
 
 	.portrait-empty {
-		width: 64px;
-		height: 64px;
+		width: 68px;
+		height: 68px;
 		border: 1px dashed var(--rule-hi);
 		border-radius: var(--pksx-radius-lg);
+		background:
+			linear-gradient(
+				90deg,
+				transparent calc(50% - 0.5px),
+				var(--rule-hi) 50%,
+				transparent calc(50% + 0.5px)
+			),
+			linear-gradient(
+				0deg,
+				transparent calc(50% - 0.5px),
+				var(--rule-hi) 50%,
+				transparent calc(50% + 0.5px)
+			);
 	}
 
 	.portrait-missing {
@@ -200,191 +286,283 @@
 
 	.portrait-card small {
 		position: absolute;
-		top: 10px;
-		left: 12px;
-		color: color-mix(in srgb, var(--ink), transparent 45%);
+		top: 14px;
+		left: 16px;
+		color: color-mix(in srgb, var(--ink), transparent 38%);
 		font:
-			650 0.62rem var(--pksx-font-mono),
+			750 0.68rem var(--pksx-font-mono),
 			monospace;
 		text-transform: uppercase;
+		letter-spacing: 0.12em;
+	}
+
+	.species-pill {
+		position: absolute;
+		top: 14px;
+		right: 16px;
+		padding: 4px 10px;
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--paper-hi), transparent 22%);
+		color: color-mix(in srgb, var(--ink), transparent 38%);
+		font:
+			800 0.72rem var(--pksx-font-mono),
+			monospace;
 		letter-spacing: 0.05em;
+	}
+
+	.type-row {
+		position: absolute;
+		left: 16px;
+		right: 16px;
+		bottom: 14px;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.type-chip {
+		padding: 5px 11px;
+		border-radius: 999px;
+		background: oklch(0.89 0.09 var(--type-hue, 52));
+		color: oklch(0.31 0.09 var(--type-hue, 52));
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink), transparent 90%);
+		font-size: 0.7rem;
+		font-weight: 850;
 	}
 
 	.detail-heading {
 		display: flex;
 		justify-content: space-between;
-		align-items: baseline;
+		align-items: flex-start;
 		gap: 12px;
 	}
 
 	.detail-heading h2 {
 		margin: 0;
 		color: var(--ink);
-		font-size: 1.45rem;
+		font-size: clamp(1.6rem, 2.8vw, 2.3rem);
 		font-weight: 800;
-		line-height: 1;
+		line-height: 0.95;
 		letter-spacing: 0;
+		overflow-wrap: anywhere;
 	}
 
 	.detail-heading span {
-		margin: 0;
+		display: block;
+		margin-top: 7px;
 		color: var(--ink-soft);
-		font-size: 0.68rem;
-		font-weight: 600;
-		letter-spacing: 0.02em;
+		font:
+			750 0.76rem var(--pksx-font-mono),
+			monospace;
+		letter-spacing: 0.05em;
+	}
+
+	.detail-heading.empty-heading h2 {
+		font-size: 1.45rem;
 	}
 
 	.detail-level {
+		min-width: 58px;
 		display: grid;
 		justify-items: end;
-		gap: 0;
+		gap: 2px;
+		padding-top: 2px;
 	}
 
 	.detail-level span {
 		color: var(--ink-mute);
 		font:
-			700 0.58rem var(--pksx-font-mono),
-			monospace;
-		letter-spacing: 0.06em;
-	}
-
-	.detail-level strong {
-		color: var(--ink);
-		font-size: 2rem;
-		font-weight: 800;
-		line-height: 1;
-	}
-
-	.stat-grid {
-		display: grid;
-		gap: 6px;
-		padding: 10px 12px;
-		border-radius: var(--pksx-radius-lg);
-		background: var(--paper);
-		box-shadow: var(--shadow-sm);
-	}
-
-	.stat-row {
-		display: grid;
-		grid-template-columns: 32px 1fr 28px 36px;
-		align-items: center;
-		gap: 8px;
-		font:
-			700 0.62rem var(--pksx-font-mono),
-			monospace;
-		letter-spacing: 0.05em;
-	}
-
-	.stat-row .stat-key {
-		color: var(--ink-soft);
-	}
-
-	.stat-row .stat-bar {
-		position: relative;
-		display: block;
-		height: 7px;
-		border-radius: 5px;
-		background: color-mix(in srgb, var(--paper-deep), transparent 25%);
-		overflow: hidden;
-	}
-
-	.stat-row .stat-bar i {
-		position: absolute;
-		inset: 0 auto 0 0;
-		display: block;
-		border-radius: 5px;
-		background: linear-gradient(90deg, var(--rust), oklch(0.7 0.18 32));
-	}
-
-	.stat-row .stat-iv {
-		color: var(--ink);
-		text-align: right;
-	}
-
-	.stat-row .stat-ev {
-		color: var(--ink-mute);
-		text-align: right;
-	}
-
-	.moveset {
-		display: grid;
-		gap: 6px;
-	}
-
-	.moveset-label {
-		color: var(--ink-mute);
-		font:
-			700 0.58rem var(--pksx-font-mono),
+			750 0.58rem var(--pksx-font-mono),
 			monospace;
 		letter-spacing: 0.08em;
 	}
 
-	.moveset-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 6px;
+	.detail-level strong {
+		color: var(--rust);
+		font-size: 2.3rem;
+		font-weight: 850;
+		line-height: 0.9;
 	}
 
-	.move-chip {
-		--slot-hue: 48;
-		display: grid;
-		gap: 2px;
-		padding: 8px 10px;
-		border-radius: var(--pksx-radius-md);
-		background: linear-gradient(
-			135deg,
-			oklch(0.92 0.07 var(--slot-hue)),
-			oklch(0.86 0.1 var(--slot-hue))
-		);
-		color: var(--ink);
-	}
-
-	:global(.app-shell.dark) .move-chip {
-		background: linear-gradient(
-			135deg,
-			oklch(0.42 0.08 var(--slot-hue)),
-			oklch(0.34 0.09 var(--slot-hue))
-		);
-	}
-
-	.move-chip strong {
-		font-size: 0.72rem;
-		font-weight: 800;
-		letter-spacing: 0.04em;
-	}
-
-	.move-chip small {
-		color: color-mix(in srgb, var(--ink), transparent 35%);
+	.identity-strip {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px 10px;
+		color: var(--ink-soft);
 		font:
-			700 0.58rem var(--pksx-font-mono),
+			750 0.72rem var(--pksx-font-mono),
+			monospace;
+		letter-spacing: 0.05em;
+	}
+
+	.identity-strip span:not(:last-child)::after {
+		content: '·';
+		margin-left: 10px;
+		color: var(--ink-mute);
+	}
+
+	.stat-panel,
+	.move-panel {
+		display: grid;
+		gap: 9px;
+	}
+
+	.panel-title {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		color: var(--ink-mute);
+		font:
+			800 0.68rem var(--pksx-font-mono),
+			monospace;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+	}
+
+	.panel-title strong {
+		color: var(--ok);
+		font-weight: 850;
+		letter-spacing: 0.06em;
+	}
+
+	.stat-row {
+		display: grid;
+		grid-template-columns: 34px minmax(0, 1fr) 28px 32px;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.stat-key {
+		color: var(--ink-soft);
+		font:
+			800 0.68rem var(--pksx-font-mono),
 			monospace;
 	}
 
-	.detail-footer {
+	.stat-bar {
+		position: relative;
+		height: 8px;
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--paper-deep), transparent 15%);
+		overflow: hidden;
+	}
+
+	.stat-bar i {
+		position: absolute;
+		inset: 0 auto 0 0;
+		display: block;
+		border-radius: inherit;
+		background: linear-gradient(90deg, color-mix(in srgb, var(--rust), white 38%), var(--rust));
+	}
+
+	.stat-row strong,
+	.stat-row em {
+		margin: 0;
+		font:
+			800 0.72rem var(--pksx-font-mono),
+			monospace;
+		text-align: right;
+	}
+
+	.stat-row strong {
+		color: var(--ink);
+	}
+
+	.stat-row em {
+		color: var(--ink-mute);
+		font-style: normal;
+	}
+
+	.move-grid {
 		display: grid;
-		gap: 4px;
-		padding: 8px 10px;
-		border-top: 1px solid var(--rule);
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
 	}
 
-	.detail-footer div {
-		display: flex;
-		justify-content: space-between;
-		gap: 10px;
-		font-size: 0.7rem;
+	.move-chip {
+		position: relative;
+		min-width: 0;
+		display: grid;
+		gap: 3px;
+		padding: 10px 28px 10px 12px;
+		border-radius: var(--pksx-radius-md);
+		background: color-mix(in srgb, var(--paper-deep), transparent 30%);
+		box-shadow: var(--shadow-sm);
 	}
 
-	.detail-footer span {
+	.move-chip::before {
+		content: '';
+		position: absolute;
+		top: 13px;
+		left: 8px;
+		width: 5px;
+		height: 5px;
+		border-radius: 2px;
+		background: oklch(0.55 0.16 var(--type-hue, 48));
+	}
+
+	.move-chip strong {
+		min-width: 0;
+		padding-left: 10px;
+		color: var(--ink);
+		font-size: 0.72rem;
+		font-weight: 800;
+		line-height: 1.08;
+		overflow-wrap: anywhere;
+	}
+
+	.move-chip span {
+		padding-left: 10px;
+		color: var(--ink-mute);
+		font:
+			700 0.58rem var(--pksx-font-mono),
+			monospace;
+		text-transform: uppercase;
+	}
+
+	.move-chip em {
+		position: absolute;
+		right: 9px;
+		top: 10px;
+		color: var(--ink-mute);
+		font:
+			800 0.66rem var(--pksx-font-mono),
+			monospace;
+		font-style: normal;
+	}
+
+	.detail-footer,
+	.empty-copy {
+		margin-top: auto;
+		display: grid;
+		grid-template-columns: max-content minmax(0, 1fr);
+		align-items: baseline;
+		gap: 7px 12px;
+		padding: 12px;
+		border-radius: var(--pksx-radius-md);
+		background: color-mix(in srgb, var(--paper-deep), transparent 30%);
+	}
+
+	.detail-footer span,
+	.empty-copy span {
 		color: var(--ink-mute);
 		font:
 			700 0.58rem var(--pksx-font-mono),
 			monospace;
 		letter-spacing: 0.06em;
+		text-transform: uppercase;
 	}
 
-	.detail-footer strong {
+	.detail-footer strong,
+	.empty-copy strong {
+		min-width: 0;
 		color: var(--ink);
-		font-weight: 700;
+		font:
+			750 0.72rem var(--pksx-font-mono),
+			monospace;
+		font-weight: 750;
+		text-align: right;
+		overflow-wrap: anywhere;
 	}
 
 	@media (max-width: 820px) {
@@ -400,13 +578,31 @@
 		}
 
 		.portrait-card {
-			height: 168px;
+			height: 210px;
 		}
 
 		.detail-heading {
 			align-items: flex-start;
 			justify-content: space-between;
 			gap: 8px;
+		}
+
+		.move-grid {
+			grid-template-columns: 1fr 1fr;
+		}
+	}
+
+	@media (max-width: 420px) {
+		.move-grid {
+			grid-template-columns: 1fr;
+		}
+
+		.stat-row {
+			grid-template-columns: 34px minmax(0, 1fr) 28px;
+		}
+
+		.stat-row em {
+			display: none;
 		}
 	}
 </style>
