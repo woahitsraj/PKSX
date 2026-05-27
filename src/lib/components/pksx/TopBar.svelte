@@ -10,6 +10,8 @@
 		busy: boolean;
 		hasLoadedSave: boolean;
 		darkMode: boolean;
+		focusIndex: number | null;
+		onFocusControl: (index: number) => void;
 		onImport: (event: Event) => void;
 		onOpenImportPicker: () => void;
 		onExport: () => void;
@@ -25,6 +27,8 @@
 		busy,
 		hasLoadedSave,
 		darkMode,
+		focusIndex,
+		onFocusControl,
 		onImport,
 		onOpenImportPicker,
 		onExport,
@@ -61,8 +65,26 @@
 			aria-label="Import Save File"
 			onchange={onImport}
 		/>
-		<button type="button" disabled={busy} onclick={onOpenImportPicker}>Import</button>
-		<button type="button" disabled={busy || !hasLoadedSave} onclick={onExport}>Export</button>
+		<button
+			id="top-control-0"
+			type="button"
+			class:controller-focused={focusIndex === 0}
+			aria-disabled={busy}
+			onfocus={() => onFocusControl(0)}
+			onclick={() => {
+				if (!busy) onOpenImportPicker();
+			}}>Import</button
+		>
+		<button
+			id="top-control-1"
+			type="button"
+			class:controller-focused={focusIndex === 1}
+			aria-disabled={busy || !hasLoadedSave}
+			onfocus={() => onFocusControl(1)}
+			onclick={() => {
+				if (!busy && hasLoadedSave) onExport();
+			}}>Export</button
+		>
 	</div>
 	<div class="save-chip" title={fileName ?? 'No Save File'}>
 		<i aria-hidden="true"></i>
@@ -77,9 +99,12 @@
 	</div>
 	<span class="online-indicator" aria-label="Offline mode">● OFFLINE</span>
 	<button
+		id="top-control-2"
 		class="theme-toggle"
+		class:controller-focused={focusIndex === 2}
 		type="button"
 		aria-label={darkMode ? 'Use light mode' : 'Use dark mode'}
+		onfocus={() => onFocusControl(2)}
 		onclick={onToggleTheme}
 	>
 		{darkMode ? '☀' : '☾'}
@@ -218,7 +243,13 @@
 		color: var(--rust);
 	}
 
-	.save-actions button:disabled {
+	.save-actions button.controller-focused,
+	.theme-toggle.controller-focused {
+		outline: 3px solid color-mix(in srgb, var(--rust), transparent 58%);
+		outline-offset: 2px;
+	}
+
+	.save-actions button[aria-disabled='true'] {
 		cursor: not-allowed;
 		opacity: 0.55;
 	}
@@ -311,8 +342,7 @@
 	}
 
 	@media (max-width: 520px) {
-		.brand-lockup p,
-		.save-actions button:nth-of-type(2) {
+		.brand-lockup p {
 			display: none;
 		}
 

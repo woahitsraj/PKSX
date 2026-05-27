@@ -4,6 +4,8 @@ export type SlotView = {
 	detail: string;
 	level: number | null;
 	speciesId: number | null;
+	form: number | null;
+	isEgg: boolean;
 	kind: 'pokemon' | 'empty';
 };
 
