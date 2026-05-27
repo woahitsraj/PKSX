@@ -61,6 +61,33 @@ test('keyboard navigation moves deterministically across the box grid', async ({
 	await expect(page.locator('#party-slot-0')).toBeFocused();
 });
 
+test('compact box controls and keyboard shortcuts update the active box label', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await page.locator('#box-grid').focus();
+
+	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
+
+	await page.getByRole('button', { name: 'Next box' }).click();
+	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
+	await expect(page.locator('#box-1-slot-0')).toHaveAttribute('aria-selected', 'true');
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('PageDown');
+	await expect(page.getByRole('heading', { name: 'Box 03' })).toBeVisible();
+	await expect(page.locator('#box-2-slot-0')).toHaveAttribute('aria-selected', 'true');
+
+	await page.keyboard.press('PageDown');
+	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
+
+	await page.getByRole('button', { name: 'Previous box' }).click();
+	await expect(page.getByRole('heading', { name: 'Box 03' })).toBeVisible();
+	await expect(page.locator('#box-2-slot-0')).toHaveAttribute('aria-selected', 'true');
+});
+
 test('confirm opens slot actions and back restores the grid focus', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await page.locator('#box-grid').focus();

@@ -28,13 +28,14 @@
 	import { IndexedDbLocalLibraryStorage, type StoredSaveFile } from '$lib/pksx/local-library';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 	import BoxSidebar from '$lib/components/pksx/BoxSidebar.svelte';
+	import BoxSourceControls from '$lib/components/pksx/BoxSourceControls.svelte';
 	import DetailRail from '$lib/components/pksx/DetailRail.svelte';
 	import MobileTabbar from '$lib/components/pksx/MobileTabbar.svelte';
 	import SlotActionMenu from '$lib/components/pksx/SlotActionMenu.svelte';
 	import StatusStrip from '$lib/components/pksx/StatusStrip.svelte';
 	import StorageSlot from '$lib/components/pksx/StorageSlot.svelte';
 	import TopBar from '$lib/components/pksx/TopBar.svelte';
-	import type { BoxNavItem, SlotView } from '$lib/components/pksx/types';
+	import type { BoxNavItem, BoxSourceView, SlotView } from '$lib/components/pksx/types';
 
 	type LoadedSave = {
 		file: StoredSaveFile;
@@ -179,6 +180,15 @@
 					}))
 				]
 	);
+	const activeBoxSource = $derived<BoxSourceView>({
+		key: 'save-file',
+		label: 'Save File',
+		activeBoxLabel: boxNameFor(navigation.activeBox),
+		activeBoxNumber: navigation.activeBox + 1,
+		boxCount,
+		occupied: activeBoxSlots.filter((slot) => slot.kind === 'pokemon').length,
+		capacity: BOX_SLOT_COUNT
+	});
 
 	function dispatch(action: NavigationAction) {
 		const previousFocus = navigation.focus;
@@ -800,24 +810,11 @@
 				aria-colcount={BOX_COLUMNS}
 			>
 				<div class="zone-header box-header">
-					<div class="box-title">
-						<h2>{boxNameFor(navigation.activeBox)}</h2>
-						<span>
-							<em>BOX {String(navigation.activeBox + 1).padStart(2, '0')}/{boxCount}</em>
-							<b
-								>{activeBoxSlots.filter((slot) => slot.kind === 'pokemon').length} / {BOX_SLOT_COUNT}
-								occupied</b
-							>
-						</span>
-					</div>
-					<div class="box-switcher" aria-label="Box switcher">
-						<button type="button" aria-label="Previous box" onclick={() => dispatch('previousBox')}
-							>‹</button
-						>
-						<button type="button" aria-label="Next box" onclick={() => dispatch('nextBox')}
-							>›</button
-						>
-					</div>
+					<BoxSourceControls
+						source={activeBoxSource}
+						onPreviousBox={() => dispatch('previousBox')}
+						onNextBox={() => dispatch('nextBox')}
+					/>
 				</div>
 				<div class="filter-row" aria-hidden="true">
 					<span>compact</span>
@@ -1030,15 +1027,6 @@
 		margin-bottom: 10px;
 	}
 
-	.zone-header h2 {
-		margin: 0;
-		color: var(--ink);
-		font-size: 1.35rem;
-		font-weight: 800;
-		line-height: 1;
-		letter-spacing: 0;
-	}
-
 	.zone-header span {
 		margin: 0;
 		color: var(--ink-soft);
@@ -1082,47 +1070,6 @@
 		display: none;
 	}
 
-	.box-title {
-		display: grid;
-		gap: 2px;
-	}
-
-	.box-title h2 {
-		font-size: 1.45rem;
-	}
-
-	.box-title span {
-		display: flex;
-		gap: 8px;
-		color: var(--ink-mute);
-		font:
-			650 0.62rem var(--pksx-font-mono),
-			monospace;
-		letter-spacing: 0.04em;
-	}
-
-	.box-title em {
-		font-style: normal;
-	}
-
-	.box-switcher {
-		display: flex;
-		gap: 6px;
-	}
-
-	.box-switcher button {
-		width: 30px;
-		min-height: 32px;
-		padding: 0;
-		border-radius: var(--pksx-radius-md);
-		background: var(--paper-hi);
-		box-shadow: var(--shadow-sm);
-		color: var(--ink);
-		font-size: 1.1rem;
-		font-weight: 700;
-	}
-
-	.box-switcher button:hover,
 	.party-toggle:hover {
 		background: var(--rust-wash);
 		color: var(--rust);
@@ -1216,15 +1163,6 @@
 
 		.box-header {
 			justify-content: center;
-		}
-
-		.box-title {
-			justify-items: center;
-			text-align: center;
-		}
-
-		.box-switcher {
-			gap: 12px;
 		}
 
 		.workspace-column {
