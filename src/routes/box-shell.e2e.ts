@@ -26,6 +26,17 @@ async function openEmptyLibrary(page: Page) {
 
 test('keyboard navigation moves deterministically across the box grid', async ({ page }) => {
 	await openEmptyLibrary(page);
+	await expect(page.locator('#box-0-slot-0 img.slot-sprite')).toHaveAttribute(
+		'src',
+		'./sprites/pokemon/species/0025.png'
+	);
+	await expect(page.locator('.portrait-card img')).toHaveAttribute(
+		'src',
+		'./sprites/pokemon/species/0025.png'
+	);
+	await expect(
+		page.locator('img[src^="https://img.pokemondb.net"], img[src^="http://img.pokemondb.net"]')
+	).toHaveCount(0);
 	await page.locator('#box-grid').focus();
 
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');

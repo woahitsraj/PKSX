@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { asset } from '$app/paths';
 	import { onMount, tick } from 'svelte';
 	import {
 		base64ToBytes,
@@ -25,6 +26,7 @@
 		type SlotFocus
 	} from '$lib/pksx/box-navigation';
 	import { IndexedDbLocalLibraryStorage, type StoredSaveFile } from '$lib/pksx/local-library';
+	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 	import BoxSidebar from '$lib/components/pksx/BoxSidebar.svelte';
 	import DetailRail from '$lib/components/pksx/DetailRail.svelte';
 	import MobileTabbar from '$lib/components/pksx/MobileTabbar.svelte';
@@ -86,6 +88,8 @@
 		detail: slot === 0 ? 'Lv. 5' : '',
 		level: slot === 0 ? 5 : null,
 		speciesId: slot === 0 ? 25 : null,
+		form: slot === 0 ? 0 : null,
+		isEgg: false,
 		kind: slot === 0 ? 'pokemon' : 'empty'
 	}));
 
@@ -100,6 +104,8 @@
 					detail: featured ? 'Lv. 5' : '',
 					level: featured ? 5 : null,
 					speciesId: featured ? 25 : null,
+					form: featured ? 0 : null,
+					isEgg: false,
 					kind: featured ? ('pokemon' as const) : ('empty' as const)
 				};
 			})
@@ -117,8 +123,6 @@
 	let viewportWidth = $state(1024);
 	let engine: EngineApi | null = null;
 	let workspaceLoadRequest = 0;
-
-	const pikachuSpriteUrl = 'https://img.pokemondb.net/sprites/scarlet-violet/normal/pikachu.png';
 
 	const controllerConnected = $derived(
 		gamepadStatus !== 'No controller detected' && gamepadStatus.length > 0
@@ -169,6 +173,8 @@
 						detail: '',
 						level: null,
 						speciesId: null,
+						form: null,
+						isEgg: false,
 						kind: 'empty' as const
 					}))
 				]
@@ -622,6 +628,8 @@
 				detail: '',
 				level: null,
 				speciesId: null,
+				form: null,
+				isEgg: false,
 				kind: 'empty'
 			});
 		}
@@ -640,8 +648,15 @@
 			detail: slot.isEmpty ? '' : `Lv. ${slot.level}`,
 			level: slot.isEmpty ? null : slot.level,
 			speciesId: slot.isEmpty ? null : slot.speciesId,
+			form: slot.isEmpty ? null : slot.form,
+			isEgg: !slot.isEmpty && slot.isEgg,
 			kind: slot.isEmpty ? 'empty' : 'pokemon'
 		};
+	}
+
+	function spriteUrlFor(slot: SlotView): string | null {
+		const entry = resolveSpriteCatalogEntry(slot);
+		return entry ? asset(entry.path) : null;
 	}
 
 	function getErrorMessage(error: unknown) {
@@ -753,7 +768,7 @@
 								style={slotStyle(-1, slot.slot, slot.speciesId)}
 								rowIndex={slot.slot + 1}
 								colIndex={1}
-								spriteUrl={pikachuSpriteUrl}
+								spriteUrl={spriteUrlFor(slot)}
 								collapsed={partyCollapsed}
 								onFocusSlot={() => focusParty(slot.slot)}
 								onOpenSlot={openFocusedSlot}
@@ -823,7 +838,7 @@
 								style={slotStyle(navigation.activeBox, slot.slot, slot.speciesId)}
 								rowIndex={position.row + 1}
 								colIndex={position.column + 1}
-								spriteUrl={pikachuSpriteUrl}
+								spriteUrl={spriteUrlFor(slot)}
 								onFocusSlot={() => focusBox(slot.slot)}
 								onOpenSlot={openFocusedSlot}
 							/>
@@ -871,7 +886,7 @@
 			focusZone={activeSlotFocus.zone}
 			focusSlot={activeSlotFocus.slot}
 			slotHueStyle={`--slot-hue: ${slotHue(navigation.activeBox, activeSlotFocus.slot, focusedSlot.speciesId)}`}
-			spriteUrl={pikachuSpriteUrl}
+			spriteUrl={spriteUrlFor(focusedSlot)}
 			{saveSummary}
 			activeBoxName={boxNameFor(navigation.activeBox)}
 			{slotPalette}

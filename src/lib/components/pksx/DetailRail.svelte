@@ -7,7 +7,7 @@
 		focusZone: 'party' | 'box';
 		focusSlot: number;
 		slotHueStyle: string;
-		spriteUrl: string;
+		spriteUrl: string | null;
 		saveSummary: SaveSummary | null;
 		activeBoxName: string;
 		slotPalette: number[];
@@ -42,8 +42,10 @@
 				? `PARTY ${focusSlot + 1}`
 				: `SLOT ${focusSlot + 1}`}</small
 		>
-		{#if focusedSlot.kind === 'pokemon'}
+		{#if focusedSlot.kind === 'pokemon' && spriteUrl}
 			<img src={spriteUrl} alt="" width="180" height="180" />
+		{:else if focusedSlot.kind === 'pokemon'}
+			<span class="portrait-missing" aria-hidden="true"></span>
 		{:else}
 			<span class="portrait-empty" aria-hidden="true"></span>
 		{/if}
@@ -174,6 +176,26 @@
 		height: 64px;
 		border: 1px dashed var(--rule-hi);
 		border-radius: var(--pksx-radius-lg);
+	}
+
+	.portrait-missing {
+		width: 86px;
+		height: 86px;
+		border: 1px solid color-mix(in srgb, var(--ink), transparent 45%);
+		border-radius: var(--pksx-radius-lg);
+		background: color-mix(in srgb, var(--paper), transparent 35%);
+	}
+
+	.portrait-missing::before {
+		content: '?';
+		display: grid;
+		width: 100%;
+		height: 100%;
+		place-items: center;
+		color: color-mix(in srgb, var(--ink), transparent 35%);
+		font:
+			800 2rem var(--pksx-font-mono),
+			monospace;
 	}
 
 	.portrait-card small {
