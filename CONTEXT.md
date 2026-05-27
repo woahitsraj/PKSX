@@ -92,6 +92,18 @@ _Avoid_: cloud sync, account sync
 A restorable snapshot of save file bytes created before a risky operation.
 _Avoid_: copy, version, checkpoint, undo
 
+**Backup Reason**:
+A structured explanation for why a Backup was created, such as manual creation or a category of Risky Change.
+_Avoid_: free-form note when referring to the primary backup category
+
+**Risky Change**:
+A user action that mutates Save File bytes or Pokemon Entity bytes in a Workspace.
+_Avoid_: navigation, inspection, export, Legality Check
+
+**Backup Restore**:
+A user-confirmed recovery action that opens a Backup as the active Workspace.
+_Avoid_: overwrite, rollback, import when referring to opening backup bytes for recovery
+
 **Workspace**:
 The in-app editing state for a loaded Save File before it is exported back to user-controlled storage.
 _Avoid_: open file, session when referring to editable save state
@@ -141,9 +153,25 @@ _Avoid_: key event, button event
 - A **Box** always has a number and may also have a **Box Name**.
 - A **Slot** contains zero or one **Pokemon Entity**.
 - The **Local Library** stores imported **Save File** artifacts, **Backups**, and **Pokemon Storage**.
+- A **Backup** belongs to one **Save File**.
+- A **Backup** has one **Backup Reason**.
+- Manual and automatic **Backups** are both restorable **Backups**.
+- **Backups** are presented newest first when recovery context matters.
 - A **Workspace** belongs to one loaded **Save File**.
 - A **Dirty Workspace** belongs to one **Workspace**.
-- A **Backup** is created before risky changes to a **Workspace**.
+- A **Backup** is created before **Risky Changes** to a **Workspace**.
+- At most one automatic **Backup** is created before the first **Risky Change** in a **Workspace**.
+- A manual **Backup** preserves the current **Workspace** state.
+- A manual **Backup** requires a loaded **Save File**.
+- A **Backup Restore** opens a **Backup** as the active **Workspace** only after explicit user confirmation.
+- A **Backup Restore** can only make a **Supported Save File** state active.
+- A **Backup Restore** keeps the restored **Workspace** associated with the **Save File** that owns the **Backup**.
+- A **Backup Restore** creates a **Dirty Workspace** when the restored state differs from the current **Save File** artifact.
+- A **Backup Restore** does not overwrite the original **Save File** artifact.
+- A **Backup Restore** must warn before replacing a **Dirty Workspace**.
+- A **Backup Restore** is not a **Risky Change**.
+- Preserving restored backup bytes as a separate **Save File** artifact requires an explicit user action.
+- Preserving restored backup bytes as a separate **Save File** artifact associates the active **Workspace** with that new **Save File** artifact.
 - **Pokemon Storage** contains **Pokemon Entities** that are outside any **Save File**.
 - **Pokemon Storage** contains one or more **Storage Boxes**.
 - A **Storage Box** contains zero or more **Slots**.
