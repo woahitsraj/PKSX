@@ -30,6 +30,9 @@ test('keyboard navigation moves deterministically across the box grid', async ({
 		'src',
 		'./sprites/pokemon/species/0025.png'
 	);
+	await expect(page.locator('#box-0-slot-0')).toHaveCSS('--slot-hue', '94');
+	await expect(page.locator('#box-0-slot-0')).toHaveCSS('--slot-chroma', '0.16');
+	await expect(page.locator('#box-0-slot-0')).not.toHaveClass(/dual-type/);
 	await expect(page.locator('.portrait-card img')).toHaveAttribute(
 		'src',
 		'./sprites/pokemon/species/0025.png'
@@ -272,9 +275,16 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 	await expect(page.getByText('DIXIE', { exact: true })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	await expect(page.locator('#party-slot-0')).toContainText('1-UP');
-	await expect(page.getByTestId('active-slot-detail-rail')).toContainText('Stats');
-	await expect(page.getByTestId('active-slot-detail-rail')).toContainText('Move Set');
-	await expect(page.getByTestId('active-slot-detail-rail')).not.toContainText('Not available');
+	const detailRail = page.getByTestId('active-slot-detail-rail');
+	await expect(detailRail).toContainText('Steel');
+	await expect(detailRail).toContainText('Rock');
+	await expect(detailRail).toContainText('Sassy');
+	await expect(detailRail).toContainText('Rock Head');
+	await expect(detailRail).toContainText('Stats');
+	await expect(detailRail).toContainText('HP');
+	await expect(detailRail).toContainText('+0');
+	await expect(detailRail).toContainText('Move Set');
+	await expect(detailRail).not.toContainText('Not available');
 
 	const downloadPromise = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export' }).click();

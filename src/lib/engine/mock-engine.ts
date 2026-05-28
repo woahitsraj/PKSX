@@ -31,7 +31,7 @@ const mockPikachuDetails = {
 	nature: 'Hardy',
 	ability: 'Static',
 	heldItem: 'Light Ball',
-	types: [{ name: 'Electric', hue: 52 }],
+	types: [{ name: 'Electric', hue: 94, chroma: 0.16 }],
 	stats: [
 		{ key: 'HP', label: 'HP', value: 20, ev: null, max: 255 },
 		{ key: 'ATK', label: 'ATK', value: 12, ev: null, max: 255 },
@@ -41,8 +41,8 @@ const mockPikachuDetails = {
 		{ key: 'SPE', label: 'SPE', value: 18, ev: null, max: 255 }
 	],
 	moves: [
-		{ name: 'Thunder Shock', type: 'Electric', hue: 52, pp: 30 },
-		{ name: 'Growl', type: 'Normal', hue: 80, pp: 40 }
+		{ name: 'Thunder Shock', type: 'Electric', hue: 94, chroma: 0.16, pp: 30 },
+		{ name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, pp: 40 }
 	],
 	originalTrainer: 'PKSX',
 	metLabel: 'Lv. 5'

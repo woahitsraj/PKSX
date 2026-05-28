@@ -52,7 +52,8 @@ export const saveSummarySchema = z.object({
 
 export const slotTypeSummarySchema = z.object({
 	name: z.string(),
-	hue: z.number()
+	hue: z.number(),
+	chroma: z.number().default(0.09)
 });
 
 export const slotStatSummarySchema = z.object({
@@ -67,6 +68,7 @@ export const slotMoveSummarySchema = z.object({
 	name: z.string(),
 	type: z.string(),
 	hue: z.number(),
+	chroma: z.number().default(0.09),
 	pp: z.number().nullable().optional()
 });
 
