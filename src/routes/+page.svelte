@@ -83,6 +83,30 @@
 		return `Box ${String(box + 1).padStart(2, '0')}`;
 	}
 
+	const placeholderPokemonDetails = {
+		gender: '♂',
+		nature: 'Modest',
+		ability: 'Static',
+		heldItem: 'Light Ball',
+		types: [{ name: 'Electric', hue: 52 }],
+		stats: [
+			{ key: 'HP', label: 'HP', value: 20, max: 31, ev: 0 },
+			{ key: 'ATK', label: 'ATK', value: 12, max: 31, ev: 0 },
+			{ key: 'DEF', label: 'DEF', value: 10, max: 31, ev: 0 },
+			{ key: 'SPA', label: 'SPA', value: 15, max: 31, ev: 0 },
+			{ key: 'SPD', label: 'SPD', value: 12, max: 31, ev: 0 },
+			{ key: 'SPE', label: 'SPE', value: 18, max: 31, ev: 0 }
+		],
+		moves: [
+			{ name: 'Thunder Shock', type: 'Electric', hue: 52, pp: 30 },
+			{ name: 'Quick Attack', type: 'Normal', hue: 80, pp: 30 },
+			{ name: 'Tail Whip', type: 'Normal', hue: 80, pp: 30 },
+			{ name: 'Growl', type: 'Normal', hue: 80, pp: 40 }
+		],
+		originalTrainer: 'PKSX',
+		metLabel: 'Starter Box'
+	} satisfies Partial<SlotView>;
+
 	const placeholderPartySlots: SlotView[] = Array.from({ length: PARTY_SLOT_COUNT }, (_, slot) => ({
 		slot,
 		label: slot === 0 ? 'Pikachu' : 'Empty',
@@ -91,7 +115,8 @@
 		speciesId: slot === 0 ? 25 : null,
 		form: slot === 0 ? 0 : null,
 		isEgg: false,
-		kind: slot === 0 ? 'pokemon' : 'empty'
+		kind: slot === 0 ? 'pokemon' : 'empty',
+		...(slot === 0 ? placeholderPokemonDetails : {})
 	}));
 
 	const placeholderBoxSlotsByBox: SlotView[][] = Array.from(
@@ -107,7 +132,8 @@
 					speciesId: featured ? 25 : null,
 					form: featured ? 0 : null,
 					isEgg: false,
-					kind: featured ? ('pokemon' as const) : ('empty' as const)
+					kind: featured ? ('pokemon' as const) : ('empty' as const),
+					...(featured ? placeholderPokemonDetails : {})
 				};
 			})
 	);
@@ -189,6 +215,14 @@
 		occupied: activeBoxSlots.filter((slot) => slot.kind === 'pokemon').length,
 		capacity: BOX_SLOT_COUNT
 	});
+	const activeSlotPositionLabel = $derived(
+		activeSlotFocus.zone === 'box'
+			? (() => {
+					const position = getBoxSlotPosition(activeSlotFocus.slot);
+					return `${boxNameFor(navigation.activeBox)} · Slot ${activeSlotFocus.slot + 1} · Row ${String.fromCharCode(65 + position.row)} / Col ${position.column + 1}`;
+				})()
+			: `Party · Slot ${activeSlotFocus.slot + 1}`
+	);
 
 	function dispatch(action: NavigationAction) {
 		const previousFocus = navigation.focus;
@@ -660,7 +694,16 @@
 			speciesId: slot.isEmpty ? null : slot.speciesId,
 			form: slot.isEmpty ? null : slot.form,
 			isEgg: !slot.isEmpty && slot.isEgg,
-			kind: slot.isEmpty ? 'empty' : 'pokemon'
+			kind: slot.isEmpty ? 'empty' : 'pokemon',
+			gender: slot.gender ?? undefined,
+			nature: slot.nature ?? undefined,
+			ability: slot.ability ?? undefined,
+			heldItem: slot.heldItem ?? undefined,
+			types: slot.types,
+			stats: slot.stats,
+			moves: slot.moves,
+			originalTrainer: slot.originalTrainer ?? undefined,
+			metLabel: slot.metLabel ?? undefined
 		};
 	}
 
@@ -886,7 +929,7 @@
 			spriteUrl={spriteUrlFor(focusedSlot)}
 			{saveSummary}
 			activeBoxName={boxNameFor(navigation.activeBox)}
-			{slotPalette}
+			positionLabel={activeSlotPositionLabel}
 		/>
 	</section>
 

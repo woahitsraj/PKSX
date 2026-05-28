@@ -54,7 +54,7 @@ Reusable template and scoped CSS live under `src/lib/components/pksx/`:
 - `BoxSidebar.svelte`: box navigation list and active/occupied state rows.
 - `StorageSlot.svelte`: party and box slot gridcell rendering, sprite/empty states, focus, and dual-type treatment.
 - `SlotActionMenu.svelte`: repeated slot action popover.
-- `DetailRail.svelte`: focused slot portrait, stats, moves, and metadata rail.
+- `DetailRail.svelte`: Active Slot Detail Rail with a large portrait card, filled or empty state, optional Pokemon details such as type, nature, ability, item, stats, moves, and compact storage metadata. Unavailable fields are omitted rather than rendered as placeholders.
 - `MobileTabbar.svelte`: mobile section navigation.
 - `types.ts`: shared presentational data shapes for PKSX components.
 
