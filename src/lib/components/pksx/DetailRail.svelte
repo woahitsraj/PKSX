@@ -45,7 +45,11 @@
 	const footerRows = $derived(
 		isPokemon
 			? [
-					saveSummary?.trainerName ? { label: 'OT', value: saveSummary.trainerName } : null,
+					focusedSlot.originalTrainer
+						? { label: 'OT', value: focusedSlot.originalTrainer }
+						: saveSummary?.trainerName
+							? { label: 'OT', value: saveSummary.trainerName }
+							: null,
 					focusedSlot.heldItem ? { label: 'Item', value: focusedSlot.heldItem } : null,
 					focusedSlot.metLabel ? { label: 'Met', value: focusedSlot.metLabel } : null,
 					saveSummary?.fileName ? { label: 'Save', value: saveSummary.fileName } : null,
