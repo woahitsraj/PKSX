@@ -128,11 +128,11 @@ public sealed record BoxSlotSummary(
             SlotDetailProjection.MetLabel(pokemon));
 }
 
-public sealed record SlotTypeSummary(string Name, int Hue);
+public sealed record SlotTypeSummary(string Name, int Hue, double Chroma);
 
 public sealed record SlotStatSummary(string Key, string Label, int Value, int? Ev, int Max);
 
-public sealed record SlotMoveSummary(string Name, string Type, int Hue, int? Pp);
+public sealed record SlotMoveSummary(string Name, string Type, int Hue, double Chroma, int? Pp);
 
 public sealed record SaveWorkspace(
     SaveSummary Summary,
@@ -149,8 +149,14 @@ internal static class SlotDetailProjection
 
     private static readonly int[] TypeHues =
     [
-        80, 22, 210, 46, 42, 36, 120, 286, 195,
-        80, 220, 132, 52, 260, 190, 300, 250, 330
+        107, 28, 294, 328, 88, 98, 117, 303, 286,
+        53, 264, 136, 94, 6, 192, 287, 56, 349
+    ];
+
+    private static readonly double[] TypeChromas =
+    [
+        0.06, 0.18, 0.14, 0.17, 0.11, 0.12, 0.16, 0.10, 0.04,
+        0.16, 0.15, 0.17, 0.16, 0.20, 0.07, 0.21, 0.05, 0.11
     ];
 
     public static string? Gender(PKM pokemon) =>
@@ -181,9 +187,9 @@ internal static class SlotDetailProjection
 
         var result = new List<SlotTypeSummary>(2);
         if (first is not null)
-            result.Add(new SlotTypeSummary(first, TypeHue(info.Type1)));
+            result.Add(new SlotTypeSummary(first, TypeHue(info.Type1), TypeChroma(info.Type1)));
         if (second is not null)
-            result.Add(new SlotTypeSummary(second, TypeHue(info.Type2)));
+            result.Add(new SlotTypeSummary(second, TypeHue(info.Type2), TypeChroma(info.Type2)));
         return result;
     }
 
@@ -231,7 +237,7 @@ internal static class SlotDetailProjection
             var typeId = MoveInfo.GetType(move, pokemon.Context);
             var type = TypeName(typeId) ?? "Move";
             var hue = TypeHue(typeId);
-            result.Add(new SlotMoveSummary(name, type, hue, pp[index] > 0 ? pp[index] : null));
+            result.Add(new SlotMoveSummary(name, type, hue, TypeChroma(typeId), pp[index] > 0 ? pp[index] : null));
         }
 
         return result;
@@ -247,6 +253,9 @@ internal static class SlotDetailProjection
 
     private static int TypeHue(int type) =>
         type >= 0 && type < TypeHues.Length ? TypeHues[type] : 48;
+
+    private static double TypeChroma(int type) =>
+        type >= 0 && type < TypeChromas.Length ? TypeChromas[type] : 0.09;
 
     private static string? NameAt(IReadOnlyList<string> names, int index) =>
         index >= 0 && index < names.Count && !string.IsNullOrWhiteSpace(names[index]) ? names[index] : null;

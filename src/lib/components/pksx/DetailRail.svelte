@@ -83,7 +83,11 @@
 		{#if isPokemon && focusedSlot.types && focusedSlot.types.length > 0}
 			<div class="type-row" aria-label="Types">
 				{#each focusedSlot.types as type (type.name)}
-					<span class="type-chip" style={`--type-hue: ${type.hue}`}>{type.name}</span>
+					<span
+						class="type-chip"
+						style={`--type-hue: ${type.hue}; --type-chroma: ${type.chroma ?? 0.09}`}
+						>{type.name}</span
+					>
 				{/each}
 			</div>
 		{/if}
@@ -128,9 +132,7 @@
 						<i style={`width: ${Math.min(100, Math.round((stat.value / stat.max) * 100))}%`}></i>
 					</span>
 					<strong>{stat.value}</strong>
-					{#if stat.ev}
-						<em>+{stat.ev}</em>
-					{/if}
+					<em>+{stat.ev ?? 0}</em>
 				</div>
 			{/each}
 		</div>
@@ -143,7 +145,10 @@
 			</div>
 			<div class="move-grid">
 				{#each focusedSlot.moves ?? [] as move (move.name)}
-					<div class="move-chip" style={`--type-hue: ${move.hue}`}>
+					<div
+						class="move-chip"
+						style={`--type-hue: ${move.hue}; --type-chroma: ${move.chroma ?? 0.09}`}
+					>
 						<strong>{move.name}</strong>
 						<span>{move.type}</span>
 						{#if move.pp !== null && move.pp !== undefined}
@@ -211,8 +216,8 @@
 			),
 			linear-gradient(
 				135deg,
-				oklch(0.91 0.08 calc(var(--slot-hue, 48) + 150)),
-				oklch(0.78 0.17 var(--slot-hue, 48))
+				oklch(0.91 var(--slot-chroma, 0.08) calc(var(--slot-hue, 48) + 150)),
+				oklch(0.78 var(--slot-chroma, 0.17) var(--slot-hue, 48))
 			);
 		overflow: hidden;
 		box-shadow:
@@ -236,8 +241,8 @@
 			),
 			radial-gradient(
 				circle at 30% 35%,
-				oklch(0.5 0.08 var(--slot-hue, 48)),
-				oklch(0.28 0.08 var(--slot-hue, 48))
+				oklch(0.5 var(--slot-chroma, 0.08) var(--slot-hue, 48)),
+				oklch(0.28 var(--slot-chroma, 0.08) var(--slot-hue, 48))
 			);
 	}
 
@@ -327,8 +332,8 @@
 	.type-chip {
 		padding: 5px 11px;
 		border-radius: 999px;
-		background: oklch(0.89 0.09 var(--type-hue, 52));
-		color: oklch(0.31 0.09 var(--type-hue, 52));
+		background: oklch(0.89 var(--type-chroma, 0.09) var(--type-hue, 52));
+		color: oklch(0.31 var(--type-chroma, 0.09) var(--type-hue, 52));
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink), transparent 90%);
 		font-size: 0.7rem;
 		font-weight: 850;
@@ -431,7 +436,7 @@
 
 	.stat-row {
 		display: grid;
-		grid-template-columns: 34px minmax(0, 1fr) 28px 32px;
+		grid-template-columns: 34px minmax(0, 1fr) 28px 42px;
 		align-items: center;
 		gap: 8px;
 	}
@@ -502,7 +507,7 @@
 		width: 5px;
 		height: 5px;
 		border-radius: 2px;
-		background: oklch(0.55 0.16 var(--type-hue, 48));
+		background: oklch(0.55 var(--type-chroma, 0.16) var(--type-hue, 48));
 	}
 
 	.move-chip strong {

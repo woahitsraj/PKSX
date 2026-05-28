@@ -21,6 +21,7 @@ export type SlotView = {
 export type SlotTypeView = {
 	name: string;
 	hue: number;
+	chroma?: number;
 };
 
 export type SlotStatView = {
@@ -35,6 +36,7 @@ export type SlotMoveView = {
 	name: string;
 	type: string;
 	hue: number;
+	chroma?: number;
 	pp?: number | null;
 };
 

@@ -60,6 +60,7 @@ export type PartySlotSummary = Omit<BoxSlotSummary, 'box'>;
 export type SlotTypeSummary = {
 	name: string;
 	hue: number;
+	chroma: number;
 };
 
 export type SlotStatSummary = {
@@ -74,6 +75,7 @@ export type SlotMoveSummary = {
 	name: string;
 	type: string;
 	hue: number;
+	chroma: number;
 	pp?: number | null;
 };
 
