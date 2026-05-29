@@ -29,6 +29,10 @@ public sealed record SaveSummary(
     int GameVersionId,
     int Generation,
     string? TrainerName,
+    uint TrainerId,
+    string PlayTime,
+    int PlayedHours,
+    int PlayedMinutes,
     int PartyCount,
     int BoxCount,
     int BoxSlotCount)
@@ -41,6 +45,10 @@ public sealed record SaveSummary(
             (int)save.Version,
             save.Generation,
             save.OT,
+            save.DisplayTID,
+            save.PlayTimeString,
+            save.PlayedHours,
+            save.PlayedMinutes,
             save.PartyCount,
             save.BoxCount,
             save.BoxSlotCount);

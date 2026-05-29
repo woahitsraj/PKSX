@@ -1,6 +1,27 @@
 import { describe, expect, test } from 'vitest';
+import colosseumFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/colosseum/011020251345.gci?url';
 import fixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav?url';
+import moonFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/moon/011020252257.sav?url';
+import sunMoonDemoFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/sun-moon-demo/181020251439.sav?url';
+import ultraMoonFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/ultra-moon/011020252224.sav?url';
+import ultraSunFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/ultra-sun/011020252224.sav?url';
+import xFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/x/011020252224.sav?url';
 import { createPkhexEngine } from './pkhex-engine';
+
+const supportedFixtureCases = [
+	{ name: 'Emerald', fileName: '011020251345.sav', url: fixtureUrl, byteLength: 131088 },
+	{ name: 'Colosseum', fileName: '011020251345.gci', url: colosseumFixtureUrl, byteLength: 393280 },
+	{ name: 'X', fileName: '011020252224', url: xFixtureUrl, byteLength: 415232 },
+	{ name: 'Moon', fileName: '011020252257', url: moonFixtureUrl, byteLength: 441856 },
+	{
+		name: 'Sun/Moon demo',
+		fileName: '181020251439',
+		url: sunMoonDemoFixtureUrl,
+		byteLength: 441856
+	},
+	{ name: 'Ultra Sun', fileName: '011020252224', url: ultraSunFixtureUrl, byteLength: 445440 },
+	{ name: 'Ultra Moon', fileName: '011020252224', url: ultraMoonFixtureUrl, byteLength: 445440 }
+] as const;
 
 describe('PKHeX Engine browser runtime smoke', () => {
 	test('parses the Emerald Save File fixture through the published browser-wasm bundle', async () => {
@@ -28,6 +49,10 @@ describe('PKHeX Engine browser runtime smoke', () => {
 				gameVersionId: 3,
 				generation: 3,
 				trainerName: 'DIXIE',
+				trainerId: expect.any(Number),
+				playTime: expect.any(String),
+				playedHours: expect.any(Number),
+				playedMinutes: expect.any(Number),
 				partyCount: 5,
 				boxCount: 14,
 				boxSlotCount: 30
@@ -105,4 +130,32 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		}
 		expect(serialized.value.bytesBase64.length).toBeGreaterThan(0);
 	});
+
+	test.each(supportedFixtureCases)(
+		'parses and loads the $name Save File fixture',
+		async (fixture) => {
+			const [engine, fixtureResponse] = await Promise.all([
+				createPkhexEngine('/pkhex-engine'),
+				fetch(fixture.url)
+			]);
+			const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+			expect(fixtureBytes.byteLength).toBe(fixture.byteLength);
+
+			const summary = await engine.summarizeSave(fixtureBytes, fixture.fileName);
+			expect(summary.ok, JSON.stringify(summary.error)).toBe(true);
+			if (!summary.ok) {
+				throw new Error(`Expected ${fixture.name} summary to succeed.`);
+			}
+			expect(summary.value.boxCount).toBeGreaterThan(0);
+			expect(summary.value.generation).toBeGreaterThan(0);
+
+			const workspace = await engine.loadSaveWorkspace(fixtureBytes, fixture.fileName, 0);
+			expect(workspace.ok, JSON.stringify(workspace.error)).toBe(true);
+			if (!workspace.ok) {
+				throw new Error(`Expected ${fixture.name} workspace load to succeed.`);
+			}
+			expect(workspace.value.summary.saveType).toBe(summary.value.saveType);
+			expect(workspace.value.boxSlots.length).toBeGreaterThan(0);
+		}
+	);
 });

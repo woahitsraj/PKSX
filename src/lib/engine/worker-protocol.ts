@@ -45,6 +45,10 @@ export const saveSummarySchema = z.object({
 	gameVersionId: z.number(),
 	generation: z.number(),
 	trainerName: z.string().optional(),
+	trainerId: z.number(),
+	playTime: z.string(),
+	playedHours: z.number(),
+	playedMinutes: z.number(),
 	partyCount: z.number(),
 	boxCount: z.number(),
 	boxSlotCount: z.number()
@@ -82,8 +86,7 @@ export const spriteIdentitySchema = z.object({
 	displaySex: displaySexSchema
 });
 
-export const boxSlotSummarySchema = z.object({
-	box: z.number(),
+const slotSummaryFields = {
 	slot: z.number(),
 	speciesId: z.number(),
 	form: z.number(),
@@ -101,10 +104,32 @@ export const boxSlotSummarySchema = z.object({
 	moves: z.array(slotMoveSummarySchema).default([]),
 	originalTrainer: z.string().nullable().optional(),
 	metLabel: z.string().nullable().optional(),
-	spriteIdentity: spriteIdentitySchema
-});
+	spriteIdentity: spriteIdentitySchema.optional()
+};
 
-export const partySlotSummarySchema = boxSlotSummarySchema.omit({ box: true });
+const slotSummaryBaseSchema = z.object(slotSummaryFields);
+
+function fillSpriteIdentity<T extends z.infer<typeof slotSummaryBaseSchema>>(slot: T) {
+	return {
+		...slot,
+		spriteIdentity: slot.spriteIdentity ?? {
+			speciesId: slot.speciesId,
+			form: slot.form,
+			isEgg: slot.isEgg,
+			isShiny: false,
+			displaySex: 'default' as const
+		}
+	};
+}
+
+export const boxSlotSummarySchema = z
+	.object({
+		box: z.number(),
+		...slotSummaryFields
+	})
+	.transform(fillSpriteIdentity);
+
+export const partySlotSummarySchema = slotSummaryBaseSchema.transform(fillSpriteIdentity);
 
 export const saveWorkspaceSchema = z.object({
 	summary: saveSummarySchema,

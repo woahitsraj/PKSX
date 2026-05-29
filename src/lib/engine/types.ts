@@ -29,6 +29,10 @@ export type SaveSummary = {
 	gameVersionId: number;
 	generation: number;
 	trainerName?: string;
+	trainerId: number;
+	playTime: string;
+	playedHours: number;
+	playedMinutes: number;
 	partyCount: number;
 	boxCount: number;
 	boxSlotCount: number;

@@ -6,19 +6,26 @@
 		activeKey?: string;
 		focusIndex?: number | null;
 		onFocusTab: (index: number) => void;
+		onSelectTab?: (index: number) => void;
 	}
 
-	let { tabs, activeKey = 'boxes', focusIndex = null, onFocusTab }: Props = $props();
+	let {
+		tabs,
+		activeKey = 'boxes',
+		focusIndex = null,
+		onFocusTab,
+		onSelectTab = onFocusTab
+	}: Props = $props();
 </script>
 
-<nav class="mobile-tabbar" aria-label="Sections (mobile)">
+<nav class="mobile-tabbar" aria-label="Sections (mobile)" style:--tab-count={tabs.length}>
 	{#each tabs as tab, index (tab.key)}
 		<button
 			id={`mobile-tab-${index}`}
 			type="button"
 			class={[tab.key === activeKey && 'active', focusIndex === index && 'controller-focused']}
 			onfocus={() => onFocusTab(index)}
-			onclick={() => onFocusTab(index)}
+			onclick={() => onSelectTab(index)}
 		>
 			<span aria-hidden="true">{tab.glyph}</span>
 			<small>{tab.label}</small>
@@ -39,7 +46,7 @@
 			right: 0;
 			z-index: 60;
 			display: grid;
-			grid-template-columns: repeat(3, minmax(0, 1fr));
+			grid-template-columns: repeat(var(--tab-count), minmax(0, 1fr));
 			gap: 0;
 			padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
 			background: var(--paper-hi);

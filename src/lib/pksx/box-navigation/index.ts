@@ -2,7 +2,7 @@ export const PARTY_SLOT_COUNT = 6;
 export const BOX_COLUMNS = 6;
 export const BOX_ROWS = 5;
 export const BOX_SLOT_COUNT = BOX_COLUMNS * BOX_ROWS;
-export const TOP_CONTROL_COUNT = 4;
+export const TOP_CONTROL_COUNT = 5;
 export const MOBILE_TAB_COUNT = 3;
 
 export type FocusZone = 'topbar' | 'party' | 'box' | 'actions' | 'mobileTabs';
