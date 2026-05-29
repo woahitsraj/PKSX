@@ -1,5 +1,13 @@
 export type SaveFileId = string;
 export type BackupId = string;
+export type BackupReason =
+	| 'manual'
+	| 'pokemon-movement'
+	| 'pokemon-editing'
+	| 'trainer-editing'
+	| 'inventory-editing'
+	| 'legality-fix'
+	| 'evolution';
 
 export type StoredSaveFile = {
 	id: SaveFileId;
@@ -12,7 +20,7 @@ export type StoredSaveFile = {
 export type BackupMetadata = {
 	id: BackupId;
 	saveFileId: SaveFileId;
-	reason: string;
+	reason: BackupReason;
 	byteLength: number;
 	createdAt: string;
 };
@@ -25,7 +33,7 @@ export type ImportSaveInput = {
 export type CreateBackupInput = {
 	saveFileId: SaveFileId;
 	bytes: Uint8Array;
-	reason: string;
+	reason: BackupReason;
 };
 
 export type LocalLibraryStorage = {

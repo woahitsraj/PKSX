@@ -7,8 +7,7 @@
 		type EngineApi,
 		type EngineError,
 		type PartySlotSummary,
-		type BoxSlotSummary,
-		type SaveWorkspace
+		type BoxSlotSummary
 	} from '$lib/engine';
 	import {
 		applyNavigationAction,
@@ -25,8 +24,15 @@
 		type NavigationAction,
 		type SlotFocus
 	} from '$lib/pksx/box-navigation';
-	import { IndexedDbLocalLibraryStorage, type StoredSaveFile } from '$lib/pksx/local-library';
+	import { IndexedDbLocalLibraryStorage, type BackupMetadata } from '$lib/pksx/local-library';
+	import {
+		createCleanWorkspaceState,
+		createRestoredWorkspaceState,
+		preserveRestoredWorkspaceAsSave,
+		type WorkspaceState
+	} from '$lib/pksx/backup-workflow';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
+	import BackupBrowser from '$lib/components/pksx/BackupBrowser.svelte';
 	import BoxSidebar from '$lib/components/pksx/BoxSidebar.svelte';
 	import BoxSourceControls from '$lib/components/pksx/BoxSourceControls.svelte';
 	import DetailRail from '$lib/components/pksx/DetailRail.svelte';
@@ -36,12 +42,6 @@
 	import StorageSlot from '$lib/components/pksx/StorageSlot.svelte';
 	import TopBar from '$lib/components/pksx/TopBar.svelte';
 	import type { BoxNavItem, BoxSourceView, SlotView } from '$lib/components/pksx/types';
-
-	type LoadedSave = {
-		file: StoredSaveFile;
-		bytes: Uint8Array;
-		workspace: SaveWorkspace;
-	};
 
 	const placeholderBoxCount = 3;
 	const storage = new IndexedDbLocalLibraryStorage();
@@ -173,10 +173,13 @@
 
 	let navigation = $state<BoxNavigationState>(createInitialNavigationState(placeholderBoxCount));
 	let gamepadStatus = $state('No controller detected');
-	let loadedSave = $state<LoadedSave | null>(null);
+	let loadedSave = $state<WorkspaceState | null>(null);
 	let importError = $state<string | null>(null);
 	let statusMessage = $state('Import a Save File to begin.');
 	let busy = $state(false);
+	let backups = $state<BackupMetadata[]>([]);
+	let backupBrowserOpen = $state(false);
+	let backupBrowserFocusIndex = $state(0);
 	let partyCollapsed = $state(false);
 	let darkMode = $state(false);
 	let actionSurfaceTop = $state<number | null>(null);
@@ -262,7 +265,7 @@
 		const previousBox = navigation.activeBox;
 		navigation = applyNavigationAction(navigation, action, {
 			actionCount: getActionCountForFocusedSlot(),
-			topControlCount: 3,
+			topControlCount: 4,
 			mobileTabCount: mobileTabs.length,
 			mobileTabsAvailable
 		});
@@ -291,6 +294,11 @@
 		}
 
 		event.preventDefault();
+		if (backupBrowserOpen) {
+			dispatchBackupBrowser(action);
+			return;
+		}
+
 		dispatch(action);
 	}
 
@@ -382,6 +390,11 @@
 					}
 					break;
 				case 2:
+					if (!busy && loadedSave) {
+						void openBackupBrowser();
+					}
+					break;
+				case 3:
 					darkMode = !darkMode;
 					break;
 			}
@@ -546,7 +559,8 @@
 			const workspace = await loadWorkspace(bytes, file.name, 0);
 			const stored = await storage.importSave({ bytes, originalFileName: file.name });
 
-			loadedSave = { file: stored, bytes, workspace };
+			loadedSave = createCleanWorkspaceState({ file: stored, bytes, workspace });
+			backups = [];
 			navigation = createInitialNavigationState(workspace.summary.boxCount);
 			statusMessage = `${file.name} loaded.`;
 		} catch (error) {
@@ -577,7 +591,8 @@
 			}
 
 			const workspace = await loadWorkspace(bytes, saveFile.originalFileName ?? undefined, 0);
-			loadedSave = { file: saveFile, bytes, workspace };
+			loadedSave = createCleanWorkspaceState({ file: saveFile, bytes, workspace });
+			backups = await storage.listBackups(saveFile.id);
 			navigation = createInitialNavigationState(workspace.summary.boxCount);
 			statusMessage = `${saveFile.originalFileName ?? 'Save File'} restored from Local Library.`;
 		} catch (error) {
@@ -588,7 +603,7 @@
 		}
 	}
 
-	async function loadWorkspaceForSave(save: LoadedSave, box: number) {
+	async function loadWorkspaceForSave(save: WorkspaceState, box: number) {
 		const request = (workspaceLoadRequest += 1);
 		busy = true;
 		importError = null;
@@ -666,6 +681,214 @@
 		}
 	}
 
+	async function openBackupBrowser() {
+		if (!loadedSave) {
+			return;
+		}
+
+		backupBrowserOpen = true;
+		backupBrowserFocusIndex = 0;
+		await refreshBackups();
+		queueMicrotask(focusBackupCommand);
+	}
+
+	function closeBackupBrowser() {
+		backupBrowserOpen = false;
+		navigation = { ...navigation, focus: { zone: 'topbar', index: 2 } };
+		queueMicrotask(focusActiveControl);
+	}
+
+	async function refreshBackups() {
+		if (!loadedSave) {
+			backups = [];
+			return;
+		}
+
+		backups = await storage.listBackups(loadedSave.file.id);
+	}
+
+	function getBackupCommandCount() {
+		return backups.length + 3;
+	}
+
+	function focusBackupCommand(index = backupBrowserFocusIndex) {
+		document.getElementById(`backup-command-${index}`)?.focus();
+	}
+
+	function focusBackupBrowserCommand(index: number) {
+		backupBrowserFocusIndex = Math.max(0, Math.min(index, getBackupCommandCount() - 1));
+		queueMicrotask(focusBackupCommand);
+	}
+
+	function dispatchBackupBrowser(action: NavigationAction) {
+		switch (action) {
+			case 'up':
+			case 'left':
+				focusBackupBrowserCommand(backupBrowserFocusIndex - 1);
+				break;
+			case 'down':
+			case 'right':
+				focusBackupBrowserCommand(backupBrowserFocusIndex + 1);
+				break;
+			case 'back':
+				closeBackupBrowser();
+				break;
+			case 'confirm':
+				activateBackupCommand(backupBrowserFocusIndex);
+				break;
+			case 'previousBox':
+			case 'nextBox':
+				break;
+		}
+	}
+
+	function activateBackupCommand(index: number) {
+		if (busy) {
+			return;
+		}
+
+		if (index === 0) {
+			void createManualBackup();
+			return;
+		}
+
+		if (index === 1) {
+			void keepRestoredWorkspaceAsSeparateSave();
+			return;
+		}
+
+		if (index === backups.length + 2) {
+			closeBackupBrowser();
+			return;
+		}
+
+		const backup = backups[index - 2];
+		if (backup) {
+			void restoreBackup(backup);
+		}
+	}
+
+	async function createManualBackup() {
+		if (!loadedSave) {
+			return;
+		}
+
+		busy = true;
+		importError = null;
+		statusMessage = 'Creating Backup...';
+
+		try {
+			await storage.createBackup({
+				saveFileId: loadedSave.file.id,
+				bytes: loadedSave.bytes,
+				reason: 'manual'
+			});
+			await refreshBackups();
+			backupBrowserFocusIndex = 0;
+			statusMessage = 'Backup created.';
+			queueMicrotask(focusBackupCommand);
+		} catch (error) {
+			importError = getErrorMessage(error);
+			statusMessage = 'Backup failed.';
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function restoreBackup(backup: BackupMetadata) {
+		if (!loadedSave) {
+			return;
+		}
+
+		if (
+			loadedSave.dirty &&
+			!window.confirm(
+				'Restore this Backup? Current unexported Workspace changes will be left behind.'
+			)
+		) {
+			return;
+		}
+
+		busy = true;
+		importError = null;
+		statusMessage = 'Restoring Backup...';
+
+		try {
+			const [backupBytes, currentSaveBytes] = await Promise.all([
+				storage.getBackupBytes(backup.id),
+				storage.getSaveBytes(backup.saveFileId)
+			]);
+
+			if (!backupBytes) {
+				throw new Error('Backup bytes are missing.');
+			}
+
+			if (!currentSaveBytes) {
+				throw new Error('The Backup source Save File is missing its stored bytes.');
+			}
+
+			const targetBox = Math.min(navigation.activeBox, Math.max(0, boxCount - 1));
+			const workspace = await loadWorkspace(
+				backupBytes,
+				loadedSave.file.originalFileName ?? undefined,
+				targetBox
+			);
+			const restoredState = createRestoredWorkspaceState({
+				file: loadedSave.file,
+				bytes: backupBytes,
+				currentSaveBytes,
+				workspace,
+				source: {
+					id: backup.id,
+					createdAt: backup.createdAt,
+					reason: backup.reason
+				}
+			});
+			loadedSave = restoredState;
+			navigation = selectActiveBox(
+				{ ...navigation, boxCount: Math.max(1, workspace.summary.boxCount) },
+				Math.min(navigation.activeBox, Math.max(0, workspace.summary.boxCount - 1))
+			);
+			backupBrowserOpen = false;
+			statusMessage = restoredState.dirty
+				? 'Backup restored. Workspace has unexported restored state.'
+				: 'Backup restored.';
+			queueMicrotask(focusActiveControl);
+		} catch (error) {
+			importError = getErrorMessage(error);
+			statusMessage = 'Backup restore failed.';
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function keepRestoredWorkspaceAsSeparateSave() {
+		if (!loadedSave?.restoredFromBackup) {
+			return;
+		}
+
+		busy = true;
+		importError = null;
+		statusMessage = 'Keeping restored Backup as a Save File...';
+
+		try {
+			const stored = await storage.importSave({
+				bytes: loadedSave.bytes,
+				originalFileName: createRestoredSaveFileName(loadedSave.file.originalFileName)
+			});
+			loadedSave = preserveRestoredWorkspaceAsSave(loadedSave, stored);
+			backups = [];
+			backupBrowserOpen = false;
+			statusMessage = 'Restored Backup kept as a separate Save File.';
+			queueMicrotask(focusActiveControl);
+		} catch (error) {
+			importError = getErrorMessage(error);
+			statusMessage = 'Could not keep restored Backup as a Save File.';
+		} finally {
+			busy = false;
+		}
+	}
+
 	function downloadBytes(bytes: Uint8Array, fileName: string) {
 		const downloadBytes = new Uint8Array(bytes.byteLength);
 		downloadBytes.set(bytes);
@@ -692,6 +915,19 @@
 		}
 
 		return `${fileName.slice(0, lastDot)}.pksx${fileName.slice(lastDot)}`;
+	}
+
+	function createRestoredSaveFileName(fileName: string | null) {
+		if (!fileName) {
+			return 'pksx-restored.sav';
+		}
+
+		const lastDot = fileName.lastIndexOf('.');
+		if (lastDot <= 0) {
+			return `${fileName}.restored`;
+		}
+
+		return `${fileName.slice(0, lastDot)}.restored${fileName.slice(lastDot)}`;
 	}
 
 	function createPartySlotViews(slots: PartySlotSummary[]): SlotView[] {
@@ -798,6 +1034,7 @@
 		onImport={handleImport}
 		onOpenImportPicker={openImportPicker}
 		onExport={exportLoadedSave}
+		onOpenBackups={openBackupBrowser}
 		onToggleTheme={() => (darkMode = !darkMode)}
 	/>
 
@@ -809,6 +1046,15 @@
 		message={busy ? 'Working...' : statusMessage}
 		secondary={controllerConnected ? gamepadStatus : null}
 	/>
+
+	{#if loadedSave?.dirty}
+		<StatusStrip
+			label={loadedSave.restoredFromBackup ? 'Restored Workspace' : 'Dirty Workspace'}
+			message={loadedSave.restoredFromBackup
+				? 'Backup restored. Export or keep it as a separate Save File.'
+				: 'Workspace has unexported changes.'}
+		/>
+	{/if}
 
 	<section class="storage-workspace" aria-label="Party and box storage">
 		<BoxSidebar boxes={boxNavItems} boxSlotCount={BOX_SLOT_COUNT} onSelectBox={selectBox} />
@@ -969,6 +1215,21 @@
 		focusIndex={navigation.focus.zone === 'mobileTabs' ? navigation.focus.index : null}
 		onFocusTab={focusMobileTab}
 	/>
+
+	{#if backupBrowserOpen}
+		<BackupBrowser
+			{backups}
+			{busy}
+			dirty={loadedSave?.dirty ?? false}
+			restored={Boolean(loadedSave?.restoredFromBackup)}
+			activeIndex={backupBrowserFocusIndex}
+			onFocusCommand={focusBackupBrowserCommand}
+			onCreateManualBackup={createManualBackup}
+			onRestoreBackup={restoreBackup}
+			onKeepAsSeparateSave={keepRestoredWorkspaceAsSeparateSave}
+			onClose={closeBackupBrowser}
+		/>
+	{/if}
 </main>
 
 <style>

@@ -160,6 +160,8 @@ test('keyboard navigation reaches top controls and mobile tabs', async ({ page }
 
 	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#top-control-2')).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#top-control-3')).toBeFocused();
 	await page.keyboard.press(' ');
 	await expect(page.getByRole('button', { name: 'Use light mode' })).toBeVisible();
 
@@ -294,6 +296,27 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 
 	expect(download.suggestedFilename()).toBe('emerald-011020251345.pksx.sav');
 	expect(exported.byteLength).toBe(fixture.byteLength);
+});
+
+test('creates and restores a manual backup for the loaded Save File', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
+
+	await expect(page.getByText('011020251345.sav loaded.')).toBeVisible({ timeout: 15000 });
+
+	await page.getByRole('button', { name: 'Backups' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Backups' });
+	await expect(dialog).toBeVisible();
+	await expect(dialog).toContainText('No Backups yet.');
+
+	await page.getByRole('button', { name: 'Create' }).click();
+	await expect(page.getByText('Backup created.')).toBeVisible();
+	await expect(dialog).toContainText('Manual');
+
+	await page.getByRole('button', { name: 'Restore' }).click();
+	await expect(dialog).toBeHidden();
+	await expect(page.getByText('Backup restored.')).toBeVisible();
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 });
 
 test('reloads the most recent imported Save File while offline', async ({ page, context }) => {

@@ -107,7 +107,7 @@ describe('IndexedDbLocalLibraryStorage', () => {
 		const backup = await storage.createBackup({
 			saveFileId: saveFile.id,
 			bytes: new Uint8Array([8, 6, 7, 5, 3, 0, 9]),
-			reason: 'before-export'
+			reason: 'manual'
 		});
 		const backups = await storage.listBackups(saveFile.id);
 		const backupBytes = await storage.getBackupBytes(backup.id);
@@ -115,7 +115,7 @@ describe('IndexedDbLocalLibraryStorage', () => {
 		expect(backup).toStrictEqual({
 			id: 'backup-1',
 			saveFileId: 'save-1',
-			reason: 'before-export',
+			reason: 'manual',
 			byteLength: 7,
 			createdAt: '2026-05-16T12:00:00.000Z'
 		});
@@ -133,5 +133,44 @@ describe('IndexedDbLocalLibraryStorage', () => {
 				reason: 'manual'
 			})
 		).rejects.toThrow('Cannot create backup for unknown save file: missing-save');
+	});
+
+	it('lists newest backups first', async () => {
+		ids = ['save-1', 'older-backup', 'newer-backup'];
+		storage = new IndexedDbLocalLibraryStorage({
+			databaseName,
+			idFactory: () => {
+				const id = ids.shift();
+				if (!id) {
+					throw new Error('Test id sequence exhausted');
+				}
+				return id;
+			},
+			now: (() => {
+				const timestamps = [
+					'2026-05-16T12:00:00.000Z',
+					'2026-05-16T12:30:00.000Z',
+					'2026-05-16T13:00:00.000Z'
+				];
+				return () => timestamps.shift() ?? '2026-05-16T14:00:00.000Z';
+			})()
+		});
+
+		const saveFile = await storage.importSave({
+			bytes: new Uint8Array([1]),
+			originalFileName: 'backup-source.sav'
+		});
+		const older = await storage.createBackup({
+			saveFileId: saveFile.id,
+			bytes: new Uint8Array([2]),
+			reason: 'manual'
+		});
+		const newer = await storage.createBackup({
+			saveFileId: saveFile.id,
+			bytes: new Uint8Array([3]),
+			reason: 'pokemon-editing'
+		});
+
+		await expect(storage.listBackups(saveFile.id)).resolves.toStrictEqual([newer, older]);
 	});
 });

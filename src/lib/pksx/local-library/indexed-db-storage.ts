@@ -152,7 +152,9 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 				transaction.objectStore(backupsStore).index(backupsBySaveFileIdIndex).getAll(saveFileId)
 			);
 			await transactionDone(transaction);
-			return backups.map((backup) => ({ ...backup }));
+			return backups
+				.map((backup) => ({ ...backup }))
+				.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 		} finally {
 			database.close();
 		}
