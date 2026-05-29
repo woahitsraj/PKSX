@@ -26,6 +26,28 @@ const mockSaveSummary: SaveSummary = {
 	boxSlotCount: 30
 };
 
+const mockPikachuDetails = {
+	gender: '♂',
+	nature: 'Hardy',
+	ability: 'Static',
+	heldItem: 'Light Ball',
+	types: [{ name: 'Electric', hue: 94, chroma: 0.16 }],
+	stats: [
+		{ key: 'HP', label: 'HP', value: 20, ev: null, max: 255 },
+		{ key: 'ATK', label: 'ATK', value: 12, ev: null, max: 255 },
+		{ key: 'DEF', label: 'DEF', value: 10, ev: null, max: 255 },
+		{ key: 'SPA', label: 'SPA', value: 11, ev: null, max: 255 },
+		{ key: 'SPD', label: 'SPD', value: 12, ev: null, max: 255 },
+		{ key: 'SPE', label: 'SPE', value: 18, ev: null, max: 255 }
+	],
+	moves: [
+		{ name: 'Thunder Shock', type: 'Electric', hue: 94, chroma: 0.16, pp: 30 },
+		{ name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, pp: 40 }
+	],
+	originalTrainer: 'PKSX',
+	metLabel: 'Lv. 5'
+};
+
 const mockBoxSlots: BoxSlotSummary[] = [
 	{
 		box: 0,
@@ -36,7 +58,8 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		level: 5,
 		nickname: 'Pikachu',
 		isEgg: false,
-		isEmpty: false
+		isEmpty: false,
+		...mockPikachuDetails
 	},
 	{
 		box: 0,
@@ -47,7 +70,10 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		level: 0,
 		nickname: '',
 		isEgg: false,
-		isEmpty: true
+		isEmpty: true,
+		types: [],
+		stats: [],
+		moves: []
 	}
 ];
 
@@ -60,7 +86,8 @@ const mockPartySlots: PartySlotSummary[] = [
 		level: 5,
 		nickname: 'Pikachu',
 		isEgg: false,
-		isEmpty: false
+		isEmpty: false,
+		...mockPikachuDetails
 	}
 ];
 

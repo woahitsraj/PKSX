@@ -50,6 +50,28 @@ export const saveSummarySchema = z.object({
 	boxSlotCount: z.number()
 });
 
+export const slotTypeSummarySchema = z.object({
+	name: z.string(),
+	hue: z.number(),
+	chroma: z.number().default(0.09)
+});
+
+export const slotStatSummarySchema = z.object({
+	key: z.string(),
+	label: z.string(),
+	value: z.number(),
+	ev: z.number().nullable().optional(),
+	max: z.number()
+});
+
+export const slotMoveSummarySchema = z.object({
+	name: z.string(),
+	type: z.string(),
+	hue: z.number(),
+	chroma: z.number().default(0.09),
+	pp: z.number().nullable().optional()
+});
+
 export const boxSlotSummarySchema = z.object({
 	box: z.number(),
 	slot: z.number(),
@@ -59,7 +81,16 @@ export const boxSlotSummarySchema = z.object({
 	level: z.number(),
 	nickname: z.string(),
 	isEgg: z.boolean(),
-	isEmpty: z.boolean()
+	isEmpty: z.boolean(),
+	gender: z.string().nullable().optional(),
+	nature: z.string().nullable().optional(),
+	ability: z.string().nullable().optional(),
+	heldItem: z.string().nullable().optional(),
+	types: z.array(slotTypeSummarySchema).default([]),
+	stats: z.array(slotStatSummarySchema).default([]),
+	moves: z.array(slotMoveSummarySchema).default([]),
+	originalTrainer: z.string().nullable().optional(),
+	metLabel: z.string().nullable().optional()
 });
 
 export const partySlotSummarySchema = boxSlotSummarySchema.omit({ box: true });

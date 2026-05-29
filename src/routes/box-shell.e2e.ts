@@ -30,6 +30,9 @@ test('keyboard navigation moves deterministically across the box grid', async ({
 		'src',
 		'./sprites/pokemon/species/0025.png'
 	);
+	await expect(page.locator('#box-0-slot-0')).toHaveCSS('--slot-hue', '94');
+	await expect(page.locator('#box-0-slot-0')).toHaveCSS('--slot-chroma', '0.16');
+	await expect(page.locator('#box-0-slot-0')).not.toHaveClass(/dual-type/);
 	await expect(page.locator('.portrait-card img')).toHaveAttribute(
 		'src',
 		'./sprites/pokemon/species/0025.png'
@@ -232,6 +235,38 @@ test('mouse clicks move controller focus without opening slot actions', async ({
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
 });
 
+test('active slot detail rail follows controller focus', async ({ page }) => {
+	await openEmptyLibrary(page);
+	const rail = page.getByTestId('active-slot-detail-rail');
+
+	await page.locator('#box-grid').focus();
+	await expect(rail).toContainText('Pikachu');
+	await expect(rail).toContainText('Species #0025');
+	await expect(rail).toContainText('LEVEL');
+	await expect(rail).toContainText('5');
+	await expect(rail).toContainText('Box 01 · Slot 1 · Row A / Col 1');
+	await expect(rail).toContainText('Modest');
+	await expect(rail).toContainText('Static');
+	await expect(rail).toContainText('Light Ball');
+	await expect(rail).toContainText('Move Set');
+	await expect(rail).toContainText('Thunder Shock');
+	await expect(rail).toContainText('Stats');
+
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
+	await expect(rail).toContainText('Empty slot');
+	await expect(rail).toContainText('No Pokemon stored here');
+	await expect(rail).toContainText('Box 01 · Slot 2 · Row A / Col 2');
+	await expect(rail).not.toContainText('Not available');
+	await expect(rail).not.toContainText('Move Set');
+
+	await page.locator('#party-slot-0').click();
+	await expect(page.locator('#party-slot-0')).toHaveAttribute('aria-selected', 'true');
+	await expect(rail).toContainText('Pikachu');
+	await expect(rail).toContainText('Party · Slot 1');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
+});
+
 test('imports the Emerald Save File, renders engine data, and exports serialized bytes', async ({
 	page
 }) => {
@@ -242,6 +277,16 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 	await expect(page.getByText('DIXIE', { exact: true })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	await expect(page.locator('#party-slot-0')).toContainText('1-UP');
+	const detailRail = page.getByTestId('active-slot-detail-rail');
+	await expect(detailRail).toContainText('Steel');
+	await expect(detailRail).toContainText('Rock');
+	await expect(detailRail).toContainText('Sassy');
+	await expect(detailRail).toContainText('Rock Head');
+	await expect(detailRail).toContainText('Stats');
+	await expect(detailRail).toContainText('HP');
+	await expect(detailRail).toContainText('+0');
+	await expect(detailRail).toContainText('Move Set');
+	await expect(detailRail).not.toContainText('Not available');
 
 	const downloadPromise = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export' }).click();

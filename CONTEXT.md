@@ -140,6 +140,10 @@ _Avoid_: popup, context menu
 A focused command surface for listing, creating, and restoring Backups for the active Save File.
 _Avoid_: Local Library browser when referring only to the active Save File's backups
 
+**Active Slot Detail Rail**:
+An informational rail that reflects the Slot under Controller Focus, whether that Slot contains a Pokemon Entity or is empty.
+_Avoid_: selected Pokemon panel, editor rail
+
 **Navigation Action**:
 A normalized movement or command intent produced by keyboard, gamepad, or pointer input.
 _Avoid_: key event, button event
@@ -212,6 +216,7 @@ _Avoid_: key event, button event
 - Keyboard and gamepad input produce the same **Navigation Actions** before changing **Controller Focus**.
 - Held directional **Navigation Actions** repeat after an initial delay; confirm, back, and shoulder actions require a fresh press.
 - The visible slot highlight represents **Controller Focus**; PKSX does not track a separate selected slot in the box-first shell.
+- The **Active Slot Detail Rail** reflects the **Slot** under **Controller Focus** and does not define a second selected **Slot**.
 - **Controller Focus** clamps at a **Focus Zone** edge unless that edge defines an explicit transition to another **Focus Zone**.
 - The **Party** and the active **Box** are separate **Focus Zones** with explicit directional transitions between them.
 - A **Slot Action Surface** opens from the current **Controller Focus** and returns to it when dismissed.

@@ -44,9 +44,40 @@ export type BoxSlotSummary = {
 	nickname: string;
 	isEgg: boolean;
 	isEmpty: boolean;
+	gender?: string | null;
+	nature?: string | null;
+	ability?: string | null;
+	heldItem?: string | null;
+	types: SlotTypeSummary[];
+	stats: SlotStatSummary[];
+	moves: SlotMoveSummary[];
+	originalTrainer?: string | null;
+	metLabel?: string | null;
 };
 
 export type PartySlotSummary = Omit<BoxSlotSummary, 'box'>;
+
+export type SlotTypeSummary = {
+	name: string;
+	hue: number;
+	chroma: number;
+};
+
+export type SlotStatSummary = {
+	key: string;
+	label: string;
+	value: number;
+	ev?: number | null;
+	max: number;
+};
+
+export type SlotMoveSummary = {
+	name: string;
+	type: string;
+	hue: number;
+	chroma: number;
+	pp?: number | null;
+};
 
 export type SaveWorkspace = {
 	summary: SaveSummary;

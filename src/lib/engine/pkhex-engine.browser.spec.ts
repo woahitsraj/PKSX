@@ -4,7 +4,7 @@ import { createPkhexEngine } from './pkhex-engine';
 
 describe('PKHeX Engine browser runtime smoke', () => {
 	test('parses the Emerald Save File fixture through the published browser-wasm bundle', async () => {
-		expect.assertions(12);
+		expect.assertions(13);
 
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
@@ -42,7 +42,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		}
 
 		expect(slots.value).toHaveLength(30);
-		expect(slots.value[0]).toStrictEqual({
+		expect(slots.value[0]).toMatchObject({
 			box: 0,
 			slot: 0,
 			speciesId: 304,
@@ -53,7 +53,14 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			isEgg: false,
 			isEmpty: false
 		});
-		expect(slots.value[1]).toStrictEqual({
+		expect(slots.value[0]).toMatchObject({
+			types: expect.arrayContaining([expect.objectContaining({ name: expect.any(String) })]),
+			stats: expect.arrayContaining([
+				expect.objectContaining({ key: 'HP', value: expect.any(Number) })
+			]),
+			moves: expect.arrayContaining([expect.objectContaining({ name: expect.any(String) })])
+		});
+		expect(slots.value[1]).toMatchObject({
 			box: 0,
 			slot: 1,
 			speciesId: 314,

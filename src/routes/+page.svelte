@@ -54,25 +54,58 @@
 		{ key: 'saves', label: 'Saves', glyph: '☁' }
 	];
 
-	function slotHue(box: number, slot: number, speciesId: number | null): number {
+	function fallbackSlotHue(box: number, slot: number, speciesId: number | null): number {
 		const seed = speciesId && speciesId > 0 ? speciesId : slot * 31 + box * 7;
 		return slotPalette[seed % slotPalette.length];
 	}
 
-	function slotHueSecondary(box: number, slot: number, speciesId: number | null): number | null {
+	function fallbackSlotHueSecondary(
+		box: number,
+		slot: number,
+		speciesId: number | null
+	): number | null {
 		const seed = speciesId && speciesId > 0 ? speciesId : slot * 31 + box * 7;
 		if (seed % 3 !== 0) return null;
 		const offset = ((seed * 7) % (slotPalette.length - 1)) + 1;
 		return slotPalette[(seed + offset) % slotPalette.length];
 	}
 
-	function slotStyle(box: number, slot: number, speciesId: number | null): string {
-		const primary = slotHue(box, slot, speciesId);
-		const secondary = slotHueSecondary(box, slot, speciesId);
-		if (secondary === null) {
-			return `--slot-hue: ${primary}`;
+	function slotTypeHues(
+		slot: SlotView,
+		box: number
+	): {
+		primaryHue: number;
+		primaryChroma: number;
+		secondaryHue: number | null;
+		secondaryChroma: number;
+	} {
+		const [primaryType, secondaryType] = slot.kind === 'pokemon' ? (slot.types ?? []) : [];
+		const primaryHue =
+			typeof primaryType?.hue === 'number'
+				? primaryType.hue
+				: fallbackSlotHue(box, slot.slot, slot.speciesId);
+		const primaryChroma = primaryType?.chroma ?? 0.09;
+		const secondaryHue =
+			typeof secondaryType?.hue === 'number' && secondaryType.hue !== primaryHue
+				? secondaryType.hue
+				: slot.kind === 'pokemon' && primaryType
+					? null
+					: fallbackSlotHueSecondary(box, slot.slot, slot.speciesId);
+		const secondaryChroma = secondaryType?.chroma ?? primaryChroma;
+
+		return { primaryHue, primaryChroma, secondaryHue, secondaryChroma };
+	}
+
+	function slotStyle(slot: SlotView, box: number): string {
+		const { primaryHue, primaryChroma, secondaryHue, secondaryChroma } = slotTypeHues(slot, box);
+		if (secondaryHue === null) {
+			return `--slot-hue: ${primaryHue}; --slot-chroma: ${primaryChroma}`;
 		}
-		return `--slot-hue: ${primary}; --slot-hue-2: ${secondary}`;
+		return `--slot-hue: ${primaryHue}; --slot-chroma: ${primaryChroma}; --slot-hue-2: ${secondaryHue}; --slot-chroma-2: ${secondaryChroma}`;
+	}
+
+	function slotHasDualType(slot: SlotView, box: number): boolean {
+		return slot.kind === 'pokemon' && slotTypeHues(slot, box).secondaryHue !== null;
 	}
 
 	function boxHue(box: number): number {
@@ -83,6 +116,30 @@
 		return `Box ${String(box + 1).padStart(2, '0')}`;
 	}
 
+	const placeholderPokemonDetails = {
+		gender: '♂',
+		nature: 'Modest',
+		ability: 'Static',
+		heldItem: 'Light Ball',
+		types: [{ name: 'Electric', hue: 94, chroma: 0.16 }],
+		stats: [
+			{ key: 'HP', label: 'HP', value: 20, max: 31, ev: 0 },
+			{ key: 'ATK', label: 'ATK', value: 12, max: 31, ev: 0 },
+			{ key: 'DEF', label: 'DEF', value: 10, max: 31, ev: 0 },
+			{ key: 'SPA', label: 'SPA', value: 15, max: 31, ev: 0 },
+			{ key: 'SPD', label: 'SPD', value: 12, max: 31, ev: 0 },
+			{ key: 'SPE', label: 'SPE', value: 18, max: 31, ev: 0 }
+		],
+		moves: [
+			{ name: 'Thunder Shock', type: 'Electric', hue: 94, chroma: 0.16, pp: 30 },
+			{ name: 'Quick Attack', type: 'Normal', hue: 107, chroma: 0.06, pp: 30 },
+			{ name: 'Tail Whip', type: 'Normal', hue: 107, chroma: 0.06, pp: 30 },
+			{ name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, pp: 40 }
+		],
+		originalTrainer: 'PKSX',
+		metLabel: 'Starter Box'
+	} satisfies Partial<SlotView>;
+
 	const placeholderPartySlots: SlotView[] = Array.from({ length: PARTY_SLOT_COUNT }, (_, slot) => ({
 		slot,
 		label: slot === 0 ? 'Pikachu' : 'Empty',
@@ -91,7 +148,8 @@
 		speciesId: slot === 0 ? 25 : null,
 		form: slot === 0 ? 0 : null,
 		isEgg: false,
-		kind: slot === 0 ? 'pokemon' : 'empty'
+		kind: slot === 0 ? 'pokemon' : 'empty',
+		...(slot === 0 ? placeholderPokemonDetails : {})
 	}));
 
 	const placeholderBoxSlotsByBox: SlotView[][] = Array.from(
@@ -107,7 +165,8 @@
 					speciesId: featured ? 25 : null,
 					form: featured ? 0 : null,
 					isEgg: false,
-					kind: featured ? ('pokemon' as const) : ('empty' as const)
+					kind: featured ? ('pokemon' as const) : ('empty' as const),
+					...(featured ? placeholderPokemonDetails : {})
 				};
 			})
 	);
@@ -192,6 +251,14 @@
 		occupied: activeBoxSlots.filter((slot) => slot.kind === 'pokemon').length,
 		capacity: BOX_SLOT_COUNT
 	});
+	const activeSlotPositionLabel = $derived(
+		activeSlotFocus.zone === 'box'
+			? (() => {
+					const position = getBoxSlotPosition(activeSlotFocus.slot);
+					return `${boxNameFor(navigation.activeBox)} · Slot ${activeSlotFocus.slot + 1} · Row ${String.fromCharCode(65 + position.row)} / Col ${position.column + 1}`;
+				})()
+			: `Party · Slot ${activeSlotFocus.slot + 1}`
+	);
 
 	function dispatch(action: NavigationAction) {
 		const previousFocus = navigation.focus;
@@ -896,7 +963,16 @@
 			speciesId: slot.isEmpty ? null : slot.speciesId,
 			form: slot.isEmpty ? null : slot.form,
 			isEgg: !slot.isEmpty && slot.isEgg,
-			kind: slot.isEmpty ? 'empty' : 'pokemon'
+			kind: slot.isEmpty ? 'empty' : 'pokemon',
+			gender: slot.gender ?? undefined,
+			nature: slot.nature ?? undefined,
+			ability: slot.ability ?? undefined,
+			heldItem: slot.heldItem ?? undefined,
+			types: slot.types,
+			stats: slot.stats,
+			moves: slot.moves,
+			originalTrainer: slot.originalTrainer ?? undefined,
+			metLabel: slot.metLabel ?? undefined
 		};
 	}
 
@@ -1019,9 +1095,8 @@
 								{slot}
 								zone="party"
 								focused={isFocused('party', slot.slot)}
-								dualType={slot.kind === 'pokemon' &&
-									slotHueSecondary(-1, slot.slot, slot.speciesId) !== null}
-								style={slotStyle(-1, slot.slot, slot.speciesId)}
+								dualType={slotHasDualType(slot, -1)}
+								style={slotStyle(slot, -1)}
 								rowIndex={slot.slot + 1}
 								colIndex={1}
 								spriteUrl={spriteUrlFor(slot)}
@@ -1076,9 +1151,8 @@
 								{slot}
 								zone="box"
 								focused={isFocused('box', slot.slot)}
-								dualType={slot.kind === 'pokemon' &&
-									slotHueSecondary(navigation.activeBox, slot.slot, slot.speciesId) !== null}
-								style={slotStyle(navigation.activeBox, slot.slot, slot.speciesId)}
+								dualType={slotHasDualType(slot, navigation.activeBox)}
+								style={slotStyle(slot, navigation.activeBox)}
 								rowIndex={position.row + 1}
 								colIndex={position.column + 1}
 								spriteUrl={spriteUrlFor(slot)}
@@ -1128,11 +1202,11 @@
 			{focusedSlot}
 			focusZone={activeSlotFocus.zone}
 			focusSlot={activeSlotFocus.slot}
-			slotHueStyle={`--slot-hue: ${slotHue(navigation.activeBox, activeSlotFocus.slot, focusedSlot.speciesId)}`}
+			slotHueStyle={slotStyle(focusedSlot, navigation.activeBox)}
 			spriteUrl={spriteUrlFor(focusedSlot)}
 			{saveSummary}
 			activeBoxName={boxNameFor(navigation.activeBox)}
-			{slotPalette}
+			positionLabel={activeSlotPositionLabel}
 		/>
 	</section>
 

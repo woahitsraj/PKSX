@@ -7,6 +7,7 @@ import { build, files, version } from '$service-worker';
 
 const worker = self as unknown as ServiceWorkerGlobalScope;
 const cacheName = `pksx-${version}`;
+const cachePrefix = 'pksx-';
 const debugAssetPattern = /\.(map|symbols)$/;
 const assets = [...build, ...files.filter((file) => !isSkippedAsset(file))];
 
@@ -19,10 +20,19 @@ worker.addEventListener('install', (event) => {
 });
 
 worker.addEventListener('activate', (event) => {
+	event.waitUntil(Promise.all([deleteOldCaches(), worker.clients.claim()]));
+});
+
+worker.addEventListener('message', (event) => {
+	if (event.data?.type !== 'PKSX_INSTALL_UPDATE') {
+		return;
+	}
+
 	event.waitUntil(
-		caches.keys().then((keys) => {
-			return Promise.all(keys.filter((key) => key !== cacheName).map((key) => caches.delete(key)));
-		})
+		(async () => {
+			await deleteOldCaches();
+			await worker.skipWaiting();
+		})()
 	);
 });
 
@@ -61,6 +71,15 @@ async function fetchWithCacheFallback(request: Request): Promise<Response> {
 
 		throw error;
 	}
+}
+
+async function deleteOldCaches(): Promise<void> {
+	const keys = await caches.keys();
+	await Promise.all(
+		keys
+			.filter((key) => key.startsWith(cachePrefix) && key !== cacheName)
+			.map((key) => caches.delete(key))
+	);
 }
 
 function isSkippedAsset(file: string): boolean {
