@@ -47,7 +47,9 @@ export function createSpriteCatalogKey(identity: {
 	return `species-${species}-form-${form}-sex-${identity.displaySex}-${identity.isEgg ? 'egg' : variant}`;
 }
 
-export function resolveSpriteCatalogEntry(identity: SpriteIdentity | null): SpriteCatalogEntry | null {
+export function resolveSpriteCatalogEntry(
+	identity: SpriteIdentity | null
+): SpriteCatalogEntry | null {
 	return resolveSpriteCatalogEntryFromEntries(identity, manifest.entries);
 }
 

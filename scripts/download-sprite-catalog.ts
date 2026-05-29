@@ -103,7 +103,7 @@ const formSlugAliases: Record<string, string[]> = {
 	sinnoh: ['sinnoh-cap'],
 	unova: ['unova-cap'],
 	kalos: ['kalos-cap'],
-	'alola': ['alolan', 'alola-cap'],
+	alola: ['alolan', 'alola-cap'],
 	partner: ['partner-cap'],
 	world: ['world-cap'],
 	paldea: ['paldean'],
@@ -115,20 +115,20 @@ const formSlugAliases: Record<string, string[]> = {
 	'paldea-combat': ['paldean-combat'],
 	'paldea-blaze': ['paldean-blaze'],
 	'paldea-aqua': ['paldean-aqua'],
-	'standard': ['standard-mode'],
-	'galar': ['galarian', 'galarian-standard'],
+	standard: ['standard-mode'],
+	galar: ['galarian', 'galarian-standard'],
 	'galar-zen': ['galarian-zen'],
-	'land': ['land-forme'],
-	'sky': ['sky-forme'],
-	'ordinary': ['ordinary-form'],
-	'resolute': ['resolute-form'],
-	'aria': ['aria-forme'],
-	'pirouette': ['pirouette-forme'],
+	land: ['land-forme'],
+	sky: ['sky-forme'],
+	ordinary: ['ordinary-form'],
+	resolute: ['resolute-form'],
+	aria: ['aria-forme'],
+	pirouette: ['pirouette-forme'],
 	'50': ['50-percent'],
 	'10': ['10-percent'],
 	'10-c': ['10-complete'],
 	'50-c': ['50-complete'],
-	'complete': ['complete-forme'],
+	complete: ['complete-forme'],
 	'pa-u': ['pau'],
 	red: ['red-striped'],
 	blue: ['blue-striped'],
@@ -295,7 +295,8 @@ async function downloadCatalog(options: Options): Promise<void> {
 }
 
 function isUnsupportedHomeSource(species: Species, source: SpriteSource): boolean {
-	const suffix = source.fileSlug === species.slug ? '' : source.fileSlug.slice(species.slug.length + 1);
+	const suffix =
+		source.fileSlug === species.slug ? '' : source.fileSlug.slice(species.slug.length + 1);
 	if (species.id === 869 && !suffix.endsWith('-strawberry')) {
 		return true;
 	}
@@ -488,7 +489,8 @@ async function resolveSpriteSources(species: Species): Promise<SpriteSource[]> {
 }
 
 function createIdentitiesFromHomeSource(species: Species, source: SpriteSource): SpriteIdentity[] {
-	const suffix = source.fileSlug === species.slug ? '' : source.fileSlug.slice(species.slug.length + 1);
+	const suffix =
+		source.fileSlug === species.slug ? '' : source.fileSlug.slice(species.slug.length + 1);
 	const canonicalSuffix = stripIgnoredFormArgumentSuffix(species, suffix);
 
 	return resolvePkhexForms(species, canonicalSuffix).map((form) => ({
