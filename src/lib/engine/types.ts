@@ -38,6 +38,14 @@ export type SaveSummary = {
 	boxSlotCount: number;
 };
 
+export type SpriteIdentity = {
+	speciesId: number;
+	form: number;
+	isEgg: boolean;
+	isShiny: boolean;
+	displaySex: 'default' | 'male' | 'female';
+};
+
 export type BoxSlotSummary = {
 	box: number;
 	slot: number;
@@ -57,6 +65,7 @@ export type BoxSlotSummary = {
 	moves: SlotMoveSummary[];
 	originalTrainer?: string | null;
 	metLabel?: string | null;
+	spriteIdentity: SpriteIdentity;
 };
 
 export type PartySlotSummary = Omit<BoxSlotSummary, 'box'>;

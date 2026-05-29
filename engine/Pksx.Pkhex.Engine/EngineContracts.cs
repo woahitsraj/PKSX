@@ -71,7 +71,8 @@ public sealed record PartySlotSummary(
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
     string? OriginalTrainer,
-    string? MetLabel)
+    string? MetLabel,
+    SpriteIdentity SpriteIdentity)
 {
     public static PartySlotSummary From(PKM pokemon, int slot) =>
         new(
@@ -91,7 +92,8 @@ public sealed record PartySlotSummary(
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
             SlotDetailProjection.OriginalTrainer(pokemon),
-            SlotDetailProjection.MetLabel(pokemon));
+            SlotDetailProjection.MetLabel(pokemon),
+            SpriteIdentity.From(pokemon));
 }
 
 public sealed record BoxSlotSummary(
@@ -112,7 +114,8 @@ public sealed record BoxSlotSummary(
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
     string? OriginalTrainer,
-    string? MetLabel)
+    string? MetLabel,
+    SpriteIdentity SpriteIdentity)
 {
     public static BoxSlotSummary From(PKM pokemon, int box, int slot) =>
         new(
@@ -133,7 +136,47 @@ public sealed record BoxSlotSummary(
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
             SlotDetailProjection.OriginalTrainer(pokemon),
-            SlotDetailProjection.MetLabel(pokemon));
+            SlotDetailProjection.MetLabel(pokemon),
+            SpriteIdentity.From(pokemon));
+}
+
+public sealed record SpriteIdentity(
+    ushort SpeciesId,
+    byte Form,
+    bool IsEgg,
+    bool IsShiny,
+    string DisplaySex)
+{
+    private static readonly HashSet<ushort> SpeciesWithSexDifference =
+    [
+        3, 12, 19, 20, 25, 26, 41, 42, 44, 45, 64, 65, 84, 85, 97, 111, 112, 118, 119, 123,
+        129, 130, 154, 165, 166, 178, 185, 186, 190, 194, 195, 198, 202, 203, 207, 208, 212,
+        214, 215, 217, 221, 224, 229, 232, 255, 256, 257, 267, 269, 272, 274, 275, 307, 308,
+        315, 316, 317, 322, 323, 332, 350, 369, 396, 397, 398, 399, 400, 401, 402, 403, 404,
+        405, 407, 415, 417, 418, 419, 424, 443, 444, 445, 449, 450, 453, 454, 456, 457, 459,
+        460, 461, 464, 465, 473, 521, 592, 593, 668, 678, 876, 902, 916
+    ];
+
+    public static SpriteIdentity From(PKM pokemon) =>
+        new(
+            pokemon.Species,
+            pokemon.Form,
+            pokemon.IsEgg,
+            pokemon.IsShiny,
+            DisplaySexFor(pokemon));
+
+    private static string DisplaySexFor(PKM pokemon)
+    {
+        if (pokemon.Species == 0 || !SpeciesWithSexDifference.Contains(pokemon.Species))
+            return "default";
+
+        return pokemon.Gender switch
+        {
+            0 => "male",
+            1 => "female",
+            _ => "default",
+        };
+    }
 }
 
 public sealed record SlotTypeSummary(string Name, int Hue, double Chroma);

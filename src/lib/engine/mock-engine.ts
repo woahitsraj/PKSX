@@ -49,7 +49,14 @@ const mockPikachuDetails = {
 		{ name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, pp: 40 }
 	],
 	originalTrainer: 'PKSX',
-	metLabel: 'Lv. 5'
+	metLabel: 'Lv. 5',
+	spriteIdentity: {
+		speciesId: 25,
+		form: 0,
+		isEgg: false,
+		isShiny: false,
+		displaySex: 'male' as const
+	}
 };
 
 const mockBoxSlots: BoxSlotSummary[] = [
@@ -75,6 +82,13 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		nickname: '',
 		isEgg: false,
 		isEmpty: true,
+		spriteIdentity: {
+			speciesId: 0,
+			form: 0,
+			isEgg: false,
+			isShiny: false,
+			displaySex: 'default'
+		},
 		types: [],
 		stats: [],
 		moves: []

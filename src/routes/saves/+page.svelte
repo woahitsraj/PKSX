@@ -598,11 +598,15 @@
 			return null;
 		}
 
-		const entry = resolveSpriteCatalogEntry({
-			speciesId: slot.speciesId,
-			form: slot.form,
-			isEgg: slot.isEgg
-		});
+		const entry = resolveSpriteCatalogEntry(
+			slot.spriteIdentity ?? {
+				speciesId: slot.speciesId,
+				form: slot.form,
+				isEgg: slot.isEgg,
+				isShiny: false,
+				displaySex: 'default'
+			}
+		);
 		return entry ? asset(entry.path) : null;
 	}
 

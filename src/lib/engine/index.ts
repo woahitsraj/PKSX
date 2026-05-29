@@ -22,7 +22,8 @@ export type {
 	PartySlotSummary,
 	SaveWorkspace,
 	SerializedSave,
-	SaveSummary
+	SaveSummary,
+	SpriteIdentity
 } from './types';
 export type { EngineWorkerFactory, EngineWorkerPort } from './pkhex-worker-engine';
 export type {
