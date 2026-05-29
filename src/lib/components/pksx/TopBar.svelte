@@ -15,6 +15,7 @@
 		onImport: (event: Event) => void;
 		onOpenImportPicker: () => void;
 		onExport: () => void;
+		onOpenBackups: () => void;
 		onToggleTheme: () => void;
 	}
 
@@ -32,6 +33,7 @@
 		onImport,
 		onOpenImportPicker,
 		onExport,
+		onOpenBackups,
 		onToggleTheme
 	}: Props = $props();
 </script>
@@ -85,6 +87,16 @@
 				if (!busy && hasLoadedSave) onExport();
 			}}>Export</button
 		>
+		<button
+			id="top-control-2"
+			type="button"
+			class:controller-focused={focusIndex === 2}
+			aria-disabled={busy || !hasLoadedSave}
+			onfocus={() => onFocusControl(2)}
+			onclick={() => {
+				if (!busy && hasLoadedSave) onOpenBackups();
+			}}>Backups</button
+		>
 	</div>
 	<div class="save-chip" title={fileName ?? 'No Save File'}>
 		<i aria-hidden="true"></i>
@@ -99,12 +111,12 @@
 	</div>
 	<span class="online-indicator" aria-label="Offline mode">● OFFLINE</span>
 	<button
-		id="top-control-2"
+		id="top-control-3"
 		class="theme-toggle"
-		class:controller-focused={focusIndex === 2}
+		class:controller-focused={focusIndex === 3}
 		type="button"
 		aria-label={darkMode ? 'Use light mode' : 'Use dark mode'}
-		onfocus={() => onFocusControl(2)}
+		onfocus={() => onFocusControl(3)}
 		onclick={onToggleTheme}
 	>
 		{darkMode ? '☀' : '☾'}

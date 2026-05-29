@@ -3,6 +3,7 @@ export { deleteIndexedDbLocalLibrary, IndexedDbLocalLibraryStorage } from './ind
 export type {
 	BackupId,
 	BackupMetadata,
+	BackupReason,
 	CreateBackupInput,
 	ImportSaveInput,
 	LocalLibraryStorage,

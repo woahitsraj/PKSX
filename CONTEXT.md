@@ -136,6 +136,10 @@ _Avoid_: panel, section
 A focused command surface opened from the current party or box slot.
 _Avoid_: popup, context menu
 
+**Backup Browser**:
+A focused command surface for listing, creating, and restoring Backups for the active Save File.
+_Avoid_: Local Library browser when referring only to the active Save File's backups
+
 **Navigation Action**:
 A normalized movement or command intent produced by keyboard, gamepad, or pointer input.
 _Avoid_: key event, button event
@@ -170,8 +174,11 @@ _Avoid_: key event, button event
 - A **Backup Restore** does not overwrite the original **Save File** artifact.
 - A **Backup Restore** must warn before replacing a **Dirty Workspace**.
 - A **Backup Restore** is not a **Risky Change**.
+- A **Backup Restore** may identify the source **Backup** for recovery context.
+- A **Backup Restore** does not change **Pokemon Provenance**.
 - Preserving restored backup bytes as a separate **Save File** artifact requires an explicit user action.
 - Preserving restored backup bytes as a separate **Save File** artifact associates the active **Workspace** with that new **Save File** artifact.
+- Preserving restored backup bytes as a separate **Save File** artifact clears the **Dirty Workspace** when the active **Workspace** matches the new artifact.
 - **Pokemon Storage** contains **Pokemon Entities** that are outside any **Save File**.
 - **Pokemon Storage** contains one or more **Storage Boxes**.
 - A **Storage Box** contains zero or more **Slots**.
@@ -209,6 +216,8 @@ _Avoid_: key event, button event
 - The **Party** and the active **Box** are separate **Focus Zones** with explicit directional transitions between them.
 - A **Slot Action Surface** opens from the current **Controller Focus** and returns to it when dismissed.
 - Back dismisses an open **Slot Action Surface** before it affects broader app navigation.
+- Back dismisses an open **Backup Browser** before it affects broader app navigation.
+- A **Backup Browser** returns **Controller Focus** to its launching control when dismissed.
 - Shoulder navigation changes the active **Box** without changing the current **Focus Zone**.
 - Shoulder navigation preserves the active **Box** slot coordinate when **Controller Focus** is inside a **Box**.
 - Changing the active **Box Source** preserves the active box number and focused **Slot** coordinate when the new **Box Source** has matching coordinates, and clamps to the nearest available box otherwise.
