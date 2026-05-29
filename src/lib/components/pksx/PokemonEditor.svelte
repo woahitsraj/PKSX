@@ -116,7 +116,7 @@
 						<small>Read only</small>
 					</div>
 					<div class="move-grid">
-						{#each slot.moves as move (move.name)}
+						{#each slot.moves as move, index (`${index}-${move.name}`)}
 							<div
 								class="move-chip"
 								style={`--type-hue: ${move.hue}; --type-chroma: ${move.chroma ?? 0.09}`}
