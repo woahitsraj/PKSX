@@ -119,9 +119,7 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 	await expect(page.locator('#box-0-slot-1')).toBeFocused();
 });
 
-test('occupied slot actions expose disabled Pokemon commands and Close dismisses', async ({
-	page
-}) => {
+test('occupied slot actions expose Pokemon Action and Close dismisses', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -130,10 +128,8 @@ test('occupied slot actions expose disabled Pokemon commands and Close dismisses
 	await expect(dialog).toBeVisible();
 	await expect(dialog).toContainText('Pokemon Action');
 	await expect(
-		page.getByRole('button', {
-			name: 'Pokemon Action unavailable: summary view is not implemented yet.'
-		})
-	).toHaveAttribute('aria-disabled', 'true');
+		page.getByRole('button', { name: 'Pokemon Action: Open Pokemon Editor.' })
+	).not.toHaveAttribute('aria-disabled', 'true');
 	await expect(
 		page.getByRole('button', {
 			name: 'Create Pokemon unavailable: Slot already contains a Pokemon.'
@@ -143,6 +139,31 @@ test('occupied slot actions expose disabled Pokemon commands and Close dismisses
 	await page.getByRole('button', { name: 'Close' }).click();
 	await expect(dialog).toBeHidden();
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+});
+
+test('Pokemon Action opens Pokemon Editor and returns focus to the command stack', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Enter');
+
+	const editor = page.getByRole('dialog', { name: 'Pikachu' });
+	await expect(editor).toBeVisible();
+	await expect(editor).toContainText('Save File Pokemon');
+	await expect(editor).toContainText('Box 01 · Slot 1 · Row A / Col 1');
+	await expect(editor).toContainText('Species #0025');
+	await expect(editor).toContainText('Move Set');
+	await expect(editor).toContainText('Engine projection');
+
+	await page.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(editor).toContainText('Engine-backed Pokemon editing is not available yet.');
+
+	await page.keyboard.press('Escape');
+	await expect(editor).toBeHidden();
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
+	await expect(page.locator('#slot-action-0')).toBeFocused();
 });
 
 test('keyboard navigation reaches top controls and mobile tabs', async ({ page }) => {
