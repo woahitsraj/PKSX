@@ -129,6 +129,10 @@ describe('createPkhexWorkerEngine', () => {
 					gameVersionId: 45,
 					generation: 9,
 					trainerName: 'PKSX',
+					trainerId: 41203,
+					playTime: '47:12',
+					playedHours: 47,
+					playedMinutes: 12,
 					partyCount: 1,
 					boxCount: 32,
 					boxSlotCount: 30

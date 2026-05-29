@@ -21,7 +21,21 @@ async function openEmptyLibrary(page: Page) {
 	);
 	await page.reload();
 	await page.waitForLoadState('networkidle');
-	await expect(page.getByText('Import a Save File to begin.')).toBeVisible({ timeout: 15000 });
+	await expect(page.getByText('Open Saves to import a Save File.')).toBeVisible({
+		timeout: 15000
+	});
+}
+
+async function importEmeraldThroughSaves(page: Page) {
+	await page.goto('/saves');
+	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
+	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+		timeout: 15000
+	});
+	await page.goto('/');
+	await expect(page.getByText('011020251345.sav restored from Local Library.')).toBeVisible({
+		timeout: 15000
+	});
 }
 
 test('keyboard navigation moves deterministically across the box grid', async ({ page }) => {
@@ -160,8 +174,12 @@ test('keyboard navigation reaches top controls and mobile tabs', async ({ page }
 
 	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#top-control-2')).toBeFocused();
+
 	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#top-control-3')).toBeFocused();
+
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#top-control-4')).toBeFocused();
 	await page.keyboard.press(' ');
 	await expect(page.getByRole('button', { name: 'Use light mode' })).toBeVisible();
 
@@ -271,9 +289,8 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 	page
 }) => {
 	await openEmptyLibrary(page);
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
+	await importEmeraldThroughSaves(page);
 
-	await expect(page.getByText('011020251345.sav loaded.')).toBeVisible({ timeout: 15000 });
 	await expect(page.getByText('DIXIE', { exact: true })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	await expect(page.locator('#party-slot-0')).toContainText('1-UP');
@@ -300,30 +317,243 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 
 test('creates and restores a manual backup for the loaded Save File', async ({ page }) => {
 	await openEmptyLibrary(page);
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
+	await importEmeraldThroughSaves(page);
 
-	await expect(page.getByText('011020251345.sav loaded.')).toBeVisible({ timeout: 15000 });
+	await page.getByRole('button', { name: 'Saves' }).click();
+	await expect(page).toHaveURL(/\/saves$/);
+	const backups = page.getByLabel('Save File Backups');
+	await expect(backups).toContainText('No Backups yet.');
 
-	await page.getByRole('button', { name: 'Backups' }).click();
-	const dialog = page.getByRole('dialog', { name: 'Backups' });
-	await expect(dialog).toBeVisible();
-	await expect(dialog).toContainText('No Backups yet.');
-
-	await page.getByRole('button', { name: 'Create' }).click();
+	await backups.getByRole('button', { name: 'Create' }).click();
 	await expect(page.getByText('Backup created.')).toBeVisible();
-	await expect(dialog).toContainText('Manual');
+	await expect(backups).toContainText('Manual');
 
-	await page.getByRole('button', { name: 'Restore' }).click();
-	await expect(dialog).toBeHidden();
-	await expect(page.getByText('Backup restored.')).toBeVisible();
+	await backups.getByRole('button', { name: 'Open' }).click();
+	await expect(page.getByText('Backup opened as a separate active Save File.')).toBeVisible();
+	await page.goto('/');
+	await expect(
+		page.getByText('011020251345.restored.sav restored from Local Library.')
+	).toBeVisible({
+		timeout: 15000
+	});
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+});
+
+test('deletes backups and save files after confirmation', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.goto('/saves');
+
+	const backups = page.getByLabel('Save File Backups');
+	await backups.getByRole('button', { name: 'Create' }).click();
+	await expect(page.getByText('Backup created.')).toBeVisible();
+	await expect(backups).toContainText('Manual');
+
+	await backups.getByRole('button', { name: 'Delete' }).click();
+	const backupDialog = page.getByRole('alertdialog', { name: 'Delete Manual Backup?' });
+	await expect(backupDialog).toBeVisible();
+	await expect(backupDialog).toContainText('This cannot be undone.');
+	await backupDialog.getByRole('button', { name: 'Delete' }).click();
+	await expect(page.getByText('Backup deleted.')).toBeVisible();
+	await expect(backups).toContainText('No Backups yet.');
+
+	await page.locator('.save-card.active').getByRole('button', { name: 'Delete' }).click();
+	const saveDialog = page.getByRole('alertdialog', {
+		name: 'Delete emerald-011020251345.sav?'
+	});
+	await expect(saveDialog).toBeVisible();
+	await expect(saveDialog).toContainText('all of its Backups');
+	await saveDialog.getByRole('button', { name: 'Delete' }).click();
+	await expect(page.getByText('emerald-011020251345.sav deleted.')).toBeVisible();
+	await expect(page.locator('.save-card')).toHaveCount(0);
+	await expect(page.getByText('No active Save File')).toBeVisible();
+});
+
+test('keyboard navigation covers the Saves route controls and desktop overflow scrolls', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await page.setViewportSize({ width: 960, height: 520 });
+	await page.goto('/saves');
+
+	await page.locator('#top-control-0').focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#top-control-1')).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#top-control-2')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#top-control-4')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.getByRole('button', { name: /Import a Save File/ })).toBeFocused();
+
+	const fixture = await readFile(emeraldFixturePath);
+	await page.getByLabel('Import Save File').setInputFiles({
+		name: 'alpha.sav',
+		mimeType: 'application/octet-stream',
+		buffer: fixture
+	});
+	await page.getByLabel('Import Save File').setInputFiles({
+		name: 'beta.sav',
+		mimeType: 'application/octet-stream',
+		buffer: fixture
+	});
+	await expect(page.locator('.save-card')).toHaveCount(2);
+
+	await page.locator('.save-card').first().getByRole('button').first().focus();
+	await page.keyboard.press('ArrowDown');
+	await expect(
+		page.locator('.save-card').first().getByRole('button', { name: 'Delete' })
+	).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(
+		page
+			.locator('.save-card')
+			.first()
+			.getByRole('button', { name: /^(Open|Switch) →$/ })
+	).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('.save-card').nth(1).getByRole('button').first()).toBeFocused();
+	for (const key of ['ArrowDown', 'ArrowDown', 'ArrowDown']) {
+		await page.keyboard.press(key);
+	}
+	await expect(page.getByRole('button', { name: /Import a Save File/ })).toBeFocused();
+
+	const scrollState = await page.locator('.save-picker-panel').evaluate((panel) => ({
+		clientHeight: panel.clientHeight,
+		scrollHeight: panel.scrollHeight
+	}));
+	expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+
+	await page.locator('.save-picker-panel').evaluate((panel) => {
+		panel.scrollTop = 120;
+	});
+	await expect
+		.poll(() => page.locator('.save-picker-panel').evaluate((panel) => panel.scrollTop))
+		.toBeGreaterThan(0);
+});
+
+test('mobile Saves route scrolls with the document', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await page.setViewportSize({ width: 390, height: 640 });
+	await page.goto('/saves');
+
+	const fixture = await readFile(emeraldFixturePath);
+	for (const name of ['alpha.sav', 'beta.sav', 'gamma.sav']) {
+		await page.getByLabel('Import Save File').setInputFiles({
+			name,
+			mimeType: 'application/octet-stream',
+			buffer: fixture
+		});
+	}
+
+	await expect(page.locator('.save-card')).toHaveCount(3);
+	const mobileGutters = await page.evaluate(() => {
+		const shell = document.querySelector('.app-shell')?.getBoundingClientRect();
+		const panel = document.querySelector('.save-picker-panel')?.getBoundingClientRect();
+
+		if (!shell || !panel) {
+			throw new Error('Could not measure Saves route gutters.');
+		}
+
+		return {
+			left: panel.left - shell.left,
+			right: shell.right - panel.right
+		};
+	});
+	expect(Math.abs(mobileGutters.left - mobileGutters.right)).toBeLessThanOrEqual(1);
+	expect(mobileGutters.left).toBeGreaterThanOrEqual(9);
+
+	await expect
+		.poll(() =>
+			page.evaluate(() => ({
+				innerHeight,
+				panelOverflowY: getComputedStyle(document.querySelector('.save-picker-panel')!).overflowY,
+				scrollHeight: document.scrollingElement?.scrollHeight ?? 0,
+				scrollTop: document.scrollingElement?.scrollTop ?? 0
+			}))
+		)
+		.toMatchObject({
+			panelOverflowY: 'visible',
+			scrollTop: 0
+		});
+
+	const scrollState = await page.evaluate(() => ({
+		innerHeight,
+		scrollHeight: document.scrollingElement?.scrollHeight ?? 0
+	}));
+	expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.innerHeight);
+
+	await page.evaluate(() => window.scrollTo(0, 480));
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+	await expect(page.getByText('Offline - all local')).toBeVisible();
+});
+
+test('browses the Local Library route, imports, and switches the active Save File', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+
+	await page.getByRole('button', { name: 'Saves' }).click();
+	await expect(page).toHaveURL(/\/saves$/);
+	await expect(page.getByRole('heading', { name: 'Save Files' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Import a Save File' })).toBeVisible();
+
+	const fixture = await readFile(emeraldFixturePath);
+	await page.getByLabel('Import Save File').setInputFiles({
+		name: 'alpha.sav',
+		mimeType: 'application/octet-stream',
+		buffer: fixture
+	});
+
+	await expect(page.getByText('alpha.sav imported and made active.')).toBeVisible({
+		timeout: 15000
+	});
+	await expect(page.locator('.save-card.active')).toContainText('alpha.sav');
+	await expect(page.locator('.save-card.active').getByText('Active')).toBeVisible();
+
+	await page.getByLabel('Import Save File').setInputFiles({
+		name: 'beta.sav',
+		mimeType: 'application/octet-stream',
+		buffer: fixture
+	});
+
+	await expect(page.getByText('beta.sav imported and made active.')).toBeVisible({
+		timeout: 15000
+	});
+	await expect(page.locator('.save-card')).toHaveCount(2);
+	await expect(page.locator('.save-card.active')).toContainText('beta.sav');
+
+	await page
+		.locator('.save-card')
+		.filter({ hasText: 'alpha.sav' })
+		.getByRole('button', { name: /Switch/ })
+		.click();
+
+	await expect(page.getByText('alpha.sav is active.')).toBeVisible({ timeout: 15000 });
+	await expect(page.locator('.save-card.active')).toContainText('alpha.sav');
+	await page.goto('/');
+	await expect(page.locator('.save-chip')).toContainText('alpha.sav');
+
+	await page.goto('/saves');
+	await page.getByLabel('Import Save File').setInputFiles({
+		name: 'broken.sav',
+		mimeType: 'application/octet-stream',
+		buffer: Buffer.from([1, 2, 3, 4])
+	});
+
+	await expect(
+		page.getByText('Import failed. Current active Save File was not changed.')
+	).toBeVisible({
+		timeout: 15000
+	});
+	await expect(page.locator('.save-card.active')).toContainText('alpha.sav');
 });
 
 test('reloads the most recent imported Save File while offline', async ({ page, context }) => {
 	await openEmptyLibrary(page);
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
+	await importEmeraldThroughSaves(page);
 
-	await expect(page.getByText('011020251345.sav loaded.')).toBeVisible({ timeout: 15000 });
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 
 	await page.evaluate(async () => {

@@ -41,8 +41,12 @@ export type LocalLibraryStorage = {
 	getSave(saveFileId: SaveFileId): Promise<StoredSaveFile | null>;
 	listSaves(): Promise<StoredSaveFile[]>;
 	getSaveBytes(saveFileId: SaveFileId): Promise<Uint8Array | null>;
+	getActiveSaveFileId(): Promise<SaveFileId | null>;
+	setActiveSaveFileId(saveFileId: SaveFileId): Promise<StoredSaveFile>;
+	deleteSave(saveFileId: SaveFileId): Promise<void>;
 	createBackup(input: CreateBackupInput): Promise<BackupMetadata>;
 	listBackups(saveFileId: SaveFileId): Promise<BackupMetadata[]>;
 	getBackupBytes(backupId: BackupId): Promise<Uint8Array | null>;
+	deleteBackup(backupId: BackupId): Promise<void>;
 	exportSave(saveFileId: SaveFileId): Promise<Uint8Array | null>;
 };

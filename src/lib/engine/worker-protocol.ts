@@ -45,6 +45,10 @@ export const saveSummarySchema = z.object({
 	gameVersionId: z.number(),
 	generation: z.number(),
 	trainerName: z.string().optional(),
+	trainerId: z.number(),
+	playTime: z.string(),
+	playedHours: z.number(),
+	playedMinutes: z.number(),
 	partyCount: z.number(),
 	boxCount: z.number(),
 	boxSlotCount: z.number()

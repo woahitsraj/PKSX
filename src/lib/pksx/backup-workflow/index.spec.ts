@@ -17,6 +17,10 @@ const workspace: SaveWorkspace = {
 		gameVersionId: 3,
 		generation: 3,
 		trainerName: 'CASS',
+		trainerId: 41203,
+		playTime: '47:12',
+		playedHours: 47,
+		playedMinutes: 12,
 		partyCount: 1,
 		boxCount: 14,
 		boxSlotCount: 30

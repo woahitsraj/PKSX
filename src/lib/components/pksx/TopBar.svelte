@@ -3,6 +3,7 @@
 
 	interface Props {
 		sectionPills: string[];
+		activeSection?: string;
 		saveSummary: SaveSummary | null;
 		boxCount: number;
 		activeBox: number;
@@ -12,15 +13,16 @@
 		darkMode: boolean;
 		focusIndex: number | null;
 		onFocusControl: (index: number) => void;
-		onImport: (event: Event) => void;
-		onOpenImportPicker: () => void;
+		onOpenBoxes: () => void;
+		onOpenSaves: () => void;
+		onImport: (file: File) => void;
 		onExport: () => void;
-		onOpenBackups: () => void;
 		onToggleTheme: () => void;
 	}
 
 	let {
 		sectionPills,
+		activeSection = 'Boxes',
 		saveSummary,
 		boxCount,
 		activeBox,
@@ -30,25 +32,64 @@
 		darkMode,
 		focusIndex,
 		onFocusControl,
+		onOpenBoxes,
+		onOpenSaves,
 		onImport,
-		onOpenImportPicker,
 		onExport,
-		onOpenBackups,
 		onToggleTheme
 	}: Props = $props();
+
+	function handleImportChange(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+
+		if (file) {
+			onImport(file);
+		}
+	}
+
+	function openImportPicker() {
+		document.getElementById('quick-save-import')?.click();
+	}
 </script>
 
 <header class="top-bar" aria-label="Current save summary">
-	<div class="brand-lockup">
+	<button type="button" class="brand-lockup" aria-label="Open boxes" onclick={onOpenBoxes}>
 		<div class="brand-mark" aria-hidden="true">P</div>
 		<div>
 			<h1 id="screen-title">PKSX</h1>
 			<p>save editor · atelier</p>
 		</div>
-	</div>
+	</button>
 	<div class="section-pills" aria-label="Available sections">
 		{#each sectionPills as pill (pill)}
-			<span class:active={pill === 'Boxes'}>{pill}</span>
+			{#if pill === 'Boxes'}
+				<button
+					id="top-control-0"
+					type="button"
+					class:active={activeSection === pill}
+					class:controller-focused={focusIndex === 0}
+					aria-current={activeSection === pill ? 'page' : undefined}
+					onfocus={() => onFocusControl(0)}
+					onclick={onOpenBoxes}>{pill}</button
+				>
+			{:else if pill === 'Saves'}
+				<button
+					id="top-control-1"
+					type="button"
+					class:active={activeSection === pill}
+					class:controller-focused={focusIndex === 1}
+					aria-current={activeSection === pill ? 'page' : undefined}
+					aria-disabled={busy}
+					onfocus={() => onFocusControl(1)}
+					onclick={() => {
+						if (!busy) onOpenSaves();
+					}}>{pill}</button
+				>
+			{:else}
+				<span class:active={activeSection === pill}>{pill}</span>
+			{/if}
 		{/each}
 	</div>
 	<div class="search-shell" aria-hidden="true">
@@ -61,41 +102,33 @@
 	</div>
 	<div class="save-actions" aria-label="Save File actions">
 		<input
-			id="save-file-input"
-			class="file-input"
+			id="quick-save-import"
 			type="file"
-			aria-label="Import Save File"
-			onchange={onImport}
+			aria-label="Quick save import"
+			disabled={busy}
+			onchange={handleImportChange}
 		/>
-		<button
-			id="top-control-0"
-			type="button"
-			class:controller-focused={focusIndex === 0}
-			aria-disabled={busy}
-			onfocus={() => onFocusControl(0)}
-			onclick={() => {
-				if (!busy) onOpenImportPicker();
-			}}>Import</button
-		>
-		<button
-			id="top-control-1"
-			type="button"
-			class:controller-focused={focusIndex === 1}
-			aria-disabled={busy || !hasLoadedSave}
-			onfocus={() => onFocusControl(1)}
-			onclick={() => {
-				if (!busy && hasLoadedSave) onExport();
-			}}>Export</button
-		>
 		<button
 			id="top-control-2"
 			type="button"
 			class:controller-focused={focusIndex === 2}
-			aria-disabled={busy || !hasLoadedSave}
+			aria-disabled={busy}
 			onfocus={() => onFocusControl(2)}
 			onclick={() => {
-				if (!busy && hasLoadedSave) onOpenBackups();
-			}}>Backups</button
+				if (!busy) openImportPicker();
+			}}
+		>
+			Import
+		</button>
+		<button
+			id="top-control-3"
+			type="button"
+			class:controller-focused={focusIndex === 3}
+			aria-disabled={busy || !hasLoadedSave}
+			onfocus={() => onFocusControl(3)}
+			onclick={() => {
+				if (!busy && hasLoadedSave) onExport();
+			}}>Export</button
 		>
 	</div>
 	<div class="save-chip" title={fileName ?? 'No Save File'}>
@@ -111,12 +144,12 @@
 	</div>
 	<span class="online-indicator" aria-label="Offline mode">● OFFLINE</span>
 	<button
-		id="top-control-3"
+		id="top-control-4"
 		class="theme-toggle"
-		class:controller-focused={focusIndex === 3}
+		class:controller-focused={focusIndex === 4}
 		type="button"
 		aria-label={darkMode ? 'Use light mode' : 'Use dark mode'}
-		onfocus={() => onFocusControl(3)}
+		onfocus={() => onFocusControl(4)}
 		onclick={onToggleTheme}
 	>
 		{darkMode ? '☀' : '☾'}
@@ -142,6 +175,13 @@
 		align-items: center;
 		gap: 12px;
 		min-width: 0;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
 	}
 
 	.brand-mark {
@@ -181,12 +221,21 @@
 		border-left: 1px solid var(--rule-hi);
 	}
 
-	.section-pills span {
+	.section-pills span,
+	.section-pills button {
 		padding: 7px 12px;
+		border: 0;
 		border-radius: var(--pksx-radius-sm);
+		background: transparent;
 		color: var(--ink-soft);
+		font: inherit;
 		font-size: 0.78rem;
 		font-weight: 650;
+		cursor: default;
+	}
+
+	.section-pills button {
+		cursor: pointer;
 	}
 
 	.section-pills .active {
@@ -239,9 +288,20 @@
 		gap: 6px;
 	}
 
+	.save-actions input {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+
 	.save-actions button,
 	.theme-toggle {
 		min-height: 32px;
+		display: grid;
+		place-items: center;
 		padding: 0 12px;
 		font: inherit;
 		font-size: 0.78rem;
@@ -255,12 +315,14 @@
 		color: var(--rust);
 	}
 
+	.section-pills button.controller-focused,
 	.save-actions button.controller-focused,
 	.theme-toggle.controller-focused {
 		outline: 3px solid color-mix(in srgb, var(--rust), transparent 58%);
 		outline-offset: 2px;
 	}
 
+	.section-pills button[aria-disabled='true'],
 	.save-actions button[aria-disabled='true'] {
 		cursor: not-allowed;
 		opacity: 0.55;
@@ -319,21 +381,11 @@
 		font-size: 0.95rem;
 	}
 
-	.file-input {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip: rect(0 0 0 0);
-		white-space: nowrap;
-	}
-
 	@media (max-width: 1120px) {
 		.top-bar {
-			grid-template-columns: 1fr auto auto;
+			grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
 		}
 
-		.section-pills,
 		.search-shell {
 			display: none;
 		}
@@ -347,6 +399,7 @@
 			padding: 8px;
 		}
 
+		.section-pills,
 		.save-chip,
 		.online-indicator {
 			display: none;
