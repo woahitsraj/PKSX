@@ -137,7 +137,14 @@
 			{ name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, pp: 40 }
 		],
 		originalTrainer: 'PKSX',
-		metLabel: 'Starter Box'
+		metLabel: 'Starter Box',
+		spriteIdentity: {
+			speciesId: 25,
+			form: 0,
+			isEgg: false,
+			isShiny: false,
+			displaySex: 'default'
+		}
 	} satisfies Partial<SlotView>;
 
 	const placeholderPartySlots: SlotView[] = Array.from({ length: PARTY_SLOT_COUNT }, (_, slot) => ({
@@ -148,6 +155,7 @@
 		speciesId: slot === 0 ? 25 : null,
 		form: slot === 0 ? 0 : null,
 		isEgg: false,
+		spriteIdentity: null,
 		kind: slot === 0 ? 'pokemon' : 'empty',
 		...(slot === 0 ? placeholderPokemonDetails : {})
 	}));
@@ -165,6 +173,7 @@
 					speciesId: featured ? 25 : null,
 					form: featured ? 0 : null,
 					isEgg: false,
+					spriteIdentity: null,
 					kind: featured ? ('pokemon' as const) : ('empty' as const),
 					...(featured ? placeholderPokemonDetails : {})
 				};
@@ -238,6 +247,7 @@
 						speciesId: null,
 						form: null,
 						isEgg: false,
+						spriteIdentity: null,
 						kind: 'empty' as const
 					}))
 				]
@@ -943,6 +953,7 @@
 				speciesId: null,
 				form: null,
 				isEgg: false,
+				spriteIdentity: null,
 				kind: 'empty'
 			});
 		}
@@ -963,6 +974,7 @@
 			speciesId: slot.isEmpty ? null : slot.speciesId,
 			form: slot.isEmpty ? null : slot.form,
 			isEgg: !slot.isEmpty && slot.isEgg,
+			spriteIdentity: slot.isEmpty ? null : slot.spriteIdentity,
 			kind: slot.isEmpty ? 'empty' : 'pokemon',
 			gender: slot.gender ?? undefined,
 			nature: slot.nature ?? undefined,
@@ -977,7 +989,7 @@
 	}
 
 	function spriteUrlFor(slot: SlotView): string | null {
-		const entry = resolveSpriteCatalogEntry(slot);
+		const entry = resolveSpriteCatalogEntry(slot.spriteIdentity);
 		return entry ? asset(entry.path) : null;
 	}
 

@@ -1,3 +1,5 @@
+import type { SpriteIdentity } from '$lib/engine';
+
 export type SlotView = {
 	slot: number;
 	label: string;
@@ -6,6 +8,7 @@ export type SlotView = {
 	speciesId: number | null;
 	form: number | null;
 	isEgg: boolean;
+	spriteIdentity: SpriteIdentity | null;
 	kind: 'pokemon' | 'empty';
 	gender?: string;
 	nature?: string;

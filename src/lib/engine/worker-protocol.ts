@@ -72,6 +72,16 @@ export const slotMoveSummarySchema = z.object({
 	pp: z.number().nullable().optional()
 });
 
+export const displaySexSchema = z.enum(['default', 'male', 'female']);
+
+export const spriteIdentitySchema = z.object({
+	speciesId: z.number(),
+	form: z.number(),
+	isEgg: z.boolean(),
+	isShiny: z.boolean(),
+	displaySex: displaySexSchema
+});
+
 export const boxSlotSummarySchema = z.object({
 	box: z.number(),
 	slot: z.number(),
@@ -90,7 +100,8 @@ export const boxSlotSummarySchema = z.object({
 	stats: z.array(slotStatSummarySchema).default([]),
 	moves: z.array(slotMoveSummarySchema).default([]),
 	originalTrainer: z.string().nullable().optional(),
-	metLabel: z.string().nullable().optional()
+	metLabel: z.string().nullable().optional(),
+	spriteIdentity: spriteIdentitySchema
 });
 
 export const partySlotSummarySchema = boxSlotSummarySchema.omit({ box: true });

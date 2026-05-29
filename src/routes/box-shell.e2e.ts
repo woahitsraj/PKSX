@@ -28,14 +28,14 @@ test('keyboard navigation moves deterministically across the box grid', async ({
 	await openEmptyLibrary(page);
 	await expect(page.locator('#box-0-slot-0 img.slot-sprite')).toHaveAttribute(
 		'src',
-		'./sprites/pokemon/species/0025.png'
+		'./sprites/pokemon/species/0025-form-00-sex-default-normal.png'
 	);
 	await expect(page.locator('#box-0-slot-0')).toHaveCSS('--slot-hue', '94');
 	await expect(page.locator('#box-0-slot-0')).toHaveCSS('--slot-chroma', '0.16');
 	await expect(page.locator('#box-0-slot-0')).not.toHaveClass(/dual-type/);
 	await expect(page.locator('.portrait-card img')).toHaveAttribute(
 		'src',
-		'./sprites/pokemon/species/0025.png'
+		'./sprites/pokemon/species/0025-form-00-sex-default-normal.png'
 	);
 	await expect(
 		page.locator('img[src^="https://img.pokemondb.net"], img[src^="http://img.pokemondb.net"]')
