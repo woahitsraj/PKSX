@@ -594,7 +594,9 @@ function createFormSlugCandidates(names: string[]): Map<string, number> {
 
 	for (const [index, name] of names.entries()) {
 		for (const slug of createNameSlugCandidates(name)) {
-			candidates.set(slug, index);
+			if (!candidates.has(slug)) {
+				candidates.set(slug, index);
+			}
 		}
 	}
 

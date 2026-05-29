@@ -44551,15 +44551,15 @@
 			"height": 256,
 			"byteSize": 42558
 		},
-		"species-1017-form-07-sex-default-normal": {
+		"species-1017-form-03-sex-default-normal": {
 			"speciesId": 1017,
-			"form": 7,
+			"form": 3,
 			"isEgg": false,
 			"isShiny": false,
 			"displaySex": "default",
 			"name": "Ogerpon",
 			"slug": "ogerpon",
-			"path": "/sprites/pokemon/species/1017-form-07-sex-default-normal.png",
+			"path": "/sprites/pokemon/species/1017-form-03-sex-default-normal.png",
 			"sourceUrl": "https://img.pokemondb.net/sprites/home/normal/ogerpon-cornerstone.png",
 			"sourceFamily": "home",
 			"retrievedAt": "2026-05-29T16:50:14.242Z",
@@ -44567,15 +44567,15 @@
 			"height": 256,
 			"byteSize": 41528
 		},
-		"species-1017-form-06-sex-default-normal": {
+		"species-1017-form-02-sex-default-normal": {
 			"speciesId": 1017,
-			"form": 6,
+			"form": 2,
 			"isEgg": false,
 			"isShiny": false,
 			"displaySex": "default",
 			"name": "Ogerpon",
 			"slug": "ogerpon",
-			"path": "/sprites/pokemon/species/1017-form-06-sex-default-normal.png",
+			"path": "/sprites/pokemon/species/1017-form-02-sex-default-normal.png",
 			"sourceUrl": "https://img.pokemondb.net/sprites/home/normal/ogerpon-hearthflame.png",
 			"sourceFamily": "home",
 			"retrievedAt": "2026-05-29T16:50:14.242Z",
@@ -44583,15 +44583,15 @@
 			"height": 256,
 			"byteSize": 45460
 		},
-		"species-1017-form-04-sex-default-normal": {
+		"species-1017-form-00-sex-default-normal": {
 			"speciesId": 1017,
-			"form": 4,
+			"form": 0,
 			"isEgg": false,
 			"isShiny": false,
 			"displaySex": "default",
 			"name": "Ogerpon",
 			"slug": "ogerpon",
-			"path": "/sprites/pokemon/species/1017-form-04-sex-default-normal.png",
+			"path": "/sprites/pokemon/species/1017-form-00-sex-default-normal.png",
 			"sourceUrl": "https://img.pokemondb.net/sprites/home/normal/ogerpon-teal.png",
 			"sourceFamily": "home",
 			"retrievedAt": "2026-05-29T16:50:14.242Z",
@@ -44599,15 +44599,15 @@
 			"height": 256,
 			"byteSize": 47275
 		},
-		"species-1017-form-05-sex-default-normal": {
+		"species-1017-form-01-sex-default-normal": {
 			"speciesId": 1017,
-			"form": 5,
+			"form": 1,
 			"isEgg": false,
 			"isShiny": false,
 			"displaySex": "default",
 			"name": "Ogerpon",
 			"slug": "ogerpon",
-			"path": "/sprites/pokemon/species/1017-form-05-sex-default-normal.png",
+			"path": "/sprites/pokemon/species/1017-form-01-sex-default-normal.png",
 			"sourceUrl": "https://img.pokemondb.net/sprites/home/normal/ogerpon-wellspring.png",
 			"sourceFamily": "home",
 			"retrievedAt": "2026-05-29T16:50:14.242Z",
@@ -44615,15 +44615,15 @@
 			"height": 256,
 			"byteSize": 43566
 		},
-		"species-1017-form-07-sex-default-shiny": {
+		"species-1017-form-03-sex-default-shiny": {
 			"speciesId": 1017,
-			"form": 7,
+			"form": 3,
 			"isEgg": false,
 			"isShiny": true,
 			"displaySex": "default",
 			"name": "Ogerpon",
 			"slug": "ogerpon",
-			"path": "/sprites/pokemon/species/1017-form-07-sex-default-shiny.png",
+			"path": "/sprites/pokemon/species/1017-form-03-sex-default-shiny.png",
 			"sourceUrl": "https://img.pokemondb.net/sprites/home/shiny/ogerpon-cornerstone.png",
 			"sourceFamily": "home",
 			"retrievedAt": "2026-05-29T16:50:14.242Z",
@@ -44631,15 +44631,15 @@
 			"height": 256,
 			"byteSize": 41336
 		},
-		"species-1017-form-06-sex-default-shiny": {
+		"species-1017-form-02-sex-default-shiny": {
 			"speciesId": 1017,
-			"form": 6,
+			"form": 2,
 			"isEgg": false,
 			"isShiny": true,
 			"displaySex": "default",
 			"name": "Ogerpon",
 			"slug": "ogerpon",
-			"path": "/sprites/pokemon/species/1017-form-06-sex-default-shiny.png",
+			"path": "/sprites/pokemon/species/1017-form-02-sex-default-shiny.png",
 			"sourceUrl": "https://img.pokemondb.net/sprites/home/shiny/ogerpon-hearthflame.png",
 			"sourceFamily": "home",
 			"retrievedAt": "2026-05-29T16:50:14.242Z",
@@ -44647,15 +44647,15 @@
 			"height": 256,
 			"byteSize": 45339
 		},
-		"species-1017-form-04-sex-default-shiny": {
+		"species-1017-form-00-sex-default-shiny": {
 			"speciesId": 1017,
-			"form": 4,
+			"form": 0,
 			"isEgg": false,
 			"isShiny": true,
 			"displaySex": "default",
 			"name": "Ogerpon",
 			"slug": "ogerpon",
-			"path": "/sprites/pokemon/species/1017-form-04-sex-default-shiny.png",
+			"path": "/sprites/pokemon/species/1017-form-00-sex-default-shiny.png",
 			"sourceUrl": "https://img.pokemondb.net/sprites/home/shiny/ogerpon-teal.png",
 			"sourceFamily": "home",
 			"retrievedAt": "2026-05-29T16:50:14.242Z",
@@ -44663,15 +44663,15 @@
 			"height": 256,
 			"byteSize": 47105
 		},
-		"species-1017-form-05-sex-default-shiny": {
+		"species-1017-form-01-sex-default-shiny": {
 			"speciesId": 1017,
-			"form": 5,
+			"form": 1,
 			"isEgg": false,
 			"isShiny": true,
 			"displaySex": "default",
 			"name": "Ogerpon",
 			"slug": "ogerpon",
-			"path": "/sprites/pokemon/species/1017-form-05-sex-default-shiny.png",
+			"path": "/sprites/pokemon/species/1017-form-01-sex-default-shiny.png",
 			"sourceUrl": "https://img.pokemondb.net/sprites/home/shiny/ogerpon-wellspring.png",
 			"sourceFamily": "home",
 			"retrievedAt": "2026-05-29T16:50:14.242Z",

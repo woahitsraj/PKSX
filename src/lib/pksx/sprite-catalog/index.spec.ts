@@ -82,6 +82,15 @@ describe('Sprite Catalog', () => {
 				displaySex: 'female'
 			})?.path
 		).toBe('/sprites/pokemon/species/0025-form-00-sex-female-shiny.png');
+		expect(
+			resolveSpriteCatalogEntry({
+				speciesId: 1017,
+				form: 0,
+				isEgg: false,
+				isShiny: false,
+				displaySex: 'default'
+			})?.path
+		).toBe('/sprites/pokemon/species/1017-form-00-sex-default-normal.png');
 	});
 
 	test('falls back from unsupported forms to base species while preserving shiny first', () => {
