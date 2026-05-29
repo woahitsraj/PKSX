@@ -92,6 +92,18 @@ _Avoid_: remote sprites, CDN images
 The PKHeX Engine-projected display identity used to find a Pokemon Entity in the Sprite Catalog.
 _Avoid_: nickname, slot position, UI state
 
+**Shiny State**:
+Whether a Pokemon Entity has its alternate shiny coloration, as projected by the PKHeX Engine for display identity.
+_Avoid_: rarity, sparkle effect
+
+**Sex Difference**:
+A visible species-specific sprite difference based on a Pokemon Entity's sex, as projected for display identity.
+_Avoid_: gender label when referring only to sprite appearance
+
+**Display Sex**:
+The sex-difference state used by Sprite Identity for visual asset selection: default, male, or female.
+_Avoid_: raw gender value when no visible sprite difference exists
+
 **Peer Transfer**:
 A live connection between two PKSX instances for sending Pokemon Entities or Storage Boxes without requiring cloud sync.
 _Avoid_: cloud sync, account sync
@@ -211,6 +223,8 @@ _Avoid_: key event, button event
 - **Create Pokemon** applies to an empty **Slot**.
 - The **Sprite Catalog** provides offline visual assets for **Pokemon Entities**.
 - A **Sprite Identity** belongs to one **Pokemon Entity** projection.
+- A **Sprite Identity** includes the **Shiny State** of its **Pokemon Entity**.
+- A **Sprite Identity** may include a **Sex Difference** through **Display Sex** when that difference changes the displayed sprite.
 - A **Sprite Identity** describes visible Pokemon characteristics, not save format or current location.
 - A **Sprite Catalog** may or may not contain an asset for a **Sprite Identity**.
 - A **Peer Transfer** sends **Pokemon Entities** or **Storage Boxes** between PKSX instances.

@@ -19,6 +19,13 @@ const pokemonSlot: SlotView = {
 	level: 12,
 	speciesId: 304,
 	form: 0,
+	spriteIdentity: {
+		speciesId: 304,
+		form: 0,
+		isEgg: false,
+		isShiny: false,
+		displaySex: 'default'
+	},
 	isEgg: false,
 	kind: 'pokemon'
 };
@@ -30,6 +37,7 @@ const emptySlot: SlotView = {
 	level: null,
 	speciesId: null,
 	form: null,
+	spriteIdentity: null,
 	isEgg: false,
 	kind: 'empty'
 };
