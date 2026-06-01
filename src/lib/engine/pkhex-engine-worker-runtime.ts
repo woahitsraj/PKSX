@@ -29,7 +29,11 @@ export type DotnetPkhexEngineExports = {
 	ListBoxSmoke(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	LoadSaveWorkspaceJson(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	SerializeSaveJson(bytes: Uint8Array, fileName?: string): string;
-	ApplySlotOperationJson(bytes: Uint8Array, fileName: string | undefined, operationJson: string): string;
+	ApplySlotOperationJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operationJson: string
+	): string;
 };
 
 type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes'> & {
@@ -39,7 +43,10 @@ type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes'> & {
 
 export type PkhexEngineWorkerRuntimeOptions = {
 	loadEngine(basePath: string): Promise<DotnetPkhexEngineExports>;
-	postMessage(message: EngineWorkerMessage | EngineWorkerStatusMessage, transfer?: Transferable[]): void;
+	postMessage(
+		message: EngineWorkerMessage | EngineWorkerStatusMessage,
+		transfer?: Transferable[]
+	): void;
 };
 
 export type PkhexEngineWorkerRuntime = {

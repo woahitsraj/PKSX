@@ -14,7 +14,9 @@
 
 	let { toasts, onDismiss }: Props = $props();
 
-	function toastSlide(_node: Element) {
+	function toastSlide(node: Element) {
+		void node;
+
 		return {
 			duration: 220,
 			easing: cubicOut,

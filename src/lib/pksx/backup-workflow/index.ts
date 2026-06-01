@@ -44,9 +44,7 @@ export type PersistedWorkspaceStateInput = CreateWorkspaceStateInput & {
 	automaticBackupCreated: boolean;
 };
 
-export function createPersistedWorkspaceState(
-	input: PersistedWorkspaceStateInput
-): WorkspaceState {
+export function createPersistedWorkspaceState(input: PersistedWorkspaceStateInput): WorkspaceState {
 	return {
 		file: input.file,
 		bytes: copyBytes(input.bytes),

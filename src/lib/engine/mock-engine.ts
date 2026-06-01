@@ -182,8 +182,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 function isSameSlotOperation(operation: SlotOperation): boolean {
 	return (
-		operation.kind !== 'clear' &&
-		slotRefKey(operation.source) === slotRefKey(operation.destination)
+		operation.kind !== 'clear' && slotRefKey(operation.source) === slotRefKey(operation.destination)
 	);
 }
 

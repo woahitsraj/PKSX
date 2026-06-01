@@ -304,7 +304,9 @@ function copyBytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 	return copy.buffer;
 }
 
-function cloneSlotOperation(operation: import('./types').SlotOperation): import('./types').SlotOperation {
+function cloneSlotOperation(
+	operation: import('./types').SlotOperation
+): import('./types').SlotOperation {
 	switch (operation.kind) {
 		case 'clear':
 			return { kind: 'clear', source: cloneSlotRef(operation.source) };

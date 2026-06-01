@@ -270,7 +270,7 @@ describe('createPkhexWorkerEngine', () => {
 		expect(result.value.bytes).toBeInstanceOf(Uint8Array);
 		expect([...result.value.bytes]).toEqual([4, 5, 6]);
 
-		const summary = engine.summarizeSave(result.value.bytes, 'main.sav');
+		engine.summarizeSave(result.value.bytes, 'main.sav');
 		await Promise.resolve();
 		const followUpRequest = worker.posted[2]?.message;
 		expect(followUpRequest).toMatchObject({ type: 'request', method: 'summarizeSave' });
