@@ -3,7 +3,6 @@
 	import { onMount, tick } from 'svelte';
 	import {
 		base64ToBytes,
-		createPkhexWorkerEngine,
 		type EngineApi,
 		type EngineError,
 		type PartySlotSummary,
@@ -26,46 +25,43 @@
 		type NavigationAction,
 		type SlotFocus
 	} from '$lib/pksx/box-navigation';
-	import { IndexedDbLocalLibraryStorage, type BackupMetadata } from '$lib/pksx/local-library';
 	import {
 		createCleanWorkspaceState,
-		createPersistedWorkspaceState,
-		createRestoredWorkspaceState,
 		markAutomaticBackupCreated,
-		preserveRestoredWorkspaceAsSave,
 		shouldCreateAutomaticBackup,
 		type WorkspaceState
 	} from '$lib/pksx/backup-workflow';
+	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
-	import BackupBrowser from '$lib/components/pksx/BackupBrowser.svelte';
+	import {
+		getCachedActiveWorkspaceBox,
+		getLocalLibraryStorage,
+		getPkhexEngine,
+		invalidateSaveLibraryCache,
+		loadActiveWorkspaceFromLibrary,
+		setCachedActiveWorkspace
+	} from '$lib/pksx/save-library-cache';
 	import BoxSidebar from '$lib/components/pksx/BoxSidebar.svelte';
 	import BoxSourceControls from '$lib/components/pksx/BoxSourceControls.svelte';
 	import ClearSlotConfirm from '$lib/components/pksx/ClearSlotConfirm.svelte';
 	import DetailRail from '$lib/components/pksx/DetailRail.svelte';
-	import MobileTabbar from '$lib/components/pksx/MobileTabbar.svelte';
+	import PokemonEditor from '$lib/components/pksx/PokemonEditor.svelte';
 	import SlotActionMenu from '$lib/components/pksx/SlotActionMenu.svelte';
 	import StatusStrip from '$lib/components/pksx/StatusStrip.svelte';
 	import StorageSlot from '$lib/components/pksx/StorageSlot.svelte';
 	import ToastRegion from '$lib/components/pksx/ToastRegion.svelte';
-	import TopBar from '$lib/components/pksx/TopBar.svelte';
 	import type { BoxNavItem, BoxSourceView, SlotView } from '$lib/components/pksx/types';
+	import {
+		createPokemonEditorState,
+		markUnsupportedPokemonEditorApply,
+		type PokemonEditorState
+	} from '$lib/pksx/pokemon-editor';
 
 	type ToastView = {
 		id: string;
 		tone: 'info' | 'success' | 'error';
 		message: string;
 	};
-
-	const placeholderBoxCount = 3;
-	const storage = new IndexedDbLocalLibraryStorage();
-
-	const slotPalette = [16, 28, 48, 100, 140, 180, 195, 210, 220, 260, 280, 295, 330, 52];
-	const sectionPills = ['Boxes', 'Editor', 'Saves'];
-	const mobileTabs = [
-		{ key: 'boxes', label: 'Boxes', glyph: '▦' },
-		{ key: 'editor', label: 'Editor', glyph: '✎' },
-		{ key: 'saves', label: 'Saves', glyph: '☁' }
-	];
 
 	type PendingSlotOperation = {
 		kind: 'move' | 'copy';
@@ -79,6 +75,12 @@
 		location: string;
 		pokemonLabel: string;
 	};
+
+	const placeholderBoxCount = 3;
+	const storage = getLocalLibraryStorage();
+
+	const slotPalette = [16, 28, 48, 100, 140, 180, 195, 210, 220, 260, 280, 295, 330, 52];
+	const mobileTabCount = 2;
 
 	function fallbackSlotHue(box: number, slot: number, speciesId: number | null): number {
 		const seed = speciesId && speciesId > 0 ? speciesId : slot * 31 + box * 7;
@@ -163,7 +165,14 @@
 			{ name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, pp: 40 }
 		],
 		originalTrainer: 'PKSX',
-		metLabel: 'Starter Box'
+		metLabel: 'Starter Box',
+		spriteIdentity: {
+			speciesId: 25,
+			form: 0,
+			isEgg: false,
+			isShiny: false,
+			displaySex: 'default'
+		}
 	} satisfies Partial<SlotView>;
 
 	const placeholderPartySlots: SlotView[] = Array.from({ length: PARTY_SLOT_COUNT }, (_, slot) => ({
@@ -174,6 +183,7 @@
 		speciesId: slot === 0 ? 25 : null,
 		form: slot === 0 ? 0 : null,
 		isEgg: false,
+		spriteIdentity: null,
 		kind: slot === 0 ? 'pokemon' : 'empty',
 		...(slot === 0 ? placeholderPokemonDetails : {})
 	}));
@@ -191,6 +201,7 @@
 					speciesId: featured ? 25 : null,
 					form: featured ? 0 : null,
 					isEgg: false,
+					spriteIdentity: null,
 					kind: featured ? ('pokemon' as const) : ('empty' as const),
 					...(featured ? placeholderPokemonDetails : {})
 				};
@@ -203,11 +214,9 @@
 	let importError = $state<string | null>(null);
 	let statusMessage = $state('Import a Save File to begin.');
 	let busy = $state(false);
-	let backups = $state<BackupMetadata[]>([]);
-	let backupBrowserOpen = $state(false);
-	let backupBrowserFocusIndex = $state(0);
+	let pokemonEditor = $state<PokemonEditorState | null>(null);
+	let pokemonEditorFeedback = $state<string | null>(null);
 	let partyCollapsed = $state(false);
-	let darkMode = $state(false);
 	let actionSurfaceTop = $state<number | null>(null);
 	let viewportWidth = $state(1024);
 	let pendingSlotOperation = $state<PendingSlotOperation | null>(null);
@@ -269,6 +278,7 @@
 						speciesId: null,
 						form: null,
 						isEgg: false,
+						spriteIdentity: null,
 						kind: 'empty' as const
 					}))
 				]
@@ -291,9 +301,35 @@
 			: `Party · Slot ${activeSlotFocus.slot + 1}`
 	);
 
+	$effect(() => {
+		updateAppChrome({
+			route: 'boxes',
+			saveSummary,
+			boxCount,
+			activeBox: navigation.activeBox,
+			fileName: loadedSave?.file.originalFileName ?? null,
+			busy,
+			hasLoadedSave: loadedSave !== null,
+			controllerInputActive: true,
+			importSave: (file) => void importSaveFile(file),
+			exportSave: exportLoadedSave
+		});
+
+		return () => {
+			updateAppChrome({ controllerInputActive: false });
+		};
+	});
+
 	function dispatch(action: NavigationAction) {
 		if (clearSlotConfirmation) {
 			dispatchClearSlotConfirmation(action);
+			return;
+		}
+
+		if (pokemonEditor) {
+			if (action === 'back') {
+				closePokemonEditor();
+			}
 			return;
 		}
 
@@ -311,8 +347,8 @@
 		const previousBox = navigation.activeBox;
 		navigation = applyNavigationAction(navigation, action, {
 			actionCount: getActionCountForFocusedSlot(),
-			topControlCount: 4,
-			mobileTabCount: mobileTabs.length,
+			topControlCount: 5,
+			mobileTabCount,
 			mobileTabsAvailable
 		});
 
@@ -328,12 +364,12 @@
 		void updateActionSurfaceAnchor();
 	}
 
-	function isSlotFocus(focus: typeof navigation.focus): focus is SlotFocus {
-		return focus.zone === 'party' || focus.zone === 'box';
-	}
-
 	function focusActiveControl() {
 		document.getElementById(activeFocusId)?.focus();
+	}
+
+	function isSlotFocus(focus: typeof navigation.focus): focus is SlotFocus {
+		return focus.zone === 'party' || focus.zone === 'box';
 	}
 
 	function dispatchClearSlotConfirmation(action: NavigationAction) {
@@ -360,6 +396,153 @@
 			case 'nextBox':
 				break;
 		}
+	}
+
+	function handleAppKeydown(event: KeyboardEvent) {
+		const action = keyboardAction(event);
+
+		if (!action) {
+			return;
+		}
+
+		if (pokemonEditor && isNativeEditorActivation(event, action)) {
+			return;
+		}
+
+		event.preventDefault();
+		if (pokemonEditor) {
+			dispatch(action);
+			return;
+		}
+
+		dispatch(action);
+	}
+
+	function keyboardAction(event: KeyboardEvent): NavigationAction | null {
+		switch (event.key) {
+			case 'ArrowUp':
+				return 'up';
+			case 'ArrowDown':
+				return 'down';
+			case 'ArrowLeft':
+				return 'left';
+			case 'ArrowRight':
+				return 'right';
+			case 'Enter':
+			case ' ':
+				return 'confirm';
+			case 'Escape':
+			case 'Backspace':
+				return 'back';
+			case '[':
+			case 'PageUp':
+				return 'previousBox';
+			case ']':
+			case 'PageDown':
+				return 'nextBox';
+			default:
+				return null;
+		}
+	}
+
+	function isNativeEditorActivation(event: KeyboardEvent, action: NavigationAction) {
+		if (action !== 'confirm') {
+			return false;
+		}
+
+		const target = event.target;
+		return target instanceof Element && target.closest('.pokemon-editor button');
+	}
+
+	function focusParty(slot: number) {
+		navigation = { ...navigation, focus: focusPartySlot(slot) };
+		queueMicrotask(focusActiveControl);
+	}
+
+	function focusBox(slot: number) {
+		navigation = { ...navigation, focus: focusBoxSlot(slot) };
+		queueMicrotask(focusActiveControl);
+	}
+
+	function selectBox(index: number) {
+		const previousBox = navigation.activeBox;
+		navigation = selectActiveBox(navigation, index);
+
+		if (loadedSave && navigation.activeBox !== previousBox) {
+			void loadWorkspaceForSave(loadedSave, navigation.activeBox);
+		}
+
+		queueMicrotask(focusActiveControl);
+	}
+
+	function openFocusedSlot() {
+		dispatch('confirm');
+	}
+
+	function closeActionSurface() {
+		pokemonEditor = null;
+		pokemonEditorFeedback = null;
+		dispatch('back');
+	}
+
+	function slotRefForFocus(focus: SlotFocus = activeSlotFocus): SaveSlotRef {
+		return focus.zone === 'party'
+			? { zone: 'party', slot: focus.slot }
+			: { zone: 'box', box: navigation.activeBox, slot: focus.slot };
+	}
+
+	function slotRefKey(ref: SaveSlotRef): string {
+		return ref.zone === 'party' ? `party:${ref.slot}` : `box:${ref.box}:${ref.slot}`;
+	}
+
+	function locationForSlotRef(ref: SaveSlotRef): string {
+		return ref.zone === 'party'
+			? `Party Slot ${ref.slot + 1}`
+			: `${boxNameFor(ref.box)} Slot ${ref.slot + 1}`;
+	}
+
+	function slotForRef(ref: SaveSlotRef): SlotView | null {
+		if (ref.zone === 'party') {
+			return partySlots[ref.slot] ?? null;
+		}
+
+		if (ref.box !== navigation.activeBox) {
+			return null;
+		}
+
+		return visibleBoxSlots[ref.slot] ?? null;
+	}
+
+	function destinationStateFor(
+		ref: SaveSlotRef,
+		slot: SlotView
+	): 'valid' | 'invalid' | 'source' | null {
+		if (!pendingSlotOperation) {
+			return null;
+		}
+
+		if (slotRefKey(ref) === slotRefKey(pendingSlotOperation.source)) {
+			return 'source';
+		}
+
+		if (pendingSlotOperation.kind === 'copy' && slot.kind === 'pokemon') {
+			return 'invalid';
+		}
+
+		if (isInvalidPartyAppendDestination(ref, slot)) {
+			return 'invalid';
+		}
+
+		return 'valid';
+	}
+
+	function isInvalidPartyAppendDestination(ref: SaveSlotRef, slot: SlotView | null): boolean {
+		return (
+			ref.zone === 'party' &&
+			slot?.kind === 'empty' &&
+			loadedSave !== null &&
+			ref.slot > loadedSave.workspace.summary.partyCount
+		);
 	}
 
 	async function completePendingSlotOperation(destination: SaveSlotRef) {
@@ -431,7 +614,6 @@
 				});
 				workingState = markAutomaticBackupCreated(workingState);
 				loadedSave = workingState;
-				backups = await storage.listBackups(workingState.file.id);
 			}
 
 			statusMessage = 'Applying Slot change...';
@@ -457,18 +639,20 @@
 				await persistWorkspace(nextState);
 			}
 			loadedSave = nextState;
+			setCachedActiveWorkspace(nextState, navigation.activeBox);
+			invalidateSaveLibraryCache();
 			pendingSlotOperation = null;
 			const focusRef = operation.kind === 'clear' ? operation.source : operation.destination;
 			navigation = {
 				...navigation,
 				activeBox: focusRef.zone === 'box' ? focusRef.box : navigation.activeBox,
 				boxCount: Math.max(1, result.value.workspace.summary.boxCount),
-				focus: focusRef.zone === 'party' ? focusPartySlot(focusRef.slot) : focusBoxSlot(focusRef.slot),
+				focus:
+					focusRef.zone === 'party' ? focusPartySlot(focusRef.slot) : focusBoxSlot(focusRef.slot),
 				actionSurfaceOpen: false,
 				actionOrigin: null
 			};
-			const message = successMessageForSlotOperation(operation, moveWasSwap);
-			statusMessage = message;
+			statusMessage = successMessageForSlotOperation(operation, moveWasSwap);
 			queueMicrotask(focusActiveControl);
 		} catch (error) {
 			const message = getErrorMessage(error);
@@ -494,144 +678,6 @@
 			: `Moved to ${locationForSlotRef(operation.destination)}.`;
 	}
 
-	function showToast(tone: ToastView['tone'], message: string) {
-		const id = `toast-${nextToastId}`;
-		nextToastId += 1;
-		toasts = [...toasts, { id, tone, message }].slice(-3);
-		setTimeout(() => dismissToast(id), tone === 'error' ? 5200 : 3400);
-	}
-
-	function dismissToast(id: string) {
-		toasts = toasts.filter((toast) => toast.id !== id);
-	}
-
-	function handleAppKeydown(event: KeyboardEvent) {
-		const action = keyboardAction(event);
-
-		if (!action) {
-			return;
-		}
-
-		event.preventDefault();
-		if (backupBrowserOpen) {
-			dispatchBackupBrowser(action);
-			return;
-		}
-
-		dispatch(action);
-	}
-
-	function keyboardAction(event: KeyboardEvent): NavigationAction | null {
-		switch (event.key) {
-			case 'ArrowUp':
-				return 'up';
-			case 'ArrowDown':
-				return 'down';
-			case 'ArrowLeft':
-				return 'left';
-			case 'ArrowRight':
-				return 'right';
-			case 'Enter':
-			case ' ':
-				return 'confirm';
-			case 'Escape':
-			case 'Backspace':
-				return 'back';
-			case '[':
-			case 'PageUp':
-				return 'previousBox';
-			case ']':
-			case 'PageDown':
-				return 'nextBox';
-			default:
-				return null;
-		}
-	}
-
-	function focusParty(slot: number) {
-		navigation = { ...navigation, focus: focusPartySlot(slot) };
-		queueMicrotask(focusActiveControl);
-	}
-
-	function focusBox(slot: number) {
-		navigation = { ...navigation, focus: focusBoxSlot(slot) };
-		queueMicrotask(focusActiveControl);
-	}
-
-	function selectBox(index: number) {
-		const previousBox = navigation.activeBox;
-		navigation = selectActiveBox(navigation, index);
-
-		if (loadedSave && navigation.activeBox !== previousBox) {
-			void loadWorkspaceForSave(loadedSave, navigation.activeBox);
-		}
-
-		queueMicrotask(focusActiveControl);
-	}
-
-	function openFocusedSlot() {
-		dispatch('confirm');
-	}
-
-	function closeActionSurface() {
-		dispatch('back');
-	}
-
-	function slotRefForFocus(focus: SlotFocus = activeSlotFocus): SaveSlotRef {
-		return focus.zone === 'party'
-			? { zone: 'party', slot: focus.slot }
-			: { zone: 'box', box: navigation.activeBox, slot: focus.slot };
-	}
-
-	function slotRefKey(ref: SaveSlotRef): string {
-		return ref.zone === 'party' ? `party:${ref.slot}` : `box:${ref.box}:${ref.slot}`;
-	}
-
-	function locationForSlotRef(ref: SaveSlotRef): string {
-		return ref.zone === 'party' ? `Party Slot ${ref.slot + 1}` : `${boxNameFor(ref.box)} Slot ${ref.slot + 1}`;
-	}
-
-	function slotForRef(ref: SaveSlotRef): SlotView | null {
-		if (ref.zone === 'party') {
-			return partySlots[ref.slot] ?? null;
-		}
-
-		if (ref.box !== navigation.activeBox) {
-			return null;
-		}
-
-		return visibleBoxSlots[ref.slot] ?? null;
-	}
-
-	function destinationStateFor(ref: SaveSlotRef, slot: SlotView): 'valid' | 'invalid' | 'source' | null {
-		if (!pendingSlotOperation) {
-			return null;
-		}
-
-		if (slotRefKey(ref) === slotRefKey(pendingSlotOperation.source)) {
-			return 'source';
-		}
-
-		if (pendingSlotOperation.kind === 'copy' && slot.kind === 'pokemon') {
-			return 'invalid';
-		}
-
-		if (isInvalidPartyAppendDestination(ref, slot)) {
-			return 'invalid';
-		}
-
-		return 'valid';
-	}
-
-	function isInvalidPartyAppendDestination(ref: SaveSlotRef, slot: SlotView | null): boolean {
-		return (
-			ref.zone === 'party' &&
-			slot?.kind === 'empty' &&
-			loadedSave !== null &&
-			ref.slot > loadedSave.workspace.summary.partyCount
-		);
-	}
-
 	function beginPendingSlotOperation(kind: 'move' | 'copy') {
 		const source = slotRefForFocus();
 		const slot = focusedSlot;
@@ -646,7 +692,14 @@
 			sourceLabel: locationForSlotRef(source),
 			sourcePokemonLabel: slot.label
 		};
-		navigation = { ...navigation, actionSurfaceOpen: false, actionOrigin: null, focus: activeSlotFocus };
+		pokemonEditor = null;
+		pokemonEditorFeedback = null;
+		navigation = {
+			...navigation,
+			actionSurfaceOpen: false,
+			actionOrigin: null,
+			focus: activeSlotFocus
+		};
 		queueMicrotask(focusActiveControl);
 	}
 
@@ -679,7 +732,14 @@
 			pokemonLabel: slot.label
 		};
 		clearSlotConfirmFocusIndex = 0;
-		navigation = { ...navigation, actionSurfaceOpen: false, actionOrigin: null, focus: activeSlotFocus };
+		pokemonEditor = null;
+		pokemonEditorFeedback = null;
+		navigation = {
+			...navigation,
+			actionSurfaceOpen: false,
+			actionOrigin: null,
+			focus: activeSlotFocus
+		};
 		queueMicrotask(focusClearSlotConfirmation);
 	}
 
@@ -713,28 +773,15 @@
 		clearSlotConfirmFocusIndex = 0;
 	}
 
-	function handleSlotActionCommand(command: string) {
-		switch (command) {
-			case 'move':
-				beginPendingSlotOperation('move');
-				break;
-			case 'copy':
-				beginPendingSlotOperation('copy');
-				break;
-			case 'clear':
-				requestClearFocusedSlot();
-				break;
-			default:
-				break;
-		}
+	function showToast(tone: ToastView['tone'], message: string) {
+		const id = `toast-${nextToastId}`;
+		nextToastId += 1;
+		toasts = [...toasts, { id, tone, message }].slice(-3);
+		setTimeout(() => dismissToast(id), tone === 'error' ? 5200 : 3400);
 	}
 
-	function focusTopControl(index: number) {
-		navigation = { ...navigation, focus: { zone: 'topbar', index } };
-	}
-
-	function focusMobileTab(index: number) {
-		navigation = { ...navigation, focus: { zone: 'mobileTabs', index } };
+	function dismissToast(id: string) {
+		toasts = toasts.filter((toast) => toast.id !== id);
 	}
 
 	function focusActionCommand(index: number) {
@@ -749,37 +796,93 @@
 
 	function activateFocusedControl(focus = navigation.focus) {
 		if (focus.zone === 'topbar') {
-			switch (focus.index) {
-				case 0:
-					if (!busy) {
-						openImportPicker();
-					}
-					break;
-				case 1:
-					if (!busy && loadedSave) {
-						void exportLoadedSave();
-					}
-					break;
-				case 2:
-					if (!busy && loadedSave) {
-						void openBackupBrowser();
-					}
-					break;
-				case 3:
-					darkMode = !darkMode;
-					break;
-			}
+			document.getElementById(`top-control-${focus.index}`)?.click();
+		}
+
+		if (focus.zone === 'mobileTabs') {
+			document.getElementById(`mobile-tab-${focus.index}`)?.click();
 		}
 
 		if (focus.zone === 'actions') {
-			const commands = focusedSlot.kind === 'pokemon'
-				? ['pokemon-action', 'move', 'copy', 'clear', 'export', 'legality-check', 'create-pokemon']
-				: ['create-pokemon', 'move', 'copy', 'export', 'legality-check'];
+			const commands =
+				focusedSlot.kind === 'pokemon'
+					? [
+							'pokemon-action',
+							'move',
+							'copy',
+							'clear',
+							'export',
+							'legality-check',
+							'create-pokemon'
+						]
+					: ['create-pokemon', 'move', 'copy', 'export', 'legality-check'];
 			const command = commands[focus.index];
 			if (command) {
-				handleSlotActionCommand(command);
+				selectSlotActionCommand(command);
 			}
 		}
+	}
+
+	function selectSlotActionCommand(command: string) {
+		switch (command) {
+			case 'pokemon-action':
+				openPokemonEditor();
+				break;
+			case 'move':
+				beginPendingSlotOperation('move');
+				break;
+			case 'copy':
+				beginPendingSlotOperation('copy');
+				break;
+			case 'clear':
+				requestClearFocusedSlot();
+				break;
+			default:
+				break;
+		}
+	}
+
+	function openPokemonEditor() {
+		if (!navigation.actionSurfaceOpen || focusedSlot.kind !== 'pokemon') {
+			return;
+		}
+
+		const result = createPokemonEditorState(
+			{
+				owner: 'save-file',
+				location: activeSlotPositionLabel
+			},
+			focusedSlot
+		);
+
+		if (!result.ok) {
+			statusMessage = result.reason;
+			return;
+		}
+
+		pokemonEditor = result.state;
+		pokemonEditorFeedback = null;
+		queueMicrotask(focusPokemonEditorClose);
+	}
+
+	function closePokemonEditor() {
+		pokemonEditor = null;
+		pokemonEditorFeedback = null;
+		navigation = { ...navigation, focus: { zone: 'actions', index: 0 } };
+		queueMicrotask(focusActiveControl);
+	}
+
+	function focusPokemonEditorClose() {
+		document.getElementById('pokemon-editor-close')?.focus();
+	}
+
+	function markPokemonEditorApplyUnsupported() {
+		if (!pokemonEditor) {
+			return;
+		}
+
+		pokemonEditor = markUnsupportedPokemonEditorApply(pokemonEditor);
+		pokemonEditorFeedback = pokemonEditor.unsupportedReason;
 	}
 
 	async function updateActionSurfaceAnchor() {
@@ -819,13 +922,19 @@
 			return;
 		}
 
+		if (pokemonEditor) {
+			return;
+		}
+
 		const target = event.target;
 
 		if (!(target instanceof Element)) {
 			return;
 		}
 
-		if (target.closest('.slot-cell, .slot-context, .box-switcher, .party-toggle')) {
+		if (
+			target.closest('.slot-cell, .slot-context, .box-switcher, .party-toggle, .pokemon-editor')
+		) {
 			return;
 		}
 
@@ -913,45 +1022,9 @@
 	}
 
 	onMount(() => {
-		engine = createPkhexWorkerEngine('/pkhex-engine');
+		engine = getPkhexEngine();
 		void restoreMostRecentSave();
 	});
-
-	function openImportPicker() {
-		document.getElementById('save-file-input')?.click();
-	}
-
-	async function handleImport(event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
-		const file = input.files?.[0];
-		input.value = '';
-
-		if (!file) {
-			return;
-		}
-
-		busy = true;
-		workspaceLoadRequest += 1;
-		importError = null;
-		statusMessage = `Reading ${file.name}...`;
-
-		try {
-			const bytes = new Uint8Array(await file.arrayBuffer());
-			const workspace = await loadWorkspace(bytes, file.name, 0);
-			const stored = await storage.importSave({ bytes, originalFileName: file.name });
-
-			loadedSave = createCleanWorkspaceState({ file: stored, bytes, workspace });
-			await storage.clearWorkspace(stored.id);
-			backups = [];
-			navigation = createInitialNavigationState(workspace.summary.boxCount);
-			statusMessage = `${file.name} loaded.`;
-		} catch (error) {
-			importError = getErrorMessage(error);
-			statusMessage = loadedSave ? 'Import failed. Current save remains loaded.' : 'Import failed.';
-		} finally {
-			busy = false;
-		}
-	}
 
 	async function restoreMostRecentSave() {
 		busy = true;
@@ -959,42 +1032,23 @@
 		importError = null;
 
 		try {
-			const [saveFile] = await storage.listSaves();
-
-			if (!saveFile) {
-				statusMessage = 'Import a Save File to begin.';
+			const restored = await loadActiveWorkspaceFromLibrary();
+			if (!restored) {
+				statusMessage = 'Open Saves to import a Save File.';
 				return;
 			}
 
-			const [bytes, persistedWorkspace] = await Promise.all([
-				storage.getSaveBytes(saveFile.id),
-				storage.getWorkspace(saveFile.id)
-			]);
-			if (!bytes) {
-				statusMessage = 'The most recent Save File is missing its stored bytes.';
-				return;
-			}
-
-			const workspaceBytes = persistedWorkspace?.bytes ?? bytes;
-			const workspace = await loadWorkspace(
-				workspaceBytes,
-				saveFile.originalFileName ?? undefined,
-				0
+			loadedSave = restored;
+			navigation = selectActiveBox(
+				createInitialNavigationState(restored.workspace.summary.boxCount),
+				Math.min(
+					getCachedActiveWorkspaceBox(),
+					Math.max(0, restored.workspace.summary.boxCount - 1)
+				)
 			);
-			loadedSave = persistedWorkspace
-				? createPersistedWorkspaceState({
-						file: saveFile,
-						bytes: persistedWorkspace.bytes,
-						workspace,
-						dirty: persistedWorkspace.dirty,
-						automaticBackupCreated: persistedWorkspace.automaticBackupCreated
-					})
-				: createCleanWorkspaceState({ file: saveFile, bytes, workspace });
-			backups = await storage.listBackups(saveFile.id);
-			navigation = createInitialNavigationState(workspace.summary.boxCount);
-			statusMessage = persistedWorkspace
-				? `${saveFile.originalFileName ?? 'Save File'} restored from Local Library with unexported changes.`
-				: `${saveFile.originalFileName ?? 'Save File'} restored from Local Library.`;
+			statusMessage = restored.dirty
+				? `${restored.file.originalFileName ?? 'Save File'} restored from Local Library with unexported changes.`
+				: `${restored.file.originalFileName ?? 'Save File'} restored from Local Library.`;
 		} catch (error) {
 			importError = getErrorMessage(error);
 			statusMessage = 'Could not restore the most recent Save File.';
@@ -1020,6 +1074,7 @@
 				loadedSave?.file.id === save.file.id
 			) {
 				loadedSave = { ...save, workspace };
+				setCachedActiveWorkspace(loadedSave, box);
 			}
 		} catch (error) {
 			if (request === workspaceLoadRequest) {
@@ -1053,6 +1108,37 @@
 			dirty: state.dirty,
 			automaticBackupCreated: state.automaticBackupCreated
 		});
+	}
+
+	async function importSaveFile(file: File) {
+		const request = (workspaceLoadRequest += 1);
+		busy = true;
+		importError = null;
+		statusMessage = `Reading ${file.name}...`;
+
+		try {
+			const bytes = new Uint8Array(await file.arrayBuffer());
+			const workspace = await loadWorkspace(bytes, file.name, 0);
+			const saveFile = await storage.importSave({ bytes, originalFileName: file.name });
+			await storage.clearWorkspace(saveFile.id);
+
+			if (request === workspaceLoadRequest) {
+				loadedSave = createCleanWorkspaceState({ file: saveFile, bytes, workspace });
+				setCachedActiveWorkspace(loadedSave, 0);
+				invalidateSaveLibraryCache();
+				navigation = createInitialNavigationState(workspace.summary.boxCount);
+				statusMessage = `${file.name} imported and made active.`;
+			}
+		} catch (error) {
+			if (request === workspaceLoadRequest) {
+				importError = getErrorMessage(error);
+				statusMessage = 'Import failed. Current active Save File was not changed.';
+			}
+		} finally {
+			if (request === workspaceLoadRequest) {
+				busy = false;
+			}
+		}
 	}
 
 	async function exportLoadedSave() {
@@ -1090,220 +1176,6 @@
 		}
 	}
 
-	async function openBackupBrowser() {
-		if (!loadedSave) {
-			return;
-		}
-
-		backupBrowserOpen = true;
-		backupBrowserFocusIndex = 0;
-		await refreshBackups();
-		queueMicrotask(focusBackupCommand);
-	}
-
-	function closeBackupBrowser() {
-		backupBrowserOpen = false;
-		navigation = { ...navigation, focus: { zone: 'topbar', index: 2 } };
-		queueMicrotask(focusActiveControl);
-	}
-
-	async function refreshBackups() {
-		if (!loadedSave) {
-			backups = [];
-			return;
-		}
-
-		backups = await storage.listBackups(loadedSave.file.id);
-	}
-
-	function getBackupCommandCount() {
-		return backups.length + 3;
-	}
-
-	function focusBackupCommand(index = backupBrowserFocusIndex) {
-		document.getElementById(`backup-command-${index}`)?.focus();
-	}
-
-	function focusBackupBrowserCommand(index: number) {
-		backupBrowserFocusIndex = Math.max(0, Math.min(index, getBackupCommandCount() - 1));
-		queueMicrotask(focusBackupCommand);
-	}
-
-	function dispatchBackupBrowser(action: NavigationAction) {
-		switch (action) {
-			case 'up':
-			case 'left':
-				focusBackupBrowserCommand(backupBrowserFocusIndex - 1);
-				break;
-			case 'down':
-			case 'right':
-				focusBackupBrowserCommand(backupBrowserFocusIndex + 1);
-				break;
-			case 'back':
-				closeBackupBrowser();
-				break;
-			case 'confirm':
-				activateBackupCommand(backupBrowserFocusIndex);
-				break;
-			case 'previousBox':
-			case 'nextBox':
-				break;
-		}
-	}
-
-	function activateBackupCommand(index: number) {
-		if (busy) {
-			return;
-		}
-
-		if (index === 0) {
-			void createManualBackup();
-			return;
-		}
-
-		if (index === 1) {
-			void keepRestoredWorkspaceAsSeparateSave();
-			return;
-		}
-
-		if (index === backups.length + 2) {
-			closeBackupBrowser();
-			return;
-		}
-
-		const backup = backups[index - 2];
-		if (backup) {
-			void restoreBackup(backup);
-		}
-	}
-
-	async function createManualBackup() {
-		if (!loadedSave) {
-			return;
-		}
-
-		busy = true;
-		importError = null;
-		statusMessage = 'Creating Backup...';
-
-		try {
-			await storage.createBackup({
-				saveFileId: loadedSave.file.id,
-				bytes: loadedSave.bytes,
-				reason: 'manual'
-			});
-			await refreshBackups();
-			backupBrowserFocusIndex = 0;
-			statusMessage = 'Backup created.';
-			queueMicrotask(focusBackupCommand);
-		} catch (error) {
-			importError = getErrorMessage(error);
-			statusMessage = 'Backup failed.';
-		} finally {
-			busy = false;
-		}
-	}
-
-	async function restoreBackup(backup: BackupMetadata) {
-		if (!loadedSave) {
-			return;
-		}
-
-		if (
-			loadedSave.dirty &&
-			!window.confirm(
-				'Restore this Backup? Current unexported Workspace changes will be left behind.'
-			)
-		) {
-			return;
-		}
-
-		busy = true;
-		importError = null;
-		statusMessage = 'Restoring Backup...';
-
-		try {
-			const [backupBytes, currentSaveBytes] = await Promise.all([
-				storage.getBackupBytes(backup.id),
-				storage.getSaveBytes(backup.saveFileId)
-			]);
-
-			if (!backupBytes) {
-				throw new Error('Backup bytes are missing.');
-			}
-
-			if (!currentSaveBytes) {
-				throw new Error('The Backup source Save File is missing its stored bytes.');
-			}
-
-			const targetBox = Math.min(navigation.activeBox, Math.max(0, boxCount - 1));
-			const workspace = await loadWorkspace(
-				backupBytes,
-				loadedSave.file.originalFileName ?? undefined,
-				targetBox
-			);
-			const restoredState = createRestoredWorkspaceState({
-				file: loadedSave.file,
-				bytes: backupBytes,
-				currentSaveBytes,
-				workspace,
-				source: {
-					id: backup.id,
-					createdAt: backup.createdAt,
-					reason: backup.reason
-				}
-			});
-			if (restoredState.dirty) {
-				await persistWorkspace(restoredState);
-			} else {
-				await storage.clearWorkspace(restoredState.file.id);
-			}
-			loadedSave = restoredState;
-			navigation = selectActiveBox(
-				{ ...navigation, boxCount: Math.max(1, workspace.summary.boxCount) },
-				Math.min(navigation.activeBox, Math.max(0, workspace.summary.boxCount - 1))
-			);
-			backupBrowserOpen = false;
-			statusMessage = restoredState.dirty
-				? 'Backup restored. Workspace has unexported restored state.'
-				: 'Backup restored.';
-			queueMicrotask(focusActiveControl);
-		} catch (error) {
-			importError = getErrorMessage(error);
-			statusMessage = 'Backup restore failed.';
-		} finally {
-			busy = false;
-		}
-	}
-
-	async function keepRestoredWorkspaceAsSeparateSave() {
-		if (!loadedSave?.restoredFromBackup) {
-			return;
-		}
-
-		busy = true;
-		importError = null;
-		statusMessage = 'Keeping restored Backup as a Save File...';
-
-		try {
-			const stored = await storage.importSave({
-				bytes: loadedSave.bytes,
-				originalFileName: createRestoredSaveFileName(loadedSave.file.originalFileName)
-			});
-			await storage.clearWorkspace(stored.id);
-			loadedSave = preserveRestoredWorkspaceAsSave(loadedSave, stored);
-			backups = [];
-			backupBrowserOpen = false;
-			statusMessage = 'Restored Backup kept as a separate Save File.';
-			queueMicrotask(focusActiveControl);
-		} catch (error) {
-			importError = getErrorMessage(error);
-			statusMessage = 'Could not keep restored Backup as a Save File.';
-		} finally {
-			busy = false;
-		}
-	}
-
 	function downloadBytes(bytes: Uint8Array, fileName: string) {
 		const downloadBytes = new Uint8Array(bytes.byteLength);
 		downloadBytes.set(bytes);
@@ -1332,19 +1204,6 @@
 		return `${fileName.slice(0, lastDot)}.pksx${fileName.slice(lastDot)}`;
 	}
 
-	function createRestoredSaveFileName(fileName: string | null) {
-		if (!fileName) {
-			return 'pksx-restored.sav';
-		}
-
-		const lastDot = fileName.lastIndexOf('.');
-		if (lastDot <= 0) {
-			return `${fileName}.restored`;
-		}
-
-		return `${fileName.slice(0, lastDot)}.restored${fileName.slice(lastDot)}`;
-	}
-
 	function createPartySlotViews(slots: PartySlotSummary[]): SlotView[] {
 		const slotViews = slots.map((slot) => createSlotView(slot));
 
@@ -1358,6 +1217,7 @@
 				speciesId: null,
 				form: null,
 				isEgg: false,
+				spriteIdentity: null,
 				kind: 'empty'
 			});
 		}
@@ -1378,6 +1238,7 @@
 			speciesId: slot.isEmpty ? null : slot.speciesId,
 			form: slot.isEmpty ? null : slot.form,
 			isEgg: !slot.isEmpty && slot.isEgg,
+			spriteIdentity: slot.isEmpty ? null : slot.spriteIdentity,
 			kind: slot.isEmpty ? 'empty' : 'pokemon',
 			gender: slot.gender ?? undefined,
 			nature: slot.nature ?? undefined,
@@ -1392,7 +1253,7 @@
 	}
 
 	function spriteUrlFor(slot: SlotView): string | null {
-		const entry = resolveSpriteCatalogEntry(slot);
+		const entry = resolveSpriteCatalogEntry(slot.spriteIdentity);
 		return entry ? asset(entry.path) : null;
 	}
 
@@ -1430,29 +1291,7 @@
 	onresize={handleWindowResize}
 />
 
-<main
-	class={['app-shell', darkMode && 'dark']}
-	aria-labelledby="screen-title"
-	{@attach gamepadNavigation}
->
-	<TopBar
-		{sectionPills}
-		{saveSummary}
-		{boxCount}
-		activeBox={navigation.activeBox}
-		fileName={loadedSave?.file.originalFileName ?? null}
-		{busy}
-		hasLoadedSave={loadedSave !== null}
-		{darkMode}
-		focusIndex={navigation.focus.zone === 'topbar' ? navigation.focus.index : null}
-		onFocusControl={focusTopControl}
-		onImport={handleImport}
-		onOpenImportPicker={openImportPicker}
-		onExport={exportLoadedSave}
-		onOpenBackups={openBackupBrowser}
-		onToggleTheme={() => (darkMode = !darkMode)}
-	/>
-
+<section class="boxes-route" aria-label="Boxes workspace" {@attach gamepadNavigation}>
 	{#if importError}
 		<StatusStrip variant="error" label="Import error" message={importError} />
 	{/if}
@@ -1516,8 +1355,8 @@
 								rowIndex={slot.slot + 1}
 								colIndex={1}
 								spriteUrl={spriteUrlFor(slot)}
-								destinationState={destinationStateFor(partyRef, slot)}
 								collapsed={partyCollapsed}
+								destinationState={destinationStateFor(partyRef, slot)}
 								onFocusSlot={() => focusParty(slot.slot)}
 								onChooseSlot={pendingSlotOperation
 									? () => {
@@ -1534,7 +1373,7 @@
 									mobileTop={actionSurfaceTop}
 									activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
 									onFocusCommand={focusActionCommand}
-									onCommand={handleSlotActionCommand}
+									onSelectCommand={selectSlotActionCommand}
 									onClose={closeActionSurface}
 								/>
 							{/if}
@@ -1602,7 +1441,7 @@
 									mobileTop={actionSurfaceTop}
 									activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
 									onFocusCommand={focusActionCommand}
-									onCommand={handleSlotActionCommand}
+									onSelectCommand={selectSlotActionCommand}
 									onClose={closeActionSurface}
 								/>
 							{/if}
@@ -1640,41 +1479,32 @@
 			positionLabel={activeSlotPositionLabel}
 		/>
 	</section>
+</section>
 
-	<MobileTabbar
-		tabs={mobileTabs}
-		focusIndex={navigation.focus.zone === 'mobileTabs' ? navigation.focus.index : null}
-		onFocusTab={focusMobileTab}
+{#if pokemonEditor}
+	<PokemonEditor
+		editor={pokemonEditor}
+		{saveSummary}
+		spriteUrl={spriteUrlFor(pokemonEditor.slot)}
+		slotHueStyle={slotStyle(pokemonEditor.slot, navigation.activeBox)}
+		feedback={pokemonEditorFeedback}
+		onUnsupportedApply={markPokemonEditorApplyUnsupported}
+		onClose={closePokemonEditor}
 	/>
+{/if}
 
-	{#if backupBrowserOpen}
-		<BackupBrowser
-			{backups}
-			{busy}
-			dirty={loadedSave?.dirty ?? false}
-			restored={Boolean(loadedSave?.restoredFromBackup)}
-			activeIndex={backupBrowserFocusIndex}
-			onFocusCommand={focusBackupBrowserCommand}
-			onCreateManualBackup={createManualBackup}
-			onRestoreBackup={restoreBackup}
-			onKeepAsSeparateSave={keepRestoredWorkspaceAsSeparateSave}
-			onClose={closeBackupBrowser}
-		/>
-	{/if}
+{#if clearSlotConfirmation}
+	<ClearSlotConfirm
+		location={clearSlotConfirmation.location}
+		pokemonLabel={clearSlotConfirmation.pokemonLabel}
+		activeIndex={clearSlotConfirmFocusIndex}
+		onFocusCommand={setClearSlotCommandFocus}
+		onCancel={cancelClearSlot}
+		onConfirm={confirmClearSlot}
+	/>
+{/if}
 
-	{#if clearSlotConfirmation}
-		<ClearSlotConfirm
-			location={clearSlotConfirmation.location}
-			pokemonLabel={clearSlotConfirmation.pokemonLabel}
-			activeIndex={clearSlotConfirmFocusIndex}
-			onFocusCommand={setClearSlotCommandFocus}
-			onCancel={cancelClearSlot}
-			onConfirm={confirmClearSlot}
-		/>
-	{/if}
-
-	<ToastRegion {toasts} onDismiss={dismissToast} />
-</main>
+<ToastRegion {toasts} onDismiss={dismissToast} />
 
 <style>
 	:global(html),
@@ -1704,48 +1534,12 @@
 		cursor: pointer;
 	}
 
-	.app-shell,
-	.app-shell * {
-		box-sizing: border-box;
-	}
-
-	.app-shell {
-		--paper: var(--pksx-color-surface-canvas);
-		--paper-hi: var(--pksx-color-surface-panel);
-		--paper-deep: var(--pksx-color-surface-subtle);
-		--ink: var(--pksx-color-text-primary);
-		--ink-soft: var(--pksx-color-text-secondary);
-		--ink-mute: var(--pksx-color-text-muted);
-		--rule: var(--pksx-color-border-subtle);
-		--rule-hi: var(--pksx-color-border-strong);
-		--rust: var(--pksx-color-accent-primary);
-		--rust-wash: var(--pksx-color-accent-wash);
-		--rust-ring: var(--pksx-color-accent-ring);
-		--gold: var(--pksx-color-accent-gold);
-		--ok: var(--pksx-color-feedback-success);
-		--err: var(--pksx-color-feedback-danger);
-		--shadow: var(--pksx-shadow-raised);
-		--shadow-sm: var(--pksx-shadow-subtle);
-		--shadow-deep: var(--pksx-shadow-panel);
-		height: 100dvh;
-		min-height: 100dvh;
-		padding: 18px;
+	.boxes-route {
+		flex: 1 1 auto;
+		min-height: 0;
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-		overflow: hidden;
-		background:
-			radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.5), transparent 40%),
-			radial-gradient(circle at 80% 90%, rgba(184, 88, 56, 0.05), transparent 50%),
-			repeating-linear-gradient(45deg, transparent 0 6px, rgba(70, 50, 30, 0.012) 6px 7px),
-			var(--paper);
-		color: var(--ink);
-	}
-
-	.app-shell.dark {
-		background:
-			radial-gradient(circle at 20% 10%, rgba(255, 138, 92, 0.04), transparent 50%),
-			radial-gradient(circle at 80% 90%, rgba(120, 140, 180, 0.04), transparent 55%), var(--paper);
 	}
 
 	.storage-workspace {
@@ -1925,14 +1719,6 @@
 	}
 
 	@media (max-width: 820px) {
-		.app-shell {
-			height: auto;
-			min-height: 100dvh;
-			padding: 10px 10px 78px;
-			gap: 10px;
-			overflow: visible;
-		}
-
 		.storage-workspace,
 		.workspace-column,
 		.party-zone,

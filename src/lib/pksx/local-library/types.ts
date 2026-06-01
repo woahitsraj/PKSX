@@ -59,8 +59,12 @@ export type LocalLibraryStorage = {
 	putWorkspace(input: PutWorkspaceInput): Promise<StoredWorkspace>;
 	getWorkspace(saveFileId: SaveFileId): Promise<StoredWorkspace | null>;
 	clearWorkspace(saveFileId: SaveFileId): Promise<void>;
+	getActiveSaveFileId(): Promise<SaveFileId | null>;
+	setActiveSaveFileId(saveFileId: SaveFileId): Promise<StoredSaveFile>;
+	deleteSave(saveFileId: SaveFileId): Promise<void>;
 	createBackup(input: CreateBackupInput): Promise<BackupMetadata>;
 	listBackups(saveFileId: SaveFileId): Promise<BackupMetadata[]>;
 	getBackupBytes(backupId: BackupId): Promise<Uint8Array | null>;
+	deleteBackup(backupId: BackupId): Promise<void>;
 	exportSave(saveFileId: SaveFileId): Promise<Uint8Array | null>;
 };

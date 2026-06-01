@@ -11,13 +11,15 @@ import type {
 	StoredWorkspace
 } from './types';
 
-const databaseVersion = 2;
+const databaseVersion = 3;
 const saveFilesStore = 'saveFiles';
 const saveBytesStore = 'saveBytes';
 const workspacesStore = 'workspaces';
 const backupsStore = 'backups';
 const backupBytesStore = 'backupBytes';
+const appStateStore = 'appState';
 const backupsBySaveFileIdIndex = 'bySaveFileId';
+const activeSaveFileIdKey = 'activeSaveFileId';
 
 type SaveBytesRecord = {
 	saveFileId: SaveFileId;
@@ -30,6 +32,11 @@ type BackupBytesRecord = {
 };
 
 type WorkspaceRecord = StoredWorkspace;
+
+type AppStateRecord = {
+	key: string;
+	value: string | null;
+};
 
 export type IndexedDbLocalLibraryStorageOptions = {
 	databaseName?: string;
@@ -60,12 +67,19 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 
 		const database = await openLocalLibraryDatabase(this.#databaseName);
 		try {
-			const transaction = database.transaction([saveFilesStore, saveBytesStore], 'readwrite');
+			const transaction = database.transaction(
+				[saveFilesStore, saveBytesStore, appStateStore],
+				'readwrite'
+			);
 			transaction.objectStore(saveFilesStore).put(saveFile);
 			transaction.objectStore(saveBytesStore).put({
 				saveFileId: saveFile.id,
 				bytes: copyBytes(input.bytes)
 			} satisfies SaveBytesRecord);
+			transaction.objectStore(appStateStore).put({
+				key: activeSaveFileIdKey,
+				value: saveFile.id
+			} satisfies AppStateRecord);
 			await transactionDone(transaction);
 		} finally {
 			database.close();
@@ -173,6 +187,95 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 		}
 	}
 
+	async getActiveSaveFileId(): Promise<SaveFileId | null> {
+		const database = await openLocalLibraryDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction(appStateStore, 'readonly');
+			const record = await requestToPromise<AppStateRecord | undefined>(
+				transaction.objectStore(appStateStore).get(activeSaveFileIdKey)
+			);
+			await transactionDone(transaction);
+			return record?.value ?? null;
+		} finally {
+			database.close();
+		}
+	}
+
+	async setActiveSaveFileId(saveFileId: SaveFileId): Promise<StoredSaveFile> {
+		const existing = await this.getSave(saveFileId);
+		if (!existing) {
+			throw new Error(`Cannot activate unknown save file: ${saveFileId}`);
+		}
+
+		const updated: StoredSaveFile = {
+			...existing,
+			updatedAt: this.#now()
+		};
+
+		const database = await openLocalLibraryDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction([saveFilesStore, appStateStore], 'readwrite');
+			transaction.objectStore(saveFilesStore).put(updated);
+			transaction.objectStore(appStateStore).put({
+				key: activeSaveFileIdKey,
+				value: saveFileId
+			} satisfies AppStateRecord);
+			await transactionDone(transaction);
+			return { ...updated };
+		} finally {
+			database.close();
+		}
+	}
+
+	async deleteSave(saveFileId: SaveFileId): Promise<void> {
+		const database = await openLocalLibraryDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction(
+				[
+					saveFilesStore,
+					saveBytesStore,
+					workspacesStore,
+					backupsStore,
+					backupBytesStore,
+					appStateStore
+				],
+				'readwrite'
+			);
+			const saveFiles = await requestToPromise<StoredSaveFile[]>(
+				transaction.objectStore(saveFilesStore).getAll()
+			);
+			const activeRecord = await requestToPromise<AppStateRecord | undefined>(
+				transaction.objectStore(appStateStore).get(activeSaveFileIdKey)
+			);
+			const backups = await requestToPromise<BackupMetadata[]>(
+				transaction.objectStore(backupsStore).index(backupsBySaveFileIdIndex).getAll(saveFileId)
+			);
+
+			transaction.objectStore(saveFilesStore).delete(saveFileId);
+			transaction.objectStore(saveBytesStore).delete(saveFileId);
+			transaction.objectStore(workspacesStore).delete(saveFileId);
+
+			for (const backup of backups) {
+				transaction.objectStore(backupsStore).delete(backup.id);
+				transaction.objectStore(backupBytesStore).delete(backup.id);
+			}
+
+			if (activeRecord?.value === saveFileId) {
+				const nextActiveSave = saveFiles
+					.filter((saveFile) => saveFile.id !== saveFileId)
+					.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0];
+
+				transaction.objectStore(appStateStore).put({
+					key: activeSaveFileIdKey,
+					value: nextActiveSave?.id ?? null
+				} satisfies AppStateRecord);
+			}
+			await transactionDone(transaction);
+		} finally {
+			database.close();
+		}
+	}
+
 	async createBackup(input: CreateBackupInput): Promise<BackupMetadata> {
 		const saveFile = await this.getSave(input.saveFileId);
 		if (!saveFile) {
@@ -233,6 +336,18 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 		}
 	}
 
+	async deleteBackup(backupId: BackupId): Promise<void> {
+		const database = await openLocalLibraryDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction([backupsStore, backupBytesStore], 'readwrite');
+			transaction.objectStore(backupsStore).delete(backupId);
+			transaction.objectStore(backupBytesStore).delete(backupId);
+			await transactionDone(transaction);
+		} finally {
+			database.close();
+		}
+	}
+
 	async exportSave(saveFileId: SaveFileId): Promise<Uint8Array | null> {
 		return this.getSaveBytes(saveFileId);
 	}
@@ -279,6 +394,10 @@ function migrateDatabase(database: IDBDatabase): void {
 
 	if (!database.objectStoreNames.contains(backupBytesStore)) {
 		database.createObjectStore(backupBytesStore, { keyPath: 'backupId' });
+	}
+
+	if (!database.objectStoreNames.contains(appStateStore)) {
+		database.createObjectStore(appStateStore, { keyPath: 'key' });
 	}
 }
 

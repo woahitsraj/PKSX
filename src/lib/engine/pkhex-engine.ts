@@ -36,7 +36,11 @@ type DotnetPkhexEngineExports = {
 	ListBoxSmoke(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	LoadSaveWorkspaceJson(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	SerializeSaveJson(bytes: Uint8Array, fileName?: string): string;
-	ApplySlotOperationJson(bytes: Uint8Array, fileName: string | undefined, operationJson: string): string;
+	ApplySlotOperationJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operationJson: string
+	): string;
 };
 
 const knownEngineErrorCodes = new Set<EngineErrorCode>([
@@ -66,11 +70,15 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 	return {
 		getVersion: async () => parseEngineResult<EngineVersion>(engine.GetVersionJson()),
 		summarizeSave: async (bytes, fileName) =>
-			parseEngineResult<SaveSummary>(engine.ParseSaveSmoke(bytes, fileName)),
+			normalizeSaveSummaryResult(
+				parseEngineResult<RawSaveSummary>(engine.ParseSaveSmoke(bytes, fileName))
+			),
 		listBoxSlots: async (bytes, fileName, box) =>
 			parseEngineResult<BoxSlotSummary[]>(engine.ListBoxSmoke(bytes, fileName, box)),
 		loadSaveWorkspace: async (bytes, fileName, box) =>
-			parseEngineResult<SaveWorkspace>(engine.LoadSaveWorkspaceJson(bytes, fileName, box)),
+			normalizeSaveWorkspaceResult(
+				parseEngineResult<RawSaveWorkspace>(engine.LoadSaveWorkspaceJson(bytes, fileName, box))
+			),
 		serializeSave: async (bytes, fileName) =>
 			parseEngineResult<SerializedSave>(engine.SerializeSaveJson(bytes, fileName)),
 		applySlotOperation: async (bytes, fileName, operation, activeBox) =>
@@ -88,9 +96,14 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 
 type RawSlotOperationRequest = SlotOperation & { activeBox: number };
 
-type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes'> & {
+type SaveSummaryDefaultedFields = 'trainerId' | 'playTime' | 'playedHours' | 'playedMinutes';
+type RawSaveSummary = Omit<SaveSummary, SaveSummaryDefaultedFields> &
+	Partial<Pick<SaveSummary, SaveSummaryDefaultedFields>>;
+type RawSaveWorkspace = Omit<SaveWorkspace, 'summary'> & { summary: RawSaveSummary };
+type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes' | 'workspace'> & {
 	bytesBase64: string;
 	byteLength: number;
+	workspace: RawSaveWorkspace;
 };
 
 export function parseEngineResult<T>(json: string): EngineResult<T> {
@@ -163,9 +176,54 @@ function decodeSlotOperationResult(
 		value: {
 			bytes: base64ToBytes(result.value.bytesBase64, result.value.byteLength),
 			mutated: result.value.mutated,
-			workspace: result.value.workspace
+			workspace: normalizeSaveWorkspace(result.value.workspace)
 		},
 		error: null
+	};
+}
+
+function normalizeSaveSummaryResult(
+	result: EngineResult<RawSaveSummary>
+): EngineResult<SaveSummary> {
+	if (!result.ok) {
+		return result;
+	}
+
+	return {
+		ok: true,
+		value: normalizeSaveSummary(result.value),
+		error: null
+	};
+}
+
+function normalizeSaveWorkspaceResult(
+	result: EngineResult<RawSaveWorkspace>
+): EngineResult<SaveWorkspace> {
+	if (!result.ok) {
+		return result;
+	}
+
+	return {
+		ok: true,
+		value: normalizeSaveWorkspace(result.value),
+		error: null
+	};
+}
+
+function normalizeSaveWorkspace(workspace: RawSaveWorkspace): SaveWorkspace {
+	return {
+		...workspace,
+		summary: normalizeSaveSummary(workspace.summary)
+	};
+}
+
+function normalizeSaveSummary(summary: RawSaveSummary): SaveSummary {
+	return {
+		...summary,
+		trainerId: summary.trainerId ?? 0,
+		playTime: summary.playTime ?? '',
+		playedHours: summary.playedHours ?? 0,
+		playedMinutes: summary.playedMinutes ?? 0
 	};
 }
 

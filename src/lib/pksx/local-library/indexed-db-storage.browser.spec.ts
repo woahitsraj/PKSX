@@ -51,6 +51,7 @@ describe('IndexedDbLocalLibraryStorage', () => {
 		expect(
 			bytesEqual(retrievedBytes ?? new Uint8Array(), new Uint8Array([0, 1, 2, 253, 254, 255]))
 		).toBe(true);
+		await expect(storage.getActiveSaveFileId()).resolves.toBe(saveFile.id);
 	});
 
 	it('exports the original bytes for an unchanged save', async () => {
@@ -156,6 +157,49 @@ describe('IndexedDbLocalLibraryStorage', () => {
 		await expect(storage.listSaves()).resolves.toStrictEqual([newer, older]);
 	});
 
+	it('activates an existing save and updates its opened timestamp', async () => {
+		ids = ['older-save', 'newer-save'];
+		storage = new IndexedDbLocalLibraryStorage({
+			databaseName,
+			idFactory: () => {
+				const id = ids.shift();
+				if (!id) {
+					throw new Error('Test id sequence exhausted');
+				}
+				return id;
+			},
+			now: (() => {
+				const timestamps = [
+					'2026-05-16T12:00:00.000Z',
+					'2026-05-16T13:00:00.000Z',
+					'2026-05-16T14:00:00.000Z'
+				];
+				return () => timestamps.shift() ?? '2026-05-16T15:00:00.000Z';
+			})()
+		});
+
+		const older = await storage.importSave({
+			bytes: new Uint8Array([1]),
+			originalFileName: 'older.sav'
+		});
+		await storage.importSave({
+			bytes: new Uint8Array([2]),
+			originalFileName: 'newer.sav'
+		});
+
+		const activated = await storage.setActiveSaveFileId(older.id);
+
+		expect(activated.updatedAt).toBe('2026-05-16T14:00:00.000Z');
+		await expect(storage.getActiveSaveFileId()).resolves.toBe(older.id);
+		await expect(storage.getSave(older.id)).resolves.toStrictEqual(activated);
+	});
+
+	it('rejects activating an unknown save file', async () => {
+		await expect(storage.setActiveSaveFileId('missing-save')).rejects.toThrow(
+			'Cannot activate unknown save file: missing-save'
+		);
+	});
+
 	it('creates and lists backup metadata for a save file', async () => {
 		const saveFile = await storage.importSave({
 			bytes: new Uint8Array([1, 3, 3, 7]),
@@ -230,5 +274,66 @@ describe('IndexedDbLocalLibraryStorage', () => {
 		});
 
 		await expect(storage.listBackups(saveFile.id)).resolves.toStrictEqual([newer, older]);
+	});
+
+	it('deletes a backup metadata and bytes record', async () => {
+		const saveFile = await storage.importSave({
+			bytes: new Uint8Array([1]),
+			originalFileName: 'backup-source.sav'
+		});
+		const backup = await storage.createBackup({
+			saveFileId: saveFile.id,
+			bytes: new Uint8Array([2]),
+			reason: 'manual'
+		});
+
+		await storage.deleteBackup(backup.id);
+
+		await expect(storage.listBackups(saveFile.id)).resolves.toStrictEqual([]);
+		await expect(storage.getBackupBytes(backup.id)).resolves.toBeNull();
+	});
+
+	it('deletes save metadata, bytes, backups, and moves active save when needed', async () => {
+		ids = ['older-save', 'newer-save', 'backup-1'];
+		storage = new IndexedDbLocalLibraryStorage({
+			databaseName,
+			idFactory: () => {
+				const id = ids.shift();
+				if (!id) {
+					throw new Error('Test id sequence exhausted');
+				}
+				return id;
+			},
+			now: (() => {
+				const timestamps = [
+					'2026-05-16T12:00:00.000Z',
+					'2026-05-16T13:00:00.000Z',
+					'2026-05-16T14:00:00.000Z'
+				];
+				return () => timestamps.shift() ?? '2026-05-16T15:00:00.000Z';
+			})()
+		});
+
+		const older = await storage.importSave({
+			bytes: new Uint8Array([1]),
+			originalFileName: 'older.sav'
+		});
+		const newer = await storage.importSave({
+			bytes: new Uint8Array([2]),
+			originalFileName: 'newer.sav'
+		});
+		const backup = await storage.createBackup({
+			saveFileId: newer.id,
+			bytes: new Uint8Array([3]),
+			reason: 'manual'
+		});
+
+		await storage.deleteSave(newer.id);
+
+		await expect(storage.getSave(newer.id)).resolves.toBeNull();
+		await expect(storage.getSaveBytes(newer.id)).resolves.toBeNull();
+		await expect(storage.getBackupBytes(backup.id)).resolves.toBeNull();
+		await expect(storage.listBackups(newer.id)).resolves.toStrictEqual([]);
+		await expect(storage.getActiveSaveFileId()).resolves.toBe(older.id);
 	});
 });

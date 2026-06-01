@@ -4,17 +4,17 @@
 	type Align = 'start' | 'center' | 'end';
 	type VerticalAlign = 'top' | 'bottom';
 	type CommandAvailability = 'available' | 'unsupported' | 'empty-slot' | 'occupied-slot';
-	export type SlotActionCommandId =
+	type SlotActionCommandKey =
 		| 'pokemon-action'
+		| 'create-pokemon'
 		| 'move'
 		| 'copy'
 		| 'clear'
 		| 'export'
-		| 'legality-check'
-		| 'create-pokemon';
+		| 'legality-check';
 
 	type SlotActionCommand = {
-		id: SlotActionCommandId;
+		key: SlotActionCommandKey;
 		label: string;
 		detail: string;
 		availability: CommandAvailability;
@@ -28,7 +28,7 @@
 		mobileTop?: number | null;
 		activeIndex: number;
 		onFocusCommand: (index: number) => void;
-		onCommand: (command: SlotActionCommandId) => void;
+		onSelectCommand: (command: SlotActionCommandKey) => void;
 		onClose: () => void;
 	}
 
@@ -40,7 +40,7 @@
 		mobileTop = null,
 		activeIndex,
 		onFocusCommand,
-		onCommand,
+		onSelectCommand,
 		onClose
 	}: Props = $props();
 
@@ -51,31 +51,31 @@
 		if (slot.kind === 'empty') {
 			return [
 				{
-					id: 'create-pokemon',
+					key: 'create-pokemon',
 					label: 'Create Pokemon',
 					detail: 'Unavailable: creation is not implemented yet.',
 					availability: 'unsupported'
 				},
 				{
-					id: 'move',
+					key: 'move',
 					label: 'Move',
 					detail: 'Unavailable: Slot is empty.',
 					availability: 'empty-slot'
 				},
 				{
-					id: 'copy',
+					key: 'copy',
 					label: 'Copy',
 					detail: 'Unavailable: Slot is empty.',
 					availability: 'empty-slot'
 				},
 				{
-					id: 'export',
+					key: 'export',
 					label: 'Export',
 					detail: 'Unavailable: Slot is empty.',
 					availability: 'empty-slot'
 				},
 				{
-					id: 'legality-check',
+					key: 'legality-check',
 					label: 'Legality Check',
 					detail: 'Unavailable: Slot is empty.',
 					availability: 'empty-slot'
@@ -85,43 +85,43 @@
 
 		return [
 			{
-				id: 'pokemon-action',
+				key: 'pokemon-action',
 				label: 'Pokemon Action',
-				detail: 'Unavailable: summary view is not implemented yet.',
-				availability: 'unsupported'
+				detail: 'Open Pokemon Editor.',
+				availability: 'available'
 			},
 			{
-				id: 'move',
+				key: 'move',
 				label: 'Move',
 				detail: 'Choose a destination Slot.',
 				availability: 'available'
 			},
 			{
-				id: 'copy',
+				key: 'copy',
 				label: 'Copy',
 				detail: 'Choose an empty destination Slot.',
 				availability: 'available'
 			},
 			{
-				id: 'clear',
+				key: 'clear',
 				label: 'Clear Slot',
 				detail: 'Remove this Pokemon after confirmation.',
 				availability: 'available'
 			},
 			{
-				id: 'export',
+				key: 'export',
 				label: 'Export',
 				detail: 'Unavailable: Pokemon export is not implemented yet.',
 				availability: 'unsupported'
 			},
 			{
-				id: 'legality-check',
+				key: 'legality-check',
 				label: 'Legality Check',
 				detail: 'Unavailable: Legality Check is not implemented yet.',
 				availability: 'unsupported'
 			},
 			{
-				id: 'create-pokemon',
+				key: 'create-pokemon',
 				label: 'Create Pokemon',
 				detail: 'Unavailable: Slot already contains a Pokemon.',
 				availability: 'occupied-slot'
@@ -154,22 +154,22 @@
 					id={`slot-action-${index}`}
 					type="button"
 					class:controller-focused={activeIndex === index}
+					aria-disabled={command.availability === 'available' ? undefined : 'true'}
 					aria-label={command.availability === 'available'
 						? `${command.label}: ${command.detail}`
 						: `${command.label} unavailable: ${command.detail.replace('Unavailable: ', '')}`}
 					data-availability={command.availability}
-					aria-disabled={command.availability === 'available' ? undefined : 'true'}
 					onfocus={() => onFocusCommand(index)}
 					onclick={(event) => {
 						event.preventDefault();
 						onFocusCommand(index);
 						if (command.availability === 'available') {
-							onCommand(command.id);
+							onSelectCommand(command.key);
 						}
 					}}
 				>
 					<span>{command.label}</span>
-					<small>{command.availability === 'available' ? 'Ready' : 'Unavailable'}</small>
+					<small>{command.availability === 'available' ? 'Open' : 'Unavailable'}</small>
 				</button>
 			</div>
 		{/each}
@@ -271,6 +271,18 @@
 		gap: 8px;
 		cursor: not-allowed;
 		opacity: 0.68;
+	}
+
+	.slot-command-row button[data-availability='available'] {
+		cursor: pointer;
+		opacity: 1;
+	}
+
+	.slot-command-row button[data-availability='available']:hover,
+	.slot-command-row button[data-availability='available']:focus-visible {
+		background: var(--rust-wash);
+		color: var(--rust);
+		outline: none;
 	}
 
 	.slot-command-row button.controller-focused,

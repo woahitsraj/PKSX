@@ -68,6 +68,14 @@ _Avoid_: auto-fix when implying a guaranteed or silent repair
 A user-invoked operation on a Pokemon Entity, such as move, copy, evolve, export, Legality Check, or Legality Fix.
 _Avoid_: button when referring to the domain operation
 
+**Pokemon Editor**:
+A focused workflow for inspecting and staging edits to one Pokemon Entity.
+_Avoid_: detail workflow, summary view
+
+**Move Set Editing**:
+A Pokemon Editor capability for changing the moves or move-related values of a Pokemon Entity.
+_Avoid_: Move editing, Move when referring to editing a Pokemon Entity's moves
+
 **Slot Action**:
 A user-invoked operation on a Slot, whether or not that Slot contains a Pokemon Entity.
 _Avoid_: Pokemon Action when the Slot may be empty
@@ -95,6 +103,18 @@ _Avoid_: remote sprites, CDN images
 **Sprite Identity**:
 The PKHeX Engine-projected display identity used to find a Pokemon Entity in the Sprite Catalog.
 _Avoid_: nickname, slot position, UI state
+
+**Shiny State**:
+Whether a Pokemon Entity has its alternate shiny coloration, as projected by the PKHeX Engine for display identity.
+_Avoid_: rarity, sparkle effect
+
+**Sex Difference**:
+A visible species-specific sprite difference based on a Pokemon Entity's sex, as projected for display identity.
+_Avoid_: gender label when referring only to sprite appearance
+
+**Display Sex**:
+The sex-difference state used by Sprite Identity for visual asset selection: default, male, or female.
+_Avoid_: raw gender value when no visible sprite difference exists
 
 **Peer Transfer**:
 A live connection between two PKSX instances for sending Pokemon Entities or Storage Boxes without requiring cloud sync.
@@ -211,6 +231,10 @@ _Avoid_: key event, button event
 - A **Legality Report** is produced by a **Legality Check**.
 - A **Legality Fix** is based on a **Legality Report** and must be explicitly applied by the user.
 - A **Pokemon Action** applies to one **Pokemon Entity**.
+- A **Pokemon Editor** presents one **Pokemon Entity**.
+- A **Pokemon Editor** may present a **Pokemon Entity** from a **Save File** or from **Pokemon Storage**.
+- A **Pokemon Editor** stages edits before they become **Risky Changes**.
+- **Move Set Editing** applies to one **Pokemon Entity**.
 - A **Slot Action** applies to one **Slot**.
 - A **Batch Slot Action** applies to multiple source **Slots**.
 - **Create Pokemon** applies to an empty **Slot**.
@@ -220,6 +244,8 @@ _Avoid_: key event, button event
 - Copying a **Pokemon Entity** into a **Save File** **Slot** requires an empty destination **Slot**.
 - The **Sprite Catalog** provides offline visual assets for **Pokemon Entities**.
 - A **Sprite Identity** belongs to one **Pokemon Entity** projection.
+- A **Sprite Identity** includes the **Shiny State** of its **Pokemon Entity**.
+- A **Sprite Identity** may include a **Sex Difference** through **Display Sex** when that difference changes the displayed sprite.
 - A **Sprite Identity** describes visible Pokemon characteristics, not save format or current location.
 - A **Sprite Catalog** may or may not contain an asset for a **Sprite Identity**.
 - A **Peer Transfer** sends **Pokemon Entities** or **Storage Boxes** between PKSX instances.
@@ -243,6 +269,7 @@ _Avoid_: key event, button event
 - **Controller Focus** clamps at a **Focus Zone** edge unless that edge defines an explicit transition to another **Focus Zone**.
 - The **Party** and the active **Box** are separate **Focus Zones** with explicit directional transitions between them.
 - A **Slot Action Surface** opens from the current **Controller Focus** and returns to it when dismissed.
+- A **Pokemon Editor** opened from a **Slot Action Surface** returns **Controller Focus** to its launching **Pokemon Action** when dismissed.
 - Back dismisses an open **Slot Action Surface** before it affects broader app navigation.
 - Back dismisses an open **Backup Browser** before it affects broader app navigation.
 - A **Backup Browser** returns **Controller Focus** to its launching control when dismissed.

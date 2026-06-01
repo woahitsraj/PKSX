@@ -5,6 +5,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
+	assetsInclude: ['**/test-fixtures/save-files/**'],
 	test: {
 		expect: { requireAssertions: true },
 		projects: [

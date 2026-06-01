@@ -8,14 +8,8 @@
 		onConfirm: () => void;
 	}
 
-	let {
-		location,
-		pokemonLabel,
-		activeIndex,
-		onFocusCommand,
-		onCancel,
-		onConfirm
-	}: Props = $props();
+	let { location, pokemonLabel, activeIndex, onFocusCommand, onCancel, onConfirm }: Props =
+		$props();
 </script>
 
 <div class="confirm-backdrop" role="presentation">

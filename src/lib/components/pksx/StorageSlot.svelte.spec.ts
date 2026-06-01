@@ -11,6 +11,13 @@ const pokemonSlot: SlotView = {
 	speciesId: 25,
 	form: 0,
 	isEgg: false,
+	spriteIdentity: {
+		speciesId: 25,
+		form: 0,
+		isEgg: false,
+		isShiny: false,
+		displaySex: 'default'
+	},
 	kind: 'pokemon'
 };
 
@@ -22,6 +29,7 @@ const emptySlot: SlotView = {
 	speciesId: null,
 	form: null,
 	isEgg: false,
+	spriteIdentity: null,
 	kind: 'empty'
 };
 
@@ -81,7 +89,7 @@ describe('StorageSlot', () => {
 		const { button } = renderSlot({
 			slot: pokemonSlot,
 			focused: true,
-			spriteUrl: '/sprites/pokemon/species/0025.png'
+			spriteUrl: '/sprites/pokemon/species/0025-form-00-sex-default-normal.png'
 		});
 
 		expect(button.classList.contains('pokemon')).toBe(true);
@@ -90,7 +98,7 @@ describe('StorageSlot', () => {
 		expect(button.getAttribute('aria-selected')).toBe('true');
 		expect(button.querySelector('.sprite-stage')).not.toBeNull();
 		expect(button.querySelector('img.slot-sprite')?.getAttribute('src')).toBe(
-			'/sprites/pokemon/species/0025.png'
+			'/sprites/pokemon/species/0025-form-00-sex-default-normal.png'
 		);
 		expect(button.querySelector('.slot-label')?.textContent).toContain('Lv 5');
 		expect(button.querySelector('.slot-label')?.textContent).toContain('Pikachu');

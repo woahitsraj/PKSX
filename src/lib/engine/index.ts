@@ -25,7 +25,8 @@ export type {
 	SlotOperation,
 	SlotOperationResult,
 	SerializedSave,
-	SaveSummary
+	SaveSummary,
+	SpriteIdentity
 } from './types';
 export type { EngineWorkerFactory, EngineWorkerPort } from './pkhex-worker-engine';
 export type {
