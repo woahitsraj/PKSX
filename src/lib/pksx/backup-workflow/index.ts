@@ -39,6 +39,22 @@ export function createCleanWorkspaceState(input: CreateWorkspaceStateInput): Wor
 	};
 }
 
+export type PersistedWorkspaceStateInput = CreateWorkspaceStateInput & {
+	dirty: boolean;
+	automaticBackupCreated: boolean;
+};
+
+export function createPersistedWorkspaceState(input: PersistedWorkspaceStateInput): WorkspaceState {
+	return {
+		file: input.file,
+		bytes: copyBytes(input.bytes),
+		workspace: input.workspace,
+		dirty: input.dirty,
+		restoredFromBackup: null,
+		automaticBackupCreated: input.automaticBackupCreated
+	};
+}
+
 export type RestoreBackupInput = CreateWorkspaceStateInput & {
 	source: RestoredBackupSource;
 	currentSaveBytes: Uint8Array;

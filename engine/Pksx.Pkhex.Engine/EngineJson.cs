@@ -16,6 +16,8 @@ internal static class EngineJson
 [JsonSerializable(typeof(EngineResult<SaveSummary>))]
 [JsonSerializable(typeof(EngineResult<SaveWorkspace>))]
 [JsonSerializable(typeof(EngineResult<SerializedSave>))]
+[JsonSerializable(typeof(EngineResult<SlotOperationResult>))]
+[JsonSerializable(typeof(SlotOperationRequest))]
 [JsonSerializable(typeof(EngineResult<List<PartySlotSummary>>))]
 [JsonSerializable(typeof(EngineResult<List<BoxSlotSummary>>))]
 internal sealed partial class EngineJsonContext : JsonSerializerContext;

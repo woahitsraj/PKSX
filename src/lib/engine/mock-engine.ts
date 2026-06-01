@@ -3,9 +3,12 @@ import type {
 	EngineApi,
 	EngineResult,
 	EngineVersion,
+	SaveSlotRef,
 	PartySlotSummary,
 	SaveSummary,
 	SaveWorkspace,
+	SlotOperation,
+	SlotOperationResult,
 	SerializedSave
 } from './types';
 
@@ -150,6 +153,16 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 				bytesBase64: bytesToBase64(bytes),
 				byteLength: bytes.byteLength
 			}),
+		applySlotOperation: async (bytes, fileName, operation, activeBox) =>
+			success<SlotOperationResult>({
+				bytes: copyBytes(bytes),
+				mutated: !isSameSlotOperation(operation),
+				workspace: {
+					summary: { ...mockSaveSummary, fileName },
+					partySlots: mockPartySlots,
+					boxSlots: activeBox === 0 ? mockBoxSlots : []
+				}
+			}),
 		...overrides
 	};
 }
@@ -165,4 +178,20 @@ function bytesToBase64(bytes: Uint8Array): string {
 	}
 
 	return btoa(binary);
+}
+
+function isSameSlotOperation(operation: SlotOperation): boolean {
+	return (
+		operation.kind !== 'clear' && slotRefKey(operation.source) === slotRefKey(operation.destination)
+	);
+}
+
+function slotRefKey(ref: SaveSlotRef): string {
+	return ref.zone === 'party' ? `party:${ref.slot}` : `box:${ref.box}:${ref.slot}`;
+}
+
+function copyBytes(bytes: Uint8Array): Uint8Array {
+	const copy = new Uint8Array(bytes.byteLength);
+	copy.set(bytes);
+	return copy;
 }

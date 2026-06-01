@@ -38,6 +38,19 @@ async function importEmeraldThroughSaves(page: Page) {
 	});
 }
 
+async function moveFirstEmeraldBoxSlotToThirdSlot(page: Page) {
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('Enter');
+
+	await expect(page.locator('#box-0-slot-0')).toContainText('Empty', { timeout: 15000 });
+	await expect(page.locator('#box-0-slot-2')).toContainText('ARON');
+}
+
 test('keyboard navigation moves deterministically across the box grid', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await expect(page.locator('#box-0-slot-0 img.slot-sprite')).toHaveAttribute(
@@ -122,6 +135,7 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 	await expect(
 		page.getByRole('button', { name: 'Move unavailable: Slot is empty.' })
 	).toHaveAttribute('aria-disabled', 'true');
+	await expect(page.getByRole('alert')).toHaveCount(0);
 
 	await expect(page.locator('#slot-action-0')).toBeFocused();
 	await page.keyboard.press('ArrowDown');
@@ -143,6 +157,15 @@ test('occupied slot actions expose Pokemon Action and Close dismisses', async ({
 	await expect(dialog).toContainText('Pokemon Action');
 	await expect(
 		page.getByRole('button', { name: 'Pokemon Action: Open Pokemon Editor.' })
+	).not.toHaveAttribute('aria-disabled', 'true');
+	await expect(
+		page.getByRole('button', { name: 'Move: Choose a destination Slot.' })
+	).not.toHaveAttribute('aria-disabled', 'true');
+	await expect(
+		page.getByRole('button', { name: 'Copy: Choose an empty destination Slot.' })
+	).not.toHaveAttribute('aria-disabled', 'true');
+	await expect(
+		page.getByRole('button', { name: 'Clear Slot: Remove this Pokemon after confirmation.' })
 	).not.toHaveAttribute('aria-disabled', 'true');
 	await expect(
 		page.getByRole('button', {
@@ -266,12 +289,38 @@ test('mobile slot actions stay inside the viewport without adding page overflow'
 	expect(afterOpen.dialogRight).toBeLessThanOrEqual(afterOpen.viewportWidth);
 });
 
-test('mouse clicks move controller focus without opening slot actions', async ({ page }) => {
+test('mouse clicks move controller focus, then selected slots open actions', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await page.locator('#party-slot-4').click();
 
 	await expect(page.locator('#party-slot-4')).toHaveAttribute('aria-selected', 'true');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
+
+	await page.locator('#party-slot-4').click();
+	const dialog = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(dialog).toBeVisible();
+	await expect(dialog).toContainText('Party slot 5');
+
+	const menuState = await dialog.evaluate((element) => {
+		const rect = element.getBoundingClientRect();
+		const x = rect.left + rect.width / 2;
+		const y = rect.top + rect.height / 2;
+		return {
+			top: rect.top,
+			left: rect.left,
+			bottom: rect.bottom,
+			right: rect.right,
+			viewportWidth: window.innerWidth,
+			viewportHeight: window.innerHeight,
+			menuOwnsTopPoint: element.contains(document.elementFromPoint(x, y))
+		};
+	});
+
+	expect(menuState.left).toBeGreaterThanOrEqual(0);
+	expect(menuState.top).toBeGreaterThanOrEqual(0);
+	expect(menuState.right).toBeLessThanOrEqual(menuState.viewportWidth);
+	expect(menuState.bottom).toBeLessThanOrEqual(menuState.viewportHeight);
+	expect(menuState.menuOwnsTopPoint).toBe(true);
 });
 
 test('active slot detail rail follows controller focus', async ({ page }) => {
@@ -388,6 +437,122 @@ test('deletes backups and save files after confirmation', async ({ page }) => {
 	await expect(page.getByText('emerald-011020251345.sav deleted.')).toBeVisible();
 	await expect(page.locator('.save-card')).toHaveCount(0);
 	await expect(page.getByText('No active Save File')).toBeVisible();
+});
+
+test('moves an occupied box slot into an empty destination slot', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await moveFirstEmeraldBoxSlotToThirdSlot(page);
+	await expect(page.locator('#box-0-slot-2')).toBeFocused();
+	await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('reload preserves unexported slot changes from the active workspace', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await moveFirstEmeraldBoxSlotToThirdSlot(page);
+	await expect(page.getByText('Workspace has unexported changes.')).toBeVisible();
+
+	await page.reload();
+	await expect(
+		page.getByText('011020251345.sav restored from Local Library with unexported changes.')
+	).toBeVisible({
+		timeout: 15000
+	});
+	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+	await expect(page.locator('#box-0-slot-2')).toContainText('ARON');
+	await expect(page.getByText('Workspace has unexported changes.')).toBeVisible();
+});
+
+test('can perform another slot mutation after the first move changes workspace bytes', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await moveFirstEmeraldBoxSlotToThirdSlot(page);
+	await page.locator('#box-0-slot-1').click();
+	await page.locator('#box-0-slot-1').click();
+	await page.getByRole('button', { name: 'Copy: Choose an empty destination Slot.' }).click();
+	await page.locator('#box-0-slot-3').click();
+
+	await expect(page.locator('#box-0-slot-3')).toContainText('ILLUMISE');
+	await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('copies an occupied box slot into an empty destination slot', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('Enter');
+
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+	await expect(page.locator('#box-0-slot-3')).toContainText('ARON');
+	await expect(page.locator('#box-0-slot-3')).toBeFocused();
+});
+
+test('copy keeps destination selection active and shows an error toast for occupied destinations', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('Enter');
+
+	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+	await expect(page.getByRole('alert')).toContainText('Copy needs an empty destination Slot.');
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+	await expect(page.locator('#box-0-slot-1')).toContainText('ILLUMISE');
+});
+
+test('clear slot cancellation and confirmation use the in-app confirmation surface', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Enter');
+
+	const confirmDialog = page.getByRole('dialog', { name: 'ARON' });
+	await expect(confirmDialog).toBeVisible();
+	await expect(confirmDialog).toContainText('Clear Slot');
+	await expect(confirmDialog).toContainText('Box 01 Slot 1');
+	await page.getByRole('button', { name: 'Cancel' }).click();
+	await expect(confirmDialog).toBeHidden();
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+
+	await page.locator('#box-0-slot-0').click();
+	await page.locator('#box-0-slot-0').click();
+	await page
+		.getByRole('button', {
+			name: 'Clear Slot: Remove this Pokemon after confirmation.'
+		})
+		.click();
+	await page.getByRole('button', { name: 'Confirm Clear' }).click();
+
+	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 });
 
 test('keyboard navigation covers the Saves route controls and desktop overflow scrolls', async ({

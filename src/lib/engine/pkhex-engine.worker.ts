@@ -23,8 +23,10 @@ type RawDotnetModule = {
 
 const runtime = createPkhexEngineWorkerRuntime({
 	loadEngine,
-	postMessage: (message) => {
-		self.postMessage(message);
+	postMessage: (message, transfer = []) => {
+		(
+			self as unknown as { postMessage(message: unknown, transfer: Transferable[]): void }
+		).postMessage(message, transfer);
 	}
 });
 

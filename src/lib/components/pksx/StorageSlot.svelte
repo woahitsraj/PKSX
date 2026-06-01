@@ -12,7 +12,9 @@
 		colIndex: number;
 		spriteUrl: string | null;
 		collapsed?: boolean;
+		destinationState?: 'valid' | 'invalid' | 'source' | null;
 		onFocusSlot: () => void;
+		onChooseSlot?: () => void;
 		onOpenSlot: () => void;
 	}
 
@@ -27,17 +29,40 @@
 		colIndex,
 		spriteUrl,
 		collapsed = false,
+		destinationState = null,
 		onFocusSlot,
+		onChooseSlot,
 		onOpenSlot
 	}: Props = $props();
 
 	const zoneClass = $derived(zone === 'party' ? 'party-slot' : 'box-slot');
 	const slotNumber = $derived(zone === 'party' ? `P${slot.slot + 1}` : String(slot.slot + 1));
+	let pointerStartedFocused = false;
+
+	function handleClick() {
+		onFocusSlot();
+
+		if (onChooseSlot) {
+			onChooseSlot();
+			return;
+		}
+
+		if (pointerStartedFocused) {
+			onOpenSlot();
+		}
+	}
 </script>
 
 <button
 	{id}
-	class={['slot', zoneClass, slot.kind, dualType && 'dual-type', focused && 'focused']}
+	class={[
+		'slot',
+		zoneClass,
+		slot.kind,
+		dualType && 'dual-type',
+		focused && 'focused',
+		destinationState && `destination-${destinationState}`
+	]}
 	type="button"
 	role="gridcell"
 	tabindex="-1"
@@ -46,8 +71,10 @@
 	aria-rowindex={rowIndex}
 	aria-colindex={colIndex}
 	aria-hidden={collapsed ? 'true' : undefined}
+	data-destination-state={destinationState ?? undefined}
 	onfocus={onFocusSlot}
-	onclick={onFocusSlot}
+	onpointerdown={() => (pointerStartedFocused = focused)}
+	onclick={handleClick}
 	ondblclick={onOpenSlot}
 >
 	<span class="slot-number">{slotNumber}</span>
@@ -140,6 +167,30 @@
 		border-color: var(--rust);
 		box-shadow:
 			0 0 0 2px var(--rust),
+			var(--shadow);
+	}
+
+	.slot.destination-invalid {
+		filter: grayscale(0.6);
+		opacity: 0.46;
+	}
+
+	.slot.destination-valid {
+		box-shadow:
+			0 0 0 2px color-mix(in srgb, var(--ok), transparent 22%),
+			var(--shadow-sm);
+	}
+
+	.slot.destination-source {
+		box-shadow:
+			0 0 0 2px color-mix(in srgb, var(--gold), transparent 20%),
+			var(--shadow-sm);
+	}
+
+	.slot.destination-invalid.focused {
+		opacity: 0.72;
+		box-shadow:
+			0 0 0 2px color-mix(in srgb, var(--err), transparent 18%),
 			var(--shadow);
 	}
 

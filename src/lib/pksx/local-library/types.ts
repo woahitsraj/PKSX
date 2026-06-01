@@ -25,6 +25,14 @@ export type BackupMetadata = {
 	createdAt: string;
 };
 
+export type StoredWorkspace = {
+	saveFileId: SaveFileId;
+	bytes: Uint8Array;
+	dirty: boolean;
+	automaticBackupCreated: boolean;
+	updatedAt: string;
+};
+
 export type ImportSaveInput = {
 	bytes: Uint8Array;
 	originalFileName?: string | null;
@@ -36,11 +44,21 @@ export type CreateBackupInput = {
 	reason: BackupReason;
 };
 
+export type PutWorkspaceInput = {
+	saveFileId: SaveFileId;
+	bytes: Uint8Array;
+	dirty: boolean;
+	automaticBackupCreated: boolean;
+};
+
 export type LocalLibraryStorage = {
 	importSave(input: ImportSaveInput): Promise<StoredSaveFile>;
 	getSave(saveFileId: SaveFileId): Promise<StoredSaveFile | null>;
 	listSaves(): Promise<StoredSaveFile[]>;
 	getSaveBytes(saveFileId: SaveFileId): Promise<Uint8Array | null>;
+	putWorkspace(input: PutWorkspaceInput): Promise<StoredWorkspace>;
+	getWorkspace(saveFileId: SaveFileId): Promise<StoredWorkspace | null>;
+	clearWorkspace(saveFileId: SaveFileId): Promise<void>;
 	getActiveSaveFileId(): Promise<SaveFileId | null>;
 	setActiveSaveFileId(saveFileId: SaveFileId): Promise<StoredSaveFile>;
 	deleteSave(saveFileId: SaveFileId): Promise<void>;

@@ -1,6 +1,10 @@
 export type EngineErrorCode =
 	| 'unsupported-save'
 	| 'invalid-box'
+	| 'invalid-slot'
+	| 'empty-source-slot'
+	| 'occupied-destination-slot'
+	| 'unsupported-slot-operation'
 	| 'engine-unavailable'
 	| 'invalid-engine-response'
 	| 'invalid-worker-message'
@@ -103,6 +107,39 @@ export type SerializedSave = {
 	byteLength: number;
 };
 
+export type SaveSlotRef =
+	| {
+			zone: 'party';
+			slot: number;
+	  }
+	| {
+			zone: 'box';
+			box: number;
+			slot: number;
+	  };
+
+export type SlotOperation =
+	| {
+			kind: 'move';
+			source: SaveSlotRef;
+			destination: SaveSlotRef;
+	  }
+	| {
+			kind: 'copy';
+			source: SaveSlotRef;
+			destination: SaveSlotRef;
+	  }
+	| {
+			kind: 'clear';
+			source: SaveSlotRef;
+	  };
+
+export type SlotOperationResult = {
+	bytes: Uint8Array;
+	mutated: boolean;
+	workspace: SaveWorkspace;
+};
+
 export type EngineApi = {
 	getVersion(): Promise<EngineResult<EngineVersion>>;
 	summarizeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SaveSummary>>;
@@ -117,4 +154,10 @@ export type EngineApi = {
 		box: number
 	): Promise<EngineResult<SaveWorkspace>>;
 	serializeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SerializedSave>>;
+	applySlotOperation(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operation: SlotOperation,
+		activeBox: number
+	): Promise<EngineResult<SlotOperationResult>>;
 };

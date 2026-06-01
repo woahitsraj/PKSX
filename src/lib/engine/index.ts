@@ -20,7 +20,10 @@ export type {
 	EngineResult,
 	EngineVersion,
 	PartySlotSummary,
+	SaveSlotRef,
 	SaveWorkspace,
+	SlotOperation,
+	SlotOperationResult,
 	SerializedSave,
 	SaveSummary,
 	SpriteIdentity

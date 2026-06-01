@@ -5,6 +5,7 @@ import type {
 	EngineVersion,
 	SaveSummary,
 	SaveWorkspace,
+	SlotOperationResult,
 	SerializedSave
 } from './types';
 import {
@@ -12,6 +13,7 @@ import {
 	createEngineWorkerResponse,
 	parseEngineWorkerInitMessage,
 	parseEngineWorkerRequest,
+	type EngineWorkerApplySlotOperationRequest,
 	type EngineWorkerLoadSaveWorkspaceRequest,
 	type EngineWorkerListBoxSlotsRequest,
 	type EngineWorkerMessage,
@@ -27,11 +29,24 @@ export type DotnetPkhexEngineExports = {
 	ListBoxSmoke(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	LoadSaveWorkspaceJson(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	SerializeSaveJson(bytes: Uint8Array, fileName?: string): string;
+	ApplySlotOperationJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operationJson: string
+	): string;
+};
+
+type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes'> & {
+	bytesBase64: string;
+	byteLength: number;
 };
 
 export type PkhexEngineWorkerRuntimeOptions = {
 	loadEngine(basePath: string): Promise<DotnetPkhexEngineExports>;
-	postMessage(message: EngineWorkerMessage | EngineWorkerStatusMessage): void;
+	postMessage(
+		message: EngineWorkerMessage | EngineWorkerStatusMessage,
+		transfer?: Transferable[]
+	): void;
 };
 
 export type PkhexEngineWorkerRuntime = {
@@ -123,6 +138,9 @@ export function createPkhexEngineWorkerRuntime({
 			case 'serializeSave':
 				postMessage(createEngineWorkerResponse(request, serializeSave(engine, request)));
 				return;
+			case 'applySlotOperation':
+				postSlotOperationResponse(postMessage, request, applySlotOperation(engine, request));
+				return;
 		}
 	}
 
@@ -189,6 +207,46 @@ function serializeSave(
 	);
 }
 
+function applySlotOperation(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerApplySlotOperationRequest
+): EngineResult<RawSlotOperationResult> {
+	return parseEngineResult<RawSlotOperationResult>(
+		engine.ApplySlotOperationJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			JSON.stringify({
+				...request.payload.operation,
+				activeBox: request.payload.activeBox
+			})
+		)
+	);
+}
+
+function postSlotOperationResponse(
+	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
+	request: EngineWorkerApplySlotOperationRequest,
+	result: EngineResult<RawSlotOperationResult>
+) {
+	if (!result.ok) {
+		postMessage(createEngineWorkerResponse(request, result));
+		return;
+	}
+
+	const bytes = base64ToArrayBuffer(result.value.bytesBase64, result.value.byteLength);
+	const response = createEngineWorkerResponse(request, {
+		ok: true,
+		value: {
+			bytes,
+			mutated: result.value.mutated,
+			workspace: result.value.workspace
+		},
+		error: null
+	});
+
+	postMessage(response, [bytes]);
+}
+
 function unavailableResult(request: EngineWorkerRequest) {
 	const result = {
 		ok: false,
@@ -210,7 +268,20 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<SaveWorkspace>;
 		case 'serializeSave':
 			return result satisfies EngineResult<SerializedSave>;
+		case 'applySlotOperation':
+			return result satisfies EngineResult<SlotOperationResult>;
 	}
+}
+
+function base64ToArrayBuffer(base64: string, byteLength: number): ArrayBuffer {
+	const binary = atob(base64);
+	const bytes = new Uint8Array(byteLength);
+
+	for (let index = 0; index < bytes.length; index += 1) {
+		bytes[index] = binary.charCodeAt(index);
+	}
+
+	return bytes.buffer;
 }
 
 function getErrorMessage(error: unknown): string {

@@ -9,7 +9,7 @@
 		| 'create-pokemon'
 		| 'move'
 		| 'copy'
-		| 'clear-release'
+		| 'clear'
 		| 'export'
 		| 'legality-check';
 
@@ -93,20 +93,20 @@
 			{
 				key: 'move',
 				label: 'Move',
-				detail: 'Unavailable: movement is not implemented yet.',
-				availability: 'unsupported'
+				detail: 'Choose a destination Slot.',
+				availability: 'available'
 			},
 			{
 				key: 'copy',
 				label: 'Copy',
-				detail: 'Unavailable: copying is not implemented yet.',
-				availability: 'unsupported'
+				detail: 'Choose an empty destination Slot.',
+				availability: 'available'
 			},
 			{
-				key: 'clear-release',
-				label: 'Clear / Release',
-				detail: 'Unavailable: release is not implemented yet.',
-				availability: 'unsupported'
+				key: 'clear',
+				label: 'Clear Slot',
+				detail: 'Remove this Pokemon after confirmation.',
+				availability: 'available'
 			},
 			{
 				key: 'export',
@@ -188,7 +188,7 @@
 <style>
 	.slot-context {
 		position: absolute;
-		z-index: 40;
+		z-index: 200;
 		top: calc(100% + 8px);
 		left: 50%;
 		width: min(218px, calc(100vw - 24px));

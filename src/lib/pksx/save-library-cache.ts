@@ -4,7 +4,11 @@ import {
 	type PartySlotSummary,
 	type SaveSummary
 } from '$lib/engine';
-import { createCleanWorkspaceState, type WorkspaceState } from '$lib/pksx/backup-workflow';
+import {
+	createCleanWorkspaceState,
+	createPersistedWorkspaceState,
+	type WorkspaceState
+} from '$lib/pksx/backup-workflow';
 import {
 	IndexedDbLocalLibraryStorage,
 	type BackupMetadata,
@@ -123,13 +127,17 @@ export async function loadActiveWorkspaceFromLibrary() {
 		return activeWorkspace;
 	}
 
-	const bytes = await storage.getSaveBytes(fallbackSaveFile.id);
+	const [bytes, persistedWorkspace] = await Promise.all([
+		storage.getSaveBytes(fallbackSaveFile.id),
+		storage.getWorkspace(fallbackSaveFile.id)
+	]);
 	if (!bytes) {
 		return null;
 	}
 
+	const workspaceBytes = persistedWorkspace?.bytes ?? bytes;
 	const result = await getPkhexEngine().loadSaveWorkspace(
-		bytes,
+		workspaceBytes,
 		fallbackSaveFile.originalFileName ?? undefined,
 		0
 	);
@@ -137,11 +145,19 @@ export async function loadActiveWorkspaceFromLibrary() {
 		throw result.error;
 	}
 
-	activeWorkspace = createCleanWorkspaceState({
-		file: fallbackSaveFile,
-		bytes,
-		workspace: result.value
-	});
+	activeWorkspace = persistedWorkspace
+		? createPersistedWorkspaceState({
+				file: fallbackSaveFile,
+				bytes: persistedWorkspace.bytes,
+				workspace: result.value,
+				dirty: persistedWorkspace.dirty,
+				automaticBackupCreated: persistedWorkspace.automaticBackupCreated
+			})
+		: createCleanWorkspaceState({
+				file: fallbackSaveFile,
+				bytes,
+				workspace: result.value
+			});
 	activeWorkspaceBox = 0;
 	return activeWorkspace;
 }

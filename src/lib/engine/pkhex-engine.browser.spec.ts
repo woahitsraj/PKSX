@@ -270,4 +270,96 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			expect(serialized.value.byteLength).toBeGreaterThan(0);
 		}
 	);
+
+	test('applies Save File slot operations through the browser-wasm bundle', async () => {
+		expect.assertions(13);
+
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+
+		const moved = await engine.applySlotOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				kind: 'move',
+				source: { zone: 'box', box: 0, slot: 0 },
+				destination: { zone: 'box', box: 0, slot: 2 }
+			},
+			0
+		);
+		expect(moved.ok).toBe(true);
+		if (!moved.ok) throw new Error('Expected move to succeed.');
+		expect(moved.value.mutated).toBe(true);
+		expect(moved.value.workspace.boxSlots[0]).toMatchObject({ slot: 0, isEmpty: true });
+		expect(moved.value.workspace.boxSlots[2]).toMatchObject({ slot: 2, nickname: 'ARON' });
+
+		const copied = await engine.applySlotOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				kind: 'copy',
+				source: { zone: 'box', box: 0, slot: 0 },
+				destination: { zone: 'box', box: 0, slot: 2 }
+			},
+			0
+		);
+		expect(copied.ok).toBe(true);
+		if (!copied.ok) throw new Error('Expected copy to succeed.');
+		expect(copied.value.mutated).toBe(true);
+		expect(copied.value.workspace.boxSlots[0]).toMatchObject({ slot: 0, nickname: 'ARON' });
+		expect(copied.value.workspace.boxSlots[2]).toMatchObject({ slot: 2, nickname: 'ARON' });
+
+		const cleared = await engine.applySlotOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				kind: 'clear',
+				source: { zone: 'box', box: 0, slot: 0 }
+			},
+			0
+		);
+		expect(cleared.ok).toBe(true);
+		if (!cleared.ok) throw new Error('Expected clear to succeed.');
+		expect(cleared.value.mutated).toBe(true);
+		expect(cleared.value.workspace.boxSlots[0]).toMatchObject({ slot: 0, isEmpty: true });
+
+		const occupiedCopy = await engine.applySlotOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				kind: 'copy',
+				source: { zone: 'box', box: 0, slot: 0 },
+				destination: { zone: 'box', box: 0, slot: 1 }
+			},
+			0
+		);
+		expect(occupiedCopy).toMatchObject({
+			ok: false,
+			error: { code: 'occupied-destination-slot' }
+		});
+
+		const emptySource = await engine.applySlotOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				kind: 'move',
+				source: { zone: 'box', box: 0, slot: 2 },
+				destination: { zone: 'box', box: 0, slot: 3 }
+			},
+			0
+		);
+		expect(emptySource).toMatchObject({
+			ok: false,
+			error: { code: 'empty-source-slot' }
+		});
+	});
 });
+
+function copyBytes(bytes: Uint8Array): Uint8Array {
+	const copy = new Uint8Array(bytes.byteLength);
+	copy.set(bytes);
+	return copy;
+}
