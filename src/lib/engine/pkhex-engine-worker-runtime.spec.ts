@@ -79,6 +79,31 @@ function createEngineExports(): DotnetPkhexEngineExports {
 				ok: true,
 				value: { bytesBase64: 'AQID', byteLength: 3 },
 				error: null
+			}),
+		ApplySlotOperationJson: () =>
+			JSON.stringify({
+				ok: true,
+				value: {
+					bytesBase64: 'AQID',
+					byteLength: 3,
+					mutated: true,
+					workspace: {
+						summary: {
+							fileName: 'main.sav',
+							saveType: 'SAV9SV',
+							gameVersion: 'SV',
+							gameVersionId: 45,
+							generation: 9,
+							trainerName: 'PKSX',
+							partyCount: 1,
+							boxCount: 32,
+							boxSlotCount: 30
+						},
+						partySlots: [],
+						boxSlots: []
+					}
+				},
+				error: null
 			})
 	};
 }

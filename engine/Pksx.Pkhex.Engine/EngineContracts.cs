@@ -141,6 +141,20 @@ public sealed record SaveWorkspace(
 
 public sealed record SerializedSave(string BytesBase64, int ByteLength);
 
+public sealed record SaveSlotRef(string Zone, int? Box, int Slot);
+
+public sealed record SlotOperationRequest(
+    string Kind,
+    SaveSlotRef Source,
+    SaveSlotRef? Destination,
+    int ActiveBox);
+
+public sealed record SlotOperationResult(
+    string BytesBase64,
+    int ByteLength,
+    bool Mutated,
+    SaveWorkspace Workspace);
+
 internal static class SlotDetailProjection
 {
     private static readonly string[] StatKeys = ["HP", "ATK", "DEF", "SPA", "SPD", "SPE"];

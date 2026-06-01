@@ -6,6 +6,8 @@ import type {
 	EngineResult,
 	EngineVersion,
 	SaveWorkspace,
+	SlotOperation,
+	SlotOperationResult,
 	SerializedSave,
 	SaveSummary
 } from './types';
@@ -34,11 +36,16 @@ type DotnetPkhexEngineExports = {
 	ListBoxSmoke(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	LoadSaveWorkspaceJson(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	SerializeSaveJson(bytes: Uint8Array, fileName?: string): string;
+	ApplySlotOperationJson(bytes: Uint8Array, fileName: string | undefined, operationJson: string): string;
 };
 
 const knownEngineErrorCodes = new Set<EngineErrorCode>([
 	'unsupported-save',
 	'invalid-box',
+	'invalid-slot',
+	'empty-source-slot',
+	'occupied-destination-slot',
+	'unsupported-slot-operation',
 	'engine-unavailable',
 	'invalid-engine-response',
 	'invalid-worker-message',
@@ -65,9 +72,26 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 		loadSaveWorkspace: async (bytes, fileName, box) =>
 			parseEngineResult<SaveWorkspace>(engine.LoadSaveWorkspaceJson(bytes, fileName, box)),
 		serializeSave: async (bytes, fileName) =>
-			parseEngineResult<SerializedSave>(engine.SerializeSaveJson(bytes, fileName))
+			parseEngineResult<SerializedSave>(engine.SerializeSaveJson(bytes, fileName)),
+		applySlotOperation: async (bytes, fileName, operation, activeBox) =>
+			decodeSlotOperationResult(
+				parseEngineResult<RawSlotOperationResult>(
+					engine.ApplySlotOperationJson(
+						bytes,
+						fileName,
+						JSON.stringify({ ...operation, activeBox } satisfies RawSlotOperationRequest)
+					)
+				)
+			)
 	};
 }
+
+type RawSlotOperationRequest = SlotOperation & { activeBox: number };
+
+type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes'> & {
+	bytesBase64: string;
+	byteLength: number;
+};
 
 export function parseEngineResult<T>(json: string): EngineResult<T> {
 	try {
@@ -125,6 +149,35 @@ function normalizeEngineError(error: unknown): EngineError {
 
 function engineFailure<T>(code: EngineErrorCode, message: string): EngineResult<T> {
 	return { ok: false, value: null, error: { code, message } };
+}
+
+function decodeSlotOperationResult(
+	result: EngineResult<RawSlotOperationResult>
+): EngineResult<SlotOperationResult> {
+	if (!result.ok) {
+		return result;
+	}
+
+	return {
+		ok: true,
+		value: {
+			bytes: base64ToBytes(result.value.bytesBase64, result.value.byteLength),
+			mutated: result.value.mutated,
+			workspace: result.value.workspace
+		},
+		error: null
+	};
+}
+
+function base64ToBytes(base64: string, byteLength: number): Uint8Array {
+	const binary = atob(base64);
+	const bytes = new Uint8Array(byteLength);
+
+	for (let index = 0; index < bytes.length; index += 1) {
+		bytes[index] = binary.charCodeAt(index);
+	}
+
+	return bytes;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

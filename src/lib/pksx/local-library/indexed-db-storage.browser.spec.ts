@@ -69,6 +69,64 @@ describe('IndexedDbLocalLibraryStorage', () => {
 		expect(bytesEqual(exportedAgain ?? new Uint8Array(), originalBytes)).toBe(true);
 	});
 
+	it('persists workspace bytes separately from the imported save artifact', async () => {
+		const originalBytes = new Uint8Array([10, 20, 30, 40]);
+		const workspaceBytes = new Uint8Array([10, 99, 30, 40]);
+		const saveFile = await storage.importSave({
+			bytes: originalBytes,
+			originalFileName: 'dirty.sav'
+		});
+
+		const storedWorkspace = await storage.putWorkspace({
+			saveFileId: saveFile.id,
+			bytes: workspaceBytes,
+			dirty: true,
+			automaticBackupCreated: true
+		});
+		workspaceBytes[1] = 55;
+
+		const retrievedWorkspace = await storage.getWorkspace(saveFile.id);
+		const originalAgain = await storage.getSaveBytes(saveFile.id);
+
+		expect(storedWorkspace).toStrictEqual({
+			saveFileId: saveFile.id,
+			bytes: new Uint8Array([10, 99, 30, 40]),
+			dirty: true,
+			automaticBackupCreated: true,
+			updatedAt: '2026-05-16T12:00:00.000Z'
+		});
+		expect(retrievedWorkspace).toStrictEqual(storedWorkspace);
+		expect(bytesEqual(originalAgain ?? new Uint8Array(), originalBytes)).toBe(true);
+	});
+
+	it('clears persisted workspace bytes for a save artifact', async () => {
+		const saveFile = await storage.importSave({
+			bytes: new Uint8Array([1, 2, 3]),
+			originalFileName: 'workspace.sav'
+		});
+
+		await storage.putWorkspace({
+			saveFileId: saveFile.id,
+			bytes: new Uint8Array([3, 2, 1]),
+			dirty: true,
+			automaticBackupCreated: false
+		});
+		await storage.clearWorkspace(saveFile.id);
+
+		await expect(storage.getWorkspace(saveFile.id)).resolves.toBeNull();
+	});
+
+	it('rejects workspace persistence for an unknown save file', async () => {
+		await expect(
+			storage.putWorkspace({
+				saveFileId: 'missing-save',
+				bytes: new Uint8Array([1]),
+				dirty: true,
+				automaticBackupCreated: false
+			})
+		).rejects.toThrow('Cannot persist workspace for unknown save file: missing-save');
+	});
+
 	it('lists the most recently imported save first', async () => {
 		ids = ['older-save', 'newer-save'];
 		storage = new IndexedDbLocalLibraryStorage({

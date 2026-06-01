@@ -4,8 +4,17 @@
 	type Align = 'start' | 'center' | 'end';
 	type VerticalAlign = 'top' | 'bottom';
 	type CommandAvailability = 'available' | 'unsupported' | 'empty-slot' | 'occupied-slot';
+	export type SlotActionCommandId =
+		| 'pokemon-action'
+		| 'move'
+		| 'copy'
+		| 'clear'
+		| 'export'
+		| 'legality-check'
+		| 'create-pokemon';
 
 	type SlotActionCommand = {
+		id: SlotActionCommandId;
 		label: string;
 		detail: string;
 		availability: CommandAvailability;
@@ -19,6 +28,7 @@
 		mobileTop?: number | null;
 		activeIndex: number;
 		onFocusCommand: (index: number) => void;
+		onCommand: (command: SlotActionCommandId) => void;
 		onClose: () => void;
 	}
 
@@ -30,6 +40,7 @@
 		mobileTop = null,
 		activeIndex,
 		onFocusCommand,
+		onCommand,
 		onClose
 	}: Props = $props();
 
@@ -40,26 +51,31 @@
 		if (slot.kind === 'empty') {
 			return [
 				{
+					id: 'create-pokemon',
 					label: 'Create Pokemon',
 					detail: 'Unavailable: creation is not implemented yet.',
 					availability: 'unsupported'
 				},
 				{
+					id: 'move',
 					label: 'Move',
 					detail: 'Unavailable: Slot is empty.',
 					availability: 'empty-slot'
 				},
 				{
+					id: 'copy',
 					label: 'Copy',
 					detail: 'Unavailable: Slot is empty.',
 					availability: 'empty-slot'
 				},
 				{
+					id: 'export',
 					label: 'Export',
 					detail: 'Unavailable: Slot is empty.',
 					availability: 'empty-slot'
 				},
 				{
+					id: 'legality-check',
 					label: 'Legality Check',
 					detail: 'Unavailable: Slot is empty.',
 					availability: 'empty-slot'
@@ -69,36 +85,43 @@
 
 		return [
 			{
+				id: 'pokemon-action',
 				label: 'Pokemon Action',
 				detail: 'Unavailable: summary view is not implemented yet.',
 				availability: 'unsupported'
 			},
 			{
+				id: 'move',
 				label: 'Move',
-				detail: 'Unavailable: movement is not implemented yet.',
-				availability: 'unsupported'
+				detail: 'Choose a destination Slot.',
+				availability: 'available'
 			},
 			{
+				id: 'copy',
 				label: 'Copy',
-				detail: 'Unavailable: copying is not implemented yet.',
-				availability: 'unsupported'
+				detail: 'Choose an empty destination Slot.',
+				availability: 'available'
 			},
 			{
-				label: 'Clear / Release',
-				detail: 'Unavailable: release is not implemented yet.',
-				availability: 'unsupported'
+				id: 'clear',
+				label: 'Clear Slot',
+				detail: 'Remove this Pokemon after confirmation.',
+				availability: 'available'
 			},
 			{
+				id: 'export',
 				label: 'Export',
 				detail: 'Unavailable: Pokemon export is not implemented yet.',
 				availability: 'unsupported'
 			},
 			{
+				id: 'legality-check',
 				label: 'Legality Check',
 				detail: 'Unavailable: Legality Check is not implemented yet.',
 				availability: 'unsupported'
 			},
 			{
+				id: 'create-pokemon',
 				label: 'Create Pokemon',
 				detail: 'Unavailable: Slot already contains a Pokemon.',
 				availability: 'occupied-slot'
@@ -131,17 +154,22 @@
 					id={`slot-action-${index}`}
 					type="button"
 					class:controller-focused={activeIndex === index}
-					aria-disabled="true"
-					aria-label={`${command.label} unavailable: ${command.detail.replace('Unavailable: ', '')}`}
+					aria-label={command.availability === 'available'
+						? `${command.label}: ${command.detail}`
+						: `${command.label} unavailable: ${command.detail.replace('Unavailable: ', '')}`}
 					data-availability={command.availability}
+					aria-disabled={command.availability === 'available' ? undefined : 'true'}
 					onfocus={() => onFocusCommand(index)}
 					onclick={(event) => {
 						event.preventDefault();
 						onFocusCommand(index);
+						if (command.availability === 'available') {
+							onCommand(command.id);
+						}
 					}}
 				>
 					<span>{command.label}</span>
-					<small>Unavailable</small>
+					<small>{command.availability === 'available' ? 'Ready' : 'Unavailable'}</small>
 				</button>
 			</div>
 		{/each}
@@ -160,7 +188,7 @@
 <style>
 	.slot-context {
 		position: absolute;
-		z-index: 40;
+		z-index: 200;
 		top: calc(100% + 8px);
 		left: 50%;
 		width: min(218px, calc(100vw - 24px));

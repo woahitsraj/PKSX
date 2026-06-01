@@ -40,6 +40,7 @@ function renderSlot(props: {
 	focused?: boolean;
 	spriteUrl?: string | null;
 	zone?: 'party' | 'box';
+	onChooseSlot?: () => void;
 }) {
 	const host = document.createElement('div');
 	host.style.width = '80px';
@@ -61,6 +62,7 @@ function renderSlot(props: {
 			rowIndex: 1,
 			colIndex: 1,
 			spriteUrl: props.spriteUrl ?? null,
+			onChooseSlot: props.onChooseSlot,
 			onFocusSlot,
 			onOpenSlot
 		}
@@ -114,5 +116,46 @@ describe('StorageSlot', () => {
 		expect(button.querySelector('.sprite-stage .empty-sprite')).not.toBeNull();
 		expect(button.querySelector('.slot-label')?.textContent).toContain('Empty');
 		expect(onFocusSlot).toHaveBeenCalledTimes(1);
+	});
+
+	test('opens the Slot action surface when an already focused Slot is clicked', () => {
+		const { button, onFocusSlot, onOpenSlot } = renderSlot({
+			slot: pokemonSlot,
+			focused: true
+		});
+
+		button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		button.click();
+
+		expect(onFocusSlot).toHaveBeenCalledTimes(1);
+		expect(onOpenSlot).toHaveBeenCalledTimes(1);
+	});
+
+	test('focuses an unfocused Slot without opening the action surface', () => {
+		const { button, onFocusSlot, onOpenSlot } = renderSlot({
+			slot: pokemonSlot,
+			focused: false
+		});
+
+		button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		button.click();
+
+		expect(onFocusSlot).toHaveBeenCalledTimes(1);
+		expect(onOpenSlot).not.toHaveBeenCalled();
+	});
+
+	test('chooses a pending destination instead of opening the action surface', () => {
+		const onChooseSlot = vi.fn();
+		const { button, onOpenSlot } = renderSlot({
+			slot: pokemonSlot,
+			focused: true,
+			onChooseSlot
+		});
+
+		button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		button.click();
+
+		expect(onChooseSlot).toHaveBeenCalledTimes(1);
+		expect(onOpenSlot).not.toHaveBeenCalled();
 	});
 });

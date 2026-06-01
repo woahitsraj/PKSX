@@ -5,13 +5,16 @@ import type {
 	CreateBackupInput,
 	ImportSaveInput,
 	LocalLibraryStorage,
+	PutWorkspaceInput,
 	SaveFileId,
-	StoredSaveFile
+	StoredSaveFile,
+	StoredWorkspace
 } from './types';
 
-const databaseVersion = 1;
+const databaseVersion = 2;
 const saveFilesStore = 'saveFiles';
 const saveBytesStore = 'saveBytes';
+const workspacesStore = 'workspaces';
 const backupsStore = 'backups';
 const backupBytesStore = 'backupBytes';
 const backupsBySaveFileIdIndex = 'bySaveFileId';
@@ -25,6 +28,8 @@ type BackupBytesRecord = {
 	backupId: BackupId;
 	bytes: Uint8Array;
 };
+
+type WorkspaceRecord = StoredWorkspace;
 
 export type IndexedDbLocalLibraryStorageOptions = {
 	databaseName?: string;
@@ -109,6 +114,60 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 			);
 			await transactionDone(transaction);
 			return record ? copyBytes(record.bytes) : null;
+		} finally {
+			database.close();
+		}
+	}
+
+	async putWorkspace(input: PutWorkspaceInput): Promise<StoredWorkspace> {
+		const saveFile = await this.getSave(input.saveFileId);
+		if (!saveFile) {
+			throw new Error(`Cannot persist workspace for unknown save file: ${input.saveFileId}`);
+		}
+
+		const workspace: StoredWorkspace = {
+			saveFileId: input.saveFileId,
+			bytes: copyBytes(input.bytes),
+			dirty: input.dirty,
+			automaticBackupCreated: input.automaticBackupCreated,
+			updatedAt: this.#now()
+		};
+
+		const database = await openLocalLibraryDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction(workspacesStore, 'readwrite');
+			transaction.objectStore(workspacesStore).put({
+				...workspace,
+				bytes: copyBytes(workspace.bytes)
+			} satisfies WorkspaceRecord);
+			await transactionDone(transaction);
+		} finally {
+			database.close();
+		}
+
+		return { ...workspace, bytes: copyBytes(workspace.bytes) };
+	}
+
+	async getWorkspace(saveFileId: SaveFileId): Promise<StoredWorkspace | null> {
+		const database = await openLocalLibraryDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction(workspacesStore, 'readonly');
+			const record = await requestToPromise<WorkspaceRecord | undefined>(
+				transaction.objectStore(workspacesStore).get(saveFileId)
+			);
+			await transactionDone(transaction);
+			return record ? { ...record, bytes: copyBytes(record.bytes) } : null;
+		} finally {
+			database.close();
+		}
+	}
+
+	async clearWorkspace(saveFileId: SaveFileId): Promise<void> {
+		const database = await openLocalLibraryDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction(workspacesStore, 'readwrite');
+			transaction.objectStore(workspacesStore).delete(saveFileId);
+			await transactionDone(transaction);
 		} finally {
 			database.close();
 		}
@@ -207,6 +266,10 @@ function migrateDatabase(database: IDBDatabase): void {
 
 	if (!database.objectStoreNames.contains(saveBytesStore)) {
 		database.createObjectStore(saveBytesStore, { keyPath: 'saveFileId' });
+	}
+
+	if (!database.objectStoreNames.contains(workspacesStore)) {
+		database.createObjectStore(workspacesStore, { keyPath: 'saveFileId' });
 	}
 
 	if (!database.objectStoreNames.contains(backupsStore)) {

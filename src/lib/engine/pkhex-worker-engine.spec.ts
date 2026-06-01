@@ -198,6 +198,74 @@ describe('createPkhexWorkerEngine', () => {
 		});
 	});
 
+	test('normalizes mutated slot operation bytes to Uint8Array for later engine calls', async () => {
+		expect.assertions(4);
+
+		const worker = new FakeWorker();
+		const engine = createPkhexWorkerEngine('/pkhex-engine', { createWorker: () => worker });
+
+		worker.emit({ type: 'status', status: 'ready' });
+
+		const operation = engine.applySlotOperation(
+			new Uint8Array([1, 2, 3]),
+			'main.sav',
+			{
+				kind: 'move',
+				source: { zone: 'box', box: 0, slot: 0 },
+				destination: { zone: 'box', box: 0, slot: 2 }
+			},
+			0
+		);
+
+		await Promise.resolve();
+
+		const request = worker.posted[1]?.message;
+		if (request?.type !== 'request' || request.method !== 'applySlotOperation') {
+			throw new Error('Expected an applySlotOperation request.');
+		}
+
+		const responseBytes = new Uint8Array([4, 5, 6]).buffer;
+		worker.emit({
+			type: 'response',
+			id: request.id,
+			method: 'applySlotOperation',
+			result: {
+				ok: true,
+				value: {
+					bytes: responseBytes,
+					mutated: true,
+					workspace: {
+						summary: {
+							saveType: 'SAV9SV',
+							gameVersion: 'SV',
+							gameVersionId: 45,
+							generation: 9,
+							partyCount: 1,
+							boxCount: 1,
+							boxSlotCount: 30
+						},
+						partySlots: [],
+						boxSlots: []
+					}
+				},
+				error: null
+			}
+		});
+
+		const result = await operation;
+		expect(result.ok).toBe(true);
+		if (!result.ok) {
+			throw new Error('Expected slot operation to succeed.');
+		}
+		expect(result.value.bytes).toBeInstanceOf(Uint8Array);
+		expect([...result.value.bytes]).toEqual([4, 5, 6]);
+
+		const summary = engine.summarizeSave(result.value.bytes, 'main.sav');
+		await Promise.resolve();
+		const followUpRequest = worker.posted[2]?.message;
+		expect(followUpRequest).toMatchObject({ type: 'request', method: 'summarizeSave' });
+	});
+
 	test('drains pending requests and permanently fails later calls when startup fails', async () => {
 		expect.assertions(3);
 

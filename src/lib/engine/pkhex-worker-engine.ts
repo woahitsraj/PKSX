@@ -5,6 +5,7 @@ import type {
 	EngineResult,
 	EngineVersion,
 	SaveWorkspace,
+	SlotOperationResult,
 	SerializedSave,
 	SaveSummary
 } from './types';
@@ -167,6 +168,21 @@ export function createPkhexWorkerEngine(
 				},
 				[buffer]
 			);
+		},
+		applySlotOperation: (bytes, fileName, operation, activeBox) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+			const payloadOperation = cloneSlotOperation(operation);
+
+			return sendRequest(
+				'applySlotOperation',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'applySlotOperation',
+					payload: { bytes: buffer, fileName, operation: payloadOperation, activeBox }
+				},
+				[buffer]
+			);
 		}
 	};
 
@@ -191,6 +207,11 @@ export function createPkhexWorkerEngine(
 		request: Extract<EngineWorkerRequest, { method: 'serializeSave' }>,
 		transfer: Transferable[]
 	): Promise<EngineResult<SerializedSave>>;
+	async function sendRequest(
+		method: 'applySlotOperation',
+		request: Extract<EngineWorkerRequest, { method: 'applySlotOperation' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<SlotOperationResult>>;
 	async function sendRequest(
 		method: EngineWorkerMethod,
 		request: EngineWorkerRequest = { type: 'request', id: createRequestId(), method: 'getVersion' },
@@ -229,7 +250,9 @@ export function createPkhexWorkerEngine(
 			return;
 		}
 
-		request.resolve(response.result as EngineWorkerResultForMethod<typeof response.method>);
+		request.resolve(
+			normalizeWorkerResult(response) as EngineWorkerResultForMethod<typeof response.method>
+		);
 	}
 
 	function resolveProtocolError(id: EngineWorkerRequestId | undefined, error: EngineError) {
@@ -248,6 +271,21 @@ export function createPkhexWorkerEngine(
 	}
 }
 
+function normalizeWorkerResult(response: EngineWorkerResponse): EngineResult<unknown> {
+	if (response.method !== 'applySlotOperation' || !response.result.ok) {
+		return response.result;
+	}
+
+	return {
+		ok: true,
+		value: {
+			...response.result.value,
+			bytes: new Uint8Array(response.result.value.bytes)
+		},
+		error: null
+	};
+}
+
 function createDefaultWorker(): EngineWorkerPort {
 	return new Worker(new URL('./pkhex-engine.worker.ts', import.meta.url), { type: 'module' });
 }
@@ -264,6 +302,31 @@ function copyBytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 	copy.set(bytes);
 
 	return copy.buffer;
+}
+
+function cloneSlotOperation(operation: import('./types').SlotOperation): import('./types').SlotOperation {
+	switch (operation.kind) {
+		case 'clear':
+			return { kind: 'clear', source: cloneSlotRef(operation.source) };
+		case 'move':
+			return {
+				kind: 'move',
+				source: cloneSlotRef(operation.source),
+				destination: cloneSlotRef(operation.destination)
+			};
+		case 'copy':
+			return {
+				kind: 'copy',
+				source: cloneSlotRef(operation.source),
+				destination: cloneSlotRef(operation.destination)
+			};
+	}
+}
+
+function cloneSlotRef(ref: import('./types').SaveSlotRef): import('./types').SaveSlotRef {
+	return ref.zone === 'party'
+		? { zone: 'party', slot: ref.slot }
+		: { zone: 'box', box: ref.box, slot: ref.slot };
 }
 
 function engineFailure<T>(error: EngineError): EngineResult<T> {

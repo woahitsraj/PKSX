@@ -7,7 +7,8 @@ export const engineWorkerMethodSchema = z.enum([
 	'summarizeSave',
 	'listBoxSlots',
 	'loadSaveWorkspace',
-	'serializeSave'
+	'serializeSave',
+	'applySlotOperation'
 ]);
 
 export const engineWorkerStatusSchema = z.enum(['idle', 'loading', 'ready', 'failed']);
@@ -15,6 +16,10 @@ export const engineWorkerStatusSchema = z.enum(['idle', 'loading', 'ready', 'fai
 export const engineErrorCodeSchema = z.enum([
 	'unsupported-save',
 	'invalid-box',
+	'invalid-slot',
+	'empty-source-slot',
+	'occupied-destination-slot',
+	'unsupported-slot-operation',
 	'engine-unavailable',
 	'invalid-engine-response',
 	'invalid-worker-message',
@@ -106,6 +111,41 @@ export const serializedSaveSchema = z.object({
 	byteLength: z.number()
 });
 
+export const saveSlotRefSchema = z.discriminatedUnion('zone', [
+	z.object({
+		zone: z.literal('party'),
+		slot: z.number().int()
+	}),
+	z.object({
+		zone: z.literal('box'),
+		box: z.number().int(),
+		slot: z.number().int()
+	})
+]);
+
+export const slotOperationSchema = z.discriminatedUnion('kind', [
+	z.object({
+		kind: z.literal('move'),
+		source: saveSlotRefSchema,
+		destination: saveSlotRefSchema
+	}),
+	z.object({
+		kind: z.literal('copy'),
+		source: saveSlotRefSchema,
+		destination: saveSlotRefSchema
+	}),
+	z.object({
+		kind: z.literal('clear'),
+		source: saveSlotRefSchema
+	})
+]);
+
+export const slotOperationResultSchema = z.object({
+	bytes: z.instanceof(ArrayBuffer),
+	mutated: z.boolean(),
+	workspace: saveWorkspaceSchema
+});
+
 const engineResultSchema = <T extends z.ZodType>(valueSchema: T) =>
 	z.discriminatedUnion('ok', [
 		z.object({
@@ -129,6 +169,8 @@ export const boxSlotSummaryListResultSchema = engineResultSchema(z.array(boxSlot
 export const saveWorkspaceResultSchema = engineResultSchema(saveWorkspaceSchema);
 
 export const serializedSaveResultSchema = engineResultSchema(serializedSaveSchema);
+
+export const slotOperationResultResultSchema = engineResultSchema(slotOperationResultSchema);
 
 export const engineWorkerInitMessageSchema = z.object({
 	type: z.literal('init'),
@@ -183,12 +225,25 @@ export const engineWorkerSerializeSaveRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerApplySlotOperationRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('applySlotOperation'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional(),
+		operation: slotOperationSchema,
+		activeBox: z.number().int()
+	})
+});
+
 export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionRequestSchema,
 	engineWorkerSummarizeSaveRequestSchema,
 	engineWorkerListBoxSlotsRequestSchema,
 	engineWorkerLoadSaveWorkspaceRequestSchema,
-	engineWorkerSerializeSaveRequestSchema
+	engineWorkerSerializeSaveRequestSchema,
+	engineWorkerApplySlotOperationRequestSchema
 ]);
 
 export const engineWorkerGetVersionResponseSchema = z.object({
@@ -226,12 +281,20 @@ export const engineWorkerSerializeSaveResponseSchema = z.object({
 	result: serializedSaveResultSchema
 });
 
+export const engineWorkerApplySlotOperationResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('applySlotOperation'),
+	result: slotOperationResultResultSchema
+});
+
 export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionResponseSchema,
 	engineWorkerSummarizeSaveResponseSchema,
 	engineWorkerListBoxSlotsResponseSchema,
 	engineWorkerLoadSaveWorkspaceResponseSchema,
-	engineWorkerSerializeSaveResponseSchema
+	engineWorkerSerializeSaveResponseSchema,
+	engineWorkerApplySlotOperationResponseSchema
 ]);
 
 export const engineWorkerProtocolErrorSchema = z.object({
@@ -282,6 +345,10 @@ export type EngineWorkerLoadSaveWorkspaceRequest = z.infer<
 
 export type EngineWorkerSerializeSaveRequest = z.infer<
 	typeof engineWorkerSerializeSaveRequestSchema
+>;
+
+export type EngineWorkerApplySlotOperationRequest = z.infer<
+	typeof engineWorkerApplySlotOperationRequestSchema
 >;
 
 export type EngineWorkerRequest = z.infer<typeof engineWorkerRequestSchema>;

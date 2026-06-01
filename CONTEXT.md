@@ -72,9 +72,21 @@ _Avoid_: button when referring to the domain operation
 A user-invoked operation on a Slot, whether or not that Slot contains a Pokemon Entity.
 _Avoid_: Pokemon Action when the Slot may be empty
 
+**Batch Slot Action**:
+A user-invoked operation that applies to multiple source Slots as one workflow.
+_Avoid_: normal Slot Action, multi action
+
 **Create Pokemon**:
 A Slot Action that creates a new Pokemon Entity in an empty Slot.
 _Avoid_: new record, spawn
+
+**Clear Slot**:
+A Slot Action that removes a Pokemon Entity from an occupied Slot and leaves that Slot empty.
+_Avoid_: release when naming the Slot Action
+
+**Slot Swap**:
+A Move outcome where two occupied Slots exchange their Pokemon Entities.
+_Avoid_: overwrite, replace
 
 **Sprite Catalog**:
 The offline app-packaged mapping from Pokemon display identity to local visual assets used in party, box, and Pokemon Storage views.
@@ -161,12 +173,14 @@ _Avoid_: key event, button event
 - A **Box** always has a number and may also have a **Box Name**.
 - A **Slot** contains zero or one **Pokemon Entity**.
 - The **Local Library** stores imported **Save File** artifacts, **Backups**, and **Pokemon Storage**.
+- The **Local Library** may persist the active **Dirty Workspace** without overwriting the imported **Save File** artifact.
 - A **Backup** belongs to one **Save File**.
 - A **Backup** has one **Backup Reason**.
 - Manual and automatic **Backups** are both restorable **Backups**.
 - **Backups** are presented newest first when recovery context matters.
 - A **Workspace** belongs to one loaded **Save File**.
 - A **Dirty Workspace** belongs to one **Workspace**.
+- A persisted **Dirty Workspace** is restored after reload before the imported **Save File** artifact is opened.
 - A **Backup** is created before **Risky Changes** to a **Workspace**.
 - At most one automatic **Backup** is created before the first **Risky Change** in a **Workspace**.
 - A manual **Backup** preserves the current **Workspace** state.
@@ -183,12 +197,14 @@ _Avoid_: key event, button event
 - Preserving restored backup bytes as a separate **Save File** artifact requires an explicit user action.
 - Preserving restored backup bytes as a separate **Save File** artifact associates the active **Workspace** with that new **Save File** artifact.
 - Preserving restored backup bytes as a separate **Save File** artifact clears the **Dirty Workspace** when the active **Workspace** matches the new artifact.
+- No-op **Slot Actions** are not **Risky Changes**.
 - **Pokemon Storage** contains **Pokemon Entities** that are outside any **Save File**.
 - **Pokemon Storage** contains one or more **Storage Boxes**.
 - A **Storage Box** contains zero or more **Slots**.
 - A **Storage Box** is owned by PKSX, not by any **Save File**.
 - A **Box Source** supplies either **Boxes** from a **Save File** or **Storage Boxes** from **Pokemon Storage**.
 - A **Box Source** is presented to the user only when its underlying collection is available in PKSX.
+- A future **Slot Action** may use source and destination **Slots** from different **Box Sources**.
 - A **Pokemon Entity** may have **Pokemon Provenance** even when its original **Save File** is no longer in the **Local Library**.
 - **Pokemon Provenance** records historical origin; it does not determine the current owner or location of a **Pokemon Entity**.
 - A **Legality Check** evaluates one **Pokemon Entity**.
@@ -196,7 +212,12 @@ _Avoid_: key event, button event
 - A **Legality Fix** is based on a **Legality Report** and must be explicitly applied by the user.
 - A **Pokemon Action** applies to one **Pokemon Entity**.
 - A **Slot Action** applies to one **Slot**.
+- A **Batch Slot Action** applies to multiple source **Slots**.
 - **Create Pokemon** applies to an empty **Slot**.
+- **Clear Slot** applies to an occupied **Slot** and requires explicit user confirmation.
+- Moving or copying a **Pokemon Entity** between **Save File** **Slots** has a source **Slot** and a destination **Slot**.
+- A Move into an occupied **Slot** performs a **Slot Swap**.
+- Copying a **Pokemon Entity** into a **Save File** **Slot** requires an empty destination **Slot**.
 - The **Sprite Catalog** provides offline visual assets for **Pokemon Entities**.
 - A **Sprite Identity** belongs to one **Pokemon Entity** projection.
 - A **Sprite Identity** describes visible Pokemon characteristics, not save format or current location.
@@ -205,6 +226,7 @@ _Avoid_: key event, button event
 - A **Pokemon Entity** received through **Peer Transfer** enters **Pokemon Storage** before it can be moved into a **Save File**.
 - The **PKHeX Engine** exposes a **Facade** consumed by the Svelte app.
 - **Export** writes data from the **Local Library** back to user-controlled storage.
+- Moving, copying, or clearing a **Slot** in a **Save File** is a **Risky Change** to the **Workspace**.
 - Moving a **Pokemon Entity** from a **Save File** to **Pokemon Storage** removes it from the source **Slot**.
 - Copying a **Pokemon Entity** from a **Save File** to **Pokemon Storage** leaves the source **Slot** unchanged.
 - **Export** names should keep a recognizable connection to the imported **Save File** while distinguishing the exported artifact from the source file.
@@ -217,6 +239,7 @@ _Avoid_: key event, button event
 - Held directional **Navigation Actions** repeat after an initial delay; confirm, back, and shoulder actions require a fresh press.
 - The visible slot highlight represents **Controller Focus**; PKSX does not track a separate selected slot in the box-first shell.
 - The **Active Slot Detail Rail** reflects the **Slot** under **Controller Focus** and does not define a second selected **Slot**.
+- A **Slot** may be under **Controller Focus** even when it is not a valid destination for a pending **Slot Action**.
 - **Controller Focus** clamps at a **Focus Zone** edge unless that edge defines an explicit transition to another **Focus Zone**.
 - The **Party** and the active **Box** are separate **Focus Zones** with explicit directional transitions between them.
 - A **Slot Action Surface** opens from the current **Controller Focus** and returns to it when dismissed.
