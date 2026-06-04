@@ -1,0 +1,3 @@
+# Use engine-backed Pokemon Editor apply contract
+
+PKSX will model Pokemon Editor changes as staged engine mutation requests that are explicitly applied to a verified Pokemon Editor Source, rather than treating TypeScript field projections as durable Pokemon data. Save File-owned Pokemon edits write atomically through the source Slot in Save File bytes after Backup prerequisites are satisfied, while Pokemon Storage-owned edits write through the Pokemon Storage boundary; unsupported edits, stale sources, and failures remain distinct user-visible outcomes. This keeps future editor capabilities aligned with PKHeX Engine ownership, preserves Backup and Dirty Workspace behavior, and avoids each field editor inventing its own apply flow.

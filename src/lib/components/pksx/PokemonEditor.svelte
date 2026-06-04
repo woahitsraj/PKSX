@@ -29,6 +29,13 @@
 	const sourceLabel = $derived(
 		editor.source.owner === 'save-file' ? 'Save File Pokemon' : 'Pokemon Storage Pokemon'
 	);
+	const statusText = $derived(
+		feedback ??
+			editor.applyOutcome.message ??
+			(editor.staged
+				? `${editor.stagedEdits.length} Pokemon edit${editor.stagedEdits.length === 1 ? '' : 's'} staged.`
+				: 'No Pokemon edits staged.')
+	);
 	const identityRows = $derived(
 		[
 			slot.gender ? { label: 'Gender', value: slot.gender } : null,
@@ -152,9 +159,14 @@
 
 	<footer class="editor-actions">
 		<p id="pokemon-editor-status">
-			{feedback ?? 'Editing is staged here once engine mutation support is available.'}
+			{statusText}
 		</p>
-		<button type="button" class="unsupported-apply" onclick={onUnsupportedApply}>
+		<button
+			type="button"
+			class="unsupported-apply"
+			disabled={!editor.staged}
+			onclick={onUnsupportedApply}
+		>
 			Apply edits
 		</button>
 		<button type="button" class="close-editor" onclick={onClose}>Close</button>
@@ -433,6 +445,11 @@
 	.unsupported-apply {
 		background: var(--paper-deep);
 		color: var(--ink-soft);
+	}
+
+	.unsupported-apply:disabled {
+		cursor: not-allowed;
+		opacity: 0.56;
 	}
 
 	.close-editor {

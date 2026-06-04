@@ -850,6 +850,8 @@
 		const result = createPokemonEditorState(
 			{
 				owner: 'save-file',
+				saveFileId: loadedSave?.file.id ?? null,
+				slotRef: slotRefForFocus(),
 				location: activeSlotPositionLabel
 			},
 			focusedSlot
