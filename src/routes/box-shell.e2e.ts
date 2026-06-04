@@ -193,9 +193,8 @@ test('Pokemon Action opens Pokemon Editor and returns focus to the command stack
 	await expect(editor).toContainText('Species #0025');
 	await expect(editor).toContainText('Move Set');
 	await expect(editor).toContainText('Engine projection');
-
-	await page.getByRole('button', { name: 'Apply edits' }).click();
-	await expect(editor).toContainText('Engine-backed Pokemon editing is not available yet.');
+	await expect(editor).toContainText('No Pokemon edits staged.');
+	await expect(page.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
 
 	await page.keyboard.press('Escape');
 	await expect(editor).toBeHidden();

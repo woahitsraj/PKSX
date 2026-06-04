@@ -72,6 +72,26 @@ _Avoid_: button when referring to the domain operation
 A focused workflow for inspecting and staging edits to one Pokemon Entity.
 _Avoid_: detail workflow, summary view
 
+**Pokemon Editor Source**:
+The current owner and write target for the Pokemon Entity presented by a Pokemon Editor.
+_Avoid_: provenance, display location
+
+**Staged Pokemon Edit**:
+A Pokemon Editor change prepared for explicit apply but not yet written to its Pokemon Editor Source.
+_Avoid_: saved field, durable Pokemon data
+
+**Pokemon Edit Validation**:
+A PKHeX Engine evaluation of whether Staged Pokemon Edits can be applied to a Pokemon Entity.
+_Avoid_: Legality Check when referring only to edit applicability
+
+**Unsupported Pokemon Edit**:
+A Staged Pokemon Edit that PKSX or the PKHeX Engine cannot currently apply.
+_Avoid_: failed edit when no expected supported operation failed
+
+**Stale Pokemon Editor Source**:
+A Pokemon Editor Source that no longer identifies the same Pokemon Entity that the Pokemon Editor opened.
+_Avoid_: missing field, validation error
+
 **Move Set Editing**:
 A Pokemon Editor capability for changing the moves or move-related values of a Pokemon Entity.
 _Avoid_: Move editing, Move when referring to editing a Pokemon Entity's moves
@@ -233,7 +253,27 @@ _Avoid_: key event, button event
 - A **Pokemon Action** applies to one **Pokemon Entity**.
 - A **Pokemon Editor** presents one **Pokemon Entity**.
 - A **Pokemon Editor** may present a **Pokemon Entity** from a **Save File** or from **Pokemon Storage**.
+- A **Pokemon Editor** has one **Pokemon Editor Source**.
+- A **Pokemon Editor Source** determines where applied edits are written.
+- A **Pokemon Editor Source** describes current ownership, not **Pokemon Provenance**.
+- A **Stale Pokemon Editor Source** cannot receive applied **Staged Pokemon Edits**.
 - A **Pokemon Editor** stages edits before they become **Risky Changes**.
+- A **Pokemon Editor** may contain zero or more **Staged Pokemon Edits**.
+- A **Staged Pokemon Edit** is not written to its **Pokemon Editor Source** until the user explicitly applies it.
+- **Pokemon Edit Validation** evaluates **Staged Pokemon Edits** before they are written to a **Pokemon Editor Source**.
+- **Pokemon Edit Validation** is distinct from a **Legality Check**.
+- **Pokemon Edit Validation** does not determine whether a **Pokemon Entity** is legal.
+- An **Unsupported Pokemon Edit** does not change its **Pokemon Editor Source**.
+- Applying no **Staged Pokemon Edits** is not a **Risky Change**.
+- Applying **Staged Pokemon Edits** writes all accepted edits for that **Pokemon Entity** together or writes none of them.
+- Applying **Staged Pokemon Edits** to a **Save File**-owned **Pokemon Entity** is a **Risky Change**.
+- Applying **Staged Pokemon Edits** to a **Save File**-owned **Pokemon Entity** writes through that **Pokemon Entity**'s **Slot** in the **Save File**.
+- Applying **Staged Pokemon Edits** to a **Pokemon Storage**-owned **Pokemon Entity** does not change a **Workspace**.
+- Applying **Staged Pokemon Edits** to a **Pokemon Storage**-owned **Pokemon Entity** writes through **Pokemon Storage**.
+- Successfully applied **Staged Pokemon Edits** are no longer staged.
+- Rejected or failed **Staged Pokemon Edits** remain staged until the user changes or cancels them.
+- A **Pokemon Editor** may remain open after applied **Staged Pokemon Edits** update its **Pokemon Editor Source**.
+- Cancelling a **Pokemon Editor** discards unapplied **Staged Pokemon Edits** and dismisses the **Pokemon Editor**.
 - **Move Set Editing** applies to one **Pokemon Entity**.
 - A **Slot Action** applies to one **Slot**.
 - A **Batch Slot Action** applies to multiple source **Slots**.
