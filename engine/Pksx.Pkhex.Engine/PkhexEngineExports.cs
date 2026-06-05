@@ -467,11 +467,26 @@ public static partial class PkhexEngineExports
     private static LegalityReport CreateLegalityReport(PKM pokemon, StorageSlotType storageSlotType)
     {
         var analysis = new LegalityAnalysis(pokemon, storageSlotType);
-        var messages = analysis.Results.Select(report => new LegalityReportLine(
-                report.Judgement.ToString(),
-                report.Identifier.ToString(),
-                report.ToString()))
-            .ToList();
+        var localization = LegalityLocalizationSet.GetLocalization(LanguageID.English);
+        var context = LegalityLocalizationContext.Create(analysis, localization);
+        var messages = new List<LegalityReportLine>();
+
+        foreach (var check in analysis.Results)
+        {
+            if (!check.IsNotGeneric())
+                continue;
+
+            var working = check;
+            var message = context.Humanize(in working, false);
+            if (string.IsNullOrWhiteSpace(message))
+                continue;
+
+            messages.Add(new LegalityReportLine(
+                check.Judgement.ToString(),
+                check.Identifier.ToString(),
+                message));
+        }
+
         var warnings = messages
             .Where(message => !StringComparer.Ordinal.Equals(message.Severity, Severity.Valid.ToString()))
             .ToList();

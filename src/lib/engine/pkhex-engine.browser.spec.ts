@@ -100,7 +100,7 @@ const rajSaveFixtureCases = [
 
 describe('PKHeX Engine browser runtime smoke', () => {
 	test('parses the Emerald Save File fixture through the published browser-wasm bundle', async () => {
-		expect.assertions(13);
+		expect.assertions(17);
 
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
@@ -180,6 +180,19 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		});
 		expect(slots.value[29]).toMatchObject({ box: 0, slot: 29 });
 		expect(fixtureBytes.byteLength).toBe(131088);
+
+		const legality = await engine.checkSlotLegality(fixtureBytes, '011020251345.sav', {
+			zone: 'box',
+			box: 0,
+			slot: 0
+		});
+		expect(legality.ok, JSON.stringify(legality.error)).toBe(true);
+		if (!legality.ok) {
+			throw new Error('Expected fixture legality report to succeed.');
+		}
+		expect(legality.value.messages.length).toBeGreaterThan(0);
+		expect(legality.value.messages[0].message).toContain(': ');
+		expect(legality.value.messages[0].message).not.toMatch(/CheckResult\\s*\\{|Result\\s*=/);
 
 		const workspace = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
 		expect(workspace).toMatchObject({
