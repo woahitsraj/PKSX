@@ -213,6 +213,19 @@ export function stagePokemonEditorEdit(
 	});
 }
 
+export function stageNicknameEdit(state: PokemonEditorState, nickname: string): PokemonEditorState {
+	if (nickname === state.slot.label) {
+		return removePokemonEditorEdit(state, 'nickname');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'nickname',
+		capability: 'nickname-editing',
+		label: nickname.length === 0 ? 'Restore default nickname' : 'Set nickname',
+		payload: { nickname }
+	});
+}
+
 function removePokemonEditorEdit(state: PokemonEditorState, editId: string): PokemonEditorState {
 	return withStagedEdits({
 		...state,
@@ -310,8 +323,11 @@ export function createPokemonEditOperation(
 		};
 	}
 
-	const edit = state.stagedEdits.find((candidate) => candidate.id === 'level-experience');
-	if (!edit) {
+	const nicknameEdit = state.stagedEdits.find((candidate) => candidate.id === 'nickname');
+	const levelExperienceEdit = state.stagedEdits.find(
+		(candidate) => candidate.id === 'level-experience'
+	);
+	if (!nicknameEdit && !levelExperienceEdit) {
 		return {
 			ok: false,
 			status: 'unsupported',
@@ -320,33 +336,51 @@ export function createPokemonEditOperation(
 		};
 	}
 
-	const payload = edit.payload;
-	if (!isLevelExperienceEditPayload(payload)) {
-		return {
-			ok: false,
-			status: 'rejected',
-			message: 'Level and Experience edit payload is invalid.',
-			reason: 'invalid-pokemon-edit'
-		};
+	const operation: PokemonEditOperation = { source: state.source.slotRef };
+
+	if (nicknameEdit) {
+		const nicknamePayload = nicknameEdit.payload;
+		if (!isNicknameEditPayload(nicknamePayload)) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: 'Nickname edit payload is invalid.',
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		operation.nickname = nicknamePayload.nickname;
 	}
 
-	const validation = validateLevelExperienceEdit(state.slot, payload);
-	if (!validation.ok) {
-		return {
-			ok: false,
-			status: 'rejected',
-			message: validation.message,
-			reason: 'invalid-pokemon-edit'
-		};
+	if (levelExperienceEdit) {
+		const payload = levelExperienceEdit.payload;
+		if (!isLevelExperienceEditPayload(payload)) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: 'Level and Experience edit payload is invalid.',
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		const validation = validateLevelExperienceEdit(state.slot, payload);
+		if (!validation.ok) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: validation.message,
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		if (payload.mode === 'level') {
+			operation.level = payload.level;
+		} else {
+			operation.experience = payload.experience;
+		}
 	}
 
-	return {
-		ok: true,
-		operation:
-			payload.mode === 'level'
-				? { source: state.source.slotRef, level: payload.level }
-				: { source: state.source.slotRef, experience: payload.experience }
-	};
+	return { ok: true, operation };
 }
 
 export function cancelPokemonEditor(state: PokemonEditorState): PokemonEditorState {
@@ -525,4 +559,13 @@ function isLevelExperienceEditPayload(value: unknown): value is LevelExperienceE
 	}
 
 	return false;
+}
+
+function isNicknameEditPayload(value: unknown): value is { nickname: string } {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'nickname' in value &&
+		typeof value.nickname === 'string'
+	);
 }

@@ -5,6 +5,7 @@
 		base64ToBytes,
 		type EngineApi,
 		type EngineError,
+		type PokemonEditOperation,
 		type PartySlotSummary,
 		type BoxSlotSummary,
 		type SaveSlotRef,
@@ -58,6 +59,7 @@
 		createPokemonEditorState,
 		isSamePokemonEditorSourceIdentity,
 		stageLevelExperienceEdit,
+		stageNicknameEdit,
 		type LevelExperienceEditPayload,
 		type PokemonEditorState
 	} from '$lib/pksx/pokemon-editor';
@@ -246,6 +248,7 @@
 	let busy = $state(false);
 	let pokemonEditor = $state<PokemonEditorState | null>(null);
 	let pokemonEditorFeedback = $state<string | null>(null);
+	let pokemonEditorApplyRequest = 0;
 	let partyCollapsed = $state(false);
 	let actionSurfaceTop = $state<number | null>(null);
 	let viewportWidth = $state(1024);
@@ -423,6 +426,7 @@
 	function pokemonEditorControls() {
 		return [
 			'#pokemon-editor-close',
+			'#pokemon-editor-nickname',
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',
 			'#pokemon-editor-apply',
@@ -463,6 +467,11 @@
 		const activeElement = document.activeElement;
 		if (activeElement instanceof HTMLButtonElement && !activeElement.disabled) {
 			activeElement.click();
+			return;
+		}
+
+		if (activeElement instanceof HTMLInputElement && activeElement.closest('.pokemon-editor')) {
+			focusPokemonEditorControl(1);
 		}
 	}
 
@@ -549,8 +558,29 @@
 			return false;
 		}
 
-		if (target.closest('.pokemon-editor input, .pokemon-editor select, .pokemon-editor textarea')) {
-			return action === 'confirm' || action === 'back';
+		const input = target.closest(
+			'.pokemon-editor input, .pokemon-editor select, .pokemon-editor textarea'
+		);
+		if (input) {
+			if (event.key === 'Escape') {
+				return false;
+			}
+
+			if (input instanceof HTMLInputElement && input.type === 'number') {
+				return (
+					action === 'up' ||
+					action === 'down' ||
+					action === 'back' ||
+					(action === 'confirm' && event.key === ' ')
+				);
+			}
+
+			return (
+				action === 'back' ||
+				(action === 'confirm' && event.key === ' ') ||
+				action === 'left' ||
+				action === 'right'
+			);
 		}
 
 		return action === 'confirm' && target.closest('.pokemon-editor button');
@@ -582,6 +612,7 @@
 	}
 
 	function closeActionSurface() {
+		pokemonEditorApplyRequest += 1;
 		pokemonEditor = null;
 		pokemonEditorFeedback = null;
 		dispatch('back');
@@ -794,6 +825,7 @@
 			sourceLabel: locationForSlotRef(source),
 			sourcePokemonLabel: slot.label
 		};
+		pokemonEditorApplyRequest += 1;
 		pokemonEditor = null;
 		pokemonEditorFeedback = null;
 		navigation = {
@@ -834,6 +866,7 @@
 			pokemonLabel: slot.label
 		};
 		clearSlotConfirmFocusIndex = 0;
+		pokemonEditorApplyRequest += 1;
 		pokemonEditor = null;
 		pokemonEditorFeedback = null;
 		navigation = {
@@ -964,12 +997,14 @@
 			return;
 		}
 
+		pokemonEditorApplyRequest += 1;
 		pokemonEditor = result.state;
 		pokemonEditorFeedback = null;
-		queueMicrotask(focusPokemonEditorClose);
+		void tick().then(focusPokemonEditorClose);
 	}
 
 	function closePokemonEditor() {
+		pokemonEditorApplyRequest += 1;
 		pokemonEditor = null;
 		pokemonEditorFeedback = null;
 		navigation = { ...navigation, focus: { zone: 'actions', index: 0 } };
@@ -988,6 +1023,15 @@
 		}
 
 		focusPokemonEditorClose();
+	}
+
+	function stagePokemonEditorNickname(nickname: string) {
+		if (!pokemonEditor) {
+			return;
+		}
+
+		pokemonEditor = stageNicknameEdit(pokemonEditor, nickname);
+		pokemonEditorFeedback = pokemonEditor.applyOutcome.message;
 	}
 
 	function stagePokemonEditorLevelExperience(payload: LevelExperienceEditPayload) {
@@ -1017,6 +1061,7 @@
 
 		busy = true;
 		pokemonEditorFeedback = 'Applying Pokemon edits...';
+		const applyRequest = (pokemonEditorApplyRequest += 1);
 
 		try {
 			const result = await applyPokemonEditorEdits(editor, {
@@ -1129,7 +1174,7 @@
 					return {
 						ok: true,
 						slot: updatedSlot,
-						message: mutation.value.mutated ? 'Pokemon edits applied.' : 'No Pokemon change made.'
+						message: pokemonEditSuccessMessage(operation.operation, mutation.value.mutated)
 					};
 				},
 				mutateStoragePokemon: async () => ({
@@ -1139,6 +1184,14 @@
 					reason: 'storage-unavailable'
 				})
 			});
+
+			if (applyRequest !== pokemonEditorApplyRequest) {
+				statusMessage = result.outcome.message ?? statusMessage;
+				if (result.outcome.status === 'success') {
+					showToast('success', result.outcome.message);
+				}
+				return;
+			}
 
 			pokemonEditor = result.state;
 			pokemonEditorFeedback = result.outcome.message;
@@ -1150,13 +1203,36 @@
 			}
 		} catch (error) {
 			const message = getErrorMessage(error);
+			if (applyRequest !== pokemonEditorApplyRequest) {
+				statusMessage = message;
+				return;
+			}
+
 			pokemonEditorFeedback = message;
 			statusMessage = 'Pokemon edit failed.';
 			showToast('error', message);
 		} finally {
-			busy = false;
-			queueMicrotask(focusPokemonEditorApply);
+			if (applyRequest === pokemonEditorApplyRequest) {
+				busy = false;
+				queueMicrotask(focusPokemonEditorApply);
+			}
 		}
+	}
+
+	function pokemonEditSuccessMessage(operation: PokemonEditOperation, mutated: boolean): string {
+		if (!mutated) {
+			return 'No Pokemon change made.';
+		}
+
+		if (
+			operation.nickname !== undefined &&
+			operation.level === undefined &&
+			operation.experience === undefined
+		) {
+			return 'Pokemon nickname updated.';
+		}
+
+		return 'Pokemon edits applied.';
 	}
 
 	async function updateActionSurfaceAnchor() {
@@ -1781,6 +1857,8 @@
 		spriteUrl={spriteUrlFor(pokemonEditor.slot)}
 		slotHueStyle={slotStyle(pokemonEditor.slot, navigation.activeBox)}
 		feedback={pokemonEditorFeedback}
+		applying={busy}
+		onStageNickname={stagePokemonEditorNickname}
 		onStageLevelExperience={stagePokemonEditorLevelExperience}
 		onApply={applyPokemonEditor}
 		onCancelEdits={cancelPokemonEditorEdits}

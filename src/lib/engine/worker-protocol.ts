@@ -200,6 +200,7 @@ export const slotOperationResultSchema = z.object({
 
 export const pokemonEditOperationSchema = z.object({
 	source: saveSlotRefSchema,
+	nickname: z.string().optional(),
 	level: z.number().int().optional(),
 	experience: z.number().int().optional()
 });

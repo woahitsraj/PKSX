@@ -156,6 +156,7 @@ export type SlotOperationResult = {
 
 export type PokemonEditOperation = {
 	source: SaveSlotRef;
+	nickname?: string;
 	level?: number;
 	experience?: number;
 };

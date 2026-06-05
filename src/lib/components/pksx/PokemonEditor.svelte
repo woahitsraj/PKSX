@@ -1,6 +1,10 @@
 <script lang="ts">
 	import type { SaveSummary } from '$lib/engine';
-	import type { LevelExperienceEditPayload, PokemonEditorState } from '$lib/pksx/pokemon-editor';
+	import type {
+		LevelExperienceEditPayload,
+		PokemonEditorState,
+		StagedPokemonEdit
+	} from '$lib/pksx/pokemon-editor';
 
 	interface Props {
 		editor: PokemonEditorState;
@@ -8,6 +12,8 @@
 		spriteUrl: string | null;
 		slotHueStyle: string;
 		feedback: string | null;
+		applying: boolean;
+		onStageNickname: (nickname: string) => void;
 		onStageLevelExperience: (payload: LevelExperienceEditPayload) => void;
 		onApply: () => void;
 		onCancelEdits: () => void;
@@ -20,6 +26,8 @@
 		spriteUrl,
 		slotHueStyle,
 		feedback,
+		applying,
+		onStageNickname,
 		onStageLevelExperience,
 		onApply,
 		onCancelEdits,
@@ -28,6 +36,17 @@
 
 	let editMode = $state<'level' | 'experience'>('level');
 	const slot = $derived(editor.slot);
+	const stagedNicknameEdit = $derived(
+		editor.stagedEdits.find(
+			(edit): edit is StagedPokemonEdit & { payload: { nickname: string } } =>
+				edit.id === 'nickname' &&
+				typeof edit.payload === 'object' &&
+				edit.payload !== null &&
+				'nickname' in edit.payload &&
+				typeof edit.payload.nickname === 'string'
+		)
+	);
+	const nicknameValue = $derived(stagedNicknameEdit?.payload.nickname ?? slot.label);
 	let stagedLevel: number | undefined = $derived(slot.level ?? 1);
 	let stagedExperience: number | undefined = $derived(slot.experience ?? 0);
 	const speciesLabel = $derived(
@@ -100,6 +119,13 @@
 
 		onStageLevelExperience({ mode: 'experience', experience: value });
 	}
+
+	function handleNicknameInput(event: Event) {
+		const target = event.currentTarget;
+		if (target instanceof HTMLInputElement) {
+			onStageNickname(target.value);
+		}
+	}
 </script>
 
 <div class="pokemon-editor-backdrop" role="presentation" onclick={onClose}></div>
@@ -165,6 +191,28 @@
 				</div>
 			{/if}
 
+			<div class="editor-panel nickname-panel" aria-label="Nickname Editing">
+				<div class="panel-title">
+					<span>Nickname</span>
+					<small>Engine validated</small>
+				</div>
+				<label class="nickname-field">
+					<span>Nickname</span>
+					<input
+						id="pokemon-editor-nickname"
+						type="text"
+						value={nicknameValue}
+						autocomplete="off"
+						disabled={applying}
+						aria-describedby="pokemon-editor-nickname-hint"
+						oninput={handleNicknameInput}
+					/>
+				</label>
+				<p id="pokemon-editor-nickname-hint">
+					Leave empty to restore the default species nickname.
+				</p>
+			</div>
+
 			<div class="editor-panel" aria-label="Level and Experience Editing">
 				<div class="panel-title">
 					<span>Level / Experience</span>
@@ -186,7 +234,7 @@
 						role="switch"
 						aria-checked={editMode === 'experience'}
 						aria-label={`Editing ${editMode === 'level' ? 'Level' : 'Experience'}`}
-						disabled={!canEditLevelExperience}
+						disabled={!canEditLevelExperience || applying}
 						onclick={toggleEditMode}
 					>
 						<span>Level</span>
@@ -202,7 +250,7 @@
 								max={experienceProjection?.maxLevel ?? 100}
 								step="1"
 								bind:value={() => stagedLevel, setStagedLevel}
-								disabled={!canEditLevelExperience}
+								disabled={!canEditLevelExperience || applying}
 							/>
 							<em>{levelRangeLabel}</em>
 						</label>
@@ -215,7 +263,7 @@
 								max={experienceProjection?.maxExperience ?? 0}
 								step="1"
 								bind:value={() => stagedExperience, setStagedExperience}
-								disabled={!canEditLevelExperience}
+								disabled={!canEditLevelExperience || applying}
 							/>
 							<em>{experienceRangeLabel}</em>
 						</label>
@@ -272,16 +320,16 @@
 			id="pokemon-editor-apply"
 			type="button"
 			class="unsupported-apply"
-			disabled={!editor.staged}
+			disabled={!editor.staged || applying}
 			onclick={onApply}
 		>
-			Apply edits
+			{applying ? 'Applying...' : 'Apply edits'}
 		</button>
 		<button
 			id="pokemon-editor-cancel"
 			type="button"
 			class="close-editor"
-			disabled={!editor.staged}
+			disabled={!editor.staged || applying}
 			onclick={onCancelEdits}
 		>
 			Cancel edits
@@ -497,6 +545,43 @@
 	.editor-panel {
 		display: grid;
 		gap: 8px;
+	}
+
+	.nickname-field {
+		display: grid;
+		gap: 5px;
+		padding: 12px;
+		border-radius: var(--pksx-radius-md);
+		background: var(--paper-deep);
+	}
+
+	.nickname-field span,
+	.nickname-panel p {
+		margin: 0;
+		color: var(--ink-mute);
+		font:
+			650 0.62rem var(--pksx-font-mono),
+			monospace;
+		line-height: 1.2;
+		text-transform: uppercase;
+	}
+
+	.nickname-field input {
+		width: 100%;
+		min-width: 0;
+		height: 44px;
+		padding: 0 12px;
+		border: 1px solid var(--rule);
+		border-radius: var(--pksx-radius-sm);
+		background: var(--paper-hi);
+		color: var(--ink);
+		font:
+			750 0.86rem var(--pksx-font-mono),
+			monospace;
+	}
+
+	.nickname-field input:disabled {
+		opacity: 0.55;
 	}
 
 	.level-edit-controls {
