@@ -3,6 +3,7 @@ import type {
 	BoxSlotSummary,
 	EngineResult,
 	EngineVersion,
+	LegalityReport,
 	PokemonEditOperationResult,
 	SaveSummary,
 	SaveWorkspace,
@@ -16,6 +17,7 @@ import {
 	parseEngineWorkerRequest,
 	type EngineWorkerApplySlotOperationRequest,
 	type EngineWorkerApplyPokemonEditOperationRequest,
+	type EngineWorkerCheckSlotLegalityRequest,
 	type EngineWorkerLoadSaveWorkspaceRequest,
 	type EngineWorkerListBoxSlotsRequest,
 	type EngineWorkerMessage,
@@ -40,6 +42,11 @@ export type DotnetPkhexEngineExports = {
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		operationJson: string
+	): string;
+	CheckSlotLegalityJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		sourceJson: string
 	): string;
 };
 
@@ -159,6 +166,9 @@ export function createPkhexEngineWorkerRuntime({
 					applyPokemonEditOperation(engine, request)
 				);
 				return;
+			case 'checkSlotLegality':
+				postMessage(createEngineWorkerResponse(request, checkSlotLegality(engine, request)));
+				return;
 		}
 	}
 
@@ -257,6 +267,19 @@ function applyPokemonEditOperation(
 	);
 }
 
+function checkSlotLegality(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerCheckSlotLegalityRequest
+): EngineResult<LegalityReport> {
+	return parseEngineResult<LegalityReport>(
+		engine.CheckSlotLegalityJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			JSON.stringify(request.payload.source)
+		)
+	);
+}
+
 function postSlotOperationResponse(
 	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
 	request: EngineWorkerApplySlotOperationRequest,
@@ -330,6 +353,8 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<SlotOperationResult>;
 		case 'applyPokemonEditOperation':
 			return result satisfies EngineResult<PokemonEditOperationResult>;
+		case 'checkSlotLegality':
+			return result satisfies EngineResult<LegalityReport>;
 	}
 }
 

@@ -167,6 +167,20 @@ export type PokemonEditOperationResult = {
 	workspace: SaveWorkspace;
 };
 
+export type LegalityReportLine = {
+	severity: string;
+	identifier: string;
+	message: string;
+};
+
+export type LegalityReport = {
+	legal: boolean;
+	judgement: string;
+	summary: string;
+	warnings: LegalityReportLine[];
+	messages: LegalityReportLine[];
+};
+
 export type EngineApi = {
 	getVersion(): Promise<EngineResult<EngineVersion>>;
 	summarizeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SaveSummary>>;
@@ -193,4 +207,9 @@ export type EngineApi = {
 		operation: PokemonEditOperation,
 		activeBox: number
 	): Promise<EngineResult<PokemonEditOperationResult>>;
+	checkSlotLegality(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		source: SaveSlotRef
+	): Promise<EngineResult<LegalityReport>>;
 };

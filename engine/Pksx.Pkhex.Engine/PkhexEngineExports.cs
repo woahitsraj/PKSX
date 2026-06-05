@@ -247,6 +247,59 @@ public static partial class PkhexEngineExports
         }
     }
 
+    [JSExport]
+    public static string CheckSlotLegalityJson(byte[] bytes, string? fileName, string sourceJson)
+    {
+        try
+        {
+            var save = SaveUtil.GetSaveFile(bytes, fileName);
+
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var source = System.Text.Json.JsonSerializer.Deserialize(
+                sourceJson,
+                EngineJsonContext.Default.SaveSlotRef);
+
+            if (source is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("invalid-slot", "Legality Check needs a source Slot."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var sourceResult = SlotRef.From(save, source);
+            if (!sourceResult.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(sourceResult.Code, sourceResult.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var pokemon = sourceResult.Value.Get(save);
+            if (pokemon.Species == 0)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("empty-source-slot", "Legality Check needs an occupied Slot."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(CreateLegalityReport(pokemon, sourceResult.Value.StorageSlotType)),
+                EngineJsonContext.Default.EngineResultLegalityReport);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
     private static SaveWorkspace CreateWorkspace(SaveFile save, string? fileName, int box)
     {
         var partySlots = new List<PartySlotSummary>(save.PartyCount);
@@ -411,6 +464,41 @@ public static partial class PkhexEngineExports
         return SlotMutationResult.Success(true);
     }
 
+    private static LegalityReport CreateLegalityReport(PKM pokemon, StorageSlotType storageSlotType)
+    {
+        var analysis = new LegalityAnalysis(pokemon, storageSlotType);
+        var localization = LegalityLocalizationSet.GetLocalization(LanguageID.English);
+        var context = LegalityLocalizationContext.Create(analysis, localization);
+        var messages = new List<LegalityReportLine>();
+
+        foreach (var check in analysis.Results)
+        {
+            if (!check.IsNotGeneric())
+                continue;
+
+            var working = check;
+            var message = context.Humanize(in working, false);
+            if (string.IsNullOrWhiteSpace(message))
+                continue;
+
+            messages.Add(new LegalityReportLine(
+                check.Judgement.ToString(),
+                check.Identifier.ToString(),
+                message));
+        }
+
+        var warnings = messages
+            .Where(message => !StringComparer.Ordinal.Equals(message.Severity, Severity.Valid.ToString()))
+            .ToList();
+        var legal = analysis.Valid;
+        var judgement = legal ? "Legal" : "Illegal";
+        var summary = legal
+            ? "PKHeX judged this Pokemon legal."
+            : "PKHeX found legality issues for this Pokemon.";
+
+        return new LegalityReport(legal, judgement, summary, warnings, messages);
+    }
+
     private static int ClampActiveBox(int box, SaveFile save)
     {
         if (save.BoxCount <= 0)
@@ -427,6 +515,8 @@ public static partial class PkhexEngineExports
 
     private readonly record struct SlotRef(SlotZone Zone, int Box, int Slot)
     {
+        public StorageSlotType StorageSlotType => Zone == SlotZone.Party ? StorageSlotType.Party : StorageSlotType.Box;
+
         public static SlotRefResult From(SaveFile save, SaveSlotRef? value)
         {
             if (value is null)

@@ -106,7 +106,7 @@
 			{
 				key: 'legality-check',
 				label: 'Legality Check',
-				availability: 'unsupported'
+				availability: 'available'
 			},
 			{
 				key: 'create-pokemon',

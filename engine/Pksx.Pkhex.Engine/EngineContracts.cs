@@ -259,6 +259,15 @@ public sealed record PokemonEditOperationResult(
     bool Mutated,
     SaveWorkspace Workspace);
 
+public sealed record LegalityReportLine(string Severity, string Identifier, string Message);
+
+public sealed record LegalityReport(
+    bool Legal,
+    string Judgement,
+    string Summary,
+    List<LegalityReportLine> Warnings,
+    List<LegalityReportLine> Messages);
+
 internal static class SlotDetailProjection
 {
     private static readonly string[] StatKeys = ["HP", "ATK", "DEF", "SPA", "SPD", "SPE"];

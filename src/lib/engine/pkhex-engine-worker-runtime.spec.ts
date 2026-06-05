@@ -137,6 +137,24 @@ function createEngineExports(): DotnetPkhexEngineExports {
 					}
 				},
 				error: null
+			}),
+		CheckSlotLegalityJson: () =>
+			JSON.stringify({
+				ok: true,
+				value: {
+					legal: true,
+					judgement: 'Legal',
+					summary: 'PKHeX judged this Pokemon legal.',
+					warnings: [],
+					messages: [
+						{
+							severity: 'Valid',
+							identifier: 'Encounter',
+							message: 'Encounter is valid.'
+						}
+					]
+				},
+				error: null
 			})
 	};
 }

@@ -5,6 +5,7 @@ import type {
 	EngineErrorCode,
 	EngineResult,
 	EngineVersion,
+	LegalityReport,
 	PokemonEditOperation,
 	PokemonEditOperationResult,
 	SaveWorkspace,
@@ -47,6 +48,11 @@ type DotnetPkhexEngineExports = {
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		operationJson: string
+	): string;
+	CheckSlotLegalityJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		sourceJson: string
 	): string;
 };
 
@@ -112,6 +118,10 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 						} satisfies RawPokemonEditOperationRequest)
 					)
 				)
+			),
+		checkSlotLegality: async (bytes, fileName, source) =>
+			parseEngineResult<LegalityReport>(
+				engine.CheckSlotLegalityJson(bytes, fileName, JSON.stringify(source))
 			)
 	};
 }

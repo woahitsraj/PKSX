@@ -138,6 +138,13 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 	await expect(page.locator('#slot-action-0')).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#slot-action-1')).toBeFocused();
+	for (const key of ['ArrowDown', 'ArrowDown', 'ArrowDown']) {
+		await page.keyboard.press(key);
+	}
+	await expect(page.locator('#slot-action-4')).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('dialog', { name: 'Legality Check' })).toBeHidden();
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
 
 	await page.keyboard.press('Escape');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
@@ -166,6 +173,10 @@ test('occupied slot actions expose View and Close dismisses', async ({ page }) =
 		'true'
 	);
 	await expect(page.getByRole('button', { name: 'Clear Slot' })).not.toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
+	await expect(page.getByRole('button', { name: 'Legality Check' })).not.toHaveAttribute(
 		'aria-disabled',
 		'true'
 	);
@@ -236,6 +247,32 @@ test('Pokemon Editor applies nickname changes and refreshes Slot labels', async 
 	await expect(updatedEditor).toBeVisible();
 	await expect(updatedEditor).toContainText('Pokemon nickname updated.');
 	await expect(updatedEditor.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
+});
+
+test('Legality Check opens an engine report from an occupied Slot and dismisses cleanly', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	for (const key of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown']) {
+		await page.keyboard.press(key);
+	}
+	await expect(page.locator('#slot-action-5')).toBeFocused();
+	await page.keyboard.press('Enter');
+
+	const report = page.getByRole('dialog', { name: 'Legality Check' });
+	await expect(report).toBeVisible({ timeout: 15000 });
+	await expect(report).toContainText('ARON');
+	await expect(report).toContainText(/PKHeX (judged|found)/);
+	await expect(report.getByRole('button', { name: 'Close report' })).toBeFocused();
+	await expect(page.getByText('Dirty Workspace')).toHaveCount(0);
+
+	await page.keyboard.press('Escape');
+	await expect(report).toBeHidden();
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
+	await expect(page.locator('#slot-action-5')).toBeFocused();
 });
 
 test('keyboard navigation reaches top controls and mobile tabs', async ({ page }) => {

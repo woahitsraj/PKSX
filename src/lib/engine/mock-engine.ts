@@ -3,6 +3,7 @@ import type {
 	EngineApi,
 	EngineResult,
 	EngineVersion,
+	LegalityReport,
 	PokemonEditOperationResult,
 	SaveSlotRef,
 	PartySlotSummary,
@@ -188,6 +189,14 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					partySlots: mockPartySlots,
 					boxSlots: activeBox === 0 ? mockBoxSlots : []
 				}
+			}),
+		checkSlotLegality: async () =>
+			success<LegalityReport>({
+				legal: true,
+				judgement: 'Legal',
+				summary: 'PKHeX judged this Pokemon legal.',
+				warnings: [],
+				messages: [{ severity: 'Valid', identifier: 'Encounter', message: 'Encounter is valid.' }]
 			}),
 		...overrides
 	};
