@@ -497,6 +497,7 @@
 	function closeActionSurface() {
 		pokemonEditor = null;
 		pokemonEditorFeedback = null;
+		legalityReportRequest += 1;
 		legalityReport = { status: 'idle' };
 		dispatch('back');
 	}
@@ -854,7 +855,9 @@
 				requestClearFocusedSlot();
 				break;
 			case 'legality-check':
-				void openLegalityReport();
+				if (focusedSlot.kind === 'pokemon') {
+					void openLegalityReport();
+				}
 				break;
 			default:
 				break;
