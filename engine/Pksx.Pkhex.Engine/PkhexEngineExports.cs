@@ -317,7 +317,6 @@ public static partial class PkhexEngineExports
                 return SlotMutationResult.Fail("invalid-pokemon-edit", $"Experience must be between {min} and {max}.");
 
             pokemon.EXP = experience;
-            pokemon.CurrentLevel = Experience.GetLevel(experience, growth);
         }
 
         if (pokemon.PartyStatsPresent)

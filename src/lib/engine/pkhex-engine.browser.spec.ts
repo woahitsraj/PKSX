@@ -358,7 +358,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('applies Save File Pokemon level edits through the browser-wasm bundle', async () => {
-		expect.assertions(8);
+		expect.assertions(11);
 
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
@@ -406,6 +406,32 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(invalidLevel).toMatchObject({
 			ok: false,
 			error: { code: 'invalid-pokemon-edit' }
+		});
+
+		const currentLevelMinExperience =
+			edited.value.workspace.boxSlots[0]?.experienceProjection?.currentLevelMinExperience;
+		if (typeof currentLevelMinExperience !== 'number') {
+			throw new Error('Expected edited Pokemon experience projection to be available.');
+		}
+		const explicitExperience = currentLevelMinExperience + 1;
+		const experienceEdited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				experience: explicitExperience
+			},
+			0
+		);
+		expect(experienceEdited.ok).toBe(true);
+		if (!experienceEdited.ok) {
+			throw new Error('Expected Pokemon experience edit to succeed.');
+		}
+		expect(experienceEdited.value.mutated).toBe(true);
+		expect(experienceEdited.value.workspace.boxSlots[0]).toMatchObject({
+			slot: 0,
+			nickname: 'ARON',
+			experience: explicitExperience
 		});
 
 		const emptySource = await engine.applyPokemonEditOperation(
