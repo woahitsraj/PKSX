@@ -449,13 +449,17 @@ test('Pokemon Editor changes level through Apply and keeps editor focus', async 
 	await page.keyboard.press('ArrowDown');
 	const levelInput = editor.locator('input[type="number"]');
 	await expect(levelInput).toBeFocused();
-	await page.keyboard.press('ArrowRight');
-	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('ArrowUp');
+	await page.keyboard.press('ArrowUp');
 	await expect(levelInput).toHaveValue('13');
 	await expect(editor).toContainText('1 Pokemon edit staged.');
 	await expect(editor.getByRole('button', { name: 'Apply edits' })).toBeEnabled();
 
-	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowLeft');
+	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(levelInput).toBeFocused();
+	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#pokemon-editor-apply')).toBeFocused();
 	await page.keyboard.press('Enter');
 	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });

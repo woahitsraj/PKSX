@@ -402,10 +402,6 @@
 	}
 
 	function dispatchPokemonEditor(action: NavigationAction) {
-		if (stepActivePokemonEditorNumberInput(action)) {
-			return;
-		}
-
 		switch (action) {
 			case 'left':
 			case 'up':
@@ -425,31 +421,6 @@
 			case 'nextBox':
 				break;
 		}
-	}
-
-	function stepActivePokemonEditorNumberInput(action: NavigationAction): boolean {
-		const activeElement = document.activeElement;
-		if (!(activeElement instanceof HTMLInputElement) || activeElement.type !== 'number') {
-			return false;
-		}
-
-		if (action !== 'left' && action !== 'right') {
-			return false;
-		}
-
-		if (activeElement.disabled) {
-			return true;
-		}
-
-		if (action === 'left') {
-			activeElement.stepDown();
-		} else {
-			activeElement.stepUp();
-		}
-
-		activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-		activeElement.dispatchEvent(new Event('change', { bubbles: true }));
-		return true;
 	}
 
 	function pokemonEditorControls() {
