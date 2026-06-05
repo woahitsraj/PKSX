@@ -45,6 +45,7 @@
 	import BoxSourceControls from '$lib/components/pksx/BoxSourceControls.svelte';
 	import ClearSlotConfirm from '$lib/components/pksx/ClearSlotConfirm.svelte';
 	import DetailRail from '$lib/components/pksx/DetailRail.svelte';
+	import LegalityReportDialog from '$lib/components/pksx/LegalityReportDialog.svelte';
 	import PokemonEditor from '$lib/components/pksx/PokemonEditor.svelte';
 	import SlotActionMenu from '$lib/components/pksx/SlotActionMenu.svelte';
 	import StatusStrip from '$lib/components/pksx/StatusStrip.svelte';
@@ -56,6 +57,11 @@
 		markUnsupportedPokemonEditorApply,
 		type PokemonEditorState
 	} from '$lib/pksx/pokemon-editor';
+	import {
+		createLegalityReportLoadingState,
+		requestLegalityReport,
+		type LegalityReportState
+	} from '$lib/pksx/legality-report';
 
 	type ToastView = {
 		id: string;
@@ -216,6 +222,7 @@
 	let busy = $state(false);
 	let pokemonEditor = $state<PokemonEditorState | null>(null);
 	let pokemonEditorFeedback = $state<string | null>(null);
+	let legalityReport = $state<LegalityReportState>({ status: 'idle' });
 	let partyCollapsed = $state(false);
 	let actionSurfaceTop = $state<number | null>(null);
 	let viewportWidth = $state(1024);
@@ -226,6 +233,7 @@
 	let nextToastId = 1;
 	let engine: EngineApi | null = null;
 	let workspaceLoadRequest = 0;
+	let legalityReportRequest = 0;
 
 	const controllerConnected = $derived(
 		gamepadStatus !== 'No controller detected' && gamepadStatus.length > 0
@@ -321,6 +329,13 @@
 	});
 
 	function dispatch(action: NavigationAction) {
+		if (legalityReport.status !== 'idle') {
+			if (action === 'back' || action === 'confirm') {
+				closeLegalityReport();
+			}
+			return;
+		}
+
 		if (clearSlotConfirmation) {
 			dispatchClearSlotConfirmation(action);
 			return;
@@ -482,6 +497,7 @@
 	function closeActionSurface() {
 		pokemonEditor = null;
 		pokemonEditorFeedback = null;
+		legalityReport = { status: 'idle' };
 		dispatch('back');
 	}
 
@@ -837,6 +853,9 @@
 			case 'clear':
 				requestClearFocusedSlot();
 				break;
+			case 'legality-check':
+				void openLegalityReport();
+				break;
 			default:
 				break;
 		}
@@ -871,6 +890,52 @@
 		pokemonEditor = null;
 		pokemonEditorFeedback = null;
 		navigation = { ...navigation, focus: { zone: 'actions', index: 0 } };
+		queueMicrotask(focusActiveControl);
+	}
+
+	async function openLegalityReport() {
+		if (!navigation.actionSurfaceOpen) {
+			return;
+		}
+
+		const request = (legalityReportRequest += 1);
+		const slot = focusedSlot;
+		const source = slotRefForFocus();
+		const location = activeSlotPositionLabel;
+		legalityReport = createLegalityReportLoadingState(slot, location);
+		statusMessage = 'Checking Pokemon legality...';
+
+		const result = await requestLegalityReport({
+			workspace: loadedSave,
+			engine,
+			slot,
+			source,
+			location
+		});
+
+		if (request !== legalityReportRequest) {
+			return;
+		}
+
+		legalityReport = result.state;
+
+		if (result.state.status === 'ready') {
+			statusMessage = `Legality Check complete for ${result.state.pokemonLabel}.`;
+			return;
+		}
+
+		if (result.state.status === 'error' || result.state.status === 'unavailable') {
+			statusMessage = result.state.message;
+		}
+
+		if (result.state.status === 'error') {
+			showToast('error', result.state.message);
+		}
+	}
+
+	function closeLegalityReport() {
+		legalityReportRequest += 1;
+		legalityReport = { status: 'idle' };
 		queueMicrotask(focusActiveControl);
 	}
 
@@ -935,7 +1000,9 @@
 		}
 
 		if (
-			target.closest('.slot-cell, .slot-context, .box-switcher, .party-toggle, .pokemon-editor')
+			target.closest(
+				'.slot-cell, .slot-context, .box-switcher, .party-toggle, .pokemon-editor, .legality-report'
+			)
 		) {
 			return;
 		}
@@ -1504,6 +1571,10 @@
 		onCancel={cancelClearSlot}
 		onConfirm={confirmClearSlot}
 	/>
+{/if}
+
+{#if legalityReport.status !== 'idle'}
+	<LegalityReportDialog state={legalityReport} onClose={closeLegalityReport} />
 {/if}
 
 <ToastRegion {toasts} onDismiss={dismissToast} />

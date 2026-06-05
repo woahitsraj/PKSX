@@ -194,6 +194,53 @@ public static partial class PkhexEngineExports
         }
     }
 
+    [JSExport]
+    public static string CheckSlotLegalityJson(byte[] bytes, string? fileName, string slotRefJson)
+    {
+        try
+        {
+            var save = SaveUtil.GetSaveFile(bytes, fileName);
+
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var slotRef = System.Text.Json.JsonSerializer.Deserialize(
+                slotRefJson,
+                EngineJsonContext.Default.SaveSlotRef);
+
+            var sourceResult = SlotRef.From(save, slotRef);
+            if (!sourceResult.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(sourceResult.Code, sourceResult.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var source = sourceResult.Value;
+            var pokemon = source.Get(save);
+            if (pokemon.Species == 0)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("empty-source-slot", "Legality Check needs an occupied source Slot."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(CreateLegalityReport(pokemon, source.StorageSlotType)),
+                EngineJsonContext.Default.EngineResultLegalityReport);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
     private static SaveWorkspace CreateWorkspace(SaveFile save, string? fileName, int box)
     {
         var partySlots = new List<PartySlotSummary>(save.PartyCount);
@@ -274,6 +321,43 @@ public static partial class PkhexEngineExports
         return SlotMutationResult.Success(true);
     }
 
+    private static LegalityReport CreateLegalityReport(PKM pokemon, StorageSlotType slotType)
+    {
+        var analysis = new LegalityAnalysis(pokemon, slotType);
+        var localization = LegalityLocalizationSet.GetLocalization(LanguageID.English);
+        var context = LegalityLocalizationContext.Create(analysis, localization);
+        var warnings = new List<LegalityReportLine>();
+        var messages = new List<LegalityReportLine>();
+
+        foreach (var check in analysis.Results)
+        {
+            if (!check.IsNotGeneric())
+                continue;
+
+            var working = check;
+            var message = context.Humanize(in working, false);
+            if (string.IsNullOrWhiteSpace(message))
+                continue;
+
+            var line = new LegalityReportLine(
+                check.Judgement.ToString(),
+                check.Identifier.ToString(),
+                message);
+
+            if (check.Judgement == Severity.Fishy)
+                warnings.Add(line);
+            else if (check.Judgement == Severity.Invalid)
+                messages.Add(line);
+        }
+
+        var summary = analysis.Valid
+            ? "PKHeX judged this Pokemon legal."
+            : "PKHeX found legality issues for this Pokemon.";
+        var judgement = analysis.Valid ? "Legal" : "Illegal";
+
+        return new LegalityReport(analysis.Valid, judgement, summary, warnings, messages);
+    }
+
     private static int ClampActiveBox(int box, SaveFile save)
     {
         if (save.BoxCount <= 0)
@@ -321,6 +405,9 @@ public static partial class PkhexEngineExports
 
         public PKM Get(SaveFile save) =>
             Zone == SlotZone.Party ? PartyPokemonOrBlank(save) : save.GetBoxSlotAtIndex(Box, Slot);
+
+        public StorageSlotType StorageSlotType =>
+            Zone == SlotZone.Party ? StorageSlotType.Party : StorageSlotType.Box;
 
         public void Set(SaveFile save, PKM pokemon)
         {

@@ -168,6 +168,9 @@ test('occupied slot actions expose Pokemon Action and Close dismisses', async ({
 		page.getByRole('button', { name: 'Clear Slot: Remove this Pokemon after confirmation.' })
 	).not.toHaveAttribute('aria-disabled', 'true');
 	await expect(
+		page.getByRole('button', { name: 'Legality Check: Inspect PKHeX legality report.' })
+	).not.toHaveAttribute('aria-disabled', 'true');
+	await expect(
 		page.getByRole('button', {
 			name: 'Create Pokemon unavailable: Slot already contains a Pokemon.'
 		})
@@ -200,6 +203,34 @@ test('Pokemon Action opens Pokemon Editor and returns focus to the command stack
 	await expect(editor).toBeHidden();
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
 	await expect(page.locator('#slot-action-0')).toBeFocused();
+});
+
+test('Legality Check opens an engine report from an occupied Slot and dismisses cleanly', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+
+	for (const key of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown']) {
+		await page.keyboard.press(key);
+	}
+
+	await expect(page.locator('#slot-action-5')).toBeFocused();
+	await page.keyboard.press('Enter');
+
+	const report = page.getByRole('dialog', { name: 'Legality Check' });
+	await expect(report).toBeVisible({ timeout: 15000 });
+	await expect(report).toContainText('ARON');
+	await expect(report).toContainText(/PKHeX (judged|found)/);
+	await expect(report.getByRole('button', { name: 'Close report' })).toBeFocused();
+	await expect(page.getByText('Dirty Workspace')).toHaveCount(0);
+
+	await page.keyboard.press('Escape');
+	await expect(report).toBeHidden();
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
+	await expect(page.locator('#slot-action-5')).toBeFocused();
 });
 
 test('keyboard navigation reaches top controls and mobile tabs', async ({ page }) => {

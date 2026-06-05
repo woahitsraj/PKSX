@@ -3,6 +3,7 @@ import type {
 	EngineApi,
 	EngineResult,
 	EngineVersion,
+	LegalityReport,
 	SaveSlotRef,
 	PartySlotSummary,
 	SaveSummary,
@@ -163,6 +164,26 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					boxSlots: activeBox === 0 ? mockBoxSlots : []
 				}
 			}),
+		checkSlotLegality: async (_bytes, _fileName, source) => {
+			if (source.slot !== 0) {
+				return {
+					ok: false,
+					value: null,
+					error: {
+						code: 'empty-source-slot',
+						message: 'Legality Check needs an occupied source Slot.'
+					}
+				};
+			}
+
+			return success<LegalityReport>({
+				legal: true,
+				judgement: 'Legal',
+				summary: 'PKHeX judged this Pokemon legal.',
+				warnings: [],
+				messages: [{ severity: 'Valid', identifier: 'Encounter', message: 'Valid encounter.' }]
+			});
+		},
 		...overrides
 	};
 }

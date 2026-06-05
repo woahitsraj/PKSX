@@ -45,10 +45,11 @@ describe('parseEngineWorkerRequest', () => {
 	});
 
 	test('parses save summary and box slot requests with ArrayBuffer bytes', () => {
-		expect.assertions(2);
+		expect.assertions(3);
 
 		const saveBytes = new ArrayBuffer(3);
 		const boxBytes = new ArrayBuffer(4);
+		const legalityBytes = new ArrayBuffer(5);
 
 		expect(
 			parseEngineWorkerRequest({
@@ -81,6 +82,31 @@ describe('parseEngineWorkerRequest', () => {
 				id: 'req-3',
 				method: 'listBoxSlots',
 				payload: { bytes: boxBytes, box: 0 }
+			}
+		});
+
+		expect(
+			parseEngineWorkerRequest({
+				type: 'request',
+				id: 'req-3b',
+				method: 'checkSlotLegality',
+				payload: {
+					bytes: legalityBytes,
+					fileName: 'main.sav',
+					source: { zone: 'box', box: 0, slot: 0 }
+				}
+			})
+		).toEqual({
+			ok: true,
+			value: {
+				type: 'request',
+				id: 'req-3b',
+				method: 'checkSlotLegality',
+				payload: {
+					bytes: legalityBytes,
+					fileName: 'main.sav',
+					source: { zone: 'box', box: 0, slot: 0 }
+				}
 			}
 		});
 	});

@@ -140,6 +140,20 @@ export type SlotOperationResult = {
 	workspace: SaveWorkspace;
 };
 
+export type LegalityReportLine = {
+	severity: 'Valid' | 'Fishy' | 'Invalid' | string;
+	identifier: string;
+	message: string;
+};
+
+export type LegalityReport = {
+	legal: boolean;
+	judgement: string;
+	summary: string;
+	warnings: LegalityReportLine[];
+	messages: LegalityReportLine[];
+};
+
 export type EngineApi = {
 	getVersion(): Promise<EngineResult<EngineVersion>>;
 	summarizeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SaveSummary>>;
@@ -160,4 +174,9 @@ export type EngineApi = {
 		operation: SlotOperation,
 		activeBox: number
 	): Promise<EngineResult<SlotOperationResult>>;
+	checkSlotLegality(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		source: SaveSlotRef
+	): Promise<EngineResult<LegalityReport>>;
 };

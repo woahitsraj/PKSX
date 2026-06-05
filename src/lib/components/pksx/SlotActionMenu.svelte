@@ -117,8 +117,8 @@
 			{
 				key: 'legality-check',
 				label: 'Legality Check',
-				detail: 'Unavailable: Legality Check is not implemented yet.',
-				availability: 'unsupported'
+				detail: 'Inspect PKHeX legality report.',
+				availability: 'available'
 			},
 			{
 				key: 'create-pokemon',

@@ -19,6 +19,8 @@ export type {
 	EngineErrorCode,
 	EngineResult,
 	EngineVersion,
+	LegalityReport,
+	LegalityReportLine,
 	PartySlotSummary,
 	SaveSlotRef,
 	SaveWorkspace,
@@ -32,6 +34,7 @@ export type { EngineWorkerFactory, EngineWorkerPort } from './pkhex-worker-engin
 export type {
 	EngineWorkerGetVersionRequest,
 	EngineWorkerInitMessage,
+	EngineWorkerCheckSlotLegalityRequest,
 	EngineWorkerLoadSaveWorkspaceRequest,
 	EngineWorkerListBoxSlotsRequest,
 	EngineWorkerMessage,

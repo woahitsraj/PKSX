@@ -5,7 +5,9 @@ import type {
 	EngineErrorCode,
 	EngineResult,
 	EngineVersion,
+	LegalityReport,
 	SaveWorkspace,
+	SaveSlotRef,
 	SlotOperation,
 	SlotOperationResult,
 	SerializedSave,
@@ -40,6 +42,11 @@ type DotnetPkhexEngineExports = {
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		operationJson: string
+	): string;
+	CheckSlotLegalityJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		slotRefJson: string
 	): string;
 };
 
@@ -90,6 +97,10 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 						JSON.stringify({ ...operation, activeBox } satisfies RawSlotOperationRequest)
 					)
 				)
+			),
+		checkSlotLegality: async (bytes, fileName, source) =>
+			parseEngineResult<LegalityReport>(
+				engine.CheckSlotLegalityJson(bytes, fileName, JSON.stringify(source satisfies SaveSlotRef))
 			)
 	};
 }

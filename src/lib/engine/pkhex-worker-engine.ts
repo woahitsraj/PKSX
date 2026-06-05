@@ -4,6 +4,7 @@ import type {
 	EngineError,
 	EngineResult,
 	EngineVersion,
+	LegalityReport,
 	SaveWorkspace,
 	SlotOperationResult,
 	SerializedSave,
@@ -183,6 +184,20 @@ export function createPkhexWorkerEngine(
 				},
 				[buffer]
 			);
+		},
+		checkSlotLegality: (bytes, fileName, source) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'checkSlotLegality',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'checkSlotLegality',
+					payload: { bytes: buffer, fileName, source: cloneSlotRef(source) }
+				},
+				[buffer]
+			);
 		}
 	};
 
@@ -212,6 +227,11 @@ export function createPkhexWorkerEngine(
 		request: Extract<EngineWorkerRequest, { method: 'applySlotOperation' }>,
 		transfer: Transferable[]
 	): Promise<EngineResult<SlotOperationResult>>;
+	async function sendRequest(
+		method: 'checkSlotLegality',
+		request: Extract<EngineWorkerRequest, { method: 'checkSlotLegality' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<LegalityReport>>;
 	async function sendRequest(
 		method: EngineWorkerMethod,
 		request: EngineWorkerRequest = { type: 'request', id: createRequestId(), method: 'getVersion' },
