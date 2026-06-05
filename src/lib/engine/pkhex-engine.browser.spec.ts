@@ -357,8 +357,8 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		});
 	});
 
-	test('applies Save File Pokemon level edits through the browser-wasm bundle', async () => {
-		expect.assertions(11);
+	test('applies Save File Pokemon edits through the browser-wasm bundle', async () => {
+		expect.assertions(14);
 
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
@@ -432,6 +432,27 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			slot: 0,
 			nickname: 'ARON',
 			experience: explicitExperience
+		});
+
+		const nicknameEdited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				nickname: 'RON',
+				level: 25
+			},
+			0
+		);
+		expect(nicknameEdited.ok).toBe(true);
+		if (!nicknameEdited.ok) {
+			throw new Error('Expected Pokemon nickname edit to succeed.');
+		}
+		expect(nicknameEdited.value.mutated).toBe(true);
+		expect(nicknameEdited.value.workspace.boxSlots[0]).toMatchObject({
+			slot: 0,
+			nickname: 'RON',
+			level: 25
 		});
 
 		const emptySource = await engine.applyPokemonEditOperation(

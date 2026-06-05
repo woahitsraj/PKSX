@@ -291,14 +291,45 @@ public static partial class PkhexEngineExports
         if (pokemon.Species == 0)
             return SlotMutationResult.Fail("empty-source-slot", "Pokemon editing needs an occupied source Slot.");
 
-        if (operation.Level is null && operation.Experience is null)
-            return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a level or experience value to apply.");
+        if (operation.Nickname is null && operation.Level is null && operation.Experience is null)
+            return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a Pokemon edit to apply.");
 
         if (operation.Level is not null && operation.Experience is not null)
             return SlotMutationResult.Fail("invalid-pokemon-edit", "Apply either level or experience, not both.");
 
+        var originalNickname = pokemon.Nickname;
+        var originalIsNicknamed = pokemon.IsNicknamed;
         var originalLevel = pokemon.CurrentLevel;
         var originalExperience = pokemon.EXP;
+
+        if (operation.Nickname is string nickname)
+        {
+            if (nickname.Length == 0)
+            {
+                CommonEdits.SetDefaultNickname(pokemon);
+            }
+            else
+            {
+                if (nickname.Length > pokemon.MaxStringLengthNickname)
+                    return SlotMutationResult.Fail(
+                        "invalid-pokemon-edit",
+                        $"Nickname is too long for this Pokemon format. Maximum length is {pokemon.MaxStringLengthNickname} characters.");
+
+                try
+                {
+                    CommonEdits.SetNickname(pokemon, nickname);
+                }
+                catch (Exception ex)
+                {
+                    return SlotMutationResult.Fail("invalid-pokemon-edit", ex.Message);
+                }
+
+                if (!StringComparer.Ordinal.Equals(pokemon.Nickname, nickname))
+                    return SlotMutationResult.Fail(
+                        "invalid-pokemon-edit",
+                        "Nickname contains characters that are not valid for this Pokemon format or language.");
+            }
+        }
 
         if (operation.Level is int level)
         {
@@ -322,7 +353,11 @@ public static partial class PkhexEngineExports
         if (pokemon.PartyStatsPresent)
             pokemon.ResetPartyStats();
 
-        var mutated = originalLevel != pokemon.CurrentLevel || originalExperience != pokemon.EXP;
+        var mutated =
+            !StringComparer.Ordinal.Equals(originalNickname, pokemon.Nickname) ||
+            originalIsNicknamed != pokemon.IsNicknamed ||
+            originalLevel != pokemon.CurrentLevel ||
+            originalExperience != pokemon.EXP;
         if (mutated)
             source.Set(save, pokemon);
 

@@ -249,6 +249,7 @@ public sealed record SlotOperationResult(
 public sealed record PokemonEditOperationRequest(
     SaveSlotRef Source,
     int ActiveBox,
+    string? Nickname,
     int? Level,
     uint? Experience);
 

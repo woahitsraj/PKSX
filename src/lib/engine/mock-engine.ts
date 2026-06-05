@@ -179,7 +179,10 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 		applyPokemonEditOperation: async (bytes, fileName, operation, activeBox) =>
 			success<PokemonEditOperationResult>({
 				bytes: copyBytes(bytes),
-				mutated: operation.level !== undefined || operation.experience !== undefined,
+				mutated:
+					operation.nickname !== undefined ||
+					operation.level !== undefined ||
+					operation.experience !== undefined,
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,
