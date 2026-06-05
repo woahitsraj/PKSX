@@ -9,6 +9,7 @@ export const engineWorkerMethodSchema = z.enum([
 	'loadSaveWorkspace',
 	'serializeSave',
 	'applySlotOperation',
+	'applyPokemonEditOperation',
 	'checkSlotLegality'
 ]);
 
@@ -21,6 +22,8 @@ export const engineErrorCodeSchema = z.enum([
 	'empty-source-slot',
 	'occupied-destination-slot',
 	'unsupported-slot-operation',
+	'invalid-pokemon-edit',
+	'unsupported-pokemon-edit',
 	'engine-unavailable',
 	'invalid-engine-response',
 	'invalid-worker-message',
@@ -98,6 +101,19 @@ const slotSummaryFields = {
 	form: z.number(),
 	format: z.number(),
 	level: z.number(),
+	experience: z.number().default(0),
+	experienceProjection: z
+		.object({
+			minLevel: z.number(),
+			maxLevel: z.number(),
+			minExperience: z.number(),
+			maxExperience: z.number(),
+			currentLevelMinExperience: z.number(),
+			nextLevelMinExperience: z.number(),
+			currentLevelProgress: z.number()
+		})
+		.nullable()
+		.default(null),
 	nickname: z.string(),
 	isEgg: z.boolean(),
 	isEmpty: z.boolean(),
@@ -183,6 +199,19 @@ export const slotOperationResultSchema = z.object({
 	workspace: saveWorkspaceSchema
 });
 
+export const pokemonEditOperationSchema = z.object({
+	source: saveSlotRefSchema,
+	nickname: z.string().optional(),
+	level: z.number().int().optional(),
+	experience: z.number().int().optional()
+});
+
+export const pokemonEditOperationResultSchema = z.object({
+	bytes: z.instanceof(ArrayBuffer),
+	mutated: z.boolean(),
+	workspace: saveWorkspaceSchema
+});
+
 export const legalityReportLineSchema = z.object({
 	severity: z.string(),
 	identifier: z.string(),
@@ -193,8 +222,8 @@ export const legalityReportSchema = z.object({
 	legal: z.boolean(),
 	judgement: z.string(),
 	summary: z.string(),
-	warnings: z.array(legalityReportLineSchema).default([]),
-	messages: z.array(legalityReportLineSchema).default([])
+	warnings: z.array(legalityReportLineSchema),
+	messages: z.array(legalityReportLineSchema)
 });
 
 const engineResultSchema = <T extends z.ZodType>(valueSchema: T) =>
@@ -222,6 +251,10 @@ export const saveWorkspaceResultSchema = engineResultSchema(saveWorkspaceSchema)
 export const serializedSaveResultSchema = engineResultSchema(serializedSaveSchema);
 
 export const slotOperationResultResultSchema = engineResultSchema(slotOperationResultSchema);
+
+export const pokemonEditOperationResultResultSchema = engineResultSchema(
+	pokemonEditOperationResultSchema
+);
 
 export const legalityReportResultSchema = engineResultSchema(legalityReportSchema);
 
@@ -290,6 +323,18 @@ export const engineWorkerApplySlotOperationRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerApplyPokemonEditOperationRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('applyPokemonEditOperation'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional(),
+		operation: pokemonEditOperationSchema,
+		activeBox: z.number().int()
+	})
+});
+
 export const engineWorkerCheckSlotLegalityRequestSchema = z.object({
 	type: z.literal('request'),
 	id: engineWorkerRequestIdSchema,
@@ -308,6 +353,7 @@ export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerLoadSaveWorkspaceRequestSchema,
 	engineWorkerSerializeSaveRequestSchema,
 	engineWorkerApplySlotOperationRequestSchema,
+	engineWorkerApplyPokemonEditOperationRequestSchema,
 	engineWorkerCheckSlotLegalityRequestSchema
 ]);
 
@@ -353,6 +399,13 @@ export const engineWorkerApplySlotOperationResponseSchema = z.object({
 	result: slotOperationResultResultSchema
 });
 
+export const engineWorkerApplyPokemonEditOperationResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('applyPokemonEditOperation'),
+	result: pokemonEditOperationResultResultSchema
+});
+
 export const engineWorkerCheckSlotLegalityResponseSchema = z.object({
 	type: z.literal('response'),
 	id: engineWorkerRequestIdSchema,
@@ -367,6 +420,7 @@ export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerLoadSaveWorkspaceResponseSchema,
 	engineWorkerSerializeSaveResponseSchema,
 	engineWorkerApplySlotOperationResponseSchema,
+	engineWorkerApplyPokemonEditOperationResponseSchema,
 	engineWorkerCheckSlotLegalityResponseSchema
 ]);
 
@@ -422,6 +476,10 @@ export type EngineWorkerSerializeSaveRequest = z.infer<
 
 export type EngineWorkerApplySlotOperationRequest = z.infer<
 	typeof engineWorkerApplySlotOperationRequestSchema
+>;
+
+export type EngineWorkerApplyPokemonEditOperationRequest = z.infer<
+	typeof engineWorkerApplyPokemonEditOperationRequestSchema
 >;
 
 export type EngineWorkerCheckSlotLegalityRequest = z.infer<

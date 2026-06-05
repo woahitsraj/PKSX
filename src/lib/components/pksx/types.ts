@@ -1,10 +1,12 @@
-import type { SpriteIdentity } from '$lib/engine';
+import type { PokemonExperienceProjection, SpriteIdentity } from '$lib/engine';
 
 export type SlotView = {
 	slot: number;
 	label: string;
 	detail: string;
 	level: number | null;
+	experience: number | null;
+	experienceProjection: PokemonExperienceProjection | null;
 	speciesId: number | null;
 	form: number | null;
 	isEgg: boolean;

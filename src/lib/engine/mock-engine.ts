@@ -4,6 +4,7 @@ import type {
 	EngineResult,
 	EngineVersion,
 	LegalityReport,
+	PokemonEditOperationResult,
 	SaveSlotRef,
 	PartySlotSummary,
 	SaveSummary,
@@ -35,6 +36,16 @@ const mockSaveSummary: SaveSummary = {
 };
 
 const mockPikachuDetails = {
+	experience: 125,
+	experienceProjection: {
+		minLevel: 1,
+		maxLevel: 100,
+		minExperience: 0,
+		maxExperience: 1_000_000,
+		currentLevelMinExperience: 125,
+		nextLevelMinExperience: 216,
+		currentLevelProgress: 0
+	},
 	gender: '♂',
 	nature: 'Hardy',
 	ability: 'Static',
@@ -83,6 +94,8 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		form: 0,
 		format: 0,
 		level: 0,
+		experience: 0,
+		experienceProjection: null,
 		nickname: '',
 		isEgg: false,
 		isEmpty: true,
@@ -164,26 +177,27 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					boxSlots: activeBox === 0 ? mockBoxSlots : []
 				}
 			}),
-		checkSlotLegality: async (_bytes, _fileName, source) => {
-			if (source.slot !== 0) {
-				return {
-					ok: false,
-					value: null,
-					error: {
-						code: 'empty-source-slot',
-						message: 'Legality Check needs an occupied source Slot.'
-					}
-				};
-			}
-
-			return success<LegalityReport>({
+		applyPokemonEditOperation: async (bytes, fileName, operation, activeBox) =>
+			success<PokemonEditOperationResult>({
+				bytes: copyBytes(bytes),
+				mutated:
+					operation.nickname !== undefined ||
+					operation.level !== undefined ||
+					operation.experience !== undefined,
+				workspace: {
+					summary: { ...mockSaveSummary, fileName },
+					partySlots: mockPartySlots,
+					boxSlots: activeBox === 0 ? mockBoxSlots : []
+				}
+			}),
+		checkSlotLegality: async () =>
+			success<LegalityReport>({
 				legal: true,
 				judgement: 'Legal',
 				summary: 'PKHeX judged this Pokemon legal.',
 				warnings: [],
-				messages: [{ severity: 'Valid', identifier: 'Encounter', message: 'Valid encounter.' }]
-			});
-		},
+				messages: [{ severity: 'Valid', identifier: 'Encounter', message: 'Encounter is valid.' }]
+			}),
 		...overrides
 	};
 }

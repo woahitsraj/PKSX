@@ -16,7 +16,6 @@
 	type SlotActionCommand = {
 		key: SlotActionCommandKey;
 		label: string;
-		detail: string;
 		availability: CommandAvailability;
 	};
 
@@ -53,31 +52,26 @@
 				{
 					key: 'create-pokemon',
 					label: 'Create Pokemon',
-					detail: 'Unavailable: creation is not implemented yet.',
 					availability: 'unsupported'
 				},
 				{
 					key: 'move',
 					label: 'Move',
-					detail: 'Unavailable: Slot is empty.',
 					availability: 'empty-slot'
 				},
 				{
 					key: 'copy',
 					label: 'Copy',
-					detail: 'Unavailable: Slot is empty.',
 					availability: 'empty-slot'
 				},
 				{
 					key: 'export',
 					label: 'Export',
-					detail: 'Unavailable: Slot is empty.',
 					availability: 'empty-slot'
 				},
 				{
 					key: 'legality-check',
 					label: 'Legality Check',
-					detail: 'Unavailable: Slot is empty.',
 					availability: 'empty-slot'
 				}
 			];
@@ -86,44 +80,37 @@
 		return [
 			{
 				key: 'pokemon-action',
-				label: 'Pokemon Action',
-				detail: 'Open Pokemon Editor.',
+				label: 'View',
 				availability: 'available'
 			},
 			{
 				key: 'move',
 				label: 'Move',
-				detail: 'Choose a destination Slot.',
 				availability: 'available'
 			},
 			{
 				key: 'copy',
 				label: 'Copy',
-				detail: 'Choose an empty destination Slot.',
 				availability: 'available'
 			},
 			{
 				key: 'clear',
 				label: 'Clear Slot',
-				detail: 'Remove this Pokemon after confirmation.',
 				availability: 'available'
 			},
 			{
 				key: 'export',
 				label: 'Export',
-				detail: 'Unavailable: Pokemon export is not implemented yet.',
 				availability: 'unsupported'
 			},
 			{
 				key: 'legality-check',
 				label: 'Legality Check',
-				detail: 'Inspect PKHeX legality report.',
 				availability: 'available'
 			},
 			{
 				key: 'create-pokemon',
 				label: 'Create Pokemon',
-				detail: 'Unavailable: Slot already contains a Pokemon.',
 				availability: 'occupied-slot'
 			}
 		];
@@ -143,7 +130,7 @@
 	style:--mobile-surface-top={mobileTop === null ? undefined : `${mobileTop}px`}
 >
 	<div class="slot-context-header">
-		<p class="slot-context-kicker">{occupied ? 'Pokemon Action' : 'Slot Action'}</p>
+		<p class="slot-context-kicker">{occupied ? 'View' : 'Slot Action'}</p>
 		<p class="slot-context-location">{location}</p>
 	</div>
 
@@ -155,9 +142,6 @@
 					type="button"
 					class:controller-focused={activeIndex === index}
 					aria-disabled={command.availability === 'available' ? undefined : 'true'}
-					aria-label={command.availability === 'available'
-						? `${command.label}: ${command.detail}`
-						: `${command.label} unavailable: ${command.detail.replace('Unavailable: ', '')}`}
 					data-availability={command.availability}
 					onfocus={() => onFocusCommand(index)}
 					onclick={(event) => {
@@ -169,7 +153,6 @@
 					}}
 				>
 					<span>{command.label}</span>
-					<small>{command.availability === 'available' ? 'Open' : 'Unavailable'}</small>
 				</button>
 			</div>
 		{/each}
@@ -267,8 +250,7 @@
 	.slot-command-row button {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		gap: 8px;
+		justify-content: flex-start;
 		cursor: not-allowed;
 		opacity: 0.68;
 	}
@@ -297,16 +279,6 @@
 		font-size: 0.78rem;
 		font-weight: 750;
 		line-height: 1.15;
-	}
-
-	.slot-command-row small {
-		flex: 0 0 auto;
-		color: var(--ink-mute);
-		font:
-			650 0.56rem var(--pksx-font-mono),
-			monospace;
-		line-height: 1;
-		text-transform: uppercase;
 	}
 
 	.slot-command-row button[data-availability='empty-slot'],

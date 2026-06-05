@@ -195,7 +195,7 @@ public static partial class PkhexEngineExports
     }
 
     [JSExport]
-    public static string CheckSlotLegalityJson(byte[] bytes, string? fileName, string slotRefJson)
+    public static string ApplyPokemonEditOperationJson(byte[] bytes, string? fileName, string operationJson)
     {
         try
         {
@@ -208,11 +208,71 @@ public static partial class PkhexEngineExports
                     EngineJsonContext.Default.EngineResultObject);
             }
 
-            var slotRef = System.Text.Json.JsonSerializer.Deserialize(
-                slotRefJson,
+            var operation = System.Text.Json.JsonSerializer.Deserialize(
+                operationJson,
+                EngineJsonContext.Default.PokemonEditOperationRequest);
+
+            if (operation is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("invalid-pokemon-edit", "Pokemon edit payload is missing."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var mutation = ApplyPokemonEditOperation(save, operation);
+            if (!mutation.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(mutation.Code, mutation.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var serialized = save.Write(BinaryExportSetting.None).ToArray();
+            var activeBox = ClampActiveBox(operation.ActiveBox, save);
+            var workspace = CreateWorkspace(save, fileName, activeBox);
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(new PokemonEditOperationResult(
+                    Convert.ToBase64String(serialized),
+                    serialized.Length,
+                    mutation.Mutated,
+                    workspace)),
+                EngineJsonContext.Default.EngineResultPokemonEditOperationResult);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
+    public static string CheckSlotLegalityJson(byte[] bytes, string? fileName, string sourceJson)
+    {
+        try
+        {
+            var save = SaveUtil.GetSaveFile(bytes, fileName);
+
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var source = System.Text.Json.JsonSerializer.Deserialize(
+                sourceJson,
                 EngineJsonContext.Default.SaveSlotRef);
 
-            var sourceResult = SlotRef.From(save, slotRef);
+            if (source is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("invalid-slot", "Legality Check needs a source Slot."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var sourceResult = SlotRef.From(save, source);
             if (!sourceResult.Ok)
             {
                 return EngineJson.Serialize(
@@ -220,17 +280,16 @@ public static partial class PkhexEngineExports
                     EngineJsonContext.Default.EngineResultObject);
             }
 
-            var source = sourceResult.Value;
-            var pokemon = source.Get(save);
+            var pokemon = sourceResult.Value.Get(save);
             if (pokemon.Species == 0)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("empty-source-slot", "Legality Check needs an occupied source Slot."),
+                    EngineResult.Fail("empty-source-slot", "Legality Check needs an occupied Slot."),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
             return EngineJson.Serialize(
-                EngineResult.Ok(CreateLegalityReport(pokemon, source.StorageSlotType)),
+                EngineResult.Ok(CreateLegalityReport(pokemon, sourceResult.Value.StorageSlotType)),
                 EngineJsonContext.Default.EngineResultLegalityReport);
         }
         catch (Exception ex)
@@ -272,6 +331,90 @@ public static partial class PkhexEngineExports
             "clear" => ApplyClear(save, source),
             _ => SlotMutationResult.Fail("unsupported-slot-operation", $"Slot operation '{operation.Kind}' is not supported."),
         };
+    }
+
+    private static SlotMutationResult ApplyPokemonEditOperation(SaveFile save, PokemonEditOperationRequest operation)
+    {
+        var sourceResult = SlotRef.From(save, operation.Source);
+        if (!sourceResult.Ok)
+            return SlotMutationResult.Fail(sourceResult.Code, sourceResult.Message);
+
+        var source = sourceResult.Value;
+        var pokemon = source.Get(save).Clone();
+        if (pokemon.Species == 0)
+            return SlotMutationResult.Fail("empty-source-slot", "Pokemon editing needs an occupied source Slot.");
+
+        if (operation.Nickname is null && operation.Level is null && operation.Experience is null)
+            return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a Pokemon edit to apply.");
+
+        if (operation.Level is not null && operation.Experience is not null)
+            return SlotMutationResult.Fail("invalid-pokemon-edit", "Apply either level or experience, not both.");
+
+        var originalNickname = pokemon.Nickname;
+        var originalIsNicknamed = pokemon.IsNicknamed;
+        var originalLevel = pokemon.CurrentLevel;
+        var originalExperience = pokemon.EXP;
+
+        if (operation.Nickname is string nickname)
+        {
+            if (nickname.Length == 0)
+            {
+                CommonEdits.SetDefaultNickname(pokemon);
+            }
+            else
+            {
+                if (nickname.Length > pokemon.MaxStringLengthNickname)
+                    return SlotMutationResult.Fail(
+                        "invalid-pokemon-edit",
+                        $"Nickname is too long for this Pokemon format. Maximum length is {pokemon.MaxStringLengthNickname} characters.");
+
+                try
+                {
+                    CommonEdits.SetNickname(pokemon, nickname);
+                }
+                catch (Exception ex)
+                {
+                    return SlotMutationResult.Fail("invalid-pokemon-edit", ex.Message);
+                }
+
+                if (!StringComparer.Ordinal.Equals(pokemon.Nickname, nickname))
+                    return SlotMutationResult.Fail(
+                        "invalid-pokemon-edit",
+                        "Nickname contains characters that are not valid for this Pokemon format or language.");
+            }
+        }
+
+        if (operation.Level is int level)
+        {
+            if (!Experience.IsValidLevel((byte)level) || level < Experience.MinLevel || level > Experience.MaxLevel)
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"Level must be between {Experience.MinLevel} and {Experience.MaxLevel}.");
+
+            pokemon.CurrentLevel = (byte)level;
+        }
+        else if (operation.Experience is uint experience)
+        {
+            var growth = pokemon.PersonalInfo.EXPGrowth;
+            var min = Experience.GetEXP((byte)Experience.MinLevel, growth);
+            var max = Experience.GetEXP((byte)Experience.MaxLevel, growth);
+
+            if (experience < min || experience > max)
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"Experience must be between {min} and {max}.");
+
+            pokemon.EXP = experience;
+        }
+
+        if (pokemon.PartyStatsPresent)
+            pokemon.ResetPartyStats();
+
+        var mutated =
+            !StringComparer.Ordinal.Equals(originalNickname, pokemon.Nickname) ||
+            originalIsNicknamed != pokemon.IsNicknamed ||
+            originalLevel != pokemon.CurrentLevel ||
+            originalExperience != pokemon.EXP;
+        if (mutated)
+            source.Set(save, pokemon);
+
+        return SlotMutationResult.Success(mutated);
     }
 
     private static SlotMutationResult ApplyMove(SaveFile save, SlotRef source, SaveSlotRef? destinationRef)
@@ -321,41 +464,24 @@ public static partial class PkhexEngineExports
         return SlotMutationResult.Success(true);
     }
 
-    private static LegalityReport CreateLegalityReport(PKM pokemon, StorageSlotType slotType)
+    private static LegalityReport CreateLegalityReport(PKM pokemon, StorageSlotType storageSlotType)
     {
-        var analysis = new LegalityAnalysis(pokemon, slotType);
-        var localization = LegalityLocalizationSet.GetLocalization(LanguageID.English);
-        var context = LegalityLocalizationContext.Create(analysis, localization);
-        var warnings = new List<LegalityReportLine>();
-        var messages = new List<LegalityReportLine>();
-
-        foreach (var check in analysis.Results)
-        {
-            if (!check.IsNotGeneric())
-                continue;
-
-            var working = check;
-            var message = context.Humanize(in working, false);
-            if (string.IsNullOrWhiteSpace(message))
-                continue;
-
-            var line = new LegalityReportLine(
-                check.Judgement.ToString(),
-                check.Identifier.ToString(),
-                message);
-
-            if (check.Judgement == Severity.Fishy)
-                warnings.Add(line);
-            else if (check.Judgement == Severity.Invalid)
-                messages.Add(line);
-        }
-
-        var summary = analysis.Valid
+        var analysis = new LegalityAnalysis(pokemon, storageSlotType);
+        var messages = analysis.Results.Select(report => new LegalityReportLine(
+                report.Judgement.ToString(),
+                report.Identifier.ToString(),
+                report.ToString()))
+            .ToList();
+        var warnings = messages
+            .Where(message => !StringComparer.Ordinal.Equals(message.Severity, Severity.Valid.ToString()))
+            .ToList();
+        var legal = analysis.Valid;
+        var judgement = legal ? "Legal" : "Illegal";
+        var summary = legal
             ? "PKHeX judged this Pokemon legal."
             : "PKHeX found legality issues for this Pokemon.";
-        var judgement = analysis.Valid ? "Legal" : "Illegal";
 
-        return new LegalityReport(analysis.Valid, judgement, summary, warnings, messages);
+        return new LegalityReport(legal, judgement, summary, warnings, messages);
     }
 
     private static int ClampActiveBox(int box, SaveFile save)
@@ -374,6 +500,8 @@ public static partial class PkhexEngineExports
 
     private readonly record struct SlotRef(SlotZone Zone, int Box, int Slot)
     {
+        public StorageSlotType StorageSlotType => Zone == SlotZone.Party ? StorageSlotType.Party : StorageSlotType.Box;
+
         public static SlotRefResult From(SaveFile save, SaveSlotRef? value)
         {
             if (value is null)
@@ -405,9 +533,6 @@ public static partial class PkhexEngineExports
 
         public PKM Get(SaveFile save) =>
             Zone == SlotZone.Party ? PartyPokemonOrBlank(save) : save.GetBoxSlotAtIndex(Box, Slot);
-
-        public StorageSlotType StorageSlotType =>
-            Zone == SlotZone.Party ? StorageSlotType.Party : StorageSlotType.Box;
 
         public void Set(SaveFile save, PKM pokemon)
         {

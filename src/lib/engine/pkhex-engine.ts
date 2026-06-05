@@ -6,8 +6,9 @@ import type {
 	EngineResult,
 	EngineVersion,
 	LegalityReport,
+	PokemonEditOperation,
+	PokemonEditOperationResult,
 	SaveWorkspace,
-	SaveSlotRef,
 	SlotOperation,
 	SlotOperationResult,
 	SerializedSave,
@@ -43,10 +44,15 @@ type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		operationJson: string
 	): string;
+	ApplyPokemonEditOperationJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operationJson: string
+	): string;
 	CheckSlotLegalityJson(
 		bytes: Uint8Array,
 		fileName: string | undefined,
-		slotRefJson: string
+		sourceJson: string
 	): string;
 };
 
@@ -57,6 +63,8 @@ const knownEngineErrorCodes = new Set<EngineErrorCode>([
 	'empty-source-slot',
 	'occupied-destination-slot',
 	'unsupported-slot-operation',
+	'invalid-pokemon-edit',
+	'unsupported-pokemon-edit',
 	'engine-unavailable',
 	'invalid-engine-response',
 	'invalid-worker-message',
@@ -89,7 +97,7 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 		serializeSave: async (bytes, fileName) =>
 			parseEngineResult<SerializedSave>(engine.SerializeSaveJson(bytes, fileName)),
 		applySlotOperation: async (bytes, fileName, operation, activeBox) =>
-			decodeSlotOperationResult(
+			decodeMutationResult(
 				parseEngineResult<RawSlotOperationResult>(
 					engine.ApplySlotOperationJson(
 						bytes,
@@ -98,20 +106,39 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 					)
 				)
 			),
+		applyPokemonEditOperation: async (bytes, fileName, operation, activeBox) =>
+			decodeMutationResult(
+				parseEngineResult<RawPokemonEditOperationResult>(
+					engine.ApplyPokemonEditOperationJson(
+						bytes,
+						fileName,
+						JSON.stringify({
+							...operation,
+							activeBox
+						} satisfies RawPokemonEditOperationRequest)
+					)
+				)
+			),
 		checkSlotLegality: async (bytes, fileName, source) =>
 			parseEngineResult<LegalityReport>(
-				engine.CheckSlotLegalityJson(bytes, fileName, JSON.stringify(source satisfies SaveSlotRef))
+				engine.CheckSlotLegalityJson(bytes, fileName, JSON.stringify(source))
 			)
 	};
 }
 
 type RawSlotOperationRequest = SlotOperation & { activeBox: number };
+type RawPokemonEditOperationRequest = PokemonEditOperation & { activeBox: number };
 
 type SaveSummaryDefaultedFields = 'trainerId' | 'playTime' | 'playedHours' | 'playedMinutes';
 type RawSaveSummary = Omit<SaveSummary, SaveSummaryDefaultedFields> &
 	Partial<Pick<SaveSummary, SaveSummaryDefaultedFields>>;
 type RawSaveWorkspace = Omit<SaveWorkspace, 'summary'> & { summary: RawSaveSummary };
 type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes' | 'workspace'> & {
+	bytesBase64: string;
+	byteLength: number;
+	workspace: RawSaveWorkspace;
+};
+type RawPokemonEditOperationResult = Omit<PokemonEditOperationResult, 'bytes' | 'workspace'> & {
 	bytesBase64: string;
 	byteLength: number;
 	workspace: RawSaveWorkspace;
@@ -175,9 +202,16 @@ function engineFailure<T>(code: EngineErrorCode, message: string): EngineResult<
 	return { ok: false, value: null, error: { code, message } };
 }
 
-function decodeSlotOperationResult(
-	result: EngineResult<RawSlotOperationResult>
-): EngineResult<SlotOperationResult> {
+function decodeMutationResult<
+	T extends { bytes: Uint8Array; mutated: boolean; workspace: SaveWorkspace }
+>(
+	result: EngineResult<{
+		bytesBase64: string;
+		byteLength: number;
+		mutated: boolean;
+		workspace: RawSaveWorkspace;
+	}>
+): EngineResult<T> {
 	if (!result.ok) {
 		return result;
 	}
@@ -188,7 +222,7 @@ function decodeSlotOperationResult(
 			bytes: base64ToBytes(result.value.bytesBase64, result.value.byteLength),
 			mutated: result.value.mutated,
 			workspace: normalizeSaveWorkspace(result.value.workspace)
-		},
+		} as T,
 		error: null
 	};
 }

@@ -129,18 +129,15 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toContainText('Slot Action');
 	await expect(
 		page.getByRole('button', {
-			name: 'Create Pokemon unavailable: creation is not implemented yet.'
+			name: 'Create Pokemon'
 		})
 	).toHaveAttribute('aria-disabled', 'true');
-	await expect(
-		page.getByRole('button', { name: 'Move unavailable: Slot is empty.' })
-	).toHaveAttribute('aria-disabled', 'true');
+	await expect(page.getByRole('button', { name: 'Move' })).toHaveAttribute('aria-disabled', 'true');
 	await expect(page.getByRole('alert')).toHaveCount(0);
 
 	await expect(page.locator('#slot-action-0')).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#slot-action-1')).toBeFocused();
-
 	for (const key of ['ArrowDown', 'ArrowDown', 'ArrowDown']) {
 		await page.keyboard.press(key);
 	}
@@ -155,32 +152,37 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 	await expect(page.locator('#box-0-slot-1')).toBeFocused();
 });
 
-test('occupied slot actions expose Pokemon Action and Close dismisses', async ({ page }) => {
+test('occupied slot actions expose View and Close dismisses', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
 
 	const dialog = page.getByRole('dialog', { name: 'Slot actions' });
 	await expect(dialog).toBeVisible();
-	await expect(dialog).toContainText('Pokemon Action');
-	await expect(
-		page.getByRole('button', { name: 'Pokemon Action: Open Pokemon Editor.' })
-	).not.toHaveAttribute('aria-disabled', 'true');
-	await expect(
-		page.getByRole('button', { name: 'Move: Choose a destination Slot.' })
-	).not.toHaveAttribute('aria-disabled', 'true');
-	await expect(
-		page.getByRole('button', { name: 'Copy: Choose an empty destination Slot.' })
-	).not.toHaveAttribute('aria-disabled', 'true');
-	await expect(
-		page.getByRole('button', { name: 'Clear Slot: Remove this Pokemon after confirmation.' })
-	).not.toHaveAttribute('aria-disabled', 'true');
-	await expect(
-		page.getByRole('button', { name: 'Legality Check: Inspect PKHeX legality report.' })
-	).not.toHaveAttribute('aria-disabled', 'true');
+	await expect(dialog).toContainText('View');
+	await expect(page.getByRole('button', { name: 'View' })).not.toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
+	await expect(page.getByRole('button', { name: 'Move' })).not.toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
+	await expect(page.getByRole('button', { name: 'Copy' })).not.toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
+	await expect(page.getByRole('button', { name: 'Clear Slot' })).not.toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
+	await expect(page.getByRole('button', { name: 'Legality Check' })).not.toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
 	await expect(
 		page.getByRole('button', {
-			name: 'Create Pokemon unavailable: Slot already contains a Pokemon.'
+			name: 'Create Pokemon'
 		})
 	).toHaveAttribute('aria-disabled', 'true');
 
@@ -189,9 +191,7 @@ test('occupied slot actions expose Pokemon Action and Close dismisses', async ({
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 });
 
-test('Pokemon Action opens Pokemon Editor and returns focus to the command stack', async ({
-	page
-}) => {
+test('View opens Pokemon Editor and returns focus to the command stack', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -206,11 +206,47 @@ test('Pokemon Action opens Pokemon Editor and returns focus to the command stack
 	await expect(editor).toContainText('Engine projection');
 	await expect(editor).toContainText('No Pokemon edits staged.');
 	await expect(page.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
+	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
+
+	await page.keyboard.press('ArrowUp');
+	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
 
 	await page.keyboard.press('Escape');
 	await expect(editor).toBeHidden();
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
 	await expect(page.locator('#slot-action-0')).toBeFocused();
+});
+
+test('Pokemon Editor applies nickname changes and refreshes Slot labels', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Enter');
+
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	await expect(editor).toBeVisible();
+
+	const nickname = editor.getByLabel('Nickname', { exact: true });
+	await nickname.fill('RON');
+	await nickname.press('Backspace');
+	await expect(page.getByRole('dialog', { name: 'ARON' })).toBeVisible();
+	await expect(nickname).toHaveValue('RO');
+	await nickname.fill('RON');
+	await expect(editor).toContainText('1 Pokemon edit staged.');
+
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(page.locator('#box-0-slot-0')).toContainText('RON', { timeout: 15000 });
+	const updatedEditor = page.getByRole('dialog', { name: 'RON' });
+	await expect(updatedEditor).toBeVisible();
+	await expect(updatedEditor).toContainText('Pokemon nickname updated.');
+	await expect(updatedEditor.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
 });
 
 test('Legality Check opens an engine report from an occupied Slot and dismisses cleanly', async ({
@@ -220,11 +256,9 @@ test('Legality Check opens an engine report from an occupied Slot and dismisses 
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
-
 	for (const key of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown']) {
 		await page.keyboard.press(key);
 	}
-
 	await expect(page.locator('#slot-action-5')).toBeFocused();
 	await page.keyboard.press('Enter');
 
@@ -423,6 +457,54 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 	expect(exported.byteLength).toBe(fixture.byteLength);
 });
 
+test('Pokemon Editor changes level through Apply and keeps editor focus', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'View' }).click();
+
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	await expect(editor).toBeVisible();
+	await expect(editor).toContainText('Level / Experience');
+	await expect(editor).toContainText('Level 11');
+	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
+	await expect(page.locator('#pokemon-editor-mode')).toHaveAttribute('aria-label', 'Editing Level');
+	await page.keyboard.press('Enter');
+	await expect(page.locator('#pokemon-editor-mode')).toHaveAttribute(
+		'aria-label',
+		'Editing Experience'
+	);
+	await page.keyboard.press('Enter');
+	await expect(page.locator('#pokemon-editor-mode')).toHaveAttribute('aria-label', 'Editing Level');
+	await page.keyboard.press('ArrowDown');
+	const levelInput = editor.locator('input[type="number"]');
+	await expect(levelInput).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await page.keyboard.press('ArrowUp');
+	await expect(levelInput).toHaveValue('13');
+	await expect(editor).toContainText('1 Pokemon edit staged.');
+	await expect(editor.getByRole('button', { name: 'Apply edits' })).toBeEnabled();
+
+	await page.keyboard.press('ArrowLeft');
+	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(levelInput).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#pokemon-editor-apply')).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
+	await expect(editor).toContainText('Level 13');
+	await expect(page.locator('#box-0-slot-0')).toContainText('Lv 13');
+	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
+});
+
 test('creates and restores a manual backup for the loaded Save File', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await importEmeraldThroughSaves(page);
@@ -513,7 +595,7 @@ test('can perform another slot mutation after the first move changes workspace b
 	await moveFirstEmeraldBoxSlotToThirdSlot(page);
 	await page.locator('#box-0-slot-1').click();
 	await page.locator('#box-0-slot-1').click();
-	await page.getByRole('button', { name: 'Copy: Choose an empty destination Slot.' }).click();
+	await page.getByRole('button', { name: 'Copy' }).click();
 	await page.locator('#box-0-slot-3').click();
 
 	await expect(page.locator('#box-0-slot-3')).toContainText('ILLUMISE');
@@ -582,11 +664,7 @@ test('clear slot cancellation and confirmation use the in-app confirmation surfa
 
 	await page.locator('#box-0-slot-0').click();
 	await page.locator('#box-0-slot-0').click();
-	await page
-		.getByRole('button', {
-			name: 'Clear Slot: Remove this Pokemon after confirmation.'
-		})
-		.click();
+	await page.getByRole('button', { name: 'Clear Slot' }).click();
 	await page.getByRole('button', { name: 'Confirm Clear' }).click();
 
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
