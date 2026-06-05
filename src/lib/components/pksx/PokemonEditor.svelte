@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { SaveSummary } from '$lib/engine';
-	import type { PokemonEditorState } from '$lib/pksx/pokemon-editor';
+	import type { LevelExperienceEditPayload, PokemonEditorState } from '$lib/pksx/pokemon-editor';
 
 	interface Props {
 		editor: PokemonEditorState;
@@ -8,7 +8,9 @@
 		spriteUrl: string | null;
 		slotHueStyle: string;
 		feedback: string | null;
-		onUnsupportedApply: () => void;
+		onStageLevelExperience: (payload: LevelExperienceEditPayload) => void;
+		onApply: () => void;
+		onCancelEdits: () => void;
 		onClose: () => void;
 	}
 
@@ -18,11 +20,16 @@
 		spriteUrl,
 		slotHueStyle,
 		feedback,
-		onUnsupportedApply,
+		onStageLevelExperience,
+		onApply,
+		onCancelEdits,
 		onClose
 	}: Props = $props();
 
+	let editMode = $state<'level' | 'experience'>('level');
 	const slot = $derived(editor.slot);
+	let stagedLevel: number | undefined = $derived(slot.level ?? 1);
+	let stagedExperience: number | undefined = $derived(slot.experience ?? 0);
 	const speciesLabel = $derived(
 		slot.speciesId ? `Species #${String(slot.speciesId).padStart(4, '0')}` : 'Unknown species'
 	);
@@ -35,6 +42,26 @@
 			(editor.staged
 				? `${editor.stagedEdits.length} Pokemon edit${editor.stagedEdits.length === 1 ? '' : 's'} staged.`
 				: 'No Pokemon edits staged.')
+	);
+	const experienceProjection = $derived(slot.experienceProjection);
+	const canEditLevelExperience = $derived(experienceProjection !== null);
+	const levelRangeLabel = $derived(
+		experienceProjection
+			? `${experienceProjection.minLevel}-${experienceProjection.maxLevel}`
+			: 'Unsupported'
+	);
+	const experienceRangeLabel = $derived(
+		experienceProjection
+			? `${experienceProjection.minExperience.toLocaleString()}-${experienceProjection.maxExperience.toLocaleString()}`
+			: 'Unsupported'
+	);
+	const currentExperienceLabel = $derived(
+		slot.experience === null ? 'Unknown' : slot.experience.toLocaleString()
+	);
+	const nextLevelLabel = $derived(
+		experienceProjection && slot.level !== null && slot.level < experienceProjection.maxLevel
+			? experienceProjection.nextLevelMinExperience.toLocaleString()
+			: 'Max'
 	);
 	const identityRows = $derived(
 		[
@@ -51,6 +78,28 @@
 			slot.metLabel ? { label: 'Met', value: slot.metLabel } : null
 		].filter((row): row is { label: string; value: string } => row !== null)
 	);
+
+	function toggleEditMode() {
+		editMode = editMode === 'level' ? 'experience' : 'level';
+	}
+
+	function setStagedLevel(value: number | undefined) {
+		stagedLevel = value;
+		if (typeof value !== 'number') {
+			return;
+		}
+
+		onStageLevelExperience({ mode: 'level', level: value });
+	}
+
+	function setStagedExperience(value: number | undefined) {
+		stagedExperience = value;
+		if (typeof value !== 'number') {
+			return;
+		}
+
+		onStageLevelExperience({ mode: 'experience', experience: value });
+	}
 </script>
 
 <div class="pokemon-editor-backdrop" role="presentation" onclick={onClose}></div>
@@ -116,6 +165,64 @@
 				</div>
 			{/if}
 
+			<div class="editor-panel" aria-label="Level and Experience Editing">
+				<div class="panel-title">
+					<span>Level / Experience</span>
+					<small>{canEditLevelExperience ? 'Editable' : 'Unsupported'}</small>
+				</div>
+				<div class="level-edit-grid">
+					<span>Current level</span>
+					<strong>{slot.level ?? 'Unknown'}</strong>
+					<span>Experience</span>
+					<strong>{currentExperienceLabel}</strong>
+					<span>Next level</span>
+					<strong>{nextLevelLabel}</strong>
+				</div>
+				<div class="level-edit-controls">
+					<button
+						id="pokemon-editor-mode"
+						type="button"
+						class="mode-switch"
+						role="switch"
+						aria-checked={editMode === 'experience'}
+						aria-label={`Editing ${editMode === 'level' ? 'Level' : 'Experience'}`}
+						disabled={!canEditLevelExperience}
+						onclick={toggleEditMode}
+					>
+						<span>Level</span>
+						<span>EXP</span>
+						<i aria-hidden="true"></i>
+					</button>
+					{#if editMode === 'level'}
+						<label>
+							<span>Level</span>
+							<input
+								type="number"
+								min={experienceProjection?.minLevel ?? 1}
+								max={experienceProjection?.maxLevel ?? 100}
+								step="1"
+								bind:value={() => stagedLevel, setStagedLevel}
+								disabled={!canEditLevelExperience}
+							/>
+							<em>{levelRangeLabel}</em>
+						</label>
+					{:else}
+						<label>
+							<span>Experience</span>
+							<input
+								type="number"
+								min={experienceProjection?.minExperience ?? 0}
+								max={experienceProjection?.maxExperience ?? 0}
+								step="1"
+								bind:value={() => stagedExperience, setStagedExperience}
+								disabled={!canEditLevelExperience}
+							/>
+							<em>{experienceRangeLabel}</em>
+						</label>
+					{/if}
+				</div>
+			</div>
+
 			{#if slot.moves && slot.moves.length > 0}
 				<div class="editor-panel" aria-label="Move Set">
 					<div class="panel-title">
@@ -162,14 +269,26 @@
 			{statusText}
 		</p>
 		<button
+			id="pokemon-editor-apply"
 			type="button"
 			class="unsupported-apply"
 			disabled={!editor.staged}
-			onclick={onUnsupportedApply}
+			onclick={onApply}
 		>
 			Apply edits
 		</button>
-		<button type="button" class="close-editor" onclick={onClose}>Close</button>
+		<button
+			id="pokemon-editor-cancel"
+			type="button"
+			class="close-editor"
+			disabled={!editor.staged}
+			onclick={onCancelEdits}
+		>
+			Cancel edits
+		</button>
+		<button id="pokemon-editor-close-footer" type="button" class="close-editor" onclick={onClose}>
+			Close
+		</button>
 	</footer>
 </div>
 
@@ -346,7 +465,8 @@
 	}
 
 	.field-grid,
-	.stat-grid {
+	.stat-grid,
+	.level-edit-grid {
 		display: grid;
 		grid-template-columns: max-content minmax(0, 1fr);
 		gap: 7px 12px;
@@ -356,6 +476,7 @@
 	}
 
 	.field-grid span,
+	.level-edit-grid span,
 	.stat-grid span,
 	.stat-grid em {
 		color: var(--ink-mute);
@@ -366,6 +487,7 @@
 	}
 
 	.field-grid strong,
+	.level-edit-grid strong,
 	.stat-grid strong {
 		min-width: 0;
 		overflow-wrap: anywhere;
@@ -375,6 +497,113 @@
 	.editor-panel {
 		display: grid;
 		gap: 8px;
+	}
+
+	.level-edit-controls {
+		display: grid;
+		grid-template-columns: 154px minmax(160px, 1fr);
+		align-items: center;
+		gap: 12px;
+		padding: 12px;
+		border-radius: var(--pksx-radius-md);
+		background: var(--paper-deep);
+	}
+
+	.mode-switch {
+		min-height: 44px;
+		border-radius: var(--pksx-radius-sm);
+		font:
+			800 0.72rem var(--pksx-font-mono),
+			monospace;
+		line-height: 1;
+		text-transform: uppercase;
+	}
+
+	.mode-switch {
+		position: relative;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		align-items: center;
+		padding: 4px;
+		background: var(--paper-hi);
+		color: var(--ink-mute);
+		overflow: hidden;
+		box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--rust), transparent 56%);
+	}
+
+	.mode-switch span {
+		position: relative;
+		z-index: 1;
+		display: grid;
+		place-items: center;
+		min-height: 36px;
+		transition:
+			color 140ms ease,
+			opacity 140ms ease;
+	}
+
+	.mode-switch i {
+		position: absolute;
+		inset: 4px auto 4px 4px;
+		width: calc(50% - 4px);
+		border-radius: calc(var(--pksx-radius-sm) - 2px);
+		background: var(--rust);
+		transition: transform 140ms ease;
+	}
+
+	.mode-switch[aria-checked='true'] i {
+		transform: translateX(100%);
+	}
+
+	.mode-switch[aria-checked='false'] span:first-child,
+	.mode-switch[aria-checked='true'] span:nth-child(2) {
+		color: white;
+		text-shadow: 0 1px 0 color-mix(in srgb, var(--ink), transparent 68%);
+	}
+
+	.mode-switch[aria-checked='false'] span:nth-child(2),
+	.mode-switch[aria-checked='true'] span:first-child {
+		opacity: 0.62;
+	}
+
+	.mode-switch:disabled {
+		opacity: 0.55;
+	}
+
+	.level-edit-controls label {
+		min-width: 0;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 4px;
+	}
+
+	.level-edit-controls label span,
+	.level-edit-controls label em {
+		color: var(--ink-mute);
+		font:
+			650 0.62rem var(--pksx-font-mono),
+			monospace;
+		line-height: 1.1;
+		text-transform: uppercase;
+	}
+
+	.level-edit-controls input {
+		width: 100%;
+		min-width: 0;
+		height: 44px;
+		padding: 0 12px;
+		border: 1px solid var(--rule);
+		border-radius: var(--pksx-radius-sm);
+		background: var(--paper-hi);
+		color: var(--ink);
+		font:
+			750 0.86rem var(--pksx-font-mono),
+			monospace;
+	}
+
+	.level-edit-controls button:disabled,
+	.level-edit-controls input:disabled {
+		opacity: 0.55;
 	}
 
 	.panel-title {
@@ -488,6 +717,10 @@
 
 		.editor-actions p {
 			flex-basis: 100%;
+		}
+
+		.level-edit-controls {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>

@@ -5,6 +5,8 @@ export type EngineErrorCode =
 	| 'empty-source-slot'
 	| 'occupied-destination-slot'
 	| 'unsupported-slot-operation'
+	| 'invalid-pokemon-edit'
+	| 'unsupported-pokemon-edit'
 	| 'engine-unavailable'
 	| 'invalid-engine-response'
 	| 'invalid-worker-message'
@@ -57,6 +59,8 @@ export type BoxSlotSummary = {
 	form: number;
 	format: number;
 	level: number;
+	experience: number;
+	experienceProjection: PokemonExperienceProjection | null;
 	nickname: string;
 	isEgg: boolean;
 	isEmpty: boolean;
@@ -78,6 +82,16 @@ export type SlotTypeSummary = {
 	name: string;
 	hue: number;
 	chroma: number;
+};
+
+export type PokemonExperienceProjection = {
+	minLevel: number;
+	maxLevel: number;
+	minExperience: number;
+	maxExperience: number;
+	currentLevelMinExperience: number;
+	nextLevelMinExperience: number;
+	currentLevelProgress: number;
 };
 
 export type SlotStatSummary = {
@@ -140,6 +154,18 @@ export type SlotOperationResult = {
 	workspace: SaveWorkspace;
 };
 
+export type PokemonEditOperation = {
+	source: SaveSlotRef;
+	level?: number;
+	experience?: number;
+};
+
+export type PokemonEditOperationResult = {
+	bytes: Uint8Array;
+	mutated: boolean;
+	workspace: SaveWorkspace;
+};
+
 export type EngineApi = {
 	getVersion(): Promise<EngineResult<EngineVersion>>;
 	summarizeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SaveSummary>>;
@@ -160,4 +186,10 @@ export type EngineApi = {
 		operation: SlotOperation,
 		activeBox: number
 	): Promise<EngineResult<SlotOperationResult>>;
+	applyPokemonEditOperation(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operation: PokemonEditOperation,
+		activeBox: number
+	): Promise<EngineResult<PokemonEditOperationResult>>;
 };

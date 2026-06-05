@@ -1,4 +1,4 @@
-import type { SaveSlotRef } from '$lib/engine';
+import type { PokemonEditOperation, SaveSlotRef } from '$lib/engine';
 import type { SlotView } from '$lib/components/pksx/types';
 
 export type PokemonEditorOwner = 'save-file' | 'pokemon-storage';
@@ -37,6 +37,16 @@ export type StagedPokemonEdit = {
 	label: string;
 	payload?: unknown;
 };
+
+export type LevelExperienceEditPayload =
+	| {
+			mode: 'level';
+			level: number;
+	  }
+	| {
+			mode: 'experience';
+			experience: number;
+	  };
 
 export type PokemonEditorApplyOutcome =
 	| {
@@ -86,6 +96,24 @@ export type PokemonEditValidationResult =
 			message: string;
 			reason?: string;
 	  };
+
+export type PokemonEditorLevelExperienceValidation =
+	| {
+			ok: true;
+			payload: LevelExperienceEditPayload;
+			label: string;
+	  }
+	| {
+			ok: false;
+			message: string;
+	  };
+
+export type PokemonEditOperationBuildResult =
+	| {
+			ok: true;
+			operation: PokemonEditOperation;
+	  }
+	| Extract<PokemonEditValidationResult, { ok: false }>;
 
 export type PokemonEditorMutationResult =
 	| {
@@ -183,6 +211,142 @@ export function stagePokemonEditorEdit(
 		applyOutcome: { status: 'idle', message: null },
 		unsupportedReason: null
 	});
+}
+
+function removePokemonEditorEdit(state: PokemonEditorState, editId: string): PokemonEditorState {
+	return withStagedEdits({
+		...state,
+		stagedEdits: state.stagedEdits.filter((existing) => existing.id !== editId)
+	});
+}
+
+export function validateLevelExperienceEdit(
+	slot: SlotView,
+	payload: LevelExperienceEditPayload
+): PokemonEditorLevelExperienceValidation {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Level and Experience Editing needs an occupied Slot.' };
+	}
+
+	if (!slot.experienceProjection) {
+		return {
+			ok: false,
+			message: 'Level and Experience Editing is not supported for this Pokemon format.'
+		};
+	}
+
+	const projection = slot.experienceProjection;
+
+	if (payload.mode === 'level') {
+		if (!Number.isInteger(payload.level)) {
+			return { ok: false, message: 'Level must be a whole number.' };
+		}
+
+		if (payload.level < projection.minLevel || payload.level > projection.maxLevel) {
+			return {
+				ok: false,
+				message: `Level must be between ${projection.minLevel} and ${projection.maxLevel}.`
+			};
+		}
+
+		return {
+			ok: true,
+			payload,
+			label: `Set level to ${payload.level}`
+		};
+	}
+
+	if (!Number.isInteger(payload.experience)) {
+		return { ok: false, message: 'Experience must be a whole number.' };
+	}
+
+	if (
+		payload.experience < projection.minExperience ||
+		payload.experience > projection.maxExperience
+	) {
+		return {
+			ok: false,
+			message: `Experience must be between ${projection.minExperience} and ${projection.maxExperience}.`
+		};
+	}
+
+	return {
+		ok: true,
+		payload,
+		label: `Set experience to ${payload.experience}`
+	};
+}
+
+export function stageLevelExperienceEdit(
+	state: PokemonEditorState,
+	payload: LevelExperienceEditPayload
+): PokemonEditorState {
+	const validation = validateLevelExperienceEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'level-experience'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'level-experience',
+		capability: 'level-experience-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
+export function createPokemonEditOperation(
+	state: PokemonEditorState
+): PokemonEditOperationBuildResult {
+	if (state.source.owner !== 'save-file') {
+		return {
+			ok: false,
+			status: 'unsupported',
+			message: 'Pokemon Storage level and experience editing is not available yet.',
+			reason: 'storage-unavailable'
+		};
+	}
+
+	const edit = state.stagedEdits.find((candidate) => candidate.id === 'level-experience');
+	if (!edit) {
+		return {
+			ok: false,
+			status: 'unsupported',
+			message: 'No supported Pokemon edits are staged.',
+			reason: 'unsupported-pokemon-edit'
+		};
+	}
+
+	const payload = edit.payload;
+	if (!isLevelExperienceEditPayload(payload)) {
+		return {
+			ok: false,
+			status: 'rejected',
+			message: 'Level and Experience edit payload is invalid.',
+			reason: 'invalid-pokemon-edit'
+		};
+	}
+
+	const validation = validateLevelExperienceEdit(state.slot, payload);
+	if (!validation.ok) {
+		return {
+			ok: false,
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		};
+	}
+
+	return {
+		ok: true,
+		operation:
+			payload.mode === 'level'
+				? { source: state.source.slotRef, level: payload.level }
+				: { source: state.source.slotRef, experience: payload.experience }
+	};
 }
 
 export function cancelPokemonEditor(state: PokemonEditorState): PokemonEditorState {
@@ -345,4 +509,20 @@ function withStagedEdits(state: PokemonEditorState): PokemonEditorState {
 		...state,
 		staged: state.stagedEdits.length > 0
 	};
+}
+
+function isLevelExperienceEditPayload(value: unknown): value is LevelExperienceEditPayload {
+	if (typeof value !== 'object' || value === null || !('mode' in value)) {
+		return false;
+	}
+
+	if (value.mode === 'level') {
+		return 'level' in value && typeof value.level === 'number';
+	}
+
+	if (value.mode === 'experience') {
+		return 'experience' in value && typeof value.experience === 'number';
+	}
+
+	return false;
 }

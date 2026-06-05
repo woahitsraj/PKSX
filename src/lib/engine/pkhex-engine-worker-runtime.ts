@@ -3,6 +3,7 @@ import type {
 	BoxSlotSummary,
 	EngineResult,
 	EngineVersion,
+	PokemonEditOperationResult,
 	SaveSummary,
 	SaveWorkspace,
 	SlotOperationResult,
@@ -14,6 +15,7 @@ import {
 	parseEngineWorkerInitMessage,
 	parseEngineWorkerRequest,
 	type EngineWorkerApplySlotOperationRequest,
+	type EngineWorkerApplyPokemonEditOperationRequest,
 	type EngineWorkerLoadSaveWorkspaceRequest,
 	type EngineWorkerListBoxSlotsRequest,
 	type EngineWorkerMessage,
@@ -34,9 +36,18 @@ export type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		operationJson: string
 	): string;
+	ApplyPokemonEditOperationJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operationJson: string
+	): string;
 };
 
 type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes'> & {
+	bytesBase64: string;
+	byteLength: number;
+};
+type RawPokemonEditOperationResult = Omit<PokemonEditOperationResult, 'bytes'> & {
 	bytesBase64: string;
 	byteLength: number;
 };
@@ -141,6 +152,13 @@ export function createPkhexEngineWorkerRuntime({
 			case 'applySlotOperation':
 				postSlotOperationResponse(postMessage, request, applySlotOperation(engine, request));
 				return;
+			case 'applyPokemonEditOperation':
+				postPokemonEditOperationResponse(
+					postMessage,
+					request,
+					applyPokemonEditOperation(engine, request)
+				);
+				return;
 		}
 	}
 
@@ -223,10 +241,50 @@ function applySlotOperation(
 	);
 }
 
+function applyPokemonEditOperation(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerApplyPokemonEditOperationRequest
+): EngineResult<RawPokemonEditOperationResult> {
+	return parseEngineResult<RawPokemonEditOperationResult>(
+		engine.ApplyPokemonEditOperationJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			JSON.stringify({
+				...request.payload.operation,
+				activeBox: request.payload.activeBox
+			})
+		)
+	);
+}
+
 function postSlotOperationResponse(
 	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
 	request: EngineWorkerApplySlotOperationRequest,
 	result: EngineResult<RawSlotOperationResult>
+) {
+	if (!result.ok) {
+		postMessage(createEngineWorkerResponse(request, result));
+		return;
+	}
+
+	const bytes = base64ToArrayBuffer(result.value.bytesBase64, result.value.byteLength);
+	const response = createEngineWorkerResponse(request, {
+		ok: true,
+		value: {
+			bytes,
+			mutated: result.value.mutated,
+			workspace: result.value.workspace
+		},
+		error: null
+	});
+
+	postMessage(response, [bytes]);
+}
+
+function postPokemonEditOperationResponse(
+	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
+	request: EngineWorkerApplyPokemonEditOperationRequest,
+	result: EngineResult<RawPokemonEditOperationResult>
 ) {
 	if (!result.ok) {
 		postMessage(createEngineWorkerResponse(request, result));
@@ -270,6 +328,8 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<SerializedSave>;
 		case 'applySlotOperation':
 			return result satisfies EngineResult<SlotOperationResult>;
+		case 'applyPokemonEditOperation':
+			return result satisfies EngineResult<PokemonEditOperationResult>;
 	}
 }
 

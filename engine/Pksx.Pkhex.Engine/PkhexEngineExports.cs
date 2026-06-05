@@ -194,6 +194,59 @@ public static partial class PkhexEngineExports
         }
     }
 
+    [JSExport]
+    public static string ApplyPokemonEditOperationJson(byte[] bytes, string? fileName, string operationJson)
+    {
+        try
+        {
+            var save = SaveUtil.GetSaveFile(bytes, fileName);
+
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var operation = System.Text.Json.JsonSerializer.Deserialize(
+                operationJson,
+                EngineJsonContext.Default.PokemonEditOperationRequest);
+
+            if (operation is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("invalid-pokemon-edit", "Pokemon edit payload is missing."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var mutation = ApplyPokemonEditOperation(save, operation);
+            if (!mutation.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(mutation.Code, mutation.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var serialized = save.Write(BinaryExportSetting.None).ToArray();
+            var activeBox = ClampActiveBox(operation.ActiveBox, save);
+            var workspace = CreateWorkspace(save, fileName, activeBox);
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(new PokemonEditOperationResult(
+                    Convert.ToBase64String(serialized),
+                    serialized.Length,
+                    mutation.Mutated,
+                    workspace)),
+                EngineJsonContext.Default.EngineResultPokemonEditOperationResult);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
     private static SaveWorkspace CreateWorkspace(SaveFile save, string? fileName, int box)
     {
         var partySlots = new List<PartySlotSummary>(save.PartyCount);
@@ -225,6 +278,56 @@ public static partial class PkhexEngineExports
             "clear" => ApplyClear(save, source),
             _ => SlotMutationResult.Fail("unsupported-slot-operation", $"Slot operation '{operation.Kind}' is not supported."),
         };
+    }
+
+    private static SlotMutationResult ApplyPokemonEditOperation(SaveFile save, PokemonEditOperationRequest operation)
+    {
+        var sourceResult = SlotRef.From(save, operation.Source);
+        if (!sourceResult.Ok)
+            return SlotMutationResult.Fail(sourceResult.Code, sourceResult.Message);
+
+        var source = sourceResult.Value;
+        var pokemon = source.Get(save).Clone();
+        if (pokemon.Species == 0)
+            return SlotMutationResult.Fail("empty-source-slot", "Pokemon editing needs an occupied source Slot.");
+
+        if (operation.Level is null && operation.Experience is null)
+            return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a level or experience value to apply.");
+
+        if (operation.Level is not null && operation.Experience is not null)
+            return SlotMutationResult.Fail("invalid-pokemon-edit", "Apply either level or experience, not both.");
+
+        var originalLevel = pokemon.CurrentLevel;
+        var originalExperience = pokemon.EXP;
+
+        if (operation.Level is int level)
+        {
+            if (!Experience.IsValidLevel((byte)level) || level < Experience.MinLevel || level > Experience.MaxLevel)
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"Level must be between {Experience.MinLevel} and {Experience.MaxLevel}.");
+
+            pokemon.CurrentLevel = (byte)level;
+        }
+        else if (operation.Experience is uint experience)
+        {
+            var growth = pokemon.PersonalInfo.EXPGrowth;
+            var min = Experience.GetEXP((byte)Experience.MinLevel, growth);
+            var max = Experience.GetEXP((byte)Experience.MaxLevel, growth);
+
+            if (experience < min || experience > max)
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"Experience must be between {min} and {max}.");
+
+            pokemon.EXP = experience;
+            pokemon.CurrentLevel = Experience.GetLevel(experience, growth);
+        }
+
+        if (pokemon.PartyStatsPresent)
+            pokemon.ResetPartyStats();
+
+        var mutated = originalLevel != pokemon.CurrentLevel || originalExperience != pokemon.EXP;
+        if (mutated)
+            source.Set(save, pokemon);
+
+        return SlotMutationResult.Success(mutated);
     }
 
     private static SlotMutationResult ApplyMove(SaveFile save, SlotRef source, SaveSlotRef? destinationRef)

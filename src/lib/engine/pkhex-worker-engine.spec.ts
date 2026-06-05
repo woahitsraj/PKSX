@@ -276,6 +276,79 @@ describe('createPkhexWorkerEngine', () => {
 		expect(followUpRequest).toMatchObject({ type: 'request', method: 'summarizeSave' });
 	});
 
+	test('posts Pokemon edit operations through the worker and normalizes returned bytes', async () => {
+		expect.assertions(4);
+
+		const worker = new FakeWorker();
+		const engine = createPkhexWorkerEngine('/pkhex-engine', { createWorker: () => worker });
+
+		worker.emit({ type: 'status', status: 'ready' });
+
+		const operation = engine.applyPokemonEditOperation(
+			new Uint8Array([1, 2, 3]),
+			'main.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				level: 24
+			},
+			0
+		);
+
+		await Promise.resolve();
+
+		const request = worker.posted[1]?.message;
+		if (request?.type !== 'request' || request.method !== 'applyPokemonEditOperation') {
+			throw new Error('Expected an applyPokemonEditOperation request.');
+		}
+
+		expect(request.payload.operation).toEqual({
+			source: { zone: 'box', box: 0, slot: 0 },
+			level: 24
+		});
+		expect(worker.posted[1]?.transfer).toEqual([request.payload.bytes]);
+
+		const responseBytes = new Uint8Array([7, 8, 9]).buffer;
+		worker.emit({
+			type: 'response',
+			id: request.id,
+			method: 'applyPokemonEditOperation',
+			result: {
+				ok: true,
+				value: {
+					bytes: responseBytes,
+					mutated: true,
+					workspace: {
+						summary: {
+							fileName: 'main.sav',
+							saveType: 'SAV9SV',
+							gameVersion: 'SV',
+							gameVersionId: 45,
+							generation: 9,
+							trainerName: 'PKSX',
+							trainerId: 41203,
+							playTime: '47:12',
+							playedHours: 47,
+							playedMinutes: 12,
+							partyCount: 1,
+							boxCount: 1,
+							boxSlotCount: 30
+						},
+						partySlots: [],
+						boxSlots: []
+					}
+				},
+				error: null
+			}
+		});
+
+		const result = await operation;
+		expect(result.ok).toBe(true);
+		if (!result.ok) {
+			throw new Error('Expected Pokemon edit operation to succeed.');
+		}
+		expect([...result.value.bytes]).toEqual([7, 8, 9]);
+	});
+
 	test('drains pending requests and permanently fails later calls when startup fails', async () => {
 		expect.assertions(3);
 
