@@ -4,9 +4,11 @@ import type { SlotView } from '$lib/components/pksx/types';
 import {
 	applyPokemonEditorEdits,
 	cancelPokemonEditor,
+	createPokemonEditOperation,
 	createPokemonEditorState,
 	isSamePokemonEditorSourceIdentity,
 	markUnsupportedPokemonEditorApply,
+	stageLevelExperienceEdit,
 	stagePokemonEditorEdit,
 	type PokemonEditorApplyServices,
 	type PokemonEditorSourceInput
@@ -26,6 +28,16 @@ const pokemonSlot: SlotView = {
 	label: 'ARON',
 	detail: 'Lv. 12',
 	level: 12,
+	experience: 1728,
+	experienceProjection: {
+		minLevel: 1,
+		maxLevel: 100,
+		minExperience: 0,
+		maxExperience: 1_000_000,
+		currentLevelMinExperience: 1728,
+		nextLevelMinExperience: 2197,
+		currentLevelProgress: 0
+	},
 	speciesId: 304,
 	form: 0,
 	spriteIdentity: {
@@ -54,6 +66,8 @@ const emptySlot: SlotView = {
 	label: 'Empty',
 	detail: '',
 	level: null,
+	experience: null,
+	experienceProjection: null,
 	speciesId: null,
 	form: null,
 	spriteIdentity: null,
@@ -143,6 +157,65 @@ describe('Pokemon editor state', () => {
 
 		expect(staged.stagedEdits).toHaveLength(1);
 		expect(staged.stagedEdits[0]?.payload).toEqual({ nickname: 'IRON' });
+	});
+
+	it('stages valid level edits with engine-backed range metadata', () => {
+		const staged = stageLevelExperienceEdit(openEditor(), { mode: 'level', level: 20 });
+
+		expect(staged.stagedEdits).toEqual([
+			{
+				id: 'level-experience',
+				capability: 'level-experience-editing',
+				label: 'Set level to 20',
+				payload: { mode: 'level', level: 20 }
+			}
+		]);
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: { source: slotRef, level: 20 }
+		});
+	});
+
+	it('rejects invalid level and experience ranges without staging mutation', () => {
+		const invalidLevel = stageLevelExperienceEdit(openEditor(), { mode: 'level', level: 101 });
+		const invalidExperience = stageLevelExperienceEdit(openEditor(), {
+			mode: 'experience',
+			experience: -1
+		});
+
+		expect(invalidLevel).toMatchObject({
+			stagedEdits: [],
+			staged: false,
+			applyOutcome: {
+				status: 'rejected',
+				message: 'Level must be between 1 and 100.',
+				reason: 'invalid-pokemon-edit'
+			}
+		});
+		expect(invalidExperience).toMatchObject({
+			stagedEdits: [],
+			staged: false,
+			applyOutcome: {
+				status: 'rejected',
+				message: 'Experience must be between 0 and 1000000.',
+				reason: 'invalid-pokemon-edit'
+			}
+		});
+	});
+
+	it('clears a pending level edit when a later level value is invalid', () => {
+		const staged = stageLevelExperienceEdit(openEditor(), { mode: 'level', level: 20 });
+		const invalid = stageLevelExperienceEdit(staged, { mode: 'level', level: 101 });
+
+		expect(invalid).toMatchObject({
+			stagedEdits: [],
+			staged: false,
+			applyOutcome: {
+				status: 'rejected',
+				message: 'Level must be between 1 and 100.',
+				reason: 'invalid-pokemon-edit'
+			}
+		});
 	});
 
 	it('keeps cancel non-mutating and clears staged feedback', () => {
@@ -284,6 +357,27 @@ describe('Pokemon editor state', () => {
 		expect(services.mutateStoragePokemon).toHaveBeenCalledWith(state);
 		expect(services.ensureSaveFileBackup).not.toHaveBeenCalled();
 		expect(services.mutateSaveFilePokemon).not.toHaveBeenCalled();
+	});
+
+	it('keeps level edits staged when Save File mutation fails', async () => {
+		const state = stageLevelExperienceEdit(openEditor(), { mode: 'level', level: 18 });
+		const services = applyServices({
+			mutateSaveFilePokemon: vi.fn(async () => ({
+				ok: false as const,
+				status: 'failed' as const,
+				message: 'Engine mutation failed.',
+				reason: 'engine-unavailable'
+			}))
+		});
+
+		const result = await applyPokemonEditorEdits(state, services);
+
+		expect(result.outcome).toEqual({
+			status: 'failed',
+			message: 'Engine mutation failed.',
+			reason: 'engine-unavailable'
+		});
+		expect(result.state.stagedEdits).toEqual(state.stagedEdits);
 	});
 
 	it('refuses apply when the source no longer identifies the same Pokemon Entity', async () => {

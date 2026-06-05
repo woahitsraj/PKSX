@@ -97,6 +97,39 @@ describe('parseEngineWorkerRequest', () => {
 		});
 	});
 
+	test('parses Pokemon edit requests with staged level or experience operations', () => {
+		expect.assertions(1);
+
+		const bytes = new ArrayBuffer(4);
+
+		expect(
+			parseEngineWorkerRequest({
+				type: 'request',
+				id: 'req-edit',
+				method: 'applyPokemonEditOperation',
+				payload: {
+					bytes,
+					fileName: 'main.sav',
+					operation: { source: { zone: 'box', box: 0, slot: 0 }, level: 24 },
+					activeBox: 0
+				}
+			})
+		).toEqual({
+			ok: true,
+			value: {
+				type: 'request',
+				id: 'req-edit',
+				method: 'applyPokemonEditOperation',
+				payload: {
+					bytes,
+					fileName: 'main.sav',
+					operation: { source: { zone: 'box', box: 0, slot: 0 }, level: 24 },
+					activeBox: 0
+				}
+			}
+		});
+	});
+
 	test('rejects malformed request payload types without applying domain validation', () => {
 		expect.assertions(2);
 

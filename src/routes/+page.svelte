@@ -52,8 +52,13 @@
 	import ToastRegion from '$lib/components/pksx/ToastRegion.svelte';
 	import type { BoxNavItem, BoxSourceView, SlotView } from '$lib/components/pksx/types';
 	import {
+		applyPokemonEditorEdits,
+		cancelPokemonEditor,
+		createPokemonEditOperation,
 		createPokemonEditorState,
-		markUnsupportedPokemonEditorApply,
+		isSamePokemonEditorSourceIdentity,
+		stageLevelExperienceEdit,
+		type LevelExperienceEditPayload,
 		type PokemonEditorState
 	} from '$lib/pksx/pokemon-editor';
 
@@ -180,6 +185,19 @@
 		label: slot === 0 ? 'Pikachu' : 'Empty',
 		detail: slot === 0 ? 'Lv. 5' : '',
 		level: slot === 0 ? 5 : null,
+		experience: slot === 0 ? 125 : null,
+		experienceProjection:
+			slot === 0
+				? {
+						minLevel: 1,
+						maxLevel: 100,
+						minExperience: 0,
+						maxExperience: 1_000_000,
+						currentLevelMinExperience: 125,
+						nextLevelMinExperience: 216,
+						currentLevelProgress: 0
+					}
+				: null,
 		speciesId: slot === 0 ? 25 : null,
 		form: slot === 0 ? 0 : null,
 		isEgg: false,
@@ -198,6 +216,18 @@
 					label: featured ? 'Pikachu' : 'Empty',
 					detail: featured ? 'Lv. 5' : '',
 					level: featured ? 5 : null,
+					experience: featured ? 125 : null,
+					experienceProjection: featured
+						? {
+								minLevel: 1,
+								maxLevel: 100,
+								minExperience: 0,
+								maxExperience: 1_000_000,
+								currentLevelMinExperience: 125,
+								nextLevelMinExperience: 216,
+								currentLevelProgress: 0
+							}
+						: null,
 					speciesId: featured ? 25 : null,
 					form: featured ? 0 : null,
 					isEgg: false,
@@ -275,6 +305,8 @@
 						label: 'Empty',
 						detail: '',
 						level: null,
+						experience: null,
+						experienceProjection: null,
 						speciesId: null,
 						form: null,
 						isEgg: false,
@@ -327,9 +359,7 @@
 		}
 
 		if (pokemonEditor) {
-			if (action === 'back') {
-				closePokemonEditor();
-			}
+			dispatchPokemonEditor(action);
 			return;
 		}
 
@@ -366,6 +396,74 @@
 
 	function focusActiveControl() {
 		document.getElementById(activeFocusId)?.focus();
+	}
+
+	function dispatchPokemonEditor(action: NavigationAction) {
+		switch (action) {
+			case 'left':
+			case 'up':
+				focusPokemonEditorControl(-1);
+				break;
+			case 'right':
+			case 'down':
+				focusPokemonEditorControl(1);
+				break;
+			case 'confirm':
+				activatePokemonEditorControl();
+				break;
+			case 'back':
+				closePokemonEditor();
+				break;
+			case 'previousBox':
+			case 'nextBox':
+				break;
+		}
+	}
+
+	function pokemonEditorControls() {
+		return [
+			'#pokemon-editor-close',
+			'#pokemon-editor-mode',
+			'.level-edit-controls input:not([disabled])',
+			'#pokemon-editor-apply',
+			'#pokemon-editor-cancel',
+			'#pokemon-editor-close-footer'
+		]
+			.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
+			.filter((control) => {
+				if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
+					return !control.disabled;
+				}
+				return true;
+			});
+	}
+
+	function focusPokemonEditorControl(direction: -1 | 1) {
+		const controls = pokemonEditorControls();
+		if (controls.length === 0) {
+			return;
+		}
+
+		const activeElement = document.activeElement;
+		const currentIndex =
+			activeElement instanceof HTMLElement ? controls.indexOf(activeElement) : -1;
+		const nextIndex =
+			currentIndex >= 0
+				? (currentIndex + direction + controls.length) % controls.length
+				: direction > 0
+					? 0
+					: controls.length - 1;
+
+		const control = controls[nextIndex];
+		control.focus();
+		control.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+	}
+
+	function activatePokemonEditorControl() {
+		const activeElement = document.activeElement;
+		if (activeElement instanceof HTMLButtonElement && !activeElement.disabled) {
+			activeElement.click();
+		}
 	}
 
 	function isSlotFocus(focus: typeof navigation.focus): focus is SlotFocus {
@@ -446,12 +544,16 @@
 	}
 
 	function isNativeEditorActivation(event: KeyboardEvent, action: NavigationAction) {
-		if (action !== 'confirm') {
+		const target = event.target;
+		if (!(target instanceof Element)) {
 			return false;
 		}
 
-		const target = event.target;
-		return target instanceof Element && target.closest('.pokemon-editor button');
+		if (target.closest('.pokemon-editor input, .pokemon-editor select, .pokemon-editor textarea')) {
+			return action === 'confirm' || action === 'back';
+		}
+
+		return action === 'confirm' && target.closest('.pokemon-editor button');
 	}
 
 	function focusParty(slot: number) {
@@ -878,13 +980,183 @@
 		document.getElementById('pokemon-editor-close')?.focus();
 	}
 
-	function markPokemonEditorApplyUnsupported() {
+	function focusPokemonEditorApply() {
+		const apply = document.getElementById('pokemon-editor-apply');
+		if (apply instanceof HTMLButtonElement && !apply.disabled) {
+			apply.focus();
+			return;
+		}
+
+		focusPokemonEditorClose();
+	}
+
+	function stagePokemonEditorLevelExperience(payload: LevelExperienceEditPayload) {
 		if (!pokemonEditor) {
 			return;
 		}
 
-		pokemonEditor = markUnsupportedPokemonEditorApply(pokemonEditor);
-		pokemonEditorFeedback = pokemonEditor.unsupportedReason;
+		pokemonEditor = stageLevelExperienceEdit(pokemonEditor, payload);
+		pokemonEditorFeedback = pokemonEditor.applyOutcome.message;
+	}
+
+	function cancelPokemonEditorEdits() {
+		if (!pokemonEditor) {
+			return;
+		}
+
+		pokemonEditor = cancelPokemonEditor(pokemonEditor);
+		pokemonEditorFeedback = null;
+		queueMicrotask(focusPokemonEditorApply);
+	}
+
+	async function applyPokemonEditor() {
+		const editor = pokemonEditor;
+		if (!editor) {
+			return;
+		}
+
+		busy = true;
+		pokemonEditorFeedback = 'Applying Pokemon edits...';
+
+		try {
+			const result = await applyPokemonEditorEdits(editor, {
+				verifySource: async (state) => ({
+					ok:
+						state.source.owner === 'save-file' &&
+						isSamePokemonEditorSourceIdentity(state, slotForRef(state.source.slotRef))
+				}),
+				validate: async (state) => {
+					const operation = createPokemonEditOperation(state);
+					return operation.ok ? { ok: true } : operation;
+				},
+				ensureSaveFileBackup: async () => {
+					if (!loadedSave) {
+						return {
+							ok: false,
+							status: 'failed',
+							message: 'Load a Save File before applying Pokemon edits.',
+							reason: 'save-file-unavailable'
+						};
+					}
+
+					if (!shouldCreateAutomaticBackup(loadedSave)) {
+						return { ok: true };
+					}
+
+					statusMessage = 'Creating Backup...';
+					await storage.createBackup({
+						saveFileId: loadedSave.file.id,
+						bytes: loadedSave.bytes,
+						reason: 'pokemon-editing'
+					});
+					loadedSave = markAutomaticBackupCreated(loadedSave);
+					return { ok: true };
+				},
+				mutateSaveFilePokemon: async (state) => {
+					const activeEngine = engine;
+					const workingState = loadedSave;
+					const operation = createPokemonEditOperation(state);
+
+					if (!operation.ok) {
+						return operation;
+					}
+
+					if (!workingState) {
+						return {
+							ok: false,
+							status: 'failed',
+							message: 'Load a Save File before applying Pokemon edits.',
+							reason: 'save-file-unavailable'
+						};
+					}
+
+					if (!activeEngine) {
+						return {
+							ok: false,
+							status: 'failed',
+							message: 'The PKHeX Engine is not ready.',
+							reason: 'engine-unavailable'
+						};
+					}
+
+					statusMessage = 'Applying Pokemon edits...';
+					const mutation = await activeEngine.applyPokemonEditOperation(
+						workingState.bytes,
+						workingState.file.originalFileName ?? undefined,
+						operation.operation,
+						navigation.activeBox
+					);
+
+					if (!mutation.ok) {
+						return {
+							ok: false,
+							status:
+								mutation.error.code === 'unsupported-pokemon-edit' ? 'unsupported' : 'rejected',
+							message: mutation.error.message,
+							reason: mutation.error.code
+						};
+					}
+
+					const nextState: WorkspaceState = {
+						...workingState,
+						bytes: mutation.value.bytes,
+						workspace: mutation.value.workspace,
+						dirty: workingState.dirty || mutation.value.mutated,
+						restoredFromBackup: null
+					};
+
+					if (nextState.dirty) {
+						await persistWorkspace(nextState);
+					}
+
+					loadedSave = nextState;
+					setCachedActiveWorkspace(nextState, navigation.activeBox);
+					invalidateSaveLibraryCache();
+
+					const updatedSlot = slotViewForRefFromWorkspace(
+						nextState.workspace,
+						operation.operation.source
+					);
+					if (!updatedSlot) {
+						return {
+							ok: false,
+							status: 'failed',
+							message: 'Pokemon edits applied, but the updated Slot projection was unavailable.',
+							reason: 'invalid-engine-response'
+						};
+					}
+
+					return {
+						ok: true,
+						slot: updatedSlot,
+						message: mutation.value.mutated ? 'Pokemon edits applied.' : 'No Pokemon change made.'
+					};
+				},
+				mutateStoragePokemon: async () => ({
+					ok: false,
+					status: 'unsupported',
+					message: 'Pokemon Storage level and experience editing is not available yet.',
+					reason: 'storage-unavailable'
+				})
+			});
+
+			pokemonEditor = result.state;
+			pokemonEditorFeedback = result.outcome.message;
+			statusMessage = result.outcome.message ?? statusMessage;
+			if (result.outcome.status === 'success') {
+				showToast('success', result.outcome.message);
+			} else if (result.outcome.status !== 'noop') {
+				showToast('error', result.outcome.message ?? 'Pokemon edit failed.');
+			}
+		} catch (error) {
+			const message = getErrorMessage(error);
+			pokemonEditorFeedback = message;
+			statusMessage = 'Pokemon edit failed.';
+			showToast('error', message);
+		} finally {
+			busy = false;
+			queueMicrotask(focusPokemonEditorApply);
+		}
 	}
 
 	async function updateActionSurfaceAnchor() {
@@ -1216,6 +1488,8 @@
 				label: 'Empty',
 				detail: '',
 				level: null,
+				experience: null,
+				experienceProjection: null,
 				speciesId: null,
 				form: null,
 				isEgg: false,
@@ -1231,12 +1505,29 @@
 		return slots.map((slot) => createSlotView(slot));
 	}
 
+	function slotViewForRefFromWorkspace(
+		workspace: WorkspaceState['workspace'],
+		ref: SaveSlotRef
+	): SlotView | null {
+		if (ref.zone === 'party') {
+			const slot = workspace.partySlots.find((candidate) => candidate.slot === ref.slot);
+			return slot ? createSlotView(slot) : null;
+		}
+
+		const slot = workspace.boxSlots.find(
+			(candidate) => candidate.box === ref.box && candidate.slot === ref.slot
+		);
+		return slot ? createSlotView(slot) : null;
+	}
+
 	function createSlotView(slot: PartySlotSummary | BoxSlotSummary): SlotView {
 		return {
 			slot: slot.slot,
 			label: slot.isEmpty ? 'Empty' : slot.nickname || `Species ${slot.speciesId}`,
 			detail: slot.isEmpty ? '' : `Lv. ${slot.level}`,
 			level: slot.isEmpty ? null : slot.level,
+			experience: slot.isEmpty ? null : slot.experience,
+			experienceProjection: slot.isEmpty ? null : slot.experienceProjection,
 			speciesId: slot.isEmpty ? null : slot.speciesId,
 			form: slot.isEmpty ? null : slot.form,
 			isEgg: !slot.isEmpty && slot.isEgg,
@@ -1490,7 +1781,9 @@
 		spriteUrl={spriteUrlFor(pokemonEditor.slot)}
 		slotHueStyle={slotStyle(pokemonEditor.slot, navigation.activeBox)}
 		feedback={pokemonEditorFeedback}
-		onUnsupportedApply={markPokemonEditorApplyUnsupported}
+		onStageLevelExperience={stagePokemonEditorLevelExperience}
+		onApply={applyPokemonEditor}
+		onCancelEdits={cancelPokemonEditorEdits}
 		onClose={closePokemonEditor}
 	/>
 {/if}

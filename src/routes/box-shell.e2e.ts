@@ -384,6 +384,47 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 	expect(exported.byteLength).toBe(fixture.byteLength);
 });
 
+test('Pokemon Editor changes level through Apply and keeps editor focus', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'Pokemon Action: Open Pokemon Editor.' }).click();
+
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	await expect(editor).toBeVisible();
+	await expect(editor).toContainText('Level / Experience');
+	await expect(editor).toContainText('Level 11');
+	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
+	await expect(page.locator('#pokemon-editor-mode')).toHaveAttribute('aria-label', 'Editing Level');
+	await page.keyboard.press('Enter');
+	await expect(page.locator('#pokemon-editor-mode')).toHaveAttribute(
+		'aria-label',
+		'Editing Experience'
+	);
+	await page.keyboard.press('Enter');
+	await expect(page.locator('#pokemon-editor-mode')).toHaveAttribute('aria-label', 'Editing Level');
+	await page.keyboard.press('ArrowDown');
+	const levelInput = editor.locator('input[type="number"]');
+	await expect(levelInput).toBeFocused();
+	await levelInput.fill('25');
+	await expect(levelInput).toHaveValue('25');
+	await expect(editor).toContainText('1 Pokemon edit staged.');
+	await expect(editor.getByRole('button', { name: 'Apply edits' })).toBeEnabled();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-apply')).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
+	await expect(editor).toContainText('Level 25');
+	await expect(page.locator('#box-0-slot-0')).toContainText('Lv 25');
+	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
+});
+
 test('creates and restores a manual backup for the loaded Save File', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await importEmeraldThroughSaves(page);

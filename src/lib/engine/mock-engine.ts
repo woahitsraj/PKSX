@@ -3,6 +3,7 @@ import type {
 	EngineApi,
 	EngineResult,
 	EngineVersion,
+	PokemonEditOperationResult,
 	SaveSlotRef,
 	PartySlotSummary,
 	SaveSummary,
@@ -34,6 +35,16 @@ const mockSaveSummary: SaveSummary = {
 };
 
 const mockPikachuDetails = {
+	experience: 125,
+	experienceProjection: {
+		minLevel: 1,
+		maxLevel: 100,
+		minExperience: 0,
+		maxExperience: 1_000_000,
+		currentLevelMinExperience: 125,
+		nextLevelMinExperience: 216,
+		currentLevelProgress: 0
+	},
 	gender: '♂',
 	nature: 'Hardy',
 	ability: 'Static',
@@ -82,6 +93,8 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		form: 0,
 		format: 0,
 		level: 0,
+		experience: 0,
+		experienceProjection: null,
 		nickname: '',
 		isEgg: false,
 		isEmpty: true,
@@ -157,6 +170,16 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 			success<SlotOperationResult>({
 				bytes: copyBytes(bytes),
 				mutated: !isSameSlotOperation(operation),
+				workspace: {
+					summary: { ...mockSaveSummary, fileName },
+					partySlots: mockPartySlots,
+					boxSlots: activeBox === 0 ? mockBoxSlots : []
+				}
+			}),
+		applyPokemonEditOperation: async (bytes, fileName, operation, activeBox) =>
+			success<PokemonEditOperationResult>({
+				bytes: copyBytes(bytes),
+				mutated: operation.level !== undefined || operation.experience !== undefined,
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,

@@ -60,6 +60,8 @@ public sealed record PartySlotSummary(
     byte Form,
     byte Format,
     int Level,
+    uint Experience,
+    PokemonExperienceProjection? ExperienceProjection,
     string Nickname,
     bool IsEgg,
     bool IsEmpty,
@@ -81,6 +83,8 @@ public sealed record PartySlotSummary(
             pokemon.Form,
             pokemon.Format,
             pokemon.Species == 0 ? 0 : pokemon.CurrentLevel,
+            pokemon.EXP,
+            PokemonExperienceProjection.From(pokemon),
             pokemon.Nickname,
             pokemon.IsEgg,
             pokemon.Species == 0,
@@ -103,6 +107,8 @@ public sealed record BoxSlotSummary(
     byte Form,
     byte Format,
     int Level,
+    uint Experience,
+    PokemonExperienceProjection? ExperienceProjection,
     string Nickname,
     bool IsEgg,
     bool IsEmpty,
@@ -125,6 +131,8 @@ public sealed record BoxSlotSummary(
             pokemon.Form,
             pokemon.Format,
             pokemon.Species == 0 ? 0 : pokemon.CurrentLevel,
+            pokemon.EXP,
+            PokemonExperienceProjection.From(pokemon),
             pokemon.Nickname,
             pokemon.IsEgg,
             pokemon.Species == 0,
@@ -179,6 +187,38 @@ public sealed record SpriteIdentity(
     }
 }
 
+public sealed record PokemonExperienceProjection(
+    int MinLevel,
+    int MaxLevel,
+    uint MinExperience,
+    uint MaxExperience,
+    uint CurrentLevelMinExperience,
+    uint NextLevelMinExperience,
+    double CurrentLevelProgress)
+{
+    public static PokemonExperienceProjection? From(PKM pokemon)
+    {
+        if (pokemon.Species == 0)
+            return null;
+
+        var growth = pokemon.PersonalInfo.EXPGrowth;
+        var currentLevel = Experience.ClampLevel(pokemon.CurrentLevel);
+        var currentLevelMinExperience = Experience.GetEXP(currentLevel, growth);
+        var nextLevelMinExperience = currentLevel >= Experience.MaxLevel
+            ? Experience.GetEXP((byte)Experience.MaxLevel, growth)
+            : Experience.GetEXP((byte)(currentLevel + 1), growth);
+
+        return new PokemonExperienceProjection(
+            Experience.MinLevel,
+            Experience.MaxLevel,
+            Experience.GetEXP((byte)Experience.MinLevel, growth),
+            Experience.GetEXP((byte)Experience.MaxLevel, growth),
+            currentLevelMinExperience,
+            nextLevelMinExperience,
+            Experience.GetEXPToLevelUpPercentage(currentLevel, pokemon.EXP, growth));
+    }
+}
+
 public sealed record SlotTypeSummary(string Name, int Hue, double Chroma);
 
 public sealed record SlotStatSummary(string Key, string Label, int Value, int? Ev, int Max);
@@ -201,6 +241,18 @@ public sealed record SlotOperationRequest(
     int ActiveBox);
 
 public sealed record SlotOperationResult(
+    string BytesBase64,
+    int ByteLength,
+    bool Mutated,
+    SaveWorkspace Workspace);
+
+public sealed record PokemonEditOperationRequest(
+    SaveSlotRef Source,
+    int ActiveBox,
+    int? Level,
+    uint? Experience);
+
+public sealed record PokemonEditOperationResult(
     string BytesBase64,
     int ByteLength,
     bool Mutated,

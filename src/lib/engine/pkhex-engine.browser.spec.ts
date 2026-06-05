@@ -356,6 +356,114 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			error: { code: 'empty-source-slot' }
 		});
 	});
+
+	test('applies Save File Pokemon level edits through the browser-wasm bundle', async () => {
+		expect.assertions(11);
+
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+
+		const edited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				level: 25
+			},
+			0
+		);
+		expect(edited.ok).toBe(true);
+		if (!edited.ok) throw new Error('Expected Pokemon level edit to succeed.');
+		expect(edited.value.mutated).toBe(true);
+		expect(edited.value.workspace.boxSlots[0]).toMatchObject({
+			slot: 0,
+			nickname: 'ARON',
+			level: 25,
+			experience: expect.any(Number),
+			experienceProjection: expect.objectContaining({
+				minLevel: 1,
+				maxLevel: 100,
+				currentLevelMinExperience: expect.any(Number)
+			}),
+			stats: expect.arrayContaining([
+				expect.objectContaining({ key: 'HP', value: expect.any(Number) })
+			])
+		});
+		expect(edited.value.workspace.boxSlots[0]?.experience ?? 0).toBeGreaterThan(0);
+
+		const invalidLevel = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				level: 101
+			},
+			0
+		);
+		expect(invalidLevel).toMatchObject({
+			ok: false,
+			error: { code: 'invalid-pokemon-edit' }
+		});
+
+		const currentLevelMinExperience =
+			edited.value.workspace.boxSlots[0]?.experienceProjection?.currentLevelMinExperience;
+		if (typeof currentLevelMinExperience !== 'number') {
+			throw new Error('Expected edited Pokemon experience projection to be available.');
+		}
+		const explicitExperience = currentLevelMinExperience + 1;
+		const experienceEdited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				experience: explicitExperience
+			},
+			0
+		);
+		expect(experienceEdited.ok).toBe(true);
+		if (!experienceEdited.ok) {
+			throw new Error('Expected Pokemon experience edit to succeed.');
+		}
+		expect(experienceEdited.value.mutated).toBe(true);
+		expect(experienceEdited.value.workspace.boxSlots[0]).toMatchObject({
+			slot: 0,
+			nickname: 'ARON',
+			experience: explicitExperience
+		});
+
+		const emptySource = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 2 },
+				level: 20
+			},
+			0
+		);
+		expect(emptySource).toMatchObject({
+			ok: false,
+			error: { code: 'empty-source-slot' }
+		});
+
+		const conflictingPayload = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				level: 20,
+				experience: 1000
+			},
+			0
+		);
+		expect(conflictingPayload).toMatchObject({
+			ok: false,
+			error: { code: 'invalid-pokemon-edit' }
+		});
+		expect(fixtureBytes.byteLength).toBe(131088);
+	});
 });
 
 function copyBytes(bytes: Uint8Array): Uint8Array {

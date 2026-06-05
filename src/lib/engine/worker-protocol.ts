@@ -8,7 +8,8 @@ export const engineWorkerMethodSchema = z.enum([
 	'listBoxSlots',
 	'loadSaveWorkspace',
 	'serializeSave',
-	'applySlotOperation'
+	'applySlotOperation',
+	'applyPokemonEditOperation'
 ]);
 
 export const engineWorkerStatusSchema = z.enum(['idle', 'loading', 'ready', 'failed']);
@@ -20,6 +21,8 @@ export const engineErrorCodeSchema = z.enum([
 	'empty-source-slot',
 	'occupied-destination-slot',
 	'unsupported-slot-operation',
+	'invalid-pokemon-edit',
+	'unsupported-pokemon-edit',
 	'engine-unavailable',
 	'invalid-engine-response',
 	'invalid-worker-message',
@@ -97,6 +100,19 @@ const slotSummaryFields = {
 	form: z.number(),
 	format: z.number(),
 	level: z.number(),
+	experience: z.number().default(0),
+	experienceProjection: z
+		.object({
+			minLevel: z.number(),
+			maxLevel: z.number(),
+			minExperience: z.number(),
+			maxExperience: z.number(),
+			currentLevelMinExperience: z.number(),
+			nextLevelMinExperience: z.number(),
+			currentLevelProgress: z.number()
+		})
+		.nullable()
+		.default(null),
 	nickname: z.string(),
 	isEgg: z.boolean(),
 	isEmpty: z.boolean(),
@@ -182,6 +198,18 @@ export const slotOperationResultSchema = z.object({
 	workspace: saveWorkspaceSchema
 });
 
+export const pokemonEditOperationSchema = z.object({
+	source: saveSlotRefSchema,
+	level: z.number().int().optional(),
+	experience: z.number().int().optional()
+});
+
+export const pokemonEditOperationResultSchema = z.object({
+	bytes: z.instanceof(ArrayBuffer),
+	mutated: z.boolean(),
+	workspace: saveWorkspaceSchema
+});
+
 const engineResultSchema = <T extends z.ZodType>(valueSchema: T) =>
 	z.discriminatedUnion('ok', [
 		z.object({
@@ -207,6 +235,10 @@ export const saveWorkspaceResultSchema = engineResultSchema(saveWorkspaceSchema)
 export const serializedSaveResultSchema = engineResultSchema(serializedSaveSchema);
 
 export const slotOperationResultResultSchema = engineResultSchema(slotOperationResultSchema);
+
+export const pokemonEditOperationResultResultSchema = engineResultSchema(
+	pokemonEditOperationResultSchema
+);
 
 export const engineWorkerInitMessageSchema = z.object({
 	type: z.literal('init'),
@@ -273,13 +305,26 @@ export const engineWorkerApplySlotOperationRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerApplyPokemonEditOperationRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('applyPokemonEditOperation'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional(),
+		operation: pokemonEditOperationSchema,
+		activeBox: z.number().int()
+	})
+});
+
 export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionRequestSchema,
 	engineWorkerSummarizeSaveRequestSchema,
 	engineWorkerListBoxSlotsRequestSchema,
 	engineWorkerLoadSaveWorkspaceRequestSchema,
 	engineWorkerSerializeSaveRequestSchema,
-	engineWorkerApplySlotOperationRequestSchema
+	engineWorkerApplySlotOperationRequestSchema,
+	engineWorkerApplyPokemonEditOperationRequestSchema
 ]);
 
 export const engineWorkerGetVersionResponseSchema = z.object({
@@ -324,13 +369,21 @@ export const engineWorkerApplySlotOperationResponseSchema = z.object({
 	result: slotOperationResultResultSchema
 });
 
+export const engineWorkerApplyPokemonEditOperationResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('applyPokemonEditOperation'),
+	result: pokemonEditOperationResultResultSchema
+});
+
 export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionResponseSchema,
 	engineWorkerSummarizeSaveResponseSchema,
 	engineWorkerListBoxSlotsResponseSchema,
 	engineWorkerLoadSaveWorkspaceResponseSchema,
 	engineWorkerSerializeSaveResponseSchema,
-	engineWorkerApplySlotOperationResponseSchema
+	engineWorkerApplySlotOperationResponseSchema,
+	engineWorkerApplyPokemonEditOperationResponseSchema
 ]);
 
 export const engineWorkerProtocolErrorSchema = z.object({
@@ -385,6 +438,10 @@ export type EngineWorkerSerializeSaveRequest = z.infer<
 
 export type EngineWorkerApplySlotOperationRequest = z.infer<
 	typeof engineWorkerApplySlotOperationRequestSchema
+>;
+
+export type EngineWorkerApplyPokemonEditOperationRequest = z.infer<
+	typeof engineWorkerApplyPokemonEditOperationRequestSchema
 >;
 
 export type EngineWorkerRequest = z.infer<typeof engineWorkerRequestSchema>;
