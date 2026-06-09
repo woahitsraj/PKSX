@@ -69,18 +69,20 @@
 		requestLegalityReport,
 		type LegalityReportState
 	} from '$lib/pksx/legality-report';
+	import {
+		classifyDestination,
+		planClearSlotOperation,
+		planSlotOperation,
+		successMessageForSlotOperation,
+		type PendingSlotOperation,
+		type SlotOperationOutcome,
+		type SlotOperationPlan
+	} from '$lib/pksx/slot-operations';
 
 	type ToastView = {
 		id: string;
 		tone: 'info' | 'success' | 'error';
 		message: string;
-	};
-
-	type PendingSlotOperation = {
-		kind: 'move' | 'copy';
-		source: SaveSlotRef;
-		sourceLabel: string;
-		sourcePokemonLabel: string;
 	};
 
 	type ClearSlotConfirmation = {
@@ -641,10 +643,6 @@
 			: { zone: 'box', box: navigation.activeBox, slot: focus.slot };
 	}
 
-	function slotRefKey(ref: SaveSlotRef): string {
-		return ref.zone === 'party' ? `party:${ref.slot}` : `box:${ref.box}:${ref.slot}`;
-	}
-
 	function locationForSlotRef(ref: SaveSlotRef): string {
 		return ref.zone === 'party'
 			? `Party Slot ${ref.slot + 1}`
@@ -663,6 +661,11 @@
 		return visibleBoxSlots[ref.slot] ?? null;
 	}
 
+	function slotOccupancyFor(ref: SaveSlotRef): boolean | null {
+		const slot = slotForRef(ref);
+		return slot === null ? null : slot.kind === 'pokemon';
+	}
+
 	function destinationStateFor(
 		ref: SaveSlotRef,
 		slot: SlotView
@@ -671,28 +674,10 @@
 			return null;
 		}
 
-		if (slotRefKey(ref) === slotRefKey(pendingSlotOperation.source)) {
-			return 'source';
-		}
-
-		if (pendingSlotOperation.kind === 'copy' && slot.kind === 'pokemon') {
-			return 'invalid';
-		}
-
-		if (isInvalidPartyAppendDestination(ref, slot)) {
-			return 'invalid';
-		}
-
-		return 'valid';
-	}
-
-	function isInvalidPartyAppendDestination(ref: SaveSlotRef, slot: SlotView | null): boolean {
-		return (
-			ref.zone === 'party' &&
-			slot?.kind === 'empty' &&
-			loadedSave !== null &&
-			ref.slot > loadedSave.workspace.summary.partyCount
-		);
+		return classifyDestination(pendingSlotOperation, ref, {
+			destinationOccupied: slot.kind === 'pokemon',
+			partyCount: loadedSave?.workspace.summary.partyCount ?? null
+		});
 	}
 
 	async function completePendingSlotOperation(destination: SaveSlotRef) {
@@ -701,35 +686,39 @@
 		}
 
 		const pending = pendingSlotOperation;
-		const destinationSlot = slotForRef(destination);
+		const plan = planSlotOperation({
+			kind: pending.kind,
+			source: pending.source,
+			sourceOccupied: slotOccupancyFor(pending.source),
+			destination,
+			destinationOccupied: slotOccupancyFor(destination),
+			partyCount: loadedSave?.workspace.summary.partyCount ?? null
+		});
 
-		if (slotRefKey(pending.source) === slotRefKey(destination)) {
+		if (plan.kind === 'no-op') {
 			pendingSlotOperation = null;
-			statusMessage = 'No Slot change made.';
+			statusMessage = plan.message;
 			queueMicrotask(focusActiveControl);
 			return;
 		}
 
-		if (pending.kind === 'copy' && destinationSlot?.kind === 'pokemon') {
-			showToast('error', 'Copy needs an empty destination Slot.');
-			statusMessage = 'Copy needs an empty destination Slot.';
-			return;
-		}
-
-		if (isInvalidPartyAppendDestination(destination, destinationSlot)) {
-			showToast('error', 'That Party Slot cannot be used yet.');
-			statusMessage = 'That Party Slot cannot be used yet.';
-			return;
-		}
-
-		await applySlotOperation({
-			kind: pending.kind,
-			source: pending.source,
-			destination
-		});
+		await applySlotOperationPlan(plan);
 	}
 
-	async function applySlotOperation(operation: SlotOperation) {
+	async function applySlotOperationPlan(plan: SlotOperationPlan) {
+		if (plan.kind === 'no-op') {
+			statusMessage = plan.message;
+			return;
+		}
+
+		if (plan.kind === 'denied') {
+			showToast('error', plan.message);
+			statusMessage = plan.reason === 'empty-source' ? 'Slot change failed.' : plan.message;
+			return;
+		}
+
+		const { operation, outcome } = plan;
+
 		if (!loadedSave) {
 			showToast('error', 'Load a Save File before changing Slots.');
 			return;
@@ -745,15 +734,6 @@
 		importError = null;
 
 		try {
-			const sourceSlot = slotForRef(operation.source);
-			if (sourceSlot !== null && sourceSlot.kind !== 'pokemon') {
-				showToast('error', 'Move, Copy, and Clear Slot need an occupied source Slot.');
-				statusMessage = 'Slot change failed.';
-				return;
-			}
-
-			const moveWasSwap =
-				operation.kind === 'move' && slotForRef(operation.destination)?.kind === 'pokemon';
 			let workingState = loadedSave;
 			if (shouldCreateAutomaticBackup(workingState)) {
 				statusMessage = 'Creating Backup...';
@@ -802,7 +782,7 @@
 				actionSurfaceOpen: false,
 				actionOrigin: null
 			};
-			statusMessage = successMessageForSlotOperation(operation, moveWasSwap);
+			statusMessage = successMessageForSlotOperationOutcome(operation, outcome);
 			queueMicrotask(focusActiveControl);
 		} catch (error) {
 			const message = getErrorMessage(error);
@@ -814,18 +794,12 @@
 		}
 	}
 
-	function successMessageForSlotOperation(operation: SlotOperation, moveWasSwap = false): string {
-		if (operation.kind === 'clear') {
-			return `Cleared ${locationForSlotRef(operation.source)}.`;
-		}
-
-		if (operation.kind === 'copy') {
-			return `Copied to ${locationForSlotRef(operation.destination)}.`;
-		}
-
-		return moveWasSwap
-			? `Swapped with ${locationForSlotRef(operation.destination)}.`
-			: `Moved to ${locationForSlotRef(operation.destination)}.`;
+	function successMessageForSlotOperationOutcome(
+		operation: SlotOperation,
+		outcome: SlotOperationOutcome
+	): string {
+		const locationRef = operation.kind === 'clear' ? operation.source : operation.destination;
+		return successMessageForSlotOperation(outcome, locationForSlotRef(locationRef));
 	}
 
 	function beginPendingSlotOperation(kind: 'move' | 'copy') {
@@ -920,7 +894,12 @@
 			return;
 		}
 
-		void applySlotOperation({ kind: 'clear', source: clearSlotConfirmation.source });
+		void applySlotOperationPlan(
+			planClearSlotOperation({
+				source: clearSlotConfirmation.source,
+				sourceOccupied: slotOccupancyFor(clearSlotConfirmation.source)
+			})
+		);
 		clearSlotConfirmation = null;
 		clearSlotConfirmFocusIndex = 0;
 	}

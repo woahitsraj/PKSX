@@ -621,6 +621,48 @@ test('copies an occupied box slot into an empty destination slot', async ({ page
 	await expect(page.locator('#box-0-slot-3')).toBeFocused();
 });
 
+test('moving onto an occupied box slot performs a Slot Swap through keyboard picking', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('Enter');
+
+	await expect(page.locator('#box-0-slot-0')).toContainText('ILLUMISE', { timeout: 15000 });
+	await expect(page.locator('#box-0-slot-1')).toContainText('ARON');
+	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+	await expect(page.getByText(/Swapped with .* Slot 2\./)).toBeVisible();
+	await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('moves a party slot into an empty box slot across Focus Zones', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await page.locator('#party-slot-0').click();
+	await expect(page.locator('#party-slot-0')).toBeFocused();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Enter');
+
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('Enter');
+
+	await expect(page.locator('#box-0-slot-2')).toContainText('1-UP', { timeout: 15000 });
+	await expect(page.locator('#box-0-slot-2')).toBeFocused();
+	await expect(page.locator('#party-slot-0')).not.toContainText('1-UP');
+	await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
 test('copy keeps destination selection active and shows an error toast for occupied destinations', async ({
 	page
 }) => {

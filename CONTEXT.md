@@ -100,6 +100,10 @@ _Avoid_: Move editing, Move when referring to editing a Pokemon Entity's moves
 A user-invoked operation on a Slot, whether or not that Slot contains a Pokemon Entity.
 _Avoid_: Pokemon Action when the Slot may be empty
 
+**Slot Operation**:
+A Slot Action that changes which Pokemon Entities occupy Save File Slots, such as move, copy, or Clear Slot.
+_Avoid_: storage operation, Pokemon Storage operation when referring to Save File Slot changes
+
 **Batch Slot Action**:
 A user-invoked operation that applies to multiple source Slots as one workflow.
 _Avoid_: normal Slot Action, multi action
@@ -279,7 +283,9 @@ _Avoid_: key event, button event
 - A **Batch Slot Action** applies to multiple source **Slots**.
 - **Create Pokemon** applies to an empty **Slot**.
 - **Clear Slot** applies to an occupied **Slot** and requires explicit user confirmation.
-- Moving or copying a **Pokemon Entity** between **Save File** **Slots** has a source **Slot** and a destination **Slot**.
+- A **Slot Operation** has a source **Slot**; moving or copying also has a destination **Slot**.
+- Confirming the source **Slot** as the destination of a pending **Slot Operation** resolves it as a no-op and ends destination picking.
+- A denied destination leaves a pending **Slot Operation** active so another destination can be chosen.
 - A Move into an occupied **Slot** performs a **Slot Swap**.
 - Copying a **Pokemon Entity** into a **Save File** **Slot** requires an empty destination **Slot**.
 - The **Sprite Catalog** provides offline visual assets for **Pokemon Entities**.
