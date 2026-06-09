@@ -27,6 +27,36 @@ describe('IndexedDbLocalLibraryStorage', () => {
 		await deleteIndexedDbLocalLibrary(databaseName);
 	});
 
+	it('initializes Pokemon Storage with one Storage Box exactly once', async () => {
+		await expect(storage.listStorageBoxes()).resolves.toStrictEqual([]);
+
+		const initialized = await storage.ensurePokemonStorage();
+		expect(initialized).toStrictEqual([
+			{
+				id: 'save-1',
+				position: 0,
+				name: null,
+				createdAt: '2026-05-16T12:00:00.000Z',
+				updatedAt: '2026-05-16T12:00:00.000Z'
+			}
+		]);
+
+		const ensuredAgain = await storage.ensurePokemonStorage();
+		expect(ensuredAgain).toStrictEqual(initialized);
+		await expect(storage.listStorageBoxes()).resolves.toStrictEqual(initialized);
+	});
+
+	it('persists Storage Boxes across storage instances', async () => {
+		const initialized = await storage.ensurePokemonStorage();
+
+		const reopened = new IndexedDbLocalLibraryStorage({
+			databaseName,
+			now: () => '2026-05-17T12:00:00.000Z'
+		});
+		await expect(reopened.listStorageBoxes()).resolves.toStrictEqual(initialized);
+		await expect(reopened.ensurePokemonStorage()).resolves.toStrictEqual(initialized);
+	});
+
 	it('imports save bytes and retrieves them unchanged', async () => {
 		const importedBytes = new Uint8Array([0, 1, 2, 253, 254, 255]);
 

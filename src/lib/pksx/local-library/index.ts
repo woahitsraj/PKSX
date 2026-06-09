@@ -8,5 +8,7 @@ export type {
 	ImportSaveInput,
 	LocalLibraryStorage,
 	SaveFileId,
-	StoredSaveFile
+	StorageBoxId,
+	StoredSaveFile,
+	StoredStorageBox
 } from './types';

@@ -8,6 +8,12 @@
 			"port": 5173
 		},
 		{
+			"name": "pksx-vite",
+			"runtimeExecutable": "pnpm",
+			"runtimeArgs": ["exec", "vite", "dev", "--port", "5199", "--strictPort"],
+			"port": 5199
+		},
+		{
 			"name": "designs",
 			"runtimeExecutable": "python3",
 			"runtimeArgs": ["-m", "http.server", "8123", "--directory", "/tmp/pksx-designs"],

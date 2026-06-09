@@ -663,6 +663,62 @@ test('moves a party slot into an empty box slot across Focus Zones', async ({ pa
 	await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
+test('Pokemon Storage is a Box Source with focusable empty Slots that persists across reloads', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+
+	await page.locator('#box-source-pokemon-storage').click();
+	await expect(page.getByRole('heading', { name: 'Storage 01' })).toBeVisible();
+	await expect(page.getByText('0 / 30 occupied')).toBeVisible();
+	await expect(page.getByText('AUTO-SAVED')).toBeVisible();
+	await expect(page.getByText('Box Source: Pokemon Storage.')).toBeVisible();
+	await expect(page.locator('#box-source-pokemon-storage')).toHaveAttribute('aria-pressed', 'true');
+
+	await page.locator('#box-grid').focus();
+	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
+	await expect(page.locator('#box-0-slot-1')).toContainText('Empty');
+
+	await page.keyboard.press('Enter');
+	await expect(page.getByText('Storage 01, slot 2')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Create Pokemon' })).toBeVisible();
+	await page.getByRole('button', { name: 'Close' }).click();
+
+	await page.reload();
+	await page.waitForLoadState('networkidle');
+	await page.locator('#box-source-pokemon-storage').click();
+	await expect(page.getByRole('heading', { name: 'Storage 01' })).toBeVisible();
+	await expect(page.getByText('0 / 30 occupied')).toBeVisible();
+	await expect(page.getByText('BOX 01/1')).toBeVisible();
+});
+
+test('switching Box Source preserves the focused Slot coordinate and clamps the box number', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#box-0-slot-2')).toHaveAttribute('aria-selected', 'true');
+	await page.keyboard.press('PageDown');
+	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
+
+	await page.locator('#box-source-pokemon-storage').click();
+	await expect(page.getByRole('heading', { name: 'Storage 01' })).toBeVisible();
+	await expect(page.locator('#box-0-slot-2')).toHaveAttribute('aria-selected', 'true');
+	await expect(page.locator('#box-0-slot-2')).toContainText('Empty');
+
+	await page.locator('#box-source-save-file').click();
+	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+	await expect(page.getByText('EDITS WORKSPACE')).toBeVisible();
+	await expect(page.locator('#box-0-slot-2')).toHaveAttribute('aria-selected', 'true');
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
+});
+
 test('copy keeps destination selection active and shows an error toast for occupied destinations', async ({
 	page
 }) => {
