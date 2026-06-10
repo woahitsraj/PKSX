@@ -218,20 +218,87 @@ export function createPokemonEditorState(
 		};
 	}
 
+	const editorSlot = hydrateSaveFileEditorSlot(source, slot);
+
 	return {
 		ok: true,
 		state: withStagedEdits({
 			source: {
 				...source,
-				identity: source.identity ?? createPokemonEditorSourceIdentity(slot)
+				identity: source.identity ?? createPokemonEditorSourceIdentity(editorSlot)
 			} as PokemonEditorSource,
-			slot,
+			slot: editorSlot,
 			stagedEdits: [],
 			staged: false,
 			applyOutcome: { status: 'idle', message: null },
 			unsupportedReason: null
 		})
 	};
+}
+
+function hydrateSaveFileEditorSlot(source: PokemonEditorSourceInput, slot: SlotView): SlotView {
+	if (source.owner !== 'save-file' || slot.kind !== 'pokemon') {
+		return slot;
+	}
+
+	const statEditConstraints =
+		slot.stats && slot.stats.length > 0 && !slot.statEditConstraints?.supported
+			? {
+					supported: true,
+					minIv: slot.statEditConstraints?.minIv ?? 0,
+					maxIv: slot.statEditConstraints?.maxIv ?? 31,
+					minEv: slot.statEditConstraints?.minEv ?? 0,
+					maxEv: slot.statEditConstraints?.maxEv ?? 255,
+					maxTotalEv: slot.statEditConstraints?.maxTotalEv ?? 510
+				}
+			: slot.statEditConstraints;
+
+	const moveSetEditConstraints =
+		slot.moves && slot.moves.length > 0 && !slot.moveSetEditConstraints?.supported
+			? {
+					supported: true,
+					maxMoveSlots: slot.moveSetEditConstraints?.maxMoveSlots ?? 4,
+					availableMoves: currentMoveOptions(slot)
+				}
+			: slot.moveSetEditConstraints;
+
+	if (
+		statEditConstraints === slot.statEditConstraints &&
+		moveSetEditConstraints === slot.moveSetEditConstraints
+	) {
+		return slot;
+	}
+
+	return {
+		...slot,
+		statEditConstraints,
+		moveSetEditConstraints
+	};
+}
+
+function currentMoveOptions(slot: SlotView) {
+	const options = new Map<
+		number,
+		NonNullable<SlotView['moveSetEditConstraints']>['availableMoves'][number]
+	>();
+	options.set(0, { id: 0, name: 'Empty', type: 'None', hue: 48, chroma: 0.04, maxPp: 0 });
+
+	for (const move of slot.moves ?? []) {
+		if (move.id === 0 || options.has(move.id)) {
+			continue;
+		}
+
+		options.set(move.id, {
+			id: move.id,
+			name: move.name,
+			type: move.type,
+			hue: move.hue,
+			chroma: move.chroma ?? 0.04,
+			maxPp: move.maxPp ?? move.pp ?? 0
+		});
+	}
+
+	return [...options.values()];
 }
 
 export function stagePokemonEditorEdit(
