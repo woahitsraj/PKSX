@@ -153,6 +153,34 @@ describe('storage operations', () => {
 		expect(services.engine.applySlotOperation).not.toHaveBeenCalled();
 	});
 
+	it('allows an unknown cross-box source projection so the engine can validate the slot ref', async () => {
+		const services = createServices();
+		const result = await applyStorageOperation({
+			state: createWorkspaceState(),
+			operation: {
+				kind: 'move',
+				source: { zone: 'box', box: 1, slot: 0 },
+				destination: emptyDestination
+			},
+			activeBox: 0,
+			sourceSlot: null,
+			destinationSlot: { kind: 'empty' },
+			partyCount: 1,
+			services
+		});
+
+		expect(result).toMatchObject({
+			ok: true,
+			message: 'Moved to Box 01 Slot 3.'
+		});
+		expect(services.engine.applySlotOperation).toHaveBeenCalledWith(
+			expect.any(Uint8Array),
+			saveFile.originalFileName,
+			expect.objectContaining({ source: { zone: 'box', box: 1, slot: 0 } }),
+			0
+		);
+	});
+
 	it('rejects copy to an occupied destination before creating a backup', async () => {
 		const services = createServices();
 		const result = await applyStorageOperation({

@@ -121,7 +121,7 @@ export function validateStorageOperation(input: {
 }): { ok: true } | StorageOperationRejected | StorageOperationNoop {
 	const { operation, sourceSlot, destinationSlot, partyCount } = input;
 
-	if (sourceSlot?.kind !== 'pokemon') {
+	if (sourceSlot !== null && sourceSlot.kind !== 'pokemon') {
 		return {
 			ok: false,
 			reason: 'empty-source',
