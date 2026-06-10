@@ -102,6 +102,8 @@
 		--slot-chroma: 0.09;
 		--slot-hue-2: var(--slot-hue);
 		--slot-chroma-2: var(--slot-chroma);
+		--slot-fill: oklch(0.9 var(--slot-chroma) var(--slot-hue));
+		--slot-fill-2: oklch(0.9 var(--slot-chroma-2) var(--slot-hue-2));
 		position: relative;
 		width: 100%;
 		height: 100%;
@@ -112,7 +114,7 @@
 		padding: 4px;
 		border: 0;
 		border-radius: var(--pksx-radius-md);
-		background: oklch(0.9 var(--slot-chroma) var(--slot-hue));
+		background: var(--slot-fill);
 		box-shadow: var(--shadow-sm);
 		color: var(--ink);
 		overflow: visible;
@@ -125,24 +127,33 @@
 	.slot.dual-type {
 		background: linear-gradient(
 			135deg,
-			oklch(0.9 var(--slot-chroma) var(--slot-hue)) 0%,
-			oklch(0.9 var(--slot-chroma) var(--slot-hue)) 55%,
-			oklch(0.9 var(--slot-chroma-2) var(--slot-hue-2)) 55%,
-			oklch(0.9 var(--slot-chroma-2) var(--slot-hue-2)) 100%
+			var(--slot-fill) 0%,
+			var(--slot-fill) 55%,
+			var(--slot-fill-2) 55%,
+			var(--slot-fill-2) 100%
 		);
 	}
 
 	:global(.app-shell.dark) .slot {
-		background: oklch(0.46 var(--slot-chroma) var(--slot-hue));
+		--slot-fill: color-mix(
+			in oklch,
+			var(--paper-hi) 84%,
+			oklch(0.72 calc(var(--slot-chroma) * 0.35) var(--slot-hue)) 16%
+		);
+		--slot-fill-2: color-mix(
+			in oklch,
+			var(--paper-hi) 84%,
+			oklch(0.72 calc(var(--slot-chroma-2) * 0.35) var(--slot-hue-2)) 16%
+		);
 	}
 
 	:global(.app-shell.dark) .slot.dual-type {
 		background: linear-gradient(
 			135deg,
-			oklch(0.46 var(--slot-chroma) var(--slot-hue)) 0%,
-			oklch(0.46 var(--slot-chroma) var(--slot-hue)) 55%,
-			oklch(0.46 var(--slot-chroma-2) var(--slot-hue-2)) 55%,
-			oklch(0.46 var(--slot-chroma-2) var(--slot-hue-2)) 100%
+			var(--slot-fill) 0%,
+			var(--slot-fill) 55%,
+			var(--slot-fill-2) 55%,
+			var(--slot-fill-2) 100%
 		);
 	}
 
