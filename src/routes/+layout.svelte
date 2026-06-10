@@ -60,6 +60,28 @@
 		chromeFocus = { zone: 'mobileTabs', index };
 	}
 
+	function handleShellFocusIn(event: FocusEvent) {
+		const target = event.target;
+		if (!(target instanceof HTMLElement)) {
+			chromeFocus = null;
+			return;
+		}
+
+		const topControlMatch = target.id.match(/^top-control-(\d+)$/);
+		if (topControlMatch) {
+			chromeFocus = { zone: 'topbar', index: Number(topControlMatch[1]) };
+			return;
+		}
+
+		const mobileTabMatch = target.id.match(/^mobile-tab-(\d+)$/);
+		if (mobileTabMatch) {
+			chromeFocus = { zone: 'mobileTabs', index: Number(mobileTabMatch[1]) };
+			return;
+		}
+
+		chromeFocus = null;
+	}
+
 	function selectMobileTab(index: number) {
 		chromeFocus = { zone: 'mobileTabs', index };
 		const tab = mobileTabs[index];
@@ -218,6 +240,7 @@
 <main
 	class={['app-shell', darkMode && 'dark']}
 	aria-labelledby="screen-title"
+	onfocusin={handleShellFocusIn}
 	{@attach chromeGamepadNavigation}
 >
 	<TopBar

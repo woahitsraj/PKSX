@@ -367,6 +367,8 @@ test('keyboard navigation reaches top controls and mobile tabs', async ({ page }
 	await expect(page.locator('#top-control-5')).toBeFocused();
 	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#top-control-6')).toBeFocused();
+	await page.locator('#box-0-slot-24').focus();
+	await expect(page.locator('#top-control-6')).not.toHaveClass(/controller-focused/);
 
 	await page.locator('#box-0-slot-24').focus();
 	await page.keyboard.press('ArrowDown');
