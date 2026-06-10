@@ -3003,7 +3003,7 @@
 </script>
 
 <svelte:head>
-	<title>PKSX Atelier</title>
+	<title>PKSX</title>
 </svelte:head>
 
 <svelte:window

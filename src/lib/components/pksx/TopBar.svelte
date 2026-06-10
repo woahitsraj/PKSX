@@ -61,7 +61,7 @@
 		<div class="brand-mark" aria-hidden="true">P</div>
 		<div>
 			<h1 id="screen-title">PKSX</h1>
-			<p>save editor · atelier</p>
+			<p>save editor</p>
 		</div>
 	</button>
 	<div class="section-pills" aria-label="Available sections">
