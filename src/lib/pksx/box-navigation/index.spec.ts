@@ -56,21 +56,24 @@ describe('box navigation', () => {
 	});
 
 	it('can reach Add source, theme toggle, and pane close control', () => {
-		expect.assertions(6);
+		expect.assertions(7);
 
-		const addSource = applyNavigationAction(
+		const themeToggle = applyNavigationAction(
 			{ ...createInitialNavigationState(3), focus: focusTopControl(4, 7) },
 			'right',
 			{ topControlCount: 7 }
 		);
 
-		expect(addSource.focus).toEqual(focusTopControl(5, 7));
-		expect(getFocusId(addSource.focus, 0)).toBe('top-control-5');
-		expect(move({ focus: focusTopControl(5, 7) }, 'right', { topControlCount: 7 }).focus).toEqual(
+		expect(themeToggle.focus).toEqual(focusTopControl(6, 7));
+		expect(getFocusId(themeToggle.focus, 0)).toBe('top-control-6');
+		expect(move({ focus: focusTopControl(6, 7) }, 'right', { topControlCount: 7 }).focus).toEqual(
+			focusTopControl(5, 7)
+		);
+		expect(move({ focus: focusTopControl(5, 7) }, 'left', { topControlCount: 7 }).focus).toEqual(
 			focusTopControl(6, 7)
 		);
 		expect(move({ focus: focusTopControl(0, 7) }, 'down', { topControlCount: 7 }).focus).toEqual(
-			focusPartySlot(0)
+			focusTopControl(5, 7)
 		);
 		expect(move({ focus: focusTopControl(5, 7) }, 'down', { topControlCount: 7 }).focus).toEqual(
 			focusPartySlot(5)
@@ -105,10 +108,13 @@ describe('box navigation', () => {
 	});
 
 	it('skips party focus for box-only sources', () => {
-		expect.assertions(4);
+		expect.assertions(5);
 
 		const options = { topControlCount: 7, paneControlCount: 0, partyAvailable: false };
 
+		expect(move({ focus: focusTopControl(4, 7) }, 'down', options).focus).toEqual(
+			focusTopControl(5, 7)
+		);
 		expect(move({ focus: focusTopControl(5, 7) }, 'down', options).focus).toEqual(focusBoxSlot(5));
 		expect(move({ focus: focusBoxSlot(5) }, 'up', options).focus).toEqual(focusTopControl(5, 7));
 		expect(

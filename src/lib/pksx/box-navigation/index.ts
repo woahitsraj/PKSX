@@ -321,8 +321,13 @@ function moveDown(
 	mobileTabsAvailable: boolean,
 	partyAvailable: boolean
 ): ControllerFocus {
+	const sourceControlIndex = getSourceControlIndex(topControlCount);
+
 	switch (focus.zone) {
 		case 'topbar':
+			if (sourceControlIndex !== null && focus.index !== sourceControlIndex) {
+				return focusTopControl(sourceControlIndex, topControlCount);
+			}
 			if (!partyAvailable) {
 				if (paneControlCount > 0) {
 					return focusPaneControl(0, paneControlCount);
@@ -360,10 +365,7 @@ function moveLeft(
 
 	switch (focus.zone) {
 		case 'topbar':
-			return focusTopControl(
-				clamp(focus.index - 1, firstTopControlIndex, topControlCount - 1),
-				topControlCount
-			);
+			return focusOrderedTopControl(focus.index, -1, firstTopControlIndex, topControlCount);
 		case 'paneControls':
 			return focusPaneControl(focus.index - 1, paneControlCount);
 		case 'party':
@@ -389,10 +391,7 @@ function moveRight(
 
 	switch (focus.zone) {
 		case 'topbar':
-			return focusTopControl(
-				clamp(focus.index + 1, firstTopControlIndex, topControlCount - 1),
-				topControlCount
-			);
+			return focusOrderedTopControl(focus.index, 1, firstTopControlIndex, topControlCount);
 		case 'paneControls':
 			return focusPaneControl(focus.index + 1, paneControlCount);
 		case 'party':
@@ -423,4 +422,49 @@ function getSourceControlIndex(topControlCount: number): number | null {
 
 function getFirstTopControlIndex(mobileTabsAvailable: boolean): number {
 	return mobileTabsAvailable ? 3 : 0;
+}
+
+function focusOrderedTopControl(
+	currentIndex: number,
+	direction: -1 | 1,
+	firstIndex: number,
+	topControlCount: number
+): ControllerFocus {
+	const order = topControlOrder(firstIndex, topControlCount);
+	const currentPosition = order.includes(currentIndex)
+		? order.indexOf(currentIndex)
+		: nearestTopControlPosition(currentIndex, order);
+	const nextPosition = clamp(currentPosition + direction, 0, order.length - 1);
+	return focusTopControl(order[nextPosition] ?? firstIndex, topControlCount);
+}
+
+function topControlOrder(firstIndex: number, topControlCount: number): number[] {
+	const order = Array.from(
+		{ length: topControlCount - firstIndex },
+		(_, index) => firstIndex + index
+	);
+	const sourceControlIndex = getSourceControlIndex(topControlCount);
+	const themeControlIndex = topControlCount > 6 ? 6 : null;
+
+	if (
+		sourceControlIndex !== null &&
+		themeControlIndex !== null &&
+		order.includes(sourceControlIndex) &&
+		order.includes(themeControlIndex)
+	) {
+		return order.filter((index) => index !== sourceControlIndex).concat(sourceControlIndex);
+	}
+
+	return order;
+}
+
+function nearestTopControlPosition(index: number, order: number[]): number {
+	if (order.length === 0) {
+		return 0;
+	}
+
+	return order.reduce((nearest, candidate, position) => {
+		const current = order[nearest] ?? candidate;
+		return Math.abs(candidate - index) < Math.abs(current - index) ? position : nearest;
+	}, 0);
 }

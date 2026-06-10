@@ -364,9 +364,13 @@ test('keyboard navigation reaches top controls and mobile tabs', async ({ page }
 	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#top-control-4')).toBeFocused();
 	await page.keyboard.press('ArrowRight');
-	await expect(page.locator('#top-control-5')).toBeFocused();
-	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#top-control-6')).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#top-control-5')).toBeFocused();
+	await page.keyboard.press('ArrowLeft');
+	await expect(page.locator('#top-control-6')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#top-control-5')).toBeFocused();
 	await page.locator('#box-0-slot-24').focus();
 	await expect(page.locator('#top-control-6')).not.toHaveClass(/controller-focused/);
 
@@ -383,9 +387,9 @@ test('keyboard navigation reaches top controls and mobile tabs', async ({ page }
 	await page.keyboard.press('ArrowUp');
 	await expect(page.locator('#top-control-4')).toBeFocused();
 	await page.keyboard.press('ArrowRight');
-	await expect(page.locator('#top-control-5')).toBeFocused();
-	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#top-control-6')).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#top-control-5')).toBeFocused();
 	await expect(page.locator('.section-pills')).toBeHidden();
 
 	await page.locator('#box-0-slot-0').focus();
