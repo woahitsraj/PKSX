@@ -365,9 +365,7 @@
 	const activePaneBox = $derived(activePane?.activeBox ?? navigation.activeBox);
 	const boxCount = $derived(loadedSave?.workspace.summary.boxCount ?? placeholderBoxCount);
 	const activePaneBoxCount = $derived(activePane?.boxCount ?? placeholderBoxCount);
-	const partyAvailable = $derived(
-		activePane?.source.type === 'save-file' && activePane.source.id === loadedSave?.file.id
-	);
+	const partyAvailable = $derived(loadedSave !== null);
 	const partySlots = $derived(
 		loadedSave ? createPartySlotViews(loadedSave.workspace.partySlots) : placeholderPartySlots
 	);
@@ -1036,15 +1034,29 @@
 		ref: SaveSlotRef,
 		pane: BoxPaneState | undefined = activePane
 	): SlotView | null {
-		if (pane?.source.type === 'pokemon-storage') {
-			return storageSlotForRef(ref);
-		}
-
 		if (ref.zone === 'party') {
 			return partySlots[ref.slot] ?? null;
 		}
 
+		if (pane?.source.type === 'pokemon-storage') {
+			return storageSlotForRef(ref);
+		}
+
 		return paneBoxSlots(pane, ref.box)[ref.slot] ?? null;
+	}
+
+	function paneForParty(): BoxPaneState | undefined {
+		if (!loadedSave) {
+			return undefined;
+		}
+
+		const activeSaveFileId = loadedSave.file.id;
+		return (
+			workbenchPanes.find((pane) => pane.id === activeSavePaneId) ??
+			workbenchPanes.find(
+				(pane) => pane.source.type === 'save-file' && pane.source.id === activeSaveFileId
+			)
+		);
 	}
 
 	function storageSlotForRef(ref: SaveSlotRef): SlotView | null {
@@ -1064,12 +1076,14 @@
 			return null;
 		}
 
-		if (carryState && pane) {
+		const destinationPane = ref.zone === 'party' ? paneForParty() : pane;
+
+		if (carryState && destinationPane) {
 			return destinationStateForEvaluation(
 				evaluateDestination({
 					carry: carryState,
-					destinationPane: pane,
-					destination: workbenchSlotRefForSaveRef(pane.id, ref),
+					destinationPane,
+					destination: workbenchSlotRefForSaveRef(destinationPane.id, ref),
 					destinationSlot: slot
 				})
 			);
@@ -1105,9 +1119,10 @@
 		}
 
 		const pending = pendingSlotOperation;
-		const destinationSlot = slotForRef(destination, destinationPane);
+		const ownerPane = destination.zone === 'party' ? paneForParty() : destinationPane;
+		const destinationSlot = slotForRef(destination, ownerPane);
 
-		if (isSamePendingDestination(pending.source, destination, destinationPane)) {
+		if (isSamePendingDestination(pending.source, destination, ownerPane)) {
 			pendingSlotOperation = null;
 			carryState = null;
 			statusMessage = 'No Slot change made.';
@@ -1127,14 +1142,14 @@
 			return;
 		}
 
-		if (destinationPane?.source.type === 'pokemon-storage') {
-			await applySaveToStorageOperation(pending, destination, destinationPane);
+		if (ownerPane?.source.type === 'pokemon-storage') {
+			await applySaveToStorageOperation(pending, destination, ownerPane);
 			return;
 		}
 
 		if (
 			carryState?.sourceOwner.type === 'save-file' &&
-			(destinationPane?.source.id !== loadedSave?.file.id ||
+			(ownerPane?.source.id !== loadedSave?.file.id ||
 				carryState.sourceOwner.id !== loadedSave?.file.id)
 		) {
 			showToast('error', 'Moving Pokemon between Save Files needs engine transfer support.');
@@ -1143,7 +1158,7 @@
 		}
 
 		if (carryState?.sourceOwner.type === 'pokemon-storage') {
-			await applyStorageToSaveOperation(pending, destination, destinationPane);
+			await applyStorageToSaveOperation(pending, destination, ownerPane);
 			return;
 		}
 
@@ -1473,6 +1488,12 @@
 		}
 
 		const source = slotRefForFocus();
+		const sourcePaneId =
+			source.zone === 'party' ? activeSavePaneId : (activePane?.id ?? activePaneId);
+		const sourceOwner =
+			source.zone === 'party'
+				? saveFileSource(loadedSave)
+				: (activePane?.source ?? saveFileSource(loadedSave));
 		pendingSlotOperation = {
 			kind,
 			source,
@@ -1481,8 +1502,8 @@
 		};
 		carryState = {
 			mode: kind,
-			source: workbenchSlotRefForSaveRef(activePane?.id ?? activePaneId, source),
-			sourceOwner: activePane?.source ?? saveFileSource(loadedSave),
+			source: workbenchSlotRefForSaveRef(sourcePaneId, source),
+			sourceOwner,
 			pokemonLabel: slot.label,
 			sourceLabel: locationForSlotRef(source),
 			provenance: {
@@ -1669,12 +1690,12 @@
 		return workbenchPanes.length > 1 ? 2 : 1;
 	}
 
-	function sourceHasParty(source: BoxSourceRef): boolean {
-		return source.type === 'save-file' && source.id === loadedSave?.file.id;
+	function sourceHasParty(): boolean {
+		return loadedSave !== null;
 	}
 
-	function focusForSource(source: BoxSourceRef): typeof navigation.focus {
-		if (sourceHasParty(source) || navigation.focus.zone !== 'party') {
+	function focusForSource(): typeof navigation.focus {
+		if (sourceHasParty() || navigation.focus.zone !== 'party') {
 			return navigation.focus;
 		}
 
@@ -1749,7 +1770,7 @@
 			...navigation,
 			boxCount: Math.max(1, type === 'pokemon-storage' ? pokemonStorageBoxCount : boxCount),
 			activeBox: 0,
-			focus: focusForSource(source)
+			focus: focusForSource()
 		};
 		sourcePickerTargetPaneId = null;
 		sourcePickerOpen = false;
@@ -1780,7 +1801,7 @@
 			...navigation,
 			boxCount: Math.max(1, type === 'pokemon-storage' ? pokemonStorageBoxCount : boxCount),
 			activeBox: 0,
-			focus: focusForSource(source)
+			focus: focusForSource()
 		};
 		sourcePickerTargetPaneId = null;
 		sourcePickerOpen = false;
@@ -1835,7 +1856,7 @@
 			{
 				...navigation,
 				boxCount: Math.max(1, pane.boxCount),
-				focus: focusForSource(pane.source)
+				focus: focusForSource()
 			},
 			Math.min(pane.activeBox, Math.max(1, pane.boxCount) - 1)
 		);
