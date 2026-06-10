@@ -82,6 +82,7 @@ export function applyNavigationAction(
 	const actionCount = Math.max(1, options.actionCount ?? 1);
 	const topControlCount = Math.max(1, options.topControlCount ?? TOP_CONTROL_COUNT);
 	const paneControlCount = Math.max(0, options.paneControlCount ?? 0);
+	const mobileTabCount = Math.max(1, options.mobileTabCount ?? MOBILE_TAB_COUNT);
 	const mobileTabsAvailable = options.mobileTabsAvailable ?? true;
 	const partyAvailable = options.partyAvailable ?? true;
 
@@ -141,12 +142,24 @@ export function applyNavigationAction(
 		case 'left':
 			return {
 				...state,
-				focus: moveLeft(state.focus, topControlCount, paneControlCount, mobileTabsAvailable)
+				focus: moveLeft(
+					state.focus,
+					topControlCount,
+					paneControlCount,
+					mobileTabCount,
+					mobileTabsAvailable
+				)
 			};
 		case 'right':
 			return {
 				...state,
-				focus: moveRight(state.focus, topControlCount, paneControlCount, mobileTabsAvailable)
+				focus: moveRight(
+					state.focus,
+					topControlCount,
+					paneControlCount,
+					mobileTabCount,
+					mobileTabsAvailable
+				)
 			};
 		case 'confirm':
 			if (isSlotFocus(state.focus)) {
@@ -359,6 +372,7 @@ function moveLeft(
 	focus: ControllerFocus,
 	topControlCount: number,
 	paneControlCount: number,
+	mobileTabCount: number,
 	mobileTabsAvailable: boolean
 ): ControllerFocus {
 	const firstTopControlIndex = getFirstTopControlIndex(mobileTabsAvailable);
@@ -375,7 +389,7 @@ function moveLeft(
 			return column === 0 ? focus : focusBoxSlot(focus.slot - 1);
 		}
 		case 'mobileTabs':
-			return focus;
+			return focusMobileTab(clamp(focus.index - 1, 0, mobileTabCount - 1));
 		case 'actions':
 			return focus;
 	}
@@ -385,6 +399,7 @@ function moveRight(
 	focus: ControllerFocus,
 	topControlCount: number,
 	paneControlCount: number,
+	mobileTabCount: number,
 	mobileTabsAvailable: boolean
 ): ControllerFocus {
 	const firstTopControlIndex = getFirstTopControlIndex(mobileTabsAvailable);
@@ -401,7 +416,7 @@ function moveRight(
 			return column === BOX_COLUMNS - 1 ? focus : focusBoxSlot(focus.slot + 1);
 		}
 		case 'mobileTabs':
-			return focus;
+			return focusMobileTab(clamp(focus.index + 1, 0, mobileTabCount - 1));
 		case 'actions':
 			return focus;
 	}
