@@ -59,9 +59,8 @@
 		createPokemonEditOperation,
 		createPokemonEditorState,
 		isSamePokemonEditorSourceIdentity,
-		stageLevelExperienceEdit,
-		stageNicknameEdit,
-		type LevelExperienceEditPayload,
+		stagePokemonEditorEdit,
+		type PokemonEditorDraftEdits,
 		type PokemonEditorState
 	} from '$lib/pksx/pokemon-editor';
 	import {
@@ -164,19 +163,78 @@
 		heldItem: 'Light Ball',
 		types: [{ name: 'Electric', hue: 94, chroma: 0.16 }],
 		stats: [
-			{ key: 'HP', label: 'HP', value: 20, max: 31, ev: 0 },
-			{ key: 'ATK', label: 'ATK', value: 12, max: 31, ev: 0 },
-			{ key: 'DEF', label: 'DEF', value: 10, max: 31, ev: 0 },
-			{ key: 'SPA', label: 'SPA', value: 15, max: 31, ev: 0 },
-			{ key: 'SPD', label: 'SPD', value: 12, max: 31, ev: 0 },
-			{ key: 'SPE', label: 'SPE', value: 18, max: 31, ev: 0 }
+			{ key: 'HP', label: 'HP', value: 20, max: 31, ev: 0, iv: 31 },
+			{ key: 'ATK', label: 'ATK', value: 12, max: 31, ev: 0, iv: 31 },
+			{ key: 'DEF', label: 'DEF', value: 10, max: 31, ev: 0, iv: 31 },
+			{ key: 'SPA', label: 'SPA', value: 15, max: 31, ev: 0, iv: 31 },
+			{ key: 'SPD', label: 'SPD', value: 12, max: 31, ev: 0, iv: 31 },
+			{ key: 'SPE', label: 'SPE', value: 18, max: 31, ev: 0, iv: 31 }
 		],
 		moves: [
-			{ name: 'Thunder Shock', type: 'Electric', hue: 94, chroma: 0.16, pp: 30 },
-			{ name: 'Quick Attack', type: 'Normal', hue: 107, chroma: 0.06, pp: 30 },
-			{ name: 'Tail Whip', type: 'Normal', hue: 107, chroma: 0.06, pp: 30 },
-			{ name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, pp: 40 }
+			{
+				slot: 0,
+				id: 84,
+				name: 'Thunder Shock',
+				type: 'Electric',
+				hue: 94,
+				chroma: 0.16,
+				pp: 30,
+				maxPp: 30,
+				ppUps: 0
+			},
+			{
+				slot: 1,
+				id: 98,
+				name: 'Quick Attack',
+				type: 'Normal',
+				hue: 107,
+				chroma: 0.06,
+				pp: 30,
+				maxPp: 30,
+				ppUps: 0
+			},
+			{
+				slot: 2,
+				id: 39,
+				name: 'Tail Whip',
+				type: 'Normal',
+				hue: 107,
+				chroma: 0.06,
+				pp: 30,
+				maxPp: 30,
+				ppUps: 0
+			},
+			{
+				slot: 3,
+				id: 45,
+				name: 'Growl',
+				type: 'Normal',
+				hue: 107,
+				chroma: 0.06,
+				pp: 40,
+				maxPp: 40,
+				ppUps: 0
+			}
 		],
+		statEditConstraints: {
+			supported: true,
+			minIv: 0,
+			maxIv: 31,
+			minEv: 0,
+			maxEv: 255,
+			maxTotalEv: 510
+		},
+		moveSetEditConstraints: {
+			supported: true,
+			maxMoveSlots: 4,
+			availableMoves: [
+				{ id: 0, name: 'Empty', type: 'None', hue: 48, chroma: 0.04, maxPp: 0 },
+				{ id: 84, name: 'Thunder Shock', type: 'Electric', hue: 94, chroma: 0.16, maxPp: 30 },
+				{ id: 98, name: 'Quick Attack', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 30 },
+				{ id: 39, name: 'Tail Whip', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 30 },
+				{ id: 45, name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 40 }
+			]
+		},
 		originalTrainer: 'PKSX',
 		metLabel: 'Starter Box',
 		spriteIdentity: {
@@ -444,6 +502,8 @@
 			'#pokemon-editor-nickname',
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',
+			'.stat-edit-controls input:not([disabled])',
+			'.move-edit-controls .move-picker-trigger:not([disabled]), .move-edit-controls input:not([disabled])',
 			'#pokemon-editor-apply',
 			'#pokemon-editor-cancel',
 			'#pokemon-editor-close-footer'
@@ -486,6 +546,10 @@
 		}
 
 		if (activeElement instanceof HTMLInputElement && activeElement.closest('.pokemon-editor')) {
+			if (activeElement.dataset.controllerEditing === 'false') {
+				activeElement.click();
+				return;
+			}
 			focusPokemonEditorControl(1);
 		}
 	}
@@ -577,6 +641,10 @@
 			'.pokemon-editor input, .pokemon-editor select, .pokemon-editor textarea'
 		);
 		if (input) {
+			if (input instanceof HTMLInputElement && input.dataset.controllerEditing === 'false') {
+				return false;
+			}
+
 			if (event.key === 'Escape') {
 				return false;
 			}
@@ -1092,24 +1160,6 @@
 		focusPokemonEditorClose();
 	}
 
-	function stagePokemonEditorNickname(nickname: string) {
-		if (!pokemonEditor) {
-			return;
-		}
-
-		pokemonEditor = stageNicknameEdit(pokemonEditor, nickname);
-		pokemonEditorFeedback = pokemonEditor.applyOutcome.message;
-	}
-
-	function stagePokemonEditorLevelExperience(payload: LevelExperienceEditPayload) {
-		if (!pokemonEditor) {
-			return;
-		}
-
-		pokemonEditor = stageLevelExperienceEdit(pokemonEditor, payload);
-		pokemonEditorFeedback = pokemonEditor.applyOutcome.message;
-	}
-
 	function cancelPokemonEditorEdits() {
 		if (!pokemonEditor) {
 			return;
@@ -1120,12 +1170,14 @@
 		queueMicrotask(focusPokemonEditorApply);
 	}
 
-	async function applyPokemonEditor() {
-		const editor = pokemonEditor;
+	async function applyPokemonEditor(draft: PokemonEditorDraftEdits) {
+		const currentEditor = pokemonEditor;
+		const editor = currentEditor ? stagePokemonEditorDraftEdits(currentEditor, draft) : null;
 		if (!editor) {
 			return;
 		}
 
+		pokemonEditor = editor;
 		busy = true;
 		pokemonEditorFeedback = 'Applying Pokemon edits...';
 		const applyRequest = (pokemonEditorApplyRequest += 1);
@@ -1247,7 +1299,7 @@
 				mutateStoragePokemon: async () => ({
 					ok: false,
 					status: 'unsupported',
-					message: 'Pokemon Storage level and experience editing is not available yet.',
+					message: 'Pokemon Storage editing is not available yet.',
 					reason: 'storage-unavailable'
 				})
 			});
@@ -1294,12 +1346,90 @@
 		if (
 			operation.nickname !== undefined &&
 			operation.level === undefined &&
-			operation.experience === undefined
+			operation.experience === undefined &&
+			operation.ivs === undefined &&
+			operation.evs === undefined &&
+			operation.moves === undefined
 		) {
 			return 'Pokemon nickname updated.';
 		}
 
 		return 'Pokemon edits applied.';
+	}
+
+	function stagePokemonEditorDraftEdits(
+		state: PokemonEditorState,
+		draft: PokemonEditorDraftEdits
+	): PokemonEditorState {
+		let nextState = cancelPokemonEditor(state);
+
+		if (draft.nickname !== undefined) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'nickname',
+				capability: 'nickname-editing',
+				label: draft.nickname.length === 0 ? 'Restore default nickname' : 'Set nickname',
+				payload: { nickname: draft.nickname }
+			});
+		}
+
+		if (draft.levelExperience) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'level-experience',
+				capability: 'level-experience-editing',
+				label:
+					draft.levelExperience.mode === 'level'
+						? `Set level to ${draft.levelExperience.level}`
+						: `Set experience to ${draft.levelExperience.experience}`,
+				payload: draft.levelExperience
+			});
+		}
+
+		if (draft.ivs) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'ivs',
+				capability: 'iv-editing',
+				label: 'Set IVs',
+				payload: draft.ivs
+			});
+		}
+
+		if (draft.evs) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'evs',
+				capability: 'ev-editing',
+				label: 'Set EVs',
+				payload: draft.evs
+			});
+		}
+
+		if (draft.moveSet) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'move-set',
+				capability: 'move-set-editing',
+				label: 'Set Move Set',
+				payload: draft.moveSet
+			});
+		}
+
+		return nextState;
+	}
+
+	function pokemonEditorDraftResetKey(state: PokemonEditorState): string {
+		const slot = state.slot;
+		return JSON.stringify({
+			source: state.source.identity.key,
+			label: slot.label,
+			level: slot.level,
+			experience: slot.experience,
+			ivs: slot.stats?.map((stat) => stat.iv ?? 0),
+			evs: slot.stats?.map((stat) => stat.ev ?? 0),
+			moves: slot.moves?.map((move) => ({
+				slot: move.slot,
+				id: move.id,
+				pp: move.pp ?? 0,
+				ppUps: move.ppUps ?? 0
+			}))
+		});
 	}
 
 	async function updateActionSurfaceAnchor() {
@@ -1685,6 +1815,8 @@
 			types: slot.types,
 			stats: slot.stats,
 			moves: slot.moves,
+			statEditConstraints: slot.statEditConstraints,
+			moveSetEditConstraints: slot.moveSetEditConstraints,
 			originalTrainer: slot.originalTrainer ?? undefined,
 			metLabel: slot.metLabel ?? undefined
 		};
@@ -1920,19 +2052,19 @@
 </section>
 
 {#if pokemonEditor}
-	<PokemonEditor
-		editor={pokemonEditor}
-		{saveSummary}
-		spriteUrl={spriteUrlFor(pokemonEditor.slot)}
-		slotHueStyle={slotStyle(pokemonEditor.slot, navigation.activeBox)}
-		feedback={pokemonEditorFeedback}
-		applying={busy}
-		onStageNickname={stagePokemonEditorNickname}
-		onStageLevelExperience={stagePokemonEditorLevelExperience}
-		onApply={applyPokemonEditor}
-		onCancelEdits={cancelPokemonEditorEdits}
-		onClose={closePokemonEditor}
-	/>
+	{#key pokemonEditorDraftResetKey(pokemonEditor)}
+		<PokemonEditor
+			editor={pokemonEditor}
+			{saveSummary}
+			spriteUrl={spriteUrlFor(pokemonEditor.slot)}
+			slotHueStyle={slotStyle(pokemonEditor.slot, navigation.activeBox)}
+			feedback={pokemonEditorFeedback}
+			applying={busy}
+			onApply={applyPokemonEditor}
+			onCancelEdits={cancelPokemonEditorEdits}
+			onClose={closePokemonEditor}
+		/>
+	{/key}
 {/if}
 
 {#if clearSlotConfirmation}

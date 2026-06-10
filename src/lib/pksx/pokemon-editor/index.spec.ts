@@ -8,8 +8,14 @@ import {
 	createPokemonEditorState,
 	isSamePokemonEditorSourceIdentity,
 	markUnsupportedPokemonEditorApply,
+	maxPpForPpUps,
+	moveSetEditPayloadFromSlot,
+	stageEvEdit,
+	stageIvEdit,
 	stageLevelExperienceEdit,
+	stageMoveSetEdit,
 	stagePokemonEditorEdit,
+	statEditPayloadFromSlot,
 	type PokemonEditorApplyServices,
 	type PokemonEditorSourceInput
 } from '.';
@@ -51,6 +57,60 @@ const pokemonSlot: SlotView = {
 	kind: 'pokemon'
 };
 
+const editablePokemonSlot: SlotView = {
+	...pokemonSlot,
+	stats: [
+		{ key: 'HP', label: 'HP', value: 32, ev: 0, iv: 31, max: 255 },
+		{ key: 'ATK', label: 'ATK', value: 20, ev: 0, iv: 30, max: 255 },
+		{ key: 'DEF', label: 'DEF', value: 18, ev: 0, iv: 29, max: 255 },
+		{ key: 'SPA', label: 'SPA', value: 15, ev: 0, iv: 28, max: 255 },
+		{ key: 'SPD', label: 'SPD', value: 16, ev: 0, iv: 27, max: 255 },
+		{ key: 'SPE', label: 'SPE', value: 22, ev: 0, iv: 26, max: 255 }
+	],
+	moves: [
+		{
+			slot: 0,
+			id: 33,
+			name: 'Tackle',
+			type: 'Normal',
+			hue: 107,
+			chroma: 0.06,
+			pp: 35,
+			maxPp: 35,
+			ppUps: 0
+		},
+		{
+			slot: 1,
+			id: 45,
+			name: 'Growl',
+			type: 'Normal',
+			hue: 107,
+			chroma: 0.06,
+			pp: 40,
+			maxPp: 40,
+			ppUps: 0
+		}
+	],
+	statEditConstraints: {
+		supported: true,
+		minIv: 0,
+		maxIv: 31,
+		minEv: 0,
+		maxEv: 252,
+		maxTotalEv: 510
+	},
+	moveSetEditConstraints: {
+		supported: true,
+		maxMoveSlots: 4,
+		availableMoves: [
+			{ id: 0, name: 'Empty', type: 'None', hue: 48, chroma: 0.04, maxPp: 0 },
+			{ id: 33, name: 'Tackle', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 35 },
+			{ id: 45, name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 40 },
+			{ id: 575, name: 'Sparkling Aria', type: 'Water', hue: 238, chroma: 0.09, maxPp: 10 }
+		]
+	}
+};
+
 const updatedPokemonSlot: SlotView = {
 	...pokemonSlot,
 	label: 'LAIRON',
@@ -84,6 +144,12 @@ const stagedEdit = {
 
 function openEditor(sourceOverride = source) {
 	const opened = createPokemonEditorState(sourceOverride, pokemonSlot);
+	if (!opened.ok) throw new Error('Expected Pokemon Editor to open.');
+	return opened.state;
+}
+
+function openEditableEditor() {
+	const opened = createPokemonEditorState(source, editablePokemonSlot);
 	if (!opened.ok) throw new Error('Expected Pokemon Editor to open.');
 	return opened.state;
 }
@@ -215,6 +281,195 @@ describe('Pokemon editor state', () => {
 				message: 'Level must be between 1 and 100.',
 				reason: 'invalid-pokemon-edit'
 			}
+		});
+	});
+
+	it('stages IV boundary values from engine-provided constraints', () => {
+		const staged = stageIvEdit(openEditableEditor(), {
+			HP: 31,
+			ATK: 0,
+			DEF: 1,
+			SPA: 2,
+			SPD: 3,
+			SPE: 4
+		});
+
+		expect(staged.stagedEdits).toEqual([
+			{
+				id: 'ivs',
+				capability: 'iv-editing',
+				label: 'Set IVs',
+				payload: { HP: 31, ATK: 0, DEF: 1, SPA: 2, SPD: 3, SPE: 4 }
+			}
+		]);
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: {
+				source: slotRef,
+				ivs: { HP: 31, ATK: 0, DEF: 1, SPA: 2, SPD: 3, SPE: 4 }
+			}
+		});
+	});
+
+	it('builds structured-clone-safe IV operation payloads for Worker messages', () => {
+		const proxyPayload = new Proxy({ HP: 31, ATK: 30, DEF: 29, SPA: 28, SPD: 27, SPE: 26 }, {});
+		const staged = stageIvEdit(openEditableEditor(), proxyPayload);
+		const built = createPokemonEditOperation(staged);
+
+		expect(built.ok).toBe(true);
+		if (!built.ok) return;
+		expect(() => structuredClone(built.operation)).not.toThrow();
+		expect(built.operation.ivs).toEqual(proxyPayload);
+		expect(built.operation.ivs).not.toBe(proxyPayload);
+	});
+
+	it('rejects invalid IV ranges without staging mutation', () => {
+		const invalid = stageIvEdit(openEditableEditor(), {
+			HP: 32,
+			ATK: 0,
+			DEF: 0,
+			SPA: 0,
+			SPD: 0,
+			SPE: 0
+		});
+
+		expect(invalid).toMatchObject({
+			stagedEdits: [],
+			staged: false,
+			applyOutcome: {
+				status: 'rejected',
+				message: 'HP IV must be between 0 and 31.',
+				reason: 'invalid-pokemon-edit'
+			}
+		});
+	});
+
+	it('rejects invalid EV totals before apply', () => {
+		const invalid = stageEvEdit(openEditableEditor(), {
+			HP: 252,
+			ATK: 252,
+			DEF: 7,
+			SPA: 0,
+			SPD: 0,
+			SPE: 0
+		});
+
+		expect(invalid.applyOutcome).toEqual({
+			status: 'rejected',
+			message: 'Total EVs must be 510 or less.',
+			reason: 'invalid-pokemon-edit'
+		});
+		expect(invalid.stagedEdits).toEqual([]);
+	});
+
+	it('stages EV edits and Move Set edits into one engine operation', () => {
+		const evs = { HP: 252, ATK: 0, DEF: 0, SPA: 0, SPD: 4, SPE: 252 };
+		const moves = moveSetEditPayloadFromSlot(editablePokemonSlot);
+		moves.moves[1] = { slot: 1, move: 0, pp: 0, ppUps: 0 };
+
+		const staged = stageMoveSetEdit(stageEvEdit(openEditableEditor(), evs), moves);
+
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: {
+				source: slotRef,
+				evs,
+				moves: moves.moves
+			}
+		});
+	});
+
+	it('preserves move slot positions from compacted move projections', () => {
+		const sparseSlot: SlotView = {
+			...editablePokemonSlot,
+			moves: [
+				{
+					slot: 0,
+					id: 33,
+					name: 'Tackle',
+					type: 'Normal',
+					hue: 107,
+					chroma: 0.06,
+					pp: 35,
+					maxPp: 35,
+					ppUps: 0
+				},
+				{
+					slot: 2,
+					id: 45,
+					name: 'Growl',
+					type: 'Normal',
+					hue: 107,
+					chroma: 0.06,
+					pp: 40,
+					maxPp: 40,
+					ppUps: 0
+				}
+			]
+		};
+
+		expect(moveSetEditPayloadFromSlot(sparseSlot)).toEqual({
+			moves: [
+				{ slot: 0, move: 33, pp: 35, ppUps: 0 },
+				{ slot: 1, move: 0, pp: 0, ppUps: 0 },
+				{ slot: 2, move: 45, pp: 40, ppUps: 0 },
+				{ slot: 3, move: 0, pp: 0, ppUps: 0 }
+			]
+		});
+	});
+
+	it('rejects unsupported move selection from engine-provided options', () => {
+		const invalid = stageMoveSetEdit(openEditableEditor(), {
+			moves: [{ slot: 0, move: 999, pp: 10, ppUps: 0 }]
+		});
+
+		expect(invalid.applyOutcome).toEqual({
+			status: 'rejected',
+			message: 'Move 999 is not available for this Pokemon.',
+			reason: 'invalid-pokemon-edit'
+		});
+	});
+
+	it('validates move PP against the PP Up-adjusted maximum', () => {
+		expect(maxPpForPpUps(10, 3)).toBe(16);
+
+		const valid = stageMoveSetEdit(openEditableEditor(), {
+			moves: [{ slot: 0, move: 575, pp: 16, ppUps: 3 }]
+		});
+		const invalid = stageMoveSetEdit(openEditableEditor(), {
+			moves: [{ slot: 0, move: 575, pp: 17, ppUps: 3 }]
+		});
+
+		expect(createPokemonEditOperation(valid)).toEqual({
+			ok: true,
+			operation: {
+				source: slotRef,
+				moves: [{ slot: 0, move: 575, pp: 16, ppUps: 3 }]
+			}
+		});
+		expect(invalid.applyOutcome).toEqual({
+			status: 'rejected',
+			message: 'PP for Sparkling Aria must be between 0 and 16.',
+			reason: 'invalid-pokemon-edit'
+		});
+	});
+
+	it('creates stat payloads from visible Slot projections', () => {
+		expect(statEditPayloadFromSlot(editablePokemonSlot, 'iv')).toEqual({
+			HP: 31,
+			ATK: 30,
+			DEF: 29,
+			SPA: 28,
+			SPD: 27,
+			SPE: 26
+		});
+		expect(statEditPayloadFromSlot(editablePokemonSlot, 'ev')).toEqual({
+			HP: 0,
+			ATK: 0,
+			DEF: 0,
+			SPA: 0,
+			SPD: 0,
+			SPE: 0
 		});
 	});
 
