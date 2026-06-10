@@ -32,6 +32,12 @@
 		shouldCreateAutomaticBackup,
 		type WorkspaceState
 	} from '$lib/pksx/backup-workflow';
+	import {
+		applyStorageOperation,
+		destinationStateForStorageOperation,
+		type PendingStorageSlotOperation,
+		type StorageDestinationState
+	} from '$lib/pksx/storage-operations';
 	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 	import {
@@ -74,13 +80,6 @@
 		id: string;
 		tone: 'info' | 'success' | 'error';
 		message: string;
-	};
-
-	type PendingSlotOperation = {
-		kind: 'move' | 'copy';
-		source: SaveSlotRef;
-		sourceLabel: string;
-		sourcePokemonLabel: string;
 	};
 
 	type ClearSlotConfirmation = {
@@ -260,7 +259,7 @@
 	let partyCollapsed = $state(false);
 	let actionSurfaceTop = $state<number | null>(null);
 	let viewportWidth = $state(1024);
-	let pendingSlotOperation = $state<PendingSlotOperation | null>(null);
+	let pendingSlotOperation = $state<PendingStorageSlotOperation | null>(null);
 	let clearSlotConfirmation = $state<ClearSlotConfirmation | null>(null);
 	let clearSlotConfirmFocusIndex = $state(0);
 	let toasts = $state<ToastView[]>([]);
@@ -641,10 +640,6 @@
 			: { zone: 'box', box: navigation.activeBox, slot: focus.slot };
 	}
 
-	function slotRefKey(ref: SaveSlotRef): string {
-		return ref.zone === 'party' ? `party:${ref.slot}` : `box:${ref.box}:${ref.slot}`;
-	}
-
 	function locationForSlotRef(ref: SaveSlotRef): string {
 		return ref.zone === 'party'
 			? `Party Slot ${ref.slot + 1}`
@@ -663,36 +658,13 @@
 		return visibleBoxSlots[ref.slot] ?? null;
 	}
 
-	function destinationStateFor(
-		ref: SaveSlotRef,
-		slot: SlotView
-	): 'valid' | 'invalid' | 'source' | null {
-		if (!pendingSlotOperation) {
-			return null;
-		}
-
-		if (slotRefKey(ref) === slotRefKey(pendingSlotOperation.source)) {
-			return 'source';
-		}
-
-		if (pendingSlotOperation.kind === 'copy' && slot.kind === 'pokemon') {
-			return 'invalid';
-		}
-
-		if (isInvalidPartyAppendDestination(ref, slot)) {
-			return 'invalid';
-		}
-
-		return 'valid';
-	}
-
-	function isInvalidPartyAppendDestination(ref: SaveSlotRef, slot: SlotView | null): boolean {
-		return (
-			ref.zone === 'party' &&
-			slot?.kind === 'empty' &&
-			loadedSave !== null &&
-			ref.slot > loadedSave.workspace.summary.partyCount
-		);
+	function destinationStateFor(ref: SaveSlotRef, slot: SlotView): StorageDestinationState {
+		return destinationStateForStorageOperation({
+			pending: pendingSlotOperation,
+			destination: ref,
+			destinationSlot: slot,
+			partyCount: loadedSave?.workspace.summary.partyCount ?? 0
+		});
 	}
 
 	async function completePendingSlotOperation(destination: SaveSlotRef) {
@@ -701,26 +673,6 @@
 		}
 
 		const pending = pendingSlotOperation;
-		const destinationSlot = slotForRef(destination);
-
-		if (slotRefKey(pending.source) === slotRefKey(destination)) {
-			pendingSlotOperation = null;
-			statusMessage = 'No Slot change made.';
-			queueMicrotask(focusActiveControl);
-			return;
-		}
-
-		if (pending.kind === 'copy' && destinationSlot?.kind === 'pokemon') {
-			showToast('error', 'Copy needs an empty destination Slot.');
-			statusMessage = 'Copy needs an empty destination Slot.';
-			return;
-		}
-
-		if (isInvalidPartyAppendDestination(destination, destinationSlot)) {
-			showToast('error', 'That Party Slot cannot be used yet.');
-			statusMessage = 'That Party Slot cannot be used yet.';
-			return;
-		}
 
 		await applySlotOperation({
 			kind: pending.kind,
@@ -746,63 +698,59 @@
 
 		try {
 			const sourceSlot = slotForRef(operation.source);
-			if (sourceSlot !== null && sourceSlot.kind !== 'pokemon') {
-				showToast('error', 'Move, Copy, and Clear Slot need an occupied source Slot.');
-				statusMessage = 'Slot change failed.';
+			const destinationSlot = operation.kind === 'clear' ? null : slotForRef(operation.destination);
+
+			statusMessage = 'Applying Slot change...';
+			const result = await applyStorageOperation({
+				state: loadedSave,
+				operation,
+				activeBox: navigation.activeBox,
+				sourceSlot,
+				destinationSlot,
+				partyCount: loadedSave.workspace.summary.partyCount,
+				services: {
+					engine: activeEngine,
+					createAutomaticBackup: async (state) => {
+						statusMessage = 'Creating Backup...';
+						await storage.createBackup({
+							saveFileId: state.file.id,
+							bytes: state.bytes,
+							reason: 'pokemon-movement'
+						});
+						statusMessage = 'Applying Slot change...';
+					},
+					persistWorkspace,
+					locationForSlotRef
+				}
+			});
+
+			if (!result.ok) {
+				statusMessage = result.reason === 'noop' ? result.message : 'Slot change failed.';
+				if (result.reason !== 'noop') {
+					showToast('error', result.message);
+				} else {
+					pendingSlotOperation = null;
+				}
+				queueMicrotask(focusActiveControl);
 				return;
 			}
 
-			const moveWasSwap =
-				operation.kind === 'move' && slotForRef(operation.destination)?.kind === 'pokemon';
-			let workingState = loadedSave;
-			if (shouldCreateAutomaticBackup(workingState)) {
-				statusMessage = 'Creating Backup...';
-				await storage.createBackup({
-					saveFileId: workingState.file.id,
-					bytes: workingState.bytes,
-					reason: 'pokemon-movement'
-				});
-				workingState = markAutomaticBackupCreated(workingState);
-				loadedSave = workingState;
-			}
-
-			statusMessage = 'Applying Slot change...';
-			const result = await activeEngine.applySlotOperation(
-				workingState.bytes,
-				workingState.file.originalFileName ?? undefined,
-				operation,
-				navigation.activeBox
-			);
-
-			if (!result.ok) {
-				throw result.error;
-			}
-
-			const nextState: WorkspaceState = {
-				...workingState,
-				bytes: result.value.bytes,
-				workspace: result.value.workspace,
-				dirty: workingState.dirty || result.value.mutated,
-				restoredFromBackup: null
-			};
-			if (nextState.dirty) {
-				await persistWorkspace(nextState);
-			}
+			const nextState: WorkspaceState = result.state;
 			loadedSave = nextState;
 			setCachedActiveWorkspace(nextState, navigation.activeBox);
 			invalidateSaveLibraryCache();
 			pendingSlotOperation = null;
-			const focusRef = operation.kind === 'clear' ? operation.source : operation.destination;
+			const focusRef = result.focusRef;
 			navigation = {
 				...navigation,
 				activeBox: focusRef.zone === 'box' ? focusRef.box : navigation.activeBox,
-				boxCount: Math.max(1, result.value.workspace.summary.boxCount),
+				boxCount: Math.max(1, result.state.workspace.summary.boxCount),
 				focus:
 					focusRef.zone === 'party' ? focusPartySlot(focusRef.slot) : focusBoxSlot(focusRef.slot),
 				actionSurfaceOpen: false,
 				actionOrigin: null
 			};
-			statusMessage = successMessageForSlotOperation(operation, moveWasSwap);
+			statusMessage = result.message;
 			queueMicrotask(focusActiveControl);
 		} catch (error) {
 			const message = getErrorMessage(error);
@@ -812,20 +760,6 @@
 		} finally {
 			busy = false;
 		}
-	}
-
-	function successMessageForSlotOperation(operation: SlotOperation, moveWasSwap = false): string {
-		if (operation.kind === 'clear') {
-			return `Cleared ${locationForSlotRef(operation.source)}.`;
-		}
-
-		if (operation.kind === 'copy') {
-			return `Copied to ${locationForSlotRef(operation.destination)}.`;
-		}
-
-		return moveWasSwap
-			? `Swapped with ${locationForSlotRef(operation.destination)}.`
-			: `Moved to ${locationForSlotRef(operation.destination)}.`;
 	}
 
 	function beginPendingSlotOperation(kind: 'move' | 'copy') {
