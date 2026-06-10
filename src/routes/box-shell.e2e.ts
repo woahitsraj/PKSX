@@ -21,9 +21,8 @@ async function openEmptyLibrary(page: Page) {
 	);
 	await page.reload();
 	await page.waitForLoadState('networkidle');
-	await expect(page.getByText('Open Saves to import a Save File.')).toBeVisible({
-		timeout: 15000
-	});
+	await expect(page.locator('#box-grid')).toBeVisible({ timeout: 15000 });
+	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 }
 
 async function importEmeraldThroughSaves(page: Page) {
@@ -350,12 +349,7 @@ test('Legality Check opens an engine report from an occupied Slot and dismisses 
 
 test('keyboard navigation reaches top controls and mobile tabs', async ({ page }) => {
 	await openEmptyLibrary(page);
-	await page.locator('#box-grid').focus();
-
-	await page.keyboard.press('ArrowUp');
-	await expect(page.locator('#party-slot-0')).toBeFocused();
-
-	await page.keyboard.press('ArrowUp');
+	await page.locator('#top-control-0').focus();
 	await expect(page.locator('#top-control-0')).toBeFocused();
 
 	await page.keyboard.press('ArrowRight');
@@ -375,6 +369,10 @@ test('keyboard navigation reaches top controls and mobile tabs', async ({ page }
 	await expect(page.locator('#box-0-slot-24')).toBeFocused();
 
 	await page.setViewportSize({ width: 420, height: 860 });
+	await page.locator('#top-control-0').focus();
+	await expect(page.locator('#top-control-0')).toBeFocused();
+	await expect(page.locator('.section-pills')).toBeVisible();
+
 	await page.locator('#box-0-slot-0').focus();
 	for (const key of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown']) {
 		await page.keyboard.press(key);

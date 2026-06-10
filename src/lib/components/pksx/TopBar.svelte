@@ -172,6 +172,7 @@
 
 <style>
 	.top-bar {
+		position: relative;
 		display: grid;
 		grid-template-columns: auto auto minmax(180px, 1fr) auto auto auto;
 		align-items: center;
@@ -402,9 +403,36 @@
 			padding: 8px;
 		}
 
-		.section-pills,
 		.save-chip {
 			display: none;
+		}
+
+		.section-pills {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			margin: 0;
+			padding: 0;
+			overflow: hidden;
+			clip: rect(0 0 0 0);
+			white-space: nowrap;
+			border: 0;
+		}
+
+		.section-pills:focus-within {
+			z-index: 90;
+			width: auto;
+			height: auto;
+			clip: auto;
+			display: flex;
+			gap: 4px;
+			top: calc(100% + 6px);
+			left: 8px;
+			padding: 6px;
+			border-radius: var(--pksx-radius-md);
+			background: var(--paper-hi);
+			box-shadow: var(--shadow-deep);
+			white-space: normal;
 		}
 	}
 
