@@ -70,6 +70,13 @@
 		type LegalityReportState
 	} from '$lib/pksx/legality-report';
 	import {
+		clampBoxToSource,
+		STORAGE_BOX_CAPACITY,
+		storageBoxLabel,
+		type BoxSourceKey
+	} from '$lib/pksx/pokemon-storage';
+	import type { StoredStorageBox } from '$lib/pksx/local-library';
+	import {
 		classifyDestination,
 		planClearSlotOperation,
 		planSlotOperation,
@@ -156,8 +163,37 @@
 	}
 
 	function boxNameFor(box: number): string {
+		if (activeBoxSourceKey === 'pokemon-storage') {
+			const storageBox = storageBoxes[box];
+			return storageBox
+				? storageBoxLabel(storageBox)
+				: `Storage ${String(box + 1).padStart(2, '0')}`;
+		}
+
 		return `Box ${String(box + 1).padStart(2, '0')}`;
 	}
+
+	const emptyStorageBoxSlots: SlotView[] = Array.from(
+		{ length: STORAGE_BOX_CAPACITY },
+		(_, slot) => ({
+			slot,
+			label: 'Empty',
+			detail: '',
+			level: null,
+			experience: null,
+			experienceProjection: null,
+			speciesId: null,
+			form: null,
+			isEgg: false,
+			spriteIdentity: null,
+			kind: 'empty' as const
+		})
+	);
+
+	const boxSourceOptions: Array<{ key: BoxSourceKey; label: string }> = [
+		{ key: 'save-file', label: 'Save File' },
+		{ key: 'pokemon-storage', label: 'Storage' }
+	];
 
 	const placeholderPokemonDetails = {
 		gender: '♂',
@@ -263,6 +299,8 @@
 	let actionSurfaceTop = $state<number | null>(null);
 	let viewportWidth = $state(1024);
 	let pendingSlotOperation = $state<PendingSlotOperation | null>(null);
+	let activeBoxSourceKey = $state<BoxSourceKey>('save-file');
+	let storageBoxes = $state<StoredStorageBox[]>([]);
 	let clearSlotConfirmation = $state<ClearSlotConfirmation | null>(null);
 	let clearSlotConfirmFocusIndex = $state(0);
 	let toasts = $state<ToastView[]>([]);
@@ -274,14 +312,18 @@
 		gamepadStatus !== 'No controller detected' && gamepadStatus.length > 0
 	);
 	const mobileTabsAvailable = $derived(viewportWidth <= 820);
-	const boxCount = $derived(loadedSave?.workspace.summary.boxCount ?? placeholderBoxCount);
+	const storageSourceActive = $derived(activeBoxSourceKey === 'pokemon-storage');
+	const saveBoxCount = $derived(loadedSave?.workspace.summary.boxCount ?? placeholderBoxCount);
+	const boxCount = $derived(storageSourceActive ? Math.max(1, storageBoxes.length) : saveBoxCount);
 	const partySlots = $derived(
 		loadedSave ? createPartySlotViews(loadedSave.workspace.partySlots) : placeholderPartySlots
 	);
 	const activeBoxSlots = $derived(
-		loadedSave
-			? createBoxSlotViews(loadedSave.workspace.boxSlots)
-			: placeholderBoxSlotsByBox[navigation.activeBox]
+		storageSourceActive
+			? emptyStorageBoxSlots
+			: loadedSave
+				? createBoxSlotViews(loadedSave.workspace.boxSlots)
+				: placeholderBoxSlotsByBox[clampBoxToSource(navigation.activeBox, placeholderBoxCount)]
 	);
 	const activeFocusId = $derived(getFocusId(navigation.focus, navigation.activeBox));
 	const activeSlotFocus = $derived<SlotFocus>(
@@ -329,8 +371,8 @@
 				]
 	);
 	const activeBoxSource = $derived<BoxSourceView>({
-		key: 'save-file',
-		label: 'Save File',
+		key: activeBoxSourceKey,
+		label: storageSourceActive ? 'Storage' : 'Save File',
 		activeBoxLabel: boxNameFor(navigation.activeBox),
 		activeBoxNumber: navigation.activeBox + 1,
 		boxCount,
@@ -406,7 +448,7 @@
 			activateFocusedControl(previousFocus);
 		}
 
-		if (loadedSave && navigation.activeBox !== previousBox) {
+		if (!storageSourceActive && loadedSave && navigation.activeBox !== previousBox) {
 			void loadWorkspaceForSave(loadedSave, navigation.activeBox);
 		}
 
@@ -617,7 +659,36 @@
 		const previousBox = navigation.activeBox;
 		navigation = selectActiveBox(navigation, index);
 
-		if (loadedSave && navigation.activeBox !== previousBox) {
+		if (!storageSourceActive && loadedSave && navigation.activeBox !== previousBox) {
+			void loadWorkspaceForSave(loadedSave, navigation.activeBox);
+		}
+
+		queueMicrotask(focusActiveControl);
+	}
+
+	function switchBoxSource(key: BoxSourceKey) {
+		if (key === activeBoxSourceKey) {
+			return;
+		}
+
+		if (pendingSlotOperation) {
+			cancelPendingSlotOperation();
+		}
+
+		activeBoxSourceKey = key;
+		const nextBoxCount =
+			key === 'pokemon-storage' ? Math.max(1, storageBoxes.length) : saveBoxCount;
+		navigation = {
+			...navigation,
+			activeBox: clampBoxToSource(navigation.activeBox, nextBoxCount),
+			boxCount: nextBoxCount,
+			actionSurfaceOpen: false,
+			actionOrigin: null
+		};
+		statusMessage =
+			key === 'pokemon-storage' ? 'Box Source: Pokemon Storage.' : 'Box Source: Save File.';
+
+		if (key === 'save-file' && loadedSave) {
 			void loadWorkspaceForSave(loadedSave, navigation.activeBox);
 		}
 
@@ -1422,7 +1493,16 @@
 	onMount(() => {
 		engine = getPkhexEngine();
 		void restoreMostRecentSave();
+		void initializePokemonStorage();
 	});
+
+	async function initializePokemonStorage() {
+		try {
+			storageBoxes = await storage.ensurePokemonStorage();
+		} catch (error) {
+			showToast('error', getErrorMessage(error));
+		}
+	}
 
 	async function restoreMostRecentSave() {
 		busy = true;
@@ -1437,13 +1517,15 @@
 			}
 
 			loadedSave = restored;
-			navigation = selectActiveBox(
-				createInitialNavigationState(restored.workspace.summary.boxCount),
-				Math.min(
-					getCachedActiveWorkspaceBox(),
-					Math.max(0, restored.workspace.summary.boxCount - 1)
-				)
-			);
+			if (activeBoxSourceKey === 'save-file') {
+				navigation = selectActiveBox(
+					createInitialNavigationState(restored.workspace.summary.boxCount),
+					Math.min(
+						getCachedActiveWorkspaceBox(),
+						Math.max(0, restored.workspace.summary.boxCount - 1)
+					)
+				);
+			}
 			statusMessage = restored.dirty
 				? `${restored.file.originalFileName ?? 'Save File'} restored from Local Library with unexported changes.`
 				: `${restored.file.originalFileName ?? 'Save File'} restored from Local Library.`;
@@ -1804,7 +1886,7 @@
 				class="box-zone"
 				role="grid"
 				tabindex="0"
-				aria-label={`Box ${navigation.activeBox + 1}`}
+				aria-label={boxNameFor(navigation.activeBox)}
 				aria-activedescendant={navigation.focus.zone === 'box' ? activeFocusId : undefined}
 				aria-rowcount="5"
 				aria-colcount={BOX_COLUMNS}
@@ -1812,6 +1894,8 @@
 				<div class="zone-header box-header">
 					<BoxSourceControls
 						source={activeBoxSource}
+						sources={boxSourceOptions}
+						onSelectSource={switchBoxSource}
 						onPreviousBox={() => dispatch('previousBox')}
 						onNextBox={() => dispatch('nextBox')}
 					/>
@@ -1854,7 +1938,9 @@
 											: 'center'}
 									vertical={position.row === 0 ? 'top' : 'bottom'}
 									{slot}
-									location={`Box ${navigation.activeBox + 1}, slot ${slot.slot + 1}`}
+									location={storageSourceActive
+										? `${boxNameFor(navigation.activeBox)}, slot ${slot.slot + 1}`
+										: `Box ${navigation.activeBox + 1}, slot ${slot.slot + 1}`}
 									mobileTop={actionSurfaceTop}
 									activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
 									onFocusCommand={focusActionCommand}

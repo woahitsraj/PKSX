@@ -51,6 +51,16 @@ export type PutWorkspaceInput = {
 	automaticBackupCreated: boolean;
 };
 
+export type StorageBoxId = string;
+
+export type StoredStorageBox = {
+	id: StorageBoxId;
+	position: number;
+	name: string | null;
+	createdAt: string;
+	updatedAt: string;
+};
+
 export type LocalLibraryStorage = {
 	importSave(input: ImportSaveInput): Promise<StoredSaveFile>;
 	getSave(saveFileId: SaveFileId): Promise<StoredSaveFile | null>;
@@ -67,4 +77,6 @@ export type LocalLibraryStorage = {
 	getBackupBytes(backupId: BackupId): Promise<Uint8Array | null>;
 	deleteBackup(backupId: BackupId): Promise<void>;
 	exportSave(saveFileId: SaveFileId): Promise<Uint8Array | null>;
+	ensurePokemonStorage(): Promise<StoredStorageBox[]>;
+	listStorageBoxes(): Promise<StoredStorageBox[]>;
 };

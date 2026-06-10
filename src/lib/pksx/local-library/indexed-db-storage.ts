@@ -8,11 +8,13 @@ import type {
 	PutWorkspaceInput,
 	SaveFileId,
 	StoredSaveFile,
+	StoredStorageBox,
 	StoredWorkspace
 } from './types';
 
-const databaseVersion = 3;
+const databaseVersion = 4;
 const saveFilesStore = 'saveFiles';
+const storageBoxesStore = 'storageBoxes';
 const saveBytesStore = 'saveBytes';
 const workspacesStore = 'workspaces';
 const backupsStore = 'backups';
@@ -351,6 +353,51 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 	async exportSave(saveFileId: SaveFileId): Promise<Uint8Array | null> {
 		return this.getSaveBytes(saveFileId);
 	}
+
+	async ensurePokemonStorage(): Promise<StoredStorageBox[]> {
+		const timestamp = this.#now();
+		const initialBox: StoredStorageBox = {
+			id: this.#idFactory(),
+			position: 0,
+			name: null,
+			createdAt: timestamp,
+			updatedAt: timestamp
+		};
+
+		const database = await openLocalLibraryDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction(storageBoxesStore, 'readwrite');
+			const store = transaction.objectStore(storageBoxesStore);
+			const existing = await requestToPromise<StoredStorageBox[]>(store.getAll());
+
+			if (existing.length === 0) {
+				store.put(initialBox);
+			}
+			await transactionDone(transaction);
+
+			return sortStorageBoxRecords(existing.length === 0 ? [initialBox] : existing);
+		} finally {
+			database.close();
+		}
+	}
+
+	async listStorageBoxes(): Promise<StoredStorageBox[]> {
+		const database = await openLocalLibraryDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction(storageBoxesStore, 'readonly');
+			const boxes = await requestToPromise<StoredStorageBox[]>(
+				transaction.objectStore(storageBoxesStore).getAll()
+			);
+			await transactionDone(transaction);
+			return sortStorageBoxRecords(boxes);
+		} finally {
+			database.close();
+		}
+	}
+}
+
+function sortStorageBoxRecords(boxes: StoredStorageBox[]): StoredStorageBox[] {
+	return boxes.map((box) => ({ ...box })).sort((left, right) => left.position - right.position);
 }
 
 export function deleteIndexedDbLocalLibrary(databaseName: string): Promise<void> {
@@ -398,6 +445,10 @@ function migrateDatabase(database: IDBDatabase): void {
 
 	if (!database.objectStoreNames.contains(appStateStore)) {
 		database.createObjectStore(appStateStore, { keyPath: 'key' });
+	}
+
+	if (!database.objectStoreNames.contains(storageBoxesStore)) {
+		database.createObjectStore(storageBoxesStore, { keyPath: 'id' });
 	}
 }
 
