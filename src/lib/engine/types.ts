@@ -7,6 +7,8 @@ export type EngineErrorCode =
 	| 'unsupported-slot-operation'
 	| 'invalid-pokemon-edit'
 	| 'unsupported-pokemon-edit'
+	| 'invalid-save-file-edit'
+	| 'unsupported-save-file-edit'
 	| 'engine-unavailable'
 	| 'invalid-engine-response'
 	| 'invalid-worker-message'
@@ -167,6 +169,19 @@ export type PokemonEditOperationResult = {
 	workspace: SaveWorkspace;
 };
 
+export type SaveFileEditOperation = {
+	trainerProfile?: {
+		trainerName?: string;
+	};
+	money?: number;
+};
+
+export type SaveFileEditOperationResult = {
+	bytes: Uint8Array;
+	mutated: boolean;
+	workspace: SaveWorkspace;
+};
+
 export type LegalityReportLine = {
 	severity: string;
 	identifier: string;
@@ -207,6 +222,12 @@ export type EngineApi = {
 		operation: PokemonEditOperation,
 		activeBox: number
 	): Promise<EngineResult<PokemonEditOperationResult>>;
+	applySaveFileEditOperation(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operation: SaveFileEditOperation,
+		activeBox: number
+	): Promise<EngineResult<SaveFileEditOperationResult>>;
 	checkSlotLegality(
 		bytes: Uint8Array,
 		fileName: string | undefined,

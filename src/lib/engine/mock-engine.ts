@@ -190,6 +190,14 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					boxSlots: activeBox === 0 ? mockBoxSlots : []
 				}
 			}),
+		applySaveFileEditOperation: async () => ({
+			ok: false,
+			value: null,
+			error: {
+				code: 'unsupported-save-file-edit',
+				message: 'Save File field editing is not available for the mock engine.'
+			}
+		}),
 		checkSlotLegality: async () =>
 			success<LegalityReport>({
 				legal: true,

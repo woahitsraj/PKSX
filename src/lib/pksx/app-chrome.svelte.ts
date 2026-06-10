@@ -1,6 +1,6 @@
 import type { SaveSummary } from '$lib/engine';
 
-export type AppChromeRoute = 'boxes' | 'saves';
+export type AppChromeRoute = 'boxes' | 'save-file' | 'saves';
 
 export const appChrome = $state({
 	route: 'boxes' as AppChromeRoute,
