@@ -5,16 +5,18 @@ import type {
 	CreateBackupInput,
 	ImportSaveInput,
 	LocalLibraryStorage,
+	StoredPokemonStorage,
 	PutWorkspaceInput,
 	SaveFileId,
 	StoredSaveFile,
 	StoredWorkspace
 } from './types';
 
-const databaseVersion = 3;
+const databaseVersion = 4;
 const saveFilesStore = 'saveFiles';
 const saveBytesStore = 'saveBytes';
 const workspacesStore = 'workspaces';
+const pokemonStorageStore = 'pokemonStorage';
 const backupsStore = 'backups';
 const backupBytesStore = 'backupBytes';
 const appStateStore = 'appState';
@@ -32,6 +34,7 @@ type BackupBytesRecord = {
 };
 
 type WorkspaceRecord = StoredWorkspace;
+type PokemonStorageRecord = StoredPokemonStorage;
 
 type AppStateRecord = {
 	key: string;
@@ -185,6 +188,37 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 		} finally {
 			database.close();
 		}
+	}
+
+	async getPokemonStorage(): Promise<StoredPokemonStorage | null> {
+		const database = await openLocalLibraryDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction(pokemonStorageStore, 'readonly');
+			const record = await requestToPromise<PokemonStorageRecord | undefined>(
+				transaction.objectStore(pokemonStorageStore).get('pokemon-storage')
+			);
+			await transactionDone(transaction);
+			return record ? clonePokemonStorage(record) : null;
+		} finally {
+			database.close();
+		}
+	}
+
+	async putPokemonStorage(storage: StoredPokemonStorage): Promise<StoredPokemonStorage> {
+		const record: StoredPokemonStorage = {
+			...clonePokemonStorage(storage),
+			updatedAt: this.#now()
+		};
+		const database = await openLocalLibraryDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction(pokemonStorageStore, 'readwrite');
+			transaction.objectStore(pokemonStorageStore).put(record satisfies PokemonStorageRecord);
+			await transactionDone(transaction);
+		} finally {
+			database.close();
+		}
+
+		return clonePokemonStorage(record);
 	}
 
 	async getActiveSaveFileId(): Promise<SaveFileId | null> {
@@ -387,6 +421,10 @@ function migrateDatabase(database: IDBDatabase): void {
 		database.createObjectStore(workspacesStore, { keyPath: 'saveFileId' });
 	}
 
+	if (!database.objectStoreNames.contains(pokemonStorageStore)) {
+		database.createObjectStore(pokemonStorageStore, { keyPath: 'id' });
+	}
+
 	if (!database.objectStoreNames.contains(backupsStore)) {
 		const store = database.createObjectStore(backupsStore, { keyPath: 'id' });
 		store.createIndex(backupsBySaveFileIdIndex, 'saveFileId', { unique: false });
@@ -399,6 +437,27 @@ function migrateDatabase(database: IDBDatabase): void {
 	if (!database.objectStoreNames.contains(appStateStore)) {
 		database.createObjectStore(appStateStore, { keyPath: 'key' });
 	}
+}
+
+function clonePokemonStorage(storage: StoredPokemonStorage): StoredPokemonStorage {
+	return {
+		...storage,
+		boxes: storage.boxes.map((box) => ({
+			...box,
+			slots: box.slots.map((slot) => ({
+				...slot,
+				pokemon: slot.pokemon
+					? {
+							...slot.pokemon,
+							spriteIdentity: slot.pokemon.spriteIdentity
+								? { ...slot.pokemon.spriteIdentity }
+								: null,
+							provenance: { ...slot.pokemon.provenance }
+						}
+					: null
+			}))
+		}))
+	};
 }
 
 function requestToPromise<T>(request: IDBRequest): Promise<T> {

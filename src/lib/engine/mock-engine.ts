@@ -11,6 +11,7 @@ import type {
 	SaveWorkspace,
 	SlotOperation,
 	SlotOperationResult,
+	StoredPokemonImportResult,
 	SerializedSave
 } from './types';
 
@@ -184,6 +185,16 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					operation.nickname !== undefined ||
 					operation.level !== undefined ||
 					operation.experience !== undefined,
+				workspace: {
+					summary: { ...mockSaveSummary, fileName },
+					partySlots: mockPartySlots,
+					boxSlots: activeBox === 0 ? mockBoxSlots : []
+				}
+			}),
+		importStoredPokemon: async (bytes, fileName, _operation, activeBox) =>
+			success<StoredPokemonImportResult>({
+				bytes: copyBytes(bytes),
+				mutated: true,
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,

@@ -4,16 +4,22 @@
 	interface Props {
 		boxes: BoxNavItem[];
 		boxSlotCount: number;
+		sourceLabel: string;
+		sourceKind: 'save-file' | 'pokemon-storage';
 		onSelectBox: (index: number) => void;
 	}
 
-	let { boxes, boxSlotCount, onSelectBox }: Props = $props();
+	let { boxes, boxSlotCount, sourceLabel, sourceKind, onSelectBox }: Props = $props();
 </script>
 
 <nav class="box-sidebar" aria-label="Boxes">
 	<div class="sidebar-heading">
 		<span>Boxes · {boxes.length}</span>
 		<span aria-hidden="true">+</span>
+	</div>
+	<div class="sidebar-source">
+		<span>{sourceKind === 'pokemon-storage' ? 'APP' : 'SAVE'}</span>
+		<strong>{sourceLabel}</strong>
 	</div>
 	<div class="box-list">
 		{#each boxes as box (box.index)}
@@ -63,6 +69,34 @@
 			monospace;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
+	}
+
+	.sidebar-source {
+		min-width: 0;
+		display: grid;
+		gap: 3px;
+		margin: 0 0 8px;
+		padding: 8px;
+		border-radius: var(--pksx-radius-sm);
+		background: var(--paper-deep);
+		box-shadow: var(--shadow-sm);
+	}
+
+	.sidebar-source span {
+		color: var(--ink-mute);
+		font:
+			750 0.58rem var(--pksx-font-mono),
+			monospace;
+		text-transform: uppercase;
+		letter-spacing: 0.12em;
+	}
+
+	.sidebar-source strong {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.78rem;
+		line-height: 1.15;
 	}
 
 	.box-list {

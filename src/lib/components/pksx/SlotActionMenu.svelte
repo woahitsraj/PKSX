@@ -25,6 +25,8 @@
 		align?: Align;
 		vertical?: VerticalAlign;
 		mobileTop?: number | null;
+		viewportTop?: number | null;
+		viewportLeft?: number | null;
 		activeIndex: number;
 		onFocusCommand: (index: number) => void;
 		onSelectCommand: (command: SlotActionCommandKey) => void;
@@ -37,6 +39,8 @@
 		align = 'center',
 		vertical = 'top',
 		mobileTop = null,
+		viewportTop = null,
+		viewportLeft = null,
 		activeIndex,
 		onFocusCommand,
 		onSelectCommand,
@@ -122,12 +126,15 @@
 		'slot-context',
 		align === 'start' && 'align-start',
 		align === 'end' && 'align-end',
-		vertical === 'bottom' && 'vertical-bottom'
+		vertical === 'bottom' && 'vertical-bottom',
+		viewportTop !== null && viewportLeft !== null && 'viewport-anchored'
 	]}
 	role="dialog"
 	aria-label="Slot actions"
 	tabindex="0"
 	style:--mobile-surface-top={mobileTop === null ? undefined : `${mobileTop}px`}
+	style:--viewport-surface-top={viewportTop === null ? undefined : `${viewportTop}px`}
+	style:--viewport-surface-left={viewportLeft === null ? undefined : `${viewportLeft}px`}
 >
 	<div class="slot-context-header">
 		<p class="slot-context-kicker">{occupied ? 'View' : 'Slot Action'}</p>
@@ -200,6 +207,15 @@
 	.slot-context.vertical-bottom {
 		top: auto;
 		bottom: 0;
+	}
+
+	.slot-context.viewport-anchored {
+		position: fixed;
+		z-index: 500;
+		top: var(--viewport-surface-top);
+		left: var(--viewport-surface-left);
+		right: auto;
+		transform: none;
 	}
 
 	.slot-context-header {

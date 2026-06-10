@@ -248,6 +248,59 @@ public static partial class PkhexEngineExports
     }
 
     [JSExport]
+    public static string ImportStoredPokemonJson(byte[] bytes, string? fileName, string importJson)
+    {
+        try
+        {
+            var save = SaveUtil.GetSaveFile(bytes, fileName);
+
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var request = System.Text.Json.JsonSerializer.Deserialize(
+                importJson,
+                EngineJsonContext.Default.StoredPokemonImportRequest);
+
+            if (request is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("invalid-pokemon-import", "Pokemon import payload is missing."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var mutation = ImportStoredPokemon(save, request);
+            if (!mutation.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(mutation.Code, mutation.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var serialized = save.Write(BinaryExportSetting.None).ToArray();
+            var activeBox = ClampActiveBox(request.ActiveBox, save);
+            var workspace = CreateWorkspace(save, fileName, activeBox);
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(new StoredPokemonImportResult(
+                    Convert.ToBase64String(serialized),
+                    serialized.Length,
+                    mutation.Mutated,
+                    workspace)),
+                EngineJsonContext.Default.EngineResultStoredPokemonImportResult);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
     public static string CheckSlotLegalityJson(byte[] bytes, string? fileName, string sourceJson)
     {
         try
@@ -415,6 +468,42 @@ public static partial class PkhexEngineExports
             source.Set(save, pokemon);
 
         return SlotMutationResult.Success(mutated);
+    }
+
+    private static SlotMutationResult ImportStoredPokemon(SaveFile save, StoredPokemonImportRequest request)
+    {
+        var destinationResult = SlotRef.From(save, request.Destination);
+        if (!destinationResult.Ok)
+            return SlotMutationResult.Fail(destinationResult.Code, destinationResult.Message);
+
+        var destination = destinationResult.Value;
+        if (destination.Get(save).Species != 0)
+            return SlotMutationResult.Fail("occupied-destination-slot", "Moving from Pokemon Storage needs an empty destination Slot.");
+
+        PKM? pokemon;
+        try
+        {
+            pokemon = EntityFormat.GetFromBytes(Convert.FromBase64String(request.EntityBytesBase64), save.Context);
+        }
+        catch (Exception ex)
+        {
+            return SlotMutationResult.Fail("invalid-stored-pokemon", ex.Message);
+        }
+
+        if (pokemon is null || pokemon.Species == 0)
+            return SlotMutationResult.Fail("invalid-stored-pokemon", "Pokemon Storage entry is missing entity data.");
+
+        var target = save.BlankPKM;
+        if (pokemon.Format != target.Format)
+        {
+            if (!EntityConverter.TryMakePKMCompatible(pokemon, target, out var result, out var converted))
+                return SlotMutationResult.Fail("incompatible-stored-pokemon", result.GetDisplayString(pokemon, target.GetType()));
+
+            pokemon = converted;
+        }
+
+        destination.Set(save, pokemon);
+        return SlotMutationResult.Success(true);
     }
 
     private static SlotMutationResult ApplyMove(SaveFile save, SlotRef source, SaveSlotRef? destinationRef)

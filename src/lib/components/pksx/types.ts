@@ -21,6 +21,7 @@ export type SlotView = {
 	moves?: SlotMoveView[];
 	originalTrainer?: string;
 	metLabel?: string;
+	entityBytesBase64?: string | null;
 };
 
 export type SlotTypeView = {

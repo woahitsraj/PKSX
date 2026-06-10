@@ -39,6 +39,7 @@ const detailsCache = new Map<SaveFileId, SaveDetailsCacheEntry>();
 
 let engine: EngineApi | null = null;
 let librarySnapshot: SaveLibrarySnapshot | null = null;
+let librarySnapshotSeeded = false;
 let activeWorkspace: WorkspaceState | null = null;
 let activeWorkspaceBox = 0;
 
@@ -53,6 +54,10 @@ export function getPkhexEngine() {
 
 export function getCachedSaveLibrarySnapshot() {
 	return librarySnapshot;
+}
+
+export function isCachedSaveLibrarySnapshotSeeded() {
+	return librarySnapshot !== null && librarySnapshotSeeded;
 }
 
 export async function getSaveLibrarySnapshot(options: { force?: boolean } = {}) {
@@ -86,12 +91,14 @@ export async function getSaveLibrarySnapshot(options: { force?: boolean } = {}) 
 		backupsBySaveFileId: Object.fromEntries(backupEntries),
 		detailsBySaveFileId: Object.fromEntries(detailEntries)
 	};
+	librarySnapshotSeeded = false;
 
 	return librarySnapshot;
 }
 
 export function invalidateSaveLibraryCache() {
 	librarySnapshot = null;
+	librarySnapshotSeeded = false;
 }
 
 export function getCachedActiveWorkspace() {
@@ -105,6 +112,15 @@ export function getCachedActiveWorkspaceBox() {
 export function setCachedActiveWorkspace(workspace: WorkspaceState | null, box = 0) {
 	activeWorkspace = workspace;
 	activeWorkspaceBox = box;
+	if (workspace) {
+		detailsCache.set(workspace.file.id, {
+			fingerprint: createSaveFileFingerprint(workspace.file),
+			details: createSaveCardDetailsFromWorkspace(workspace)
+		});
+	}
+	if (workspace && librarySnapshot) {
+		librarySnapshot = mergeWorkspaceIntoSnapshot(librarySnapshot, workspace);
+	}
 }
 
 export function invalidateActiveWorkspaceCache(saveFileId?: SaveFileId) {
@@ -112,6 +128,45 @@ export function invalidateActiveWorkspaceCache(saveFileId?: SaveFileId) {
 		activeWorkspace = null;
 		activeWorkspaceBox = 0;
 	}
+}
+
+export function seedSaveLibrarySnapshotFromActiveWorkspace(
+	saveFiles: StoredSaveFile[],
+	options: { backupsBySaveFileId?: Record<SaveFileId, BackupMetadata[]> } = {}
+) {
+	const workspace = activeWorkspace;
+	if (!workspace) {
+		return null;
+	}
+
+	const details = createSaveCardDetailsFromWorkspace(workspace);
+	const nextSaveFiles = ensureSaveFileIncluded(saveFiles, workspace.file);
+	const snapshot: SaveLibrarySnapshot = {
+		activeSaveFileId: workspace.file.id,
+		saveFiles: nextSaveFiles,
+		backupsBySaveFileId: Object.fromEntries(
+			nextSaveFiles.map((saveFile) => [
+				saveFile.id,
+				options.backupsBySaveFileId?.[saveFile.id] ?? []
+			])
+		),
+		detailsBySaveFileId: Object.fromEntries(
+			nextSaveFiles.map((saveFile) => [
+				saveFile.id,
+				saveFile.id === workspace.file.id
+					? details
+					: (detailsCache.get(saveFile.id)?.details ?? null)
+			])
+		)
+	};
+
+	librarySnapshot = snapshot;
+	librarySnapshotSeeded = true;
+	detailsCache.set(workspace.file.id, {
+		fingerprint: createSaveFileFingerprint(workspace.file),
+		details
+	});
+	return snapshot;
 }
 
 export async function loadActiveWorkspaceFromLibrary() {
@@ -173,6 +228,40 @@ async function getSaveCardDetails(saveFile: StoredSaveFile) {
 	const details = await loadSaveCardDetails(saveFile);
 	detailsCache.set(saveFile.id, { fingerprint, details });
 	return details;
+}
+
+function createSaveCardDetailsFromWorkspace(workspace: WorkspaceState): SaveCardDetails {
+	return {
+		summary: workspace.workspace.summary,
+		partySlots: workspace.workspace.partySlots,
+		creatureCount: workspace.workspace.boxSlots.filter((slot) => !slot.isEmpty).length
+	};
+}
+
+function mergeWorkspaceIntoSnapshot(
+	snapshot: SaveLibrarySnapshot,
+	workspace: WorkspaceState
+): SaveLibrarySnapshot {
+	const saveFiles = ensureSaveFileIncluded(snapshot.saveFiles, workspace.file);
+
+	return {
+		activeSaveFileId: workspace.file.id,
+		saveFiles,
+		backupsBySaveFileId: {
+			...Object.fromEntries(saveFiles.map((saveFile) => [saveFile.id, []])),
+			...snapshot.backupsBySaveFileId
+		},
+		detailsBySaveFileId: {
+			...Object.fromEntries(saveFiles.map((saveFile) => [saveFile.id, null])),
+			...snapshot.detailsBySaveFileId,
+			[workspace.file.id]: createSaveCardDetailsFromWorkspace(workspace)
+		}
+	};
+}
+
+function ensureSaveFileIncluded(saveFiles: StoredSaveFile[], saveFile: StoredSaveFile) {
+	const existing = saveFiles.some((candidate) => candidate.id === saveFile.id);
+	return existing ? saveFiles : [saveFile, ...saveFiles];
 }
 
 async function loadSaveCardDetails(saveFile: StoredSaveFile): Promise<SaveCardDetails | null> {

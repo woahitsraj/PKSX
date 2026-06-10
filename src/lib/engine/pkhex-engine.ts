@@ -11,6 +11,7 @@ import type {
 	SaveWorkspace,
 	SlotOperation,
 	SlotOperationResult,
+	StoredPokemonImportResult,
 	SerializedSave,
 	SaveSummary
 } from './types';
@@ -49,6 +50,11 @@ type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		operationJson: string
 	): string;
+	ImportStoredPokemonJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		importJson: string
+	): string;
 	CheckSlotLegalityJson(
 		bytes: Uint8Array,
 		fileName: string | undefined,
@@ -65,6 +71,9 @@ const knownEngineErrorCodes = new Set<EngineErrorCode>([
 	'unsupported-slot-operation',
 	'invalid-pokemon-edit',
 	'unsupported-pokemon-edit',
+	'invalid-pokemon-import',
+	'invalid-stored-pokemon',
+	'incompatible-stored-pokemon',
 	'engine-unavailable',
 	'invalid-engine-response',
 	'invalid-worker-message',
@@ -119,6 +128,19 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 					)
 				)
 			),
+		importStoredPokemon: async (bytes, fileName, operation, activeBox) =>
+			decodeMutationResult(
+				parseEngineResult<RawStoredPokemonImportResult>(
+					engine.ImportStoredPokemonJson(
+						bytes,
+						fileName,
+						JSON.stringify({
+							...operation,
+							activeBox
+						} satisfies RawStoredPokemonImportRequest)
+					)
+				)
+			),
 		checkSlotLegality: async (bytes, fileName, source) =>
 			parseEngineResult<LegalityReport>(
 				engine.CheckSlotLegalityJson(bytes, fileName, JSON.stringify(source))
@@ -128,6 +150,11 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 
 type RawSlotOperationRequest = SlotOperation & { activeBox: number };
 type RawPokemonEditOperationRequest = PokemonEditOperation & { activeBox: number };
+type RawStoredPokemonImportRequest = {
+	entityBytesBase64: string;
+	destination: import('./types').SaveSlotRef;
+	activeBox: number;
+};
 
 type SaveSummaryDefaultedFields = 'trainerId' | 'playTime' | 'playedHours' | 'playedMinutes';
 type RawSaveSummary = Omit<SaveSummary, SaveSummaryDefaultedFields> &
@@ -139,6 +166,11 @@ type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes' | 'workspace'> &
 	workspace: RawSaveWorkspace;
 };
 type RawPokemonEditOperationResult = Omit<PokemonEditOperationResult, 'bytes' | 'workspace'> & {
+	bytesBase64: string;
+	byteLength: number;
+	workspace: RawSaveWorkspace;
+};
+type RawStoredPokemonImportResult = Omit<StoredPokemonImportResult, 'bytes' | 'workspace'> & {
 	bytesBase64: string;
 	byteLength: number;
 	workspace: RawSaveWorkspace;

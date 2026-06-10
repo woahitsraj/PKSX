@@ -74,7 +74,8 @@ public sealed record PartySlotSummary(
     List<SlotMoveSummary> Moves,
     string? OriginalTrainer,
     string? MetLabel,
-    SpriteIdentity SpriteIdentity)
+    SpriteIdentity SpriteIdentity,
+    string? EntityBytesBase64)
 {
     public static PartySlotSummary From(PKM pokemon, int slot) =>
         new(
@@ -97,7 +98,8 @@ public sealed record PartySlotSummary(
             SlotDetailProjection.Moves(pokemon),
             SlotDetailProjection.OriginalTrainer(pokemon),
             SlotDetailProjection.MetLabel(pokemon),
-            SpriteIdentity.From(pokemon));
+            SpriteIdentity.From(pokemon),
+            SlotDetailProjection.EntityBytesBase64(pokemon));
 }
 
 public sealed record BoxSlotSummary(
@@ -121,7 +123,8 @@ public sealed record BoxSlotSummary(
     List<SlotMoveSummary> Moves,
     string? OriginalTrainer,
     string? MetLabel,
-    SpriteIdentity SpriteIdentity)
+    SpriteIdentity SpriteIdentity,
+    string? EntityBytesBase64)
 {
     public static BoxSlotSummary From(PKM pokemon, int box, int slot) =>
         new(
@@ -145,7 +148,8 @@ public sealed record BoxSlotSummary(
             SlotDetailProjection.Moves(pokemon),
             SlotDetailProjection.OriginalTrainer(pokemon),
             SlotDetailProjection.MetLabel(pokemon),
-            SpriteIdentity.From(pokemon));
+            SpriteIdentity.From(pokemon),
+            SlotDetailProjection.EntityBytesBase64(pokemon));
 }
 
 public sealed record SpriteIdentity(
@@ -241,6 +245,17 @@ public sealed record SlotOperationRequest(
     int ActiveBox);
 
 public sealed record SlotOperationResult(
+    string BytesBase64,
+    int ByteLength,
+    bool Mutated,
+    SaveWorkspace Workspace);
+
+public sealed record StoredPokemonImportRequest(
+    string EntityBytesBase64,
+    SaveSlotRef Destination,
+    int ActiveBox);
+
+public sealed record StoredPokemonImportResult(
     string BytesBase64,
     int ByteLength,
     bool Mutated,
@@ -375,6 +390,14 @@ internal static class SlotDetailProjection
 
     public static string? MetLabel(PKM pokemon) =>
         pokemon.Species == 0 || pokemon.MetLevel <= 0 ? null : $"Lv. {pokemon.MetLevel}";
+
+    public static string? EntityBytesBase64(PKM pokemon)
+    {
+        if (pokemon.Species == 0)
+            return null;
+
+        return Convert.ToBase64String(pokemon.Data.ToArray());
+    }
 
     private static string? TypeName(int type) => NameAt(GameInfo.Strings.Types, type);
 

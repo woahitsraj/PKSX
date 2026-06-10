@@ -142,7 +142,6 @@
 		</div>
 		<span class="save-chip-status" aria-hidden="true">▾</span>
 	</div>
-	<span class="online-indicator" aria-label="Offline mode">● OFFLINE</span>
 	<button
 		id="top-control-4"
 		class="theme-toggle"
@@ -159,7 +158,7 @@
 <style>
 	.top-bar {
 		display: grid;
-		grid-template-columns: auto auto minmax(180px, 1fr) auto auto auto auto;
+		grid-template-columns: auto auto minmax(180px, 1fr) auto auto auto;
 		align-items: center;
 		gap: 10px;
 		padding: 10px;
@@ -246,8 +245,7 @@
 	.search-shell,
 	.save-chip,
 	.save-actions button,
-	.theme-toggle,
-	.online-indicator {
+	.theme-toggle {
 		border: 0;
 		border-radius: var(--pksx-radius-md);
 		background: var(--paper-hi);
@@ -365,16 +363,6 @@
 		font-size: 0.7rem;
 	}
 
-	.online-indicator {
-		padding: 6px 10px;
-		color: var(--ok);
-		font:
-			700 0.62rem var(--pksx-font-mono),
-			monospace;
-		letter-spacing: 0.06em;
-		white-space: nowrap;
-	}
-
 	.theme-toggle {
 		width: 34px;
 		padding: 0;
@@ -400,8 +388,7 @@
 		}
 
 		.section-pills,
-		.save-chip,
-		.online-indicator {
+		.save-chip {
 			display: none;
 		}
 	}

@@ -8,6 +8,7 @@ import type {
 	SaveSummary,
 	SaveWorkspace,
 	SlotOperationResult,
+	StoredPokemonImportResult,
 	SerializedSave
 } from './types';
 import {
@@ -17,6 +18,7 @@ import {
 	parseEngineWorkerRequest,
 	type EngineWorkerApplySlotOperationRequest,
 	type EngineWorkerApplyPokemonEditOperationRequest,
+	type EngineWorkerImportStoredPokemonRequest,
 	type EngineWorkerCheckSlotLegalityRequest,
 	type EngineWorkerLoadSaveWorkspaceRequest,
 	type EngineWorkerListBoxSlotsRequest,
@@ -43,6 +45,11 @@ export type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		operationJson: string
 	): string;
+	ImportStoredPokemonJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		importJson: string
+	): string;
 	CheckSlotLegalityJson(
 		bytes: Uint8Array,
 		fileName: string | undefined,
@@ -55,6 +62,10 @@ type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes'> & {
 	byteLength: number;
 };
 type RawPokemonEditOperationResult = Omit<PokemonEditOperationResult, 'bytes'> & {
+	bytesBase64: string;
+	byteLength: number;
+};
+type RawStoredPokemonImportResult = Omit<StoredPokemonImportResult, 'bytes'> & {
 	bytesBase64: string;
 	byteLength: number;
 };
@@ -166,6 +177,9 @@ export function createPkhexEngineWorkerRuntime({
 					applyPokemonEditOperation(engine, request)
 				);
 				return;
+			case 'importStoredPokemon':
+				postStoredPokemonImportResponse(postMessage, request, importStoredPokemon(engine, request));
+				return;
 			case 'checkSlotLegality':
 				postMessage(createEngineWorkerResponse(request, checkSlotLegality(engine, request)));
 				return;
@@ -267,6 +281,22 @@ function applyPokemonEditOperation(
 	);
 }
 
+function importStoredPokemon(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerImportStoredPokemonRequest
+): EngineResult<RawStoredPokemonImportResult> {
+	return parseEngineResult<RawStoredPokemonImportResult>(
+		engine.ImportStoredPokemonJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			JSON.stringify({
+				...request.payload.operation,
+				activeBox: request.payload.activeBox
+			})
+		)
+	);
+}
+
 function checkSlotLegality(
 	engine: DotnetPkhexEngineExports,
 	request: EngineWorkerCheckSlotLegalityRequest
@@ -328,6 +358,30 @@ function postPokemonEditOperationResponse(
 	postMessage(response, [bytes]);
 }
 
+function postStoredPokemonImportResponse(
+	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
+	request: EngineWorkerImportStoredPokemonRequest,
+	result: EngineResult<RawStoredPokemonImportResult>
+) {
+	if (!result.ok) {
+		postMessage(createEngineWorkerResponse(request, result));
+		return;
+	}
+
+	const bytes = base64ToArrayBuffer(result.value.bytesBase64, result.value.byteLength);
+	const response = createEngineWorkerResponse(request, {
+		ok: true,
+		value: {
+			bytes,
+			mutated: result.value.mutated,
+			workspace: result.value.workspace
+		},
+		error: null
+	});
+
+	postMessage(response, [bytes]);
+}
+
 function unavailableResult(request: EngineWorkerRequest) {
 	const result = {
 		ok: false,
@@ -353,6 +407,8 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<SlotOperationResult>;
 		case 'applyPokemonEditOperation':
 			return result satisfies EngineResult<PokemonEditOperationResult>;
+		case 'importStoredPokemon':
+			return result satisfies EngineResult<StoredPokemonImportResult>;
 		case 'checkSlotLegality':
 			return result satisfies EngineResult<LegalityReport>;
 	}
