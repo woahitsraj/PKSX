@@ -152,13 +152,13 @@ describe('box navigation', () => {
 		expect(focusPaneBoundarySlot(24, 'left')).toEqual(focusBoxSlot(29));
 	});
 
-	it('reaches all rendered top controls and mobile tabs', () => {
+	it('reaches all rendered top controls and exits mobile tabs with up', () => {
 		expect.assertions(4);
 
 		expect(move({ focus: focusTopControl(4) }, 'right').focus).toEqual(focusTopControl(5));
 		expect(move({ focus: focusTopControl(7) }, 'right').focus).toEqual(focusTopControl(7));
-		expect(move({ focus: focusMobileTab(1) }, 'right').focus).toEqual(focusMobileTab(2));
-		expect(move({ focus: focusMobileTab(2) }, 'right').focus).toEqual(focusMobileTab(2));
+		expect(move({ focus: focusMobileTab(1) }, 'right').focus).toEqual(focusMobileTab(1));
+		expect(move({ focus: focusMobileTab(1) }, 'up').focus).toEqual(focusBoxSlot(25));
 	});
 
 	it('keeps desktop focus on the last box row when mobile tabs are unavailable', () => {

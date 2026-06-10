@@ -393,7 +393,11 @@ test('keyboard navigation reaches top controls and mobile tabs', async ({ page }
 
 	await expect(page.locator('#mobile-tab-1')).toBeFocused();
 	await page.keyboard.press('ArrowLeft');
-	await expect(page.locator('#mobile-tab-0')).toBeFocused();
+	await expect(page.locator('#mobile-tab-1')).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#mobile-tab-1')).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#box-0-slot-25')).toBeFocused();
 });
 
 test('mobile slot actions stay inside the viewport without adding page overflow', async ({
