@@ -1,4 +1,9 @@
-import type { PokemonExperienceProjection, SpriteIdentity } from '$lib/engine';
+import type {
+	PokemonExperienceProjection,
+	PokemonMoveSetEditConstraints,
+	PokemonStatEditConstraints,
+	SpriteIdentity
+} from '$lib/engine';
 
 export type SlotView = {
 	slot: number;
@@ -19,6 +24,8 @@ export type SlotView = {
 	types?: SlotTypeView[];
 	stats?: SlotStatView[];
 	moves?: SlotMoveView[];
+	statEditConstraints?: PokemonStatEditConstraints;
+	moveSetEditConstraints?: PokemonMoveSetEditConstraints;
 	originalTrainer?: string;
 	metLabel?: string;
 	entityBytesBase64?: string | null;
@@ -35,15 +42,20 @@ export type SlotStatView = {
 	label: string;
 	value: number;
 	ev?: number | null;
+	iv?: number | null;
 	max: number;
 };
 
 export type SlotMoveView = {
+	slot: number;
+	id: number;
 	name: string;
 	type: string;
 	hue: number;
 	chroma?: number;
 	pp?: number | null;
+	maxPp?: number | null;
+	ppUps?: number | null;
 };
 
 export type MobileTab = {

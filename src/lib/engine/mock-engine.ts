@@ -53,17 +53,55 @@ const mockPikachuDetails = {
 	heldItem: 'Light Ball',
 	types: [{ name: 'Electric', hue: 94, chroma: 0.16 }],
 	stats: [
-		{ key: 'HP', label: 'HP', value: 20, ev: null, max: 255 },
-		{ key: 'ATK', label: 'ATK', value: 12, ev: null, max: 255 },
-		{ key: 'DEF', label: 'DEF', value: 10, ev: null, max: 255 },
-		{ key: 'SPA', label: 'SPA', value: 11, ev: null, max: 255 },
-		{ key: 'SPD', label: 'SPD', value: 12, ev: null, max: 255 },
-		{ key: 'SPE', label: 'SPE', value: 18, ev: null, max: 255 }
+		{ key: 'HP', label: 'HP', value: 20, ev: null, iv: 31, max: 255 },
+		{ key: 'ATK', label: 'ATK', value: 12, ev: null, iv: 31, max: 255 },
+		{ key: 'DEF', label: 'DEF', value: 10, ev: null, iv: 31, max: 255 },
+		{ key: 'SPA', label: 'SPA', value: 11, ev: null, iv: 31, max: 255 },
+		{ key: 'SPD', label: 'SPD', value: 12, ev: null, iv: 31, max: 255 },
+		{ key: 'SPE', label: 'SPE', value: 18, ev: null, iv: 31, max: 255 }
 	],
 	moves: [
-		{ name: 'Thunder Shock', type: 'Electric', hue: 94, chroma: 0.16, pp: 30 },
-		{ name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, pp: 40 }
+		{
+			slot: 0,
+			id: 84,
+			name: 'Thunder Shock',
+			type: 'Electric',
+			hue: 94,
+			chroma: 0.16,
+			pp: 30,
+			maxPp: 30,
+			ppUps: 0
+		},
+		{
+			slot: 1,
+			id: 45,
+			name: 'Growl',
+			type: 'Normal',
+			hue: 107,
+			chroma: 0.06,
+			pp: 40,
+			maxPp: 40,
+			ppUps: 0
+		}
 	],
+	statEditConstraints: {
+		supported: true,
+		minIv: 0,
+		maxIv: 31,
+		minEv: 0,
+		maxEv: 255,
+		maxTotalEv: 510
+	},
+	moveSetEditConstraints: {
+		supported: true,
+		maxMoveSlots: 4,
+		availableMoves: [
+			{ id: 0, name: 'Empty', type: 'None', hue: 48, chroma: 0.04, maxPp: 0 },
+			{ id: 84, name: 'Thunder Shock', type: 'Electric', hue: 94, chroma: 0.16, maxPp: 30 },
+			{ id: 45, name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 40 },
+			{ id: 98, name: 'Quick Attack', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 30 }
+		]
+	},
 	originalTrainer: 'PKSX',
 	metLabel: 'Lv. 5',
 	spriteIdentity: {
@@ -86,6 +124,7 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		nickname: 'Pikachu',
 		isEgg: false,
 		isEmpty: false,
+		entityBytesBase64: 'bW9jay1waWthY2h1',
 		...mockPikachuDetails
 	},
 	{
@@ -100,6 +139,7 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		nickname: '',
 		isEgg: false,
 		isEmpty: true,
+		entityBytesBase64: null,
 		spriteIdentity: {
 			speciesId: 0,
 			form: 0,
@@ -109,7 +149,22 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		},
 		types: [],
 		stats: [],
-		moves: []
+		moves: [],
+		statEditConstraints: {
+			supported: false,
+			minIv: 0,
+			maxIv: 0,
+			minEv: 0,
+			maxEv: 0,
+			maxTotalEv: 0,
+			unsupportedReason: 'IV and EV Editing needs an occupied Slot.'
+		},
+		moveSetEditConstraints: {
+			supported: false,
+			maxMoveSlots: 0,
+			availableMoves: [],
+			unsupportedReason: 'Move Set Editing needs an occupied Slot.'
+		}
 	}
 ];
 
@@ -184,13 +239,24 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 				mutated:
 					operation.nickname !== undefined ||
 					operation.level !== undefined ||
-					operation.experience !== undefined,
+					operation.experience !== undefined ||
+					operation.ivs !== undefined ||
+					operation.evs !== undefined ||
+					operation.moves !== undefined,
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,
 					boxSlots: activeBox === 0 ? mockBoxSlots : []
 				}
 			}),
+		applySaveFileEditOperation: async () => ({
+			ok: false,
+			value: null,
+			error: {
+				code: 'unsupported-save-file-edit',
+				message: 'Save File field editing is not available for the mock engine.'
+			}
+		}),
 		importStoredPokemon: async (bytes, fileName, _operation, activeBox) =>
 			success<StoredPokemonImportResult>({
 				bytes: copyBytes(bytes),

@@ -371,7 +371,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('applies Save File Pokemon edits through the browser-wasm bundle', async () => {
-		expect.assertions(14);
+		expect.assertions(22);
 
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
@@ -468,6 +468,63 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			level: 25
 		});
 
+		const statEdited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				ivs: { HP: 31, ATK: 30, DEF: 29, SPA: 28, SPD: 27, SPE: 26 },
+				evs: { HP: 252, ATK: 0, DEF: 0, SPA: 0, SPD: 4, SPE: 252 }
+			},
+			0
+		);
+		expect(statEdited.ok).toBe(true);
+		if (!statEdited.ok) {
+			throw new Error('Expected Pokemon stat edit to succeed.');
+		}
+		expect(statEdited.value.mutated).toBe(true);
+		expect(statEdited.value.workspace.boxSlots[0]?.stats).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ key: 'HP', iv: 31, ev: 252 }),
+				expect.objectContaining({ key: 'SPE', iv: 26, ev: 252 })
+			])
+		);
+		expect(statEdited.value.workspace.boxSlots[0]?.statEditConstraints).toMatchObject({
+			supported: true,
+			maxIv: expect.any(Number),
+			maxEv: expect.any(Number),
+			maxTotalEv: expect.any(Number)
+		});
+
+		const firstMove = edited.value.workspace.boxSlots[0]?.moves[0];
+		if (!firstMove || firstMove.id === 0 || !firstMove.pp) {
+			throw new Error('Expected first move projection to include move id and PP.');
+		}
+		const moveEdited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				moves: [{ slot: 0, move: firstMove.id, pp: firstMove.pp - 1, ppUps: firstMove.ppUps ?? 0 }]
+			},
+			0
+		);
+		expect(moveEdited.ok).toBe(true);
+		if (!moveEdited.ok) {
+			throw new Error('Expected Pokemon Move Set edit to succeed.');
+		}
+		expect(moveEdited.value.mutated).toBe(true);
+		expect(moveEdited.value.workspace.boxSlots[0]?.moves[0]).toMatchObject({
+			id: firstMove.id,
+			pp: firstMove.pp - 1
+		});
+		expect(moveEdited.value.workspace.boxSlots[0]?.moveSetEditConstraints).toMatchObject({
+			supported: true,
+			availableMoves: expect.arrayContaining([
+				expect.objectContaining({ id: firstMove.id, name: firstMove.name })
+			])
+		});
+
 		const emptySource = await engine.applyPokemonEditOperation(
 			copyBytes(fixtureBytes),
 			'011020251345.sav',
@@ -497,6 +554,140 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			error: { code: 'invalid-pokemon-edit' }
 		});
 		expect(fixtureBytes.byteLength).toBe(131088);
+	});
+
+	test('allows Primarina Ice Beam PP edits and explains real post-edit legality failures', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(swordFixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const summary = await engine.summarizeSave(fixtureBytes, 'pokemon-sword-2025-03-24-main.sav');
+		expect(summary.ok, JSON.stringify(summary.error)).toBe(true);
+		if (!summary.ok) {
+			throw new Error('Expected Sword fixture summary to succeed.');
+		}
+
+		let primarina:
+			| {
+					source: { zone: 'party'; slot: number } | { zone: 'box'; box: number; slot: number };
+					moves: NonNullable<
+						Awaited<ReturnType<typeof engine.loadSaveWorkspace>>['value']
+					>['boxSlots'][number]['moves'];
+					moveSetEditConstraints: NonNullable<
+						Awaited<ReturnType<typeof engine.loadSaveWorkspace>>['value']
+					>['boxSlots'][number]['moveSetEditConstraints'];
+			  }
+			| undefined;
+
+		for (let box = 0; box < summary.value.boxCount && !primarina; box += 1) {
+			const workspace = await engine.loadSaveWorkspace(
+				fixtureBytes,
+				'pokemon-sword-2025-03-24-main.sav',
+				box
+			);
+			expect(workspace.ok, JSON.stringify(workspace.error)).toBe(true);
+			if (!workspace.ok) {
+				throw new Error('Expected Sword workspace to load.');
+			}
+
+			const partySlot = workspace.value.partySlots.find((slot) => slot.speciesId === 730);
+			if (partySlot) {
+				primarina = {
+					source: { zone: 'party', slot: partySlot.slot },
+					moves: partySlot.moves,
+					moveSetEditConstraints: partySlot.moveSetEditConstraints
+				};
+				break;
+			}
+
+			const boxSlot = workspace.value.boxSlots.find((slot) => slot.speciesId === 730);
+			if (boxSlot) {
+				primarina = {
+					source: { zone: 'box', box: boxSlot.box, slot: boxSlot.slot },
+					moves: boxSlot.moves,
+					moveSetEditConstraints: boxSlot.moveSetEditConstraints
+				};
+			}
+		}
+
+		expect(primarina, 'Expected Sword fixture to include Primarina.').toBeDefined();
+		if (!primarina) return;
+		const iceBeamSlot = primarina.moves.findIndex((move) => move.id === 58);
+		expect(
+			iceBeamSlot,
+			'Expected Primarina current move set to include Ice Beam.'
+		).toBeGreaterThanOrEqual(0);
+		const iceBeam = primarina.moves[iceBeamSlot];
+		if (!iceBeam) return;
+		const iceBeamPp = iceBeam.pp ?? iceBeam.maxPp ?? 0;
+		const iceBeamMaxPp = iceBeam.maxPp ?? iceBeamPp;
+
+		const moves = Array.from({ length: 4 }, (_, slot) => {
+			const current = primarina.moves[slot];
+			return {
+				slot,
+				move: current?.id ?? 0,
+				pp: current?.pp ?? current?.maxPp ?? 0,
+				ppUps: current?.ppUps ?? 0
+			};
+		});
+		moves[iceBeamSlot] = {
+			slot: iceBeamSlot,
+			move: iceBeam.id,
+			pp: iceBeamPp > 0 ? iceBeamPp - 1 : Math.min(1, iceBeamMaxPp),
+			ppUps: iceBeam.ppUps ?? 0
+		};
+
+		const ppEdited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'pokemon-sword-2025-03-24-main.sav',
+			{ source: primarina.source, moves },
+			0
+		);
+		expect(ppEdited.ok, JSON.stringify(ppEdited.error)).toBe(true);
+		if (!ppEdited.ok) {
+			throw new Error('Expected Primarina Ice Beam PP edit to succeed.');
+		}
+		const updatedPrimarina =
+			primarina.source.zone === 'party'
+				? ppEdited.value.workspace.partySlots[primarina.source.slot]
+				: ppEdited.value.workspace.boxSlots[primarina.source.slot];
+		expect(updatedPrimarina?.moves[iceBeamSlot]).toMatchObject({
+			id: 58,
+			pp: moves[iceBeamSlot]?.pp
+		});
+
+		const illegalMoves = moves.map((move) => ({ ...move }));
+		const illegalSlot = iceBeamSlot === 0 ? 1 : 0;
+		illegalMoves[illegalSlot] = {
+			...illegalMoves[illegalSlot],
+			slot: illegalSlot,
+			move: iceBeam.id,
+			pp: iceBeamMaxPp,
+			ppUps: iceBeam.ppUps ?? 0
+		};
+
+		const edited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'pokemon-sword-2025-03-24-main.sav',
+			{ source: primarina.source, moves: illegalMoves },
+			0
+		);
+		expect(edited).toMatchObject({
+			ok: false,
+			error: { code: 'invalid-pokemon-edit' }
+		});
+		if (edited.ok) {
+			throw new Error('Expected Primarina Ice Beam edit to fail legality validation.');
+		}
+		expect(edited.error.message).toContain(
+			'Move Set edit makes this Pokemon illegal for its current format.'
+		);
+		expect(edited.error.message).not.toBe(
+			'Move Set edit makes this Pokemon illegal for its current format.'
+		);
+		expect(edited.error.message).toContain('Ice Beam');
 	});
 });
 

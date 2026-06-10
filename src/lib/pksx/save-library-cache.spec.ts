@@ -49,6 +49,21 @@ const partySlot: PartySlotSummary = {
 	types: [],
 	stats: [],
 	moves: [],
+	statEditConstraints: {
+		supported: false,
+		minIv: 0,
+		maxIv: 31,
+		minEv: 0,
+		maxEv: 255,
+		maxTotalEv: 510,
+		unsupportedReason: 'Fixture'
+	},
+	moveSetEditConstraints: {
+		supported: false,
+		maxMoveSlots: 4,
+		availableMoves: [],
+		unsupportedReason: 'Fixture'
+	},
 	spriteIdentity: {
 		speciesId: 304,
 		form: 0,

@@ -10,6 +10,7 @@ export const engineWorkerMethodSchema = z.enum([
 	'serializeSave',
 	'applySlotOperation',
 	'applyPokemonEditOperation',
+	'applySaveFileEditOperation',
 	'importStoredPokemon',
 	'checkSlotLegality'
 ]);
@@ -28,6 +29,8 @@ export const engineErrorCodeSchema = z.enum([
 	'invalid-pokemon-import',
 	'invalid-stored-pokemon',
 	'incompatible-stored-pokemon',
+	'invalid-save-file-edit',
+	'unsupported-save-file-edit',
 	'engine-unavailable',
 	'invalid-engine-response',
 	'invalid-worker-message',
@@ -78,15 +81,46 @@ export const slotStatSummarySchema = z.object({
 	label: z.string(),
 	value: z.number(),
 	ev: z.number().nullable().optional(),
+	iv: z.number().nullable().optional(),
 	max: z.number()
 });
 
 export const slotMoveSummarySchema = z.object({
+	slot: z.number().int().default(0),
+	id: z.number().default(0),
 	name: z.string(),
 	type: z.string(),
 	hue: z.number(),
 	chroma: z.number().default(0.09),
-	pp: z.number().nullable().optional()
+	pp: z.number().nullable().optional(),
+	maxPp: z.number().nullable().optional(),
+	ppUps: z.number().nullable().optional()
+});
+
+export const pokemonStatEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	minIv: z.number().default(0),
+	maxIv: z.number().default(31),
+	minEv: z.number().default(0),
+	maxEv: z.number().default(255),
+	maxTotalEv: z.number().default(510),
+	unsupportedReason: z.string().nullable().optional()
+});
+
+export const pokemonMoveOptionSchema = z.object({
+	id: z.number(),
+	name: z.string(),
+	type: z.string(),
+	hue: z.number(),
+	chroma: z.number().default(0.09),
+	maxPp: z.number()
+});
+
+export const pokemonMoveSetEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	maxMoveSlots: z.number().default(4),
+	availableMoves: z.array(pokemonMoveOptionSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
 });
 
 export const displaySexSchema = z.enum(['default', 'male', 'female']);
@@ -128,6 +162,21 @@ const slotSummaryFields = {
 	types: z.array(slotTypeSummarySchema).default([]),
 	stats: z.array(slotStatSummarySchema).default([]),
 	moves: z.array(slotMoveSummarySchema).default([]),
+	statEditConstraints: pokemonStatEditConstraintsSchema.default({
+		supported: false,
+		minIv: 0,
+		maxIv: 31,
+		minEv: 0,
+		maxEv: 255,
+		maxTotalEv: 510,
+		unsupportedReason: 'IV and EV Editing is not available for this Pokemon projection.'
+	}),
+	moveSetEditConstraints: pokemonMoveSetEditConstraintsSchema.default({
+		supported: false,
+		maxMoveSlots: 4,
+		availableMoves: [],
+		unsupportedReason: 'Move Set Editing is not available for this Pokemon projection.'
+	}),
 	originalTrainer: z.string().nullable().optional(),
 	metLabel: z.string().nullable().optional(),
 	spriteIdentity: spriteIdentitySchema.optional(),
@@ -208,10 +257,66 @@ export const pokemonEditOperationSchema = z.object({
 	source: saveSlotRefSchema,
 	nickname: z.string().optional(),
 	level: z.number().int().optional(),
-	experience: z.number().int().optional()
+	experience: z.number().int().optional(),
+	ivs: z
+		.object({
+			HP: z.number().int(),
+			ATK: z.number().int(),
+			DEF: z.number().int(),
+			SPA: z.number().int(),
+			SPD: z.number().int(),
+			SPE: z.number().int()
+		})
+		.optional(),
+	evs: z
+		.object({
+			HP: z.number().int(),
+			ATK: z.number().int(),
+			DEF: z.number().int(),
+			SPA: z.number().int(),
+			SPD: z.number().int(),
+			SPE: z.number().int()
+		})
+		.optional(),
+	moves: z
+		.array(
+			z.object({
+				slot: z.number().int(),
+				move: z.number().int(),
+				pp: z.number().int().optional(),
+				ppUps: z.number().int().optional()
+			})
+		)
+		.optional()
 });
 
 export const pokemonEditOperationResultSchema = z.object({
+	bytes: z.instanceof(ArrayBuffer),
+	mutated: z.boolean(),
+	workspace: saveWorkspaceSchema
+});
+
+export const saveFileEditOperationSchema = z.object({
+	trainerProfile: z
+		.object({
+			trainerName: z.string().optional()
+		})
+		.optional(),
+	money: z.number().int().optional()
+});
+
+export const saveFileEditOperationResultSchema = z.object({
+	bytes: z.instanceof(ArrayBuffer),
+	mutated: z.boolean(),
+	workspace: saveWorkspaceSchema
+});
+
+export const storedPokemonImportOperationSchema = z.object({
+	entityBytesBase64: z.string(),
+	destination: saveSlotRefSchema
+});
+
+export const storedPokemonImportResultSchema = z.object({
 	bytes: z.instanceof(ArrayBuffer),
 	mutated: z.boolean(),
 	workspace: saveWorkspaceSchema
@@ -259,6 +364,14 @@ export const slotOperationResultResultSchema = engineResultSchema(slotOperationR
 
 export const pokemonEditOperationResultResultSchema = engineResultSchema(
 	pokemonEditOperationResultSchema
+);
+
+export const saveFileEditOperationResultResultSchema = engineResultSchema(
+	saveFileEditOperationResultSchema
+);
+
+export const storedPokemonImportResultResultSchema = engineResultSchema(
+	storedPokemonImportResultSchema
 );
 
 export const legalityReportResultSchema = engineResultSchema(legalityReportSchema);
@@ -340,6 +453,18 @@ export const engineWorkerApplyPokemonEditOperationRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerApplySaveFileEditOperationRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('applySaveFileEditOperation'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional(),
+		operation: saveFileEditOperationSchema,
+		activeBox: z.number().int()
+	})
+});
+
 export const engineWorkerImportStoredPokemonRequestSchema = z.object({
 	type: z.literal('request'),
 	id: engineWorkerRequestIdSchema,
@@ -347,10 +472,7 @@ export const engineWorkerImportStoredPokemonRequestSchema = z.object({
 	payload: z.object({
 		bytes: z.instanceof(ArrayBuffer),
 		fileName: z.string().optional(),
-		operation: z.object({
-			entityBytesBase64: z.string(),
-			destination: saveSlotRefSchema
-		}),
+		operation: storedPokemonImportOperationSchema,
 		activeBox: z.number().int()
 	})
 });
@@ -374,6 +496,7 @@ export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerSerializeSaveRequestSchema,
 	engineWorkerApplySlotOperationRequestSchema,
 	engineWorkerApplyPokemonEditOperationRequestSchema,
+	engineWorkerApplySaveFileEditOperationRequestSchema,
 	engineWorkerImportStoredPokemonRequestSchema,
 	engineWorkerCheckSlotLegalityRequestSchema
 ]);
@@ -427,11 +550,18 @@ export const engineWorkerApplyPokemonEditOperationResponseSchema = z.object({
 	result: pokemonEditOperationResultResultSchema
 });
 
+export const engineWorkerApplySaveFileEditOperationResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('applySaveFileEditOperation'),
+	result: saveFileEditOperationResultResultSchema
+});
+
 export const engineWorkerImportStoredPokemonResponseSchema = z.object({
 	type: z.literal('response'),
 	id: engineWorkerRequestIdSchema,
 	method: z.literal('importStoredPokemon'),
-	result: slotOperationResultResultSchema
+	result: storedPokemonImportResultResultSchema
 });
 
 export const engineWorkerCheckSlotLegalityResponseSchema = z.object({
@@ -449,6 +579,7 @@ export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerSerializeSaveResponseSchema,
 	engineWorkerApplySlotOperationResponseSchema,
 	engineWorkerApplyPokemonEditOperationResponseSchema,
+	engineWorkerApplySaveFileEditOperationResponseSchema,
 	engineWorkerImportStoredPokemonResponseSchema,
 	engineWorkerCheckSlotLegalityResponseSchema
 ]);
@@ -509,6 +640,10 @@ export type EngineWorkerApplySlotOperationRequest = z.infer<
 
 export type EngineWorkerApplyPokemonEditOperationRequest = z.infer<
 	typeof engineWorkerApplyPokemonEditOperationRequestSchema
+>;
+
+export type EngineWorkerApplySaveFileEditOperationRequest = z.infer<
+	typeof engineWorkerApplySaveFileEditOperationRequestSchema
 >;
 
 export type EngineWorkerImportStoredPokemonRequest = z.infer<

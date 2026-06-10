@@ -8,6 +8,8 @@ import type {
 	LegalityReport,
 	PokemonEditOperation,
 	PokemonEditOperationResult,
+	SaveFileEditOperation,
+	SaveFileEditOperationResult,
 	SaveWorkspace,
 	SlotOperation,
 	SlotOperationResult,
@@ -50,6 +52,11 @@ type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		operationJson: string
 	): string;
+	ApplySaveFileEditOperationJson?(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operationJson: string
+	): string;
 	ImportStoredPokemonJson(
 		bytes: Uint8Array,
 		fileName: string | undefined,
@@ -74,6 +81,8 @@ const knownEngineErrorCodes = new Set<EngineErrorCode>([
 	'invalid-pokemon-import',
 	'invalid-stored-pokemon',
 	'incompatible-stored-pokemon',
+	'invalid-save-file-edit',
+	'unsupported-save-file-edit',
 	'engine-unavailable',
 	'invalid-engine-response',
 	'invalid-worker-message',
@@ -128,6 +137,27 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 					)
 				)
 			),
+		applySaveFileEditOperation: async (bytes, fileName, operation, activeBox) => {
+			if (!engine.ApplySaveFileEditOperationJson) {
+				return engineFailure(
+					'unsupported-save-file-edit',
+					'Save File field editing is not available in this PKHeX Engine build.'
+				);
+			}
+
+			return decodeMutationResult(
+				parseEngineResult<RawSaveFileEditOperationResult>(
+					engine.ApplySaveFileEditOperationJson(
+						bytes,
+						fileName,
+						JSON.stringify({
+							...operation,
+							activeBox
+						} satisfies RawSaveFileEditOperationRequest)
+					)
+				)
+			);
+		},
 		importStoredPokemon: async (bytes, fileName, operation, activeBox) =>
 			decodeMutationResult(
 				parseEngineResult<RawStoredPokemonImportResult>(
@@ -150,6 +180,7 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 
 type RawSlotOperationRequest = SlotOperation & { activeBox: number };
 type RawPokemonEditOperationRequest = PokemonEditOperation & { activeBox: number };
+type RawSaveFileEditOperationRequest = SaveFileEditOperation & { activeBox: number };
 type RawStoredPokemonImportRequest = {
 	entityBytesBase64: string;
 	destination: import('./types').SaveSlotRef;
@@ -166,6 +197,11 @@ type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes' | 'workspace'> &
 	workspace: RawSaveWorkspace;
 };
 type RawPokemonEditOperationResult = Omit<PokemonEditOperationResult, 'bytes' | 'workspace'> & {
+	bytesBase64: string;
+	byteLength: number;
+	workspace: RawSaveWorkspace;
+};
+type RawSaveFileEditOperationResult = Omit<SaveFileEditOperationResult, 'bytes' | 'workspace'> & {
 	bytesBase64: string;
 	byteLength: number;
 	workspace: RawSaveWorkspace;

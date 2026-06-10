@@ -84,7 +84,7 @@
 		return [
 			{
 				key: 'pokemon-action',
-				label: 'View',
+				label: 'Edit',
 				availability: 'available'
 			},
 			{
@@ -137,7 +137,7 @@
 	style:--viewport-surface-left={viewportLeft === null ? undefined : `${viewportLeft}px`}
 >
 	<div class="slot-context-header">
-		<p class="slot-context-kicker">{occupied ? 'View' : 'Slot Action'}</p>
+		<p class="slot-context-kicker">{occupied ? 'Edit' : 'Slot Action'}</p>
 		<p class="slot-context-location">{location}</p>
 	</div>
 

@@ -157,7 +157,7 @@
 				<span>Move Set</span>
 			</div>
 			<div class="move-grid">
-				{#each focusedSlot.moves ?? [] as move (move.name)}
+				{#each focusedSlot.moves ?? [] as move, index (`${index}-${move.id}-${move.name}`)}
 					<div
 						class="move-chip"
 						style={`--type-hue: ${move.hue}; --type-chroma: ${move.chroma ?? 0.09}`}

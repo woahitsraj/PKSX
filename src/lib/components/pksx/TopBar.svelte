@@ -14,6 +14,7 @@
 		focusIndex: number | null;
 		onFocusControl: (index: number) => void;
 		onOpenBoxes: () => void;
+		onOpenSaveFile: () => void;
 		onOpenSaves: () => void;
 		onImport: (file: File) => void;
 		onExport: () => void;
@@ -33,6 +34,7 @@
 		focusIndex,
 		onFocusControl,
 		onOpenBoxes,
+		onOpenSaveFile,
 		onOpenSaves,
 		onImport,
 		onExport,
@@ -74,21 +76,40 @@
 					onfocus={() => onFocusControl(0)}
 					onclick={onOpenBoxes}>{pill}</button
 				>
-			{:else if pill === 'Saves'}
+			{:else if pill === 'Save File'}
 				<button
 					id="top-control-1"
 					type="button"
 					class:active={activeSection === pill}
 					class:controller-focused={focusIndex === 1}
 					aria-current={activeSection === pill ? 'page' : undefined}
-					aria-disabled={busy}
 					onfocus={() => onFocusControl(1)}
+					onclick={onOpenSaveFile}>{pill}</button
+				>
+			{:else if pill === 'Saves'}
+				<button
+					id="top-control-4"
+					type="button"
+					class:active={activeSection === pill}
+					class:controller-focused={focusIndex === 4}
+					aria-current={activeSection === pill ? 'page' : undefined}
+					aria-disabled={busy}
+					onfocus={() => onFocusControl(4)}
 					onclick={() => {
 						if (!busy) onOpenSaves();
 					}}>{pill}</button
 				>
 			{:else}
-				<span class:active={activeSection === pill}>{pill}</span>
+				<button
+					id={pill === 'Dex' ? 'top-control-2' : 'top-control-3'}
+					type="button"
+					class:active={activeSection === pill}
+					class:controller-focused={focusIndex === (pill === 'Dex' ? 2 : 3)}
+					aria-disabled="true"
+					onfocus={() => onFocusControl(pill === 'Dex' ? 2 : 3)}
+				>
+					{pill}
+				</button>
 			{/if}
 		{/each}
 	</div>
@@ -109,11 +130,11 @@
 			onchange={handleImportChange}
 		/>
 		<button
-			id="top-control-2"
 			type="button"
-			class:controller-focused={focusIndex === 2}
+			id="top-control-5"
+			class:controller-focused={focusIndex === 5}
 			aria-disabled={busy}
-			onfocus={() => onFocusControl(2)}
+			onfocus={() => onFocusControl(5)}
 			onclick={() => {
 				if (!busy) openImportPicker();
 			}}
@@ -121,17 +142,22 @@
 			Import
 		</button>
 		<button
-			id="top-control-3"
 			type="button"
-			class:controller-focused={focusIndex === 3}
+			id="top-control-6"
+			class:controller-focused={focusIndex === 6}
 			aria-disabled={busy || !hasLoadedSave}
-			onfocus={() => onFocusControl(3)}
+			onfocus={() => onFocusControl(6)}
 			onclick={() => {
 				if (!busy && hasLoadedSave) onExport();
 			}}>Export</button
 		>
 	</div>
-	<div class="save-chip" title={fileName ?? 'No Save File'}>
+	<div
+		id="save-file-chip"
+		class="save-chip"
+		title={fileName ?? 'No Save File'}
+		aria-label="Save File status"
+	>
 		<i aria-hidden="true"></i>
 		<div>
 			<strong>{fileName ?? 'No Save File'}</strong>
@@ -143,12 +169,12 @@
 		<span class="save-chip-status" aria-hidden="true">▾</span>
 	</div>
 	<button
-		id="top-control-4"
 		class="theme-toggle"
-		class:controller-focused={focusIndex === 4}
+		id="top-control-7"
+		class:controller-focused={focusIndex === 7}
 		type="button"
 		aria-label={darkMode ? 'Use light mode' : 'Use dark mode'}
-		onfocus={() => onFocusControl(4)}
+		onfocus={() => onFocusControl(7)}
 		onclick={onToggleTheme}
 	>
 		{darkMode ? '☀' : '☾'}
@@ -220,7 +246,6 @@
 		border-left: 1px solid var(--rule-hi);
 	}
 
-	.section-pills span,
 	.section-pills button {
 		padding: 7px 12px;
 		border: 0;
@@ -333,6 +358,7 @@
 		align-items: center;
 		gap: 8px;
 		padding: 7px 11px;
+		text-align: left;
 	}
 
 	.save-chip i {

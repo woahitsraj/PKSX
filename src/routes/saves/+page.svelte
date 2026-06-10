@@ -240,7 +240,8 @@
 			'#top-control-4',
 			'[data-saves-control]',
 			'#mobile-tab-0',
-			'#mobile-tab-1'
+			'#mobile-tab-1',
+			'#mobile-tab-2'
 		];
 
 		return selectors

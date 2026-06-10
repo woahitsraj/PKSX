@@ -10,6 +10,8 @@ export type EngineErrorCode =
 	| 'invalid-pokemon-import'
 	| 'invalid-stored-pokemon'
 	| 'incompatible-stored-pokemon'
+	| 'invalid-save-file-edit'
+	| 'unsupported-save-file-edit'
 	| 'engine-unavailable'
 	| 'invalid-engine-response'
 	| 'invalid-worker-message'
@@ -74,6 +76,8 @@ export type BoxSlotSummary = {
 	types: SlotTypeSummary[];
 	stats: SlotStatSummary[];
 	moves: SlotMoveSummary[];
+	statEditConstraints: PokemonStatEditConstraints;
+	moveSetEditConstraints: PokemonMoveSetEditConstraints;
 	originalTrainer?: string | null;
 	metLabel?: string | null;
 	spriteIdentity: SpriteIdentity;
@@ -103,15 +107,46 @@ export type SlotStatSummary = {
 	label: string;
 	value: number;
 	ev?: number | null;
+	iv?: number | null;
 	max: number;
 };
 
 export type SlotMoveSummary = {
+	slot: number;
+	id: number;
 	name: string;
 	type: string;
 	hue: number;
 	chroma: number;
 	pp?: number | null;
+	maxPp?: number | null;
+	ppUps?: number | null;
+};
+
+export type PokemonStatEditConstraints = {
+	supported: boolean;
+	minIv: number;
+	maxIv: number;
+	minEv: number;
+	maxEv: number;
+	maxTotalEv: number;
+	unsupportedReason?: string | null;
+};
+
+export type PokemonMoveOption = {
+	id: number;
+	name: string;
+	type: string;
+	hue: number;
+	chroma: number;
+	maxPp: number;
+};
+
+export type PokemonMoveSetEditConstraints = {
+	supported: boolean;
+	maxMoveSlots: number;
+	availableMoves: PokemonMoveOption[];
+	unsupportedReason?: string | null;
 };
 
 export type SaveWorkspace = {
@@ -174,9 +209,41 @@ export type PokemonEditOperation = {
 	nickname?: string;
 	level?: number;
 	experience?: number;
+	ivs?: PokemonStatEditSet;
+	evs?: PokemonStatEditSet;
+	moves?: PokemonMoveSlotEdit[];
+};
+
+export type PokemonStatEditSet = {
+	HP: number;
+	ATK: number;
+	DEF: number;
+	SPA: number;
+	SPD: number;
+	SPE: number;
+};
+
+export type PokemonMoveSlotEdit = {
+	slot: number;
+	move: number;
+	pp?: number;
+	ppUps?: number;
 };
 
 export type PokemonEditOperationResult = {
+	bytes: Uint8Array;
+	mutated: boolean;
+	workspace: SaveWorkspace;
+};
+
+export type SaveFileEditOperation = {
+	trainerProfile?: {
+		trainerName?: string;
+	};
+	money?: number;
+};
+
+export type SaveFileEditOperationResult = {
 	bytes: Uint8Array;
 	mutated: boolean;
 	workspace: SaveWorkspace;
@@ -222,6 +289,12 @@ export type EngineApi = {
 		operation: PokemonEditOperation,
 		activeBox: number
 	): Promise<EngineResult<PokemonEditOperationResult>>;
+	applySaveFileEditOperation(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operation: SaveFileEditOperation,
+		activeBox: number
+	): Promise<EngineResult<SaveFileEditOperationResult>>;
 	importStoredPokemon(
 		bytes: Uint8Array,
 		fileName: string | undefined,
