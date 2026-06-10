@@ -120,7 +120,13 @@ export function applyNavigationAction(
 		case 'up':
 			return {
 				...state,
-				focus: moveUp(state.focus, topControlCount, paneControlCount, partyAvailable)
+				focus: moveUp(
+					state.focus,
+					topControlCount,
+					paneControlCount,
+					partyAvailable,
+					mobileTabsAvailable
+				)
 			};
 		case 'down':
 			return {
@@ -136,12 +142,24 @@ export function applyNavigationAction(
 		case 'left':
 			return {
 				...state,
-				focus: moveLeft(state.focus, topControlCount, paneControlCount, mobileTabCount)
+				focus: moveLeft(
+					state.focus,
+					topControlCount,
+					paneControlCount,
+					mobileTabCount,
+					mobileTabsAvailable
+				)
 			};
 		case 'right':
 			return {
 				...state,
-				focus: moveRight(state.focus, topControlCount, paneControlCount, mobileTabCount)
+				focus: moveRight(
+					state.focus,
+					topControlCount,
+					paneControlCount,
+					mobileTabCount,
+					mobileTabsAvailable
+				)
 			};
 		case 'confirm':
 			if (isSlotFocus(state.focus)) {
@@ -258,15 +276,24 @@ function moveUp(
 	focus: ControllerFocus,
 	topControlCount: number,
 	paneControlCount: number,
-	partyAvailable: boolean
+	partyAvailable: boolean,
+	mobileTabsAvailable: boolean
 ): ControllerFocus {
 	const sourceControlIndex = getSourceControlIndex(topControlCount);
+	const firstTopControlIndex = getFirstTopControlIndex(mobileTabsAvailable);
 
 	switch (focus.zone) {
 		case 'topbar':
-			return sourceControlIndex !== null && focus.index === sourceControlIndex
-				? focusTopControl(sourceControlIndex - 1, topControlCount)
-				: focus;
+			if (sourceControlIndex !== null && focus.index === sourceControlIndex) {
+				return focusTopControl(
+					Math.max(firstTopControlIndex, sourceControlIndex - 1),
+					topControlCount
+				);
+			}
+			if (sourceControlIndex !== null && focus.index > sourceControlIndex) {
+				return focusTopControl(sourceControlIndex, topControlCount);
+			}
+			return focus;
 		case 'paneControls':
 			if (partyAvailable) {
 				return focusPartySlot(Math.min(focus.index, PARTY_SLOT_COUNT - 1));
@@ -307,13 +334,8 @@ function moveDown(
 	mobileTabsAvailable: boolean,
 	partyAvailable: boolean
 ): ControllerFocus {
-	const sourceControlIndex = getSourceControlIndex(topControlCount);
-
 	switch (focus.zone) {
 		case 'topbar':
-			if (sourceControlIndex !== null && focus.index !== sourceControlIndex) {
-				return focusTopControl(sourceControlIndex, topControlCount);
-			}
 			if (!partyAvailable) {
 				if (paneControlCount > 0) {
 					return focusPaneControl(0, paneControlCount);
@@ -345,11 +367,17 @@ function moveLeft(
 	focus: ControllerFocus,
 	topControlCount: number,
 	paneControlCount: number,
-	mobileTabCount: number
+	mobileTabCount: number,
+	mobileTabsAvailable: boolean
 ): ControllerFocus {
+	const firstTopControlIndex = getFirstTopControlIndex(mobileTabsAvailable);
+
 	switch (focus.zone) {
 		case 'topbar':
-			return focusTopControl(clamp(focus.index - 1, 0, topControlCount - 1), topControlCount);
+			return focusTopControl(
+				clamp(focus.index - 1, firstTopControlIndex, topControlCount - 1),
+				topControlCount
+			);
 		case 'paneControls':
 			return focusPaneControl(focus.index - 1, paneControlCount);
 		case 'party':
@@ -369,11 +397,17 @@ function moveRight(
 	focus: ControllerFocus,
 	topControlCount: number,
 	paneControlCount: number,
-	mobileTabCount: number
+	mobileTabCount: number,
+	mobileTabsAvailable: boolean
 ): ControllerFocus {
+	const firstTopControlIndex = getFirstTopControlIndex(mobileTabsAvailable);
+
 	switch (focus.zone) {
 		case 'topbar':
-			return focusTopControl(clamp(focus.index + 1, 0, topControlCount - 1), topControlCount);
+			return focusTopControl(
+				clamp(focus.index + 1, firstTopControlIndex, topControlCount - 1),
+				topControlCount
+			);
 		case 'paneControls':
 			return focusPaneControl(focus.index + 1, paneControlCount);
 		case 'party':
@@ -399,5 +433,9 @@ function wrapBoxIndex(value: number, boxCount: number): number {
 }
 
 function getSourceControlIndex(topControlCount: number): number | null {
-	return topControlCount > TOP_CONTROL_COUNT ? topControlCount - 1 : null;
+	return topControlCount > TOP_CONTROL_COUNT ? TOP_CONTROL_COUNT : null;
+}
+
+function getFirstTopControlIndex(mobileTabsAvailable: boolean): number {
+	return mobileTabsAvailable ? 3 : 0;
 }

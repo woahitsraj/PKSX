@@ -140,7 +140,7 @@
 	const storage = getLocalLibraryStorage();
 
 	const slotPalette = [16, 28, 48, 100, 140, 180, 195, 210, 220, 260, 280, 295, 330, 52];
-	const topControlCount = 6;
+	const topControlCount = 7;
 	const mobileTabCount = 3;
 
 	function fallbackSlotHue(box: number, slot: number, speciesId: number | null): number {

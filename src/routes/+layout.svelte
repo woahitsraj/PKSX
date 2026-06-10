@@ -12,7 +12,7 @@
 	let { children } = $props();
 
 	const sectionPills = ['Boxes', 'Save File', 'Saves'];
-	const topBarControlIndices = [0, 1, 2, 3, 4, 7];
+	const topBarControlIndices = [0, 1, 2, 3, 4, 6];
 	const mobileTabs = [
 		{ key: 'boxes', label: 'Boxes', glyph: '▦' },
 		{ key: 'save-file', label: 'Save', glyph: '▣' },
@@ -204,7 +204,7 @@
 		if (index === 2) openSaves();
 		if (index === 3 && !appChrome.busy) document.getElementById('quick-save-import')?.click();
 		if (index === 4 && appChrome.hasLoadedSave && !appChrome.busy) handleExport();
-		if (index === 7) darkMode = !darkMode;
+		if (index === 6) darkMode = !darkMode;
 	}
 
 	function focusChromeElement(id: string) {

@@ -159,11 +159,11 @@
 	</div>
 	<button
 		class="theme-toggle"
-		id="top-control-7"
-		class:controller-focused={focusIndex === 7}
+		id="top-control-6"
+		class:controller-focused={focusIndex === 6}
 		type="button"
 		aria-label={darkMode ? 'Use light mode' : 'Use dark mode'}
-		onfocus={() => onFocusControl(7)}
+		onfocus={() => onFocusControl(6)}
 		onclick={onToggleTheme}
 	>
 		{darkMode ? '☀' : '☾'}
@@ -253,6 +253,11 @@
 	}
 
 	.section-pills .active {
+		background: transparent;
+		color: var(--ink-soft);
+	}
+
+	.section-pills:focus-within .active {
 		background: var(--rust-wash);
 		color: var(--rust);
 	}
@@ -408,31 +413,7 @@
 		}
 
 		.section-pills {
-			position: absolute;
-			width: 1px;
-			height: 1px;
-			margin: 0;
-			padding: 0;
-			overflow: hidden;
-			clip: rect(0 0 0 0);
-			white-space: nowrap;
-			border: 0;
-		}
-
-		.section-pills:focus-within {
-			z-index: 90;
-			width: auto;
-			height: auto;
-			clip: auto;
-			display: flex;
-			gap: 4px;
-			top: calc(100% + 6px);
-			left: 8px;
-			padding: 6px;
-			border-radius: var(--pksx-radius-md);
-			background: var(--paper-hi);
-			box-shadow: var(--shadow-deep);
-			white-space: normal;
+			display: none;
 		}
 	}
 

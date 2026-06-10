@@ -55,21 +55,24 @@ describe('box navigation', () => {
 		);
 	});
 
-	it('can reach the sixth top control and pane close control', () => {
-		expect.assertions(5);
+	it('can reach Add source, theme toggle, and pane close control', () => {
+		expect.assertions(6);
 
 		const addSource = applyNavigationAction(
-			{ ...createInitialNavigationState(3), focus: focusTopControl(4, 6) },
+			{ ...createInitialNavigationState(3), focus: focusTopControl(4, 7) },
 			'right',
-			{ topControlCount: 6 }
+			{ topControlCount: 7 }
 		);
 
-		expect(addSource.focus).toEqual(focusTopControl(5, 6));
+		expect(addSource.focus).toEqual(focusTopControl(5, 7));
 		expect(getFocusId(addSource.focus, 0)).toBe('top-control-5');
-		expect(move({ focus: focusTopControl(0, 6) }, 'down', { topControlCount: 6 }).focus).toEqual(
-			focusTopControl(5, 6)
+		expect(move({ focus: focusTopControl(5, 7) }, 'right', { topControlCount: 7 }).focus).toEqual(
+			focusTopControl(6, 7)
 		);
-		expect(move({ focus: focusTopControl(5, 6) }, 'down', { topControlCount: 6 }).focus).toEqual(
+		expect(move({ focus: focusTopControl(0, 7) }, 'down', { topControlCount: 7 }).focus).toEqual(
+			focusPartySlot(0)
+		);
+		expect(move({ focus: focusTopControl(5, 7) }, 'down', { topControlCount: 7 }).focus).toEqual(
 			focusPartySlot(5)
 		);
 		expect(move({ focus: focusPaneControl(0, 2) }, 'right', { paneControlCount: 2 }).focus).toEqual(
@@ -77,12 +80,12 @@ describe('box navigation', () => {
 		);
 	});
 
-	it('moves up from any party slot to Add source before top controls', () => {
+	it('moves up from party slots to the matching top bar route controls', () => {
 		expect.assertions(6);
 
 		for (let slot = 0; slot < 6; slot += 1) {
-			expect(move({ focus: focusPartySlot(slot) }, 'up', { topControlCount: 6 }).focus).toEqual(
-				focusTopControl(5, 6)
+			expect(move({ focus: focusPartySlot(slot) }, 'up', { topControlCount: 7 }).focus).toEqual(
+				focusTopControl(5, 7)
 			);
 		}
 	});
@@ -104,16 +107,40 @@ describe('box navigation', () => {
 	it('skips party focus for box-only sources', () => {
 		expect.assertions(4);
 
-		const options = { topControlCount: 6, paneControlCount: 0, partyAvailable: false };
+		const options = { topControlCount: 7, paneControlCount: 0, partyAvailable: false };
 
-		expect(move({ focus: focusTopControl(5, 6) }, 'down', options).focus).toEqual(focusBoxSlot(5));
-		expect(move({ focus: focusBoxSlot(5) }, 'up', options).focus).toEqual(focusTopControl(5, 6));
+		expect(move({ focus: focusTopControl(5, 7) }, 'down', options).focus).toEqual(focusBoxSlot(5));
+		expect(move({ focus: focusBoxSlot(5) }, 'up', options).focus).toEqual(focusTopControl(5, 7));
 		expect(
-			move({ focus: focusTopControl(5, 6) }, 'down', { ...options, paneControlCount: 1 }).focus
+			move({ focus: focusTopControl(5, 7) }, 'down', { ...options, paneControlCount: 1 }).focus
 		).toEqual(focusPaneControl(0, 1));
 		expect(
 			move({ focus: focusPaneControl(0, 1) }, 'up', { ...options, paneControlCount: 1 }).focus
-		).toEqual(focusTopControl(5, 6));
+		).toEqual(focusTopControl(5, 7));
+	});
+
+	it('skips mobile route controls that are available in the bottom tab bar', () => {
+		expect.assertions(4);
+
+		const options = {
+			topControlCount: 7,
+			mobileTabsAvailable: true,
+			partyAvailable: false,
+			paneControlCount: 1
+		};
+
+		expect(move({ focus: focusTopControl(3, 7) }, 'left', options).focus).toEqual(
+			focusTopControl(3, 7)
+		);
+		expect(move({ focus: focusTopControl(5, 7) }, 'up', options).focus).toEqual(
+			focusTopControl(4, 7)
+		);
+		expect(move({ focus: focusTopControl(6, 7) }, 'up', options).focus).toEqual(
+			focusTopControl(5, 7)
+		);
+		expect(move({ focus: focusPaneControl(0, 1) }, 'up', options).focus).toEqual(
+			focusTopControl(5, 7)
+		);
 	});
 
 	it('projects pane crossing to the opposite pane edge in the same row', () => {
