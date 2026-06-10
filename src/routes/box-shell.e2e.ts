@@ -230,9 +230,7 @@ test('Edit opens Pokemon Editor and returns focus to the command stack', async (
 	await expect(page.locator('#slot-action-0')).toBeFocused();
 });
 
-test('Pokemon Editor reports unsupported Move Set, IV, and EV editing for engine projections', async ({
-	page
-}) => {
+test('Pokemon Editor exposes Move Set, IV, and EV projection sections', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-0-slot-0').click();
@@ -241,12 +239,10 @@ test('Pokemon Editor reports unsupported Move Set, IV, and EV editing for engine
 	await page.getByRole('button', { name: 'Edit' }).click();
 	const editor = page.getByRole('dialog', { name: 'ARON' });
 	await expect(editor).toBeVisible();
-	await expect(editor).toContainText(
-		'Move Set Editing is not available for this Pokemon projection.'
-	);
-	await expect(editor).toContainText(
-		'IV and EV Editing is not available for this Pokemon projection.'
-	);
+	await expect(editor).toContainText('Move Set');
+	await expect(editor).toContainText('Visible Moves');
+	await expect(editor).toContainText('IV / EV');
+	await expect(editor).toContainText('Stats');
 	await expect(editor).toContainText('No Pokemon edits staged.');
 	await expect(editor.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
 });
