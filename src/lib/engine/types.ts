@@ -7,6 +7,9 @@ export type EngineErrorCode =
 	| 'unsupported-slot-operation'
 	| 'invalid-pokemon-edit'
 	| 'unsupported-pokemon-edit'
+	| 'invalid-pokemon-import'
+	| 'invalid-stored-pokemon'
+	| 'incompatible-stored-pokemon'
 	| 'invalid-save-file-edit'
 	| 'unsupported-save-file-edit'
 	| 'engine-unavailable'
@@ -78,6 +81,7 @@ export type BoxSlotSummary = {
 	originalTrainer?: string | null;
 	metLabel?: string | null;
 	spriteIdentity: SpriteIdentity;
+	entityBytesBase64?: string | null;
 };
 
 export type PartySlotSummary = Omit<BoxSlotSummary, 'box'>;
@@ -189,6 +193,17 @@ export type SlotOperationResult = {
 	workspace: SaveWorkspace;
 };
 
+export type StoredPokemonImportOperation = {
+	entityBytesBase64: string;
+	destination: SaveSlotRef;
+};
+
+export type StoredPokemonImportResult = {
+	bytes: Uint8Array;
+	mutated: boolean;
+	workspace: SaveWorkspace;
+};
+
 export type PokemonEditOperation = {
 	source: SaveSlotRef;
 	nickname?: string;
@@ -280,6 +295,12 @@ export type EngineApi = {
 		operation: SaveFileEditOperation,
 		activeBox: number
 	): Promise<EngineResult<SaveFileEditOperationResult>>;
+	importStoredPokemon(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operation: StoredPokemonImportOperation,
+		activeBox: number
+	): Promise<EngineResult<StoredPokemonImportResult>>;
 	checkSlotLegality(
 		bytes: Uint8Array,
 		fileName: string | undefined,

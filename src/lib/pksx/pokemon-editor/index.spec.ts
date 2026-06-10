@@ -195,6 +195,78 @@ describe('Pokemon editor state', () => {
 		});
 	});
 
+	it('hydrates missing save-file edit constraints from occupied Slot projections', () => {
+		const slotWithProjectionOnly: SlotView = {
+			...editablePokemonSlot,
+			statEditConstraints: {
+				supported: false,
+				minIv: 0,
+				maxIv: 31,
+				minEv: 0,
+				maxEv: 255,
+				maxTotalEv: 510,
+				unsupportedReason: 'IV and EV Editing is not available for this Pokemon projection.'
+			},
+			moveSetEditConstraints: {
+				supported: false,
+				maxMoveSlots: 4,
+				availableMoves: [],
+				unsupportedReason: 'Move Set Editing is not available for this Pokemon projection.'
+			}
+		};
+
+		const result = createPokemonEditorState(source, slotWithProjectionOnly);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.state.slot.statEditConstraints).toMatchObject({
+			supported: true,
+			maxIv: 31,
+			maxEv: 255,
+			maxTotalEv: 510
+		});
+		expect(result.state.slot.moveSetEditConstraints).toMatchObject({
+			supported: true,
+			maxMoveSlots: 4,
+			availableMoves: expect.arrayContaining([
+				expect.objectContaining({ id: 0, name: 'Empty' }),
+				expect.objectContaining({ id: 33, name: 'Tackle' }),
+				expect.objectContaining({ id: 45, name: 'Growl' })
+			])
+		});
+	});
+
+	it('does not hydrate app-owned storage edit constraints', () => {
+		const storageSource: PokemonEditorSourceInput = {
+			owner: 'pokemon-storage',
+			storagePokemonId: 'pokemon-storage:0:0',
+			location: 'Box 1, slot 1'
+		};
+		const result = createPokemonEditorState(storageSource, {
+			...editablePokemonSlot,
+			statEditConstraints: {
+				supported: false,
+				minIv: 0,
+				maxIv: 31,
+				minEv: 0,
+				maxEv: 255,
+				maxTotalEv: 510,
+				unsupportedReason: 'Storage editing is not supported yet.'
+			},
+			moveSetEditConstraints: {
+				supported: false,
+				maxMoveSlots: 4,
+				availableMoves: [],
+				unsupportedReason: 'Storage editing is not supported yet.'
+			}
+		});
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.state.slot.statEditConstraints?.supported).toBe(false);
+		expect(result.state.slot.moveSetEditConstraints?.supported).toBe(false);
+	});
+
 	it('rejects empty Slots', () => {
 		expect(createPokemonEditorState(source, emptySlot)).toEqual({
 			ok: false,

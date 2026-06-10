@@ -28,6 +28,7 @@ export type SlotView = {
 	moveSetEditConstraints?: PokemonMoveSetEditConstraints;
 	originalTrainer?: string;
 	metLabel?: string;
+	entityBytesBase64?: string | null;
 };
 
 export type SlotTypeView = {

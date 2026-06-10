@@ -11,6 +11,7 @@ export const engineWorkerMethodSchema = z.enum([
 	'applySlotOperation',
 	'applyPokemonEditOperation',
 	'applySaveFileEditOperation',
+	'importStoredPokemon',
 	'checkSlotLegality'
 ]);
 
@@ -25,6 +26,9 @@ export const engineErrorCodeSchema = z.enum([
 	'unsupported-slot-operation',
 	'invalid-pokemon-edit',
 	'unsupported-pokemon-edit',
+	'invalid-pokemon-import',
+	'invalid-stored-pokemon',
+	'incompatible-stored-pokemon',
 	'invalid-save-file-edit',
 	'unsupported-save-file-edit',
 	'engine-unavailable',
@@ -175,7 +179,8 @@ const slotSummaryFields = {
 	}),
 	originalTrainer: z.string().nullable().optional(),
 	metLabel: z.string().nullable().optional(),
-	spriteIdentity: spriteIdentitySchema.optional()
+	spriteIdentity: spriteIdentitySchema.optional(),
+	entityBytesBase64: z.string().nullable().optional()
 };
 
 const slotSummaryBaseSchema = z.object(slotSummaryFields);
@@ -306,6 +311,17 @@ export const saveFileEditOperationResultSchema = z.object({
 	workspace: saveWorkspaceSchema
 });
 
+export const storedPokemonImportOperationSchema = z.object({
+	entityBytesBase64: z.string(),
+	destination: saveSlotRefSchema
+});
+
+export const storedPokemonImportResultSchema = z.object({
+	bytes: z.instanceof(ArrayBuffer),
+	mutated: z.boolean(),
+	workspace: saveWorkspaceSchema
+});
+
 export const legalityReportLineSchema = z.object({
 	severity: z.string(),
 	identifier: z.string(),
@@ -352,6 +368,10 @@ export const pokemonEditOperationResultResultSchema = engineResultSchema(
 
 export const saveFileEditOperationResultResultSchema = engineResultSchema(
 	saveFileEditOperationResultSchema
+);
+
+export const storedPokemonImportResultResultSchema = engineResultSchema(
+	storedPokemonImportResultSchema
 );
 
 export const legalityReportResultSchema = engineResultSchema(legalityReportSchema);
@@ -445,6 +465,18 @@ export const engineWorkerApplySaveFileEditOperationRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerImportStoredPokemonRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('importStoredPokemon'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional(),
+		operation: storedPokemonImportOperationSchema,
+		activeBox: z.number().int()
+	})
+});
+
 export const engineWorkerCheckSlotLegalityRequestSchema = z.object({
 	type: z.literal('request'),
 	id: engineWorkerRequestIdSchema,
@@ -465,6 +497,7 @@ export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerApplySlotOperationRequestSchema,
 	engineWorkerApplyPokemonEditOperationRequestSchema,
 	engineWorkerApplySaveFileEditOperationRequestSchema,
+	engineWorkerImportStoredPokemonRequestSchema,
 	engineWorkerCheckSlotLegalityRequestSchema
 ]);
 
@@ -524,6 +557,13 @@ export const engineWorkerApplySaveFileEditOperationResponseSchema = z.object({
 	result: saveFileEditOperationResultResultSchema
 });
 
+export const engineWorkerImportStoredPokemonResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('importStoredPokemon'),
+	result: storedPokemonImportResultResultSchema
+});
+
 export const engineWorkerCheckSlotLegalityResponseSchema = z.object({
 	type: z.literal('response'),
 	id: engineWorkerRequestIdSchema,
@@ -540,6 +580,7 @@ export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerApplySlotOperationResponseSchema,
 	engineWorkerApplyPokemonEditOperationResponseSchema,
 	engineWorkerApplySaveFileEditOperationResponseSchema,
+	engineWorkerImportStoredPokemonResponseSchema,
 	engineWorkerCheckSlotLegalityResponseSchema
 ]);
 
@@ -603,6 +644,10 @@ export type EngineWorkerApplyPokemonEditOperationRequest = z.infer<
 
 export type EngineWorkerApplySaveFileEditOperationRequest = z.infer<
 	typeof engineWorkerApplySaveFileEditOperationRequestSchema
+>;
+
+export type EngineWorkerImportStoredPokemonRequest = z.infer<
+	typeof engineWorkerImportStoredPokemonRequestSchema
 >;
 
 export type EngineWorkerCheckSlotLegalityRequest = z.infer<

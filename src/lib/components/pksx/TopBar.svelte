@@ -61,7 +61,7 @@
 		<div class="brand-mark" aria-hidden="true">P</div>
 		<div>
 			<h1 id="screen-title">PKSX</h1>
-			<p>save editor · atelier</p>
+			<p>save editor</p>
 		</div>
 	</button>
 	<div class="section-pills" aria-label="Available sections">
@@ -88,28 +88,17 @@
 				>
 			{:else if pill === 'Saves'}
 				<button
-					id="top-control-4"
+					id="top-control-2"
 					type="button"
 					class:active={activeSection === pill}
-					class:controller-focused={focusIndex === 4}
+					class:controller-focused={focusIndex === 2}
 					aria-current={activeSection === pill ? 'page' : undefined}
 					aria-disabled={busy}
-					onfocus={() => onFocusControl(4)}
+					onfocus={() => onFocusControl(2)}
 					onclick={() => {
 						if (!busy) onOpenSaves();
 					}}>{pill}</button
 				>
-			{:else}
-				<button
-					id={pill === 'Dex' ? 'top-control-2' : 'top-control-3'}
-					type="button"
-					class:active={activeSection === pill}
-					class:controller-focused={focusIndex === (pill === 'Dex' ? 2 : 3)}
-					aria-disabled="true"
-					onfocus={() => onFocusControl(pill === 'Dex' ? 2 : 3)}
-				>
-					{pill}
-				</button>
 			{/if}
 		{/each}
 	</div>
@@ -131,10 +120,10 @@
 		/>
 		<button
 			type="button"
-			id="top-control-5"
-			class:controller-focused={focusIndex === 5}
+			id="top-control-3"
+			class:controller-focused={focusIndex === 3}
 			aria-disabled={busy}
-			onfocus={() => onFocusControl(5)}
+			onfocus={() => onFocusControl(3)}
 			onclick={() => {
 				if (!busy) openImportPicker();
 			}}
@@ -143,10 +132,10 @@
 		</button>
 		<button
 			type="button"
-			id="top-control-6"
-			class:controller-focused={focusIndex === 6}
+			id="top-control-4"
+			class:controller-focused={focusIndex === 4}
 			aria-disabled={busy || !hasLoadedSave}
-			onfocus={() => onFocusControl(6)}
+			onfocus={() => onFocusControl(4)}
 			onclick={() => {
 				if (!busy && hasLoadedSave) onExport();
 			}}>Export</button
@@ -168,14 +157,13 @@
 		</div>
 		<span class="save-chip-status" aria-hidden="true">▾</span>
 	</div>
-	<span class="online-indicator" aria-label="Offline mode">● OFFLINE</span>
 	<button
 		class="theme-toggle"
-		id="top-control-7"
-		class:controller-focused={focusIndex === 7}
+		id="top-control-6"
+		class:controller-focused={focusIndex === 6}
 		type="button"
 		aria-label={darkMode ? 'Use light mode' : 'Use dark mode'}
-		onfocus={() => onFocusControl(7)}
+		onfocus={() => onFocusControl(6)}
 		onclick={onToggleTheme}
 	>
 		{darkMode ? '☀' : '☾'}
@@ -184,8 +172,9 @@
 
 <style>
 	.top-bar {
+		position: relative;
 		display: grid;
-		grid-template-columns: auto auto minmax(180px, 1fr) auto auto auto auto;
+		grid-template-columns: auto auto minmax(180px, 1fr) auto auto auto;
 		align-items: center;
 		gap: 10px;
 		padding: 10px;
@@ -264,6 +253,11 @@
 	}
 
 	.section-pills .active {
+		background: transparent;
+		color: var(--ink-soft);
+	}
+
+	.section-pills:focus-within .active {
 		background: var(--rust-wash);
 		color: var(--rust);
 	}
@@ -271,8 +265,7 @@
 	.search-shell,
 	.save-chip,
 	.save-actions button,
-	.theme-toggle,
-	.online-indicator {
+	.theme-toggle {
 		border: 0;
 		border-radius: var(--pksx-radius-md);
 		background: var(--paper-hi);
@@ -391,16 +384,6 @@
 		font-size: 0.7rem;
 	}
 
-	.online-indicator {
-		padding: 6px 10px;
-		color: var(--ok);
-		font:
-			700 0.62rem var(--pksx-font-mono),
-			monospace;
-		letter-spacing: 0.06em;
-		white-space: nowrap;
-	}
-
 	.theme-toggle {
 		width: 34px;
 		padding: 0;
@@ -425,9 +408,11 @@
 			padding: 8px;
 		}
 
-		.section-pills,
-		.save-chip,
-		.online-indicator {
+		.save-chip {
+			display: none;
+		}
+
+		.section-pills {
 			display: none;
 		}
 	}

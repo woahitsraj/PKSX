@@ -11,6 +11,7 @@ import type {
 	SaveWorkspace,
 	SlotOperation,
 	SlotOperationResult,
+	StoredPokemonImportResult,
 	SerializedSave
 } from './types';
 
@@ -123,6 +124,7 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		nickname: 'Pikachu',
 		isEgg: false,
 		isEmpty: false,
+		entityBytesBase64: 'bW9jay1waWthY2h1',
 		...mockPikachuDetails
 	},
 	{
@@ -137,6 +139,7 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		nickname: '',
 		isEgg: false,
 		isEmpty: true,
+		entityBytesBase64: null,
 		spriteIdentity: {
 			speciesId: 0,
 			form: 0,
@@ -254,6 +257,16 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 				message: 'Save File field editing is not available for the mock engine.'
 			}
 		}),
+		importStoredPokemon: async (bytes, fileName, _operation, activeBox) =>
+			success<StoredPokemonImportResult>({
+				bytes: copyBytes(bytes),
+				mutated: true,
+				workspace: {
+					summary: { ...mockSaveSummary, fileName },
+					partySlots: mockPartySlots,
+					boxSlots: activeBox === 0 ? mockBoxSlots : []
+				}
+			}),
 		checkSlotLegality: async () =>
 			success<LegalityReport>({
 				legal: true,

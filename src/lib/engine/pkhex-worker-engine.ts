@@ -9,6 +9,7 @@ import type {
 	SaveFileEditOperationResult,
 	SaveWorkspace,
 	SlotOperationResult,
+	StoredPokemonImportResult,
 	SerializedSave,
 	SaveSummary
 } from './types';
@@ -220,6 +221,24 @@ export function createPkhexWorkerEngine(
 				[buffer]
 			);
 		},
+		importStoredPokemon: (bytes, fileName, operation, activeBox) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+			const payloadOperation = {
+				...operation,
+				destination: cloneSlotRef(operation.destination)
+			};
+
+			return sendRequest(
+				'importStoredPokemon',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'importStoredPokemon',
+					payload: { bytes: buffer, fileName, operation: payloadOperation, activeBox }
+				},
+				[buffer]
+			);
+		},
 		checkSlotLegality: (bytes, fileName, source) => {
 			const buffer = copyBytesToArrayBuffer(bytes);
 
@@ -272,6 +291,11 @@ export function createPkhexWorkerEngine(
 		request: Extract<EngineWorkerRequest, { method: 'applySaveFileEditOperation' }>,
 		transfer: Transferable[]
 	): Promise<EngineResult<SaveFileEditOperationResult>>;
+	async function sendRequest(
+		method: 'importStoredPokemon',
+		request: Extract<EngineWorkerRequest, { method: 'importStoredPokemon' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<StoredPokemonImportResult>>;
 	async function sendRequest(
 		method: 'checkSlotLegality',
 		request: Extract<EngineWorkerRequest, { method: 'checkSlotLegality' }>,
@@ -340,7 +364,8 @@ function normalizeWorkerResult(response: EngineWorkerResponse): EngineResult<unk
 	if (
 		(response.method !== 'applySlotOperation' &&
 			response.method !== 'applyPokemonEditOperation' &&
-			response.method !== 'applySaveFileEditOperation') ||
+			response.method !== 'applySaveFileEditOperation' &&
+			response.method !== 'importStoredPokemon') ||
 		!response.result.ok
 	) {
 		return response.result;

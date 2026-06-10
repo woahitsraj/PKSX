@@ -33,6 +33,61 @@ export type StoredWorkspace = {
 	updatedAt: string;
 };
 
+export type PokemonStorageId = 'pokemon-storage';
+
+export type StoredPokemonStorage = {
+	id: PokemonStorageId;
+	schemaVersion: 1;
+	boxCount: number;
+	boxSlotCount: number;
+	boxes: StoredPokemonStorageBox[];
+	updatedAt: string;
+};
+
+export type StoredPokemonStorageBox = {
+	index: number;
+	name: string;
+	slots: StoredPokemonStorageSlot[];
+};
+
+export type StoredPokemonStorageSlot = {
+	box: number;
+	slot: number;
+	pokemon: StoredPokemonStoragePokemon | null;
+};
+
+export type StoredPokemonStoragePokemon = {
+	label: string;
+	detail: string;
+	level: number | null;
+	experience: number | null;
+	speciesId: number | null;
+	form: number | null;
+	isEgg: boolean;
+	spriteIdentity: {
+		speciesId: number;
+		form: number;
+		isEgg: boolean;
+		isShiny: boolean;
+		displaySex: 'default' | 'male' | 'female';
+	} | null;
+	gender?: string;
+	nature?: string;
+	ability?: string;
+	heldItem?: string;
+	originalTrainer?: string;
+	metLabel?: string;
+	entityBytesBase64?: string;
+	provenance: {
+		entryMode: 'moved-in' | 'copied-in' | 'imported';
+		originSaveFileName: string | null;
+		originGame: string | null;
+		originalTrainer: string | null;
+		trainerId: string | null;
+		enteredAt: string;
+	};
+};
+
 export type ImportSaveInput = {
 	bytes: Uint8Array;
 	originalFileName?: string | null;
@@ -59,6 +114,8 @@ export type LocalLibraryStorage = {
 	putWorkspace(input: PutWorkspaceInput): Promise<StoredWorkspace>;
 	getWorkspace(saveFileId: SaveFileId): Promise<StoredWorkspace | null>;
 	clearWorkspace(saveFileId: SaveFileId): Promise<void>;
+	getPokemonStorage(): Promise<StoredPokemonStorage | null>;
+	putPokemonStorage(storage: StoredPokemonStorage): Promise<StoredPokemonStorage>;
 	getActiveSaveFileId(): Promise<SaveFileId | null>;
 	setActiveSaveFileId(saveFileId: SaveFileId): Promise<StoredSaveFile>;
 	deleteSave(saveFileId: SaveFileId): Promise<void>;

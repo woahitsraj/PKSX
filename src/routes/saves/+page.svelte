@@ -1,11 +1,13 @@
 <script lang="ts">
-	import { asset } from '$app/paths';
+	import { goto } from '$app/navigation';
+	import { asset, resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import ConfirmDialog from '$lib/components/pksx/ConfirmDialog.svelte';
 	import { base64ToBytes, type EngineError, type PartySlotSummary } from '$lib/engine';
 	import {
 		type BackupMetadata,
 		type SaveFileId,
+		type StoredPokemonStorage,
 		type StoredSaveFile
 	} from '$lib/pksx/local-library';
 	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
@@ -17,12 +19,18 @@
 		getSaveLibrarySnapshot,
 		invalidateActiveWorkspaceCache,
 		invalidateSaveLibraryCache,
+		isCachedSaveLibrarySnapshotSeeded,
 		type SaveCardDetails,
 		type SaveLibrarySnapshot
 	} from '$lib/pksx/save-library-cache';
 
 	type BackupMap = Record<SaveFileId, BackupMetadata[]>;
 	type SaveDetailsMap = Record<SaveFileId, SaveCardDetails | null>;
+	type PokemonStorageSummary = {
+		boxCount: number;
+		occupied: number;
+		updatedAt: string;
+	};
 	type PendingDelete =
 		| { kind: 'save'; saveFile: StoredSaveFile }
 		| { kind: 'backup'; saveFile: StoredSaveFile; backup: BackupMetadata };
@@ -55,8 +63,10 @@
 	let saveFiles = $state<StoredSaveFile[]>([]);
 	let activeSaveFileId = $state<SaveFileId | null>(null);
 	let selectedSaveFileId = $state<SaveFileId | null>(null);
+	let storageSelected = $state(true);
 	let backupsBySaveFileId = $state<BackupMap>({});
 	let detailsBySaveFileId = $state<SaveDetailsMap>({});
+	let pokemonStorageSummary = $state<PokemonStorageSummary | null>(null);
 	let statusMessage = $state('Loading Local Library...');
 	let errorMessage = $state<string | null>(null);
 	let busy = $state(false);
@@ -66,7 +76,9 @@
 	let libraryRefreshRequest = 0;
 
 	const selectedSaveFile = $derived(
-		saveFiles.find((saveFile) => saveFile.id === selectedSaveFileId) ?? saveFiles[0] ?? null
+		storageSelected
+			? null
+			: (saveFiles.find((saveFile) => saveFile.id === selectedSaveFileId) ?? saveFiles[0] ?? null)
 	);
 	const selectedBackups = $derived(
 		selectedSaveFile ? (backupsBySaveFileId[selectedSaveFile.id] ?? []) : []
@@ -95,12 +107,13 @@
 
 	onMount(() => {
 		const cachedSnapshot = getCachedSaveLibrarySnapshot();
+		const cachedSnapshotSeeded = isCachedSaveLibrarySnapshotSeeded();
 		if (cachedSnapshot) {
 			applyLibrarySnapshot(cachedSnapshot, selectedSaveFileId);
 			statusMessage = cachedSnapshot.saveFiles.length > 0 ? 'Local Library ready.' : statusMessage;
 		}
 
-		void refreshLibrary({ force: !cachedSnapshot });
+		void refreshLibrary({ force: !cachedSnapshot || cachedSnapshotSeeded });
 	});
 
 	function handleRouteKeydown(event: KeyboardEvent) {
@@ -252,14 +265,20 @@
 		options: { preferredSelection?: SaveFileId | null; force?: boolean } = {}
 	) {
 		const request = ++libraryRefreshRequest;
-		const snapshot = await getSaveLibrarySnapshot({ force: options.force });
+		const [snapshot, appStorage] = await Promise.all([
+			getSaveLibrarySnapshot({ force: options.force }),
+			storage.getPokemonStorage()
+		]);
 		if (request !== libraryRefreshRequest) {
 			return;
 		}
 
+		pokemonStorageSummary = summarizePokemonStorage(appStorage);
 		applyLibrarySnapshot(snapshot, options.preferredSelection ?? selectedSaveFileId);
 		statusMessage =
-			snapshot.saveFiles.length > 0 ? 'Local Library ready.' : 'Import a Save File to begin.';
+			snapshot.saveFiles.length > 0 || pokemonStorageSummary
+				? 'Local Library ready.'
+				: 'Import a Save File to begin.';
 	}
 
 	function applyLibrarySnapshot(
@@ -268,13 +287,54 @@
 	) {
 		saveFiles = snapshot.saveFiles;
 		activeSaveFileId = snapshot.activeSaveFileId;
-		selectedSaveFileId =
+		const nextSelectedSaveFileId =
 			preferredSelection &&
 			snapshot.saveFiles.some((saveFile) => saveFile.id === preferredSelection)
 				? preferredSelection
-				: (snapshot.activeSaveFileId ?? snapshot.saveFiles[0]?.id ?? null);
+				: storageSelected
+					? null
+					: (snapshot.activeSaveFileId ?? snapshot.saveFiles[0]?.id ?? null);
+		selectedSaveFileId = nextSelectedSaveFileId;
+		storageSelected = nextSelectedSaveFileId === null;
 		backupsBySaveFileId = snapshot.backupsBySaveFileId;
 		detailsBySaveFileId = snapshot.detailsBySaveFileId;
+	}
+
+	function selectPokemonStorage() {
+		storageSelected = true;
+		selectedSaveFileId = null;
+		statusMessage = 'Pokemon Storage selected.';
+	}
+
+	function openPokemonStorage() {
+		selectPokemonStorage();
+		void goto(resolve('/?source=pokemon-storage'));
+	}
+
+	async function openBoxesRoute() {
+		await goto(resolve('/'));
+	}
+
+	function selectSaveFile(saveFileId: SaveFileId) {
+		storageSelected = false;
+		selectedSaveFileId = saveFileId;
+	}
+
+	function summarizePokemonStorage(
+		storageRecord: StoredPokemonStorage | null
+	): PokemonStorageSummary {
+		const boxCount = storageRecord?.boxCount ?? 3;
+		const occupied =
+			storageRecord?.boxes.reduce(
+				(total, box) => total + box.slots.filter((slot) => slot.pokemon !== null).length,
+				0
+			) ?? 0;
+
+		return {
+			boxCount,
+			occupied,
+			updatedAt: storageRecord?.updatedAt ?? new Date().toISOString()
+		};
 	}
 
 	async function importSaveFile(file: File) {
@@ -318,6 +378,7 @@
 		if (saveFile.id === activeSaveFileId) {
 			selectedSaveFileId = saveFile.id;
 			statusMessage = `${displayName(saveFile)} is already active.`;
+			await openBoxesRoute();
 			return;
 		}
 
@@ -337,6 +398,7 @@
 			invalidateActiveWorkspaceCache();
 			await refreshLibrary({ preferredSelection: active.id, force: true });
 			statusMessage = `${displayName(active)} is active.`;
+			await openBoxesRoute();
 		} catch (error) {
 			errorMessage = getErrorMessage(error);
 			statusMessage = 'Could not switch Save File.';
@@ -458,6 +520,7 @@
 			invalidateActiveWorkspaceCache();
 			await refreshLibrary({ preferredSelection: stored.id, force: true });
 			statusMessage = 'Backup opened as a separate active Save File.';
+			await openBoxesRoute();
 		} catch (error) {
 			errorMessage = getErrorMessage(error);
 			statusMessage = 'Backup restore failed.';
@@ -708,7 +771,7 @@
 			<div class="page-heading">
 				<p>Choose a Save</p>
 				<h1 id="saves-title">Save files</h1>
-				<span>All saves live locally on this device. PKSX works fully offline.</span>
+				<span>Manage imported Save Files and app-owned Pokemon Storage.</span>
 			</div>
 			<input
 				id="save-file-input"
@@ -734,6 +797,57 @@
 		</section>
 
 		<section class="library-grid" aria-label="Local Save Files">
+			<article class={['save-card', 'storage-card', storageSelected && 'selected']}>
+				<button
+					data-saves-control
+					type="button"
+					class="save-card-main"
+					onclick={selectPokemonStorage}
+				>
+					<span class="save-title">
+						<strong>Pokemon Storage</strong>
+						<em>App-owned</em>
+					</span>
+					<span class="save-subtitle">App-owned local Pokemon boxes</span>
+					<span class="stat-strip">
+						<span><small>Owner</small>PKSX</span>
+						<span><small>Mode</small>Storage</span>
+						<span
+							><small>Updated</small>{formatRelativeTimestamp(
+								pokemonStorageSummary?.updatedAt ?? new Date().toISOString()
+							)}</span
+						>
+					</span>
+				</button>
+
+				<div class="storage-preview" aria-label="Pokemon Storage occupancy">
+					<span>Storage</span>
+					<div>
+						<strong>{pokemonStorageSummary?.occupied ?? 0}</strong>
+						<small>Pokemon stored</small>
+					</div>
+				</div>
+
+				<div class="save-footer">
+					<span>
+						{pokemonStorageSummary?.boxCount ?? 3} boxes · {pokemonStorageSummary?.occupied ?? 0}
+						creatures
+					</span>
+					<div class="card-actions">
+						<button
+							data-saves-control
+							type="button"
+							aria-disabled={busy}
+							onclick={() => {
+								if (!busy) openPokemonStorage();
+							}}
+						>
+							Open →
+						</button>
+					</div>
+				</div>
+			</article>
+
 			{#each saveFiles as saveFile (saveFile.id)}
 				{@const details = detailsBySaveFileId[saveFile.id] ?? null}
 				{@const active = saveFile.id === activeSaveFileId}
@@ -749,7 +863,7 @@
 						data-saves-control
 						type="button"
 						class="save-card-main"
-						onclick={() => (selectedSaveFileId = saveFile.id)}
+						onclick={() => selectSaveFile(saveFile.id)}
 					>
 						<span class="save-title">
 							<strong>{gameTitle(details, saveFile)}</strong>
@@ -833,7 +947,13 @@
 			<header>
 				<div>
 					<p>Backups</p>
-					<h2>{selectedSaveFile ? displayName(selectedSaveFile) : 'No Save File selected'}</h2>
+					<h2>
+						{selectedSaveFile
+							? displayName(selectedSaveFile)
+							: storageSelected
+								? 'Pokemon Storage'
+								: 'No Save File selected'}
+					</h2>
 				</div>
 				<button
 					data-saves-control
@@ -881,18 +1001,14 @@
 						<p class="empty-backups">No Backups yet.</p>
 					{/each}
 				{:else}
-					<p class="empty-backups">Import a Save File before creating Backups.</p>
+					<p class="empty-backups">
+						{storageSelected
+							? 'Pokemon Storage does not use Save File Backups.'
+							: 'Import a Save File before creating Backups.'}
+					</p>
 				{/if}
 			</div>
 		</section>
-
-		<footer class="offline-panel">
-			<i aria-hidden="true"></i>
-			<div>
-				<strong>Offline - all local</strong>
-				<span>Edits and backups stay on this device unless you explicitly export or sync.</span>
-			</div>
-		</footer>
 	</section>
 </section>
 
@@ -1004,7 +1120,6 @@
 	.save-footer span,
 	.backup-row span,
 	.empty-backups,
-	.offline-panel span,
 	.import-card small {
 		color: var(--ink-soft);
 		font:
@@ -1045,8 +1160,7 @@
 
 	.save-card,
 	.import-card,
-	.backup-panel,
-	.offline-panel {
+	.backup-panel {
 		border-radius: var(--pksx-radius-xl);
 		background: var(--paper-hi);
 		box-shadow: var(--shadow-sm);
@@ -1068,6 +1182,13 @@
 		box-shadow:
 			0 0 0 1px color-mix(in srgb, var(--rust), transparent 35%),
 			var(--shadow-sm);
+	}
+
+	.save-card.storage-card {
+		border-color: color-mix(in srgb, var(--ok), var(--rule) 54%);
+		background:
+			linear-gradient(color-mix(in srgb, var(--ok), transparent 86%), transparent 78%),
+			var(--paper-hi);
 	}
 
 	.save-card.selected {
@@ -1170,10 +1291,51 @@
 		filter: drop-shadow(0 8px 10px rgba(54, 36, 20, 0.14));
 	}
 
+	.storage-preview {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		align-items: center;
+		gap: 12px;
+		padding: 13px 14px;
+		border-radius: var(--pksx-radius-md);
+		background: var(--paper-deep);
+		box-shadow: var(--shadow-sm);
+	}
+
+	.storage-preview > span {
+		color: var(--ink-mute);
+		font:
+			750 0.72rem var(--pksx-font-mono),
+			monospace;
+		text-transform: uppercase;
+		letter-spacing: 0.16em;
+	}
+
+	.storage-preview div {
+		min-width: 0;
+		display: flex;
+		align-items: baseline;
+		justify-content: flex-end;
+		gap: 8px;
+	}
+
+	.storage-preview strong {
+		font:
+			900 1.6rem var(--pksx-font-mono),
+			monospace;
+		line-height: 1;
+	}
+
+	.storage-preview small {
+		color: var(--ink-soft);
+		font:
+			750 0.76rem var(--pksx-font-mono),
+			monospace;
+	}
+
 	.save-footer,
 	.backup-row,
-	.backup-panel header,
-	.offline-panel {
+	.backup-panel header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -1300,35 +1462,6 @@
 		background: var(--paper-deep);
 	}
 
-	.offline-panel {
-		padding: 16px;
-		border: 1px dashed var(--rule);
-	}
-
-	.offline-panel i {
-		width: 44px;
-		height: 44px;
-		flex: 0 0 auto;
-		border-radius: var(--pksx-radius-md);
-		background: var(--rust-wash);
-		position: relative;
-	}
-
-	.offline-panel i::after {
-		content: '';
-		position: absolute;
-		inset: 14px;
-		border-radius: 999px;
-		background: var(--ok);
-	}
-
-	.offline-panel div {
-		min-width: 0;
-		display: grid;
-		gap: 3px;
-		margin-right: auto;
-	}
-
 	@media (max-width: 1180px) {
 		.library-grid {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1364,8 +1497,7 @@
 		.save-footer,
 		.card-actions,
 		.backup-row,
-		.backup-panel header,
-		.offline-panel {
+		.backup-panel header {
 			align-items: stretch;
 			grid-template-columns: 1fr;
 			flex-direction: column;

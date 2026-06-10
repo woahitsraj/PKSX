@@ -7,6 +7,11 @@ export type {
 	CreateBackupInput,
 	ImportSaveInput,
 	LocalLibraryStorage,
+	PokemonStorageId,
 	SaveFileId,
+	StoredPokemonStorage,
+	StoredPokemonStorageBox,
+	StoredPokemonStoragePokemon,
+	StoredPokemonStorageSlot,
 	StoredSaveFile
 } from './types';

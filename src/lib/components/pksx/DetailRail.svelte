@@ -4,8 +4,8 @@
 
 	interface Props {
 		focusedSlot: SlotView;
-		focusZone: 'party' | 'box';
-		focusSlot: number;
+		focusZone: 'party' | 'box' | null;
+		focusSlot: number | null;
 		slotHueStyle: string;
 		spriteUrl: string | null;
 		saveSummary: SaveSummary | null;
@@ -59,6 +59,17 @@
 	);
 	const hasStats = $derived(isPokemon && focusedSlot.stats && focusedSlot.stats.length > 0);
 	const hasMoves = $derived(isPokemon && focusedSlot.moves && focusedSlot.moves.length > 0);
+	const hasSlotFocus = $derived(focusZone !== null && focusSlot !== null);
+	const slotHeader = $derived(
+		focusZone === null || focusSlot === null
+			? 'NO SLOT'
+			: focusZone === 'party'
+				? `PARTY ${focusSlot + 1}`
+				: `SLOT ${focusSlot + 1}`
+	);
+	const locationLabel = $derived(
+		focusZone === 'box' ? activeBoxName : focusZone === 'party' ? 'Party' : 'No selection'
+	);
 </script>
 
 <aside
@@ -69,7 +80,7 @@
 	style={slotHueStyle}
 >
 	<div class="portrait-card">
-		<small>{focusZone === 'party' ? `PARTY ${focusSlot + 1}` : `SLOT ${focusSlot + 1}`}</small>
+		<small>{slotHeader}</small>
 		{#if speciesLabel}
 			<span class="species-pill">{speciesLabel.replace('Species ', '')}</span>
 		{/if}
@@ -97,6 +108,8 @@
 			<h2>{isPokemon ? focusedSlot.label : 'Empty slot'}</h2>
 			{#if isPokemon && details.length > 0}
 				<span>{details.join(' · ')}</span>
+			{:else if !hasSlotFocus}
+				<span>No slot selected</span>
 			{:else if !isPokemon}
 				<span>No Pokemon stored here</span>
 			{/if}
@@ -115,7 +128,7 @@
 			{#if focusedSlot.gender}<span>{focusedSlot.gender}</span>{/if}
 			{#if focusedSlot.isEgg}<span>Egg</span>{/if}
 			{#if formLabel}<span>{formLabel}</span>{/if}
-			<span>{focusZone === 'box' ? activeBoxName : 'Party'}</span>
+			<span>{locationLabel}</span>
 		</div>
 	{/if}
 
@@ -171,7 +184,7 @@
 
 	{#if !isPokemon}
 		<div class="empty-copy">
-			<span>Position</span>
+			<span>{focusZone === null ? 'Selection' : 'Position'}</span>
 			<strong>{positionLabel}</strong>
 		</div>
 	{/if}
