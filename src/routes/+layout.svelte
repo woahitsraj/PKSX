@@ -11,7 +11,8 @@
 
 	let { children } = $props();
 
-	const sectionPills = ['Boxes', 'Save File', 'Dex', 'Trades', 'Saves'];
+	const sectionPills = ['Boxes', 'Save File', 'Saves'];
+	const topBarControlIndices = [0, 1, 2, 3, 4, 7];
 	const mobileTabs = [
 		{ key: 'boxes', label: 'Boxes', glyph: '▦' },
 		{ key: 'save-file', label: 'Save', glyph: '▣' },
@@ -130,7 +131,9 @@
 		}
 
 		if (chromeFocus.zone === 'topbar') {
-			const nextIndex = nextChromeIndex(chromeFocus.index, action, 8);
+			const currentPosition = Math.max(0, topBarControlIndices.indexOf(chromeFocus.index));
+			const nextPosition = nextChromeIndex(currentPosition, action, topBarControlIndices.length);
+			const nextIndex = topBarControlIndices[nextPosition] ?? 0;
 			chromeFocus = { zone: 'topbar', index: nextIndex };
 			focusChromeElement(`top-control-${nextIndex}`);
 			if (action === 'confirm') {
@@ -198,9 +201,9 @@
 	function activateTopControl(index: number) {
 		if (index === 0) openBoxes();
 		if (index === 1) openSaveFile();
-		if (index === 4) openSaves();
-		if (index === 5 && !appChrome.busy) document.getElementById('quick-save-import')?.click();
-		if (index === 6 && appChrome.hasLoadedSave && !appChrome.busy) handleExport();
+		if (index === 2) openSaves();
+		if (index === 3 && !appChrome.busy) document.getElementById('quick-save-import')?.click();
+		if (index === 4 && appChrome.hasLoadedSave && !appChrome.busy) handleExport();
 		if (index === 7) darkMode = !darkMode;
 	}
 

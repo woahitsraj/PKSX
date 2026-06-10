@@ -88,28 +88,17 @@
 				>
 			{:else if pill === 'Saves'}
 				<button
-					id="top-control-4"
+					id="top-control-2"
 					type="button"
 					class:active={activeSection === pill}
-					class:controller-focused={focusIndex === 4}
+					class:controller-focused={focusIndex === 2}
 					aria-current={activeSection === pill ? 'page' : undefined}
 					aria-disabled={busy}
-					onfocus={() => onFocusControl(4)}
+					onfocus={() => onFocusControl(2)}
 					onclick={() => {
 						if (!busy) onOpenSaves();
 					}}>{pill}</button
 				>
-			{:else}
-				<button
-					id={pill === 'Dex' ? 'top-control-2' : 'top-control-3'}
-					type="button"
-					class:active={activeSection === pill}
-					class:controller-focused={focusIndex === (pill === 'Dex' ? 2 : 3)}
-					aria-disabled="true"
-					onfocus={() => onFocusControl(pill === 'Dex' ? 2 : 3)}
-				>
-					{pill}
-				</button>
 			{/if}
 		{/each}
 	</div>
@@ -131,10 +120,10 @@
 		/>
 		<button
 			type="button"
-			id="top-control-5"
-			class:controller-focused={focusIndex === 5}
+			id="top-control-3"
+			class:controller-focused={focusIndex === 3}
 			aria-disabled={busy}
-			onfocus={() => onFocusControl(5)}
+			onfocus={() => onFocusControl(3)}
 			onclick={() => {
 				if (!busy) openImportPicker();
 			}}
@@ -143,10 +132,10 @@
 		</button>
 		<button
 			type="button"
-			id="top-control-6"
-			class:controller-focused={focusIndex === 6}
+			id="top-control-4"
+			class:controller-focused={focusIndex === 4}
 			aria-disabled={busy || !hasLoadedSave}
-			onfocus={() => onFocusControl(6)}
+			onfocus={() => onFocusControl(4)}
 			onclick={() => {
 				if (!busy && hasLoadedSave) onExport();
 			}}>Export</button
