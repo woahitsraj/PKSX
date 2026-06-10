@@ -6,6 +6,7 @@ import type {
 	EngineVersion,
 	LegalityReport,
 	PokemonEditOperationResult,
+	SaveFileEditOperationResult,
 	SaveWorkspace,
 	SlotOperationResult,
 	SerializedSave,
@@ -204,6 +205,21 @@ export function createPkhexWorkerEngine(
 				[buffer]
 			);
 		},
+		applySaveFileEditOperation: (bytes, fileName, operation, activeBox) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+			const payloadOperation = structuredClone(operation);
+
+			return sendRequest(
+				'applySaveFileEditOperation',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'applySaveFileEditOperation',
+					payload: { bytes: buffer, fileName, operation: payloadOperation, activeBox }
+				},
+				[buffer]
+			);
+		},
 		checkSlotLegality: (bytes, fileName, source) => {
 			const buffer = copyBytesToArrayBuffer(bytes);
 
@@ -251,6 +267,11 @@ export function createPkhexWorkerEngine(
 		request: Extract<EngineWorkerRequest, { method: 'applyPokemonEditOperation' }>,
 		transfer: Transferable[]
 	): Promise<EngineResult<PokemonEditOperationResult>>;
+	async function sendRequest(
+		method: 'applySaveFileEditOperation',
+		request: Extract<EngineWorkerRequest, { method: 'applySaveFileEditOperation' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<SaveFileEditOperationResult>>;
 	async function sendRequest(
 		method: 'checkSlotLegality',
 		request: Extract<EngineWorkerRequest, { method: 'checkSlotLegality' }>,
@@ -317,7 +338,9 @@ export function createPkhexWorkerEngine(
 
 function normalizeWorkerResult(response: EngineWorkerResponse): EngineResult<unknown> {
 	if (
-		(response.method !== 'applySlotOperation' && response.method !== 'applyPokemonEditOperation') ||
+		(response.method !== 'applySlotOperation' &&
+			response.method !== 'applyPokemonEditOperation' &&
+			response.method !== 'applySaveFileEditOperation') ||
 		!response.result.ok
 	) {
 		return response.result;

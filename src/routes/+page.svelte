@@ -91,7 +91,8 @@
 	const storage = getLocalLibraryStorage();
 
 	const slotPalette = [16, 28, 48, 100, 140, 180, 195, 210, 220, 260, 280, 295, 330, 52];
-	const mobileTabCount = 2;
+	const topControlCount = 8;
+	const mobileTabCount = 3;
 
 	function fallbackSlotHue(box: number, slot: number, speciesId: number | null): number {
 		const seed = speciesId && speciesId > 0 ? speciesId : slot * 31 + box * 7;
@@ -452,7 +453,7 @@
 		const previousBox = navigation.activeBox;
 		navigation = applyNavigationAction(navigation, action, {
 			actionCount: getActionCountForFocusedSlot(),
-			topControlCount: 5,
+			topControlCount,
 			mobileTabCount,
 			mobileTabsAvailable
 		});

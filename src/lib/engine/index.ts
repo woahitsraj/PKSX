@@ -30,6 +30,8 @@ export type {
 	PokemonMoveSlotEdit,
 	PokemonStatEditConstraints,
 	PokemonStatEditSet,
+	SaveFileEditOperation,
+	SaveFileEditOperationResult,
 	SaveSlotRef,
 	SaveWorkspace,
 	SlotOperation,
@@ -42,6 +44,7 @@ export type { EngineWorkerFactory, EngineWorkerPort } from './pkhex-worker-engin
 export type {
 	EngineWorkerGetVersionRequest,
 	EngineWorkerInitMessage,
+	EngineWorkerApplySaveFileEditOperationRequest,
 	EngineWorkerCheckSlotLegalityRequest,
 	EngineWorkerLoadSaveWorkspaceRequest,
 	EngineWorkerListBoxSlotsRequest,

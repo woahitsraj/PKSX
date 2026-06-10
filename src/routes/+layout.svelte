@@ -11,16 +11,25 @@
 
 	let { children } = $props();
 
-	const sectionPills = ['Boxes', 'Saves'];
+	const sectionPills = ['Boxes', 'Save File', 'Dex', 'Trades', 'Saves'];
 	const mobileTabs = [
 		{ key: 'boxes', label: 'Boxes', glyph: '▦' },
+		{ key: 'save-file', label: 'Save', glyph: '▣' },
 		{ key: 'saves', label: 'Saves', glyph: '☁' }
 	];
 
 	let darkMode = $state(false);
 	let chromeFocus = $state<{ zone: 'topbar' | 'mobileTabs'; index: number } | null>(null);
-	const activeRoute = $derived(page.url.pathname.startsWith('/saves') ? 'saves' : 'boxes');
-	const activeSection = $derived(activeRoute === 'saves' ? 'Saves' : 'Boxes');
+	const activeRoute = $derived(
+		page.url.pathname.startsWith('/saves')
+			? 'saves'
+			: page.url.pathname.startsWith('/save-file')
+				? 'save-file'
+				: 'boxes'
+	);
+	const activeSection = $derived(
+		activeRoute === 'saves' ? 'Saves' : activeRoute === 'save-file' ? 'Save File' : 'Boxes'
+	);
 
 	function openBoxes() {
 		void goto(resolve('/'));
@@ -28,6 +37,10 @@
 
 	function openSaves() {
 		void goto(resolve('/saves'));
+	}
+
+	function openSaveFile() {
+		void goto(resolve('/save-file'));
 	}
 
 	function handleImport(file: File) {
@@ -51,6 +64,9 @@
 		const tab = mobileTabs[index];
 		if (tab?.key === 'boxes') {
 			openBoxes();
+		}
+		if (tab?.key === 'save-file') {
+			openSaveFile();
 		}
 		if (tab?.key === 'saves') {
 			openSaves();
@@ -107,11 +123,14 @@
 
 	function dispatchChromeAction(action: 'previous' | 'next' | 'confirm') {
 		if (!chromeFocus) {
-			chromeFocus = { zone: 'mobileTabs', index: activeRoute === 'saves' ? 1 : 0 };
+			chromeFocus = {
+				zone: 'mobileTabs',
+				index: activeRoute === 'saves' ? 2 : activeRoute === 'save-file' ? 1 : 0
+			};
 		}
 
 		if (chromeFocus.zone === 'topbar') {
-			const nextIndex = nextChromeIndex(chromeFocus.index, action, 5);
+			const nextIndex = nextChromeIndex(chromeFocus.index, action, 8);
 			chromeFocus = { zone: 'topbar', index: nextIndex };
 			focusChromeElement(`top-control-${nextIndex}`);
 			if (action === 'confirm') {
@@ -178,10 +197,11 @@
 
 	function activateTopControl(index: number) {
 		if (index === 0) openBoxes();
-		if (index === 1) openSaves();
-		if (index === 2 && !appChrome.busy) document.getElementById('quick-save-import')?.click();
-		if (index === 3 && appChrome.hasLoadedSave && !appChrome.busy) handleExport();
-		if (index === 4) darkMode = !darkMode;
+		if (index === 1) openSaveFile();
+		if (index === 4) openSaves();
+		if (index === 5 && !appChrome.busy) document.getElementById('quick-save-import')?.click();
+		if (index === 6 && appChrome.hasLoadedSave && !appChrome.busy) handleExport();
+		if (index === 7) darkMode = !darkMode;
 	}
 
 	function focusChromeElement(id: string) {
@@ -210,6 +230,7 @@
 		focusIndex={chromeFocus?.zone === 'topbar' ? chromeFocus.index : null}
 		onFocusControl={focusTopControl}
 		onOpenBoxes={openBoxes}
+		onOpenSaveFile={openSaveFile}
 		onOpenSaves={openSaves}
 		onImport={handleImport}
 		onExport={handleExport}

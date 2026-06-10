@@ -369,8 +369,6 @@ test('keyboard navigation reaches top controls and mobile tabs', async ({ page }
 
 	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#top-control-4')).toBeFocused();
-	await page.keyboard.press(' ');
-	await expect(page.getByRole('button', { name: 'Use light mode' })).toBeVisible();
 
 	await page.locator('#box-0-slot-24').focus();
 	await page.keyboard.press('ArrowDown');
@@ -528,6 +526,27 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 
 	expect(download.suggestedFilename()).toBe('emerald-011020251345.pksx.sav');
 	expect(exported.byteLength).toBe(fixture.byteLength);
+});
+
+test('Save File route presents a mocked staged editing interface', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await page.getByRole('button', { name: 'Save File' }).click();
+	await expect(page).toHaveURL(/\/save-file$/);
+
+	await expect(page.getByRole('heading', { name: 'Trainer profile' })).toBeVisible();
+	await expect(page.getByText('No staged edits')).toHaveCount(0);
+	await expect(page.getByText('6 staged edits')).toBeVisible();
+	await expect(page.getByLabel('Mock OT name')).toHaveValue('CASSIA');
+	await expect(page.getByText('Save File bytes untouched.')).toBeVisible();
+
+	await page.getByRole('button', { name: /Money/ }).first().click();
+	await expect(page.getByRole('heading', { name: 'Money & Battle Points' })).toBeVisible();
+	await expect(page.getByText('Coins — unsupported')).toBeVisible();
+
+	await page.getByRole('button', { name: /Bag Inventory pockets/ }).click();
+	await expect(page.getByRole('heading', { name: 'Inventory' })).toBeVisible();
+	await expect(page.getByText('Add an item to Medicine...')).toBeVisible();
+	await expect(page.getByText('Ether Vial')).toBeVisible();
 });
 
 test('Pokemon Editor changes level through Apply and keeps editor focus', async ({ page }) => {
@@ -758,9 +777,6 @@ test('keyboard navigation covers the Saves route controls and desktop overflow s
 	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#top-control-1')).toBeFocused();
 	await page.keyboard.press('ArrowRight');
-	await expect(page.locator('#top-control-2')).toBeFocused();
-
-	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#top-control-4')).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(page.getByRole('button', { name: /Import a Save File/ })).toBeFocused();

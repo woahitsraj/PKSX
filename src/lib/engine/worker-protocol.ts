@@ -10,6 +10,7 @@ export const engineWorkerMethodSchema = z.enum([
 	'serializeSave',
 	'applySlotOperation',
 	'applyPokemonEditOperation',
+	'applySaveFileEditOperation',
 	'checkSlotLegality'
 ]);
 
@@ -24,6 +25,8 @@ export const engineErrorCodeSchema = z.enum([
 	'unsupported-slot-operation',
 	'invalid-pokemon-edit',
 	'unsupported-pokemon-edit',
+	'invalid-save-file-edit',
+	'unsupported-save-file-edit',
 	'engine-unavailable',
 	'invalid-engine-response',
 	'invalid-worker-message',
@@ -288,6 +291,21 @@ export const pokemonEditOperationResultSchema = z.object({
 	workspace: saveWorkspaceSchema
 });
 
+export const saveFileEditOperationSchema = z.object({
+	trainerProfile: z
+		.object({
+			trainerName: z.string().optional()
+		})
+		.optional(),
+	money: z.number().int().optional()
+});
+
+export const saveFileEditOperationResultSchema = z.object({
+	bytes: z.instanceof(ArrayBuffer),
+	mutated: z.boolean(),
+	workspace: saveWorkspaceSchema
+});
+
 export const legalityReportLineSchema = z.object({
 	severity: z.string(),
 	identifier: z.string(),
@@ -330,6 +348,10 @@ export const slotOperationResultResultSchema = engineResultSchema(slotOperationR
 
 export const pokemonEditOperationResultResultSchema = engineResultSchema(
 	pokemonEditOperationResultSchema
+);
+
+export const saveFileEditOperationResultResultSchema = engineResultSchema(
+	saveFileEditOperationResultSchema
 );
 
 export const legalityReportResultSchema = engineResultSchema(legalityReportSchema);
@@ -411,6 +433,18 @@ export const engineWorkerApplyPokemonEditOperationRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerApplySaveFileEditOperationRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('applySaveFileEditOperation'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional(),
+		operation: saveFileEditOperationSchema,
+		activeBox: z.number().int()
+	})
+});
+
 export const engineWorkerCheckSlotLegalityRequestSchema = z.object({
 	type: z.literal('request'),
 	id: engineWorkerRequestIdSchema,
@@ -430,6 +464,7 @@ export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerSerializeSaveRequestSchema,
 	engineWorkerApplySlotOperationRequestSchema,
 	engineWorkerApplyPokemonEditOperationRequestSchema,
+	engineWorkerApplySaveFileEditOperationRequestSchema,
 	engineWorkerCheckSlotLegalityRequestSchema
 ]);
 
@@ -482,6 +517,13 @@ export const engineWorkerApplyPokemonEditOperationResponseSchema = z.object({
 	result: pokemonEditOperationResultResultSchema
 });
 
+export const engineWorkerApplySaveFileEditOperationResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('applySaveFileEditOperation'),
+	result: saveFileEditOperationResultResultSchema
+});
+
 export const engineWorkerCheckSlotLegalityResponseSchema = z.object({
 	type: z.literal('response'),
 	id: engineWorkerRequestIdSchema,
@@ -497,6 +539,7 @@ export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerSerializeSaveResponseSchema,
 	engineWorkerApplySlotOperationResponseSchema,
 	engineWorkerApplyPokemonEditOperationResponseSchema,
+	engineWorkerApplySaveFileEditOperationResponseSchema,
 	engineWorkerCheckSlotLegalityResponseSchema
 ]);
 
@@ -556,6 +599,10 @@ export type EngineWorkerApplySlotOperationRequest = z.infer<
 
 export type EngineWorkerApplyPokemonEditOperationRequest = z.infer<
 	typeof engineWorkerApplyPokemonEditOperationRequestSchema
+>;
+
+export type EngineWorkerApplySaveFileEditOperationRequest = z.infer<
+	typeof engineWorkerApplySaveFileEditOperationRequestSchema
 >;
 
 export type EngineWorkerCheckSlotLegalityRequest = z.infer<

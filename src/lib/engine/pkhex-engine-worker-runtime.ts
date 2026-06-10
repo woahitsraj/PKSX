@@ -5,6 +5,7 @@ import type {
 	EngineVersion,
 	LegalityReport,
 	PokemonEditOperationResult,
+	SaveFileEditOperationResult,
 	SaveSummary,
 	SaveWorkspace,
 	SlotOperationResult,
@@ -17,6 +18,7 @@ import {
 	parseEngineWorkerRequest,
 	type EngineWorkerApplySlotOperationRequest,
 	type EngineWorkerApplyPokemonEditOperationRequest,
+	type EngineWorkerApplySaveFileEditOperationRequest,
 	type EngineWorkerCheckSlotLegalityRequest,
 	type EngineWorkerLoadSaveWorkspaceRequest,
 	type EngineWorkerListBoxSlotsRequest,
@@ -43,6 +45,11 @@ export type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		operationJson: string
 	): string;
+	ApplySaveFileEditOperationJson?(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operationJson: string
+	): string;
 	CheckSlotLegalityJson(
 		bytes: Uint8Array,
 		fileName: string | undefined,
@@ -55,6 +62,10 @@ type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes'> & {
 	byteLength: number;
 };
 type RawPokemonEditOperationResult = Omit<PokemonEditOperationResult, 'bytes'> & {
+	bytesBase64: string;
+	byteLength: number;
+};
+type RawSaveFileEditOperationResult = Omit<SaveFileEditOperationResult, 'bytes'> & {
 	bytesBase64: string;
 	byteLength: number;
 };
@@ -166,6 +177,13 @@ export function createPkhexEngineWorkerRuntime({
 					applyPokemonEditOperation(engine, request)
 				);
 				return;
+			case 'applySaveFileEditOperation':
+				postSaveFileEditOperationResponse(
+					postMessage,
+					request,
+					applySaveFileEditOperation(engine, request)
+				);
+				return;
 			case 'checkSlotLegality':
 				postMessage(createEngineWorkerResponse(request, checkSlotLegality(engine, request)));
 				return;
@@ -267,6 +285,33 @@ function applyPokemonEditOperation(
 	);
 }
 
+function applySaveFileEditOperation(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerApplySaveFileEditOperationRequest
+): EngineResult<RawSaveFileEditOperationResult> {
+	if (!engine.ApplySaveFileEditOperationJson) {
+		return {
+			ok: false,
+			value: null,
+			error: {
+				code: 'unsupported-save-file-edit',
+				message: 'Save File field editing is not available in this PKHeX Engine build.'
+			}
+		};
+	}
+
+	return parseEngineResult<RawSaveFileEditOperationResult>(
+		engine.ApplySaveFileEditOperationJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			JSON.stringify({
+				...request.payload.operation,
+				activeBox: request.payload.activeBox
+			})
+		)
+	);
+}
+
 function checkSlotLegality(
 	engine: DotnetPkhexEngineExports,
 	request: EngineWorkerCheckSlotLegalityRequest
@@ -328,6 +373,30 @@ function postPokemonEditOperationResponse(
 	postMessage(response, [bytes]);
 }
 
+function postSaveFileEditOperationResponse(
+	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
+	request: EngineWorkerApplySaveFileEditOperationRequest,
+	result: EngineResult<RawSaveFileEditOperationResult>
+) {
+	if (!result.ok) {
+		postMessage(createEngineWorkerResponse(request, result));
+		return;
+	}
+
+	const bytes = base64ToArrayBuffer(result.value.bytesBase64, result.value.byteLength);
+	const response = createEngineWorkerResponse(request, {
+		ok: true,
+		value: {
+			bytes,
+			mutated: result.value.mutated,
+			workspace: result.value.workspace
+		},
+		error: null
+	});
+
+	postMessage(response, [bytes]);
+}
+
 function unavailableResult(request: EngineWorkerRequest) {
 	const result = {
 		ok: false,
@@ -353,6 +422,8 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<SlotOperationResult>;
 		case 'applyPokemonEditOperation':
 			return result satisfies EngineResult<PokemonEditOperationResult>;
+		case 'applySaveFileEditOperation':
+			return result satisfies EngineResult<SaveFileEditOperationResult>;
 		case 'checkSlotLegality':
 			return result satisfies EngineResult<LegalityReport>;
 	}
