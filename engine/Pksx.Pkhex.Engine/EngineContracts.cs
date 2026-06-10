@@ -1,4 +1,5 @@
 using PKHeX.Core;
+using System.Text.Json.Serialization;
 
 namespace Pksx.Pkhex.Engine;
 
@@ -72,6 +73,8 @@ public sealed record PartySlotSummary(
     List<SlotTypeSummary> Types,
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
+    PokemonStatEditConstraints StatEditConstraints,
+    PokemonMoveSetEditConstraints MoveSetEditConstraints,
     string? OriginalTrainer,
     string? MetLabel,
     SpriteIdentity SpriteIdentity)
@@ -95,6 +98,8 @@ public sealed record PartySlotSummary(
             SlotDetailProjection.Types(pokemon),
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
+            SlotDetailProjection.StatEditConstraints(pokemon),
+            SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Party),
             SlotDetailProjection.OriginalTrainer(pokemon),
             SlotDetailProjection.MetLabel(pokemon),
             SpriteIdentity.From(pokemon));
@@ -119,6 +124,8 @@ public sealed record BoxSlotSummary(
     List<SlotTypeSummary> Types,
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
+    PokemonStatEditConstraints StatEditConstraints,
+    PokemonMoveSetEditConstraints MoveSetEditConstraints,
     string? OriginalTrainer,
     string? MetLabel,
     SpriteIdentity SpriteIdentity)
@@ -143,6 +150,8 @@ public sealed record BoxSlotSummary(
             SlotDetailProjection.Types(pokemon),
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
+            SlotDetailProjection.StatEditConstraints(pokemon),
+            SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Box),
             SlotDetailProjection.OriginalTrainer(pokemon),
             SlotDetailProjection.MetLabel(pokemon),
             SpriteIdentity.From(pokemon));
@@ -221,9 +230,26 @@ public sealed record PokemonExperienceProjection(
 
 public sealed record SlotTypeSummary(string Name, int Hue, double Chroma);
 
-public sealed record SlotStatSummary(string Key, string Label, int Value, int? Ev, int Max);
+public sealed record SlotStatSummary(string Key, string Label, int Value, int? Ev, int? Iv, int Max);
 
-public sealed record SlotMoveSummary(string Name, string Type, int Hue, double Chroma, int? Pp);
+public sealed record SlotMoveSummary(int Slot, ushort Id, string Name, string Type, int Hue, double Chroma, int? Pp, int? MaxPp, int? PpUps);
+
+public sealed record PokemonStatEditConstraints(
+    bool Supported,
+    int MinIv,
+    int MaxIv,
+    int MinEv,
+    int MaxEv,
+    int MaxTotalEv,
+    string? UnsupportedReason);
+
+public sealed record PokemonMoveOption(ushort Id, string Name, string Type, int Hue, double Chroma, int MaxPp);
+
+public sealed record PokemonMoveSetEditConstraints(
+    bool Supported,
+    int MaxMoveSlots,
+    List<PokemonMoveOption> AvailableMoves,
+    string? UnsupportedReason);
 
 public sealed record SaveWorkspace(
     SaveSummary Summary,
@@ -251,7 +277,20 @@ public sealed record PokemonEditOperationRequest(
     int ActiveBox,
     string? Nickname,
     int? Level,
-    uint? Experience);
+    uint? Experience,
+    PokemonStatEditSet? Ivs,
+    PokemonStatEditSet? Evs,
+    List<PokemonMoveSlotEdit>? Moves);
+
+public sealed record PokemonStatEditSet(
+    [property: JsonPropertyName("HP")] int HP,
+    [property: JsonPropertyName("ATK")] int ATK,
+    [property: JsonPropertyName("DEF")] int DEF,
+    [property: JsonPropertyName("SPA")] int SPA,
+    [property: JsonPropertyName("SPD")] int SPD,
+    [property: JsonPropertyName("SPE")] int SPE);
+
+public sealed record PokemonMoveSlotEdit(int Slot, ushort Move, int? Pp, int? PpUps);
 
 public sealed record PokemonEditOperationResult(
     string BytesBase64,
@@ -273,6 +312,8 @@ internal static class SlotDetailProjection
     private static readonly string[] StatKeys = ["HP", "ATK", "DEF", "SPA", "SPD", "SPE"];
 
     private static readonly string[] StatLabels = ["HP", "ATK", "DEF", "SPA", "SPD", "SPE"];
+
+    private static readonly int[] StatValueIndexes = [0, 1, 2, 4, 5, 3];
 
     private static readonly int[] TypeHues =
     [
@@ -327,15 +368,18 @@ internal static class SlotDetailProjection
 
         var values = pokemon.GetStats(pokemon.PersonalInfo);
         var evs = new[] { pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE };
+        var ivs = new[] { pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE };
         var result = new List<SlotStatSummary>(StatKeys.Length);
 
         for (var index = 0; index < StatKeys.Length && index < values.Length; index++)
         {
+            var valueIndex = StatValueIndexes[index];
             result.Add(new SlotStatSummary(
                 StatKeys[index],
                 StatLabels[index],
-                values[index],
+                valueIndex < values.Length ? values[valueIndex] : 0,
                 evs[index] > 0 ? evs[index] : null,
+                ivs[index],
                 255));
         }
 
@@ -349,6 +393,7 @@ internal static class SlotDetailProjection
 
         ushort[] moves = [pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4];
         int[] pp = [pokemon.Move1_PP, pokemon.Move2_PP, pokemon.Move3_PP, pokemon.Move4_PP];
+        int[] ppUps = [pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps];
         var result = new List<SlotMoveSummary>(moves.Length);
 
         for (var index = 0; index < moves.Length; index++)
@@ -364,10 +409,88 @@ internal static class SlotDetailProjection
             var typeId = MoveInfo.GetType(move, pokemon.Context);
             var type = TypeName(typeId) ?? "Move";
             var hue = TypeHue(typeId);
-            result.Add(new SlotMoveSummary(name, type, hue, TypeChroma(typeId), pp[index] > 0 ? pp[index] : null));
+            result.Add(new SlotMoveSummary(
+                index,
+                move,
+                name,
+                type,
+                hue,
+                TypeChroma(typeId),
+                pp[index] > 0 ? pp[index] : null,
+                pokemon.GetMovePP(move, ppUps[index]),
+                ppUps[index]));
         }
 
         return result;
+    }
+
+    public static PokemonStatEditConstraints StatEditConstraints(PKM pokemon)
+    {
+        if (pokemon.Species == 0)
+        {
+            return new PokemonStatEditConstraints(
+                false,
+                0,
+                0,
+                0,
+                0,
+                0,
+                "IV and EV Editing needs an occupied Slot.");
+        }
+
+        var maxTotalEv = pokemon.MaxEV > EffortValues.Max255
+            ? pokemon.MaxEV * StatKeys.Length
+            : EffortValues.Max510;
+
+        return new PokemonStatEditConstraints(
+            true,
+            0,
+            pokemon.MaxIV,
+            0,
+            pokemon.MaxEV,
+            maxTotalEv,
+            null);
+    }
+
+    public static PokemonMoveSetEditConstraints MoveSetEditConstraints(PKM pokemon, StorageSlotType storageSlotType)
+    {
+        if (pokemon.Species == 0)
+        {
+            return new PokemonMoveSetEditConstraints(
+                false,
+                0,
+                [],
+                "Move Set Editing needs an occupied Slot.");
+        }
+
+        var options = new List<PokemonMoveOption> { MoveOption(pokemon, 0) };
+
+        try
+        {
+            var analysis = new LegalityAnalysis(pokemon, storageSlotType);
+            var legalMoves = new LegalMoveInfo();
+            legalMoves.ReloadMoves(analysis);
+
+            for (ushort move = 1; move <= pokemon.MaxMoveID; move++)
+            {
+                if (MoveInfo.IsDummiedMove(pokemon, move) || !legalMoves.CanLearn(move))
+                    continue;
+
+                options.Add(MoveOption(pokemon, move));
+            }
+        }
+        catch
+        {
+            for (ushort move = 1; move <= pokemon.MaxMoveID; move++)
+            {
+                if (MoveInfo.IsDummiedMove(pokemon, move) || !MoveInfo.IsMoveKnowable(move))
+                    continue;
+
+                options.Add(MoveOption(pokemon, move));
+            }
+        }
+
+        return new PokemonMoveSetEditConstraints(true, 4, options, null);
     }
 
     public static string? OriginalTrainer(PKM pokemon) =>
@@ -375,6 +498,21 @@ internal static class SlotDetailProjection
 
     public static string? MetLabel(PKM pokemon) =>
         pokemon.Species == 0 || pokemon.MetLevel <= 0 ? null : $"Lv. {pokemon.MetLevel}";
+
+    private static PokemonMoveOption MoveOption(PKM pokemon, ushort move)
+    {
+        if (move == 0)
+            return new PokemonMoveOption(0, "Empty", "None", 48, 0.04, 0);
+
+        var typeId = MoveInfo.GetType(move, pokemon.Context);
+        return new PokemonMoveOption(
+            move,
+            NameAt(GameInfo.Strings.Move, move) ?? $"Move {move}",
+            TypeName(typeId) ?? "Move",
+            TypeHue(typeId),
+            TypeChroma(typeId),
+            MoveInfo.GetPP(pokemon.Context, move));
+    }
 
     private static string? TypeName(int type) => NameAt(GameInfo.Strings.Types, type);
 
