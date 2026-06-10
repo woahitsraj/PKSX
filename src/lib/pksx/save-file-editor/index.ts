@@ -253,8 +253,7 @@ export function cancelSaveFileEditor(state: SaveFileEditorState): SaveFileEditor
 export function createSaveFileEditOperation(
 	state: SaveFileEditorState
 ): SaveFileEditOperationBuildResult {
-	const trainerNameEdit = state.stagedEdits.find((edit) => edit.id === 'trainer-name');
-	if (!trainerNameEdit) {
+	if (state.stagedEdits.length === 0) {
 		return {
 			ok: false,
 			status: 'unsupported',
@@ -263,22 +262,51 @@ export function createSaveFileEditOperation(
 		};
 	}
 
-	if (!isTrainerNamePayload(trainerNameEdit.payload)) {
+	const operation: SaveFileEditOperation = {};
+
+	for (const edit of state.stagedEdits) {
+		if (edit.id === 'trainer-name') {
+			if (!isTrainerNamePayload(edit.payload)) {
+				return {
+					ok: false,
+					status: 'rejected',
+					message: 'Trainer name edit payload is invalid.',
+					reason: 'invalid-save-file-edit'
+				};
+			}
+
+			operation.trainerProfile = {
+				...operation.trainerProfile,
+				trainerName: edit.payload.trainerName
+			};
+			continue;
+		}
+
+		if (edit.id === 'money') {
+			if (!isMoneyPayload(edit.payload)) {
+				return {
+					ok: false,
+					status: 'rejected',
+					message: 'Money edit payload is invalid.',
+					reason: 'invalid-save-file-edit'
+				};
+			}
+
+			operation.money = edit.payload.money;
+			continue;
+		}
+
 		return {
 			ok: false,
-			status: 'rejected',
-			message: 'Trainer name edit payload is invalid.',
-			reason: 'invalid-save-file-edit'
+			status: 'unsupported',
+			message: `${edit.label} is not supported by the Save File edit contract yet.`,
+			reason: 'unsupported-save-file-edit'
 		};
 	}
 
 	return {
 		ok: true,
-		operation: {
-			trainerProfile: {
-				trainerName: trainerNameEdit.payload.trainerName
-			}
-		}
+		operation
 	};
 }
 
@@ -422,5 +450,15 @@ function isTrainerNamePayload(value: unknown): value is { trainerName: string } 
 		value !== null &&
 		'trainerName' in value &&
 		typeof value.trainerName === 'string'
+	);
+}
+
+function isMoneyPayload(value: unknown): value is { money: number } {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'money' in value &&
+		typeof value.money === 'number' &&
+		Number.isFinite(value.money)
 	);
 }

@@ -139,6 +139,43 @@ describe('Save File editor state', () => {
 		});
 	});
 
+	it('encodes every supported staged Save File edit into one operation', () => {
+		const trainerStaged = stageTrainerNameEdit(openEditor(), 'RAJ');
+		const staged = stageSaveFileEditorEdit(trainerStaged, {
+			id: 'money',
+			field: 'money',
+			label: 'Set money',
+			payload: { money: 5000 }
+		});
+
+		expect(createSaveFileEditOperation(staged)).toEqual({
+			ok: true,
+			operation: {
+				trainerProfile: {
+					trainerName: 'RAJ'
+				},
+				money: 5000
+			}
+		});
+	});
+
+	it('rejects mixed staged edits when any edit is not encoded by the contract', () => {
+		const trainerStaged = stageTrainerNameEdit(openEditor(), 'RAJ');
+		const staged = stageSaveFileEditorEdit(trainerStaged, {
+			id: 'inventory-add',
+			field: 'inventory',
+			label: 'Add inventory item',
+			payload: { itemId: 25, quantity: 1 }
+		});
+
+		expect(createSaveFileEditOperation(staged)).toEqual({
+			ok: false,
+			status: 'unsupported',
+			message: 'Add inventory item is not supported by the Save File edit contract yet.',
+			reason: 'unsupported-save-file-edit'
+		});
+	});
+
 	it('rejects invalid staged input without marking the workspace dirty', () => {
 		const invalid = stageTrainerNameEdit(openEditor(), '  ');
 
