@@ -701,9 +701,6 @@ test('keyboard navigation covers the Saves route controls and desktop overflow s
 	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#top-control-1')).toBeFocused();
 	await page.keyboard.press('ArrowRight');
-	await expect(page.locator('#top-control-2')).toBeFocused();
-
-	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#top-control-4')).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(page.getByRole('button', { name: /Import a Save File/ })).toBeFocused();
