@@ -2258,6 +2258,14 @@
 					}
 
 					loadedSave = nextState;
+					const refreshedSavePanes = refreshSaveFilePaneWorkspaces(
+						workbenchPanes,
+						savePaneWorkspaces,
+						nextState,
+						activePaneBox
+					);
+					workbenchPanes = refreshedSavePanes.panes;
+					savePaneWorkspaces = refreshedSavePanes.workspaces;
 					setCachedActiveWorkspace(nextState, activePaneBox);
 					invalidateSaveLibraryCache();
 

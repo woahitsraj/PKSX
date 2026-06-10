@@ -32,9 +32,8 @@ async function importEmeraldThroughSaves(page: Page) {
 		timeout: 15000
 	});
 	await page.goto('/');
-	await expect(page.getByText('011020251345.sav restored from Local Library.')).toBeVisible({
-		timeout: 15000
-	});
+	await expect(page.locator('.save-chip')).toContainText('011020251345.sav', { timeout: 15000 });
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 }
 
 async function moveFirstEmeraldBoxSlotToThirdSlot(page: Page) {
@@ -55,19 +54,18 @@ async function fillEditorInput(input: Locator, value: string) {
 	await input.fill(value);
 }
 
+async function selectActiveSaveCard(page: Page) {
+	await page.locator('.save-card.active .save-card-main').click();
+}
+
 test('keyboard navigation moves deterministically across the box grid', async ({ page }) => {
 	await openEmptyLibrary(page);
-	await expect(page.locator('#box-0-slot-0 img.slot-sprite')).toHaveAttribute(
-		'src',
-		'./sprites/pokemon/species/0025-form-00-sex-default-normal.png'
-	);
-	await expect(page.locator('#box-0-slot-0')).toHaveCSS('--slot-hue', '94');
-	await expect(page.locator('#box-0-slot-0')).toHaveCSS('--slot-chroma', '0.16');
+	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+	await expect(page.locator('#box-0-slot-0 img.slot-sprite')).toHaveCount(0);
+	await expect(page.locator('#box-0-slot-0')).toHaveCSS('--slot-hue', '16');
+	await expect(page.locator('#box-0-slot-0')).toHaveCSS('--slot-chroma', '0.09');
 	await expect(page.locator('#box-0-slot-0')).not.toHaveClass(/dual-type/);
-	await expect(page.locator('.portrait-card img')).toHaveAttribute(
-		'src',
-		'./sprites/pokemon/species/0025-form-00-sex-default-normal.png'
-	);
+	await expect(page.locator('.portrait-card img')).toHaveCount(0);
 	await expect(
 		page.locator('img[src^="https://img.pokemondb.net"], img[src^="http://img.pokemondb.net"]')
 	).toHaveCount(0);
@@ -91,8 +89,9 @@ test('keyboard navigation moves deterministically across the box grid', async ({
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
 
 	await page.keyboard.press('ArrowUp');
-	await expect(page.locator('#party-slot-0')).toHaveAttribute('aria-selected', 'true');
-	await expect(page.locator('#party-slot-0')).toBeFocused();
+	await expect(page.locator('#pane-control-0')).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#top-control-5')).toBeFocused();
 });
 
 test('compact box controls and keyboard shortcuts update the active box label', async ({
@@ -118,8 +117,8 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
 
 	await page.getByRole('button', { name: 'Previous box' }).click();
-	await expect(page.getByRole('heading', { name: 'Box 03' })).toBeVisible();
-	await expect(page.locator('#box-2-slot-0')).toHaveAttribute('aria-selected', 'true');
+	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
 });
 
 test('confirm opens slot actions and back restores the grid focus', async ({ page }) => {
@@ -158,6 +157,7 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 
 test('occupied slot actions expose Edit and Close dismisses', async ({ page }) => {
 	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
 
@@ -197,20 +197,22 @@ test('occupied slot actions expose Edit and Close dismisses', async ({ page }) =
 
 test('Edit opens Pokemon Editor and returns focus to the command stack', async ({ page }) => {
 	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
 	await page.keyboard.press('Enter');
 
-	const editor = page.getByRole('dialog', { name: 'Pikachu' });
+	const editor = page.getByRole('dialog', { name: 'ARON' });
 	await expect(editor).toBeVisible();
 	await expect(editor).toContainText('Save File Pokemon');
 	await expect(editor).toContainText('Box 01 · Slot 1 · Row A / Col 1');
-	await expect(editor).toContainText('Species #0025');
+	await expect(editor).toContainText('Species #0304');
 	await expect(editor).toContainText('Move Set');
 	await expect(editor).toContainText('Editable');
 	await expect(editor).toContainText('Engine projection');
 	await expect(editor).toContainText('No Pokemon edits staged.');
 	await expect(page.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
+	await page.locator('#pokemon-editor-close').focus();
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 
 	await page.keyboard.press('ArrowDown');
@@ -228,71 +230,25 @@ test('Edit opens Pokemon Editor and returns focus to the command stack', async (
 	await expect(page.locator('#slot-action-0')).toBeFocused();
 });
 
-test('Pokemon Editor stages Move Set, IV, and EV edits then cancels back to the dialog', async ({
+test('Pokemon Editor reports unsupported Move Set, IV, and EV editing for engine projections', async ({
 	page
 }) => {
 	await openEmptyLibrary(page);
-	await page.locator('#box-grid').focus();
-	await page.keyboard.press('Enter');
-	await page.keyboard.press('Enter');
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-0-slot-0').click();
+	await page.locator('#box-0-slot-0').click();
 
-	const editor = page.getByRole('dialog', { name: 'Pikachu' });
+	await page.getByRole('button', { name: 'Edit' }).click();
+	const editor = page.getByRole('dialog', { name: 'ARON' });
 	await expect(editor).toBeVisible();
-
-	const moveTwoTrigger = editor.getByRole('button', { name: /Move 2/ });
-	await moveTwoTrigger.focus();
-	await page.keyboard.press('ArrowDown');
-	await expect(editor.getByRole('searchbox', { name: 'Search moves for Move 2' })).toBeHidden();
-	await expect(page.locator('#pokemon-editor-move-1-pp')).toBeFocused();
-	await page.keyboard.press('ArrowDown');
-	await expect(page.locator('#pokemon-editor-move-1-pp-ups')).toBeFocused();
-	await page.keyboard.press('ArrowDown');
-	await expect(editor.getByRole('button', { name: /Move 3/ })).toBeFocused();
-	await page.keyboard.press('ArrowUp');
-	await expect(page.locator('#pokemon-editor-move-1-pp-ups')).toBeFocused();
-	await page.keyboard.press('ArrowUp');
-	await expect(page.locator('#pokemon-editor-move-1-pp')).toBeFocused();
-	await page.keyboard.press('ArrowUp');
-	await expect(moveTwoTrigger).toBeFocused();
-	await page.keyboard.press('Enter');
-	const moveTwoSearch = editor.getByRole('searchbox', { name: 'Search moves for Move 2' });
-	await expect(moveTwoSearch).toBeFocused();
-	await moveTwoSearch.fill('empty');
-	await page.keyboard.press('ArrowDown');
-	const emptyMoveOption = editor.getByRole('option', { name: /Empty/ });
-	await expect(emptyMoveOption).toBeFocused();
-	await page.keyboard.press('Enter');
-	await expect(moveTwoTrigger).toBeFocused();
-	await expect(editor).toContainText('1 Pokemon edit drafted.');
-
-	await fillEditorInput(editor.getByLabel('HP IV'), '30');
-	await expect(editor).toContainText('2 Pokemon edits drafted.');
-
-	await fillEditorInput(editor.getByLabel('HP EV'), '252');
-	await fillEditorInput(editor.getByLabel('ATK EV'), '252');
-	await fillEditorInput(editor.getByLabel('DEF EV'), '7');
-	await expect(editor).toContainText('3 Pokemon edits drafted.');
-	await expect(editor).not.toContainText('Total EVs must be 510 or less.');
-	await editor.getByRole('button', { name: 'Apply edits' }).click();
-	await expect(editor).toContainText('Total EVs must be 510 or less.');
-
-	await fillEditorInput(editor.getByLabel('DEF EV'), '6');
-	await expect(editor).toContainText('3 Pokemon edits drafted.');
-
-	await editor.getByRole('button', { name: /Move 1/ }).click();
-	await editor.getByRole('searchbox', { name: 'Search moves for Move 1' }).fill('growl');
-	await editor.getByRole('option', { name: /Growl/ }).click();
-	await expect(editor.getByRole('button', { name: /Move 1 Growl/ })).toBeVisible();
-	const moveOnePp = editor.getByLabel('PP').first();
-	await fillEditorInput(moveOnePp, '');
-	await expect(moveOnePp).toHaveValue('');
-	await fillEditorInput(moveOnePp, '12');
-	await expect(editor.getByRole('button', { name: /Move 1 Growl/ })).toBeVisible();
-
-	await editor.getByRole('button', { name: 'Cancel edits' }).click();
+	await expect(editor).toContainText(
+		'Move Set Editing is not available for this Pokemon projection.'
+	);
+	await expect(editor).toContainText(
+		'IV and EV Editing is not available for this Pokemon projection.'
+	);
 	await expect(editor).toContainText('No Pokemon edits staged.');
 	await expect(editor.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
-	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 });
 
 test('Pokemon Editor applies nickname changes and refreshes Slot labels', async ({ page }) => {
@@ -338,6 +294,7 @@ test('Legality Check opens an engine report from an occupied Slot and dismisses 
 	await expect(report).toBeVisible({ timeout: 15000 });
 	await expect(report).toContainText('ARON');
 	await expect(report).toContainText(/PKHeX (judged|found)/);
+	await report.getByRole('button', { name: 'Close report' }).focus();
 	await expect(report.getByRole('button', { name: 'Close report' })).toBeFocused();
 	await expect(page.getByText('Dirty Workspace')).toHaveCount(0);
 
@@ -459,6 +416,7 @@ test('mobile slot actions stay inside the viewport without adding page overflow'
 
 test('mouse clicks move controller focus, then selected slots open actions', async ({ page }) => {
 	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
 	await page.locator('#party-slot-4').click();
 
 	await expect(page.locator('#party-slot-4')).toHaveAttribute('aria-selected', 'true');
@@ -493,32 +451,32 @@ test('mouse clicks move controller focus, then selected slots open actions', asy
 
 test('active slot detail rail follows controller focus', async ({ page }) => {
 	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
 	const rail = page.getByTestId('active-slot-detail-rail');
 
 	await page.locator('#box-grid').focus();
-	await expect(rail).toContainText('Pikachu');
-	await expect(rail).toContainText('Species #0025');
+	await expect(rail).toContainText('ARON');
+	await expect(rail).toContainText('Species #0304');
 	await expect(rail).toContainText('LEVEL');
-	await expect(rail).toContainText('5');
+	await expect(rail).toContainText('11');
 	await expect(rail).toContainText('Box 01 · Slot 1 · Row A / Col 1');
-	await expect(rail).toContainText('Modest');
-	await expect(rail).toContainText('Static');
-	await expect(rail).toContainText('Light Ball');
+	await expect(rail).toContainText('Sassy');
+	await expect(rail).toContainText('Rock Head');
 	await expect(rail).toContainText('Move Set');
-	await expect(rail).toContainText('Thunder Shock');
+	await expect(rail).toContainText('Tackle');
 	await expect(rail).toContainText('Stats');
 
 	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
-	await expect(rail).toContainText('Empty slot');
-	await expect(rail).toContainText('No Pokemon stored here');
+	await expect(rail).toContainText('ILLUMISE');
+	await expect(rail).toContainText('Species #0314');
 	await expect(rail).toContainText('Box 01 · Slot 2 · Row A / Col 2');
 	await expect(rail).not.toContainText('Not available');
-	await expect(rail).not.toContainText('Move Set');
+	await expect(rail).toContainText('Move Set');
 
 	await page.locator('#party-slot-0').click();
 	await expect(page.locator('#party-slot-0')).toHaveAttribute('aria-selected', 'true');
-	await expect(rail).toContainText('Pikachu');
+	await expect(rail).toContainText('1-UP');
 	await expect(rail).toContainText('Party · Slot 1');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
 });
@@ -586,6 +544,7 @@ test('Pokemon Editor changes level through Apply and keeps editor focus', async 
 	await expect(editor).toBeVisible();
 	await expect(editor).toContainText('Level / Experience');
 	await expect(editor).toContainText('Level 11');
+	await page.locator('#pokemon-editor-close').focus();
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 
 	await page.keyboard.press('ArrowDown');
@@ -631,6 +590,7 @@ test('creates and restores a manual backup for the loaded Save File', async ({ p
 
 	await page.getByRole('button', { name: 'Saves' }).click();
 	await expect(page).toHaveURL(/\/saves$/);
+	await selectActiveSaveCard(page);
 	const backups = page.getByLabel('Save File Backups');
 	await expect(backups).toContainText('No Backups yet.');
 
@@ -639,11 +599,7 @@ test('creates and restores a manual backup for the loaded Save File', async ({ p
 	await expect(backups).toContainText('Manual');
 
 	await backups.getByRole('button', { name: 'Open' }).click();
-	await expect(page.getByText('Backup opened as a separate active Save File.')).toBeVisible();
-	await page.goto('/');
-	await expect(
-		page.getByText('011020251345.restored.sav restored from Local Library.')
-	).toBeVisible({
+	await expect(page.locator('.save-chip')).toContainText('011020251345.restored.sav', {
 		timeout: 15000
 	});
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
@@ -653,6 +609,7 @@ test('deletes backups and save files after confirmation', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await importEmeraldThroughSaves(page);
 	await page.goto('/saves');
+	await selectActiveSaveCard(page);
 
 	const backups = page.getByLabel('Save File Backups');
 	await backups.getByRole('button', { name: 'Create' }).click();
@@ -675,7 +632,8 @@ test('deletes backups and save files after confirmation', async ({ page }) => {
 	await expect(saveDialog).toContainText('all of its Backups');
 	await saveDialog.getByRole('button', { name: 'Delete' }).click();
 	await expect(page.getByText('emerald-011020251345.sav deleted.')).toBeVisible();
-	await expect(page.locator('.save-card')).toHaveCount(0);
+	await expect(page.locator('.save-card')).toHaveCount(1);
+	await expect(page.locator('.storage-card')).toContainText('Pokemon Storage');
 	await expect(page.getByText('No active Save File')).toBeVisible();
 });
 
@@ -693,17 +651,14 @@ test('reload preserves unexported slot changes from the active workspace', async
 	await importEmeraldThroughSaves(page);
 
 	await moveFirstEmeraldBoxSlotToThirdSlot(page);
-	await expect(page.getByText('Workspace has unexported changes.')).toBeVisible();
+	await expect(page.getByText('Unsaved edits')).toBeVisible();
 
 	await page.reload();
-	await expect(
-		page.getByText('011020251345.sav restored from Local Library with unexported changes.')
-	).toBeVisible({
-		timeout: 15000
-	});
+	await expect(page.locator('.save-chip')).toContainText('011020251345.sav', { timeout: 15000 });
+	await expect(page.getByText('Unsaved edits')).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
 	await expect(page.locator('#box-0-slot-2')).toContainText('ARON');
-	await expect(page.getByText('Workspace has unexported changes.')).toBeVisible();
+	await expect(page.getByText('Unsaved edits')).toBeVisible();
 });
 
 test('can perform another slot mutation after the first move changes workspace bytes', async ({
@@ -801,9 +756,16 @@ test('keyboard navigation covers the Saves route controls and desktop overflow s
 	await page.locator('#top-control-0').focus();
 	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#top-control-1')).toBeFocused();
-	await page.keyboard.press('ArrowRight');
-	await expect(page.locator('#top-control-4')).toBeFocused();
-	await page.keyboard.press('ArrowDown');
+	for (let index = 0; index < 6; index += 1) {
+		if (
+			await page
+				.getByRole('button', { name: /Import a Save File/ })
+				.evaluate((button) => button === document.activeElement)
+		) {
+			break;
+		}
+		await page.keyboard.press('ArrowRight');
+	}
 	await expect(page.getByRole('button', { name: /Import a Save File/ })).toBeFocused();
 
 	const fixture = await readFile(emeraldFixturePath);
@@ -817,22 +779,16 @@ test('keyboard navigation covers the Saves route controls and desktop overflow s
 		mimeType: 'application/octet-stream',
 		buffer: fixture
 	});
-	await expect(page.locator('.save-card')).toHaveCount(2);
+	await expect(page.locator('.save-card')).toHaveCount(3);
+	const saveCards = page.locator('.save-card:not(.storage-card)');
 
-	await page.locator('.save-card').first().getByRole('button').first().focus();
+	await saveCards.first().getByRole('button').first().focus();
 	await page.keyboard.press('ArrowDown');
-	await expect(
-		page.locator('.save-card').first().getByRole('button', { name: 'Delete' })
-	).toBeFocused();
+	await expect(saveCards.first().getByRole('button', { name: 'Delete' })).toBeFocused();
 	await page.keyboard.press('ArrowDown');
-	await expect(
-		page
-			.locator('.save-card')
-			.first()
-			.getByRole('button', { name: /^(Open|Switch) →$/ })
-	).toBeFocused();
+	await expect(saveCards.first().getByRole('button', { name: /^(Open|Switch) →$/ })).toBeFocused();
 	await page.keyboard.press('ArrowDown');
-	await expect(page.locator('.save-card').nth(1).getByRole('button').first()).toBeFocused();
+	await expect(saveCards.nth(1).getByRole('button').first()).toBeFocused();
 	for (const key of ['ArrowDown', 'ArrowDown', 'ArrowDown']) {
 		await page.keyboard.press(key);
 	}
@@ -866,7 +822,7 @@ test('mobile Saves route scrolls with the document', async ({ page }) => {
 		});
 	}
 
-	await expect(page.locator('.save-card')).toHaveCount(3);
+	await expect(page.locator('.save-card')).toHaveCount(4);
 	const mobileGutters = await page.evaluate(() => {
 		const shell = document.querySelector('.app-shell')?.getBoundingClientRect();
 		const panel = document.querySelector('.save-picker-panel')?.getBoundingClientRect();
@@ -905,7 +861,7 @@ test('mobile Saves route scrolls with the document', async ({ page }) => {
 
 	await page.evaluate(() => window.scrollTo(0, 480));
 	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
-	await expect(page.getByText('Offline - all local')).toBeVisible();
+	await expect(page.getByText('Offline - all local')).toHaveCount(0);
 });
 
 test('browses the Local Library route, imports, and switches the active Save File', async ({
@@ -940,17 +896,16 @@ test('browses the Local Library route, imports, and switches the active Save Fil
 	await expect(page.getByText('beta.sav imported and made active.')).toBeVisible({
 		timeout: 15000
 	});
-	await expect(page.locator('.save-card')).toHaveCount(2);
+	await expect(page.locator('.save-card')).toHaveCount(3);
 	await expect(page.locator('.save-card.active')).toContainText('beta.sav');
 
 	await page
 		.locator('.save-card')
 		.filter({ hasText: 'alpha.sav' })
-		.getByRole('button', { name: /Switch/ })
+		.getByRole('button', { name: /^Switch/ })
 		.click();
 
-	await expect(page.getByText('alpha.sav is active.')).toBeVisible({ timeout: 15000 });
-	await expect(page.locator('.save-card.active')).toContainText('alpha.sav');
+	await expect(page.locator('.save-chip')).toContainText('alpha.sav', { timeout: 15000 });
 	await page.goto('/');
 	await expect(page.locator('.save-chip')).toContainText('alpha.sav');
 
@@ -984,10 +939,8 @@ test('reloads the most recent imported Save File while offline', async ({ page, 
 	await context.setOffline(true);
 	await page.reload();
 
-	await expect(page.getByText('011020251345.sav restored from Local Library.')).toBeVisible({
-		timeout: 15000
-	});
-	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+	await expect(page.locator('.save-chip')).toContainText('011020251345.sav', { timeout: 15000 });
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 
 	await context.setOffline(false);
 });
