@@ -73,6 +73,8 @@ export type BoxSlotSummary = {
 	types: SlotTypeSummary[];
 	stats: SlotStatSummary[];
 	moves: SlotMoveSummary[];
+	statEditConstraints: PokemonStatEditConstraints;
+	moveSetEditConstraints: PokemonMoveSetEditConstraints;
 	originalTrainer?: string | null;
 	metLabel?: string | null;
 	spriteIdentity: SpriteIdentity;
@@ -101,15 +103,46 @@ export type SlotStatSummary = {
 	label: string;
 	value: number;
 	ev?: number | null;
+	iv?: number | null;
 	max: number;
 };
 
 export type SlotMoveSummary = {
+	slot: number;
+	id: number;
 	name: string;
 	type: string;
 	hue: number;
 	chroma: number;
 	pp?: number | null;
+	maxPp?: number | null;
+	ppUps?: number | null;
+};
+
+export type PokemonStatEditConstraints = {
+	supported: boolean;
+	minIv: number;
+	maxIv: number;
+	minEv: number;
+	maxEv: number;
+	maxTotalEv: number;
+	unsupportedReason?: string | null;
+};
+
+export type PokemonMoveOption = {
+	id: number;
+	name: string;
+	type: string;
+	hue: number;
+	chroma: number;
+	maxPp: number;
+};
+
+export type PokemonMoveSetEditConstraints = {
+	supported: boolean;
+	maxMoveSlots: number;
+	availableMoves: PokemonMoveOption[];
+	unsupportedReason?: string | null;
 };
 
 export type SaveWorkspace = {
@@ -161,6 +194,25 @@ export type PokemonEditOperation = {
 	nickname?: string;
 	level?: number;
 	experience?: number;
+	ivs?: PokemonStatEditSet;
+	evs?: PokemonStatEditSet;
+	moves?: PokemonMoveSlotEdit[];
+};
+
+export type PokemonStatEditSet = {
+	HP: number;
+	ATK: number;
+	DEF: number;
+	SPA: number;
+	SPD: number;
+	SPE: number;
+};
+
+export type PokemonMoveSlotEdit = {
+	slot: number;
+	move: number;
+	pp?: number;
+	ppUps?: number;
 };
 
 export type PokemonEditOperationResult = {

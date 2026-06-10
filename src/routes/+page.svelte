@@ -32,6 +32,12 @@
 		shouldCreateAutomaticBackup,
 		type WorkspaceState
 	} from '$lib/pksx/backup-workflow';
+	import {
+		applyStorageOperation,
+		destinationStateForStorageOperation,
+		type PendingStorageSlotOperation,
+		type StorageDestinationState
+	} from '$lib/pksx/storage-operations';
 	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 	import {
@@ -59,9 +65,8 @@
 		createPokemonEditOperation,
 		createPokemonEditorState,
 		isSamePokemonEditorSourceIdentity,
-		stageLevelExperienceEdit,
-		stageNicknameEdit,
-		type LevelExperienceEditPayload,
+		stagePokemonEditorEdit,
+		type PokemonEditorDraftEdits,
 		type PokemonEditorState
 	} from '$lib/pksx/pokemon-editor';
 	import {
@@ -74,13 +79,6 @@
 		id: string;
 		tone: 'info' | 'success' | 'error';
 		message: string;
-	};
-
-	type PendingSlotOperation = {
-		kind: 'move' | 'copy';
-		source: SaveSlotRef;
-		sourceLabel: string;
-		sourcePokemonLabel: string;
 	};
 
 	type ClearSlotConfirmation = {
@@ -165,19 +163,78 @@
 		heldItem: 'Light Ball',
 		types: [{ name: 'Electric', hue: 94, chroma: 0.16 }],
 		stats: [
-			{ key: 'HP', label: 'HP', value: 20, max: 31, ev: 0 },
-			{ key: 'ATK', label: 'ATK', value: 12, max: 31, ev: 0 },
-			{ key: 'DEF', label: 'DEF', value: 10, max: 31, ev: 0 },
-			{ key: 'SPA', label: 'SPA', value: 15, max: 31, ev: 0 },
-			{ key: 'SPD', label: 'SPD', value: 12, max: 31, ev: 0 },
-			{ key: 'SPE', label: 'SPE', value: 18, max: 31, ev: 0 }
+			{ key: 'HP', label: 'HP', value: 20, max: 31, ev: 0, iv: 31 },
+			{ key: 'ATK', label: 'ATK', value: 12, max: 31, ev: 0, iv: 31 },
+			{ key: 'DEF', label: 'DEF', value: 10, max: 31, ev: 0, iv: 31 },
+			{ key: 'SPA', label: 'SPA', value: 15, max: 31, ev: 0, iv: 31 },
+			{ key: 'SPD', label: 'SPD', value: 12, max: 31, ev: 0, iv: 31 },
+			{ key: 'SPE', label: 'SPE', value: 18, max: 31, ev: 0, iv: 31 }
 		],
 		moves: [
-			{ name: 'Thunder Shock', type: 'Electric', hue: 94, chroma: 0.16, pp: 30 },
-			{ name: 'Quick Attack', type: 'Normal', hue: 107, chroma: 0.06, pp: 30 },
-			{ name: 'Tail Whip', type: 'Normal', hue: 107, chroma: 0.06, pp: 30 },
-			{ name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, pp: 40 }
+			{
+				slot: 0,
+				id: 84,
+				name: 'Thunder Shock',
+				type: 'Electric',
+				hue: 94,
+				chroma: 0.16,
+				pp: 30,
+				maxPp: 30,
+				ppUps: 0
+			},
+			{
+				slot: 1,
+				id: 98,
+				name: 'Quick Attack',
+				type: 'Normal',
+				hue: 107,
+				chroma: 0.06,
+				pp: 30,
+				maxPp: 30,
+				ppUps: 0
+			},
+			{
+				slot: 2,
+				id: 39,
+				name: 'Tail Whip',
+				type: 'Normal',
+				hue: 107,
+				chroma: 0.06,
+				pp: 30,
+				maxPp: 30,
+				ppUps: 0
+			},
+			{
+				slot: 3,
+				id: 45,
+				name: 'Growl',
+				type: 'Normal',
+				hue: 107,
+				chroma: 0.06,
+				pp: 40,
+				maxPp: 40,
+				ppUps: 0
+			}
 		],
+		statEditConstraints: {
+			supported: true,
+			minIv: 0,
+			maxIv: 31,
+			minEv: 0,
+			maxEv: 255,
+			maxTotalEv: 510
+		},
+		moveSetEditConstraints: {
+			supported: true,
+			maxMoveSlots: 4,
+			availableMoves: [
+				{ id: 0, name: 'Empty', type: 'None', hue: 48, chroma: 0.04, maxPp: 0 },
+				{ id: 84, name: 'Thunder Shock', type: 'Electric', hue: 94, chroma: 0.16, maxPp: 30 },
+				{ id: 98, name: 'Quick Attack', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 30 },
+				{ id: 39, name: 'Tail Whip', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 30 },
+				{ id: 45, name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 40 }
+			]
+		},
 		originalTrainer: 'PKSX',
 		metLabel: 'Starter Box',
 		spriteIdentity: {
@@ -261,7 +318,7 @@
 	let partyCollapsed = $state(false);
 	let actionSurfaceTop = $state<number | null>(null);
 	let viewportWidth = $state(1024);
-	let pendingSlotOperation = $state<PendingSlotOperation | null>(null);
+	let pendingSlotOperation = $state<PendingStorageSlotOperation | null>(null);
 	let clearSlotConfirmation = $state<ClearSlotConfirmation | null>(null);
 	let clearSlotConfirmFocusIndex = $state(0);
 	let toasts = $state<ToastView[]>([]);
@@ -445,6 +502,8 @@
 			'#pokemon-editor-nickname',
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',
+			'.stat-edit-controls input:not([disabled])',
+			'.move-edit-controls .move-picker-trigger:not([disabled]), .move-edit-controls input:not([disabled])',
 			'#pokemon-editor-apply',
 			'#pokemon-editor-cancel',
 			'#pokemon-editor-close-footer'
@@ -487,6 +546,10 @@
 		}
 
 		if (activeElement instanceof HTMLInputElement && activeElement.closest('.pokemon-editor')) {
+			if (activeElement.dataset.controllerEditing === 'false') {
+				activeElement.click();
+				return;
+			}
 			focusPokemonEditorControl(1);
 		}
 	}
@@ -578,6 +641,10 @@
 			'.pokemon-editor input, .pokemon-editor select, .pokemon-editor textarea'
 		);
 		if (input) {
+			if (input instanceof HTMLInputElement && input.dataset.controllerEditing === 'false') {
+				return false;
+			}
+
 			if (event.key === 'Escape') {
 				return false;
 			}
@@ -642,10 +709,6 @@
 			: { zone: 'box', box: navigation.activeBox, slot: focus.slot };
 	}
 
-	function slotRefKey(ref: SaveSlotRef): string {
-		return ref.zone === 'party' ? `party:${ref.slot}` : `box:${ref.box}:${ref.slot}`;
-	}
-
 	function locationForSlotRef(ref: SaveSlotRef): string {
 		return ref.zone === 'party'
 			? `Party Slot ${ref.slot + 1}`
@@ -664,36 +727,13 @@
 		return visibleBoxSlots[ref.slot] ?? null;
 	}
 
-	function destinationStateFor(
-		ref: SaveSlotRef,
-		slot: SlotView
-	): 'valid' | 'invalid' | 'source' | null {
-		if (!pendingSlotOperation) {
-			return null;
-		}
-
-		if (slotRefKey(ref) === slotRefKey(pendingSlotOperation.source)) {
-			return 'source';
-		}
-
-		if (pendingSlotOperation.kind === 'copy' && slot.kind === 'pokemon') {
-			return 'invalid';
-		}
-
-		if (isInvalidPartyAppendDestination(ref, slot)) {
-			return 'invalid';
-		}
-
-		return 'valid';
-	}
-
-	function isInvalidPartyAppendDestination(ref: SaveSlotRef, slot: SlotView | null): boolean {
-		return (
-			ref.zone === 'party' &&
-			slot?.kind === 'empty' &&
-			loadedSave !== null &&
-			ref.slot > loadedSave.workspace.summary.partyCount
-		);
+	function destinationStateFor(ref: SaveSlotRef, slot: SlotView): StorageDestinationState {
+		return destinationStateForStorageOperation({
+			pending: pendingSlotOperation,
+			destination: ref,
+			destinationSlot: slot,
+			partyCount: loadedSave?.workspace.summary.partyCount ?? 0
+		});
 	}
 
 	async function completePendingSlotOperation(destination: SaveSlotRef) {
@@ -702,26 +742,6 @@
 		}
 
 		const pending = pendingSlotOperation;
-		const destinationSlot = slotForRef(destination);
-
-		if (slotRefKey(pending.source) === slotRefKey(destination)) {
-			pendingSlotOperation = null;
-			statusMessage = 'No Slot change made.';
-			queueMicrotask(focusActiveControl);
-			return;
-		}
-
-		if (pending.kind === 'copy' && destinationSlot?.kind === 'pokemon') {
-			showToast('error', 'Copy needs an empty destination Slot.');
-			statusMessage = 'Copy needs an empty destination Slot.';
-			return;
-		}
-
-		if (isInvalidPartyAppendDestination(destination, destinationSlot)) {
-			showToast('error', 'That Party Slot cannot be used yet.');
-			statusMessage = 'That Party Slot cannot be used yet.';
-			return;
-		}
 
 		await applySlotOperation({
 			kind: pending.kind,
@@ -747,63 +767,59 @@
 
 		try {
 			const sourceSlot = slotForRef(operation.source);
-			if (sourceSlot !== null && sourceSlot.kind !== 'pokemon') {
-				showToast('error', 'Move, Copy, and Clear Slot need an occupied source Slot.');
-				statusMessage = 'Slot change failed.';
+			const destinationSlot = operation.kind === 'clear' ? null : slotForRef(operation.destination);
+
+			statusMessage = 'Applying Slot change...';
+			const result = await applyStorageOperation({
+				state: loadedSave,
+				operation,
+				activeBox: navigation.activeBox,
+				sourceSlot,
+				destinationSlot,
+				partyCount: loadedSave.workspace.summary.partyCount,
+				services: {
+					engine: activeEngine,
+					createAutomaticBackup: async (state) => {
+						statusMessage = 'Creating Backup...';
+						await storage.createBackup({
+							saveFileId: state.file.id,
+							bytes: state.bytes,
+							reason: 'pokemon-movement'
+						});
+						statusMessage = 'Applying Slot change...';
+					},
+					persistWorkspace,
+					locationForSlotRef
+				}
+			});
+
+			if (!result.ok) {
+				statusMessage = result.reason === 'noop' ? result.message : 'Slot change failed.';
+				if (result.reason !== 'noop') {
+					showToast('error', result.message);
+				} else {
+					pendingSlotOperation = null;
+				}
+				queueMicrotask(focusActiveControl);
 				return;
 			}
 
-			const moveWasSwap =
-				operation.kind === 'move' && slotForRef(operation.destination)?.kind === 'pokemon';
-			let workingState = loadedSave;
-			if (shouldCreateAutomaticBackup(workingState)) {
-				statusMessage = 'Creating Backup...';
-				await storage.createBackup({
-					saveFileId: workingState.file.id,
-					bytes: workingState.bytes,
-					reason: 'pokemon-movement'
-				});
-				workingState = markAutomaticBackupCreated(workingState);
-				loadedSave = workingState;
-			}
-
-			statusMessage = 'Applying Slot change...';
-			const result = await activeEngine.applySlotOperation(
-				workingState.bytes,
-				workingState.file.originalFileName ?? undefined,
-				operation,
-				navigation.activeBox
-			);
-
-			if (!result.ok) {
-				throw result.error;
-			}
-
-			const nextState: WorkspaceState = {
-				...workingState,
-				bytes: result.value.bytes,
-				workspace: result.value.workspace,
-				dirty: workingState.dirty || result.value.mutated,
-				restoredFromBackup: null
-			};
-			if (nextState.dirty) {
-				await persistWorkspace(nextState);
-			}
+			const nextState: WorkspaceState = result.state;
 			loadedSave = nextState;
 			setCachedActiveWorkspace(nextState, navigation.activeBox);
 			invalidateSaveLibraryCache();
 			pendingSlotOperation = null;
-			const focusRef = operation.kind === 'clear' ? operation.source : operation.destination;
+			const focusRef = result.focusRef;
 			navigation = {
 				...navigation,
 				activeBox: focusRef.zone === 'box' ? focusRef.box : navigation.activeBox,
-				boxCount: Math.max(1, result.value.workspace.summary.boxCount),
+				boxCount: Math.max(1, result.state.workspace.summary.boxCount),
 				focus:
 					focusRef.zone === 'party' ? focusPartySlot(focusRef.slot) : focusBoxSlot(focusRef.slot),
 				actionSurfaceOpen: false,
 				actionOrigin: null
 			};
-			statusMessage = successMessageForSlotOperation(operation, moveWasSwap);
+			statusMessage = result.message;
 			queueMicrotask(focusActiveControl);
 		} catch (error) {
 			const message = getErrorMessage(error);
@@ -813,20 +829,6 @@
 		} finally {
 			busy = false;
 		}
-	}
-
-	function successMessageForSlotOperation(operation: SlotOperation, moveWasSwap = false): string {
-		if (operation.kind === 'clear') {
-			return `Cleared ${locationForSlotRef(operation.source)}.`;
-		}
-
-		if (operation.kind === 'copy') {
-			return `Copied to ${locationForSlotRef(operation.destination)}.`;
-		}
-
-		return moveWasSwap
-			? `Swapped with ${locationForSlotRef(operation.destination)}.`
-			: `Moved to ${locationForSlotRef(operation.destination)}.`;
 	}
 
 	function beginPendingSlotOperation(kind: 'move' | 'copy') {
@@ -1093,24 +1095,6 @@
 		focusPokemonEditorClose();
 	}
 
-	function stagePokemonEditorNickname(nickname: string) {
-		if (!pokemonEditor) {
-			return;
-		}
-
-		pokemonEditor = stageNicknameEdit(pokemonEditor, nickname);
-		pokemonEditorFeedback = pokemonEditor.applyOutcome.message;
-	}
-
-	function stagePokemonEditorLevelExperience(payload: LevelExperienceEditPayload) {
-		if (!pokemonEditor) {
-			return;
-		}
-
-		pokemonEditor = stageLevelExperienceEdit(pokemonEditor, payload);
-		pokemonEditorFeedback = pokemonEditor.applyOutcome.message;
-	}
-
 	function cancelPokemonEditorEdits() {
 		if (!pokemonEditor) {
 			return;
@@ -1121,12 +1105,14 @@
 		queueMicrotask(focusPokemonEditorApply);
 	}
 
-	async function applyPokemonEditor() {
-		const editor = pokemonEditor;
+	async function applyPokemonEditor(draft: PokemonEditorDraftEdits) {
+		const currentEditor = pokemonEditor;
+		const editor = currentEditor ? stagePokemonEditorDraftEdits(currentEditor, draft) : null;
 		if (!editor) {
 			return;
 		}
 
+		pokemonEditor = editor;
 		busy = true;
 		pokemonEditorFeedback = 'Applying Pokemon edits...';
 		const applyRequest = (pokemonEditorApplyRequest += 1);
@@ -1248,7 +1234,7 @@
 				mutateStoragePokemon: async () => ({
 					ok: false,
 					status: 'unsupported',
-					message: 'Pokemon Storage level and experience editing is not available yet.',
+					message: 'Pokemon Storage editing is not available yet.',
 					reason: 'storage-unavailable'
 				})
 			});
@@ -1295,12 +1281,90 @@
 		if (
 			operation.nickname !== undefined &&
 			operation.level === undefined &&
-			operation.experience === undefined
+			operation.experience === undefined &&
+			operation.ivs === undefined &&
+			operation.evs === undefined &&
+			operation.moves === undefined
 		) {
 			return 'Pokemon nickname updated.';
 		}
 
 		return 'Pokemon edits applied.';
+	}
+
+	function stagePokemonEditorDraftEdits(
+		state: PokemonEditorState,
+		draft: PokemonEditorDraftEdits
+	): PokemonEditorState {
+		let nextState = cancelPokemonEditor(state);
+
+		if (draft.nickname !== undefined) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'nickname',
+				capability: 'nickname-editing',
+				label: draft.nickname.length === 0 ? 'Restore default nickname' : 'Set nickname',
+				payload: { nickname: draft.nickname }
+			});
+		}
+
+		if (draft.levelExperience) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'level-experience',
+				capability: 'level-experience-editing',
+				label:
+					draft.levelExperience.mode === 'level'
+						? `Set level to ${draft.levelExperience.level}`
+						: `Set experience to ${draft.levelExperience.experience}`,
+				payload: draft.levelExperience
+			});
+		}
+
+		if (draft.ivs) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'ivs',
+				capability: 'iv-editing',
+				label: 'Set IVs',
+				payload: draft.ivs
+			});
+		}
+
+		if (draft.evs) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'evs',
+				capability: 'ev-editing',
+				label: 'Set EVs',
+				payload: draft.evs
+			});
+		}
+
+		if (draft.moveSet) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'move-set',
+				capability: 'move-set-editing',
+				label: 'Set Move Set',
+				payload: draft.moveSet
+			});
+		}
+
+		return nextState;
+	}
+
+	function pokemonEditorDraftResetKey(state: PokemonEditorState): string {
+		const slot = state.slot;
+		return JSON.stringify({
+			source: state.source.identity.key,
+			label: slot.label,
+			level: slot.level,
+			experience: slot.experience,
+			ivs: slot.stats?.map((stat) => stat.iv ?? 0),
+			evs: slot.stats?.map((stat) => stat.ev ?? 0),
+			moves: slot.moves?.map((move) => ({
+				slot: move.slot,
+				id: move.id,
+				pp: move.pp ?? 0,
+				ppUps: move.ppUps ?? 0
+			}))
+		});
 	}
 
 	async function updateActionSurfaceAnchor() {
@@ -1686,6 +1750,8 @@
 			types: slot.types,
 			stats: slot.stats,
 			moves: slot.moves,
+			statEditConstraints: slot.statEditConstraints,
+			moveSetEditConstraints: slot.moveSetEditConstraints,
 			originalTrainer: slot.originalTrainer ?? undefined,
 			metLabel: slot.metLabel ?? undefined
 		};
@@ -1921,19 +1987,19 @@
 </section>
 
 {#if pokemonEditor}
-	<PokemonEditor
-		editor={pokemonEditor}
-		{saveSummary}
-		spriteUrl={spriteUrlFor(pokemonEditor.slot)}
-		slotHueStyle={slotStyle(pokemonEditor.slot, navigation.activeBox)}
-		feedback={pokemonEditorFeedback}
-		applying={busy}
-		onStageNickname={stagePokemonEditorNickname}
-		onStageLevelExperience={stagePokemonEditorLevelExperience}
-		onApply={applyPokemonEditor}
-		onCancelEdits={cancelPokemonEditorEdits}
-		onClose={closePokemonEditor}
-	/>
+	{#key pokemonEditorDraftResetKey(pokemonEditor)}
+		<PokemonEditor
+			editor={pokemonEditor}
+			{saveSummary}
+			spriteUrl={spriteUrlFor(pokemonEditor.slot)}
+			slotHueStyle={slotStyle(pokemonEditor.slot, navigation.activeBox)}
+			feedback={pokemonEditorFeedback}
+			applying={busy}
+			onApply={applyPokemonEditor}
+			onCancelEdits={cancelPokemonEditorEdits}
+			onClose={closePokemonEditor}
+		/>
+	{/key}
 {/if}
 
 {#if clearSlotConfirmation}

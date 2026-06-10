@@ -344,7 +344,13 @@ public static partial class PkhexEngineExports
         if (pokemon.Species == 0)
             return SlotMutationResult.Fail("empty-source-slot", "Pokemon editing needs an occupied source Slot.");
 
-        if (operation.Nickname is null && operation.Level is null && operation.Experience is null)
+        if (
+            operation.Nickname is null &&
+            operation.Level is null &&
+            operation.Experience is null &&
+            operation.Ivs is null &&
+            operation.Evs is null &&
+            operation.Moves is null)
             return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a Pokemon edit to apply.");
 
         if (operation.Level is not null && operation.Experience is not null)
@@ -354,6 +360,11 @@ public static partial class PkhexEngineExports
         var originalIsNicknamed = pokemon.IsNicknamed;
         var originalLevel = pokemon.CurrentLevel;
         var originalExperience = pokemon.EXP;
+        int[] originalIvs = [pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE];
+        int[] originalEvs = [pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE];
+        ushort[] originalMoves = [pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4];
+        int[] originalPp = [pokemon.Move1_PP, pokemon.Move2_PP, pokemon.Move3_PP, pokemon.Move4_PP];
+        int[] originalPpUps = [pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps];
 
         if (operation.Nickname is string nickname)
         {
@@ -403,6 +414,44 @@ public static partial class PkhexEngineExports
             pokemon.EXP = experience;
         }
 
+        if (operation.Ivs is not null)
+        {
+            var ivs = StatEditSetToArray(operation.Ivs);
+            foreach (var iv in ivs)
+            {
+                if (iv < 0 || iv > pokemon.MaxIV)
+                    return SlotMutationResult.Fail("invalid-pokemon-edit", $"IV values must be between 0 and {pokemon.MaxIV} for this Pokemon format.");
+            }
+
+            pokemon.SetIVs(ivs);
+        }
+
+        if (operation.Evs is not null)
+        {
+            var evs = StatEditSetToArray(operation.Evs);
+            foreach (var ev in evs)
+            {
+                if (ev < 0 || ev > pokemon.MaxEV)
+                    return SlotMutationResult.Fail("invalid-pokemon-edit", $"EV values must be between 0 and {pokemon.MaxEV} for this Pokemon format.");
+            }
+
+            var maxTotalEv = pokemon.MaxEV > EffortValues.Max255
+                ? pokemon.MaxEV * evs.Length
+                : EffortValues.Max510;
+            var totalEv = evs.Sum();
+            if (totalEv > maxTotalEv)
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"Total EV values must be {maxTotalEv} or less for this Pokemon format.");
+
+            pokemon.SetEVs(evs);
+        }
+
+        if (operation.Moves is not null)
+        {
+            var moveResult = ApplyMoveSetEdits(pokemon, operation.Moves, source.StorageSlotType);
+            if (!moveResult.Ok)
+                return moveResult;
+        }
+
         if (pokemon.PartyStatsPresent)
             pokemon.ResetPartyStats();
 
@@ -410,12 +459,97 @@ public static partial class PkhexEngineExports
             !StringComparer.Ordinal.Equals(originalNickname, pokemon.Nickname) ||
             originalIsNicknamed != pokemon.IsNicknamed ||
             originalLevel != pokemon.CurrentLevel ||
-            originalExperience != pokemon.EXP;
+            originalExperience != pokemon.EXP ||
+            !originalIvs.SequenceEqual([pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE]) ||
+            !originalEvs.SequenceEqual([pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE]) ||
+            !originalMoves.SequenceEqual([pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4]) ||
+            !originalPp.SequenceEqual([pokemon.Move1_PP, pokemon.Move2_PP, pokemon.Move3_PP, pokemon.Move4_PP]) ||
+            !originalPpUps.SequenceEqual([pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps]);
         if (mutated)
             source.Set(save, pokemon);
 
         return SlotMutationResult.Success(mutated);
     }
+
+    private static int[] StatEditSetToArray(PokemonStatEditSet edits) =>
+        [edits.HP, edits.ATK, edits.DEF, edits.SPE, edits.SPA, edits.SPD];
+
+    private static SlotMutationResult ApplyMoveSetEdits(PKM pokemon, List<PokemonMoveSlotEdit> edits, StorageSlotType storageSlotType)
+    {
+        var moves = new[] { pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4 };
+        var pp = new[] { pokemon.Move1_PP, pokemon.Move2_PP, pokemon.Move3_PP, pokemon.Move4_PP };
+        var ppUps = new[] { pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps };
+        var changedEdits = new List<PokemonMoveSlotEdit>();
+        var legalMoves = new LegalMoveInfo();
+        legalMoves.ReloadMoves(new LegalityAnalysis(pokemon, storageSlotType));
+
+        foreach (var edit in edits)
+        {
+            if (edit.Slot < 0 || edit.Slot >= moves.Length)
+                return SlotMutationResult.Fail("invalid-pokemon-edit", "Move Set slot must be between 1 and 4.");
+
+            if (edit.Move > pokemon.MaxMoveID || (edit.Move != 0 && MoveInfo.IsDummiedMove(pokemon, edit.Move)))
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"Move {edit.Move} is not supported by this Pokemon format.");
+
+            if (edit.Move != 0 && !legalMoves.CanLearn(edit.Move))
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"{MoveName(edit.Move)} is not available for this Pokemon.");
+
+            var nextPpUps = edit.PpUps ?? ppUps[edit.Slot];
+            if (nextPpUps < 0 || nextPpUps > 3)
+                return SlotMutationResult.Fail("invalid-pokemon-edit", "PP Ups must be between 0 and 3.");
+
+            var maxPp = edit.Move == 0 ? 0 : pokemon.GetMovePP(edit.Move, nextPpUps);
+            var nextPp = edit.Pp ?? maxPp;
+            if (nextPp < 0 || nextPp > maxPp)
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"PP for {MoveName(edit.Move)} must be between 0 and {maxPp}.");
+
+            if (moves[edit.Slot] != edit.Move || ppUps[edit.Slot] != nextPpUps || pp[edit.Slot] != nextPp)
+                changedEdits.Add(edit);
+
+            moves[edit.Slot] = edit.Move;
+            ppUps[edit.Slot] = edit.Move == 0 ? 0 : nextPpUps;
+            pp[edit.Slot] = edit.Move == 0 ? 0 : nextPp;
+        }
+
+        pokemon.SetMoves(moves);
+        pokemon.Move1_PPUps = ppUps[0];
+        pokemon.Move2_PPUps = ppUps[1];
+        pokemon.Move3_PPUps = ppUps[2];
+        pokemon.Move4_PPUps = ppUps[3];
+        pokemon.Move1_PP = pp[0];
+        pokemon.Move2_PP = pp[1];
+        pokemon.Move3_PP = pp[2];
+        pokemon.Move4_PP = pp[3];
+
+        var analysis = new LegalityAnalysis(pokemon, storageSlotType);
+        if (!analysis.Valid)
+            return SlotMutationResult.Fail(
+                "invalid-pokemon-edit",
+                CreateIllegalMoveSetMessage(analysis, changedEdits.Count == 0 ? edits : changedEdits));
+
+        return SlotMutationResult.Success(true);
+    }
+
+    private static string CreateIllegalMoveSetMessage(LegalityAnalysis analysis, List<PokemonMoveSlotEdit> edits)
+    {
+        var details = CreateLegalityMessages(analysis, includeGeneric: true)
+            .Where(message => !StringComparer.Ordinal.Equals(message.Severity, Severity.Valid.ToString()))
+            .Select(message => message.Message)
+            .Distinct(StringComparer.Ordinal)
+            .Take(3)
+            .ToList();
+        if (details.Count == 0)
+        {
+            var editedMoves = string.Join(", ", edits.Select(edit => $"Move {edit.Slot + 1} {MoveName(edit.Move)}"));
+            return "Move Set edit makes this Pokemon illegal for its current format. PKHeX did not return a more specific legality reason."
+                + (string.IsNullOrWhiteSpace(editedMoves) ? "" : $" Edited moves: {editedMoves}.");
+        }
+
+        return $"Move Set edit makes this Pokemon illegal for its current format. {string.Join(" ", details)}";
+    }
+
+    private static string MoveName(ushort move) =>
+        move == 0 ? "Empty" : (move >= 0 && move < GameInfo.Strings.Move.Count ? GameInfo.Strings.Move[move] : $"Move {move}");
 
     private static SlotMutationResult ApplyMove(SaveFile save, SlotRef source, SaveSlotRef? destinationRef)
     {
@@ -467,13 +601,29 @@ public static partial class PkhexEngineExports
     private static LegalityReport CreateLegalityReport(PKM pokemon, StorageSlotType storageSlotType)
     {
         var analysis = new LegalityAnalysis(pokemon, storageSlotType);
+        var messages = CreateLegalityMessages(analysis, includeGeneric: false);
+
+        var warnings = messages
+            .Where(message => !StringComparer.Ordinal.Equals(message.Severity, Severity.Valid.ToString()))
+            .ToList();
+        var legal = analysis.Valid;
+        var judgement = legal ? "Legal" : "Illegal";
+        var summary = legal
+            ? "PKHeX judged this Pokemon legal."
+            : "PKHeX found legality issues for this Pokemon.";
+
+        return new LegalityReport(legal, judgement, summary, warnings, messages);
+    }
+
+    private static List<LegalityReportLine> CreateLegalityMessages(LegalityAnalysis analysis, bool includeGeneric)
+    {
         var localization = LegalityLocalizationSet.GetLocalization(LanguageID.English);
         var context = LegalityLocalizationContext.Create(analysis, localization);
         var messages = new List<LegalityReportLine>();
 
         foreach (var check in analysis.Results)
         {
-            if (!check.IsNotGeneric())
+            if (!includeGeneric && !check.IsNotGeneric())
                 continue;
 
             var working = check;
@@ -487,16 +637,7 @@ public static partial class PkhexEngineExports
                 message));
         }
 
-        var warnings = messages
-            .Where(message => !StringComparer.Ordinal.Equals(message.Severity, Severity.Valid.ToString()))
-            .ToList();
-        var legal = analysis.Valid;
-        var judgement = legal ? "Legal" : "Illegal";
-        var summary = legal
-            ? "PKHeX judged this Pokemon legal."
-            : "PKHeX found legality issues for this Pokemon.";
-
-        return new LegalityReport(legal, judgement, summary, warnings, messages);
+        return messages;
     }
 
     private static int ClampActiveBox(int box, SaveFile save)

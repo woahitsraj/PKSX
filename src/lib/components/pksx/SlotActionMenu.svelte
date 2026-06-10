@@ -80,7 +80,7 @@
 		return [
 			{
 				key: 'pokemon-action',
-				label: 'View',
+				label: 'Edit',
 				availability: 'available'
 			},
 			{
@@ -130,7 +130,7 @@
 	style:--mobile-surface-top={mobileTop === null ? undefined : `${mobileTop}px`}
 >
 	<div class="slot-context-header">
-		<p class="slot-context-kicker">{occupied ? 'View' : 'Slot Action'}</p>
+		<p class="slot-context-kicker">{occupied ? 'Edit' : 'Slot Action'}</p>
 		<p class="slot-context-location">{location}</p>
 	</div>
 
