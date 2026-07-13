@@ -1,5 +1,6 @@
 export { bytesEqual, copyBytes } from './bytes';
 export { deleteIndexedDbLocalLibrary, IndexedDbLocalLibraryStorage } from './indexed-db-storage';
+export { createEmptyPokemonStorage } from './pokemon-storage';
 export type {
 	BackupId,
 	BackupMetadata,

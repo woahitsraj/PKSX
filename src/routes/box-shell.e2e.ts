@@ -121,6 +121,38 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
 });
 
+test('switches to durable Pokemon Storage with focusable empty Slot actions', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await page.getByRole('button', { name: 'Add source' }).click();
+	await page.getByRole('button', { name: /Pokemon Storage/ }).click();
+	await expect(page.locator('.pane-state-tag')).toContainText('AUTO-SAVED');
+	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+
+	await page.getByRole('button', { name: 'Switch Pokemon Storage source' }).click();
+	await page.getByRole('button', { name: /011020251345.sav/ }).click();
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
+
+	await page.goto('/?source=pokemon-storage');
+	await page.reload();
+	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+
+	const actions = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(actions).toBeVisible();
+	await expect(actions.getByRole('button', { name: 'Move' })).toHaveAttribute(
+		'data-availability',
+		'empty-slot'
+	);
+	await expect(actions.getByRole('button', { name: 'Move' })).toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
+});
+
 test('confirm opens slot actions and back restores the grid focus', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await page.locator('#box-grid').focus();
