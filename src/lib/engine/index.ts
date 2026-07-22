@@ -21,6 +21,10 @@ export type {
 	EngineVersion,
 	LegalityReport,
 	LegalityReportLine,
+	InventoryEditOperation,
+	InventoryItemOption,
+	InventoryItemProjection,
+	InventoryPocketProjection,
 	PartySlotSummary,
 	PokemonEditOperation,
 	PokemonEditOperationResult,
@@ -31,6 +35,7 @@ export type {
 	PokemonStatEditConstraints,
 	PokemonStatEditSet,
 	SaveFileEditOperation,
+	SaveFileEditableProjection,
 	SaveFileEditOperationResult,
 	SaveSlotRef,
 	SaveWorkspace,
@@ -38,7 +43,8 @@ export type {
 	SlotOperationResult,
 	SerializedSave,
 	SaveSummary,
-	SpriteIdentity
+	SpriteIdentity,
+	TrainerGender
 } from './types';
 export type { EngineWorkerFactory, EngineWorkerPort } from './pkhex-worker-engine';
 export type {

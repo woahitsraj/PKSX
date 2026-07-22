@@ -258,7 +258,149 @@ public sealed record PokemonMoveSetEditConstraints(
 public sealed record SaveWorkspace(
     SaveSummary Summary,
     List<PartySlotSummary> PartySlots,
-    List<BoxSlotSummary> BoxSlots);
+    List<BoxSlotSummary> BoxSlots,
+    SaveFileEditableProjection SaveFile);
+
+public sealed record SaveFileEditableProjection(
+    TrainerProfileProjection TrainerProfile,
+    MoneyProjection Money,
+    InventoryProjection Inventory)
+{
+    public static SaveFileEditableProjection From(SaveFile save)
+    {
+        var nameSupported = SaveFileFieldSupport.IsOverridden(save, nameof(SaveFile.OT));
+        var genderSupported = SaveFileFieldSupport.IsOverridden(save, nameof(SaveFile.Gender));
+        var moneySupported = SaveFileFieldSupport.IsOverridden(save, nameof(SaveFile.Money));
+        var bag = save.Inventory;
+        var inventorySupported = bag.Pouches.Count > 0;
+
+        return new SaveFileEditableProjection(
+            new TrainerProfileProjection(
+                save.OT,
+                nameSupported,
+                nameSupported ? save.MaxStringLengthTrainer : 0,
+                nameSupported ? null : "Trainer name editing is not supported for this Save File format.",
+                genderSupported ? save.Gender switch { 0 => "male", 1 => "female", _ => null } : null,
+                genderSupported,
+                genderSupported ? null : "Trainer gender editing is not supported for this Save File format.",
+                save.DisplayTID,
+                save.Version.ToString(),
+                save.Generation),
+            new MoneyProjection(
+                moneySupported ? save.Money : null,
+                0,
+                moneySupported ? save.MaxMoney : 0,
+                moneySupported,
+                moneySupported ? null : "Money editing is not supported for this Save File format."),
+            new InventoryProjection(
+                inventorySupported,
+                inventorySupported ? null : "Inventory editing is not supported for this Save File format.",
+                inventorySupported ? bag.Pouches.Select(pouch => InventoryPocketProjection.From(save, bag, pouch)).ToList() : []));
+    }
+}
+
+public sealed record TrainerProfileProjection(
+    string? TrainerName,
+    bool TrainerNameSupported,
+    int TrainerNameMaxLength,
+    string? TrainerNameUnsupportedReason,
+    string? Gender,
+    bool GenderSupported,
+    string? GenderUnsupportedReason,
+    uint TrainerId,
+    string GameVersion,
+    int Generation);
+
+public sealed record MoneyProjection(
+    uint? Value,
+    int Min,
+    int Max,
+    bool Supported,
+    string? UnsupportedReason);
+
+public sealed record InventoryProjection(
+    bool Supported,
+    string? UnsupportedReason,
+    List<InventoryPocketProjection> Pockets);
+
+public sealed record InventoryPocketProjection(
+    string Key,
+    string Label,
+    int Capacity,
+    bool Full,
+    string? UnsupportedReason,
+    List<InventoryItemProjection> Items,
+    List<InventoryItemOption> AvailableItems)
+{
+    public static InventoryPocketProjection From(SaveFile save, PlayerBag bag, InventoryPouch pouch)
+    {
+        var items = pouch.Items
+            .Where(item => item.Index > 0 && item.Count > 0)
+            .Select(item => new InventoryItemProjection(
+                item.Index,
+                ItemName(item.Index),
+                item.Count,
+                bag.GetMaxCount(pouch.Type, item.Index)))
+            .OrderBy(item => item.Name, StringComparer.Ordinal)
+            .ToList();
+        var available = new List<InventoryItemOption>();
+
+        foreach (var itemId in pouch.GetAllItems())
+        {
+            var max = bag.GetMaxCount(pouch.Type, itemId);
+            if (itemId == 0 || itemId > save.MaxItemID || max <= 0 || !bag.IsLegal(pouch.Type, itemId, Math.Min(1, max)))
+                continue;
+
+            var name = ItemName(itemId);
+            if (name.StartsWith("Item ", StringComparison.Ordinal) || name.Contains("???", StringComparison.Ordinal))
+                continue;
+            available.Add(new InventoryItemOption(itemId, name, max));
+        }
+
+        available.Sort((left, right) => StringComparer.Ordinal.Compare(left.Name, right.Name));
+        return new InventoryPocketProjection(
+            pouch.Type.ToString(),
+            InventoryLabel(pouch.Type),
+            pouch.Items.Length,
+            pouch.FindIndexFirstEmptySlot() < 0,
+            null,
+            items,
+            available);
+    }
+
+    private static string ItemName(int itemId) =>
+        itemId < GameInfo.Strings.Item.Count && !string.IsNullOrWhiteSpace(GameInfo.Strings.Item[itemId])
+            ? GameInfo.Strings.Item[itemId]
+            : $"Item {itemId}";
+
+    private static string InventoryLabel(InventoryType type) => type switch
+    {
+        InventoryType.KeyItems => "Key Items",
+        InventoryType.TMHMs => "TMs & HMs",
+        InventoryType.BattleItems => "Battle Items",
+        InventoryType.MailItems => "Mail",
+        InventoryType.PCItems => "PC Items",
+        InventoryType.FreeSpace => "Free Space",
+        InventoryType.ZCrystals => "Z-Crystals",
+        InventoryType.MegaStones => "Mega Stones",
+        _ => type.ToString(),
+    };
+}
+
+public sealed record InventoryItemProjection(int Id, string Name, int Quantity, int MaxQuantity);
+
+public sealed record InventoryItemOption(int Id, string Name, int MaxQuantity);
+
+internal static class SaveFileFieldSupport
+{
+    public static bool IsOverridden(SaveFile save, string propertyName) => propertyName switch
+    {
+        nameof(SaveFile.OT) => save is SAV1 or SAV2 or SAV3 or SAV3Colosseum or SAV3XD or SAV4 or SAV5 or SAV6 or SAV7 or SAV7b or SAV8SWSH or SAV8LA or SAV8BS or SAV9SV or SAV9ZA,
+        nameof(SaveFile.Gender) => save is SAV2 { Version: GameVersion.C } or SAV3 or SAV3Colosseum or SAV3XD or SAV4 or SAV5 or SAV6 or SAV7 or SAV7b or SAV8SWSH or SAV8LA or SAV8BS or SAV9SV or SAV9ZA,
+        nameof(SaveFile.Money) => save is SAV1 or SAV2 or SAV3 or SAV3Colosseum or SAV3XD or SAV4 or SAV4BR or SAV5 or SAV6 or SAV7 or SAV7b or SAV8SWSH or SAV8LA or SAV8BS or SAV9SV or SAV9ZA,
+        _ => false,
+    };
+}
 
 public sealed record SerializedSave(string BytesBase64, int ByteLength);
 
@@ -297,6 +439,22 @@ public sealed record PokemonStatEditSet(
 public sealed record PokemonMoveSlotEdit(int Slot, ushort Move, int? Pp, int? PpUps);
 
 public sealed record PokemonEditOperationResult(
+    string BytesBase64,
+    int ByteLength,
+    bool Mutated,
+    SaveWorkspace Workspace);
+
+public sealed record SaveFileEditOperationRequest(
+    TrainerProfileEdit? TrainerProfile,
+    long? Money,
+    List<InventoryEditOperation>? Inventory,
+    int ActiveBox);
+
+public sealed record TrainerProfileEdit(string? TrainerName, string? Gender);
+
+public sealed record InventoryEditOperation(string Kind, string Pocket, int ItemId, int? Quantity);
+
+public sealed record SaveFileEditOperationResult(
     string BytesBase64,
     int ByteLength,
     bool Mutated,

@@ -219,6 +219,102 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(serialized.value.bytesBase64.length).toBeGreaterThan(0);
 	});
 
+	test('projects and applies trainer, money, and inventory edits through PKHeX.Core', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const loaded = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
+		if (!loaded.ok || !loaded.value.saveFile) throw new Error('Expected Save File projection.');
+
+		const projection = loaded.value.saveFile;
+		expect(projection.trainerProfile).toMatchObject({
+			trainerName: 'DIXIE',
+			trainerNameSupported: true,
+			genderSupported: true
+		});
+		expect(projection.money).toMatchObject({ supported: true, min: 0 });
+		expect(projection.inventory.supported).toBe(true);
+
+		const pocket = projection.inventory.pockets.find(
+			(candidate) =>
+				!candidate.full &&
+				candidate.items.some((item) => item.maxQuantity > 1) &&
+				candidate.availableItems.some(
+					(option) => !candidate.items.some((item) => item.id === option.id)
+				)
+		);
+		if (!pocket) throw new Error('Expected an editable Emerald inventory pocket.');
+		const existing = pocket.items.find((item) => item.maxQuantity > 1);
+		const added = pocket.availableItems.find(
+			(option) => !pocket.items.some((item) => item.id === option.id)
+		);
+		if (!existing || !added) throw new Error('Expected editable Emerald items.');
+
+		const nextQuantity = existing.quantity < existing.maxQuantity ? existing.quantity + 1 : 1;
+		const nextMoney =
+			projection.money.value === projection.money.max
+				? projection.money.max - 1
+				: (projection.money.value ?? 0) + 1;
+		const nextGender = projection.trainerProfile.gender === 'male' ? 'female' : 'male';
+		const edited = await engine.applySaveFileEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				trainerProfile: { trainerName: 'RAJ', gender: nextGender },
+				money: nextMoney,
+				inventory: [
+					{
+						kind: 'set',
+						pocket: pocket.key,
+						itemId: existing.id,
+						quantity: nextQuantity
+					},
+					{ kind: 'add', pocket: pocket.key, itemId: added.id, quantity: 1 }
+				]
+			},
+			0
+		);
+		if (!edited.ok || !edited.value.workspace.saveFile) throw new Error('Expected edits to apply.');
+
+		const updated = edited.value.workspace.saveFile;
+		expect(edited.value.mutated).toBe(true);
+		expect(updated.trainerProfile).toMatchObject({ trainerName: 'RAJ', gender: nextGender });
+		expect(updated.money.value).toBe(nextMoney);
+		expect(
+			updated.inventory.pockets.find((candidate) => candidate.key === pocket.key)?.items
+		).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: existing.id, quantity: nextQuantity }),
+				expect.objectContaining({ id: added.id, quantity: 1 })
+			])
+		);
+
+		const removed = await engine.applySaveFileEditOperation(
+			edited.value.bytes,
+			'011020251345.sav',
+			{ inventory: [{ kind: 'remove', pocket: pocket.key, itemId: added.id }] },
+			0
+		);
+		if (!removed.ok || !removed.value.workspace.saveFile)
+			throw new Error('Expected remove to apply.');
+		expect(
+			removed.value.workspace.saveFile.inventory.pockets
+				.find((candidate) => candidate.key === pocket.key)
+				?.items.some((item) => item.id === added.id)
+		).toBe(false);
+
+		const invalid = await engine.applySaveFileEditOperation(
+			fixtureBytes,
+			'011020251345.sav',
+			{ money: projection.money.max + 1 },
+			0
+		);
+		expect(invalid).toMatchObject({ ok: false, error: { code: 'invalid-save-file-edit' } });
+		expect(fixtureBytes).toEqual(new Uint8Array(await (await fetch(fixtureUrl)).arrayBuffer()));
+	});
+
 	test.each(supportedFixtureCases)(
 		'parses and loads the $name Save File fixture',
 		async (fixture) => {

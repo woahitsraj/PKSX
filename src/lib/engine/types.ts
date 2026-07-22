@@ -153,7 +153,56 @@ export type SaveWorkspace = {
 	summary: SaveSummary;
 	partySlots: PartySlotSummary[];
 	boxSlots: BoxSlotSummary[];
+	saveFile?: SaveFileEditableProjection;
 };
+
+export type TrainerGender = 'male' | 'female';
+
+export type SaveFileEditableProjection = {
+	trainerProfile: {
+		trainerName: string | null;
+		trainerNameSupported: boolean;
+		trainerNameMaxLength: number;
+		trainerNameUnsupportedReason: string | null;
+		gender: TrainerGender | null;
+		genderSupported: boolean;
+		genderUnsupportedReason: string | null;
+		trainerId: number;
+		gameVersion: string;
+		generation: number;
+	};
+	money: {
+		value: number | null;
+		min: number;
+		max: number;
+		supported: boolean;
+		unsupportedReason: string | null;
+	};
+	inventory: {
+		supported: boolean;
+		unsupportedReason: string | null;
+		pockets: InventoryPocketProjection[];
+	};
+};
+
+export type InventoryPocketProjection = {
+	key: string;
+	label: string;
+	capacity: number;
+	full: boolean;
+	unsupportedReason: string | null;
+	items: InventoryItemProjection[];
+	availableItems: InventoryItemOption[];
+};
+
+export type InventoryItemProjection = {
+	id: number;
+	name: string;
+	quantity: number;
+	maxQuantity: number;
+};
+
+export type InventoryItemOption = Omit<InventoryItemProjection, 'quantity'>;
 
 export type SerializedSave = {
 	bytesBase64: string;
@@ -239,8 +288,17 @@ export type PokemonEditOperationResult = {
 export type SaveFileEditOperation = {
 	trainerProfile?: {
 		trainerName?: string;
+		gender?: TrainerGender;
 	};
 	money?: number;
+	inventory?: InventoryEditOperation[];
+};
+
+export type InventoryEditOperation = {
+	kind: 'set' | 'add' | 'remove';
+	pocket: string;
+	itemId: number;
+	quantity?: number;
 };
 
 export type SaveFileEditOperationResult = {

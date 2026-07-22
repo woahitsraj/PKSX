@@ -70,6 +70,56 @@ export const saveSummarySchema = z.object({
 	boxSlotCount: z.number()
 });
 
+export const saveFileEditableProjectionSchema = z.object({
+	trainerProfile: z.object({
+		trainerName: z.string().nullable(),
+		trainerNameSupported: z.boolean(),
+		trainerNameMaxLength: z.number().int(),
+		trainerNameUnsupportedReason: z.string().nullable(),
+		gender: z.enum(['male', 'female']).nullable(),
+		genderSupported: z.boolean(),
+		genderUnsupportedReason: z.string().nullable(),
+		trainerId: z.number(),
+		gameVersion: z.string(),
+		generation: z.number()
+	}),
+	money: z.object({
+		value: z.number().int().nullable(),
+		min: z.number().int(),
+		max: z.number().int(),
+		supported: z.boolean(),
+		unsupportedReason: z.string().nullable()
+	}),
+	inventory: z.object({
+		supported: z.boolean(),
+		unsupportedReason: z.string().nullable(),
+		pockets: z.array(
+			z.object({
+				key: z.string(),
+				label: z.string(),
+				capacity: z.number().int(),
+				full: z.boolean(),
+				unsupportedReason: z.string().nullable(),
+				items: z.array(
+					z.object({
+						id: z.number().int(),
+						name: z.string(),
+						quantity: z.number().int(),
+						maxQuantity: z.number().int()
+					})
+				),
+				availableItems: z.array(
+					z.object({
+						id: z.number().int(),
+						name: z.string(),
+						maxQuantity: z.number().int()
+					})
+				)
+			})
+		)
+	})
+});
+
 export const slotTypeSummarySchema = z.object({
 	name: z.string(),
 	hue: z.number(),
@@ -210,7 +260,8 @@ export const partySlotSummarySchema = slotSummaryBaseSchema.transform(fillSprite
 export const saveWorkspaceSchema = z.object({
 	summary: saveSummarySchema,
 	partySlots: z.array(partySlotSummarySchema),
-	boxSlots: z.array(boxSlotSummarySchema)
+	boxSlots: z.array(boxSlotSummarySchema),
+	saveFile: saveFileEditableProjectionSchema.optional()
 });
 
 export const serializedSaveSchema = z.object({
@@ -299,10 +350,21 @@ export const pokemonEditOperationResultSchema = z.object({
 export const saveFileEditOperationSchema = z.object({
 	trainerProfile: z
 		.object({
-			trainerName: z.string().optional()
+			trainerName: z.string().optional(),
+			gender: z.enum(['male', 'female']).optional()
 		})
 		.optional(),
-	money: z.number().int().optional()
+	money: z.number().int().optional(),
+	inventory: z
+		.array(
+			z.object({
+				kind: z.enum(['set', 'add', 'remove']),
+				pocket: z.string(),
+				itemId: z.number().int(),
+				quantity: z.number().int().optional()
+			})
+		)
+		.optional()
 });
 
 export const saveFileEditOperationResultSchema = z.object({

@@ -1,113 +1,551 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import Combobox, { type ComboboxOption } from '$lib/components/pksx/Combobox.svelte';
+	import { base64ToBytes, type EngineApi, type InventoryItemProjection } from '$lib/engine';
+	import { onMount } from 'svelte';
 	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
+	import {
+		markAutomaticBackupCreated,
+		shouldCreateAutomaticBackup,
+		type WorkspaceState
+	} from '$lib/pksx/backup-workflow';
+	import {
+		getCachedActiveWorkspaceBox,
+		getLocalLibraryStorage,
+		getPkhexEngine,
+		loadActiveWorkspaceFromLibrary,
+		setCachedActiveWorkspace
+	} from '$lib/pksx/save-library-cache';
+	import {
+		applySaveFileEditorEdits,
+		cancelSaveFileEditor,
+		createSaveFileEditOperation,
+		createSaveFileEditorState,
+		discardSaveFileEditorEdit,
+		getStagedInventoryEdits,
+		isSameSaveFileEditorSourceIdentity,
+		stageInventoryAddEdit,
+		stageInventoryQuantityEdit,
+		stageInventoryRemoveEdit,
+		stageMoneyEdit,
+		stageTrainerGenderEdit,
+		stageTrainerNameEdit,
+		type SaveFileEditorState
+	} from '$lib/pksx/save-file-editor';
 
 	type SaveEditorSection = 'trainer' | 'money' | 'bag';
+	type SaveFileControlAction = 'previous' | 'next' | 'confirm' | 'back';
 
-	type SectionNavItem = {
-		key: SaveEditorSection;
-		label: string;
-		detail: string;
-		icon: string;
-		staged: number;
-	};
-
-	type Pocket = {
-		key: string;
-		label: string;
-		icon: string;
-		count: number;
-		staged?: boolean;
-		locked?: boolean;
-	};
-
-	type BagItem = {
-		name: string;
-		detail: string;
-		quantity: number;
-		staged?: boolean;
-		newItem?: boolean;
-	};
-
-	const fileName = 'tempest.sav';
-	const gameName = 'Tempest';
-	const stagedCount = 6;
-
-	const sections: SectionNavItem[] = [
-		{ key: 'trainer', label: 'Trainer profile', detail: 'Identity & badges', icon: '◎', staged: 3 },
-		{ key: 'money', label: 'Money & BP', detail: 'Wallet currencies', icon: '¤', staged: 1 },
-		{ key: 'bag', label: 'Bag', detail: 'Inventory pockets', icon: '▤', staged: 2 }
+	const sections = [
+		{ key: 'trainer' as const, label: 'Trainer profile', detail: 'Name & gender', icon: '◎' },
+		{ key: 'money' as const, label: 'Money', detail: 'Wallet balance', icon: '¤' },
+		{ key: 'bag' as const, label: 'Bag', detail: 'Inventory pockets', icon: '▤' }
 	];
-
-	const pockets: Pocket[] = [
-		{ key: 'items', label: 'Items', icon: '◴', count: 38 },
-		{ key: 'medicine', label: 'Medicine', icon: '+', count: 21, staged: true },
-		{ key: 'balls', label: 'Balls', icon: '−', count: 14 },
-		{ key: 'berries', label: 'Berries', icon: '✺', count: 27 },
-		{ key: 'tms', label: 'TMs', icon: '▤', count: 64 },
-		{ key: 'key-items', label: 'Key Items', icon: '✦', count: 9, locked: true }
-	];
-
-	const bagItems: BagItem[] = [
-		{ name: 'Mend Spray', detail: 'Restores 20 HP', quantity: 12 },
-		{ name: 'Field Tonic', detail: 'Restores 60 HP', quantity: 40, staged: true },
-		{ name: 'Full Mend', detail: 'Fully restores one ally', quantity: 3 },
-		{ name: 'Revive Charm', detail: 'Revives a fainted ally', quantity: 5 },
-		{ name: 'Antidote Leaf', detail: 'Cures poison', quantity: 9 },
-		{ name: 'Wake Bell', detail: 'Cures sleep', quantity: 999, staged: true },
-		{ name: 'Ether Vial', detail: 'Restores 10 PP to a move', quantity: 20, newItem: true }
-	];
-
-	const badges = [
-		{ name: 'Cinder', earned: true },
-		{ name: 'Tide', earned: true },
-		{ name: 'Verdant', earned: true },
-		{ name: 'Gale', earned: true },
-		{ name: 'Quartz', earned: true },
-		{ name: 'Hex', earned: false, staged: true },
-		{ name: 'Frost', earned: false },
-		{ name: 'Aurora', earned: false }
-	];
+	const storage = getLocalLibraryStorage();
+	let engine: EngineApi | null = null;
 
 	let activeSection = $state<SaveEditorSection>('trainer');
-	let activePocket = $state('medicine');
+	let activePocket = $state('');
+	let selectedItemId = $state('');
+	let trainerNameDraft = $state('');
+	let moneyDraft = $state('');
+	let workspace = $state<WorkspaceState | null>(null);
+	let editor = $state<SaveFileEditorState | null>(null);
+	let loading = $state(true);
+	let busy = $state(false);
+	let loadError = $state<string | null>(null);
+	let controllerStatus = $state('No controller detected');
+	let activeControlIndex = $state(0);
 
-	const activePocketLabel = $derived(
-		pockets.find((pocket) => pocket.key === activePocket)?.label ?? 'Medicine'
+	const projection = $derived(editor?.projection ?? null);
+	const pockets = $derived(projection?.inventory.pockets ?? []);
+	const activePocketProjection = $derived(
+		pockets.find((pocket) => pocket.key === activePocket) ?? pockets[0] ?? null
 	);
-
-	$effect(() => {
-		updateAppChrome({
-			route: 'save-file',
-			saveSummary: {
-				fileName,
-				saveType: 'MockSaveFile',
-				gameVersion: gameName,
-				gameVersionId: 0,
-				generation: 9,
-				trainerName: 'CASS',
-				trainerId: 41203,
-				playTime: '47:12',
-				playedHours: 47,
-				playedMinutes: 12,
-				partyCount: 0,
-				boxCount: 14,
-				boxSlotCount: 30
-			},
-			boxCount: 14,
-			activeBox: 0,
-			fileName,
-			busy: false,
-			hasLoadedSave: true,
-			controllerInputActive: false,
-			importSave: null,
-			exportSave: null
+	const stagedCount = $derived(editor?.stagedEdits.length ?? 0);
+	const displayedGender = $derived.by(() => {
+		const payload = editor?.stagedEdits.find((edit) => edit.id === 'trainer-gender')?.payload;
+		return typeof payload === 'object' && payload && 'gender' in payload
+			? payload.gender
+			: projection?.trainerProfile.gender;
+	});
+	const stagedInventory = $derived(editor ? getStagedInventoryEdits(editor, activePocket) : []);
+	const stagedAdds = $derived.by(() => {
+		if (!activePocketProjection) return [];
+		return stagedInventory.flatMap((edit) => {
+			if (edit.kind !== 'add') return [];
+			const option = activePocketProjection.availableItems.find((item) => item.id === edit.itemId);
+			return option ? [{ ...option, quantity: edit.quantity ?? 1 }] : [];
 		});
 	});
+	const availableToAdd = $derived.by(() => {
+		if (!activePocketProjection) return [];
+		const occupied = new Set([
+			...activePocketProjection.items.map((item) => item.id),
+			...stagedAdds.map((item) => item.id)
+		]);
+		return activePocketProjection.availableItems.filter((item) => !occupied.has(item.id));
+	});
+	const addItemOptions = $derived(
+		availableToAdd.map(
+			(item) =>
+				({
+					value: String(item.id),
+					label: item.name,
+					meta: `#${item.id}`,
+					detail: `Max ${item.maxQuantity}`
+				}) satisfies ComboboxOption
+		)
+	);
+
+	onMount(() => {
+		engine = getPkhexEngine();
+		syncAppChrome();
+		void loadEditor();
+	});
+
+	function syncAppChrome() {
+		const current = workspace;
+		updateAppChrome({
+			route: 'save-file',
+			saveSummary: current?.workspace.summary ?? null,
+			boxCount: current?.workspace.summary.boxCount ?? 0,
+			activeBox: getCachedActiveWorkspaceBox(),
+			fileName: current?.file.originalFileName ?? null,
+			busy,
+			hasLoadedSave: current !== null,
+			controllerInputActive: true,
+			importSave: null,
+			exportSave: current ? exportCurrentSave : null
+		});
+	}
+
+	async function loadEditor() {
+		loading = true;
+		loadError = null;
+		try {
+			workspace = await loadActiveWorkspaceFromLibrary();
+			if (!workspace) return;
+			const opened = createSaveFileEditorState(
+				{
+					saveFileId: workspace.file.id,
+					fileName: workspace.file.originalFileName
+				},
+				workspace.workspace.summary,
+				{
+					dirty: workspace.dirty,
+					automaticBackupCreated: workspace.automaticBackupCreated
+				},
+				workspace.workspace.saveFile
+			);
+			if (!opened.ok) throw new Error(opened.reason);
+			editor = opened.state;
+			resetDrafts();
+			activePocket = opened.state.projection.inventory.pockets[0]?.key ?? '';
+		} catch (error) {
+			loadError = errorMessage(error);
+		} finally {
+			loading = false;
+			syncAppChrome();
+		}
+	}
+
+	function resetDrafts() {
+		trainerNameDraft = editor?.projection.trainerProfile.trainerName ?? '';
+		moneyDraft = editor?.projection.money.value?.toString() ?? '';
+		selectedItemId = '';
+	}
+
+	function stageName(event: Event) {
+		trainerNameDraft = (event.currentTarget as HTMLInputElement).value;
+		if (editor) editor = stageTrainerNameEdit(editor, trainerNameDraft);
+	}
+
+	function stageMoney(event: Event) {
+		moneyDraft = (event.currentTarget as HTMLInputElement).value;
+		if (editor) editor = stageMoneyEdit(editor, Number(moneyDraft));
+	}
+
+	function chooseGender(gender: 'male' | 'female') {
+		if (editor) editor = stageTrainerGenderEdit(editor, gender);
+	}
+
+	function setMoney(value: number) {
+		if (!editor) return;
+		moneyDraft = String(value);
+		editor = stageMoneyEdit(editor, value);
+	}
+
+	function addSelectedItem() {
+		if (!editor || !activePocketProjection || !selectedItemId) return;
+		editor = stageInventoryAddEdit(editor, activePocketProjection.key, Number(selectedItemId));
+		selectedItemId = '';
+	}
+
+	function stagedInventoryEdit(pocket: string, itemId: number) {
+		return editor
+			? getStagedInventoryEdits(editor, pocket).find((edit) => edit.itemId === itemId)
+			: undefined;
+	}
+
+	function itemQuantity(pocket: string, item: InventoryItemProjection) {
+		const edit = stagedInventoryEdit(pocket, item.id);
+		return edit?.kind === 'set' ? (edit.quantity ?? item.quantity) : item.quantity;
+	}
+
+	function setItemQuantity(pocket: string, item: InventoryItemProjection, quantity: number) {
+		if (editor) editor = stageInventoryQuantityEdit(editor, pocket, item.id, quantity);
+	}
+
+	function toggleItemRemoval(pocket: string, item: InventoryItemProjection) {
+		if (!editor) return;
+		editor =
+			stagedInventoryEdit(pocket, item.id)?.kind === 'remove'
+				? stageInventoryQuantityEdit(editor, pocket, item.id, item.quantity)
+				: stageInventoryRemoveEdit(editor, pocket, item.id);
+	}
+
+	function updateAddedItem(pocket: string, itemId: number, quantity: number) {
+		if (editor) editor = stageInventoryAddEdit(editor, pocket, itemId, quantity);
+	}
+
+	function discardAddedItem(pocket: string, itemId: number) {
+		if (editor) editor = discardSaveFileEditorEdit(editor, 'inventory:' + pocket + ':' + itemId);
+	}
+
+	function cancelAll() {
+		if (!editor) return;
+		editor = cancelSaveFileEditor(editor);
+		resetDrafts();
+	}
+
+	function sectionStagedCount(section: SaveEditorSection) {
+		if (!editor) return 0;
+		const field =
+			section === 'trainer' ? 'trainer-profile' : section === 'money' ? 'money' : 'inventory';
+		return editor.stagedEdits.filter((edit) => edit.field === field).length;
+	}
+
+	async function applyEdits() {
+		if (!editor || !workspace || busy) return;
+		const activeEngine = engine;
+		if (!activeEngine) return;
+		busy = true;
+		syncAppChrome();
+		try {
+			const result = await applySaveFileEditorEdits(editor, {
+				verifySource: async (state) => ({
+					ok: isSameSaveFileEditorSourceIdentity(state, workspace?.workspace.summary ?? null)
+				}),
+				validate: async (state) => {
+					const built = createSaveFileEditOperation(state);
+					return built.ok ? { ok: true } : built;
+				},
+				ensureBackup: async (state) => {
+					if (!workspace) {
+						return {
+							ok: false,
+							status: 'failed',
+							message: 'Load a Save File before applying edits.'
+						};
+					}
+					if (shouldCreateAutomaticBackup(workspace)) {
+						const reason = state.stagedEdits.some((edit) => edit.field === 'inventory')
+							? 'inventory-editing'
+							: 'trainer-editing';
+						await storage.createBackup({
+							saveFileId: workspace.file.id,
+							bytes: workspace.bytes,
+							reason
+						});
+						workspace = markAutomaticBackupCreated(workspace);
+						await storage.putWorkspace({
+							saveFileId: workspace.file.id,
+							bytes: workspace.bytes,
+							dirty: workspace.dirty,
+							automaticBackupCreated: true
+						});
+						setCachedActiveWorkspace(workspace, getCachedActiveWorkspaceBox());
+					}
+					return {
+						ok: true,
+						committedWorkspace: {
+							dirty: workspace.dirty,
+							automaticBackupCreated: workspace.automaticBackupCreated
+						}
+					};
+				},
+				mutateSaveFile: async (state) => {
+					if (!workspace) {
+						return {
+							ok: false,
+							status: 'failed',
+							message: 'Load a Save File before applying edits.'
+						};
+					}
+					const built = createSaveFileEditOperation(state);
+					if (!built.ok) return built;
+					const mutation = await activeEngine.applySaveFileEditOperation(
+						workspace.bytes,
+						workspace.file.originalFileName ?? undefined,
+						built.operation,
+						getCachedActiveWorkspaceBox()
+					);
+					if (!mutation.ok) {
+						return {
+							ok: false,
+							status:
+								mutation.error.code === 'unsupported-save-file-edit'
+									? 'unsupported'
+									: mutation.error.code === 'invalid-save-file-edit'
+										? 'rejected'
+										: 'failed',
+							message: mutation.error.message,
+							reason: mutation.error.code
+						};
+					}
+					const next: WorkspaceState = {
+						...workspace,
+						bytes: mutation.value.bytes,
+						workspace: mutation.value.workspace,
+						dirty: workspace.dirty || mutation.value.mutated,
+						restoredFromBackup: null
+					};
+					await storage.putWorkspace({
+						saveFileId: next.file.id,
+						bytes: next.bytes,
+						dirty: next.dirty,
+						automaticBackupCreated: next.automaticBackupCreated
+					});
+					workspace = next;
+					setCachedActiveWorkspace(next, getCachedActiveWorkspaceBox());
+					return {
+						ok: true,
+						bytes: next.bytes,
+						workspace: next.workspace,
+						mutated: mutation.value.mutated,
+						projection: next.workspace.saveFile,
+						committedWorkspace: {
+							dirty: next.dirty,
+							automaticBackupCreated: next.automaticBackupCreated
+						}
+					};
+				}
+			});
+			editor = result.state;
+			if (result.outcome.status === 'success') resetDrafts();
+		} catch (error) {
+			editor = {
+				...editor,
+				applyOutcome: { status: 'failed', message: errorMessage(error) }
+			};
+		} finally {
+			busy = false;
+			syncAppChrome();
+		}
+	}
+
+	async function exportCurrentSave() {
+		const activeEngine = engine;
+		if (!workspace || !activeEngine || busy) return;
+		busy = true;
+		syncAppChrome();
+		try {
+			const result = await activeEngine.serializeSave(
+				workspace.bytes,
+				workspace.file.originalFileName ?? undefined
+			);
+			if (!result.ok) throw result.error;
+			downloadBytes(
+				base64ToBytes(result.value.bytesBase64, result.value.byteLength),
+				exportFileName(workspace.file.originalFileName)
+			);
+		} catch (error) {
+			loadError = errorMessage(error);
+		} finally {
+			busy = false;
+			syncAppChrome();
+		}
+	}
+
+	function downloadBytes(bytes: Uint8Array, fileName: string) {
+		const copy = new Uint8Array(bytes);
+		const url = URL.createObjectURL(new Blob([copy.buffer], { type: 'application/octet-stream' }));
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = fileName;
+		link.click();
+		URL.revokeObjectURL(url);
+	}
+
+	function exportFileName(fileName: string | null) {
+		if (!fileName) return 'pksx-export.sav';
+		const dot = fileName.lastIndexOf('.');
+		return dot > 0 ? fileName.slice(0, dot) + '.pksx' + fileName.slice(dot) : fileName + '.pksx';
+	}
+
+	function errorMessage(error: unknown) {
+		return error instanceof Error
+			? error.message
+			: typeof error === 'object' && error && 'message' in error
+				? String(error.message)
+				: String(error);
+	}
 
 	function openBoxes() {
 		void goto(resolve('/'));
+	}
+
+	function handleRouteKeydown(event: KeyboardEvent) {
+		if (event.defaultPrevented || event.target instanceof HTMLInputElement) return;
+		const action = keyboardAction(event);
+		if (!action) return;
+		event.preventDefault();
+		dispatchControlAction(action);
+	}
+
+	function keyboardAction(event: KeyboardEvent): SaveFileControlAction | null {
+		if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') return 'previous';
+		if (event.key === 'ArrowRight' || event.key === 'ArrowDown') return 'next';
+		if (event.key === 'Enter' || event.key === ' ') return 'confirm';
+		if (event.key === 'Escape') return 'back';
+		return null;
+	}
+
+	function saveFileGamepadNavigation() {
+		if (typeof navigator === 'undefined' || typeof requestAnimationFrame === 'undefined') return;
+
+		let previousPressed: SaveFileControlAction[] = [];
+		let frame = 0;
+		const read = () => {
+			const gamepad = navigator.getGamepads().find((pad) => pad);
+			if (!gamepad) {
+				controllerStatus = 'No controller detected';
+				frame = requestAnimationFrame(read);
+				return;
+			}
+
+			controllerStatus = gamepad.id;
+			const pressed = readGamepadActions(gamepad);
+			for (const action of pressed) {
+				if (!previousPressed.includes(action)) dispatchControlAction(action);
+			}
+			previousPressed = pressed;
+			frame = requestAnimationFrame(read);
+		};
+
+		frame = requestAnimationFrame(read);
+		return () => cancelAnimationFrame(frame);
+	}
+
+	function readGamepadActions(gamepad: Gamepad): SaveFileControlAction[] {
+		const actions: SaveFileControlAction[] = [];
+		const axisX = gamepad.axes[0] ?? 0;
+		const axisY = gamepad.axes[1] ?? 0;
+		if (
+			gamepad.buttons[14]?.pressed ||
+			gamepad.buttons[12]?.pressed ||
+			axisX < -0.55 ||
+			axisY < -0.55
+		) {
+			actions.push('previous');
+		}
+		if (
+			gamepad.buttons[15]?.pressed ||
+			gamepad.buttons[13]?.pressed ||
+			axisX > 0.55 ||
+			axisY > 0.55
+		) {
+			actions.push('next');
+		}
+		if (gamepad.buttons[0]?.pressed) actions.push('confirm');
+		if (gamepad.buttons[1]?.pressed) actions.push('back');
+		return actions;
+	}
+
+	function dispatchControlAction(action: SaveFileControlAction) {
+		if (action === 'back') {
+			const openCombobox = document.querySelector('.save-file-route [data-combobox-open="true"]');
+			if (openCombobox && document.activeElement instanceof HTMLElement) {
+				document.activeElement.dispatchEvent(
+					new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+				);
+			} else {
+				openBoxes();
+			}
+			return;
+		}
+
+		const controls = getFocusableControls();
+		if (controls.length === 0) return;
+
+		const activeElement = document.activeElement;
+		if (
+			action === 'confirm' &&
+			activeElement instanceof HTMLElement &&
+			activeElement.hasAttribute('data-combobox-search')
+		) {
+			document
+				.querySelector<HTMLButtonElement>(
+					'.save-file-route [data-combobox-open="true"] [data-combobox-option].active'
+				)
+				?.click();
+			return;
+		}
+
+		const focusedIndex =
+			activeElement instanceof HTMLElement ? controls.indexOf(activeElement) : -1;
+		const currentIndex = focusedIndex >= 0 ? focusedIndex : activeControlIndex;
+		const nextIndex =
+			action === 'previous'
+				? (currentIndex + controls.length - 1) % controls.length
+				: action === 'next'
+					? (currentIndex + 1) % controls.length
+					: currentIndex;
+		const control = controls[nextIndex];
+		activeControlIndex = nextIndex;
+		control.focus();
+		control.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+		if (action === 'confirm') control.click();
+	}
+
+	function getFocusableControls() {
+		const openCombobox = document.querySelector<HTMLElement>(
+			'.save-file-route [data-combobox-open="true"]'
+		);
+		if (openCombobox) {
+			return Array.from(
+				openCombobox.querySelectorAll<HTMLElement>('input, [data-combobox-option]')
+			).filter(isFocusableControl);
+		}
+
+		return [
+			'#top-control-0',
+			'#top-control-1',
+			'#top-control-2',
+			'#top-control-3',
+			'#top-control-4',
+			'#top-control-6',
+			'.save-file-route button:not([disabled])',
+			'.save-file-route input:not([disabled])'
+		]
+			.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
+			.filter(isFocusableControl);
+	}
+
+	function isFocusableControl(control: HTMLElement) {
+		if (
+			control.hidden ||
+			control.getAttribute('aria-disabled') === 'true' ||
+			control.getClientRects().length === 0
+		) {
+			return false;
+		}
+		if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
+			return !control.disabled;
+		}
+		return control.tabIndex >= 0 || control.getAttribute('role') === 'option';
 	}
 </script>
 
@@ -115,259 +553,418 @@
 	<title>Save File Editor · PKSX</title>
 </svelte:head>
 
-<section class="save-file-route" aria-label="Save File Editor mock">
-	<div class="mobile-heading">
-		<button type="button" aria-label="Back to boxes" onclick={openBoxes}>‹</button>
-		<div>
-			<h1>Save File editor</h1>
-			<p>{fileName} · {gameName}</p>
-		</div>
-		<span><i aria-hidden="true"></i>{stagedCount} staged</span>
-	</div>
+<svelte:window onkeydown={handleRouteKeydown} />
 
-	<aside class="field-sidebar" aria-label="Save File fields">
-		<p>Save File Fields</p>
-		<nav>
-			{#each sections as section (section.key)}
-				<button
-					type="button"
-					class:active={activeSection === section.key}
-					onclick={() => (activeSection = section.key)}
-				>
-					<span class="nav-icon">{section.icon}</span>
-					<strong>{section.label}</strong>
-					<small>{section.detail}</small>
-					{#if section.staged > 0}<em>{section.staged}</em>{/if}
-				</button>
-			{/each}
-		</nav>
-		<div class="backup-ready">
-			<span>♢</span>
-			<strong>Backup ready</strong>
-			<small>auto before first write</small>
-		</div>
-	</aside>
-
-	<main class="editor-panel" aria-live="polite">
-		<div class="section-tabs" aria-label="Save File sections">
-			{#each sections as section (section.key)}
-				<button
-					type="button"
-					class:active={activeSection === section.key}
-					onclick={() => (activeSection = section.key)}
-				>
-					{section.label.replace(' profile', '').replace(' & BP', '')}
-					{#if section.staged > 0}<span>{section.staged}</span>{/if}
-				</button>
-			{/each}
+{#if loading}
+	<section class="empty-editor" aria-live="polite">Loading Save File editor…</section>
+{:else if !workspace || !editor || !projection}
+	<section class="empty-editor">
+		<strong>No active Save File</strong>
+		<p>{loadError ?? 'Import or select a Save File before editing trainer data.'}</p>
+		<button type="button" onclick={openBoxes}>Back to Boxes</button>
+	</section>
+{:else}
+	<section
+		class="save-file-route"
+		aria-label="Save File Editor"
+		data-controller-status={controllerStatus}
+		{@attach saveFileGamepadNavigation}
+	>
+		<div class="mobile-heading">
+			<button type="button" aria-label="Back to boxes" onclick={openBoxes}>‹</button>
+			<div>
+				<h1>Save File editor</h1>
+				<p>
+					{workspace.file.originalFileName ?? 'Save File'} · {projection.trainerProfile.gameVersion}
+				</p>
+			</div>
+			<span><i aria-hidden="true"></i>{stagedCount} staged</span>
 		</div>
 
-		{#if activeSection === 'trainer'}
-			<section class="mock-section" aria-label="Trainer profile">
-				<div class="section-copy">
-					<p>Save File · Trainer Profile</p>
-					<h2>Trainer profile</h2>
-					<span>
-						Every field is an editable projection of {fileName}. Editing stages a change; it does
-						not touch Save File bytes until Apply.
-					</span>
-				</div>
+		<aside class="field-sidebar" aria-label="Save File fields">
+			<p>Save File Fields</p>
+			<nav>
+				{#each sections as section (section.key)}
+					<button
+						type="button"
+						class:active={activeSection === section.key}
+						onclick={() => (activeSection = section.key)}
+					>
+						<span class="nav-icon">{section.icon}</span>
+						<strong>{section.label}</strong>
+						<small>{section.detail}</small>
+						{#if sectionStagedCount(section.key) > 0}<em>{sectionStagedCount(section.key)}</em>{/if}
+					</button>
+				{/each}
+			</nav>
+			<div class="backup-ready">
+				<span>♢</span>
+				<strong>{workspace.automaticBackupCreated ? 'Backup created' : 'Backup ready'}</strong>
+				<small>auto before first write</small>
+			</div>
+		</aside>
 
-				<div class="trainer-card">
-					<div class="avatar">CA</div>
-					<div>
-						<strong>CASS</strong>
-						<span>ID 41203 · SID 08891 · {gameName} · Gen 9</span>
-					</div>
-					<div class="playtime">
-						<small>Play Time</small>
-						<b>47:12</b>
-					</div>
-				</div>
+		<main class="editor-panel" aria-live="polite">
+			<div class="section-tabs" aria-label="Save File sections">
+				{#each sections as section (section.key)}
+					<button
+						type="button"
+						class:active={activeSection === section.key}
+						onclick={() => (activeSection = section.key)}
+					>
+						{section.label.replace(' profile', '')}
+						{#if sectionStagedCount(section.key) > 0}<span>{sectionStagedCount(section.key)}</span
+							>{/if}
+					</button>
+				{/each}
+			</div>
 
-				<div class="trainer-grid">
-					<label class="mock-field staged">
-						<span>OT Name <em>● staged</em></span>
-						<input value="CASSIA" readonly aria-label="Mock OT name" />
-						<small>was <s>CASS</s> · revert</small>
-					</label>
-					<label class="mock-field">
-						<span>Trainer ID <small>0-65535</small></span>
-						<input value="41203" readonly aria-label="Mock trainer ID" />
-					</label>
-					<label class="mock-field">
-						<span>Secret ID <small>0-65535</small></span>
-						<input value="08891" readonly aria-label="Mock secret ID" />
-					</label>
-					<div class="mock-field staged">
-						<span>Gender <em>● staged</em></span>
-						<div class="segmented">
-							<button type="button" class="chosen">Boy</button>
-							<button type="button">Girl</button>
+			{#if activeSection === 'trainer'}
+				<section class="mock-section" aria-label="Trainer profile">
+					<div class="section-copy">
+						<p>Save File · Trainer Profile</p>
+						<h2>Trainer profile</h2>
+						<span>Changes stay staged until Apply writes them through the PKHeX Engine.</span>
+					</div>
+
+					<div class="trainer-card">
+						<div class="avatar">{(projection.trainerProfile.trainerName ?? '??').slice(0, 2)}</div>
+						<div>
+							<strong>{projection.trainerProfile.trainerName ?? 'Unknown trainer'}</strong>
+							<span>
+								ID {projection.trainerProfile.trainerId} · {projection.trainerProfile.gameVersion} · Gen
+								{projection.trainerProfile.generation}
+							</span>
+						</div>
+						<div class="playtime">
+							<small>Play Time</small>
+							<b>{workspace.workspace.summary.playTime}</b>
 						</div>
 					</div>
-					<label class="mock-field">
-						<span>Language</span>
-						<select aria-label="Mock language">
-							<option>English</option>
-						</select>
-					</label>
-					<label class="mock-field">
-						<span>Play Time <small>HH:MM</small></span>
-						<input value="47:12" readonly aria-label="Mock play time" />
-					</label>
-				</div>
 
-				<div class="badges">
-					<header>
-						<span>Gym Badges · 6 / 8</span>
-						<small>Tap to toggle earned</small>
-					</header>
-					<div>
-						{#each badges as badge (badge.name)}
-							<button
-								type="button"
-								class:earned={badge.earned}
-								class:staged={badge.staged}
-								aria-pressed={badge.earned || badge.staged}
-							>
-								<i aria-hidden="true">✦</i>
-								<strong>{badge.name}</strong>
-								<small>{badge.earned ? 'Earned' : badge.staged ? 'Staged' : '—'}</small>
-							</button>
-						{/each}
-					</div>
-				</div>
-			</section>
-		{:else if activeSection === 'money'}
-			<section class="mock-section" aria-label="Money and Battle Points">
-				<div class="section-copy">
-					<p>Save File · Wallet</p>
-					<h2>Money & Battle Points</h2>
-					<span>
-						Currencies are staged like any other field. Out-of-range entries are clamped to the
-						engine maximum before Apply.
-					</span>
-				</div>
-
-				<div class="wallet-grid">
-					<div class="currency-card staged">
-						<header><span>Money</span><em>● staged</em></header>
-						<div class="currency-control">
-							<button type="button">−</button>
-							<strong>¤ 999,999</strong>
-							<button type="button">+</button>
-							<button type="button">MAX</button>
-						</div>
-						<p>was <s>184,320</s> · clamps to engine max</p>
-					</div>
-					<div class="currency-card">
-						<header><span>Battle Points</span><small>max 9,999</small></header>
-						<div class="currency-control">
-							<button type="button">−</button>
-							<strong><small>BP</small> 312</strong>
-							<button type="button">+</button>
-							<button type="button">MAX</button>
-						</div>
-					</div>
-				</div>
-
-				<div class="notice staged-notice">
-					<span>●</span>
-					<div>
-						<strong>Money staged at the engine maximum (¤9,999,999)</strong>
-						<p>Validation accepted the value. It will only be written when you Apply.</p>
-					</div>
-				</div>
-
-				<div class="notice unsupported">
-					<span>×</span>
-					<div>
-						<strong>Coins — unsupported</strong>
-						<p>
-							{gameName} has no game corner. Unsupported currencies are shown, not hidden, and never written.
-						</p>
-					</div>
-				</div>
-			</section>
-		{:else}
-			<section class="mock-section" aria-label="Bag inventory">
-				<div class="section-copy">
-					<p>Save File · Bag</p>
-					<h2>Inventory</h2>
-					<span>
-						Quantity changes and added items stage per-pocket. Key Items are locked from quantity
-						edits.
-					</span>
-				</div>
-
-				<div class="pocket-row" aria-label="Bag pockets">
-					{#each pockets as pocket (pocket.key)}
-						<button
-							type="button"
-							class:active={activePocket === pocket.key}
-							class:staged={pocket.staged}
-							onclick={() => (activePocket = pocket.key)}
+					<div class="trainer-grid">
+						<label
+							class:staged={editor.stagedEdits.some((edit) => edit.id === 'trainer-name')}
+							class="mock-field"
 						>
-							<span>{pocket.icon}</span>
-							<strong>{pocket.label}</strong>
-							<small>{pocket.count}</small>
-							{#if pocket.locked}<em>▴</em>{/if}
-						</button>
-					{/each}
-				</div>
+							<span>Trainer name</span>
+							<input
+								value={trainerNameDraft}
+								maxlength={projection.trainerProfile.trainerNameMaxLength || undefined}
+								disabled={!projection.trainerProfile.trainerNameSupported || busy}
+								oninput={stageName}
+							/>
+							<small>
+								{projection.trainerProfile.trainerNameSupported
+									? 'Maximum ' + projection.trainerProfile.trainerNameMaxLength + ' characters'
+									: projection.trainerProfile.trainerNameUnsupportedReason}
+							</small>
+						</label>
+						<div
+							class:staged={editor.stagedEdits.some((edit) => edit.id === 'trainer-gender')}
+							class="mock-field"
+						>
+							<span>Gender</span>
+							<div class="segmented">
+								<button
+									type="button"
+									class:chosen={displayedGender === 'male'}
+									disabled={!projection.trainerProfile.genderSupported || busy}
+									onclick={() => chooseGender('male')}>Male</button
+								>
+								<button
+									type="button"
+									class:chosen={displayedGender === 'female'}
+									disabled={!projection.trainerProfile.genderSupported || busy}
+									onclick={() => chooseGender('female')}>Female</button
+								>
+							</div>
+							<small
+								>{projection.trainerProfile.genderUnsupportedReason ??
+									'Stored by the loaded game.'}</small
+							>
+						</div>
+					</div>
+				</section>
+			{:else if activeSection === 'money'}
+				<section class="mock-section" aria-label="Money">
+					<div class="section-copy">
+						<p>Save File · Wallet</p>
+						<h2>Money</h2>
+						<span
+							>The PKHeX Engine supplies the supported range for this exact Save File format.</span
+						>
+					</div>
 
-				<div class="add-item">
-					<span>⌕ Add an item to {activePocketLabel}...</span>
-					<small>231 known</small>
-					<button type="button">+ Add</button>
-				</div>
-
-				<div class="item-list">
-					{#each bagItems as item (item.name)}
-						<article class:staged={item.staged} class:new-item={item.newItem}>
-							<div class="item-icon">✚</div>
+					{#if projection.money.supported}
+						<div class="wallet-grid">
+							<div
+								class:staged={editor.stagedEdits.some((edit) => edit.id === 'money')}
+								class="currency-card"
+							>
+								<header>
+									<span>Money</span>
+									<small>max {projection.money.max.toLocaleString()}</small>
+								</header>
+								<div class="currency-control">
+									<button
+										type="button"
+										disabled={busy}
+										onclick={() => setMoney(Math.max(projection.money.min, Number(moneyDraft) - 1))}
+										>−</button
+									>
+									<input
+										aria-label="Money"
+										type="number"
+										min={projection.money.min}
+										max={projection.money.max}
+										value={moneyDraft}
+										disabled={busy}
+										oninput={stageMoney}
+									/>
+									<button
+										type="button"
+										disabled={busy}
+										onclick={() => setMoney(Math.min(projection.money.max, Number(moneyDraft) + 1))}
+										>+</button
+									>
+									<button
+										type="button"
+										disabled={busy}
+										onclick={() => setMoney(projection.money.max)}>MAX</button
+									>
+								</div>
+								<p>Current balance: ¤{projection.money.value?.toLocaleString()}</p>
+							</div>
+						</div>
+					{:else}
+						<div class="notice unsupported">
+							<span>×</span>
 							<div>
-								<strong>{item.name}</strong>
-								<p>{item.detail}</p>
-								{#if item.staged}<small>● × {item.quantity}</small>{/if}
-								{#if item.newItem}<small>NEW</small>{/if}
+								<strong>Money editing unavailable</strong>
+								<p>{projection.money.unsupportedReason}</p>
 							</div>
-							<div class="quantity">
-								<button type="button">−</button>
-								<b class:gold={item.staged || item.newItem}>×{item.quantity}</b>
-								<button type="button">+</button>
-							</div>
-						</article>
-					{/each}
-				</div>
-			</section>
-		{/if}
-	</main>
+						</div>
+					{/if}
+				</section>
+			{:else}
+				<section class="mock-section" aria-label="Bag inventory">
+					<div class="section-copy">
+						<p>Save File · Bag</p>
+						<h2>Inventory</h2>
+						<span>Item choices, pocket rules, and quantity limits come from the PKHeX Engine.</span>
+					</div>
 
-	<footer class="apply-bar">
-		<div class="stage-badge">{stagedCount}</div>
-		<div>
-			<strong>{stagedCount} staged edits</strong>
-			<span>Trainer · Money · Bag — not yet written. Save File bytes untouched.</span>
-		</div>
-		<button type="button">Cancel all</button>
-		<button type="button" class="apply">Apply edits <kbd>A</kbd></button>
-	</footer>
-</section>
+					{#if projection.inventory.supported}
+						<div class="pocket-row" aria-label="Bag pockets">
+							{#each pockets as pocket (pocket.key)}
+								<button
+									type="button"
+									class:active={activePocketProjection?.key === pocket.key}
+									class:staged={editor.stagedEdits.some(
+										(edit) =>
+											edit.field === 'inventory' &&
+											(edit.payload as { pocket?: string } | undefined)?.pocket === pocket.key
+									)}
+									onclick={() => {
+										activePocket = pocket.key;
+										selectedItemId = '';
+									}}
+								>
+									<span>▤</span>
+									<strong>{pocket.label}</strong>
+									<small>{pocket.items.length}/{pocket.capacity}</small>
+								</button>
+							{/each}
+						</div>
+
+						{#if activePocketProjection}
+							<div class="add-item">
+								<Combobox
+									id="save-file-add-item"
+									ariaLabel={'Add an item to ' + activePocketProjection.label}
+									value={selectedItemId}
+									options={addItemOptions}
+									placeholder={'Add an item to ' + activePocketProjection.label + '…'}
+									searchLabel={'Search items in ' + activePocketProjection.label}
+									searchPlaceholder="Search items"
+									disabled={activePocketProjection.full || availableToAdd.length === 0 || busy}
+									onSelect={(value) => (selectedItemId = value)}
+								/>
+								<small>{availableToAdd.length} available</small>
+								<button type="button" disabled={!selectedItemId || busy} onclick={addSelectedItem}
+									>+ Add</button
+								>
+							</div>
+
+							<div class="item-list">
+								{#each activePocketProjection.items as item (item.id)}
+									{@const staged = stagedInventoryEdit(activePocketProjection.key, item.id)}
+									<article class:staged class:pending-remove={staged?.kind === 'remove'}>
+										<div class="item-icon">✚</div>
+										<div>
+											<strong>{item.name}</strong>
+											<p>Item #{item.id} · max {item.maxQuantity}</p>
+											{#if staged}<small>{staged.kind === 'remove' ? 'REMOVE' : '● staged'}</small
+												>{/if}
+										</div>
+										<div class="quantity">
+											<button
+												type="button"
+												disabled={busy ||
+													staged?.kind === 'remove' ||
+													itemQuantity(activePocketProjection.key, item) <= 1}
+												onclick={() =>
+													setItemQuantity(
+														activePocketProjection.key,
+														item,
+														itemQuantity(activePocketProjection.key, item) - 1
+													)}>−</button
+											>
+											<input
+												aria-label={item.name + ' quantity'}
+												type="number"
+												min="1"
+												max={item.maxQuantity}
+												value={itemQuantity(activePocketProjection.key, item)}
+												disabled={busy || staged?.kind === 'remove'}
+												onchange={(event) =>
+													setItemQuantity(
+														activePocketProjection.key,
+														item,
+														Number((event.currentTarget as HTMLInputElement).value)
+													)}
+											/>
+											<button
+												type="button"
+												disabled={busy ||
+													staged?.kind === 'remove' ||
+													itemQuantity(activePocketProjection.key, item) >= item.maxQuantity}
+												onclick={() =>
+													setItemQuantity(
+														activePocketProjection.key,
+														item,
+														itemQuantity(activePocketProjection.key, item) + 1
+													)}>+</button
+											>
+											<button
+												type="button"
+												class="remove"
+												disabled={busy}
+												onclick={() => toggleItemRemoval(activePocketProjection.key, item)}
+												>{staged?.kind === 'remove' ? 'Undo' : 'Remove'}</button
+											>
+										</div>
+									</article>
+								{/each}
+
+								{#each stagedAdds as item (item.id)}
+									<article class="staged new-item">
+										<div class="item-icon">＋</div>
+										<div>
+											<strong>{item.name}</strong>
+											<p>Item #{item.id} · max {item.maxQuantity}</p>
+											<small>NEW</small>
+										</div>
+										<div class="quantity">
+											<button
+												type="button"
+												disabled={busy || item.quantity <= 1}
+												onclick={() =>
+													updateAddedItem(activePocketProjection.key, item.id, item.quantity - 1)}
+												>−</button
+											>
+											<input
+												aria-label={item.name + ' quantity'}
+												type="number"
+												min="1"
+												max={item.maxQuantity}
+												value={item.quantity}
+												disabled={busy}
+												onchange={(event) =>
+													updateAddedItem(
+														activePocketProjection.key,
+														item.id,
+														Number((event.currentTarget as HTMLInputElement).value)
+													)}
+											/>
+											<button
+												type="button"
+												disabled={busy || item.quantity >= item.maxQuantity}
+												onclick={() =>
+													updateAddedItem(activePocketProjection.key, item.id, item.quantity + 1)}
+												>+</button
+											>
+											<button
+												type="button"
+												class="remove"
+												disabled={busy}
+												onclick={() => discardAddedItem(activePocketProjection.key, item.id)}
+												>Cancel</button
+											>
+										</div>
+									</article>
+								{/each}
+							</div>
+						{/if}
+					{:else}
+						<div class="notice unsupported">
+							<span>×</span>
+							<div>
+								<strong>Inventory editing unavailable</strong>
+								<p>{projection.inventory.unsupportedReason}</p>
+							</div>
+						</div>
+					{/if}
+				</section>
+			{/if}
+
+			{#if editor.applyOutcome.message}
+				<div class:error-outcome={editor.applyOutcome.status !== 'success'} class="notice outcome">
+					<span>{editor.applyOutcome.status === 'success' ? '✓' : '!'}</span>
+					<div><strong>{editor.applyOutcome.message}</strong></div>
+				</div>
+			{/if}
+			{#if loadError}<div class="notice unsupported">
+					<span>!</span>
+					<div><strong>{loadError}</strong></div>
+				</div>{/if}
+		</main>
+
+		<footer class="apply-bar">
+			<div class="stage-badge">{stagedCount}</div>
+			<div class="apply-copy">
+				<strong>{stagedCount} staged {stagedCount === 1 ? 'edit' : 'edits'}</strong>
+				<span
+					>{stagedCount
+						? 'Save File bytes remain untouched until Apply.'
+						: workspace.dirty
+							? 'Workspace has unapplied export changes.'
+							: 'No staged changes.'}</span
+				>
+			</div>
+			<button type="button" disabled={!editor.staged || busy} onclick={cancelAll}>Cancel all</button
+			>
+			<button type="button" class="apply" disabled={!editor.staged || busy} onclick={applyEdits}>
+				<span class="apply-icon" aria-hidden="true">✓</span>
+				{busy ? 'Applying…' : 'Apply edits'}
+			</button>
+		</footer>
+	</section>
+{/if}
 
 <style>
 	.save-file-route {
-		--mock-rust: #c45a37;
-		--mock-gold: #d2a23a;
-		--mock-ink: #2b241c;
-		--mock-muted: #9d8d76;
-		--mock-panel: #fbf5e9;
-		--mock-card: #f4ead9;
-		--mock-rule: #eadcc4;
+		--mock-rust: var(--rust);
+		--mock-gold: var(--gold);
+		--mock-ink: var(--ink);
+		--mock-muted: var(--ink-mute);
+		--mock-panel: var(--paper-hi);
+		--mock-card: var(--paper-deep);
+		--mock-rule: var(--rule-hi);
 		min-height: calc(100dvh - 112px);
 		display: grid;
-		grid-template-columns: 220px minmax(0, 1fr);
+		grid-template-columns: 240px minmax(0, 1fr);
 		grid-template-rows: minmax(0, 1fr) auto;
 		gap: 14px;
 		color: var(--mock-ink);
@@ -380,9 +977,9 @@
 	.field-sidebar,
 	.editor-panel,
 	.apply-bar {
-		border: 1px solid color-mix(in srgb, var(--mock-rule), white 18%);
+		border: 1px solid var(--mock-rule);
 		border-radius: var(--pksx-radius-xl);
-		background: color-mix(in srgb, var(--mock-panel), white 14%);
+		background: var(--mock-panel);
 		box-shadow: var(--shadow-deep);
 	}
 
@@ -398,8 +995,7 @@
 	.section-copy p,
 	.mock-field > span,
 	.currency-card header,
-	.badges header,
-	.apply-bar span {
+	.apply-copy > span {
 		margin: 0;
 		color: var(--mock-muted);
 		font:
@@ -419,8 +1015,12 @@
 		min-height: 58px;
 		display: grid;
 		grid-template-columns: 34px minmax(0, 1fr) auto;
+		grid-template-areas:
+			'icon label badge'
+			'icon detail badge';
+		grid-template-rows: auto auto;
 		gap: 3px 10px;
-		align-items: center;
+		align-content: center;
 		padding: 10px;
 		border: 1px solid transparent;
 		border-radius: var(--pksx-radius-md);
@@ -439,7 +1039,7 @@
 		width: 34px;
 		height: 34px;
 		display: grid;
-		grid-row: span 2;
+		grid-area: icon;
 		place-items: center;
 		border-radius: 10px;
 		background: var(--mock-card);
@@ -450,6 +1050,22 @@
 	.field-sidebar nav button.active .nav-icon {
 		background: var(--mock-rust);
 		color: white;
+	}
+
+	.field-sidebar nav button strong {
+		grid-area: label;
+		min-width: 0;
+		line-height: 1.1;
+	}
+
+	.field-sidebar nav button small {
+		grid-area: detail;
+		min-width: 0;
+		line-height: 1.2;
+	}
+
+	.field-sidebar nav button em {
+		grid-area: badge;
 	}
 
 	.field-sidebar strong,
@@ -519,7 +1135,7 @@
 	.section-copy span {
 		max-width: 760px;
 		display: block;
-		color: #726552;
+		color: var(--ink-soft);
 		font-size: 1rem;
 		font-weight: 650;
 		line-height: 1.35;
@@ -542,8 +1158,12 @@
 		display: grid;
 		place-items: center;
 		border-radius: 16px;
-		background: linear-gradient(135deg, #ffb0b0, #ffd1b4);
-		color: #7d3d28;
+		background: linear-gradient(
+			135deg,
+			color-mix(in srgb, var(--mock-rust), transparent 55%),
+			color-mix(in srgb, var(--mock-gold), transparent 58%)
+		);
+		color: var(--mock-rust);
 		font-size: 1.4rem;
 		font-weight: 900;
 	}
@@ -558,7 +1178,7 @@
 	.currency-card p,
 	.notice p,
 	.item-list p,
-	.apply-bar span {
+	.apply-copy > span {
 		color: var(--mock-muted);
 		font-weight: 650;
 	}
@@ -593,14 +1213,14 @@
 		display: grid;
 		gap: 10px;
 		padding: 14px;
-		border: 1px solid color-mix(in srgb, var(--mock-rule), white 8%);
+		border: 1px solid var(--mock-rule);
 		border-radius: var(--pksx-radius-lg);
 		background: var(--mock-card);
 	}
 
 	.mock-field.staged,
 	.currency-card.staged {
-		border-color: color-mix(in srgb, var(--mock-gold), white 20%);
+		border-color: color-mix(in srgb, var(--mock-gold), transparent 28%);
 		background: color-mix(in srgb, var(--mock-gold), transparent 91%);
 	}
 
@@ -611,22 +1231,12 @@
 		justify-content: space-between;
 	}
 
-	.mock-field em,
-	.currency-card em {
-		padding: 3px 8px;
-		border: 1px solid color-mix(in srgb, var(--mock-gold), white 14%);
-		border-radius: 8px;
-		color: var(--mock-gold);
-		font-style: normal;
-	}
-
-	.mock-field input,
-	.mock-field select {
+	.mock-field input {
 		width: 100%;
 		box-sizing: border-box;
 		border: 0;
 		border-radius: 10px;
-		background: color-mix(in srgb, white, var(--mock-panel) 32%);
+		background: var(--mock-panel);
 		color: var(--mock-ink);
 		font: 850 1.05rem var(--pksx-font-sans);
 		padding: 12px;
@@ -641,57 +1251,13 @@
 	.segmented button {
 		min-height: 42px;
 		border-radius: 10px;
-		background: color-mix(in srgb, white, var(--mock-panel) 32%);
+		background: var(--mock-panel);
 		font-weight: 850;
 	}
 
 	.segmented button.chosen {
 		background: var(--mock-gold);
 		color: white;
-	}
-
-	.badges {
-		display: grid;
-		gap: 10px;
-	}
-
-	.badges header {
-		display: flex;
-		justify-content: space-between;
-	}
-
-	.badges div {
-		display: grid;
-		grid-template-columns: repeat(8, minmax(76px, 1fr));
-		gap: 10px;
-	}
-
-	.badges button {
-		min-height: 80px;
-		display: grid;
-		place-items: center;
-		gap: 4px;
-		border-radius: var(--pksx-radius-md);
-		background: var(--mock-card);
-	}
-
-	.badges i {
-		width: 34px;
-		height: 34px;
-		display: grid;
-		place-items: center;
-		border-radius: 999px;
-		background: color-mix(in srgb, var(--mock-rust), transparent 8%);
-		color: white;
-		font-style: normal;
-	}
-
-	.badges button:not(.earned):not(.staged) {
-		opacity: 0.42;
-	}
-
-	.badges button.staged {
-		outline: 2px solid color-mix(in srgb, var(--mock-gold), white 20%);
 	}
 
 	.currency-control {
@@ -704,7 +1270,7 @@
 	.currency-control button {
 		min-height: 44px;
 		border-radius: 10px;
-		background: color-mix(in srgb, white, var(--mock-panel) 26%);
+		background: var(--mock-panel);
 		font-size: 1.2rem;
 		font-weight: 900;
 	}
@@ -714,28 +1280,16 @@
 		font-size: 0.8rem;
 	}
 
-	.currency-control strong {
+	.currency-control input {
 		min-height: 54px;
-		display: flex;
-		align-items: center;
-		justify-content: flex-end;
-		gap: 10px;
-		padding: 0 18px;
-		border: 1px solid color-mix(in srgb, var(--mock-gold), white 20%);
+		min-width: 0;
+		padding: 0 14px;
+		border: 1px solid color-mix(in srgb, var(--mock-gold), transparent 28%);
 		border-radius: 12px;
-		background: color-mix(in srgb, white, var(--mock-panel) 42%);
+		background: var(--mock-panel);
 		color: var(--mock-gold);
-		font-size: clamp(1.6rem, 3.8vw, 2.4rem);
-	}
-
-	.currency-card:not(.staged) .currency-control strong {
-		border-color: color-mix(in srgb, var(--mock-rule), white 18%);
-		color: var(--mock-ink);
-	}
-
-	.currency-control small {
-		color: var(--mock-muted);
-		font-size: 0.8rem;
+		font: 850 clamp(1.35rem, 3vw, 2rem) var(--pksx-font-sans);
+		text-align: right;
 	}
 
 	.notice {
@@ -762,18 +1316,13 @@
 		margin: 2px 0 0;
 	}
 
-	.staged-notice {
-		border: 1px solid color-mix(in srgb, var(--mock-gold), white 24%);
-		background: color-mix(in srgb, var(--mock-gold), transparent 92%);
-	}
-
 	.unsupported {
-		border: 1px solid color-mix(in srgb, #db3a3a, white 44%);
-		background: color-mix(in srgb, #db3a3a, transparent 93%);
+		border: 1px solid color-mix(in srgb, var(--err), transparent 48%);
+		background: color-mix(in srgb, var(--err), transparent 93%);
 	}
 
 	.unsupported > span {
-		background: #db3a3a;
+		background: var(--err);
 	}
 
 	.pocket-row {
@@ -820,7 +1369,7 @@
 		padding: 0 12px;
 		border-radius: var(--pksx-radius-md);
 		background: var(--mock-card);
-		color: #726552;
+		color: var(--ink-soft);
 	}
 
 	.add-item button {
@@ -835,7 +1384,7 @@
 	.add-item small {
 		padding: 4px 10px;
 		border-radius: 8px;
-		background: color-mix(in srgb, var(--mock-rule), white 20%);
+		background: color-mix(in srgb, var(--mock-rule), transparent 30%);
 		color: var(--mock-muted);
 	}
 
@@ -851,19 +1400,23 @@
 		align-items: center;
 		min-height: 62px;
 		padding: 10px;
-		border: 1px solid color-mix(in srgb, var(--mock-rule), white 10%);
+		border: 1px solid var(--mock-rule);
 		border-radius: var(--pksx-radius-md);
 		background: var(--mock-card);
 	}
 
 	.item-list article.staged {
-		border-color: color-mix(in srgb, var(--mock-gold), white 20%);
+		border-color: color-mix(in srgb, var(--mock-gold), transparent 28%);
 		background: color-mix(in srgb, var(--mock-gold), transparent 92%);
 	}
 
 	.item-list article.new-item {
-		border-color: color-mix(in srgb, #72a965, white 30%);
-		background: color-mix(in srgb, #72a965, transparent 92%);
+		border-color: color-mix(in srgb, var(--ok), transparent 36%);
+		background: color-mix(in srgb, var(--ok), transparent 92%);
+	}
+
+	.item-list article.pending-remove {
+		opacity: 0.62;
 	}
 
 	.item-icon {
@@ -872,7 +1425,7 @@
 		display: grid;
 		place-items: center;
 		border-radius: 10px;
-		background: color-mix(in srgb, white, var(--mock-panel) 26%);
+		background: var(--mock-panel);
 		font-weight: 900;
 	}
 
@@ -894,7 +1447,7 @@
 
 	.quantity {
 		display: grid;
-		grid-template-columns: 32px 58px 32px;
+		grid-template-columns: 32px 68px 32px auto;
 		gap: 8px;
 		align-items: center;
 		text-align: center;
@@ -904,12 +1457,66 @@
 		width: 32px;
 		height: 32px;
 		border-radius: 9px;
-		background: color-mix(in srgb, white, var(--mock-panel) 26%);
+		background: var(--mock-panel);
 		font-weight: 900;
 	}
 
-	.quantity b.gold {
-		color: var(--mock-gold);
+	.quantity input {
+		width: 68px;
+		height: 32px;
+		box-sizing: border-box;
+		border: 1px solid var(--mock-rule);
+		border-radius: 9px;
+		background: var(--mock-panel);
+		color: var(--mock-ink);
+		font-weight: 850;
+		font-variant-numeric: tabular-nums;
+		text-align: center;
+		appearance: textfield;
+	}
+
+	.quantity input::-webkit-inner-spin-button,
+	.quantity input::-webkit-outer-spin-button {
+		margin: 0;
+		appearance: none;
+	}
+
+	.quantity button.remove {
+		width: auto;
+		padding: 0 10px;
+		color: var(--pksx-color-feedback-danger);
+		font-size: 0.72rem;
+	}
+
+	.outcome {
+		border: 1px solid color-mix(in srgb, var(--pksx-color-feedback-success), transparent 48%);
+		background: color-mix(in srgb, var(--pksx-color-feedback-success), transparent 92%);
+	}
+
+	.outcome.error-outcome {
+		border-color: color-mix(in srgb, var(--pksx-color-feedback-danger), transparent 48%);
+		background: color-mix(in srgb, var(--pksx-color-feedback-danger), transparent 93%);
+	}
+
+	.empty-editor {
+		min-height: calc(100dvh - 140px);
+		display: grid;
+		place-content: center;
+		gap: 10px;
+		text-align: center;
+	}
+
+	.empty-editor p {
+		margin: 0;
+		color: var(--pksx-color-text-secondary);
+	}
+
+	.empty-editor button {
+		justify-self: center;
+		padding: 10px 16px;
+		border-radius: var(--pksx-radius-md);
+		background: var(--pksx-color-accent-primary);
+		color: white;
 	}
 
 	.apply-bar {
@@ -919,7 +1526,13 @@
 		align-items: center;
 		gap: 12px;
 		padding: 12px 16px;
-		border-color: color-mix(in srgb, var(--mock-gold), white 30%);
+		border-color: color-mix(in srgb, var(--mock-gold), transparent 28%);
+	}
+
+	.apply-copy {
+		min-width: 0;
+		display: grid;
+		gap: 2px;
 	}
 
 	.stage-badge {
@@ -942,14 +1555,28 @@
 	}
 
 	.apply-bar button.apply {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
 		background: var(--mock-rust);
 		color: white;
 	}
 
-	.apply-bar kbd {
-		margin-left: 8px;
-		background: color-mix(in srgb, white, var(--mock-rust) 14%);
-		color: var(--mock-rust);
+	.apply-icon {
+		width: 22px;
+		height: 22px;
+		display: grid;
+		place-items: center;
+		border-radius: 999px;
+		background: color-mix(in srgb, white, transparent 82%);
+		font-size: 0.78rem;
+		line-height: 1;
+	}
+
+	.save-file-route :is(button, input):focus-visible {
+		outline: 3px solid color-mix(in srgb, var(--mock-rust), transparent 55%);
+		outline-offset: 2px;
 	}
 
 	@media (max-width: 980px) {
@@ -1041,7 +1668,7 @@
 			border-radius: 16px;
 			background: var(--mock-panel);
 			box-shadow: var(--shadow-sm);
-			color: #705f4a;
+			color: var(--ink-soft);
 			font-size: 1.05rem;
 			font-weight: 900;
 		}
@@ -1056,11 +1683,11 @@
 			top: 8px;
 			right: 10px;
 			min-width: 25px;
-			background: color-mix(in srgb, var(--mock-gold), white 8%);
+			background: var(--mock-gold);
 		}
 
 		.section-tabs button.active span {
-			background: color-mix(in srgb, white, var(--mock-rust) 34%);
+			background: color-mix(in srgb, white, transparent 70%);
 		}
 
 		.trainer-card,
@@ -1071,10 +1698,6 @@
 		.trainer-grid,
 		.wallet-grid {
 			grid-template-columns: 1fr;
-		}
-
-		.badges div {
-			grid-template-columns: repeat(4, minmax(0, 1fr));
 		}
 
 		.wallet-grid {
@@ -1147,12 +1770,20 @@
 			padding: 16px;
 		}
 
-		.badges div {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
+		.item-list article {
+			grid-template-columns: 42px minmax(0, 1fr);
+		}
+
+		.item-icon {
+			width: 38px;
+			height: 38px;
+			border-radius: 10px;
 		}
 
 		.quantity {
-			grid-template-columns: 32px 48px 32px;
+			grid-column: 1 / -1;
+			grid-template-columns: 32px 68px 32px auto;
+			justify-content: end;
 		}
 
 		.add-item {
@@ -1167,7 +1798,7 @@
 			gap: 10px;
 		}
 
-		.apply-bar span {
+		.apply-copy > span {
 			letter-spacing: 0;
 			text-transform: none;
 		}
@@ -1175,10 +1806,6 @@
 		.apply-bar button.apply {
 			min-width: 112px;
 			padding: 0 14px;
-		}
-
-		.apply-bar kbd {
-			display: none;
 		}
 	}
 </style>

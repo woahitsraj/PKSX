@@ -245,6 +245,9 @@ test('Pokemon Editor exposes Move Set, IV, and EV projection sections', async ({
 	await expect(editor).toContainText('Stats');
 	await expect(editor).toContainText('No Pokemon edits staged.');
 	await expect(editor.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
+	await editor.getByRole('combobox', { name: 'Move 1' }).click();
+	await expect(editor.getByRole('searchbox', { name: 'Search moves for Move 1' })).toBeVisible();
+	await expect(editor.getByRole('option').first()).toBeVisible();
 });
 
 test('Pokemon Editor applies nickname changes and refreshes Slot labels', async ({ page }) => {
@@ -507,25 +510,68 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 	expect(exported.byteLength).toBe(fixture.byteLength);
 });
 
-test('Save File route presents a mocked staged editing interface', async ({ page }) => {
+test('Save File route stages and applies trainer, money, and inventory edits', async ({ page }) => {
 	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
 	await page.getByRole('button', { name: 'Save File' }).click();
 	await expect(page).toHaveURL(/\/save-file$/);
 
 	await expect(page.getByRole('heading', { name: 'Trainer profile' })).toBeVisible();
-	await expect(page.getByText('No staged edits')).toHaveCount(0);
-	await expect(page.getByText('6 staged edits')).toBeVisible();
-	await expect(page.getByLabel('Mock OT name')).toHaveValue('CASSIA');
-	await expect(page.getByText('Save File bytes untouched.')).toBeVisible();
+	const applyButton = page.getByRole('button', { name: /Apply edits/ });
+	await expect(applyButton.locator('kbd')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Use dark mode' }).click();
+	await expect(page.locator('.save-file-route')).toHaveCSS('color', 'rgb(244, 245, 247)');
+	await page.getByRole('button', { name: 'Use light mode' }).click();
 
-	await page.getByRole('button', { name: /Money/ }).first().click();
-	await expect(page.getByRole('heading', { name: 'Money & Battle Points' })).toBeVisible();
-	await expect(page.getByText('Coins — unsupported')).toBeVisible();
+	const trainerName = page.getByLabel('Trainer name');
+	await expect(trainerName).toHaveValue('DIXIE');
+	await trainerName.fill('RAJ');
+	await expect(page.getByText('1 staged edit')).toBeVisible();
 
-	await page.getByRole('button', { name: /Bag Inventory pockets/ }).click();
+	const fields = page.getByLabel('Save File fields');
+	const trainerSection = fields.getByRole('button', { name: /Trainer profile/ });
+	const moneySection = fields.getByRole('button', { name: /Money/ });
+	await trainerSection.focus();
+	await page.keyboard.press('ArrowDown');
+	await expect(moneySection).toBeFocused();
+	await moneySection.click();
+	await expect(page.getByRole('heading', { name: 'Money', exact: true })).toBeVisible();
+	await page.getByRole('spinbutton', { name: 'Money' }).fill('12345');
+
+	await fields.getByRole('button', { name: /Bag/ }).click();
 	await expect(page.getByRole('heading', { name: 'Inventory' })).toBeVisible();
-	await expect(page.getByText('Add an item to Medicine...')).toBeVisible();
-	await expect(page.getByText('Ether Vial')).toBeVisible();
+	const quantity = page.locator('.item-list article:not(.new-item) input[type="number"]').first();
+	const originalQuantity = Number(await quantity.inputValue());
+	await quantity.fill(String(originalQuantity + 1));
+	await quantity.press('Tab');
+
+	const addItem = page.getByRole('combobox', { name: /Add an item to/ });
+	await addItem.click();
+	const itemSearch = page.getByRole('searchbox', { name: /Search items/ });
+	await expect(itemSearch).toBeVisible();
+	await page.getByRole('option').first().click();
+	await page.getByRole('button', { name: '+ Add', exact: true }).click();
+	await expect(page.locator('.item-list article.new-item')).toHaveCount(1);
+	await page.locator('.item-list article:not(.new-item) button.remove').nth(1).click();
+	await expect(page.getByText('Save File bytes remain untouched until Apply.')).toBeVisible();
+
+	await page.getByRole('button', { name: /Apply edits/ }).click();
+	await expect(page.getByText('Save File edits applied.')).toBeVisible({ timeout: 15000 });
+	await expect(page.getByText('Backup created')).toBeVisible();
+	await expect(page.getByText('Workspace has unapplied export changes.')).toBeVisible();
+
+	await fields.getByRole('button', { name: /Trainer profile/ }).click();
+	await expect(trainerName).toHaveValue('RAJ');
+	await trainerName.fill('TEMP');
+	await page.getByRole('button', { name: 'Cancel all' }).click();
+	await expect(trainerName).toHaveValue('RAJ');
+
+	const downloadPromise = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Export' }).click();
+	const download = await downloadPromise;
+	const exported = await readFile(await download.path());
+	const fixture = await readFile(emeraldFixturePath);
+	expect(exported).not.toEqual(fixture);
 });
 
 test('Pokemon Editor changes level through Apply and keeps editor focus', async ({ page }) => {

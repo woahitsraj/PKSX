@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
 	import type { SaveSummary } from '$lib/engine';
+	import Combobox, { type ComboboxOption } from '$lib/components/pksx/Combobox.svelte';
 	import type {
 		PokemonEditorDraftEdits,
 		PokemonMoveSetEditPayload,
@@ -48,9 +49,6 @@
 	}: Props = $props();
 
 	let editMode = $state<'level' | 'experience'>('level');
-	let openMovePickerIndex = $state<number | null>(null);
-	let moveSearch = $state('');
-	let activeMoveOptionIndex = $state(0);
 	let editingInputId = $state<string | null>(null);
 	const slot = $derived(editor.slot);
 	const statKeys = ['HP', 'ATK', 'DEF', 'SPA', 'SPD', 'SPE'] as const satisfies PokemonStatKey[];
@@ -78,6 +76,19 @@
 	const canEditStats = $derived(statEditConstraints?.supported ?? false);
 	const canEditMoveSet = $derived(moveSetEditConstraints?.supported ?? false);
 	const moveOptions = $derived(moveSetEditConstraints?.availableMoves ?? []);
+	const moveComboboxOptions = $derived(
+		moveOptions.map(
+			(option) =>
+				({
+					value: String(option.id),
+					label: option.name,
+					meta: option.type,
+					detail: `${option.maxPp} PP`,
+					hue: option.hue,
+					chroma: option.chroma
+				}) satisfies ComboboxOption
+		)
+	);
 	const totalEvs = $derived(
 		statKeys.reduce((total, key) => {
 			const value = parseDraftNumber(draftEvs[key]);
@@ -175,7 +186,6 @@
 			ppUps: '0'
 		};
 		draftMoves = moves;
-		closeMovePicker(true);
 	}
 
 	function setMovePp(index: number, value: string) {
@@ -198,168 +208,6 @@
 		const option = optionForMove(move.move);
 		const ppUps = parseDraftNumber(move.ppUps);
 		return maxPpForPpUps(option?.maxPp ?? 0, Number.isInteger(ppUps) ? ppUps : 0);
-	}
-
-	function openMovePicker(index: number) {
-		if (applying) return;
-		if (openMovePickerIndex === index) {
-			closeMovePicker(true);
-			return;
-		}
-
-		const selectedOptionIndex = moveOptions.findIndex(
-			(option) => option.id === draftMoves[index]?.move
-		);
-		openMovePickerIndex = index;
-		moveSearch = '';
-		activeMoveOptionIndex = selectedOptionIndex >= 0 ? selectedOptionIndex : 0;
-		void tick().then(() => {
-			document.getElementById(`pokemon-editor-move-${index}-search`)?.focus();
-		});
-	}
-
-	function closeMovePicker(restoreTriggerFocus = false) {
-		const pickerIndex = openMovePickerIndex;
-		openMovePickerIndex = null;
-		moveSearch = '';
-		activeMoveOptionIndex = 0;
-
-		if (restoreTriggerFocus && pickerIndex !== null) {
-			void tick().then(() => {
-				document.getElementById(`pokemon-editor-move-${pickerIndex}`)?.focus();
-			});
-		}
-	}
-
-	function filteredMoveOptions() {
-		const query = moveSearch.trim().toLowerCase();
-		if (!query) return moveOptions;
-
-		return moveOptions.filter(
-			(option) =>
-				option.name.toLowerCase().includes(query) ||
-				option.type.toLowerCase().includes(query) ||
-				String(option.id).includes(query)
-		);
-	}
-
-	function handleMoveSearchInput(event: Event) {
-		const target = event.currentTarget;
-		if (target instanceof HTMLInputElement) {
-			moveSearch = target.value;
-			activeMoveOptionIndex = 0;
-		}
-	}
-
-	function handleMoveSearchKeydown(event: KeyboardEvent, moveIndex: number) {
-		if (event.key === 'Escape') {
-			event.preventDefault();
-			event.stopPropagation();
-			closeMovePicker(true);
-			return;
-		}
-
-		if (event.key === 'ArrowDown') {
-			event.preventDefault();
-			event.stopPropagation();
-			focusMoveOption(moveIndex, activeMoveOptionIndex);
-			return;
-		}
-
-		if (event.key === 'ArrowUp') {
-			event.preventDefault();
-			event.stopPropagation();
-			focusMoveOption(moveIndex, filteredMoveOptions().length - 1);
-			return;
-		}
-
-		if (event.key === 'Enter') {
-			event.preventDefault();
-			event.stopPropagation();
-			selectActiveMoveOption(moveIndex);
-		}
-	}
-
-	function handleMoveOptionKeydown(event: KeyboardEvent, moveIndex: number, optionIndex: number) {
-		if (event.key === 'Escape') {
-			event.preventDefault();
-			event.stopPropagation();
-			closeMovePicker(true);
-			return;
-		}
-
-		if (event.key === 'ArrowDown') {
-			event.preventDefault();
-			event.stopPropagation();
-			focusMoveOption(moveIndex, optionIndex + 1);
-			return;
-		}
-
-		if (event.key === 'ArrowUp') {
-			event.preventDefault();
-			event.stopPropagation();
-			focusMoveOption(moveIndex, optionIndex - 1);
-			return;
-		}
-
-		if (event.key === 'Home') {
-			event.preventDefault();
-			event.stopPropagation();
-			focusMoveOption(moveIndex, 0);
-			return;
-		}
-
-		if (event.key === 'End') {
-			event.preventDefault();
-			event.stopPropagation();
-			focusMoveOption(moveIndex, filteredMoveOptions().length - 1);
-			return;
-		}
-
-		if (event.key === 'Enter' || event.key === ' ') {
-			event.preventDefault();
-			event.stopPropagation();
-			selectMoveOption(moveIndex, optionIndex);
-		}
-	}
-
-	function focusMoveOption(moveIndex: number, optionIndex: number) {
-		const options = filteredMoveOptions();
-		if (options.length === 0) return;
-
-		const nextIndex = (optionIndex + options.length) % options.length;
-		activeMoveOptionIndex = nextIndex;
-		const option = options[nextIndex];
-		void tick().then(() => {
-			document.getElementById(moveOptionId(moveIndex, option.id))?.focus();
-		});
-	}
-
-	function selectActiveMoveOption(moveIndex: number) {
-		selectMoveOption(moveIndex, activeMoveOptionIndex);
-	}
-
-	function selectMoveOption(moveIndex: number, optionIndex: number) {
-		const option = filteredMoveOptions()[optionIndex];
-		if (!option) return;
-		setMove(moveIndex, String(option.id));
-	}
-
-	function moveOptionId(moveIndex: number, optionId: number) {
-		return `pokemon-editor-move-${moveIndex}-option-${optionId}`;
-	}
-
-	function movePickerListId(moveIndex: number) {
-		return `pokemon-editor-move-${moveIndex}-list`;
-	}
-
-	function activeMoveOptionId(moveIndex: number) {
-		const option = filteredMoveOptions()[activeMoveOptionIndex];
-		return option ? moveOptionId(moveIndex, option.id) : undefined;
-	}
-
-	function handleMoveOptionFocus(optionIndex: number) {
-		activeMoveOptionIndex = optionIndex;
 	}
 
 	function isInputEditing(id: string) {
@@ -683,70 +531,21 @@
 				{#if canEditMoveSet}
 					<div class="move-edit-controls">
 						{#each draftMoves as move, index (index)}
-							{@const option = optionForMove(move.move)}
 							{@const maxPp = maxPpForMove(move)}
 							<div class="move-edit-row">
 								<div class="move-picker-field">
 									<span id={`pokemon-editor-move-${index}-label`}>Move {index + 1}</span>
-									<button
+									<Combobox
 										id={`pokemon-editor-move-${index}`}
-										type="button"
-										class="move-picker-trigger"
-										aria-labelledby={`pokemon-editor-move-${index}-label pokemon-editor-move-${index}-name`}
-										aria-haspopup="listbox"
-										aria-expanded={openMovePickerIndex === index}
-										aria-controls={movePickerListId(index)}
+										labelledBy={`pokemon-editor-move-${index}-label`}
+										value={String(move.move)}
+										options={moveComboboxOptions}
+										placeholder="Empty"
+										searchLabel={`Search moves for Move ${index + 1}`}
+										searchPlaceholder="Search moves"
 										disabled={applying}
-										onclick={() => openMovePicker(index)}
-									>
-										<span id={`pokemon-editor-move-${index}-name`}>{option?.name ?? 'Empty'}</span>
-										<em>{option?.type ?? 'None'}</em>
-									</button>
-									{#if openMovePickerIndex === index}
-										<div class="move-picker-popover">
-											<input
-												id={`pokemon-editor-move-${index}-search`}
-												type="search"
-												aria-label={`Search moves for Move ${index + 1}`}
-												placeholder="Search moves"
-												value={moveSearch}
-												data-controller-editing="true"
-												aria-controls={movePickerListId(index)}
-												aria-activedescendant={activeMoveOptionId(index)}
-												oninput={handleMoveSearchInput}
-												onkeydown={(event) => handleMoveSearchKeydown(event, index)}
-											/>
-											<div
-												id={movePickerListId(index)}
-												class="move-picker-list"
-												role="listbox"
-												aria-labelledby={`pokemon-editor-move-${index}-label`}
-											>
-												{#each filteredMoveOptions() as option, optionIndex (option.id)}
-													<button
-														id={moveOptionId(index, option.id)}
-														type="button"
-														class="move-picker-option"
-														class:active={activeMoveOptionIndex === optionIndex}
-														role="option"
-														aria-selected={option.id === move.move}
-														tabindex={activeMoveOptionIndex === optionIndex ? 0 : -1}
-														style={`--type-hue: ${option.hue}; --type-chroma: ${option.chroma ?? 0.08}`}
-														onclick={() => setMove(index, String(option.id))}
-														onfocus={() => handleMoveOptionFocus(optionIndex)}
-														onkeydown={(event) =>
-															handleMoveOptionKeydown(event, index, optionIndex)}
-													>
-														<strong>{option.name}</strong>
-														<span>{option.type}</span>
-														<em>{option.maxPp} PP</em>
-													</button>
-												{:else}
-													<p class="move-picker-empty">No moves found.</p>
-												{/each}
-											</div>
-										</div>
-									{/if}
+										onSelect={(value) => setMove(index, value)}
+									/>
 								</div>
 								<label>
 									<span>PP</span>
@@ -1320,8 +1119,7 @@
 	}
 
 	.stat-edit-controls input,
-	.move-edit-controls input,
-	.move-picker-trigger {
+	.move-edit-controls input {
 		width: 100%;
 		min-width: 0;
 		height: 38px;
@@ -1335,115 +1133,8 @@
 			monospace;
 	}
 
-	.move-picker-field {
-		position: relative;
-	}
-
-	.move-picker-trigger {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) max-content;
-		align-items: center;
-		gap: 8px;
-		text-align: left;
-	}
-
-	.move-picker-trigger span {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.move-picker-trigger em {
-		color: var(--ink-mute);
-		font:
-			650 0.58rem var(--pksx-font-mono),
-			monospace;
-		line-height: 1;
-		text-transform: uppercase;
-	}
-
-	.move-picker-popover {
-		position: absolute;
-		z-index: 2;
-		top: calc(100% + 5px);
-		left: 0;
-		right: 0;
-		display: grid;
-		gap: 6px;
-		padding: 8px;
-		border: 1px solid var(--rule);
-		border-radius: var(--pksx-radius-sm);
-		background: var(--paper-hi);
-		box-shadow: var(--shadow-deep);
-	}
-
-	.move-picker-popover input {
-		height: 34px;
-	}
-
-	.move-picker-list {
-		max-height: 184px;
-		display: grid;
-		gap: 4px;
-		overflow-y: auto;
-	}
-
-	.move-picker-option {
-		width: 100%;
-		min-width: 0;
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) max-content max-content;
-		align-items: center;
-		gap: 6px;
-		padding: 7px 8px;
-		border: 1px solid transparent;
-		border-radius: var(--pksx-radius-sm);
-		background: oklch(0.92 var(--type-chroma, 0.07) var(--type-hue, 100));
-		color: color-mix(in srgb, var(--ink), black 9%);
-		text-align: left;
-	}
-
-	.move-picker-option strong {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-size: 0.74rem;
-	}
-
-	.move-picker-option span,
-	.move-picker-option em,
-	.move-picker-empty {
-		color: color-mix(in srgb, var(--ink), transparent 18%);
-		font:
-			650 0.57rem var(--pksx-font-mono),
-			monospace;
-		line-height: 1;
-		text-transform: uppercase;
-	}
-
-	.move-picker-option[aria-selected='true'] {
-		border-color: color-mix(in srgb, var(--rust), transparent 38%);
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rust), transparent 38%);
-	}
-
-	.move-picker-option.active,
-	.move-picker-option:focus-visible {
-		border-color: color-mix(in srgb, var(--rust), transparent 20%);
-		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
-		outline-offset: 1px;
-	}
-
-	.move-picker-empty {
-		margin: 0;
-		padding: 8px;
-		text-transform: none;
-	}
-
 	.stat-edit-controls input:disabled,
-	.move-edit-controls input:disabled,
-	.move-picker-trigger:disabled {
+	.move-edit-controls input:disabled {
 		opacity: 0.55;
 	}
 
