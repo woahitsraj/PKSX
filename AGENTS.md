@@ -6,6 +6,19 @@
 
 ---
 
+## Unattended pull requests
+
+Scheduled automation may push a branch and open a draft pull request without separate approval only when implementing an issue labeled `ready-for-agent`.
+
+The pull request must:
+
+- address one issue only
+- use a meaningful branch name
+- include a GitHub closing keyword for the issue
+- report failed or incomplete verification in the PR body
+
+This exception does not permit posting issue comments, review comments, merging pull requests, creating releases, or sending other external messages without showing the user the complete message and receiving separate approval.
+
 You are able to use the Svelte MCP server, where you have access to comprehensive Svelte 5 and SvelteKit documentation. Here's how to use the available tools effectively:
 
 ## Available Svelte MCP Tools:
