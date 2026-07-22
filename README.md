@@ -85,6 +85,8 @@ The command:
 
 `static/pkhex-engine` is generated output and is ignored by git.
 
+`engine/Pksx.Pkhex.Engine/main.js` is the required browser WebAssembly boot entry selected by `WasmMainJSPath`. Its `_framework/dotnet.js` dependency is generated into the published `AppBundle`, so focused Fallow suppressions cover that build-time boundary.
+
 ### Debug Publish
 
 ```sh
