@@ -103,6 +103,14 @@ pnpm engine:sync -- --property UseLocalPKHeX=true --property PKHeXSourcePath=/pa
 
 This uses the `Directory.Build.targets` source override and swaps the NuGet package reference for a local `ProjectReference`.
 
+## Local Library storage
+
+PKSX selects its Local Library adapter at runtime. Web and installed PWA builds use IndexedDB. Native Capacitor builds detected by `Capacitor.isNativePlatform()` use the official Filesystem plugin with `Directory.Data`.
+
+The native adapter stores imported saves, active Workspace bytes, and Backups as binary files under `pksx-local-library`. A versioned JSON catalog stores metadata, while Pokemon Storage uses a separate JSON file. Raw Save File and Backup bytes never enter TinyBase, and unchanged Export reads the original imported file.
+
+After adding or updating a native platform project, run `pnpm exec cap sync`. iOS projects must also include the Filesystem plugin's required privacy manifest entry before App Store submission.
+
 ### Engine Versioning
 
 - `PKHeX.Core` version is pinned in `Directory.Packages.props`.
