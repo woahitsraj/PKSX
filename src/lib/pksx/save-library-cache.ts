@@ -4,17 +4,17 @@ import {
 	type PartySlotSummary,
 	type SaveSummary
 } from '$lib/engine';
-import {
-	createCleanWorkspaceState,
-	createPersistedWorkspaceState,
-	type WorkspaceState
-} from '$lib/pksx/backup-workflow';
+import type { WorkspaceState } from '$lib/pksx/backup-workflow';
 import {
 	IndexedDbLocalLibraryStorage,
 	type BackupMetadata,
 	type SaveFileId,
 	type StoredSaveFile
 } from '$lib/pksx/local-library';
+import {
+	ActiveWorkspaceService,
+	LocalStorageWorkspacePersistence
+} from '$lib/pksx/workspace-store';
 
 export type SaveCardDetails = {
 	summary: SaveSummary;
@@ -40,7 +40,8 @@ const detailsCache = new Map<SaveFileId, SaveDetailsCacheEntry>();
 let engine: EngineApi | null = null;
 let librarySnapshot: SaveLibrarySnapshot | null = null;
 let librarySnapshotSeeded = false;
-let activeWorkspace: WorkspaceState | null = null;
+let workspaceService: ActiveWorkspaceService | null = null;
+let workspaceServiceStart: Promise<void> | null = null;
 let activeWorkspaceBox = 0;
 
 export function getLocalLibraryStorage() {
@@ -50,6 +51,25 @@ export function getLocalLibraryStorage() {
 export function getPkhexEngine() {
 	engine ??= createPkhexWorkerEngine('/pkhex-engine');
 	return engine;
+}
+
+export function getActiveWorkspaceService() {
+	workspaceService ??= new ActiveWorkspaceService({
+		storage,
+		engine: getPkhexEngine,
+		persistence:
+			typeof localStorage === 'undefined'
+				? undefined
+				: new LocalStorageWorkspacePersistence('pksx-active-workspace-v1')
+	});
+	return workspaceService;
+}
+
+async function startActiveWorkspaceService() {
+	const service = getActiveWorkspaceService();
+	workspaceServiceStart ??= service.start();
+	await workspaceServiceStart;
+	return service;
 }
 
 export function getCachedSaveLibrarySnapshot() {
@@ -102,7 +122,7 @@ export function invalidateSaveLibraryCache() {
 }
 
 export function getCachedActiveWorkspace() {
-	return activeWorkspace;
+	return workspaceService?.current ?? null;
 }
 
 export function getCachedActiveWorkspaceBox() {
@@ -110,7 +130,7 @@ export function getCachedActiveWorkspaceBox() {
 }
 
 export function setCachedActiveWorkspace(workspace: WorkspaceState | null, box = 0) {
-	activeWorkspace = workspace;
+	getActiveWorkspaceService().set(workspace, box);
 	activeWorkspaceBox = box;
 	if (workspace) {
 		detailsCache.set(workspace.file.id, {
@@ -124,8 +144,8 @@ export function setCachedActiveWorkspace(workspace: WorkspaceState | null, box =
 }
 
 export function invalidateActiveWorkspaceCache(saveFileId?: SaveFileId) {
-	if (!saveFileId || activeWorkspace?.file.id === saveFileId) {
-		activeWorkspace = null;
+	if (!saveFileId || workspaceService?.current?.file.id === saveFileId) {
+		workspaceService?.set(null);
 		activeWorkspaceBox = 0;
 	}
 }
@@ -134,12 +154,13 @@ export function seedSaveLibrarySnapshotFromActiveWorkspace(
 	saveFiles: StoredSaveFile[],
 	options: { backupsBySaveFileId?: Record<SaveFileId, BackupMetadata[]> } = {}
 ) {
-	const workspace = activeWorkspace;
+	const workspace = workspaceService?.current ?? null;
 	if (!workspace) {
 		return null;
 	}
 
-	const details = createSaveCardDetailsFromWorkspace(workspace);
+	const details =
+		detailsCache.get(workspace.file.id)?.details ?? createSaveCardDetailsFromWorkspace(workspace);
 	const nextSaveFiles = ensureSaveFileIncluded(saveFiles, workspace.file);
 	const snapshot: SaveLibrarySnapshot = {
 		activeSaveFileId: workspace.file.id,
@@ -178,43 +199,15 @@ export async function loadActiveWorkspaceFromLibrary() {
 		return null;
 	}
 
+	const service = await startActiveWorkspaceService();
+	const activeWorkspace = service.current;
 	if (activeWorkspace && activeWorkspace.file.id === fallbackSaveFile.id) {
 		return activeWorkspace;
 	}
 
-	const [bytes, persistedWorkspace] = await Promise.all([
-		storage.getSaveBytes(fallbackSaveFile.id),
-		storage.getWorkspace(fallbackSaveFile.id)
-	]);
-	if (!bytes) {
-		return null;
-	}
-
-	const workspaceBytes = persistedWorkspace?.bytes ?? bytes;
-	const result = await getPkhexEngine().loadSaveWorkspace(
-		workspaceBytes,
-		fallbackSaveFile.originalFileName ?? undefined,
-		0
-	);
-	if (!result.ok) {
-		throw result.error;
-	}
-
-	activeWorkspace = persistedWorkspace
-		? createPersistedWorkspaceState({
-				file: fallbackSaveFile,
-				bytes: persistedWorkspace.bytes,
-				workspace: result.value,
-				dirty: persistedWorkspace.dirty,
-				automaticBackupCreated: persistedWorkspace.automaticBackupCreated
-			})
-		: createCleanWorkspaceState({
-				file: fallbackSaveFile,
-				bytes,
-				workspace: result.value
-			});
+	const workspace = await service.hydrate(fallbackSaveFile.id, 0);
 	activeWorkspaceBox = 0;
-	return activeWorkspace;
+	return workspace;
 }
 
 async function getSaveCardDetails(saveFile: StoredSaveFile) {
