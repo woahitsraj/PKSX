@@ -219,7 +219,13 @@ test('Edit opens Pokemon Editor and returns focus to the command stack', async (
 	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
 
 	await page.keyboard.press('ArrowDown');
+	await expect(editor.getByLabel('Nature choice')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
+
+	await page.keyboard.press('ArrowUp');
+	await expect(editor.getByLabel('Nature choice')).toBeFocused();
 
 	await page.keyboard.press('ArrowUp');
 	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
@@ -546,6 +552,8 @@ test('Pokemon Editor changes level through Apply and keeps editor focus', async 
 	await page.keyboard.press('ArrowDown');
 	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
 	await page.keyboard.press('ArrowDown');
+	await expect(editor.getByLabel('Nature choice')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
 	await expect(page.locator('#pokemon-editor-mode')).toHaveAttribute('aria-label', 'Editing Level');
 	await page.keyboard.press('Enter');
@@ -577,6 +585,27 @@ test('Pokemon Editor changes level through Apply and keeps editor focus', async 
 	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
 	await expect(editor).toContainText('Level 13');
 	await expect(page.locator('#box-0-slot-0')).toContainText('Lv 13');
+	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
+});
+
+test('Pokemon Editor changes Nature through Apply and keeps editor focus', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'Edit' }).click();
+
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	const nature = editor.getByLabel('Nature choice');
+	await expect(nature).toBeEnabled();
+	const nextNature = (await nature.inputValue()) === '3' ? '15' : '3';
+	await nature.selectOption(nextNature);
+	await expect(editor).toContainText('1 Pokemon edit drafted.');
+
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
+	await expect(nature).toHaveValue(nextNature);
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 });
 

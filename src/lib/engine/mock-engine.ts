@@ -49,6 +49,18 @@ const mockPikachuDetails = {
 	},
 	gender: '♂',
 	nature: 'Hardy',
+	natureEditConstraints: {
+		supported: true,
+		currentNatureId: 0,
+		originalNatureId: 0,
+		statNatureId: 0,
+		usesStatNature: true,
+		options: [
+			{ id: 0, name: 'Hardy', effect: 'No stat change' },
+			{ id: 3, name: 'Adamant', effect: '+Attack, -Sp. Atk' },
+			{ id: 15, name: 'Modest', effect: '+Sp. Atk, -Attack' }
+		]
+	},
 	ability: 'Static',
 	heldItem: 'Light Ball',
 	types: [{ name: 'Electric', hue: 94, chroma: 0.16 }],
@@ -150,6 +162,15 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		types: [],
 		stats: [],
 		moves: [],
+		natureEditConstraints: {
+			supported: false,
+			currentNatureId: -1,
+			originalNatureId: -1,
+			statNatureId: -1,
+			usesStatNature: false,
+			options: [],
+			unsupportedReason: 'Nature Editing needs an occupied Slot.'
+		},
 		statEditConstraints: {
 			supported: false,
 			minIv: 0,
@@ -240,6 +261,7 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					operation.nickname !== undefined ||
 					operation.level !== undefined ||
 					operation.experience !== undefined ||
+					operation.natureId !== undefined ||
 					operation.ivs !== undefined ||
 					operation.evs !== undefined ||
 					operation.moves !== undefined,

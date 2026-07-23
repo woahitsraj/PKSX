@@ -689,6 +689,7 @@
 		return [
 			'#pokemon-editor-close',
 			'#pokemon-editor-nickname',
+			'#pokemon-editor-nature',
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',
 			'.stat-edit-controls input:not([disabled])',
@@ -699,7 +700,11 @@
 		]
 			.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
 			.filter((control) => {
-				if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
+				if (
+					control instanceof HTMLButtonElement ||
+					control instanceof HTMLInputElement ||
+					control instanceof HTMLSelectElement
+				) {
 					return !control.disabled;
 				}
 				return true;
@@ -740,6 +745,15 @@
 				return;
 			}
 			focusPokemonEditorControl(1);
+			return;
+		}
+
+		if (activeElement instanceof HTMLSelectElement && !activeElement.disabled) {
+			try {
+				activeElement.showPicker();
+			} catch {
+				activeElement.focus();
+			}
 		}
 	}
 
@@ -2339,6 +2353,7 @@
 			operation.nickname !== undefined &&
 			operation.level === undefined &&
 			operation.experience === undefined &&
+			operation.natureId === undefined &&
 			operation.ivs === undefined &&
 			operation.evs === undefined &&
 			operation.moves === undefined
@@ -2373,6 +2388,15 @@
 						? `Set level to ${draft.levelExperience.level}`
 						: `Set experience to ${draft.levelExperience.experience}`,
 				payload: draft.levelExperience
+			});
+		}
+
+		if (draft.natureId !== undefined) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'nature',
+				capability: 'nature-editing',
+				label: `Set Nature to ${draft.natureId}`,
+				payload: { natureId: draft.natureId }
 			});
 		}
 
@@ -2413,6 +2437,7 @@
 			label: slot.label,
 			level: slot.level,
 			experience: slot.experience,
+			natureId: slot.natureEditConstraints?.currentNatureId,
 			ivs: slot.stats?.map((stat) => stat.iv ?? 0),
 			evs: slot.stats?.map((stat) => stat.ev ?? 0),
 			moves: slot.moves?.map((move) => ({
@@ -2932,6 +2957,7 @@
 			kind: slot.isEmpty ? 'empty' : 'pokemon',
 			gender: slot.gender ?? undefined,
 			nature: slot.nature ?? undefined,
+			natureEditConstraints: slot.natureEditConstraints,
 			ability: slot.ability ?? undefined,
 			heldItem: slot.heldItem ?? undefined,
 			types: slot.types,

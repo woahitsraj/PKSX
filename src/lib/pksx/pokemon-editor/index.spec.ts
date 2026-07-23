@@ -14,6 +14,7 @@ import {
 	stageIvEdit,
 	stageLevelExperienceEdit,
 	stageMoveSetEdit,
+	stageNatureEdit,
 	stagePokemonEditorEdit,
 	statEditPayloadFromSlot,
 	type PokemonEditorApplyServices,
@@ -107,6 +108,18 @@ const editablePokemonSlot: SlotView = {
 			{ id: 33, name: 'Tackle', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 35 },
 			{ id: 45, name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 40 },
 			{ id: 575, name: 'Sparkling Aria', type: 'Water', hue: 238, chroma: 0.09, maxPp: 10 }
+		]
+	},
+	nature: 'Adamant',
+	natureEditConstraints: {
+		supported: true,
+		currentNatureId: 3,
+		originalNatureId: 3,
+		statNatureId: 3,
+		usesStatNature: false,
+		options: [
+			{ id: 3, name: 'Adamant', effect: '+Attack, -Sp. Atk' },
+			{ id: 15, name: 'Modest', effect: '+Sp. Atk, -Attack' }
 		]
 	}
 };
@@ -353,6 +366,85 @@ describe('Pokemon editor state', () => {
 				message: 'Level must be between 1 and 100.',
 				reason: 'invalid-pokemon-edit'
 			}
+		});
+	});
+
+	it('stages an engine-backed Nature choice', () => {
+		const staged = stageNatureEdit(openEditableEditor(), { natureId: 15 });
+
+		expect(staged.stagedEdits).toEqual([
+			{
+				id: 'nature',
+				capability: 'nature-editing',
+				label: 'Set Nature to Modest',
+				payload: { natureId: 15 }
+			}
+		]);
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: { source: slotRef, natureId: 15 }
+		});
+	});
+
+	it('rejects unsupported and unknown Nature choices', () => {
+		const unsupported = stageNatureEdit(
+			{
+				...openEditableEditor(),
+				slot: {
+					...editablePokemonSlot,
+					natureEditConstraints: {
+						...editablePokemonSlot.natureEditConstraints!,
+						supported: false,
+						unsupportedReason: 'Nature Editing is not supported for this Pokemon format.'
+					}
+				}
+			},
+			{ natureId: 15 }
+		);
+		const unknown = stageNatureEdit(openEditableEditor(), { natureId: 99 });
+
+		expect(unsupported.applyOutcome).toMatchObject({
+			status: 'rejected',
+			message: 'Nature Editing is not supported for this Pokemon format.'
+		});
+		expect(unknown.applyOutcome).toMatchObject({
+			status: 'rejected',
+			message: 'Nature 99 is not available.'
+		});
+	});
+
+	it('keeps Nature edits staged on failure and clears them on cancel', async () => {
+		const state = stageNatureEdit(openEditableEditor(), { natureId: 15 });
+		const services = applyServices({
+			mutateSaveFilePokemon: vi.fn(async () => ({
+				ok: false as const,
+				status: 'failed' as const,
+				message: 'Engine mutation failed.'
+			}))
+		});
+
+		const result = await applyPokemonEditorEdits(state, services);
+
+		expect(result.state.stagedEdits).toEqual(state.stagedEdits);
+		expect(cancelPokemonEditor(result.state).stagedEdits).toEqual([]);
+	});
+
+	it('keeps Pokemon Storage Nature edits behind the storage ownership boundary', () => {
+		const opened = createPokemonEditorState(
+			{
+				owner: 'pokemon-storage',
+				storagePokemonId: 'stored-pokemon-1',
+				location: 'Storage Box 1, slot 1'
+			},
+			editablePokemonSlot
+		);
+		if (!opened.ok) throw new Error('Expected Pokemon Editor to open.');
+		const state = stageNatureEdit(opened.state, { natureId: 15 });
+
+		expect(createPokemonEditOperation(state)).toMatchObject({
+			ok: false,
+			status: 'unsupported',
+			reason: 'storage-unavailable'
 		});
 	});
 

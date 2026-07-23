@@ -371,7 +371,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('applies Save File Pokemon edits through the browser-wasm bundle', async () => {
-		expect.assertions(22);
+		expect.assertions(28);
 
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
@@ -466,6 +466,52 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			slot: 0,
 			nickname: 'RON',
 			level: 25
+		});
+
+		const natureConstraints = edited.value.workspace.boxSlots[0]?.natureEditConstraints;
+		expect(natureConstraints).toMatchObject({
+			supported: true,
+			usesStatNature: false
+		});
+		expect(natureConstraints?.options).toHaveLength(25);
+		const nature = natureConstraints?.options.find(
+			(option) => option.id !== natureConstraints.currentNatureId
+		);
+		if (!nature) throw new Error('Expected an alternate Nature choice.');
+
+		const natureEdited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				natureId: nature.id
+			},
+			0
+		);
+		expect(natureEdited.ok).toBe(true);
+		if (!natureEdited.ok) throw new Error('Expected Pokemon Nature edit to succeed.');
+		expect(natureEdited.value.mutated).toBe(true);
+		expect(natureEdited.value.workspace.boxSlots[0]).toMatchObject({
+			nature: nature.name,
+			natureEditConstraints: {
+				currentNatureId: nature.id,
+				originalNatureId: nature.id,
+				statNatureId: nature.id
+			}
+		});
+
+		const invalidNature = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				natureId: 99
+			},
+			0
+		);
+		expect(invalidNature).toMatchObject({
+			ok: false,
+			error: { code: 'invalid-pokemon-edit' }
 		});
 
 		const statEdited = await engine.applyPokemonEditOperation(

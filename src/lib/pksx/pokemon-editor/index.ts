@@ -61,9 +61,14 @@ export type PokemonMoveSetEditPayload = {
 	moves: PokemonMoveSlotEdit[];
 };
 
+export type NatureEditPayload = {
+	natureId: number;
+};
+
 export type PokemonEditorDraftEdits = {
 	nickname?: string;
 	levelExperience?: LevelExperienceEditPayload;
+	natureId?: number;
 	ivs?: PokemonStatEditPayload;
 	evs?: PokemonStatEditPayload;
 	moveSet?: PokemonMoveSetEditPayload;
@@ -412,6 +417,31 @@ export function stageLevelExperienceEdit(
 	});
 }
 
+export function stageNatureEdit(
+	state: PokemonEditorState,
+	payload: NatureEditPayload
+): PokemonEditorState {
+	const validation = validateNatureEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'nature'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	if (payload.natureId === state.slot.natureEditConstraints?.currentNatureId) {
+		return removePokemonEditorEdit(state, 'nature');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'nature',
+		capability: 'nature-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
 export function stageIvEdit(
 	state: PokemonEditorState,
 	payload: PokemonStatEditPayload
@@ -505,7 +535,7 @@ export function createPokemonEditOperation(
 		return {
 			ok: false,
 			status: 'unsupported',
-			message: 'Pokemon Storage level and experience editing is not available yet.',
+			message: 'Pokemon Storage Pokemon editing is not available yet.',
 			reason: 'storage-unavailable'
 		};
 	}
@@ -514,10 +544,11 @@ export function createPokemonEditOperation(
 	const levelExperienceEdit = state.stagedEdits.find(
 		(candidate) => candidate.id === 'level-experience'
 	);
+	const natureEdit = state.stagedEdits.find((candidate) => candidate.id === 'nature');
 	const ivEdit = state.stagedEdits.find((candidate) => candidate.id === 'ivs');
 	const evEdit = state.stagedEdits.find((candidate) => candidate.id === 'evs');
 	const moveSetEdit = state.stagedEdits.find((candidate) => candidate.id === 'move-set');
-	if (!nicknameEdit && !levelExperienceEdit && !ivEdit && !evEdit && !moveSetEdit) {
+	if (!nicknameEdit && !levelExperienceEdit && !natureEdit && !ivEdit && !evEdit && !moveSetEdit) {
 		return {
 			ok: false,
 			status: 'unsupported',
@@ -568,6 +599,30 @@ export function createPokemonEditOperation(
 		} else {
 			operation.experience = payload.experience;
 		}
+	}
+
+	if (natureEdit) {
+		const payload = natureEdit.payload;
+		if (!isNatureEditPayload(payload)) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: 'Nature edit payload is invalid.',
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		const validation = validateNatureEdit(state.slot, payload);
+		if (!validation.ok) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: validation.message,
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		operation.natureId = validation.payload.natureId;
 	}
 
 	if (ivEdit) {
@@ -643,6 +698,35 @@ export function createPokemonEditOperation(
 	}
 
 	return { ok: true, operation };
+}
+
+function validateNatureEdit(
+	slot: SlotView,
+	payload: NatureEditPayload
+): PokemonEditorPayloadValidation<NatureEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Nature Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.natureEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ?? 'Nature Editing is not supported for this Pokemon format.'
+		};
+	}
+
+	if (!Number.isInteger(payload.natureId)) {
+		return { ok: false, message: 'Nature choice is invalid.' };
+	}
+
+	const option = constraints.options.find((candidate) => candidate.id === payload.natureId);
+	if (!option) {
+		return { ok: false, message: `Nature ${payload.natureId} is not available.` };
+	}
+
+	return { ok: true, payload, label: `Set Nature to ${option.name}` };
 }
 
 function validateIvEdit(
@@ -967,6 +1051,15 @@ function isNicknameEditPayload(value: unknown): value is { nickname: string } {
 		value !== null &&
 		'nickname' in value &&
 		typeof value.nickname === 'string'
+	);
+}
+
+function isNatureEditPayload(value: unknown): value is NatureEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'natureId' in value &&
+		typeof value.natureId === 'number'
 	);
 }
 

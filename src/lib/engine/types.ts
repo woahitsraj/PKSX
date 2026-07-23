@@ -76,6 +76,7 @@ export type BoxSlotSummary = {
 	types: SlotTypeSummary[];
 	stats: SlotStatSummary[];
 	moves: SlotMoveSummary[];
+	natureEditConstraints: PokemonNatureEditConstraints;
 	statEditConstraints: PokemonStatEditConstraints;
 	moveSetEditConstraints: PokemonMoveSetEditConstraints;
 	originalTrainer?: string | null;
@@ -130,6 +131,22 @@ export type PokemonStatEditConstraints = {
 	minEv: number;
 	maxEv: number;
 	maxTotalEv: number;
+	unsupportedReason?: string | null;
+};
+
+export type PokemonNatureOption = {
+	id: number;
+	name: string;
+	effect: string;
+};
+
+export type PokemonNatureEditConstraints = {
+	supported: boolean;
+	currentNatureId: number;
+	originalNatureId: number;
+	statNatureId: number;
+	usesStatNature: boolean;
+	options: PokemonNatureOption[];
 	unsupportedReason?: string | null;
 };
 
@@ -209,6 +226,7 @@ export type PokemonEditOperation = {
 	nickname?: string;
 	level?: number;
 	experience?: number;
+	natureId?: number;
 	ivs?: PokemonStatEditSet;
 	evs?: PokemonStatEditSet;
 	moves?: PokemonMoveSlotEdit[];

@@ -401,6 +401,7 @@ public static partial class PkhexEngineExports
             operation.Nickname is null &&
             operation.Level is null &&
             operation.Experience is null &&
+            operation.NatureId is null &&
             operation.Ivs is null &&
             operation.Evs is null &&
             operation.Moves is null)
@@ -413,6 +414,9 @@ public static partial class PkhexEngineExports
         var originalIsNicknamed = pokemon.IsNicknamed;
         var originalLevel = pokemon.CurrentLevel;
         var originalExperience = pokemon.EXP;
+        var originalNature = pokemon.Nature;
+        var originalStatNature = pokemon.StatNature;
+        var originalPid = pokemon.PID;
         int[] originalIvs = [pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE];
         int[] originalEvs = [pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE];
         ushort[] originalMoves = [pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4];
@@ -467,6 +471,22 @@ public static partial class PkhexEngineExports
             pokemon.EXP = experience;
         }
 
+        if (operation.NatureId is int natureId)
+        {
+            var constraints = SlotDetailProjection.NatureEditConstraints(pokemon);
+            if (!constraints.Supported)
+                return SlotMutationResult.Fail(
+                    "unsupported-pokemon-edit",
+                    constraints.UnsupportedReason ?? "Nature Editing is not supported for this Pokemon format.");
+
+            var option = constraints.Options.Find(candidate => candidate.Id == natureId);
+            if (option is null)
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"Nature {natureId} is not available.");
+
+            if (natureId != constraints.CurrentNatureId)
+                CommonEdits.SetNature(pokemon, (Nature)natureId);
+        }
+
         if (operation.Ivs is not null)
         {
             var ivs = StatEditSetToArray(operation.Ivs);
@@ -513,6 +533,9 @@ public static partial class PkhexEngineExports
             originalIsNicknamed != pokemon.IsNicknamed ||
             originalLevel != pokemon.CurrentLevel ||
             originalExperience != pokemon.EXP ||
+            originalNature != pokemon.Nature ||
+            originalStatNature != pokemon.StatNature ||
+            originalPid != pokemon.PID ||
             !originalIvs.SequenceEqual([pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE]) ||
             !originalEvs.SequenceEqual([pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE]) ||
             !originalMoves.SequenceEqual([pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4]) ||
