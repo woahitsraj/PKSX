@@ -13,6 +13,7 @@
 		statEditPayloadFromSlot,
 		type PokemonStatKey
 	} from '$lib/pksx/pokemon-editor';
+	import { getSpriteIdentityLabels } from '$lib/pksx/sprite-catalog';
 
 	interface Props {
 		editor: PokemonEditorState;
@@ -90,6 +91,7 @@
 	const speciesLabel = $derived(
 		slot.speciesId ? `Species #${String(slot.speciesId).padStart(4, '0')}` : 'Unknown species'
 	);
+	const spriteIdentityLabels = $derived(getSpriteIdentityLabels(slot.spriteIdentity));
 	const sourceLabel = $derived(
 		editor.source.owner === 'save-file' ? 'Save File Pokemon' : 'Pokemon Storage Pokemon'
 	);
@@ -554,7 +556,9 @@
 			<div class="summary-strip" aria-label="Pokemon identity">
 				<strong>{speciesLabel}</strong>
 				{#if slot.level !== null}<span>Level {slot.level}</span>{/if}
-				{#if slot.form !== null && slot.form > 0}<span>Form {slot.form}</span>{/if}
+				{#if spriteIdentityLabels.form}<span>{spriteIdentityLabels.form}</span>{/if}
+				{#if spriteIdentityLabels.shiny}<span>{spriteIdentityLabels.shiny}</span>{/if}
+				{#if spriteIdentityLabels.displaySex}<span>{spriteIdentityLabels.displaySex}</span>{/if}
 				{#if slot.isEgg}<span>Egg</span>{/if}
 			</div>
 
