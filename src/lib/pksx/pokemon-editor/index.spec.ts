@@ -16,6 +16,7 @@ import {
 	stageMoveSetEdit,
 	stagePokemonEditorEdit,
 	statEditPayloadFromSlot,
+	validateBattleFieldEdits,
 	type PokemonEditorApplyServices,
 	type PokemonEditorSourceInput
 } from '.';
@@ -111,6 +112,23 @@ const editablePokemonSlot: SlotView = {
 	}
 };
 
+const battleFieldPokemonSlot: SlotView = {
+	...editablePokemonSlot,
+	battleFields: [
+		{
+			key: 'tera-type',
+			label: 'Tera Type',
+			value: 12,
+			valueLabel: 'Electric',
+			supported: true,
+			options: [
+				{ value: 9, label: 'Fire' },
+				{ value: 12, label: 'Electric' }
+			]
+		}
+	]
+};
+
 const updatedPokemonSlot: SlotView = {
 	...pokemonSlot,
 	label: 'LAIRON',
@@ -150,6 +168,12 @@ function openEditor(sourceOverride = source) {
 
 function openEditableEditor() {
 	const opened = createPokemonEditorState(source, editablePokemonSlot);
+	if (!opened.ok) throw new Error('Expected Pokemon Editor to open.');
+	return opened.state;
+}
+
+function openBattleFieldEditor() {
+	const opened = createPokemonEditorState(source, battleFieldPokemonSlot);
 	if (!opened.ok) throw new Error('Expected Pokemon Editor to open.');
 	return opened.state;
 }
@@ -448,6 +472,54 @@ describe('Pokemon editor state', () => {
 				evs,
 				moves: moves.moves
 			}
+		});
+	});
+
+	it('builds a Tera Type operation from engine-projected battle field choices', () => {
+		const staged = stagePokemonEditorEdit(openBattleFieldEditor(), {
+			id: 'battle-fields',
+			capability: 'generation-specific-battle-field-editing',
+			label: 'Set battle fields',
+			payload: { fields: [{ key: 'tera-type', value: 9 }] }
+		});
+
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: { source: slotRef, teraType: 9 }
+		});
+	});
+
+	it('rejects unavailable, invalid, and engine-disabled battle fields', () => {
+		expect(
+			validateBattleFieldEdits(pokemonSlot, {
+				fields: [{ key: 'tera-type', value: 9 }]
+			})
+		).toEqual({
+			ok: false,
+			message: 'This Pokemon format does not expose that battle field.'
+		});
+		expect(
+			validateBattleFieldEdits(battleFieldPokemonSlot, {
+				fields: [{ key: 'tera-type', value: 99 }]
+			})
+		).toEqual({ ok: false, message: 'Choose a valid Tera Type.' });
+		expect(
+			validateBattleFieldEdits(
+				{
+					...battleFieldPokemonSlot,
+					battleFields: [
+						{
+							...battleFieldPokemonSlot.battleFields![0]!,
+							supported: false,
+							unsupportedReason: 'Tera Type Editing is not supported for this Pokemon species.'
+						}
+					]
+				},
+				{ fields: [{ key: 'tera-type', value: 9 }] }
+			)
+		).toEqual({
+			ok: false,
+			message: 'Tera Type Editing is not supported for this Pokemon species.'
 		});
 	});
 

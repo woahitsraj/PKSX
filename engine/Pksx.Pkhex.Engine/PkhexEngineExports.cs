@@ -403,7 +403,8 @@ public static partial class PkhexEngineExports
             operation.Experience is null &&
             operation.Ivs is null &&
             operation.Evs is null &&
-            operation.Moves is null)
+            operation.Moves is null &&
+            operation.TeraType is null)
             return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a Pokemon edit to apply.");
 
         if (operation.Level is not null && operation.Experience is not null)
@@ -418,6 +419,7 @@ public static partial class PkhexEngineExports
         ushort[] originalMoves = [pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4];
         int[] originalPp = [pokemon.Move1_PP, pokemon.Move2_PP, pokemon.Move3_PP, pokemon.Move4_PP];
         int[] originalPpUps = [pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps];
+        var originalTeraType = TeraTypeState(pokemon);
 
         if (operation.Nickname is string nickname)
         {
@@ -505,6 +507,24 @@ public static partial class PkhexEngineExports
                 return moveResult;
         }
 
+        if (operation.TeraType is int teraType)
+        {
+            if (pokemon is not ITeraType tera)
+                return SlotMutationResult.Fail(
+                    "unsupported-pokemon-edit",
+                    "Tera Type Editing is not supported for this Pokemon format.");
+
+            if (!TeraTypeUtil.CanChangeTeraType(pokemon.Species))
+                return SlotMutationResult.Fail(
+                    "unsupported-pokemon-edit",
+                    "Tera Type Editing is not supported for this Pokemon species.");
+
+            if (teraType < 0 || teraType > byte.MaxValue || !TeraTypeUtil.IsOverrideValid((byte)teraType))
+                return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a valid Tera Type.");
+
+            tera.SetTeraType((byte)teraType);
+        }
+
         if (pokemon.PartyStatsPresent)
             pokemon.ResetPartyStats();
 
@@ -517,7 +537,8 @@ public static partial class PkhexEngineExports
             !originalEvs.SequenceEqual([pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE]) ||
             !originalMoves.SequenceEqual([pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4]) ||
             !originalPp.SequenceEqual([pokemon.Move1_PP, pokemon.Move2_PP, pokemon.Move3_PP, pokemon.Move4_PP]) ||
-            !originalPpUps.SequenceEqual([pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps]);
+            !originalPpUps.SequenceEqual([pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps]) ||
+            originalTeraType != TeraTypeState(pokemon);
         if (mutated)
             source.Set(save, pokemon);
 
@@ -526,6 +547,11 @@ public static partial class PkhexEngineExports
 
     private static int[] StatEditSetToArray(PokemonStatEditSet edits) =>
         [edits.HP, edits.ATK, edits.DEF, edits.SPE, edits.SPA, edits.SPD];
+
+    private static (byte? Original, byte? Override) TeraTypeState(PKM pokemon) =>
+        pokemon is ITeraType tera
+            ? ((byte)tera.TeraTypeOriginal, (byte)tera.TeraTypeOverride)
+            : (null, null);
 
     private static SlotMutationResult ApplyMoveSetEdits(PKM pokemon, List<PokemonMoveSlotEdit> edits, StorageSlotType storageSlotType)
     {

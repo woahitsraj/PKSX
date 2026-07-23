@@ -75,6 +75,7 @@ public sealed record PartySlotSummary(
     List<SlotMoveSummary> Moves,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
+    List<PokemonBattleFieldProjection> BattleFields,
     string? OriginalTrainer,
     string? MetLabel,
     SpriteIdentity SpriteIdentity,
@@ -101,6 +102,7 @@ public sealed record PartySlotSummary(
             SlotDetailProjection.Moves(pokemon),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Party),
+            SlotDetailProjection.BattleFields(pokemon),
             SlotDetailProjection.OriginalTrainer(pokemon),
             SlotDetailProjection.MetLabel(pokemon),
             SpriteIdentity.From(pokemon),
@@ -128,6 +130,7 @@ public sealed record BoxSlotSummary(
     List<SlotMoveSummary> Moves,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
+    List<PokemonBattleFieldProjection> BattleFields,
     string? OriginalTrainer,
     string? MetLabel,
     SpriteIdentity SpriteIdentity,
@@ -155,6 +158,7 @@ public sealed record BoxSlotSummary(
             SlotDetailProjection.Moves(pokemon),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Box),
+            SlotDetailProjection.BattleFields(pokemon),
             SlotDetailProjection.OriginalTrainer(pokemon),
             SlotDetailProjection.MetLabel(pokemon),
             SpriteIdentity.From(pokemon),
@@ -255,6 +259,17 @@ public sealed record PokemonMoveSetEditConstraints(
     List<PokemonMoveOption> AvailableMoves,
     string? UnsupportedReason);
 
+public sealed record PokemonBattleFieldOption(int Value, string Label);
+
+public sealed record PokemonBattleFieldProjection(
+    string Key,
+    string Label,
+    int Value,
+    string ValueLabel,
+    bool Supported,
+    List<PokemonBattleFieldOption> Options,
+    string? UnsupportedReason);
+
 public sealed record SaveWorkspace(
     SaveSummary Summary,
     List<PartySlotSummary> PartySlots,
@@ -284,7 +299,8 @@ public sealed record PokemonEditOperationRequest(
     uint? Experience,
     PokemonStatEditSet? Ivs,
     PokemonStatEditSet? Evs,
-    List<PokemonMoveSlotEdit>? Moves);
+    List<PokemonMoveSlotEdit>? Moves,
+    int? TeraType);
 
 public sealed record PokemonStatEditSet(
     [property: JsonPropertyName("HP")] int HP,
@@ -508,6 +524,31 @@ internal static class SlotDetailProjection
         return new PokemonMoveSetEditConstraints(true, 4, options, null);
     }
 
+    public static List<PokemonBattleFieldProjection> BattleFields(PKM pokemon)
+    {
+        if (pokemon is not ITeraType teraType)
+            return [];
+
+        var value = (byte)teraType.TeraType;
+        var supported = TeraTypeUtil.CanChangeTeraType(pokemon.Species);
+        var options = Enumerable.Range(0, TeraTypeUtil.MaxType + 1)
+            .Select(type => new PokemonBattleFieldOption(type, TeraTypeName((byte)type)))
+            .Append(new PokemonBattleFieldOption(TeraTypeUtil.Stellar, TeraTypeName(TeraTypeUtil.Stellar)))
+            .ToList();
+
+        return
+        [
+            new PokemonBattleFieldProjection(
+                "tera-type",
+                "Tera Type",
+                value,
+                TeraTypeName(value),
+                supported,
+                options,
+                supported ? null : "Tera Type Editing is not supported for this Pokemon species.")
+        ];
+    }
+
     public static string? OriginalTrainer(PKM pokemon) =>
         pokemon.Species == 0 || string.IsNullOrWhiteSpace(pokemon.OriginalTrainerName) ? null : pokemon.OriginalTrainerName;
 
@@ -538,6 +579,12 @@ internal static class SlotDetailProjection
     }
 
     private static string? TypeName(int type) => NameAt(GameInfo.Strings.Types, type);
+
+    private static string TeraTypeName(byte type)
+    {
+        var index = type == TeraTypeUtil.Stellar ? TeraTypeUtil.StellarTypeDisplayStringIndex : type;
+        return TypeName(index) ?? $"Type {type}";
+    }
 
     private static int TypeHue(int type) =>
         type >= 0 && type < TypeHues.Length ? TypeHues[type] : 48;

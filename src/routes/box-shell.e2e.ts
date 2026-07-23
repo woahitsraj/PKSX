@@ -6,6 +6,9 @@ import path from 'node:path';
 const emeraldFixturePath = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
 );
+const scarletFixturePath = path.resolve(
+	'test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-scarlet-2025-03-24-main.sav'
+);
 
 async function openEmptyLibrary(page: Page) {
 	await page.goto('/');
@@ -34,6 +37,20 @@ async function importEmeraldThroughSaves(page: Page) {
 	await page.goto('/');
 	await expect(page.locator('.save-chip')).toContainText('011020251345.sav', { timeout: 15000 });
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
+}
+
+async function importScarletThroughSaves(page: Page) {
+	await page.goto('/saves');
+	await page.getByLabel('Import Save File').setInputFiles(scarletFixturePath);
+	await expect(
+		page.getByText('pokemon-scarlet-2025-03-24-main.sav imported and made active.')
+	).toBeVisible({
+		timeout: 15000
+	});
+	await page.goto('/');
+	await expect(page.locator('.save-chip')).toContainText('pokemon-scarlet-2025-03-24-main.sav', {
+		timeout: 15000
+	});
 }
 
 async function moveFirstEmeraldBoxSlotToThirdSlot(page: Page) {
@@ -578,6 +595,38 @@ test('Pokemon Editor changes level through Apply and keeps editor focus', async 
 	await expect(editor).toContainText('Level 13');
 	await expect(page.locator('#box-0-slot-0')).toContainText('Lv 13');
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
+});
+
+test('Pokemon Editor stages, cancels, and applies an engine-projected Tera Type', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await importScarletThroughSaves(page);
+
+	await page.locator('#party-slot-0').click();
+	await page.locator('#party-slot-0').click();
+	await page.getByRole('button', { name: 'Edit' }).click();
+
+	const editor = page.getByRole('dialog').filter({ hasText: 'Battle Fields' });
+	const teraType = editor.getByLabel('Tera Type');
+	await expect(teraType).toBeVisible({ timeout: 15000 });
+	const original = await teraType.inputValue();
+	const next = await teraType.locator('option').evaluateAll((options, current) => {
+		const option = options.find((candidate) => (candidate as HTMLOptionElement).value !== current);
+		return option ? (option as HTMLOptionElement).value : null;
+	}, original);
+	if (!next) throw new Error('Expected another Tera Type choice.');
+
+	await teraType.selectOption(next);
+	await expect(editor).toContainText('1 Pokemon edit drafted.');
+	await editor.getByRole('button', { name: 'Cancel edits' }).click();
+	await expect(teraType).toHaveValue(original);
+
+	await teraType.selectOption(next);
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
+	await expect(editor.getByLabel('Tera Type')).toHaveValue(next);
+	await expect(page.getByText('Unsaved edits')).toBeVisible();
 });
 
 test('creates and restores a manual backup for the loaded Save File', async ({ page }) => {

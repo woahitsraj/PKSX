@@ -102,6 +102,19 @@ const mockPikachuDetails = {
 			{ id: 98, name: 'Quick Attack', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 30 }
 		]
 	},
+	battleFields: [
+		{
+			key: 'tera-type',
+			label: 'Tera Type',
+			value: 12,
+			valueLabel: 'Electric',
+			supported: true,
+			options: [
+				{ value: 9, label: 'Fire' },
+				{ value: 12, label: 'Electric' }
+			]
+		}
+	],
 	originalTrainer: 'PKSX',
 	metLabel: 'Lv. 5',
 	spriteIdentity: {
@@ -164,7 +177,8 @@ const mockBoxSlots: BoxSlotSummary[] = [
 			maxMoveSlots: 0,
 			availableMoves: [],
 			unsupportedReason: 'Move Set Editing needs an occupied Slot.'
-		}
+		},
+		battleFields: []
 	}
 ];
 

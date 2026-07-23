@@ -693,13 +693,18 @@
 			'.level-edit-controls input:not([disabled])',
 			'.stat-edit-controls input:not([disabled])',
 			'.move-edit-controls .move-picker-trigger:not([disabled]), .move-edit-controls input:not([disabled])',
+			'.battle-field-controls select:not([disabled])',
 			'#pokemon-editor-apply',
 			'#pokemon-editor-cancel',
 			'#pokemon-editor-close-footer'
 		]
 			.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
 			.filter((control) => {
-				if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
+				if (
+					control instanceof HTMLButtonElement ||
+					control instanceof HTMLInputElement ||
+					control instanceof HTMLSelectElement
+				) {
 					return !control.disabled;
 				}
 				return true;
@@ -2341,7 +2346,8 @@
 			operation.experience === undefined &&
 			operation.ivs === undefined &&
 			operation.evs === undefined &&
-			operation.moves === undefined
+			operation.moves === undefined &&
+			operation.teraType === undefined
 		) {
 			return 'Pokemon nickname updated.';
 		}
@@ -2403,6 +2409,15 @@
 			});
 		}
 
+		if (draft.battleFields) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'battle-fields',
+				capability: 'generation-specific-battle-field-editing',
+				label: 'Set battle fields',
+				payload: draft.battleFields
+			});
+		}
+
 		return nextState;
 	}
 
@@ -2420,7 +2435,8 @@
 				id: move.id,
 				pp: move.pp ?? 0,
 				ppUps: move.ppUps ?? 0
-			}))
+			})),
+			battleFields: slot.battleFields?.map((field) => ({ key: field.key, value: field.value }))
 		});
 	}
 
@@ -2939,6 +2955,7 @@
 			moves: slot.moves,
 			statEditConstraints: slot.statEditConstraints,
 			moveSetEditConstraints: slot.moveSetEditConstraints,
+			battleFields: slot.battleFields ?? [],
 			originalTrainer: slot.originalTrainer ?? undefined,
 			metLabel: slot.metLabel ?? undefined,
 			entityBytesBase64: slot.entityBytesBase64 ?? null

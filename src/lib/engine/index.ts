@@ -25,6 +25,8 @@ export type {
 	PokemonEditOperation,
 	PokemonEditOperationResult,
 	PokemonExperienceProjection,
+	PokemonBattleFieldOption,
+	PokemonBattleFieldProjection,
 	PokemonMoveOption,
 	PokemonMoveSetEditConstraints,
 	PokemonMoveSlotEdit,

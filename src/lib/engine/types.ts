@@ -78,6 +78,7 @@ export type BoxSlotSummary = {
 	moves: SlotMoveSummary[];
 	statEditConstraints: PokemonStatEditConstraints;
 	moveSetEditConstraints: PokemonMoveSetEditConstraints;
+	battleFields: PokemonBattleFieldProjection[];
 	originalTrainer?: string | null;
 	metLabel?: string | null;
 	spriteIdentity: SpriteIdentity;
@@ -149,6 +150,21 @@ export type PokemonMoveSetEditConstraints = {
 	unsupportedReason?: string | null;
 };
 
+export type PokemonBattleFieldOption = {
+	value: number;
+	label: string;
+};
+
+export type PokemonBattleFieldProjection = {
+	key: string;
+	label: string;
+	value: number;
+	valueLabel: string;
+	supported: boolean;
+	options: PokemonBattleFieldOption[];
+	unsupportedReason?: string | null;
+};
+
 export type SaveWorkspace = {
 	summary: SaveSummary;
 	partySlots: PartySlotSummary[];
@@ -212,6 +228,7 @@ export type PokemonEditOperation = {
 	ivs?: PokemonStatEditSet;
 	evs?: PokemonStatEditSet;
 	moves?: PokemonMoveSlotEdit[];
+	teraType?: number;
 };
 
 export type PokemonStatEditSet = {

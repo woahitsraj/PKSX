@@ -61,12 +61,17 @@ export type PokemonMoveSetEditPayload = {
 	moves: PokemonMoveSlotEdit[];
 };
 
+export type PokemonBattleFieldEditPayload = {
+	fields: Array<{ key: string; value: number }>;
+};
+
 export type PokemonEditorDraftEdits = {
 	nickname?: string;
 	levelExperience?: LevelExperienceEditPayload;
 	ivs?: PokemonStatEditPayload;
 	evs?: PokemonStatEditPayload;
 	moveSet?: PokemonMoveSetEditPayload;
+	battleFields?: PokemonBattleFieldEditPayload;
 };
 
 export type PokemonEditorApplyOutcome =
@@ -505,7 +510,7 @@ export function createPokemonEditOperation(
 		return {
 			ok: false,
 			status: 'unsupported',
-			message: 'Pokemon Storage level and experience editing is not available yet.',
+			message: 'Pokemon Storage editing is not available yet.',
 			reason: 'storage-unavailable'
 		};
 	}
@@ -517,7 +522,15 @@ export function createPokemonEditOperation(
 	const ivEdit = state.stagedEdits.find((candidate) => candidate.id === 'ivs');
 	const evEdit = state.stagedEdits.find((candidate) => candidate.id === 'evs');
 	const moveSetEdit = state.stagedEdits.find((candidate) => candidate.id === 'move-set');
-	if (!nicknameEdit && !levelExperienceEdit && !ivEdit && !evEdit && !moveSetEdit) {
+	const battleFieldEdit = state.stagedEdits.find((candidate) => candidate.id === 'battle-fields');
+	if (
+		!nicknameEdit &&
+		!levelExperienceEdit &&
+		!ivEdit &&
+		!evEdit &&
+		!moveSetEdit &&
+		!battleFieldEdit
+	) {
 		return {
 			ok: false,
 			status: 'unsupported',
@@ -642,7 +655,84 @@ export function createPokemonEditOperation(
 		operation.moves = validation.payload.moves.map((move) => ({ ...move }));
 	}
 
+	if (battleFieldEdit) {
+		const payload = battleFieldEdit.payload;
+		if (!isPokemonBattleFieldEditPayload(payload)) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: 'Battle field edit payload is invalid.',
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		const validation = validateBattleFieldEdits(state.slot, payload);
+		if (!validation.ok) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: validation.message,
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		for (const field of validation.payload.fields) {
+			if (field.key === 'tera-type') operation.teraType = field.value;
+		}
+	}
+
 	return { ok: true, operation };
+}
+
+export function validateBattleFieldEdits(
+	slot: SlotView,
+	payload: PokemonBattleFieldEditPayload
+): PokemonEditorPayloadValidation<PokemonBattleFieldEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Battle Field Editing needs an occupied Slot.' };
+	}
+
+	if (payload.fields.length === 0) {
+		return { ok: false, message: 'Choose a battle field to edit.' };
+	}
+
+	const projections = new Map((slot.battleFields ?? []).map((field) => [field.key, field]));
+	const seen = new Set<string>();
+	for (const edit of payload.fields) {
+		if (seen.has(edit.key)) {
+			return { ok: false, message: `Battle field ${edit.key} is duplicated.` };
+		}
+		seen.add(edit.key);
+
+		const projection = projections.get(edit.key);
+		if (!projection) {
+			return {
+				ok: false,
+				message: 'This Pokemon format does not expose that battle field.'
+			};
+		}
+
+		if (!projection.supported) {
+			return {
+				ok: false,
+				message:
+					projection.unsupportedReason ?? `${projection.label} is not supported for this Pokemon.`
+			};
+		}
+
+		if (edit.key !== 'tera-type') {
+			return { ok: false, message: `${projection.label} editing is not implemented.` };
+		}
+
+		if (
+			!Number.isInteger(edit.value) ||
+			!projection.options.some((option) => option.value === edit.value)
+		) {
+			return { ok: false, message: `Choose a valid ${projection.label}.` };
+		}
+	}
+
+	return { ok: true, payload, label: 'Set battle fields' };
 }
 
 function validateIvEdit(
@@ -995,6 +1085,24 @@ function isPokemonMoveSetEditPayload(value: unknown): value is PokemonMoveSetEdi
 				typeof move.move === 'number' &&
 				(!('pp' in move) || typeof move.pp === 'number') &&
 				(!('ppUps' in move) || typeof move.ppUps === 'number')
+		)
+	);
+}
+
+function isPokemonBattleFieldEditPayload(value: unknown): value is PokemonBattleFieldEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'fields' in value &&
+		Array.isArray(value.fields) &&
+		value.fields.every(
+			(field) =>
+				typeof field === 'object' &&
+				field !== null &&
+				'key' in field &&
+				typeof field.key === 'string' &&
+				'value' in field &&
+				typeof field.value === 'number'
 		)
 	);
 }

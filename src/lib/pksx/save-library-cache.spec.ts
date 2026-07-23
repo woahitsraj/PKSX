@@ -64,6 +64,7 @@ const partySlot: PartySlotSummary = {
 		availableMoves: [],
 		unsupportedReason: 'Fixture'
 	},
+	battleFields: [],
 	spriteIdentity: {
 		speciesId: 304,
 		form: 0,
