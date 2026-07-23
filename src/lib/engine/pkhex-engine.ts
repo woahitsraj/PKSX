@@ -8,6 +8,7 @@ import type {
 	LegalityReport,
 	PokemonEditOperation,
 	PokemonEditOperationResult,
+	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperation,
 	SaveFileEditOperationResult,
 	SaveWorkspace,
@@ -51,6 +52,11 @@ type DotnetPkhexEngineExports = {
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		operationJson: string
+	): string;
+	PreviewPokemonSpeciesFormEditJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		requestJson: string
 	): string;
 	ApplySaveFileEditOperationJson?(
 		bytes: Uint8Array,
@@ -135,6 +141,14 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 							activeBox
 						} satisfies RawPokemonEditOperationRequest)
 					)
+				)
+			),
+		previewPokemonSpeciesFormEdit: async (bytes, fileName, source, speciesId, form) =>
+			parseEngineResult<PokemonSpeciesFormEditProjection>(
+				engine.PreviewPokemonSpeciesFormEditJson(
+					bytes,
+					fileName,
+					JSON.stringify({ source, speciesId, form })
 				)
 			),
 		applySaveFileEditOperation: async (bytes, fileName, operation, activeBox) => {

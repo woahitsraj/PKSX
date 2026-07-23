@@ -61,7 +61,13 @@ export type PokemonMoveSetEditPayload = {
 	moves: PokemonMoveSlotEdit[];
 };
 
+export type PokemonSpeciesFormEditPayload = {
+	speciesId: number;
+	form: number;
+};
+
 export type PokemonEditorDraftEdits = {
+	speciesForm?: PokemonSpeciesFormEditPayload;
 	nickname?: string;
 	levelExperience?: LevelExperienceEditPayload;
 	ivs?: PokemonStatEditPayload;
@@ -475,6 +481,35 @@ export function stageMoveSetEdit(
 	});
 }
 
+export function stageSpeciesFormEdit(
+	state: PokemonEditorState,
+	payload: PokemonSpeciesFormEditPayload
+): PokemonEditorState {
+	if (state.slot.speciesId === payload.speciesId && (state.slot.form ?? 0) === payload.form) {
+		return removePokemonEditorEdit(state, 'species-form');
+	}
+
+	if (
+		!Number.isInteger(payload.speciesId) ||
+		payload.speciesId <= 0 ||
+		!Number.isInteger(payload.form) ||
+		payload.form < 0
+	) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'species-form'), {
+			status: 'rejected',
+			message: 'Species and Form selection is invalid.',
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'species-form',
+		capability: 'species-form-editing',
+		label: `Set species ${payload.speciesId}, form ${payload.form}`,
+		payload
+	});
+}
+
 export function statEditPayloadFromSlot(
 	slot: SlotView,
 	value: 'iv' | 'ev'
@@ -517,7 +552,15 @@ export function createPokemonEditOperation(
 	const ivEdit = state.stagedEdits.find((candidate) => candidate.id === 'ivs');
 	const evEdit = state.stagedEdits.find((candidate) => candidate.id === 'evs');
 	const moveSetEdit = state.stagedEdits.find((candidate) => candidate.id === 'move-set');
-	if (!nicknameEdit && !levelExperienceEdit && !ivEdit && !evEdit && !moveSetEdit) {
+	const speciesFormEdit = state.stagedEdits.find((candidate) => candidate.id === 'species-form');
+	if (
+		!nicknameEdit &&
+		!levelExperienceEdit &&
+		!ivEdit &&
+		!evEdit &&
+		!moveSetEdit &&
+		!speciesFormEdit
+	) {
 		return {
 			ok: false,
 			status: 'unsupported',
@@ -527,6 +570,21 @@ export function createPokemonEditOperation(
 	}
 
 	const operation: PokemonEditOperation = { source: state.source.slotRef };
+
+	if (speciesFormEdit) {
+		const payload = speciesFormEdit.payload;
+		if (!isPokemonSpeciesFormEditPayload(payload)) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: 'Species and Form edit payload is invalid.',
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		operation.speciesId = payload.speciesId;
+		operation.form = payload.form;
+	}
 
 	if (nicknameEdit) {
 		const nicknamePayload = nicknameEdit.payload;
@@ -996,5 +1054,20 @@ function isPokemonMoveSetEditPayload(value: unknown): value is PokemonMoveSetEdi
 				(!('pp' in move) || typeof move.pp === 'number') &&
 				(!('ppUps' in move) || typeof move.ppUps === 'number')
 		)
+	);
+}
+
+function isPokemonSpeciesFormEditPayload(value: unknown): value is PokemonSpeciesFormEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'speciesId' in value &&
+		typeof value.speciesId === 'number' &&
+		Number.isInteger(value.speciesId) &&
+		value.speciesId > 0 &&
+		'form' in value &&
+		typeof value.form === 'number' &&
+		Number.isInteger(value.form) &&
+		value.form >= 0
 	);
 }

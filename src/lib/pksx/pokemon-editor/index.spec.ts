@@ -15,6 +15,7 @@ import {
 	stageLevelExperienceEdit,
 	stageMoveSetEdit,
 	stagePokemonEditorEdit,
+	stageSpeciesFormEdit,
 	statEditPayloadFromSlot,
 	type PokemonEditorApplyServices,
 	type PokemonEditorSourceInput
@@ -283,6 +284,36 @@ describe('Pokemon editor state', () => {
 		expect(staged.stagedEdits).toEqual([stagedEdit]);
 		expect(staged.slot).toBe(pokemonSlot);
 		expect(opened.staged).toBe(false);
+	});
+
+	it('stages and cancels a Species and Form edit without mutating the source projection', () => {
+		const opened = openEditor();
+		const staged = stageSpeciesFormEdit(opened, { speciesId: 305, form: 0 });
+
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: { source: slotRef, speciesId: 305, form: 0 }
+		});
+		expect(staged.slot).toBe(pokemonSlot);
+		expect(cancelPokemonEditor(staged)).toMatchObject({
+			stagedEdits: [],
+			staged: false,
+			slot: pokemonSlot
+		});
+	});
+
+	it('rejects malformed Species and Form edits before apply', () => {
+		const invalid = stageSpeciesFormEdit(openEditor(), { speciesId: 0, form: -1 });
+
+		expect(invalid).toMatchObject({
+			stagedEdits: [],
+			staged: false,
+			applyOutcome: {
+				status: 'rejected',
+				message: 'Species and Form selection is invalid.',
+				reason: 'invalid-pokemon-edit'
+			}
+		});
 	});
 
 	it('replaces staged commands from the same capability instance', () => {
@@ -667,13 +698,13 @@ describe('Pokemon editor state', () => {
 		expect(result.state.stagedEdits).toEqual([stagedEdit]);
 	});
 
-	it('routes Pokemon Storage-owned apply through the storage mutation boundary', async () => {
+	it('routes Pokemon Storage-owned Species and Form apply through the storage mutation boundary', async () => {
 		const storageSource: PokemonEditorSourceInput = {
 			owner: 'pokemon-storage',
 			storagePokemonId: 'stored-pokemon-1',
 			location: 'Storage Box 1, slot 1'
 		};
-		const state = stagePokemonEditorEdit(openEditor(storageSource), stagedEdit);
+		const state = stageSpeciesFormEdit(openEditor(storageSource), { speciesId: 305, form: 0 });
 		const services = applyServices({
 			ensureSaveFileBackup: vi.fn(async () => ({ ok: true as const }))
 		});
@@ -686,8 +717,8 @@ describe('Pokemon editor state', () => {
 		expect(services.mutateSaveFilePokemon).not.toHaveBeenCalled();
 	});
 
-	it('keeps level edits staged when Save File mutation fails', async () => {
-		const state = stageLevelExperienceEdit(openEditor(), { mode: 'level', level: 18 });
+	it('keeps Species and Form edits staged when Save File mutation fails', async () => {
+		const state = stageSpeciesFormEdit(openEditor(), { speciesId: 305, form: 0 });
 		const services = applyServices({
 			mutateSaveFilePokemon: vi.fn(async () => ({
 				ok: false as const,

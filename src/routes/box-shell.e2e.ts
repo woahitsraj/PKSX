@@ -212,8 +212,15 @@ test('Edit opens Pokemon Editor and returns focus to the command stack', async (
 	await expect(editor).toContainText('Engine projection');
 	await expect(editor).toContainText('No Pokemon edits staged.');
 	await expect(page.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
+	await expect(editor.getByRole('combobox', { name: 'Species' })).toBeEnabled();
 	await page.locator('#pokemon-editor-close').focus();
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.getByRole('combobox', { name: 'Species' })).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.getByRole('combobox', { name: 'Form' })).toBeFocused();
 
 	await page.keyboard.press('ArrowDown');
 	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
@@ -271,6 +278,30 @@ test('Pokemon Editor applies nickname changes and refreshes Slot labels', async 
 	await expect(updatedEditor).toBeVisible();
 	await expect(updatedEditor).toContainText('Pokemon nickname updated.');
 	await expect(updatedEditor.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
+});
+
+test('Pokemon Editor previews and applies a Species and Form change', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-0-slot-0').click();
+	await page.locator('#box-0-slot-0').click();
+	await page.getByRole('button', { name: 'Edit' }).click();
+
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	const species = editor.getByRole('combobox', { name: 'Species' });
+	await expect(species).toBeEnabled({ timeout: 15000 });
+	await species.selectOption({ label: 'Lairon' });
+	await expect(editor).toContainText('Lairon · Default', { timeout: 15000 });
+	await expect(editor).toContainText('Sprite Identity');
+	await expect(editor).toContainText('1 Pokemon edit drafted.');
+
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(page.locator('#box-0-slot-0')).toContainText('LAIRON', { timeout: 15000 });
+	const updatedEditor = page.getByRole('dialog', { name: 'LAIRON' });
+	await expect(updatedEditor).toContainText('Pokemon edits applied.');
+	await expect(updatedEditor).toContainText('Species #0305');
+	await expect(page.getByRole('status').filter({ hasText: 'Unsaved edits' })).toBeVisible();
+	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 });
 
 test('Legality Check opens an engine report from an occupied Slot and dismisses cleanly', async ({
@@ -540,9 +571,14 @@ test('Pokemon Editor changes level through Apply and keeps editor focus', async 
 	await expect(editor).toBeVisible();
 	await expect(editor).toContainText('Level / Experience');
 	await expect(editor).toContainText('Level 11');
+	await expect(editor.getByRole('combobox', { name: 'Species' })).toBeEnabled();
 	await page.locator('#pokemon-editor-close').focus();
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.getByRole('combobox', { name: 'Species' })).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.getByRole('combobox', { name: 'Form' })).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
 	await page.keyboard.press('ArrowDown');

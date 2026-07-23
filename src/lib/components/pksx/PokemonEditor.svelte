@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
-	import type { SaveSummary } from '$lib/engine';
+	import type { PokemonSpeciesFormEditProjection, SaveSummary } from '$lib/engine';
 	import type {
 		PokemonEditorDraftEdits,
 		PokemonMoveSetEditPayload,
+		PokemonSpeciesFormEditPayload,
 		PokemonStatEditPayload,
 		PokemonEditorState
 	} from '$lib/pksx/pokemon-editor';
@@ -21,7 +22,11 @@
 		slotHueStyle: string;
 		feedback: string | null;
 		applying: boolean;
+		speciesFormProjection: PokemonSpeciesFormEditProjection | null;
+		speciesFormLoading: boolean;
+		speciesFormError: string | null;
 		onApply: (draft: PokemonEditorDraftEdits) => void;
+		onPreviewSpeciesForm: (target: PokemonSpeciesFormEditPayload) => void;
 		onCancelEdits: () => void;
 		onClose: () => void;
 	}
@@ -42,7 +47,11 @@
 		slotHueStyle,
 		feedback,
 		applying,
+		speciesFormProjection,
+		speciesFormLoading,
+		speciesFormError,
 		onApply,
+		onPreviewSpeciesForm,
 		onCancelEdits,
 		onClose
 	}: Props = $props();
@@ -53,6 +62,14 @@
 	let activeMoveOptionIndex = $state(0);
 	let editingInputId = $state<string | null>(null);
 	const slot = $derived(editor.slot);
+	let draftSpeciesId = $state(untrack(() => slot.speciesId ?? 0));
+	let draftForm = $state(untrack(() => slot.form ?? 0));
+	const speciesFormPreview = $derived(
+		speciesFormProjection?.preview.speciesId === draftSpeciesId &&
+			speciesFormProjection.preview.form === draftForm
+			? speciesFormProjection.preview
+			: null
+	);
 	const statKeys = ['HP', 'ATK', 'DEF', 'SPA', 'SPD', 'SPE'] as const satisfies PokemonStatKey[];
 	const baseIvs = $derived(statEditPayloadFromSlot(slot, 'iv'));
 	const baseEvs = $derived(statEditPayloadFromSlot(slot, 'ev'));
@@ -144,6 +161,21 @@
 		if (target instanceof HTMLInputElement) {
 			draftNickname = target.value;
 		}
+	}
+
+	function handleSpeciesChange(event: Event) {
+		const target = event.currentTarget;
+		if (!(target instanceof HTMLSelectElement)) return;
+		draftSpeciesId = Number(target.value);
+		draftForm = 0;
+		onPreviewSpeciesForm({ speciesId: draftSpeciesId, form: draftForm });
+	}
+
+	function handleFormChange(event: Event) {
+		const target = event.currentTarget;
+		if (!(target instanceof HTMLSelectElement)) return;
+		draftForm = Number(target.value);
+		onPreviewSpeciesForm({ speciesId: draftSpeciesId, form: draftForm });
 	}
 
 	function setDraftLevel(value: string) {
@@ -418,6 +450,8 @@
 	}
 
 	function resetDraftsFromSlot() {
+		draftSpeciesId = slot.speciesId ?? 0;
+		draftForm = slot.form ?? 0;
 		draftNickname = slot.label;
 		draftLevel = String(slot.level ?? 1);
 		draftExperience = String(slot.experience ?? 0);
@@ -433,6 +467,7 @@
 
 	function countDraftEdits() {
 		let count = 0;
+		if (isSpeciesFormDirty()) count += 1;
 		if (draftNickname !== slot.label) count += 1;
 		if (isLevelExperienceDirty()) count += 1;
 		if (isDraftStatsDirty(draftIvs, baseIvs)) count += 1;
@@ -443,6 +478,9 @@
 
 	function buildDraftEdits(): PokemonEditorDraftEdits {
 		const draft: PokemonEditorDraftEdits = {};
+		if (isSpeciesFormDirty()) {
+			draft.speciesForm = { speciesId: draftSpeciesId, form: draftForm };
+		}
 		if (draftNickname !== slot.label) draft.nickname = draftNickname;
 		if (isLevelExperienceDirty()) {
 			draft.levelExperience =
@@ -454,6 +492,10 @@
 		if (isDraftStatsDirty(draftEvs, baseEvs)) draft.evs = draftStatsToPayload(draftEvs);
 		if (isDraftMoveSetDirty()) draft.moveSet = draftMoveSetToPayload();
 		return draft;
+	}
+
+	function isSpeciesFormDirty() {
+		return draftSpeciesId !== slot.speciesId || draftForm !== (slot.form ?? 0);
 	}
 
 	function isLevelExperienceDirty() {
@@ -566,6 +608,62 @@
 					{/each}
 				</div>
 			{/if}
+
+			<div class="editor-panel" aria-label="Species and Form Editing">
+				<div class="panel-title">
+					<span>Species / Form</span>
+					<small>{speciesFormProjection ? 'Engine choices' : 'Unavailable'}</small>
+				</div>
+				{#if speciesFormProjection}
+					<div class="species-form-controls">
+						<label>
+							<span>Species</span>
+							<select
+								id="pokemon-editor-species"
+								value={draftSpeciesId}
+								disabled={applying || speciesFormLoading}
+								onchange={handleSpeciesChange}
+							>
+								{#each speciesFormProjection.availableSpecies as species (species.id)}
+									<option value={species.id}>{species.name}</option>
+								{/each}
+							</select>
+						</label>
+						<label>
+							<span>Form</span>
+							<select
+								id="pokemon-editor-form"
+								value={draftForm}
+								disabled={applying || speciesFormLoading}
+								onchange={handleFormChange}
+							>
+								{#each speciesFormProjection.availableForms as form (form.id)}
+									<option value={form.id}>{form.name}</option>
+								{/each}
+							</select>
+						</label>
+					</div>
+					<div class="species-form-preview" aria-live="polite">
+						{#if speciesFormLoading || !speciesFormPreview}
+							<p>Loading PKHeX cascade preview...</p>
+						{:else}
+							<strong>{speciesFormPreview.speciesName} · {speciesFormPreview.formName}</strong>
+							<span class:illegal={!speciesFormPreview.legal}
+								>{speciesFormPreview.legal ? 'Legal preview' : 'Legality issues expected'}</span
+							>
+							<ul>
+								{#each speciesFormPreview.consequences as consequence (consequence)}
+									<li>{consequence}</li>
+								{/each}
+							</ul>
+						{/if}
+					</div>
+				{:else}
+					<p class="unsupported-copy">
+						{speciesFormError ?? 'Species and Form Editing is not supported for this Pokemon.'}
+					</p>
+				{/if}
+			</div>
 
 			<div class="editor-panel nickname-panel" aria-label="Nickname Editing">
 				<div class="panel-title">
@@ -1210,6 +1308,60 @@
 		background: var(--paper-deep);
 	}
 
+	.species-form-controls {
+		display: grid;
+		grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+		gap: 12px;
+		padding: 12px;
+		border-radius: var(--pksx-radius-md);
+		background: var(--paper-deep);
+	}
+
+	.species-form-controls label,
+	.species-form-preview {
+		display: grid;
+		gap: 5px;
+	}
+
+	.species-form-controls span,
+	.species-form-preview span {
+		color: var(--ink-mute);
+		font:
+			650 0.62rem var(--pksx-font-mono),
+			monospace;
+		text-transform: uppercase;
+	}
+
+	.species-form-controls select {
+		min-width: 0;
+		height: 44px;
+		border: 1px solid var(--rule);
+		border-radius: var(--pksx-radius-sm);
+		background: var(--paper-hi);
+		color: var(--ink);
+	}
+
+	.species-form-preview {
+		padding: 12px;
+		border-radius: var(--pksx-radius-md);
+		background: var(--paper-deep);
+	}
+
+	.species-form-preview p,
+	.species-form-preview ul {
+		margin: 0;
+	}
+
+	.species-form-preview ul {
+		display: grid;
+		gap: 4px;
+		padding-left: 18px;
+	}
+
+	.species-form-preview .illegal {
+		color: var(--rust);
+	}
+
 	.mode-switch {
 		min-height: 44px;
 		border-radius: var(--pksx-radius-sm);
@@ -1597,6 +1749,10 @@
 		}
 
 		.level-edit-controls {
+			grid-template-columns: 1fr;
+		}
+
+		.species-form-controls {
 			grid-template-columns: 1fr;
 		}
 

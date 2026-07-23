@@ -149,6 +149,37 @@ export type PokemonMoveSetEditConstraints = {
 	unsupportedReason?: string | null;
 };
 
+export type PokemonSpeciesOption = {
+	id: number;
+	name: string;
+};
+
+export type PokemonFormOption = {
+	id: number;
+	name: string;
+};
+
+export type PokemonSpeciesFormPreview = {
+	speciesId: number;
+	speciesName: string;
+	form: number;
+	formName: string;
+	ability?: string | null;
+	gender?: string | null;
+	types: string[];
+	moves: string[];
+	spriteIdentity: SpriteIdentity;
+	legal: boolean;
+	legalitySummary: string;
+	consequences: string[];
+};
+
+export type PokemonSpeciesFormEditProjection = {
+	availableSpecies: PokemonSpeciesOption[];
+	availableForms: PokemonFormOption[];
+	preview: PokemonSpeciesFormPreview;
+};
+
 export type SaveWorkspace = {
 	summary: SaveSummary;
 	partySlots: PartySlotSummary[];
@@ -206,6 +237,8 @@ export type StoredPokemonImportResult = {
 
 export type PokemonEditOperation = {
 	source: SaveSlotRef;
+	speciesId?: number;
+	form?: number;
 	nickname?: string;
 	level?: number;
 	experience?: number;
@@ -289,6 +322,13 @@ export type EngineApi = {
 		operation: PokemonEditOperation,
 		activeBox: number
 	): Promise<EngineResult<PokemonEditOperationResult>>;
+	previewPokemonSpeciesFormEdit(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		source: SaveSlotRef,
+		speciesId: number,
+		form: number
+	): Promise<EngineResult<PokemonSpeciesFormEditProjection>>;
 	applySaveFileEditOperation(
 		bytes: Uint8Array,
 		fileName: string | undefined,
