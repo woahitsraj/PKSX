@@ -4,6 +4,8 @@ import type {
 	EngineResult,
 	EngineVersion,
 	LegalityReport,
+	PokemonActionPreview,
+	PokemonActionResult,
 	PokemonEditOperationResult,
 	SaveSlotRef,
 	PartySlotSummary,
@@ -12,6 +14,7 @@ import type {
 	SlotOperation,
 	SlotOperationResult,
 	StoredPokemonImportResult,
+	StoredPokemonActionResult,
 	SerializedSave
 } from './types';
 
@@ -272,10 +275,75 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 				legal: true,
 				judgement: 'Legal',
 				summary: 'PKHeX judged this Pokemon legal.',
+				fixableProblems: [],
 				warnings: [],
 				messages: [{ severity: 'Valid', identifier: 'Encounter', message: 'Encounter is valid.' }]
 			}),
+		previewPokemonActions: async () => success(mockPokemonActionPreview()),
+		applyPokemonAction: async (bytes, fileName, _operation, activeBox) =>
+			success<PokemonActionResult>({
+				bytes: copyBytes(bytes),
+				mutated: true,
+				workspace: {
+					summary: { ...mockSaveSummary, fileName },
+					partySlots: mockPartySlots,
+					boxSlots: activeBox === 0 ? mockBoxSlots : []
+				},
+				changes: [{ field: 'Species', before: 'Pikachu', after: 'Raichu' }]
+			}),
+		previewStoredPokemonActions: async () => success(mockPokemonActionPreview()),
+		applyStoredPokemonAction: async () =>
+			success<StoredPokemonActionResult>({
+				entityBytesBase64: 'bW9jay1yYWljaHU=',
+				mutated: true,
+				projection: {
+					...mockBoxSlots[0],
+					speciesId: 26,
+					nickname: 'Raichu',
+					spriteIdentity: { ...mockBoxSlots[0].spriteIdentity, speciesId: 26 },
+					entityBytesBase64: 'bW9jay1yYWljaHU='
+				},
+				changes: [{ field: 'Species', before: 'Pikachu', after: 'Raichu' }]
+			}),
 		...overrides
+	};
+}
+
+function mockPokemonActionPreview(): PokemonActionPreview {
+	return {
+		legalityReport: {
+			legal: true,
+			judgement: 'Legal',
+			summary: 'PKHeX judged this Pokemon legal.',
+			fixableProblems: [],
+			warnings: [],
+			messages: []
+		},
+		actions: [
+			{
+				kind: 'legality-fix',
+				available: false,
+				unavailableReason: 'The Legality Report has no supported fixable problems.',
+				changes: [],
+				choices: []
+			},
+			{
+				kind: 'evolve',
+				available: true,
+				changes: [],
+				choices: [
+					{
+						id: '26:0:7:0:0',
+						speciesId: 26,
+						form: 0,
+						speciesName: 'Raichu',
+						method: 'UseItem',
+						requirement: 'UseItem',
+						changes: [{ field: 'Species', before: 'Pikachu', after: 'Raichu' }]
+					}
+				]
+			}
+		]
 	};
 }
 

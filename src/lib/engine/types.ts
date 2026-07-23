@@ -7,6 +7,8 @@ export type EngineErrorCode =
 	| 'unsupported-slot-operation'
 	| 'invalid-pokemon-edit'
 	| 'unsupported-pokemon-edit'
+	| 'invalid-pokemon-action'
+	| 'unsupported-pokemon-action'
 	| 'invalid-pokemon-import'
 	| 'invalid-stored-pokemon'
 	| 'incompatible-stored-pokemon'
@@ -259,8 +261,65 @@ export type LegalityReport = {
 	legal: boolean;
 	judgement: string;
 	summary: string;
+	fixableProblems: string[];
 	warnings: LegalityReportLine[];
 	messages: LegalityReportLine[];
+};
+
+export type PokemonActionKind = 'legality-fix' | 'evolve';
+
+export type PokemonActionChange = {
+	field: string;
+	before: string;
+	after: string;
+};
+
+export type PokemonEvolutionChoice = {
+	id: string;
+	speciesId: number;
+	form: number;
+	speciesName: string;
+	method: string;
+	requirement: string;
+	changes: PokemonActionChange[];
+};
+
+export type PokemonActionAvailability = {
+	kind: PokemonActionKind;
+	available: boolean;
+	unavailableReason?: string | null;
+	changes: PokemonActionChange[];
+	choices: PokemonEvolutionChoice[];
+};
+
+export type PokemonActionPreview = {
+	legalityReport: LegalityReport;
+	actions: PokemonActionAvailability[];
+};
+
+export type PokemonActionOperation = {
+	kind: PokemonActionKind;
+	source: SaveSlotRef;
+	choiceId?: string;
+};
+
+export type PokemonActionResult = {
+	bytes: Uint8Array;
+	mutated: boolean;
+	workspace: SaveWorkspace;
+	changes: PokemonActionChange[];
+};
+
+export type StoredPokemonActionOperation = {
+	kind: PokemonActionKind;
+	choiceId?: string;
+};
+
+export type StoredPokemonActionResult = {
+	entityBytesBase64: string;
+	mutated: boolean;
+	projection: BoxSlotSummary;
+	changes: PokemonActionChange[];
 };
 
 export type EngineApi = {
@@ -306,4 +365,22 @@ export type EngineApi = {
 		fileName: string | undefined,
 		source: SaveSlotRef
 	): Promise<EngineResult<LegalityReport>>;
+	previewPokemonActions(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		source: SaveSlotRef
+	): Promise<EngineResult<PokemonActionPreview>>;
+	applyPokemonAction(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operation: PokemonActionOperation,
+		activeBox: number
+	): Promise<EngineResult<PokemonActionResult>>;
+	previewStoredPokemonActions(
+		entityBytesBase64: string
+	): Promise<EngineResult<PokemonActionPreview>>;
+	applyStoredPokemonAction(
+		entityBytesBase64: string,
+		operation: StoredPokemonActionOperation
+	): Promise<EngineResult<StoredPokemonActionResult>>;
 };

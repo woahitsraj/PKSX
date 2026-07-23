@@ -284,6 +284,79 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		}
 	);
 
+	test('previews and applies a Pokemon evolution through the browser-wasm bundle', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const originalBytes = copyBytes(fixtureBytes);
+		const source = { zone: 'box' as const, box: 0, slot: 0 };
+
+		const preview = await engine.previewPokemonActions(fixtureBytes, '011020251345.sav', source);
+		expect(preview.ok, JSON.stringify(preview.error)).toBe(true);
+		if (!preview.ok) throw new Error('Expected Pokemon Action preview to succeed.');
+
+		const evolve = preview.value.actions.find((action) => action.kind === 'evolve');
+		const lairon = evolve?.choices.find((choice) => choice.speciesId === 305);
+		expect(evolve).toMatchObject({ available: true });
+		expect(lairon).toMatchObject({
+			speciesName: 'Lairon',
+			changes: expect.arrayContaining([
+				expect.objectContaining({ field: 'Species', before: 'Aron', after: 'Lairon' })
+			])
+		});
+		expect(fixtureBytes).toEqual(originalBytes);
+
+		const applied = await engine.applyPokemonAction(
+			fixtureBytes,
+			'011020251345.sav',
+			{ kind: 'evolve', source, choiceId: lairon?.id },
+			0
+		);
+		expect(applied.ok, JSON.stringify(applied.error)).toBe(true);
+		if (!applied.ok) throw new Error('Expected Pokemon evolution to succeed.');
+		expect(applied.value).toMatchObject({
+			mutated: true,
+			workspace: {
+				boxSlots: expect.arrayContaining([
+					expect.objectContaining({ box: 0, slot: 0, speciesId: 305, level: 32 })
+				])
+			},
+			changes: expect.arrayContaining([
+				expect.objectContaining({ field: 'Species', before: 'Aron', after: 'Lairon' })
+			])
+		});
+		expect(applied.value.bytes).not.toEqual(originalBytes);
+		expect(fixtureBytes).toEqual(originalBytes);
+
+		const slots = await engine.listBoxSlots(fixtureBytes, '011020251345.sav', 0);
+		if (!slots.ok || !slots.value[0]?.entityBytesBase64) {
+			throw new Error('Expected stored Pokemon entity data.');
+		}
+		const storedPreview = await engine.previewStoredPokemonActions(
+			slots.value[0].entityBytesBase64
+		);
+		if (!storedPreview.ok) throw new Error('Expected stored Pokemon Action preview to succeed.');
+		const storedChoice = storedPreview.value.actions
+			.find((action) => action.kind === 'evolve')
+			?.choices.find((choice) => choice.speciesId === 305);
+		const storedApplied = await engine.applyStoredPokemonAction(slots.value[0].entityBytesBase64, {
+			kind: 'evolve',
+			choiceId: storedChoice?.id
+		});
+		expect(storedApplied.ok, JSON.stringify(storedApplied.error)).toBe(true);
+		if (!storedApplied.ok) throw new Error('Expected stored Pokemon evolution to succeed.');
+		expect(storedApplied.value).toMatchObject({
+			mutated: true,
+			projection: { speciesId: 305, level: 32 },
+			changes: expect.arrayContaining([
+				expect.objectContaining({ field: 'Species', before: 'Aron', after: 'Lairon' })
+			])
+		});
+		expect(storedApplied.value.entityBytesBase64).not.toBe(slots.value[0].entityBytesBase64);
+	});
+
 	test('applies Save File slot operations through the browser-wasm bundle', async () => {
 		expect.assertions(13);
 

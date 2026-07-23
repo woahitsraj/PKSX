@@ -301,6 +301,199 @@ public static partial class PkhexEngineExports
     }
 
     [JSExport]
+    public static string PreviewPokemonActionsJson(byte[] bytes, string? fileName, string sourceJson)
+    {
+        try
+        {
+            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var source = System.Text.Json.JsonSerializer.Deserialize(
+                sourceJson,
+                EngineJsonContext.Default.SaveSlotRef);
+            var sourceResult = SlotRef.From(save, source);
+            if (!sourceResult.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(sourceResult.Code, sourceResult.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var pokemon = sourceResult.Value.Get(save);
+            if (pokemon.Species == 0)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("empty-source-slot", "Pokemon Actions need an occupied Slot."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(CreatePokemonActionPreview(pokemon, sourceResult.Value.StorageSlotType)),
+                EngineJsonContext.Default.EngineResultPokemonActionPreview);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
+    public static string ApplyPokemonActionJson(byte[] bytes, string? fileName, string actionJson)
+    {
+        try
+        {
+            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var request = System.Text.Json.JsonSerializer.Deserialize(
+                actionJson,
+                EngineJsonContext.Default.PokemonActionRequest);
+            if (request?.Source is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("invalid-pokemon-action", "Pokemon Action needs a source Slot."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var sourceResult = SlotRef.From(save, request.Source);
+            if (!sourceResult.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(sourceResult.Code, sourceResult.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var pokemon = sourceResult.Value.Get(save);
+            if (pokemon.Species == 0)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("empty-source-slot", "Pokemon Actions need an occupied Slot."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var mutation = ApplyPokemonAction(
+                pokemon.Clone(),
+                sourceResult.Value.StorageSlotType,
+                request.Kind,
+                request.ChoiceId);
+            if (!mutation.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(mutation.Code, mutation.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            sourceResult.Value.Set(save, mutation.Pokemon);
+            var serialized = save.Write(BinaryExportSetting.None).ToArray();
+            var activeBox = ClampActiveBox(request.ActiveBox, save);
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(new PokemonActionResult(
+                    Convert.ToBase64String(serialized),
+                    serialized.Length,
+                    true,
+                    CreateWorkspace(save, fileName, activeBox),
+                    mutation.Changes)),
+                EngineJsonContext.Default.EngineResultPokemonActionResult);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
+    public static string PreviewStoredPokemonActionsJson(string entityBytesBase64)
+    {
+        try
+        {
+            var pokemon = ParseStoredPokemon(entityBytesBase64);
+            if (pokemon is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("invalid-stored-pokemon", "Pokemon Storage entry is missing entity data."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(CreatePokemonActionPreview(pokemon, StorageSlotType.Box)),
+                EngineJsonContext.Default.EngineResultPokemonActionPreview);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("invalid-stored-pokemon", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
+    public static string ApplyStoredPokemonActionJson(string entityBytesBase64, string actionJson)
+    {
+        try
+        {
+            var pokemon = ParseStoredPokemon(entityBytesBase64);
+            if (pokemon is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("invalid-stored-pokemon", "Pokemon Storage entry is missing entity data."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var request = System.Text.Json.JsonSerializer.Deserialize(
+                actionJson,
+                EngineJsonContext.Default.StoredPokemonActionRequest);
+            if (request is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("invalid-pokemon-action", "Pokemon Action payload is missing."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var mutation = ApplyPokemonAction(
+                pokemon.Clone(),
+                StorageSlotType.Box,
+                request.Kind,
+                request.ChoiceId);
+            if (!mutation.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(mutation.Code, mutation.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var entityBytes = mutation.Pokemon.Data.ToArray();
+            return EngineJson.Serialize(
+                EngineResult.Ok(new StoredPokemonActionResult(
+                    Convert.ToBase64String(entityBytes),
+                    true,
+                    BoxSlotSummary.From(mutation.Pokemon, 0, 0),
+                    mutation.Changes)),
+                EngineJsonContext.Default.EngineResultStoredPokemonActionResult);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
     public static string ImportStoredPokemonJson(byte[] bytes, string? fileName, string importJson)
     {
         try
@@ -701,8 +894,336 @@ public static partial class PkhexEngineExports
             ? "PKHeX judged this Pokemon legal."
             : "PKHeX found legality issues for this Pokemon.";
 
-        return new LegalityReport(legal, judgement, summary, warnings, messages);
+        return new LegalityReport(
+            legal,
+            judgement,
+            summary,
+            GetFixableProblems(analysis),
+            warnings,
+            messages);
     }
+
+    private static PokemonActionPreview CreatePokemonActionPreview(
+        PKM pokemon,
+        StorageSlotType storageSlotType)
+    {
+        var legalityFix = PreviewLegalityFix(pokemon, storageSlotType);
+        var evolutionChoices = CreateEvolutionChoices(pokemon);
+        var evolve = evolutionChoices.Count > 0
+            ? new PokemonActionAvailability("evolve", true, null, [], evolutionChoices)
+            : new PokemonActionAvailability(
+                "evolve",
+                false,
+                pokemon.IsEgg
+                    ? "Eggs cannot evolve."
+                    : "No direct evolution is available for this Pokemon.",
+                [],
+                []);
+
+        return new PokemonActionPreview(
+            CreateLegalityReport(pokemon, storageSlotType),
+            [legalityFix, evolve]);
+    }
+
+    private static PokemonActionAvailability PreviewLegalityFix(
+        PKM pokemon,
+        StorageSlotType storageSlotType)
+    {
+        var clone = pokemon.Clone();
+        var result = ApplyTargetedLegalityFix(clone, storageSlotType);
+        return result.Changes.Count > 0
+            ? new PokemonActionAvailability("legality-fix", true, null, result.Changes, [])
+            : new PokemonActionAvailability(
+                "legality-fix",
+                false,
+                "The Legality Report has no supported fixable problems.",
+                [],
+                []);
+    }
+
+    private static PokemonActionMutation ApplyPokemonAction(
+        PKM pokemon,
+        StorageSlotType storageSlotType,
+        string kind,
+        string? choiceId)
+    {
+        switch (kind)
+        {
+            case "legality-fix":
+                {
+                    var fix = ApplyTargetedLegalityFix(pokemon, storageSlotType);
+                    return fix.Changes.Count == 0
+                        ? PokemonActionMutation.Fail(
+                            "unsupported-pokemon-action",
+                            "The Legality Report has no supported fixable problems.")
+                        : PokemonActionMutation.Success(pokemon, fix.Changes);
+                }
+            case "evolve":
+                {
+                    if (string.IsNullOrWhiteSpace(choiceId))
+                        return PokemonActionMutation.Fail(
+                            "invalid-pokemon-action",
+                            "Choose an evolution before applying.");
+
+                    var method = DirectEvolutionMethods(pokemon)
+                        .FirstOrDefault(candidate => EvolutionChoiceId(candidate, pokemon.Form) == choiceId);
+                    if (method.Species == 0)
+                        return PokemonActionMutation.Fail(
+                            "invalid-pokemon-action",
+                            "The selected evolution is no longer available.");
+
+                    var before = pokemon.Clone();
+                    ApplyEvolution(pokemon, method);
+                    return PokemonActionMutation.Success(
+                        pokemon,
+                        DescribePokemonChanges(before, pokemon));
+                }
+            default:
+                return PokemonActionMutation.Fail(
+                    "unsupported-pokemon-action",
+                    $"Pokemon Action '{kind}' is not supported.");
+        }
+    }
+
+    private static PokemonActionMutation ApplyTargetedLegalityFix(
+        PKM pokemon,
+        StorageSlotType storageSlotType)
+    {
+        var before = pokemon.Clone();
+        var analysis = new LegalityAnalysis(pokemon, storageSlotType);
+
+        if (
+            !MoveResult.AllValid(analysis.Info.Moves) ||
+            analysis.Results.Any(result =>
+                !result.Valid && result.Identifier == CheckIdentifier.CurrentMove))
+        {
+            pokemon.SetMoveset();
+            if (pokemon is ITechRecord records)
+            {
+                records.ClearRecordFlags();
+                var refreshed = new LegalityAnalysis(pokemon, storageSlotType);
+                records.SetRecordFlags(
+                    pokemon,
+                    TechnicalRecordApplicatorOption.LegalCurrent,
+                    refreshed);
+            }
+        }
+
+        if (
+            !MoveResult.AllValid(analysis.Info.Relearn) ||
+            analysis.Results.Any(result =>
+                !result.Valid && result.Identifier == CheckIdentifier.RelearnMove))
+        {
+            pokemon.SetRelearnMoves(analysis);
+        }
+
+        if (analysis.Results.Any(result =>
+            !result.Valid && result.Identifier == CheckIdentifier.Ball))
+        {
+            BallApplicator.ApplyBallLegalByColor(
+                pokemon,
+                analysis,
+                PersonalColorUtil.GetColor(pokemon));
+        }
+
+        if (analysis.Results.Any(result =>
+            !result.Valid &&
+            result.Identifier is CheckIdentifier.Ribbon or CheckIdentifier.RibbonMark))
+        {
+            var args = new RibbonVerifierArguments(
+                pokemon,
+                analysis.EncounterMatch,
+                analysis.Info.EvoChainsAllGens);
+            RibbonApplicator.FixInvalidRibbons(in args);
+        }
+
+        if (pokemon.PartyStatsPresent)
+            pokemon.ResetPartyStats();
+        pokemon.RefreshChecksum();
+        return PokemonActionMutation.Success(pokemon, DescribePokemonChanges(before, pokemon));
+    }
+
+    private static List<string> GetFixableProblems(LegalityAnalysis analysis)
+    {
+        var result = new List<string>();
+        if (
+            !MoveResult.AllValid(analysis.Info.Moves) ||
+            analysis.Results.Any(check =>
+                !check.Valid && check.Identifier == CheckIdentifier.CurrentMove))
+        {
+            result.Add("Move Set");
+        }
+
+        if (
+            !MoveResult.AllValid(analysis.Info.Relearn) ||
+            analysis.Results.Any(check =>
+                !check.Valid && check.Identifier == CheckIdentifier.RelearnMove))
+        {
+            result.Add("Relearn Moves");
+        }
+
+        if (analysis.Results.Any(check =>
+            !check.Valid && check.Identifier == CheckIdentifier.Ball))
+        {
+            result.Add("Ball");
+        }
+
+        if (analysis.Results.Any(check =>
+            !check.Valid &&
+            check.Identifier is CheckIdentifier.Ribbon or CheckIdentifier.RibbonMark))
+        {
+            result.Add("Ribbons");
+        }
+
+        return result;
+    }
+
+    private static List<PokemonEvolutionChoice> CreateEvolutionChoices(PKM pokemon)
+    {
+        if (pokemon.IsEgg)
+            return [];
+
+        var result = new List<PokemonEvolutionChoice>();
+        foreach (var method in DirectEvolutionMethods(pokemon))
+        {
+            var evolved = pokemon.Clone();
+            ApplyEvolution(evolved, method);
+            result.Add(new PokemonEvolutionChoice(
+                EvolutionChoiceId(method, pokemon.Form),
+                method.Species,
+                method.GetDestinationForm(pokemon.Form),
+                SpeciesName(method.Species),
+                method.Method.ToString(),
+                EvolutionRequirement(method),
+                DescribePokemonChanges(pokemon, evolved)));
+        }
+
+        return result;
+    }
+
+    private static List<EvolutionMethod> DirectEvolutionMethods(PKM pokemon)
+    {
+        if (pokemon.IsEgg)
+            return [];
+
+        var methods = EvolutionTree
+            .GetEvolutionTree(pokemon.Context)
+            .Forward
+            .GetForward(pokemon.Species, pokemon.Form);
+        var hasContestStats = pokemon is IContestStats;
+        return
+        [
+            .. methods.Span
+                .ToArray()
+                .Where(method =>
+                    method.Species != 0 &&
+                    method.Method != EvolutionType.LevelUpShedinja &&
+                    (method.Method != EvolutionType.LevelUpBeauty || hasContestStats))
+                .OrderBy(method => method.Species)
+                .ThenBy(method => method.Form)
+        ];
+    }
+
+    private static void ApplyEvolution(PKM pokemon, EvolutionMethod method)
+    {
+        var wasNicknamed = pokemon.IsNicknamed;
+        if (method.Method == EvolutionType.LevelUpBeauty &&
+            pokemon is IContestStats contest &&
+            contest.ContestBeauty < method.Argument)
+        {
+            contest.ContestBeauty = (byte)method.Argument;
+        }
+
+        if (method.Level > 0 && pokemon.CurrentLevel < method.Level)
+            pokemon.CurrentLevel = method.Level;
+
+        if (
+            method.Method.IsLevelUpRequired &&
+            pokemon.CurrentLevel <= pokemon.MetLevel &&
+            pokemon.CurrentLevel < Experience.MaxLevel)
+        {
+            pokemon.CurrentLevel = (byte)Math.Min(Experience.MaxLevel, pokemon.MetLevel + 1);
+        }
+
+        pokemon.Species = method.Species;
+        pokemon.Form = method.GetDestinationForm(pokemon.Form);
+        pokemon.Gender = pokemon.GetSaneGender();
+        var abilityIndex = pokemon.AbilityNumber switch
+        {
+            2 => 1,
+            4 => 2,
+            _ => 0,
+        };
+        pokemon.RefreshAbility(abilityIndex);
+        if (!wasNicknamed)
+            pokemon.ClearNickname();
+        if (pokemon.PartyStatsPresent)
+            pokemon.ResetPartyStats();
+        pokemon.RefreshChecksum();
+    }
+
+    private static List<PokemonActionChange> DescribePokemonChanges(PKM before, PKM after)
+    {
+        var changes = new List<PokemonActionChange>();
+        AddChange(changes, "Species", SpeciesName(before.Species), SpeciesName(after.Species));
+        AddChange(changes, "Form", before.Form.ToString(), after.Form.ToString());
+        AddChange(changes, "Level", before.CurrentLevel.ToString(), after.CurrentLevel.ToString());
+        AddChange(changes, "Nickname", before.Nickname, after.Nickname);
+        AddChange(changes, "Ability", AbilityName(before.Ability), AbilityName(after.Ability));
+        AddChange(changes, "Ball", before.Ball.ToString(), after.Ball.ToString());
+        AddChange(changes, "Moves", MovesLabel(before), MovesLabel(after));
+        AddChange(changes, "Relearn Moves", RelearnMovesLabel(before), RelearnMovesLabel(after));
+        AddChange(changes, "Ribbons", RibbonCount(before).ToString(), RibbonCount(after).ToString());
+        return changes;
+    }
+
+    private static void AddChange(
+        List<PokemonActionChange> changes,
+        string field,
+        string before,
+        string after)
+    {
+        if (!StringComparer.Ordinal.Equals(before, after))
+            changes.Add(new PokemonActionChange(field, before, after));
+    }
+
+    private static string EvolutionChoiceId(EvolutionMethod method, byte sourceForm) =>
+        $"{method.Species}:{method.GetDestinationForm(sourceForm)}:{(int)method.Method}:{method.Argument}:{method.Level}";
+
+    private static string EvolutionRequirement(EvolutionMethod method)
+    {
+        if (method.Level > 0)
+            return $"Level {method.Level}";
+        if (method.Argument > 0)
+            return $"{method.Method} ({method.Argument})";
+        return method.Method.ToString();
+    }
+
+    private static string SpeciesName(ushort species) =>
+        species < GameInfo.Strings.Species.Count && !string.IsNullOrWhiteSpace(GameInfo.Strings.Species[species])
+            ? GameInfo.Strings.Species[species]
+            : $"Species {species}";
+
+    private static string AbilityName(int ability) =>
+        ability >= 0 && ability < GameInfo.Strings.Ability.Count
+            ? GameInfo.Strings.Ability[ability]
+            : $"Ability {ability}";
+
+    private static string MovesLabel(PKM pokemon) =>
+        string.Join(", ", new[] { pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4 }
+            .Where(move => move != 0)
+            .Select(MoveName));
+
+    private static string RelearnMovesLabel(PKM pokemon) =>
+        string.Join(", ", pokemon.RelearnMoves
+            .Where(move => move != 0)
+            .Select(MoveName));
+
+    private static int RibbonCount(PKM pokemon) =>
+        RibbonInfo.GetRibbonInfo(pokemon).Count(ribbon => ribbon.HasRibbon);
+
+    private static PKM? ParseStoredPokemon(string entityBytesBase64) =>
+        EntityFormat.GetFromBytes(Convert.FromBase64String(entityBytesBase64));
 
     private static List<LegalityReportLine> CreateLegalityMessages(LegalityAnalysis analysis, bool includeGeneric)
     {
@@ -811,5 +1332,19 @@ public static partial class PkhexEngineExports
         public static SlotMutationResult Success(bool mutated) => new(true, mutated, "", "");
 
         public static SlotMutationResult Fail(string code, string message) => new(false, false, code, message);
+    }
+
+    private readonly record struct PokemonActionMutation(
+        bool Ok,
+        PKM Pokemon,
+        List<PokemonActionChange> Changes,
+        string Code,
+        string Message)
+    {
+        public static PokemonActionMutation Success(PKM pokemon, List<PokemonActionChange> changes) =>
+            new(true, pokemon, changes, "", "");
+
+        public static PokemonActionMutation Fail(string code, string message) =>
+            new(false, null!, [], code, message);
     }
 }
