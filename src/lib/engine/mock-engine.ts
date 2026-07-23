@@ -84,6 +84,14 @@ const mockPikachuDetails = {
 			ppUps: 0
 		}
 	],
+	abilityEditConstraints: {
+		supported: true,
+		currentAbilityIndex: 0,
+		options: [
+			{ index: 0, id: 9, name: 'Static', hidden: false, available: true },
+			{ index: 1, id: 31, name: 'Lightning Rod', hidden: false, available: true }
+		]
+	},
 	statEditConstraints: {
 		supported: true,
 		minIv: 0,
@@ -150,6 +158,12 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		types: [],
 		stats: [],
 		moves: [],
+		abilityEditConstraints: {
+			supported: false,
+			currentAbilityIndex: -1,
+			options: [],
+			unsupportedReason: 'Ability Editing needs an occupied Slot.'
+		},
 		statEditConstraints: {
 			supported: false,
 			minIv: 0,
@@ -240,6 +254,7 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					operation.nickname !== undefined ||
 					operation.level !== undefined ||
 					operation.experience !== undefined ||
+					operation.abilityIndex !== undefined ||
 					operation.ivs !== undefined ||
 					operation.evs !== undefined ||
 					operation.moves !== undefined,

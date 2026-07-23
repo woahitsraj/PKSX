@@ -60,6 +60,9 @@
 	let draftNickname = $state(untrack(() => slot.label));
 	let draftLevel = $state(untrack(() => String(slot.level ?? 1)));
 	let draftExperience = $state(untrack(() => String(slot.experience ?? 0)));
+	let draftAbilityIndex = $state(
+		untrack(() => slot.abilityEditConstraints?.currentAbilityIndex ?? -1)
+	);
 	let draftIvs = $state<DraftStats>(untrack(() => statsToDraft(baseIvs)));
 	let draftEvs = $state<DraftStats>(untrack(() => statsToDraft(baseEvs)));
 	let draftMoves = $state<DraftMoveSlot[]>(
@@ -75,9 +78,14 @@
 	let lastAppliedDraftSignature = $state('');
 	const statEditConstraints = $derived(slot.statEditConstraints);
 	const moveSetEditConstraints = $derived(slot.moveSetEditConstraints);
+	const abilityEditConstraints = $derived(slot.abilityEditConstraints);
 	const canEditStats = $derived(statEditConstraints?.supported ?? false);
 	const canEditMoveSet = $derived(moveSetEditConstraints?.supported ?? false);
+	const canEditAbility = $derived(abilityEditConstraints?.supported ?? false);
 	const moveOptions = $derived(moveSetEditConstraints?.availableMoves ?? []);
+	const unavailableAbilityOptions = $derived(
+		abilityEditConstraints?.options.filter((option) => !option.available) ?? []
+	);
 	const totalEvs = $derived(
 		statKeys.reduce((total, key) => {
 			const value = parseDraftNumber(draftEvs[key]);
@@ -152,6 +160,17 @@
 
 	function setDraftExperience(value: string) {
 		draftExperience = value;
+	}
+
+	function setDraftAbility(value: string) {
+		draftAbilityIndex = Number(value);
+	}
+
+	function abilityOptionLabel(
+		option: NonNullable<typeof abilityEditConstraints>['options'][number]
+	) {
+		const slotLabel = option.hidden ? 'Hidden Ability' : `Ability ${option.index + 1}`;
+		return `${slotLabel}: ${option.name}${option.available ? '' : ' (Unavailable)'}`;
 	}
 
 	function setIv(key: PokemonStatKey, value: string) {
@@ -421,6 +440,7 @@
 		draftNickname = slot.label;
 		draftLevel = String(slot.level ?? 1);
 		draftExperience = String(slot.experience ?? 0);
+		draftAbilityIndex = slot.abilityEditConstraints?.currentAbilityIndex ?? -1;
 		draftIvs = statsToDraft(baseIvs);
 		draftEvs = statsToDraft(baseEvs);
 		draftMoves = baseMoveSet.moves.map((move) => ({
@@ -435,6 +455,7 @@
 		let count = 0;
 		if (draftNickname !== slot.label) count += 1;
 		if (isLevelExperienceDirty()) count += 1;
+		if (isAbilityDirty()) count += 1;
 		if (isDraftStatsDirty(draftIvs, baseIvs)) count += 1;
 		if (isDraftStatsDirty(draftEvs, baseEvs)) count += 1;
 		if (isDraftMoveSetDirty()) count += 1;
@@ -450,6 +471,7 @@
 					? { mode: 'level', level: parseDraftNumber(draftLevel) }
 					: { mode: 'experience', experience: parseDraftNumber(draftExperience) };
 		}
+		if (isAbilityDirty()) draft.abilityIndex = draftAbilityIndex;
 		if (isDraftStatsDirty(draftIvs, baseIvs)) draft.ivs = draftStatsToPayload(draftIvs);
 		if (isDraftStatsDirty(draftEvs, baseEvs)) draft.evs = draftStatsToPayload(draftEvs);
 		if (isDraftMoveSetDirty()) draft.moveSet = draftMoveSetToPayload();
@@ -460,6 +482,10 @@
 		return editMode === 'level'
 			? draftLevel !== String(slot.level ?? 1)
 			: draftExperience !== String(slot.experience ?? 0);
+	}
+
+	function isAbilityDirty() {
+		return draftAbilityIndex !== (abilityEditConstraints?.currentAbilityIndex ?? -1);
 	}
 
 	function isDraftStatsDirty(draft: DraftStats, base: PokemonStatEditPayload) {
@@ -593,6 +619,42 @@
 				<p id="pokemon-editor-nickname-hint">
 					Leave empty to restore the default species nickname.
 				</p>
+			</div>
+
+			<div class="editor-panel" aria-label="Ability Editing">
+				<div class="panel-title">
+					<span>Ability</span>
+					<small>{canEditAbility ? 'Engine constrained' : 'Unsupported'}</small>
+				</div>
+				{#if abilityEditConstraints && abilityEditConstraints.options.length > 0}
+					<label class="ability-edit-controls">
+						<span>Ability choice</span>
+						<select
+							id="pokemon-editor-ability"
+							value={draftAbilityIndex}
+							disabled={!canEditAbility || applying}
+							onchange={(event) => setDraftAbility(event.currentTarget.value)}
+						>
+							{#each abilityEditConstraints.options as option (option.index)}
+								<option value={option.index} disabled={!option.available}>
+									{abilityOptionLabel(option)}
+								</option>
+							{/each}
+						</select>
+					</label>
+					{#if unavailableAbilityOptions.length > 0}
+						<ul class="ability-restrictions" aria-label="Unavailable Ability choices">
+							{#each unavailableAbilityOptions as option (option.index)}
+								<li>{option.unavailableReason ?? `${option.name} is unavailable.`}</li>
+							{/each}
+						</ul>
+					{/if}
+				{:else}
+					<p class="unsupported-copy">
+						{abilityEditConstraints?.unsupportedReason ??
+							'Ability Editing is not supported for this Pokemon format.'}
+					</p>
+				{/if}
 			</div>
 
 			<div class="editor-panel" aria-label="Level and Experience Editing">
@@ -1198,6 +1260,50 @@
 
 	.nickname-field input:disabled {
 		opacity: 0.55;
+	}
+
+	.ability-edit-controls {
+		display: grid;
+		gap: 5px;
+		padding: 12px;
+		border-radius: var(--pksx-radius-md);
+		background: var(--paper-deep);
+	}
+
+	.ability-edit-controls span,
+	.ability-restrictions {
+		color: var(--ink-mute);
+		font:
+			650 0.62rem var(--pksx-font-mono),
+			monospace;
+		line-height: 1.2;
+	}
+
+	.ability-edit-controls span {
+		text-transform: uppercase;
+	}
+
+	.ability-edit-controls select {
+		width: 100%;
+		min-width: 0;
+		height: 44px;
+		padding: 0 12px;
+		border: 1px solid var(--rule);
+		border-radius: var(--pksx-radius-sm);
+		background: var(--paper-hi);
+		color: var(--ink);
+		font:
+			750 0.78rem var(--pksx-font-mono),
+			monospace;
+	}
+
+	.ability-edit-controls select:disabled {
+		opacity: 0.55;
+	}
+
+	.ability-restrictions {
+		margin: 0;
+		padding: 0 12px 0 28px;
 	}
 
 	.level-edit-controls {

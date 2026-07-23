@@ -401,6 +401,7 @@ public static partial class PkhexEngineExports
             operation.Nickname is null &&
             operation.Level is null &&
             operation.Experience is null &&
+            operation.AbilityIndex is null &&
             operation.Ivs is null &&
             operation.Evs is null &&
             operation.Moves is null)
@@ -413,6 +414,9 @@ public static partial class PkhexEngineExports
         var originalIsNicknamed = pokemon.IsNicknamed;
         var originalLevel = pokemon.CurrentLevel;
         var originalExperience = pokemon.EXP;
+        var originalAbility = pokemon.Ability;
+        var originalAbilityNumber = pokemon.AbilityNumber;
+        var originalPid = pokemon.PID;
         int[] originalIvs = [pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE];
         int[] originalEvs = [pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE];
         ushort[] originalMoves = [pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4];
@@ -467,6 +471,24 @@ public static partial class PkhexEngineExports
             pokemon.EXP = experience;
         }
 
+        if (operation.AbilityIndex is int abilityIndex)
+        {
+            var constraints = SlotDetailProjection.AbilityEditConstraints(pokemon, source.StorageSlotType);
+            var option = constraints.Options.Find(candidate => candidate.Index == abilityIndex);
+            if (option is null)
+                return SlotMutationResult.Fail(
+                    "unsupported-pokemon-edit",
+                    $"Ability slot {abilityIndex + 1} is not supported by this Pokemon's species, form, or format.");
+
+            if (!option.Available)
+                return SlotMutationResult.Fail(
+                    "invalid-pokemon-edit",
+                    option.UnavailableReason ?? $"{option.Name} is not legal for this Pokemon.");
+
+            if (abilityIndex != constraints.CurrentAbilityIndex)
+                pokemon.SetAbilityIndex(abilityIndex);
+        }
+
         if (operation.Ivs is not null)
         {
             var ivs = StatEditSetToArray(operation.Ivs);
@@ -513,6 +535,9 @@ public static partial class PkhexEngineExports
             originalIsNicknamed != pokemon.IsNicknamed ||
             originalLevel != pokemon.CurrentLevel ||
             originalExperience != pokemon.EXP ||
+            originalAbility != pokemon.Ability ||
+            originalAbilityNumber != pokemon.AbilityNumber ||
+            originalPid != pokemon.PID ||
             !originalIvs.SequenceEqual([pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE]) ||
             !originalEvs.SequenceEqual([pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE]) ||
             !originalMoves.SequenceEqual([pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4]) ||

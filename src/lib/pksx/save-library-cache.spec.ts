@@ -49,6 +49,12 @@ const partySlot: PartySlotSummary = {
 	types: [],
 	stats: [],
 	moves: [],
+	abilityEditConstraints: {
+		supported: false,
+		currentAbilityIndex: -1,
+		options: [],
+		unsupportedReason: 'Fixture'
+	},
 	statEditConstraints: {
 		supported: false,
 		minIv: 0,

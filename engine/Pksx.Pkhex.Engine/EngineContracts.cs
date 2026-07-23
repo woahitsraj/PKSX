@@ -73,6 +73,7 @@ public sealed record PartySlotSummary(
     List<SlotTypeSummary> Types,
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
+    PokemonAbilityEditConstraints AbilityEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
     string? OriginalTrainer,
@@ -99,6 +100,7 @@ public sealed record PartySlotSummary(
             SlotDetailProjection.Types(pokemon),
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
+            SlotDetailProjection.AbilityEditConstraints(pokemon, StorageSlotType.Party),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Party),
             SlotDetailProjection.OriginalTrainer(pokemon),
@@ -126,6 +128,7 @@ public sealed record BoxSlotSummary(
     List<SlotTypeSummary> Types,
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
+    PokemonAbilityEditConstraints AbilityEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
     string? OriginalTrainer,
@@ -153,6 +156,7 @@ public sealed record BoxSlotSummary(
             SlotDetailProjection.Types(pokemon),
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
+            SlotDetailProjection.AbilityEditConstraints(pokemon, StorageSlotType.Box),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Box),
             SlotDetailProjection.OriginalTrainer(pokemon),
@@ -238,6 +242,20 @@ public sealed record SlotStatSummary(string Key, string Label, int Value, int? E
 
 public sealed record SlotMoveSummary(int Slot, ushort Id, string Name, string Type, int Hue, double Chroma, int? Pp, int? MaxPp, int? PpUps);
 
+public sealed record PokemonAbilityOption(
+    int Index,
+    int Id,
+    string Name,
+    bool Hidden,
+    bool Available,
+    string? UnavailableReason);
+
+public sealed record PokemonAbilityEditConstraints(
+    bool Supported,
+    int CurrentAbilityIndex,
+    List<PokemonAbilityOption> Options,
+    string? UnsupportedReason);
+
 public sealed record PokemonStatEditConstraints(
     bool Supported,
     int MinIv,
@@ -282,6 +300,7 @@ public sealed record PokemonEditOperationRequest(
     string? Nickname,
     int? Level,
     uint? Experience,
+    int? AbilityIndex,
     PokemonStatEditSet? Ivs,
     PokemonStatEditSet? Evs,
     List<PokemonMoveSlotEdit>? Moves);
@@ -467,6 +486,49 @@ internal static class SlotDetailProjection
             null);
     }
 
+    public static PokemonAbilityEditConstraints AbilityEditConstraints(PKM pokemon, StorageSlotType storageSlotType)
+    {
+        if (pokemon.Species == 0)
+            return new PokemonAbilityEditConstraints(
+                false,
+                -1,
+                [],
+                "Ability Editing needs an occupied Slot.");
+
+        if (pokemon.Format < 3 || pokemon.PersonalInfo.AbilityCount == 0)
+            return new PokemonAbilityEditConstraints(
+                false,
+                -1,
+                [],
+                "Ability Editing is not supported for this Pokemon format.");
+
+        var options = new List<PokemonAbilityOption>(pokemon.PersonalInfo.AbilityCount);
+        for (var index = 0; index < pokemon.PersonalInfo.AbilityCount; index++)
+        {
+            var ability = pokemon.PersonalInfo.GetAbilityAtIndex(index);
+            if (ability <= 0)
+                continue;
+
+            var name = NameAt(GameInfo.Strings.Ability, ability) ?? $"Ability {ability}";
+            var available = IsAbilityAvailable(pokemon, storageSlotType, index);
+            options.Add(new PokemonAbilityOption(
+                index,
+                ability,
+                name,
+                index == 2,
+                available,
+                available ? null : $"{name} is not legal for this Pokemon's encounter and format."));
+        }
+
+        return new PokemonAbilityEditConstraints(
+            options.Any(option => option.Available),
+            CurrentAbilityIndex(pokemon),
+            options,
+            options.Any(option => option.Available)
+                ? null
+                : "PKHeX found no legal Ability choices for this Pokemon.");
+    }
+
     public static PokemonMoveSetEditConstraints MoveSetEditConstraints(PKM pokemon, StorageSlotType storageSlotType)
     {
         if (pokemon.Species == 0)
@@ -535,6 +597,35 @@ internal static class SlotDetailProjection
             TypeHue(typeId),
             TypeChroma(typeId),
             MoveInfo.GetPP(pokemon.Context, move));
+    }
+
+    private static int CurrentAbilityIndex(PKM pokemon)
+    {
+        if (pokemon.Format >= 6 && AbilityVerifier.IsValidAbilityBits(pokemon.AbilityNumber))
+            return pokemon.AbilityNumber >> 1;
+
+        var index = pokemon.PersonalInfo.GetIndexOfAbility(pokemon.Ability);
+        if (index >= 2)
+            return index;
+
+        return pokemon.PIDAbility >= 0 ? pokemon.PIDAbility : index;
+    }
+
+    private static bool IsAbilityAvailable(PKM pokemon, StorageSlotType storageSlotType, int index)
+    {
+        try
+        {
+            var candidate = pokemon.Clone();
+            candidate.SetAbilityIndex(index);
+            var analysis = new LegalityAnalysis(candidate, storageSlotType);
+            return analysis.Results.All(check =>
+                check.Identifier != CheckIdentifier.Ability ||
+                check.Judgement == Severity.Valid);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string? TypeName(int type) => NameAt(GameInfo.Strings.Types, type);

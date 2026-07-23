@@ -265,6 +265,14 @@
 				ppUps: 0
 			}
 		],
+		abilityEditConstraints: {
+			supported: true,
+			currentAbilityIndex: 0,
+			options: [
+				{ index: 0, id: 9, name: 'Static', hidden: false, available: true },
+				{ index: 1, id: 31, name: 'Lightning Rod', hidden: false, available: true }
+			]
+		},
 		statEditConstraints: {
 			supported: true,
 			minIv: 0,
@@ -663,6 +671,10 @@
 	}
 
 	function dispatchPokemonEditor(action: NavigationAction) {
+		if (changeFocusedPokemonEditorSelect(action)) {
+			return;
+		}
+
 		switch (action) {
 			case 'left':
 			case 'up':
@@ -689,6 +701,7 @@
 		return [
 			'#pokemon-editor-close',
 			'#pokemon-editor-nickname',
+			'#pokemon-editor-ability',
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',
 			'.stat-edit-controls input:not([disabled])',
@@ -699,11 +712,44 @@
 		]
 			.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
 			.filter((control) => {
-				if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
+				if (
+					control instanceof HTMLButtonElement ||
+					control instanceof HTMLInputElement ||
+					control instanceof HTMLSelectElement
+				) {
 					return !control.disabled;
 				}
 				return true;
 			});
+	}
+
+	function changeFocusedPokemonEditorSelect(action: NavigationAction) {
+		const select = document.activeElement;
+		if (
+			!(select instanceof HTMLSelectElement) ||
+			!select.closest('.pokemon-editor') ||
+			(action !== 'left' && action !== 'right' && action !== 'confirm')
+		) {
+			return false;
+		}
+
+		const options = Array.from(select.options).filter((option) => !option.disabled);
+		if (options.length === 0) {
+			return true;
+		}
+
+		const current = Math.max(
+			0,
+			options.findIndex((option) => option.value === select.value)
+		);
+		const direction = action === 'left' ? -1 : 1;
+		const next = options[(current + direction + options.length) % options.length];
+		if (!next) {
+			return true;
+		}
+		select.value = next.value;
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		return true;
 	}
 
 	function focusPokemonEditorControl(direction: -1 | 1) {
@@ -2339,11 +2385,24 @@
 			operation.nickname !== undefined &&
 			operation.level === undefined &&
 			operation.experience === undefined &&
+			operation.abilityIndex === undefined &&
 			operation.ivs === undefined &&
 			operation.evs === undefined &&
 			operation.moves === undefined
 		) {
 			return 'Pokemon nickname updated.';
+		}
+
+		if (
+			operation.abilityIndex !== undefined &&
+			operation.nickname === undefined &&
+			operation.level === undefined &&
+			operation.experience === undefined &&
+			operation.ivs === undefined &&
+			operation.evs === undefined &&
+			operation.moves === undefined
+		) {
+			return 'Pokemon Ability updated.';
 		}
 
 		return 'Pokemon edits applied.';
@@ -2373,6 +2432,18 @@
 						? `Set level to ${draft.levelExperience.level}`
 						: `Set experience to ${draft.levelExperience.experience}`,
 				payload: draft.levelExperience
+			});
+		}
+
+		if (draft.abilityIndex !== undefined) {
+			const option = state.slot.abilityEditConstraints?.options.find(
+				(candidate) => candidate.index === draft.abilityIndex
+			);
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'ability',
+				capability: 'ability-editing',
+				label: `Set Ability to ${option?.name ?? `slot ${draft.abilityIndex + 1}`}`,
+				payload: { abilityIndex: draft.abilityIndex }
 			});
 		}
 
@@ -2413,6 +2484,7 @@
 			label: slot.label,
 			level: slot.level,
 			experience: slot.experience,
+			abilityIndex: slot.abilityEditConstraints?.currentAbilityIndex ?? -1,
 			ivs: slot.stats?.map((stat) => stat.iv ?? 0),
 			evs: slot.stats?.map((stat) => stat.ev ?? 0),
 			moves: slot.moves?.map((move) => ({
@@ -2937,6 +3009,7 @@
 			types: slot.types,
 			stats: slot.stats,
 			moves: slot.moves,
+			abilityEditConstraints: slot.abilityEditConstraints,
 			statEditConstraints: slot.statEditConstraints,
 			moveSetEditConstraints: slot.moveSetEditConstraints,
 			originalTrainer: slot.originalTrainer ?? undefined,

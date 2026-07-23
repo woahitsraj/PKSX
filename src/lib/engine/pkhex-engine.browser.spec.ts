@@ -371,8 +371,6 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('applies Save File Pokemon edits through the browser-wasm bundle', async () => {
-		expect.assertions(22);
-
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
 			fetch(fixtureUrl)
@@ -406,6 +404,62 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			])
 		});
 		expect(edited.value.workspace.boxSlots[0]?.experience ?? 0).toBeGreaterThan(0);
+		const abilityConstraints = edited.value.workspace.boxSlots[0]?.abilityEditConstraints;
+		expect(abilityConstraints).toMatchObject({
+			supported: true,
+			currentAbilityIndex: expect.any(Number),
+			options: expect.arrayContaining([
+				expect.objectContaining({
+					index: expect.any(Number),
+					id: expect.any(Number),
+					name: expect.any(String),
+					available: expect.any(Boolean)
+				})
+			])
+		});
+		const nextAbility = abilityConstraints?.options.find(
+			(option) => option.available && option.index !== abilityConstraints.currentAbilityIndex
+		);
+		expect(nextAbility).toBeDefined();
+		if (!nextAbility) throw new Error('Expected ARON to expose another legal Ability choice.');
+		const abilityEdited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				abilityIndex: nextAbility.index
+			},
+			0
+		);
+		expect(abilityEdited.ok, JSON.stringify(abilityEdited.error)).toBe(true);
+		if (!abilityEdited.ok) throw new Error('Expected Pokemon Ability edit to succeed.');
+		expect(abilityEdited.value.mutated).toBe(true);
+		expect(abilityEdited.value.workspace.boxSlots[0]).toMatchObject({
+			ability: nextAbility.name,
+			abilityEditConstraints: {
+				currentAbilityIndex: nextAbility.index
+			}
+		});
+		const abilityLegality = await engine.checkSlotLegality(
+			abilityEdited.value.bytes,
+			'011020251345.sav',
+			{ zone: 'box', box: 0, slot: 0 }
+		);
+		expect(abilityLegality.ok, JSON.stringify(abilityLegality.error)).toBe(true);
+
+		const unsupportedAbility = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				abilityIndex: 99
+			},
+			0
+		);
+		expect(unsupportedAbility).toMatchObject({
+			ok: false,
+			error: { code: 'unsupported-pokemon-edit' }
+		});
 
 		const invalidLevel = await engine.applyPokemonEditOperation(
 			copyBytes(fixtureBytes),
@@ -577,6 +631,9 @@ describe('PKHeX Engine browser runtime smoke', () => {
 					moveSetEditConstraints: NonNullable<
 						Awaited<ReturnType<typeof engine.loadSaveWorkspace>>['value']
 					>['boxSlots'][number]['moveSetEditConstraints'];
+					abilityEditConstraints: NonNullable<
+						Awaited<ReturnType<typeof engine.loadSaveWorkspace>>['value']
+					>['boxSlots'][number]['abilityEditConstraints'];
 			  }
 			| undefined;
 
@@ -596,7 +653,8 @@ describe('PKHeX Engine browser runtime smoke', () => {
 				primarina = {
 					source: { zone: 'party', slot: partySlot.slot },
 					moves: partySlot.moves,
-					moveSetEditConstraints: partySlot.moveSetEditConstraints
+					moveSetEditConstraints: partySlot.moveSetEditConstraints,
+					abilityEditConstraints: partySlot.abilityEditConstraints
 				};
 				break;
 			}
@@ -606,13 +664,17 @@ describe('PKHeX Engine browser runtime smoke', () => {
 				primarina = {
 					source: { zone: 'box', box: boxSlot.box, slot: boxSlot.slot },
 					moves: boxSlot.moves,
-					moveSetEditConstraints: boxSlot.moveSetEditConstraints
+					moveSetEditConstraints: boxSlot.moveSetEditConstraints,
+					abilityEditConstraints: boxSlot.abilityEditConstraints
 				};
 			}
 		}
 
 		expect(primarina, 'Expected Sword fixture to include Primarina.').toBeDefined();
 		if (!primarina) return;
+		expect(primarina.abilityEditConstraints.options).toEqual(
+			expect.arrayContaining([expect.objectContaining({ hidden: true })])
+		);
 		const iceBeamSlot = primarina.moves.findIndex((move) => move.id === 58);
 		expect(
 			iceBeamSlot,

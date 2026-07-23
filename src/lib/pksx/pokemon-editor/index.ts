@@ -61,9 +61,14 @@ export type PokemonMoveSetEditPayload = {
 	moves: PokemonMoveSlotEdit[];
 };
 
+export type AbilityEditPayload = {
+	abilityIndex: number;
+};
+
 export type PokemonEditorDraftEdits = {
 	nickname?: string;
 	levelExperience?: LevelExperienceEditPayload;
+	abilityIndex?: number;
 	ivs?: PokemonStatEditPayload;
 	evs?: PokemonStatEditPayload;
 	moveSet?: PokemonMoveSetEditPayload;
@@ -412,6 +417,31 @@ export function stageLevelExperienceEdit(
 	});
 }
 
+export function stageAbilityEdit(
+	state: PokemonEditorState,
+	payload: AbilityEditPayload
+): PokemonEditorState {
+	const validation = validateAbilityEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'ability'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	if (payload.abilityIndex === state.slot.abilityEditConstraints?.currentAbilityIndex) {
+		return removePokemonEditorEdit(state, 'ability');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'ability',
+		capability: 'ability-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
 export function stageIvEdit(
 	state: PokemonEditorState,
 	payload: PokemonStatEditPayload
@@ -505,7 +535,7 @@ export function createPokemonEditOperation(
 		return {
 			ok: false,
 			status: 'unsupported',
-			message: 'Pokemon Storage level and experience editing is not available yet.',
+			message: 'Pokemon Storage Pokemon editing is not available yet.',
 			reason: 'storage-unavailable'
 		};
 	}
@@ -514,10 +544,11 @@ export function createPokemonEditOperation(
 	const levelExperienceEdit = state.stagedEdits.find(
 		(candidate) => candidate.id === 'level-experience'
 	);
+	const abilityEdit = state.stagedEdits.find((candidate) => candidate.id === 'ability');
 	const ivEdit = state.stagedEdits.find((candidate) => candidate.id === 'ivs');
 	const evEdit = state.stagedEdits.find((candidate) => candidate.id === 'evs');
 	const moveSetEdit = state.stagedEdits.find((candidate) => candidate.id === 'move-set');
-	if (!nicknameEdit && !levelExperienceEdit && !ivEdit && !evEdit && !moveSetEdit) {
+	if (!nicknameEdit && !levelExperienceEdit && !abilityEdit && !ivEdit && !evEdit && !moveSetEdit) {
 		return {
 			ok: false,
 			status: 'unsupported',
@@ -568,6 +599,30 @@ export function createPokemonEditOperation(
 		} else {
 			operation.experience = payload.experience;
 		}
+	}
+
+	if (abilityEdit) {
+		const payload = abilityEdit.payload;
+		if (!isAbilityEditPayload(payload)) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: 'Ability edit payload is invalid.',
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		const validation = validateAbilityEdit(state.slot, payload);
+		if (!validation.ok) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: validation.message,
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		operation.abilityIndex = validation.payload.abilityIndex;
 	}
 
 	if (ivEdit) {
@@ -643,6 +698,46 @@ export function createPokemonEditOperation(
 	}
 
 	return { ok: true, operation };
+}
+
+function validateAbilityEdit(
+	slot: SlotView,
+	payload: AbilityEditPayload
+): PokemonEditorPayloadValidation<AbilityEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Ability Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.abilityEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ??
+				'Ability Editing is not supported for this Pokemon format.'
+		};
+	}
+
+	if (!Number.isInteger(payload.abilityIndex)) {
+		return { ok: false, message: 'Ability choice is invalid.' };
+	}
+
+	const option = constraints.options.find((candidate) => candidate.index === payload.abilityIndex);
+	if (!option) {
+		return {
+			ok: false,
+			message: `Ability slot ${payload.abilityIndex + 1} is not supported by this Pokemon.`
+		};
+	}
+
+	if (!option.available) {
+		return {
+			ok: false,
+			message: option.unavailableReason ?? `${option.name} is not legal for this Pokemon.`
+		};
+	}
+
+	return { ok: true, payload, label: `Set Ability to ${option.name}` };
 }
 
 function validateIvEdit(
@@ -967,6 +1062,15 @@ function isNicknameEditPayload(value: unknown): value is { nickname: string } {
 		value !== null &&
 		'nickname' in value &&
 		typeof value.nickname === 'string'
+	);
+}
+
+function isAbilityEditPayload(value: unknown): value is AbilityEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'abilityIndex' in value &&
+		typeof value.abilityIndex === 'number'
 	);
 }
 

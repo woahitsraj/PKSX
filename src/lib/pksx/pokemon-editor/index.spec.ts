@@ -10,6 +10,7 @@ import {
 	markUnsupportedPokemonEditorApply,
 	maxPpForPpUps,
 	moveSetEditPayloadFromSlot,
+	stageAbilityEdit,
 	stageEvEdit,
 	stageIvEdit,
 	stageLevelExperienceEdit,
@@ -91,6 +92,23 @@ const editablePokemonSlot: SlotView = {
 			ppUps: 0
 		}
 	],
+	ability: 'Sturdy',
+	abilityEditConstraints: {
+		supported: true,
+		currentAbilityIndex: 0,
+		options: [
+			{ index: 0, id: 5, name: 'Sturdy', hidden: false, available: true },
+			{ index: 1, id: 69, name: 'Rock Head', hidden: false, available: true },
+			{
+				index: 2,
+				id: 134,
+				name: 'Heavy Metal',
+				hidden: true,
+				available: false,
+				unavailableReason: "Heavy Metal is not legal for this Pokemon's encounter and format."
+			}
+		]
+	},
 	statEditConstraints: {
 		supported: true,
 		minIv: 0,
@@ -148,8 +166,8 @@ function openEditor(sourceOverride = source) {
 	return opened.state;
 }
 
-function openEditableEditor() {
-	const opened = createPokemonEditorState(source, editablePokemonSlot);
+function openEditableEditor(sourceOverride = source) {
+	const opened = createPokemonEditorState(sourceOverride, editablePokemonSlot);
 	if (!opened.ok) throw new Error('Expected Pokemon Editor to open.');
 	return opened.state;
 }
@@ -353,6 +371,44 @@ describe('Pokemon editor state', () => {
 				message: 'Level must be between 1 and 100.',
 				reason: 'invalid-pokemon-edit'
 			}
+		});
+	});
+
+	it('stages an engine-backed Ability choice and cancels without mutation', () => {
+		const staged = stageAbilityEdit(openEditableEditor(), { abilityIndex: 1 });
+
+		expect(staged.stagedEdits).toEqual([
+			{
+				id: 'ability',
+				capability: 'ability-editing',
+				label: 'Set Ability to Rock Head',
+				payload: { abilityIndex: 1 }
+			}
+		]);
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: { source: slotRef, abilityIndex: 1 }
+		});
+		expect(cancelPokemonEditor(staged)).toMatchObject({
+			slot: editablePokemonSlot,
+			stagedEdits: [],
+			staged: false
+		});
+	});
+
+	it('rejects unavailable and unsupported Ability choices', () => {
+		const unavailable = stageAbilityEdit(openEditableEditor(), { abilityIndex: 2 });
+		const unsupported = stageAbilityEdit(openEditor(), { abilityIndex: 0 });
+
+		expect(unavailable.applyOutcome).toEqual({
+			status: 'rejected',
+			message: "Heavy Metal is not legal for this Pokemon's encounter and format.",
+			reason: 'invalid-pokemon-edit'
+		});
+		expect(unsupported.applyOutcome).toEqual({
+			status: 'rejected',
+			message: 'Ability Editing is not supported for this Pokemon format.',
+			reason: 'invalid-pokemon-edit'
 		});
 	});
 
@@ -673,7 +729,7 @@ describe('Pokemon editor state', () => {
 			storagePokemonId: 'stored-pokemon-1',
 			location: 'Storage Box 1, slot 1'
 		};
-		const state = stagePokemonEditorEdit(openEditor(storageSource), stagedEdit);
+		const state = stageAbilityEdit(openEditableEditor(storageSource), { abilityIndex: 1 });
 		const services = applyServices({
 			ensureSaveFileBackup: vi.fn(async () => ({ ok: true as const }))
 		});
@@ -686,8 +742,8 @@ describe('Pokemon editor state', () => {
 		expect(services.mutateSaveFilePokemon).not.toHaveBeenCalled();
 	});
 
-	it('keeps level edits staged when Save File mutation fails', async () => {
-		const state = stageLevelExperienceEdit(openEditor(), { mode: 'level', level: 18 });
+	it('keeps Ability edits staged when Save File mutation fails', async () => {
+		const state = stageAbilityEdit(openEditableEditor(), { abilityIndex: 1 });
 		const services = applyServices({
 			mutateSaveFilePokemon: vi.fn(async () => ({
 				ok: false as const,
