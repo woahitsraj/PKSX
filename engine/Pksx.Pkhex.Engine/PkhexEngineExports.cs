@@ -248,6 +248,57 @@ public static partial class PkhexEngineExports
     }
 
     [JSExport]
+    public static string CreatePokemonJson(byte[] bytes, string? fileName, string operationJson)
+    {
+        try
+        {
+            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var operation = System.Text.Json.JsonSerializer.Deserialize(
+                operationJson,
+                EngineJsonContext.Default.PokemonCreationRequest);
+            if (operation is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("invalid-pokemon-creation", "Create Pokemon payload is missing."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var mutation = CreatePokemon(save, operation);
+            if (!mutation.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(mutation.Code, mutation.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var serialized = save.Write(BinaryExportSetting.None).ToArray();
+            var activeBox = ClampActiveBox(operation.ActiveBox, save);
+            var workspace = CreateWorkspace(save, fileName, activeBox);
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(new PokemonCreationResult(
+                    Convert.ToBase64String(serialized),
+                    serialized.Length,
+                    mutation.Mutated,
+                    workspace)),
+                EngineJsonContext.Default.EngineResultPokemonCreationResult);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
     public static string CheckSlotLegalityJson(byte[] bytes, string? fileName, string sourceJson)
     {
         try
@@ -522,6 +573,47 @@ public static partial class PkhexEngineExports
             source.Set(save, pokemon);
 
         return SlotMutationResult.Success(mutated);
+    }
+
+    private static SlotMutationResult CreatePokemon(SaveFile save, PokemonCreationRequest operation)
+    {
+        var destinationResult = SlotRef.From(save, operation.Destination);
+        if (!destinationResult.Ok)
+            return SlotMutationResult.Fail(destinationResult.Code, destinationResult.Message);
+
+        var destination = destinationResult.Value;
+        if (destination.Get(save).Species != 0)
+            return SlotMutationResult.Fail("occupied-destination-slot", "Create Pokemon needs an empty destination Slot.");
+
+        if (operation.Level is < Experience.MinLevel or > Experience.MaxLevel)
+            return SlotMutationResult.Fail(
+                "invalid-pokemon-creation",
+                $"Level must be between {Experience.MinLevel} and {Experience.MaxLevel}.");
+
+        var pokemon = save.BlankPKM;
+        EntityTemplates.TemplateFields(pokemon, save);
+        var species = operation.SpeciesId ?? pokemon.Species;
+        if (species == 0 || species > pokemon.MaxSpeciesID || !save.Personal.IsPresentInGame(species, 0))
+        {
+            return SlotMutationResult.Fail(
+                "unsupported-pokemon-creation",
+                operation.SpeciesId is null
+                    ? "This Save File does not provide compatible Create Pokemon defaults."
+                    : $"Species {species} is not supported by this Save File.");
+        }
+
+        pokemon.Species = species;
+        pokemon.Form = 0;
+        pokemon.CurrentLevel = (byte)operation.Level;
+        pokemon.Gender = pokemon.GetSaneGender();
+        pokemon.RefreshAbility(0);
+        pokemon.ClearNickname();
+        pokemon.RefreshChecksum();
+        if (pokemon.PartyStatsPresent)
+            pokemon.ResetPartyStats();
+
+        destination.Set(save, pokemon);
+        return SlotMutationResult.Success(true);
     }
 
     private static int[] StatEditSetToArray(PokemonStatEditSet edits) =>

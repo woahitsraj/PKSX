@@ -302,6 +302,18 @@ public sealed record PokemonEditOperationResult(
     bool Mutated,
     SaveWorkspace Workspace);
 
+public sealed record PokemonCreationRequest(
+    SaveSlotRef Destination,
+    ushort? SpeciesId,
+    int Level,
+    int ActiveBox);
+
+public sealed record PokemonCreationResult(
+    string BytesBase64,
+    int ByteLength,
+    bool Mutated,
+    SaveWorkspace Workspace);
+
 public sealed record StoredPokemonImportRequest(
     string EntityBytesBase64,
     SaveSlotRef Destination,

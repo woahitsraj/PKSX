@@ -370,6 +370,59 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		});
 	});
 
+	test('creates a Pokemon in an empty Save File Slot through the browser-wasm bundle', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+
+		const created = await engine.createPokemon(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				destination: { zone: 'box', box: 0, slot: 2 },
+				level: 5
+			},
+			0
+		);
+		expect(created.ok).toBe(true);
+		if (!created.ok) throw new Error('Expected Create Pokemon to succeed.');
+		expect(created.value.mutated).toBe(true);
+		expect(created.value.workspace.boxSlots[2]).toMatchObject({
+			slot: 2,
+			isEmpty: false,
+			level: 5,
+			speciesId: expect.any(Number)
+		});
+
+		const occupied = await engine.createPokemon(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{ destination: { zone: 'box', box: 0, slot: 0 }, level: 5 },
+			0
+		);
+		expect(occupied).toMatchObject({
+			ok: false,
+			error: { code: 'occupied-destination-slot' }
+		});
+
+		const unsupported = await engine.createPokemon(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				destination: { zone: 'box', box: 0, slot: 2 },
+				speciesId: 9999,
+				level: 5
+			},
+			0
+		);
+		expect(unsupported).toMatchObject({
+			ok: false,
+			error: { code: 'unsupported-pokemon-creation' }
+		});
+	});
+
 	test('applies Save File Pokemon edits through the browser-wasm bundle', async () => {
 		expect.assertions(22);
 

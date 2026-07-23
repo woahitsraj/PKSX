@@ -4,6 +4,7 @@ import type {
 	EngineResult,
 	EngineVersion,
 	LegalityReport,
+	PokemonCreationResult,
 	PokemonEditOperationResult,
 	SaveSlotRef,
 	PartySlotSummary,
@@ -243,6 +244,16 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					operation.ivs !== undefined ||
 					operation.evs !== undefined ||
 					operation.moves !== undefined,
+				workspace: {
+					summary: { ...mockSaveSummary, fileName },
+					partySlots: mockPartySlots,
+					boxSlots: activeBox === 0 ? mockBoxSlots : []
+				}
+			}),
+		createPokemon: async (bytes, fileName, _operation, activeBox) =>
+			success<PokemonCreationResult>({
+				bytes: copyBytes(bytes),
+				mutated: true,
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,

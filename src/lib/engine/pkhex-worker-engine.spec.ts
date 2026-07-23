@@ -349,6 +349,69 @@ describe('createPkhexWorkerEngine', () => {
 		expect([...result.value.bytes]).toEqual([7, 8, 9]);
 	});
 
+	test('posts Create Pokemon operations through the worker', async () => {
+		const worker = new FakeWorker();
+		const engine = createPkhexWorkerEngine('/pkhex-engine', { createWorker: () => worker });
+		worker.emit({ type: 'status', status: 'ready' });
+
+		const creation = engine.createPokemon(
+			new Uint8Array([1, 2, 3]),
+			'main.sav',
+			{ destination: { zone: 'box', box: 0, slot: 2 }, speciesId: 25, level: 5 },
+			0
+		);
+		await Promise.resolve();
+
+		const request = worker.posted[1]?.message;
+		if (request?.type !== 'request' || request.method !== 'createPokemon') {
+			throw new Error('Expected a createPokemon request.');
+		}
+		expect(request.payload.operation).toEqual({
+			destination: { zone: 'box', box: 0, slot: 2 },
+			speciesId: 25,
+			level: 5
+		});
+
+		const responseBytes = new Uint8Array([9, 8, 7]).buffer;
+		worker.emit({
+			type: 'response',
+			id: request.id,
+			method: 'createPokemon',
+			result: {
+				ok: true,
+				value: {
+					bytes: responseBytes,
+					mutated: true,
+					workspace: {
+						summary: {
+							fileName: 'main.sav',
+							saveType: 'SAV9SV',
+							gameVersion: 'SV',
+							gameVersionId: 45,
+							generation: 9,
+							trainerName: 'PKSX',
+							trainerId: 41203,
+							playTime: '47:12',
+							playedHours: 47,
+							playedMinutes: 12,
+							partyCount: 1,
+							boxCount: 1,
+							boxSlotCount: 30
+						},
+						partySlots: [],
+						boxSlots: []
+					}
+				},
+				error: null
+			}
+		});
+
+		const result = await creation;
+		expect(result.ok).toBe(true);
+		if (!result.ok) throw new Error('Expected Create Pokemon to succeed.');
+		expect([...result.value.bytes]).toEqual([9, 8, 7]);
+	});
+
 	test('drains pending requests and permanently fails later calls when startup fails', async () => {
 		expect.assertions(3);
 

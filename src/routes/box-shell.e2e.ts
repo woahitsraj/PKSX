@@ -195,6 +195,45 @@ test('occupied slot actions expose Edit and Close dismisses', async ({ page }) =
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 });
 
+test('creates a Pokemon from an empty Slot after explicit apply and preserves cancel', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	const destination = page.locator('#box-0-slot-2');
+	await destination.click();
+	await destination.click();
+	const createCommand = page.getByRole('button', { name: 'Create Pokemon' });
+	await expect(createCommand).not.toHaveAttribute('aria-disabled', 'true');
+	await createCommand.click();
+
+	const dialog = page.getByRole('dialog', { name: 'New Pokemon' });
+	await expect(dialog).toBeVisible();
+	await expect(page.locator('#pokemon-creation-close')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(dialog.getByLabel('Species ID')).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(dialog).toBeHidden();
+	await expect(destination).toContainText('Empty');
+	await expect(page.getByText('Unsaved edits')).toHaveCount(0);
+
+	await createCommand.click();
+	await dialog.getByLabel('Species ID').fill('25');
+	await dialog.getByLabel('Level').fill('5');
+	await dialog.getByRole('button', { name: 'Apply creation' }).click();
+
+	await expect(dialog).toBeHidden({ timeout: 15000 });
+	await expect(destination).toContainText('PIKACHU');
+	await expect(destination).toContainText('Lv 5');
+	await expect(destination).toBeFocused();
+	await expect(page.getByText('Unsaved edits')).toBeVisible();
+
+	await page.goto('/saves');
+	await selectActiveSaveCard(page);
+	await expect(page.getByLabel('Save File Backups')).toContainText('Pokemon editing');
+});
+
 test('Edit opens Pokemon Editor and returns focus to the command stack', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await importEmeraldThroughSaves(page);

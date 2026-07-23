@@ -7,6 +7,8 @@ export type EngineErrorCode =
 	| 'unsupported-slot-operation'
 	| 'invalid-pokemon-edit'
 	| 'unsupported-pokemon-edit'
+	| 'invalid-pokemon-creation'
+	| 'unsupported-pokemon-creation'
 	| 'invalid-pokemon-import'
 	| 'invalid-stored-pokemon'
 	| 'incompatible-stored-pokemon'
@@ -236,6 +238,18 @@ export type PokemonEditOperationResult = {
 	workspace: SaveWorkspace;
 };
 
+export type PokemonCreationOperation = {
+	destination: SaveSlotRef;
+	speciesId?: number;
+	level: number;
+};
+
+export type PokemonCreationResult = {
+	bytes: Uint8Array;
+	mutated: boolean;
+	workspace: SaveWorkspace;
+};
+
 export type SaveFileEditOperation = {
 	trainerProfile?: {
 		trainerName?: string;
@@ -289,6 +303,12 @@ export type EngineApi = {
 		operation: PokemonEditOperation,
 		activeBox: number
 	): Promise<EngineResult<PokemonEditOperationResult>>;
+	createPokemon(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operation: PokemonCreationOperation,
+		activeBox: number
+	): Promise<EngineResult<PokemonCreationResult>>;
 	applySaveFileEditOperation(
 		bytes: Uint8Array,
 		fileName: string | undefined,

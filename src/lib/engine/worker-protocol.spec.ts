@@ -156,6 +156,43 @@ describe('parseEngineWorkerRequest', () => {
 		});
 	});
 
+	test('parses Create Pokemon requests with Save File defaults', () => {
+		const bytes = new ArrayBuffer(4);
+
+		expect(
+			parseEngineWorkerRequest({
+				type: 'request',
+				id: 'req-create',
+				method: 'createPokemon',
+				payload: {
+					bytes,
+					fileName: 'main.sav',
+					operation: {
+						destination: { zone: 'box', box: 0, slot: 2 },
+						level: 5
+					},
+					activeBox: 0
+				}
+			})
+		).toEqual({
+			ok: true,
+			value: {
+				type: 'request',
+				id: 'req-create',
+				method: 'createPokemon',
+				payload: {
+					bytes,
+					fileName: 'main.sav',
+					operation: {
+						destination: { zone: 'box', box: 0, slot: 2 },
+						level: 5
+					},
+					activeBox: 0
+				}
+			}
+		});
+	});
+
 	test('rejects malformed request payload types without applying domain validation', () => {
 		expect.assertions(2);
 
