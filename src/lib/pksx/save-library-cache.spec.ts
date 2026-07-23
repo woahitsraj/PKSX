@@ -49,6 +49,21 @@ const partySlot: PartySlotSummary = {
 	types: [],
 	stats: [],
 	moves: [],
+	metDataEditConstraints: {
+		supported: false,
+		currentLocationId: 0,
+		currentMetLevel: 0,
+		currentOriginGameId: 0,
+		currentBallId: 0,
+		minMetLevel: 0,
+		maxMetLevel: 100,
+		supportsMetDate: false,
+		supportsOriginGame: false,
+		supportsBall: false,
+		locationGroups: [],
+		originGames: [],
+		balls: []
+	},
 	statEditConstraints: {
 		supported: false,
 		minIv: 0,

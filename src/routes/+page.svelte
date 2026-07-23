@@ -265,6 +265,32 @@
 				ppUps: 0
 			}
 		],
+		metDataEditConstraints: {
+			supported: true,
+			currentLocationId: 16,
+			currentMetLevel: 5,
+			currentOriginGameId: 3,
+			currentBallId: 4,
+			minMetLevel: 0,
+			maxMetLevel: 100,
+			supportsMetDate: false,
+			supportsOriginGame: true,
+			supportsBall: true,
+			locationGroups: [
+				{
+					originGameId: 3,
+					options: [
+						{ id: 16, name: 'Route 101' },
+						{ id: 24, name: 'Littleroot Town' }
+					]
+				}
+			],
+			originGames: [{ id: 3, name: 'Emerald' }],
+			balls: [
+				{ id: 4, name: 'Poké Ball' },
+				{ id: 3, name: 'Great Ball' }
+			]
+		},
 		statEditConstraints: {
 			supported: true,
 			minIv: 0,
@@ -663,6 +689,10 @@
 	}
 
 	function dispatchPokemonEditor(action: NavigationAction) {
+		if (changeFocusedPokemonEditorSelect(action)) {
+			return;
+		}
+
 		switch (action) {
 			case 'left':
 			case 'up':
@@ -689,6 +719,11 @@
 		return [
 			'#pokemon-editor-close',
 			'#pokemon-editor-nickname',
+			'#pokemon-editor-met-location',
+			'#pokemon-editor-met-level',
+			'#pokemon-editor-origin-game',
+			'#pokemon-editor-ball',
+			'#pokemon-editor-met-date',
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',
 			'.stat-edit-controls input:not([disabled])',
@@ -699,11 +734,45 @@
 		]
 			.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
 			.filter((control) => {
-				if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
+				if (
+					control instanceof HTMLButtonElement ||
+					control instanceof HTMLInputElement ||
+					control instanceof HTMLSelectElement
+				) {
 					return !control.disabled;
 				}
 				return true;
 			});
+	}
+
+	function changeFocusedPokemonEditorSelect(action: NavigationAction) {
+		const select = document.activeElement;
+		if (
+			!(select instanceof HTMLSelectElement) ||
+			!select.closest('.pokemon-editor') ||
+			(action !== 'left' && action !== 'right' && action !== 'confirm')
+		) {
+			return false;
+		}
+
+		const options = Array.from(select.options).filter((option) => !option.disabled);
+		if (options.length === 0) {
+			return true;
+		}
+
+		const current = Math.max(
+			0,
+			options.findIndex((option) => option.value === select.value)
+		);
+		const direction = action === 'left' ? -1 : 1;
+		const next = options[(current + direction + options.length) % options.length];
+		if (!next) {
+			return true;
+		}
+
+		select.value = next.value;
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		return true;
 	}
 
 	function focusPokemonEditorControl(direction: -1 | 1) {
@@ -2339,11 +2408,24 @@
 			operation.nickname !== undefined &&
 			operation.level === undefined &&
 			operation.experience === undefined &&
+			operation.metData === undefined &&
 			operation.ivs === undefined &&
 			operation.evs === undefined &&
 			operation.moves === undefined
 		) {
 			return 'Pokemon nickname updated.';
+		}
+
+		if (
+			operation.metData !== undefined &&
+			operation.nickname === undefined &&
+			operation.level === undefined &&
+			operation.experience === undefined &&
+			operation.ivs === undefined &&
+			operation.evs === undefined &&
+			operation.moves === undefined
+		) {
+			return 'Pokemon Met Data updated.';
 		}
 
 		return 'Pokemon edits applied.';
@@ -2373,6 +2455,15 @@
 						? `Set level to ${draft.levelExperience.level}`
 						: `Set experience to ${draft.levelExperience.experience}`,
 				payload: draft.levelExperience
+			});
+		}
+
+		if (draft.metData) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'met-data',
+				capability: 'met-data-editing',
+				label: 'Set Met Data',
+				payload: draft.metData
 			});
 		}
 
@@ -2413,6 +2504,15 @@
 			label: slot.label,
 			level: slot.level,
 			experience: slot.experience,
+			metData: slot.metDataEditConstraints
+				? {
+						locationId: slot.metDataEditConstraints.currentLocationId,
+						metLevel: slot.metDataEditConstraints.currentMetLevel,
+						metDate: slot.metDataEditConstraints.currentMetDate ?? null,
+						originGameId: slot.metDataEditConstraints.currentOriginGameId,
+						ballId: slot.metDataEditConstraints.currentBallId
+					}
+				: null,
 			ivs: slot.stats?.map((stat) => stat.iv ?? 0),
 			evs: slot.stats?.map((stat) => stat.ev ?? 0),
 			moves: slot.moves?.map((move) => ({
@@ -2937,6 +3037,7 @@
 			types: slot.types,
 			stats: slot.stats,
 			moves: slot.moves,
+			metDataEditConstraints: slot.metDataEditConstraints,
 			statEditConstraints: slot.statEditConstraints,
 			moveSetEditConstraints: slot.moveSetEditConstraints,
 			originalTrainer: slot.originalTrainer ?? undefined,

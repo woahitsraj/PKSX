@@ -219,7 +219,7 @@ test('Edit opens Pokemon Editor and returns focus to the command stack', async (
 	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
 
 	await page.keyboard.press('ArrowDown');
-	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
+	await expect(editor.getByLabel('Met location')).toBeFocused();
 
 	await page.keyboard.press('ArrowUp');
 	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
@@ -271,6 +271,38 @@ test('Pokemon Editor applies nickname changes and refreshes Slot labels', async 
 	await expect(updatedEditor).toBeVisible();
 	await expect(updatedEditor).toContainText('Pokemon nickname updated.');
 	await expect(updatedEditor.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
+});
+
+test('Pokemon Editor applies Met Data and returns focus to Edit', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Enter');
+
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	const ball = editor.getByLabel('Ball');
+	await expect(ball).toBeVisible();
+	const currentBall = await ball.inputValue();
+	const ballChoices = await ball.locator('option').evaluateAll((options) =>
+		options.map((option) => ({
+			value: (option as HTMLOptionElement).value,
+			label: option.textContent ?? ''
+		}))
+	);
+	const nextBall = ballChoices.find((option) => option.value !== currentBall);
+	if (!nextBall) throw new Error('Expected another engine-provided Ball choice.');
+
+	await ball.selectOption(nextBall.value);
+	await expect(editor).toContainText('1 Pokemon edit drafted.');
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+
+	const updatedEditor = page.getByRole('dialog', { name: 'ARON' });
+	await expect(updatedEditor).toContainText('Pokemon Met Data updated.', { timeout: 15000 });
+	await expect(updatedEditor.getByLabel('Ball')).toHaveValue(nextBall.value);
+	await updatedEditor.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(updatedEditor).toBeHidden();
+	await expect(page.locator('#slot-action-0')).toBeFocused();
 });
 
 test('Legality Check opens an engine report from an occupied Slot and dismisses cleanly', async ({
@@ -545,6 +577,14 @@ test('Pokemon Editor changes level through Apply and keeps editor focus', async 
 
 	await page.keyboard.press('ArrowDown');
 	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.getByLabel('Met location')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.getByLabel('Met level')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.getByLabel('Origin game')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.getByLabel('Ball')).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
 	await expect(page.locator('#pokemon-editor-mode')).toHaveAttribute('aria-label', 'Editing Level');

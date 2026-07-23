@@ -84,6 +84,33 @@ const mockPikachuDetails = {
 			ppUps: 0
 		}
 	],
+	metDataEditConstraints: {
+		supported: true,
+		currentLocationId: 6,
+		currentMetLevel: 5,
+		currentMetDate: '2024-01-15',
+		currentOriginGameId: 45,
+		currentBallId: 4,
+		minMetLevel: 0,
+		maxMetLevel: 100,
+		supportsMetDate: true,
+		supportsOriginGame: true,
+		supportsBall: true,
+		locationGroups: [
+			{
+				originGameId: 45,
+				options: [
+					{ id: 6, name: 'South Province (Area One)' },
+					{ id: 10, name: 'Poco Path' }
+				]
+			}
+		],
+		originGames: [{ id: 45, name: 'Violet' }],
+		balls: [
+			{ id: 4, name: 'Poké Ball' },
+			{ id: 3, name: 'Great Ball' }
+		]
+	},
 	statEditConstraints: {
 		supported: true,
 		minIv: 0,
@@ -150,6 +177,22 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		types: [],
 		stats: [],
 		moves: [],
+		metDataEditConstraints: {
+			supported: false,
+			currentLocationId: 0,
+			currentMetLevel: 0,
+			currentOriginGameId: 0,
+			currentBallId: 0,
+			minMetLevel: 0,
+			maxMetLevel: 100,
+			supportsMetDate: false,
+			supportsOriginGame: false,
+			supportsBall: false,
+			locationGroups: [],
+			originGames: [],
+			balls: [],
+			unsupportedReason: 'Met Data Editing needs an occupied Slot.'
+		},
 		statEditConstraints: {
 			supported: false,
 			minIv: 0,
@@ -240,6 +283,7 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					operation.nickname !== undefined ||
 					operation.level !== undefined ||
 					operation.experience !== undefined ||
+					operation.metData !== undefined ||
 					operation.ivs !== undefined ||
 					operation.evs !== undefined ||
 					operation.moves !== undefined,

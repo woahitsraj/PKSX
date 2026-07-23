@@ -3,6 +3,7 @@
 	import type { SaveSummary } from '$lib/engine';
 	import type {
 		PokemonEditorDraftEdits,
+		PokemonMetDataEditPayload,
 		PokemonMoveSetEditPayload,
 		PokemonStatEditPayload,
 		PokemonEditorState
@@ -60,6 +61,17 @@
 	let draftNickname = $state(untrack(() => slot.label));
 	let draftLevel = $state(untrack(() => String(slot.level ?? 1)));
 	let draftExperience = $state(untrack(() => String(slot.experience ?? 0)));
+	let draftMetLocationId = $state(
+		untrack(() => slot.metDataEditConstraints?.currentLocationId ?? 0)
+	);
+	let draftMetLevel = $state(
+		untrack(() => String(slot.metDataEditConstraints?.currentMetLevel ?? 0))
+	);
+	let draftMetDate = $state(untrack(() => slot.metDataEditConstraints?.currentMetDate ?? ''));
+	let draftOriginGameId = $state(
+		untrack(() => slot.metDataEditConstraints?.currentOriginGameId ?? 0)
+	);
+	let draftBallId = $state(untrack(() => slot.metDataEditConstraints?.currentBallId ?? 0));
 	let draftIvs = $state<DraftStats>(untrack(() => statsToDraft(baseIvs)));
 	let draftEvs = $state<DraftStats>(untrack(() => statsToDraft(baseEvs)));
 	let draftMoves = $state<DraftMoveSlot[]>(
@@ -75,8 +87,14 @@
 	let lastAppliedDraftSignature = $state('');
 	const statEditConstraints = $derived(slot.statEditConstraints);
 	const moveSetEditConstraints = $derived(slot.moveSetEditConstraints);
+	const metDataEditConstraints = $derived(slot.metDataEditConstraints);
 	const canEditStats = $derived(statEditConstraints?.supported ?? false);
 	const canEditMoveSet = $derived(moveSetEditConstraints?.supported ?? false);
+	const canEditMetData = $derived(metDataEditConstraints?.supported ?? false);
+	const metLocationOptions = $derived(
+		metDataEditConstraints?.locationGroups.find((group) => group.originGameId === draftOriginGameId)
+			?.options ?? []
+	);
 	const moveOptions = $derived(moveSetEditConstraints?.availableMoves ?? []);
 	const totalEvs = $derived(
 		statKeys.reduce((total, key) => {
@@ -152,6 +170,33 @@
 
 	function setDraftExperience(value: string) {
 		draftExperience = value;
+	}
+
+	function setDraftMetLocation(value: string) {
+		draftMetLocationId = Number(value);
+	}
+
+	function setDraftMetLevel(value: string) {
+		draftMetLevel = value;
+	}
+
+	function setDraftMetDate(value: string) {
+		draftMetDate = value;
+	}
+
+	function setDraftOriginGame(value: string) {
+		draftOriginGameId = Number(value);
+		const locations =
+			metDataEditConstraints?.locationGroups.find(
+				(group) => group.originGameId === draftOriginGameId
+			)?.options ?? [];
+		if (!locations.some((option) => option.id === draftMetLocationId)) {
+			draftMetLocationId = locations[0]?.id ?? 0;
+		}
+	}
+
+	function setDraftBall(value: string) {
+		draftBallId = Number(value);
 	}
 
 	function setIv(key: PokemonStatKey, value: string) {
@@ -421,6 +466,11 @@
 		draftNickname = slot.label;
 		draftLevel = String(slot.level ?? 1);
 		draftExperience = String(slot.experience ?? 0);
+		draftMetLocationId = metDataEditConstraints?.currentLocationId ?? 0;
+		draftMetLevel = String(metDataEditConstraints?.currentMetLevel ?? 0);
+		draftMetDate = metDataEditConstraints?.currentMetDate ?? '';
+		draftOriginGameId = metDataEditConstraints?.currentOriginGameId ?? 0;
+		draftBallId = metDataEditConstraints?.currentBallId ?? 0;
 		draftIvs = statsToDraft(baseIvs);
 		draftEvs = statsToDraft(baseEvs);
 		draftMoves = baseMoveSet.moves.map((move) => ({
@@ -435,6 +485,7 @@
 		let count = 0;
 		if (draftNickname !== slot.label) count += 1;
 		if (isLevelExperienceDirty()) count += 1;
+		if (isMetDataDirty()) count += 1;
 		if (isDraftStatsDirty(draftIvs, baseIvs)) count += 1;
 		if (isDraftStatsDirty(draftEvs, baseEvs)) count += 1;
 		if (isDraftMoveSetDirty()) count += 1;
@@ -450,6 +501,7 @@
 					? { mode: 'level', level: parseDraftNumber(draftLevel) }
 					: { mode: 'experience', experience: parseDraftNumber(draftExperience) };
 		}
+		if (isMetDataDirty()) draft.metData = draftMetDataToPayload();
 		if (isDraftStatsDirty(draftIvs, baseIvs)) draft.ivs = draftStatsToPayload(draftIvs);
 		if (isDraftStatsDirty(draftEvs, baseEvs)) draft.evs = draftStatsToPayload(draftEvs);
 		if (isDraftMoveSetDirty()) draft.moveSet = draftMoveSetToPayload();
@@ -460,6 +512,28 @@
 		return editMode === 'level'
 			? draftLevel !== String(slot.level ?? 1)
 			: draftExperience !== String(slot.experience ?? 0);
+	}
+
+	function isMetDataDirty() {
+		return (
+			draftMetLocationId !== (metDataEditConstraints?.currentLocationId ?? 0) ||
+			draftMetLevel !== String(metDataEditConstraints?.currentMetLevel ?? 0) ||
+			draftMetDate !== (metDataEditConstraints?.currentMetDate ?? '') ||
+			draftOriginGameId !== (metDataEditConstraints?.currentOriginGameId ?? 0) ||
+			draftBallId !== (metDataEditConstraints?.currentBallId ?? 0)
+		);
+	}
+
+	function draftMetDataToPayload(): PokemonMetDataEditPayload {
+		return {
+			locationId: draftMetLocationId,
+			metLevel: parseDraftNumber(draftMetLevel),
+			...(metDataEditConstraints?.supportsMetDate
+				? { metDate: draftMetDate.length > 0 ? draftMetDate : null }
+				: {}),
+			...(metDataEditConstraints?.supportsOriginGame ? { originGameId: draftOriginGameId } : {}),
+			...(metDataEditConstraints?.supportsBall ? { ballId: draftBallId } : {})
+		};
 	}
 
 	function isDraftStatsDirty(draft: DraftStats, base: PokemonStatEditPayload) {
@@ -593,6 +667,108 @@
 				<p id="pokemon-editor-nickname-hint">
 					Leave empty to restore the default species nickname.
 				</p>
+			</div>
+
+			<div class="editor-panel" aria-label="Met Data Editing">
+				<div class="panel-title">
+					<span>Met Data</span>
+					<small>{canEditMetData ? 'Engine constrained' : 'Unsupported'}</small>
+				</div>
+				{#if canEditMetData}
+					<div class="met-data-edit-controls">
+						<label>
+							<span>Met location</span>
+							<select
+								id="pokemon-editor-met-location"
+								value={draftMetLocationId}
+								disabled={applying || metLocationOptions.length === 0}
+								onchange={(event) => setDraftMetLocation(event.currentTarget.value)}
+							>
+								{#each metLocationOptions as option (option.id)}
+									<option value={option.id}>{option.name}</option>
+								{/each}
+							</select>
+						</label>
+						<label>
+							<span>Met level</span>
+							<input
+								id="pokemon-editor-met-level"
+								type="number"
+								min={metDataEditConstraints?.minMetLevel ?? 0}
+								max={metDataEditConstraints?.maxMetLevel ?? 100}
+								step="1"
+								value={draftMetLevel}
+								disabled={applying}
+								readonly={!isInputEditing('pokemon-editor-met-level')}
+								data-controller-editing={draftInputEditingValue('pokemon-editor-met-level')}
+								onpointerdown={() => activateDraftInput('pokemon-editor-met-level', false)}
+								onclick={() => activateDraftInput('pokemon-editor-met-level', false)}
+								onblur={() => deactivateDraftInput('pokemon-editor-met-level')}
+								onkeydown={(event) => handleDraftInputKeydown(event, 'pokemon-editor-met-level')}
+								oninput={(event) => setDraftMetLevel(event.currentTarget.value)}
+							/>
+						</label>
+						{#if metDataEditConstraints?.supportsOriginGame}
+							<label>
+								<span>Origin game</span>
+								<select
+									id="pokemon-editor-origin-game"
+									value={draftOriginGameId}
+									disabled={applying}
+									onchange={(event) => setDraftOriginGame(event.currentTarget.value)}
+								>
+									{#each metDataEditConstraints.originGames as option (option.id)}
+										<option value={option.id}>{option.name}</option>
+									{/each}
+								</select>
+							</label>
+						{/if}
+						{#if metDataEditConstraints?.supportsBall}
+							<label>
+								<span>Ball</span>
+								<select
+									id="pokemon-editor-ball"
+									value={draftBallId}
+									disabled={applying}
+									onchange={(event) => setDraftBall(event.currentTarget.value)}
+								>
+									{#each metDataEditConstraints.balls as option (option.id)}
+										<option value={option.id}>{option.name}</option>
+									{/each}
+								</select>
+							</label>
+						{/if}
+						{#if metDataEditConstraints?.supportsMetDate}
+							<label>
+								<span>Met date</span>
+								<input
+									id="pokemon-editor-met-date"
+									type="date"
+									min="2000-01-01"
+									max="2255-12-31"
+									value={draftMetDate}
+									disabled={applying}
+									readonly={!isInputEditing('pokemon-editor-met-date')}
+									data-controller-editing={draftInputEditingValue('pokemon-editor-met-date')}
+									onpointerdown={() => activateDraftInput('pokemon-editor-met-date', false)}
+									onclick={() => activateDraftInput('pokemon-editor-met-date', false)}
+									onblur={() => deactivateDraftInput('pokemon-editor-met-date')}
+									onkeydown={(event) => handleDraftInputKeydown(event, 'pokemon-editor-met-date')}
+									oninput={(event) => setDraftMetDate(event.currentTarget.value)}
+								/>
+							</label>
+						{/if}
+					</div>
+					<p class="met-data-hint">
+						Location, origin game, and ball choices come from the PKHeX Engine. Invalid encounter
+						combinations remain staged.
+					</p>
+				{:else}
+					<p class="unsupported-copy">
+						{metDataEditConstraints?.unsupportedReason ??
+							'Met Data Editing is not supported for this Pokemon Entity format.'}
+					</p>
+				{/if}
 			</div>
 
 			<div class="editor-panel" aria-label="Level and Experience Editing">
@@ -1200,6 +1376,55 @@
 		opacity: 0.55;
 	}
 
+	.met-data-edit-controls {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 8px;
+		padding: 12px;
+		border-radius: var(--pksx-radius-md);
+		background: var(--paper-deep);
+	}
+
+	.met-data-edit-controls label {
+		min-width: 0;
+		display: grid;
+		gap: 4px;
+	}
+
+	.met-data-edit-controls span,
+	.met-data-hint {
+		margin: 0;
+		color: var(--ink-mute);
+		font:
+			650 0.62rem var(--pksx-font-mono),
+			monospace;
+		line-height: 1.2;
+	}
+
+	.met-data-edit-controls span {
+		text-transform: uppercase;
+	}
+
+	.met-data-edit-controls input,
+	.met-data-edit-controls select {
+		width: 100%;
+		min-width: 0;
+		height: 44px;
+		padding: 0 12px;
+		border: 1px solid var(--rule);
+		border-radius: var(--pksx-radius-sm);
+		background: var(--paper-hi);
+		color: var(--ink);
+		font:
+			750 0.78rem var(--pksx-font-mono),
+			monospace;
+	}
+
+	.met-data-edit-controls input:disabled,
+	.met-data-edit-controls select:disabled {
+		opacity: 0.55;
+	}
+
 	.level-edit-controls {
 		display: grid;
 		grid-template-columns: 154px minmax(160px, 1fr);
@@ -1600,6 +1825,7 @@
 			grid-template-columns: 1fr;
 		}
 
+		.met-data-edit-controls,
 		.stat-edit-controls,
 		.move-edit-row {
 			grid-template-columns: 1fr 1fr;

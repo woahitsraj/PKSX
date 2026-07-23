@@ -76,6 +76,7 @@ export type BoxSlotSummary = {
 	types: SlotTypeSummary[];
 	stats: SlotStatSummary[];
 	moves: SlotMoveSummary[];
+	metDataEditConstraints: PokemonMetDataEditConstraints;
 	statEditConstraints: PokemonStatEditConstraints;
 	moveSetEditConstraints: PokemonMoveSetEditConstraints;
 	originalTrainer?: string | null;
@@ -149,6 +150,34 @@ export type PokemonMoveSetEditConstraints = {
 	unsupportedReason?: string | null;
 };
 
+export type PokemonMetDataOption = {
+	id: number;
+	name: string;
+};
+
+export type PokemonMetLocationGroup = {
+	originGameId: number;
+	options: PokemonMetDataOption[];
+};
+
+export type PokemonMetDataEditConstraints = {
+	supported: boolean;
+	currentLocationId: number;
+	currentMetLevel: number;
+	currentMetDate?: string | null;
+	currentOriginGameId: number;
+	currentBallId: number;
+	minMetLevel: number;
+	maxMetLevel: number;
+	supportsMetDate: boolean;
+	supportsOriginGame: boolean;
+	supportsBall: boolean;
+	locationGroups: PokemonMetLocationGroup[];
+	originGames: PokemonMetDataOption[];
+	balls: PokemonMetDataOption[];
+	unsupportedReason?: string | null;
+};
+
 export type SaveWorkspace = {
 	summary: SaveSummary;
 	partySlots: PartySlotSummary[];
@@ -209,9 +238,18 @@ export type PokemonEditOperation = {
 	nickname?: string;
 	level?: number;
 	experience?: number;
+	metData?: PokemonMetDataEdit;
 	ivs?: PokemonStatEditSet;
 	evs?: PokemonStatEditSet;
 	moves?: PokemonMoveSlotEdit[];
+};
+
+export type PokemonMetDataEdit = {
+	locationId: number;
+	metLevel: number;
+	metDate?: string | null;
+	originGameId?: number;
+	ballId?: number;
 };
 
 export type PokemonStatEditSet = {

@@ -556,6 +556,74 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(fixtureBytes.byteLength).toBe(131088);
 	});
 
+	test('projects, applies, and rejects Met Data through the browser-wasm bundle', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const workspace = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
+		expect(workspace.ok).toBe(true);
+		if (!workspace.ok) throw new Error('Expected Emerald workspace to load.');
+
+		const constraints = workspace.value.boxSlots[0]?.metDataEditConstraints;
+		expect(constraints).toMatchObject({
+			supported: true,
+			supportsOriginGame: true,
+			supportsBall: true,
+			supportsMetDate: false
+		});
+		if (!constraints) throw new Error('Expected Met Data constraints.');
+		expect(constraints.locationGroups).not.toHaveLength(0);
+		expect(constraints.originGames).not.toHaveLength(0);
+		expect(constraints.balls).not.toHaveLength(0);
+
+		const nextBall = constraints.balls.find((option) => option.id !== constraints.currentBallId);
+		if (!nextBall) throw new Error('Expected another supported Ball choice.');
+		const edited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				metData: {
+					locationId: constraints.currentLocationId,
+					metLevel: constraints.currentMetLevel,
+					originGameId: constraints.currentOriginGameId,
+					ballId: nextBall.id
+				}
+			},
+			0
+		);
+		expect(edited.ok, JSON.stringify(edited.error)).toBe(true);
+		if (!edited.ok) throw new Error('Expected Met Data edit to succeed.');
+		expect(edited.value.mutated).toBe(true);
+		expect(edited.value.workspace.boxSlots[0]?.metDataEditConstraints.currentBallId).toBe(
+			nextBall.id
+		);
+
+		const invalid = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				metData: {
+					locationId: constraints.currentLocationId,
+					metLevel: 100,
+					originGameId: constraints.currentOriginGameId,
+					ballId: constraints.currentBallId
+				}
+			},
+			0
+		);
+		expect(invalid).toMatchObject({
+			ok: false,
+			error: {
+				code: 'invalid-pokemon-edit',
+				message: expect.stringContaining('Pokemon encounter')
+			}
+		});
+	});
+
 	test('allows Primarina Ice Beam PP edits and explains real post-edit legality failures', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),

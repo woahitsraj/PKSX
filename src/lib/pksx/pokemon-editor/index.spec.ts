@@ -13,6 +13,7 @@ import {
 	stageEvEdit,
 	stageIvEdit,
 	stageLevelExperienceEdit,
+	stageMetDataEdit,
 	stageMoveSetEdit,
 	stagePokemonEditorEdit,
 	statEditPayloadFromSlot,
@@ -91,6 +92,32 @@ const editablePokemonSlot: SlotView = {
 			ppUps: 0
 		}
 	],
+	metDataEditConstraints: {
+		supported: true,
+		currentLocationId: 16,
+		currentMetLevel: 12,
+		currentOriginGameId: 3,
+		currentBallId: 4,
+		minMetLevel: 0,
+		maxMetLevel: 100,
+		supportsMetDate: false,
+		supportsOriginGame: true,
+		supportsBall: true,
+		locationGroups: [
+			{
+				originGameId: 3,
+				options: [
+					{ id: 16, name: 'Route 101' },
+					{ id: 24, name: 'Littleroot Town' }
+				]
+			}
+		],
+		originGames: [{ id: 3, name: 'Emerald' }],
+		balls: [
+			{ id: 4, name: 'Poké Ball' },
+			{ id: 3, name: 'Great Ball' }
+		]
+	},
 	statEditConstraints: {
 		supported: true,
 		minIv: 0,
@@ -148,8 +175,8 @@ function openEditor(sourceOverride = source) {
 	return opened.state;
 }
 
-function openEditableEditor() {
-	const opened = createPokemonEditorState(source, editablePokemonSlot);
+function openEditableEditor(sourceOverride = source) {
+	const opened = createPokemonEditorState(sourceOverride, editablePokemonSlot);
 	if (!opened.ok) throw new Error('Expected Pokemon Editor to open.');
 	return opened.state;
 }
@@ -354,6 +381,120 @@ describe('Pokemon editor state', () => {
 				reason: 'invalid-pokemon-edit'
 			}
 		});
+	});
+
+	it('stages supported Met Data fields from engine-provided choices and cancels cleanly', () => {
+		const payload = {
+			locationId: 24,
+			metLevel: 10,
+			originGameId: 3,
+			ballId: 3
+		};
+		const opened = openEditableEditor();
+		const staged = stageMetDataEdit(opened, payload);
+
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: { source: slotRef, metData: payload }
+		});
+		expect(cancelPokemonEditor(staged)).toMatchObject({
+			slot: editablePokemonSlot,
+			stagedEdits: [],
+			staged: false
+		});
+	});
+
+	it('rejects Met Data choices that are invalid for the selected origin game', () => {
+		const invalid = stageMetDataEdit(openEditableEditor(), {
+			locationId: 999,
+			metLevel: 10,
+			originGameId: 3,
+			ballId: 4
+		});
+
+		expect(invalid).toMatchObject({
+			stagedEdits: [],
+			staged: false,
+			applyOutcome: {
+				status: 'rejected',
+				message: 'Met location is not available for the selected origin game.',
+				reason: 'invalid-pokemon-edit'
+			}
+		});
+	});
+
+	it('stages supported Met Date edits and rejects invalid dates', () => {
+		const datedSlot: SlotView = {
+			...editablePokemonSlot,
+			metDataEditConstraints: {
+				...editablePokemonSlot.metDataEditConstraints!,
+				currentMetDate: '2024-01-15',
+				supportsMetDate: true
+			}
+		};
+		const opened = createPokemonEditorState(source, datedSlot);
+		if (!opened.ok) throw new Error('Expected Pokemon Editor to open.');
+		const payload = {
+			locationId: 16,
+			metLevel: 12,
+			metDate: '2024-02-29',
+			originGameId: 3,
+			ballId: 4
+		};
+
+		expect(createPokemonEditOperation(stageMetDataEdit(opened.state, payload))).toEqual({
+			ok: true,
+			operation: { source: slotRef, metData: payload }
+		});
+		expect(
+			stageMetDataEdit(opened.state, { ...payload, metDate: '2024-02-30' }).applyOutcome
+		).toEqual({
+			status: 'rejected',
+			message: 'Met date must be a valid date from 2000 through 2255.',
+			reason: 'invalid-pokemon-edit'
+		});
+	});
+
+	it('applies Met Data through Save File and Pokemon Storage ownership boundaries', async () => {
+		const payload = { locationId: 24, metLevel: 10, originGameId: 3, ballId: 3 };
+		const saveState = stageMetDataEdit(openEditableEditor(), payload);
+		const saveServices = applyServices();
+		const saveResult = await applyPokemonEditorEdits(saveState, saveServices);
+		expect(saveResult.outcome.status).toBe('success');
+		expect(saveServices.mutateSaveFilePokemon).toHaveBeenCalledWith(saveState);
+
+		const storageSource: PokemonEditorSourceInput = {
+			owner: 'pokemon-storage',
+			storagePokemonId: 'stored-pokemon-1',
+			location: 'Storage Box 1, slot 1'
+		};
+		const storageState = stageMetDataEdit(openEditableEditor(storageSource), payload);
+		const storageServices = applyServices();
+		const storageResult = await applyPokemonEditorEdits(storageState, storageServices);
+		expect(storageResult.outcome.status).toBe('success');
+		expect(storageServices.mutateStoragePokemon).toHaveBeenCalledWith(storageState);
+	});
+
+	it('keeps Met Data staged when engine mutation fails', async () => {
+		const state = stageMetDataEdit(openEditableEditor(), {
+			locationId: 24,
+			metLevel: 10,
+			originGameId: 3,
+			ballId: 3
+		});
+		const result = await applyPokemonEditorEdits(
+			state,
+			applyServices({
+				mutateSaveFilePokemon: vi.fn(async () => ({
+					ok: false as const,
+					status: 'rejected' as const,
+					message: 'Met Data edit is not valid for this Pokemon encounter.'
+				}))
+			})
+		);
+
+		expect(result.outcome.status).toBe('rejected');
+		expect(result.state.stagedEdits).toEqual(state.stagedEdits);
 	});
 
 	it('stages IV boundary values from engine-provided constraints', () => {
