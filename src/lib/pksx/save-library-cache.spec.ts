@@ -49,6 +49,11 @@ const partySlot: PartySlotSummary = {
 	types: [],
 	stats: [],
 	moves: [],
+	heldItemEditConstraints: {
+		supported: true,
+		currentItemId: 0,
+		options: [{ id: 0, name: 'No item', available: true }]
+	},
 	statEditConstraints: {
 		supported: false,
 		minIv: 0,

@@ -84,6 +84,15 @@ const mockPikachuDetails = {
 			ppUps: 0
 		}
 	],
+	heldItemEditConstraints: {
+		supported: true,
+		currentItemId: 236,
+		options: [
+			{ id: 0, name: 'No item', available: true },
+			{ id: 236, name: 'Light Ball', available: true },
+			{ id: 25, name: 'Poke Doll', available: false, unavailableReason: 'Unavailable.' }
+		]
+	},
 	statEditConstraints: {
 		supported: true,
 		minIv: 0,
@@ -150,6 +159,12 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		types: [],
 		stats: [],
 		moves: [],
+		heldItemEditConstraints: {
+			supported: false,
+			currentItemId: 0,
+			options: [],
+			unsupportedReason: 'Held Item Editing needs an occupied Slot.'
+		},
 		statEditConstraints: {
 			supported: false,
 			minIv: 0,
@@ -240,6 +255,7 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					operation.nickname !== undefined ||
 					operation.level !== undefined ||
 					operation.experience !== undefined ||
+					operation.heldItemId !== undefined ||
 					operation.ivs !== undefined ||
 					operation.evs !== undefined ||
 					operation.moves !== undefined,

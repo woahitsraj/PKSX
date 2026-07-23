@@ -219,10 +219,13 @@ test('Edit opens Pokemon Editor and returns focus to the command stack', async (
 	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
 
 	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-held-item')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
 
 	await page.keyboard.press('ArrowUp');
-	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
+	await expect(page.locator('#pokemon-editor-held-item')).toBeFocused();
 
 	await page.keyboard.press('Escape');
 	await expect(editor).toBeHidden();
@@ -271,6 +274,40 @@ test('Pokemon Editor applies nickname changes and refreshes Slot labels', async 
 	await expect(updatedEditor).toBeVisible();
 	await expect(updatedEditor).toContainText('Pokemon nickname updated.');
 	await expect(updatedEditor.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
+});
+
+test('Pokemon Editor changes Held Item and returns focus to the command stack', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Enter');
+
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	const heldItem = page.locator('#pokemon-editor-held-item');
+	await expect(editor).toContainText('Held Item');
+	await expect(heldItem).toBeEnabled();
+	const originalItem = await heldItem.inputValue();
+
+	await page.locator('#pokemon-editor-close').focus();
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('ArrowDown');
+	await expect(heldItem).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(heldItem).not.toHaveValue(originalItem);
+	const changedItem = await heldItem.inputValue();
+	await expect(editor).toContainText('1 Pokemon edit drafted.');
+
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(editor).toContainText('Pokemon Held Item updated.', { timeout: 15000 });
+	await expect(heldItem).toHaveValue(changedItem);
+	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
+
+	await page.keyboard.press('Escape');
+	await expect(editor).toBeHidden();
+	await expect(page.locator('#slot-action-0')).toBeFocused();
 });
 
 test('Legality Check opens an engine report from an occupied Slot and dismisses cleanly', async ({
@@ -545,6 +582,8 @@ test('Pokemon Editor changes level through Apply and keeps editor focus', async 
 
 	await page.keyboard.press('ArrowDown');
 	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-held-item')).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
 	await expect(page.locator('#pokemon-editor-mode')).toHaveAttribute('aria-label', 'Editing Level');

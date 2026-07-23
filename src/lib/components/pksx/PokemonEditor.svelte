@@ -60,6 +60,7 @@
 	let draftNickname = $state(untrack(() => slot.label));
 	let draftLevel = $state(untrack(() => String(slot.level ?? 1)));
 	let draftExperience = $state(untrack(() => String(slot.experience ?? 0)));
+	let draftHeldItemId = $state(untrack(() => slot.heldItemEditConstraints?.currentItemId ?? 0));
 	let draftIvs = $state<DraftStats>(untrack(() => statsToDraft(baseIvs)));
 	let draftEvs = $state<DraftStats>(untrack(() => statsToDraft(baseEvs)));
 	let draftMoves = $state<DraftMoveSlot[]>(
@@ -75,9 +76,14 @@
 	let lastAppliedDraftSignature = $state('');
 	const statEditConstraints = $derived(slot.statEditConstraints);
 	const moveSetEditConstraints = $derived(slot.moveSetEditConstraints);
+	const heldItemEditConstraints = $derived(slot.heldItemEditConstraints);
 	const canEditStats = $derived(statEditConstraints?.supported ?? false);
 	const canEditMoveSet = $derived(moveSetEditConstraints?.supported ?? false);
+	const canEditHeldItem = $derived(heldItemEditConstraints?.supported ?? false);
 	const moveOptions = $derived(moveSetEditConstraints?.availableMoves ?? []);
+	const unavailableHeldItemCount = $derived(
+		heldItemEditConstraints?.options.filter((option) => !option.available).length ?? 0
+	);
 	const totalEvs = $derived(
 		statKeys.reduce((total, key) => {
 			const value = parseDraftNumber(draftEvs[key]);
@@ -152,6 +158,16 @@
 
 	function setDraftExperience(value: string) {
 		draftExperience = value;
+	}
+
+	function setDraftHeldItem(value: string) {
+		draftHeldItemId = Number(value);
+	}
+
+	function heldItemOptionLabel(
+		option: NonNullable<typeof heldItemEditConstraints>['options'][number]
+	) {
+		return `${option.name}${option.available ? '' : ' (Unavailable for format)'}`;
 	}
 
 	function setIv(key: PokemonStatKey, value: string) {
@@ -421,6 +437,7 @@
 		draftNickname = slot.label;
 		draftLevel = String(slot.level ?? 1);
 		draftExperience = String(slot.experience ?? 0);
+		draftHeldItemId = slot.heldItemEditConstraints?.currentItemId ?? 0;
 		draftIvs = statsToDraft(baseIvs);
 		draftEvs = statsToDraft(baseEvs);
 		draftMoves = baseMoveSet.moves.map((move) => ({
@@ -435,6 +452,7 @@
 		let count = 0;
 		if (draftNickname !== slot.label) count += 1;
 		if (isLevelExperienceDirty()) count += 1;
+		if (isHeldItemDirty()) count += 1;
 		if (isDraftStatsDirty(draftIvs, baseIvs)) count += 1;
 		if (isDraftStatsDirty(draftEvs, baseEvs)) count += 1;
 		if (isDraftMoveSetDirty()) count += 1;
@@ -450,6 +468,7 @@
 					? { mode: 'level', level: parseDraftNumber(draftLevel) }
 					: { mode: 'experience', experience: parseDraftNumber(draftExperience) };
 		}
+		if (isHeldItemDirty()) draft.heldItemId = draftHeldItemId;
 		if (isDraftStatsDirty(draftIvs, baseIvs)) draft.ivs = draftStatsToPayload(draftIvs);
 		if (isDraftStatsDirty(draftEvs, baseEvs)) draft.evs = draftStatsToPayload(draftEvs);
 		if (isDraftMoveSetDirty()) draft.moveSet = draftMoveSetToPayload();
@@ -460,6 +479,10 @@
 		return editMode === 'level'
 			? draftLevel !== String(slot.level ?? 1)
 			: draftExperience !== String(slot.experience ?? 0);
+	}
+
+	function isHeldItemDirty() {
+		return draftHeldItemId !== (heldItemEditConstraints?.currentItemId ?? 0);
 	}
 
 	function isDraftStatsDirty(draft: DraftStats, base: PokemonStatEditPayload) {
@@ -593,6 +616,46 @@
 				<p id="pokemon-editor-nickname-hint">
 					Leave empty to restore the default species nickname.
 				</p>
+			</div>
+
+			<div class="editor-panel" aria-label="Held Item Editing">
+				<div class="panel-title">
+					<span>Held Item</span>
+					<small>{canEditHeldItem ? 'Engine constrained' : 'Unsupported'}</small>
+				</div>
+				{#if heldItemEditConstraints && heldItemEditConstraints.options.length > 0}
+					<label class="held-item-edit-controls">
+						<span>Held Item choice</span>
+						<select
+							id="pokemon-editor-held-item"
+							value={draftHeldItemId}
+							disabled={!canEditHeldItem || applying}
+							onchange={(event) => setDraftHeldItem(event.currentTarget.value)}
+						>
+							{#each heldItemEditConstraints.options as option (option.id)}
+								<option value={option.id} disabled={!option.available}>
+									{heldItemOptionLabel(option)}
+								</option>
+							{/each}
+						</select>
+					</label>
+					<p class="held-item-restrictions">
+						{#if draftHeldItemId === 0}
+							No item is selected.
+						{:else if unavailableHeldItemCount > 0}
+							{unavailableHeldItemCount} item
+							{unavailableHeldItemCount === 1 ? 'is' : 'choices are'} unavailable for this Pokemon Entity
+							format.
+						{:else}
+							Choices are limited to the active Save File and Pokemon Entity format.
+						{/if}
+					</p>
+				{:else}
+					<p class="unsupported-copy">
+						{heldItemEditConstraints?.unsupportedReason ??
+							'Held Item Editing is not supported for this Pokemon Entity format.'}
+					</p>
+				{/if}
 			</div>
 
 			<div class="editor-panel" aria-label="Level and Experience Editing">
@@ -1197,6 +1260,46 @@
 	}
 
 	.nickname-field input:disabled {
+		opacity: 0.55;
+	}
+
+	.held-item-edit-controls {
+		display: grid;
+		gap: 5px;
+		padding: 12px;
+		border-radius: var(--pksx-radius-md);
+		background: var(--paper-deep);
+	}
+
+	.held-item-edit-controls span,
+	.held-item-restrictions {
+		margin: 0;
+		color: var(--ink-mute);
+		font:
+			650 0.62rem var(--pksx-font-mono),
+			monospace;
+		line-height: 1.2;
+	}
+
+	.held-item-edit-controls span {
+		text-transform: uppercase;
+	}
+
+	.held-item-edit-controls select {
+		width: 100%;
+		min-width: 0;
+		height: 44px;
+		padding: 0 12px;
+		border: 1px solid var(--rule);
+		border-radius: var(--pksx-radius-sm);
+		background: var(--paper-hi);
+		color: var(--ink);
+		font:
+			750 0.78rem var(--pksx-font-mono),
+			monospace;
+	}
+
+	.held-item-edit-controls select:disabled {
 		opacity: 0.55;
 	}
 

@@ -61,9 +61,14 @@ export type PokemonMoveSetEditPayload = {
 	moves: PokemonMoveSlotEdit[];
 };
 
+export type HeldItemEditPayload = {
+	heldItemId: number;
+};
+
 export type PokemonEditorDraftEdits = {
 	nickname?: string;
 	levelExperience?: LevelExperienceEditPayload;
+	heldItemId?: number;
 	ivs?: PokemonStatEditPayload;
 	evs?: PokemonStatEditPayload;
 	moveSet?: PokemonMoveSetEditPayload;
@@ -412,6 +417,31 @@ export function stageLevelExperienceEdit(
 	});
 }
 
+export function stageHeldItemEdit(
+	state: PokemonEditorState,
+	payload: HeldItemEditPayload
+): PokemonEditorState {
+	const validation = validateHeldItemEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'held-item'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	if (payload.heldItemId === state.slot.heldItemEditConstraints?.currentItemId) {
+		return removePokemonEditorEdit(state, 'held-item');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'held-item',
+		capability: 'held-item-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
 export function stageIvEdit(
 	state: PokemonEditorState,
 	payload: PokemonStatEditPayload
@@ -505,7 +535,7 @@ export function createPokemonEditOperation(
 		return {
 			ok: false,
 			status: 'unsupported',
-			message: 'Pokemon Storage level and experience editing is not available yet.',
+			message: 'Pokemon Storage Pokemon editing is not available yet.',
 			reason: 'storage-unavailable'
 		};
 	}
@@ -514,10 +544,18 @@ export function createPokemonEditOperation(
 	const levelExperienceEdit = state.stagedEdits.find(
 		(candidate) => candidate.id === 'level-experience'
 	);
+	const heldItemEdit = state.stagedEdits.find((candidate) => candidate.id === 'held-item');
 	const ivEdit = state.stagedEdits.find((candidate) => candidate.id === 'ivs');
 	const evEdit = state.stagedEdits.find((candidate) => candidate.id === 'evs');
 	const moveSetEdit = state.stagedEdits.find((candidate) => candidate.id === 'move-set');
-	if (!nicknameEdit && !levelExperienceEdit && !ivEdit && !evEdit && !moveSetEdit) {
+	if (
+		!nicknameEdit &&
+		!levelExperienceEdit &&
+		!heldItemEdit &&
+		!ivEdit &&
+		!evEdit &&
+		!moveSetEdit
+	) {
 		return {
 			ok: false,
 			status: 'unsupported',
@@ -568,6 +606,30 @@ export function createPokemonEditOperation(
 		} else {
 			operation.experience = payload.experience;
 		}
+	}
+
+	if (heldItemEdit) {
+		const payload = heldItemEdit.payload;
+		if (!isHeldItemEditPayload(payload)) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: 'Held Item edit payload is invalid.',
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		const validation = validateHeldItemEdit(state.slot, payload);
+		if (!validation.ok) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: validation.message,
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		operation.heldItemId = validation.payload.heldItemId;
 	}
 
 	if (ivEdit) {
@@ -643,6 +705,50 @@ export function createPokemonEditOperation(
 	}
 
 	return { ok: true, operation };
+}
+
+function validateHeldItemEdit(
+	slot: SlotView,
+	payload: HeldItemEditPayload
+): PokemonEditorPayloadValidation<HeldItemEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Held Item Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.heldItemEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ??
+				'Held Item Editing is not supported for this Pokemon Entity format.'
+		};
+	}
+
+	if (!Number.isInteger(payload.heldItemId)) {
+		return { ok: false, message: 'Held Item choice is invalid.' };
+	}
+
+	const option = constraints.options.find((candidate) => candidate.id === payload.heldItemId);
+	if (!option) {
+		return {
+			ok: false,
+			message: `Item ${payload.heldItemId} is not available for this Save File and Pokemon Entity format.`
+		};
+	}
+
+	if (!option.available) {
+		return {
+			ok: false,
+			message: option.unavailableReason ?? `${option.name} is not available for this Pokemon.`
+		};
+	}
+
+	return {
+		ok: true,
+		payload,
+		label: payload.heldItemId === 0 ? 'Remove Held Item' : `Set Held Item to ${option.name}`
+	};
 }
 
 function validateIvEdit(
@@ -967,6 +1073,15 @@ function isNicknameEditPayload(value: unknown): value is { nickname: string } {
 		value !== null &&
 		'nickname' in value &&
 		typeof value.nickname === 'string'
+	);
+}
+
+function isHeldItemEditPayload(value: unknown): value is HeldItemEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'heldItemId' in value &&
+		typeof value.heldItemId === 'number'
 	);
 }
 

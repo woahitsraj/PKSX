@@ -11,6 +11,7 @@ import {
 	maxPpForPpUps,
 	moveSetEditPayloadFromSlot,
 	stageEvEdit,
+	stageHeldItemEdit,
 	stageIvEdit,
 	stageLevelExperienceEdit,
 	stageMoveSetEdit,
@@ -91,6 +92,20 @@ const editablePokemonSlot: SlotView = {
 			ppUps: 0
 		}
 	],
+	heldItemEditConstraints: {
+		supported: true,
+		currentItemId: 0,
+		options: [
+			{ id: 0, name: 'No item', available: true },
+			{ id: 213, name: 'Bright Powder', available: true },
+			{
+				id: 999,
+				name: 'Future Item',
+				available: false,
+				unavailableReason: 'Future Item is not supported by this Pokemon Entity format.'
+			}
+		]
+	},
 	statEditConstraints: {
 		supported: true,
 		minIv: 0,
@@ -311,6 +326,62 @@ describe('Pokemon editor state', () => {
 		expect(createPokemonEditOperation(staged)).toEqual({
 			ok: true,
 			operation: { source: slotRef, level: 20 }
+		});
+	});
+
+	it('stages an engine-provided Held Item choice', () => {
+		const staged = stageHeldItemEdit(openEditableEditor(), { heldItemId: 213 });
+
+		expect(staged.stagedEdits).toEqual([
+			{
+				id: 'held-item',
+				capability: 'held-item-editing',
+				label: 'Set Held Item to Bright Powder',
+				payload: { heldItemId: 213 }
+			}
+		]);
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: { source: slotRef, heldItemId: 213 }
+		});
+	});
+
+	it('stages Held Item removal and cancel leaves the Slot projection unchanged', () => {
+		const heldItemSlot: SlotView = {
+			...editablePokemonSlot,
+			heldItem: 'Bright Powder',
+			heldItemEditConstraints: {
+				...editablePokemonSlot.heldItemEditConstraints!,
+				currentItemId: 213
+			}
+		};
+		const opened = createPokemonEditorState(source, heldItemSlot);
+		if (!opened.ok) throw new Error('Expected Pokemon Editor to open.');
+
+		const staged = stageHeldItemEdit(opened.state, { heldItemId: 0 });
+
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: { source: slotRef, heldItemId: 0 }
+		});
+		expect(cancelPokemonEditor(staged)).toMatchObject({
+			slot: heldItemSlot,
+			stagedEdits: [],
+			staged: false
+		});
+	});
+
+	it('rejects a Held Item unavailable for the Pokemon Entity format', () => {
+		const rejected = stageHeldItemEdit(openEditableEditor(), { heldItemId: 999 });
+
+		expect(rejected).toMatchObject({
+			stagedEdits: [],
+			staged: false,
+			applyOutcome: {
+				status: 'rejected',
+				message: 'Future Item is not supported by this Pokemon Entity format.',
+				reason: 'invalid-pokemon-edit'
+			}
 		});
 	});
 
@@ -683,6 +754,37 @@ describe('Pokemon editor state', () => {
 		expect(result.outcome.status).toBe('success');
 		expect(services.mutateStoragePokemon).toHaveBeenCalledWith(state);
 		expect(services.ensureSaveFileBackup).not.toHaveBeenCalled();
+		expect(services.mutateSaveFilePokemon).not.toHaveBeenCalled();
+	});
+
+	it('keeps Held Item edits staged after failure and routes storage ownership correctly', async () => {
+		const failedState = stageHeldItemEdit(openEditableEditor(), { heldItemId: 213 });
+		const failed = await applyPokemonEditorEdits(
+			failedState,
+			applyServices({
+				mutateSaveFilePokemon: vi.fn(async () => ({
+					ok: false as const,
+					status: 'failed' as const,
+					message: 'Engine mutation failed.',
+					reason: 'engine-unavailable'
+				}))
+			})
+		);
+		expect(failed.state.stagedEdits).toEqual(failedState.stagedEdits);
+
+		const storageSource: PokemonEditorSourceInput = {
+			owner: 'pokemon-storage',
+			storagePokemonId: 'stored-pokemon-1',
+			location: 'Storage Box 1, slot 1'
+		};
+		const opened = createPokemonEditorState(storageSource, editablePokemonSlot);
+		if (!opened.ok) throw new Error('Expected Pokemon Storage editor to open.');
+		const storageState = stageHeldItemEdit(opened.state, { heldItemId: 213 });
+		const services = applyServices();
+		const applied = await applyPokemonEditorEdits(storageState, services);
+
+		expect(applied.outcome.status).toBe('success');
+		expect(services.mutateStoragePokemon).toHaveBeenCalledWith(storageState);
 		expect(services.mutateSaveFilePokemon).not.toHaveBeenCalled();
 	});
 

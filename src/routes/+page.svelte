@@ -265,6 +265,20 @@
 				ppUps: 0
 			}
 		],
+		heldItemEditConstraints: {
+			supported: true,
+			currentItemId: 236,
+			options: [
+				{ id: 0, name: 'No item', available: true },
+				{ id: 236, name: 'Light Ball', available: true },
+				{
+					id: 25,
+					name: 'Poke Doll',
+					available: false,
+					unavailableReason: 'Poke Doll is not supported by this Pokemon Entity format.'
+				}
+			]
+		},
 		statEditConstraints: {
 			supported: true,
 			minIv: 0,
@@ -663,6 +677,10 @@
 	}
 
 	function dispatchPokemonEditor(action: NavigationAction) {
+		if (changeFocusedPokemonEditorSelect(action)) {
+			return;
+		}
+
 		switch (action) {
 			case 'left':
 			case 'up':
@@ -689,6 +707,7 @@
 		return [
 			'#pokemon-editor-close',
 			'#pokemon-editor-nickname',
+			'#pokemon-editor-held-item',
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',
 			'.stat-edit-controls input:not([disabled])',
@@ -699,11 +718,45 @@
 		]
 			.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
 			.filter((control) => {
-				if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
+				if (
+					control instanceof HTMLButtonElement ||
+					control instanceof HTMLInputElement ||
+					control instanceof HTMLSelectElement
+				) {
 					return !control.disabled;
 				}
 				return true;
 			});
+	}
+
+	function changeFocusedPokemonEditorSelect(action: NavigationAction) {
+		const select = document.activeElement;
+		if (
+			!(select instanceof HTMLSelectElement) ||
+			!select.closest('.pokemon-editor') ||
+			(action !== 'left' && action !== 'right' && action !== 'confirm')
+		) {
+			return false;
+		}
+
+		const options = Array.from(select.options).filter((option) => !option.disabled);
+		if (options.length === 0) {
+			return true;
+		}
+
+		const current = Math.max(
+			0,
+			options.findIndex((option) => option.value === select.value)
+		);
+		const direction = action === 'left' ? -1 : 1;
+		const next = options[(current + direction + options.length) % options.length];
+		if (!next) {
+			return true;
+		}
+
+		select.value = next.value;
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		return true;
 	}
 
 	function focusPokemonEditorControl(direction: -1 | 1) {
@@ -2339,11 +2392,26 @@
 			operation.nickname !== undefined &&
 			operation.level === undefined &&
 			operation.experience === undefined &&
+			operation.heldItemId === undefined &&
 			operation.ivs === undefined &&
 			operation.evs === undefined &&
 			operation.moves === undefined
 		) {
 			return 'Pokemon nickname updated.';
+		}
+
+		if (
+			operation.heldItemId !== undefined &&
+			operation.nickname === undefined &&
+			operation.level === undefined &&
+			operation.experience === undefined &&
+			operation.ivs === undefined &&
+			operation.evs === undefined &&
+			operation.moves === undefined
+		) {
+			return operation.heldItemId === 0
+				? 'Pokemon Held Item removed.'
+				: 'Pokemon Held Item updated.';
 		}
 
 		return 'Pokemon edits applied.';
@@ -2373,6 +2441,21 @@
 						? `Set level to ${draft.levelExperience.level}`
 						: `Set experience to ${draft.levelExperience.experience}`,
 				payload: draft.levelExperience
+			});
+		}
+
+		if (draft.heldItemId !== undefined) {
+			const option = state.slot.heldItemEditConstraints?.options.find(
+				(candidate) => candidate.id === draft.heldItemId
+			);
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'held-item',
+				capability: 'held-item-editing',
+				label:
+					draft.heldItemId === 0
+						? 'Remove Held Item'
+						: `Set Held Item to ${option?.name ?? `item ${draft.heldItemId}`}`,
+				payload: { heldItemId: draft.heldItemId }
 			});
 		}
 
@@ -2413,6 +2496,7 @@
 			label: slot.label,
 			level: slot.level,
 			experience: slot.experience,
+			heldItemId: slot.heldItemEditConstraints?.currentItemId ?? 0,
 			ivs: slot.stats?.map((stat) => stat.iv ?? 0),
 			evs: slot.stats?.map((stat) => stat.ev ?? 0),
 			moves: slot.moves?.map((move) => ({
@@ -2937,6 +3021,7 @@
 			types: slot.types,
 			stats: slot.stats,
 			moves: slot.moves,
+			heldItemEditConstraints: slot.heldItemEditConstraints,
 			statEditConstraints: slot.statEditConstraints,
 			moveSetEditConstraints: slot.moveSetEditConstraints,
 			originalTrainer: slot.originalTrainer ?? undefined,

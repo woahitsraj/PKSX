@@ -68,7 +68,7 @@ public static partial class PkhexEngineExports
 
             var slots = new List<BoxSlotSummary>(save.BoxSlotCount);
             for (var slot = 0; slot < save.BoxSlotCount; slot++)
-                slots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), box, slot));
+                slots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), save, box, slot));
 
             return EngineJson.Serialize(EngineResult.Ok(slots), EngineJsonContext.Default.EngineResultListBoxSlotSummary);
         }
@@ -357,11 +357,11 @@ public static partial class PkhexEngineExports
     {
         var partySlots = new List<PartySlotSummary>(save.PartyCount);
         for (var slot = 0; slot < save.PartyCount; slot++)
-            partySlots.Add(PartySlotSummary.From(save.GetPartySlotAtIndex(slot), slot));
+            partySlots.Add(PartySlotSummary.From(save.GetPartySlotAtIndex(slot), save, slot));
 
         var boxSlots = new List<BoxSlotSummary>(save.BoxSlotCount);
         for (var slot = 0; slot < save.BoxSlotCount; slot++)
-            boxSlots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), box, slot));
+            boxSlots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), save, box, slot));
 
         return new SaveWorkspace(SaveSummary.From(save, fileName), partySlots, boxSlots);
     }
@@ -401,6 +401,7 @@ public static partial class PkhexEngineExports
             operation.Nickname is null &&
             operation.Level is null &&
             operation.Experience is null &&
+            operation.HeldItemId is null &&
             operation.Ivs is null &&
             operation.Evs is null &&
             operation.Moves is null)
@@ -413,6 +414,7 @@ public static partial class PkhexEngineExports
         var originalIsNicknamed = pokemon.IsNicknamed;
         var originalLevel = pokemon.CurrentLevel;
         var originalExperience = pokemon.EXP;
+        var originalHeldItem = pokemon.HeldItem;
         int[] originalIvs = [pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE];
         int[] originalEvs = [pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE];
         ushort[] originalMoves = [pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4];
@@ -467,6 +469,32 @@ public static partial class PkhexEngineExports
             pokemon.EXP = experience;
         }
 
+        if (operation.HeldItemId is int heldItemId)
+        {
+            var constraints = SlotDetailProjection.HeldItemEditConstraints(pokemon, save);
+            var option = constraints.Options.Find(candidate => candidate.Id == heldItemId);
+            if (option is null)
+                return SlotMutationResult.Fail(
+                    "unsupported-pokemon-edit",
+                    $"Item {heldItemId} is not available for this Save File and Pokemon Entity format.");
+
+            if (!option.Available)
+                return SlotMutationResult.Fail(
+                    "invalid-pokemon-edit",
+                    option.UnavailableReason ?? $"{option.Name} is not available for this Pokemon.");
+
+            pokemon.HeldItem = heldItemId;
+            var invalidItem = CreateLegalityMessages(
+                new LegalityAnalysis(pokemon, source.StorageSlotType),
+                includeGeneric: true).FirstOrDefault(message =>
+                    StringComparer.Ordinal.Equals(message.Identifier, CheckIdentifier.HeldItem.ToString()) &&
+                    !StringComparer.Ordinal.Equals(message.Severity, Severity.Valid.ToString()));
+            if (invalidItem is not null)
+                return SlotMutationResult.Fail(
+                    "invalid-pokemon-edit",
+                    $"Held Item edit is not legal for this Pokemon. {invalidItem.Message}");
+        }
+
         if (operation.Ivs is not null)
         {
             var ivs = StatEditSetToArray(operation.Ivs);
@@ -513,6 +541,7 @@ public static partial class PkhexEngineExports
             originalIsNicknamed != pokemon.IsNicknamed ||
             originalLevel != pokemon.CurrentLevel ||
             originalExperience != pokemon.EXP ||
+            originalHeldItem != pokemon.HeldItem ||
             !originalIvs.SequenceEqual([pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE]) ||
             !originalEvs.SequenceEqual([pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE]) ||
             !originalMoves.SequenceEqual([pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4]) ||
