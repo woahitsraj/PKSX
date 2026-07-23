@@ -371,7 +371,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('applies Save File Pokemon edits through the browser-wasm bundle', async () => {
-		expect.assertions(22);
+		expect.assertions(27);
 
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
@@ -466,6 +466,64 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			slot: 0,
 			nickname: 'RON',
 			level: 25
+		});
+
+		const trainerConstraints = edited.value.workspace.boxSlots[0]?.originalTrainerEditConstraints;
+		expect(trainerConstraints).toMatchObject({
+			supported: true,
+			currentName: expect.any(String),
+			currentTrainerId: expect.any(Number),
+			maxNameLength: expect.any(Number)
+		});
+		if (!trainerConstraints) throw new Error('Expected Original Trainer edit constraints.');
+
+		const trainerEdited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				originalTrainer: {
+					name: 'RAJAN',
+					trainerId: trainerConstraints.currentTrainerId,
+					secretId: trainerConstraints.supportsSecretId
+						? trainerConstraints.currentSecretId
+						: undefined,
+					genderId: trainerConstraints.supportsGender
+						? trainerConstraints.currentGenderId
+						: undefined,
+					languageId: trainerConstraints.supportsLanguage
+						? trainerConstraints.currentLanguageId
+						: undefined
+				}
+			},
+			0
+		);
+		expect(trainerEdited.ok).toBe(true);
+		if (!trainerEdited.ok) throw new Error('Expected Original Trainer data edit to succeed.');
+		expect(trainerEdited.value.mutated).toBe(true);
+		expect(trainerEdited.value.workspace.boxSlots[0]).toMatchObject({
+			originalTrainer: 'RAJAN',
+			originalTrainerEditConstraints: {
+				currentName: 'RAJAN',
+				currentTrainerId: trainerConstraints.currentTrainerId
+			}
+		});
+
+		const invalidTrainer = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				originalTrainer: {
+					name: 'ORIGINAL-TRAINER-NAME-TOO-LONG',
+					trainerId: trainerConstraints.currentTrainerId
+				}
+			},
+			0
+		);
+		expect(invalidTrainer).toMatchObject({
+			ok: false,
+			error: { code: 'invalid-pokemon-edit' }
 		});
 
 		const statEdited = await engine.applyPokemonEditOperation(

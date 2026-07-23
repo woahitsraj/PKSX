@@ -689,6 +689,7 @@
 		return [
 			'#pokemon-editor-close',
 			'#pokemon-editor-nickname',
+			'.trainer-edit-controls input:not([disabled]), .trainer-edit-controls select:not([disabled])',
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',
 			'.stat-edit-controls input:not([disabled])',
@@ -2339,6 +2340,7 @@
 			operation.nickname !== undefined &&
 			operation.level === undefined &&
 			operation.experience === undefined &&
+			operation.originalTrainer === undefined &&
 			operation.ivs === undefined &&
 			operation.evs === undefined &&
 			operation.moves === undefined
@@ -2373,6 +2375,15 @@
 						? `Set level to ${draft.levelExperience.level}`
 						: `Set experience to ${draft.levelExperience.experience}`,
 				payload: draft.levelExperience
+			});
+		}
+
+		if (draft.originalTrainer) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'original-trainer',
+				capability: 'original-trainer-data-editing',
+				label: 'Set Original Trainer data',
+				payload: draft.originalTrainer
 			});
 		}
 
@@ -2413,6 +2424,7 @@
 			label: slot.label,
 			level: slot.level,
 			experience: slot.experience,
+			originalTrainer: slot.originalTrainerEditConstraints,
 			ivs: slot.stats?.map((stat) => stat.iv ?? 0),
 			evs: slot.stats?.map((stat) => stat.ev ?? 0),
 			moves: slot.moves?.map((move) => ({
@@ -2937,6 +2949,7 @@
 			types: slot.types,
 			stats: slot.stats,
 			moves: slot.moves,
+			originalTrainerEditConstraints: slot.originalTrainerEditConstraints,
 			statEditConstraints: slot.statEditConstraints,
 			moveSetEditConstraints: slot.moveSetEditConstraints,
 			originalTrainer: slot.originalTrainer ?? undefined,

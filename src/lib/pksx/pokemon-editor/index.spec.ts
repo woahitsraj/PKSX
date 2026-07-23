@@ -14,6 +14,7 @@ import {
 	stageIvEdit,
 	stageLevelExperienceEdit,
 	stageMoveSetEdit,
+	stageOriginalTrainerEdit,
 	stagePokemonEditorEdit,
 	statEditPayloadFromSlot,
 	type PokemonEditorApplyServices,
@@ -91,6 +92,28 @@ const editablePokemonSlot: SlotView = {
 			ppUps: 0
 		}
 	],
+	originalTrainerEditConstraints: {
+		supported: true,
+		currentName: 'PKSX',
+		currentTrainerId: 41203,
+		currentSecretId: 1204,
+		currentGenderId: 0,
+		currentLanguageId: 2,
+		maxNameLength: 7,
+		minTrainerId: 0,
+		maxTrainerId: 65535,
+		supportsSecretId: true,
+		supportsGender: true,
+		supportsLanguage: true,
+		genders: [
+			{ id: 0, name: 'Male' },
+			{ id: 1, name: 'Female' }
+		],
+		languages: [
+			{ id: 1, name: 'Japanese' },
+			{ id: 2, name: 'English' }
+		]
+	},
 	statEditConstraints: {
 		supported: true,
 		minIv: 0,
@@ -311,6 +334,50 @@ describe('Pokemon editor state', () => {
 		expect(createPokemonEditOperation(staged)).toEqual({
 			ok: true,
 			operation: { source: slotRef, level: 20 }
+		});
+	});
+
+	it('stages Original Trainer data with engine-backed text and ID constraints', () => {
+		const staged = stageOriginalTrainerEdit(openEditableEditor(), {
+			name: 'RAJAN',
+			trainerId: 12345,
+			secretId: 54321,
+			genderId: 1,
+			languageId: 2
+		});
+
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: {
+				source: slotRef,
+				originalTrainer: {
+					name: 'RAJAN',
+					trainerId: 12345,
+					secretId: 54321,
+					genderId: 1,
+					languageId: 2
+				}
+			}
+		});
+	});
+
+	it('rejects invalid Original Trainer text and ID values', () => {
+		const invalidName = stageOriginalTrainerEdit(openEditableEditor(), {
+			name: 'TOO-LONG',
+			trainerId: 1
+		});
+		const invalidId = stageOriginalTrainerEdit(openEditableEditor(), {
+			name: 'PKSX',
+			trainerId: 65536
+		});
+
+		expect(invalidName.applyOutcome).toMatchObject({
+			status: 'rejected',
+			message: 'Original Trainer name must be 7 characters or fewer.'
+		});
+		expect(invalidId.applyOutcome).toMatchObject({
+			status: 'rejected',
+			message: 'Trainer ID must be between 0 and 65535.'
 		});
 	});
 

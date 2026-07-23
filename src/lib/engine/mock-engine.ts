@@ -102,6 +102,28 @@ const mockPikachuDetails = {
 			{ id: 98, name: 'Quick Attack', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 30 }
 		]
 	},
+	originalTrainerEditConstraints: {
+		supported: true,
+		currentName: 'PKSX',
+		currentTrainerId: 41203,
+		currentSecretId: 1204,
+		currentGenderId: 0,
+		currentLanguageId: 2,
+		maxNameLength: 12,
+		minTrainerId: 0,
+		maxTrainerId: 65535,
+		supportsSecretId: true,
+		supportsGender: true,
+		supportsLanguage: true,
+		genders: [
+			{ id: 0, name: 'Male' },
+			{ id: 1, name: 'Female' }
+		],
+		languages: [
+			{ id: 1, name: 'Japanese' },
+			{ id: 2, name: 'English' }
+		]
+	},
 	originalTrainer: 'PKSX',
 	metLabel: 'Lv. 5',
 	spriteIdentity: {
@@ -150,6 +172,23 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		types: [],
 		stats: [],
 		moves: [],
+		originalTrainerEditConstraints: {
+			supported: false,
+			currentName: '',
+			currentTrainerId: 0,
+			currentSecretId: 0,
+			currentGenderId: 0,
+			currentLanguageId: 0,
+			maxNameLength: 0,
+			minTrainerId: 0,
+			maxTrainerId: 65535,
+			supportsSecretId: false,
+			supportsGender: false,
+			supportsLanguage: false,
+			genders: [],
+			languages: [],
+			unsupportedReason: 'Original Trainer Data Editing needs an occupied Slot.'
+		},
 		statEditConstraints: {
 			supported: false,
 			minIv: 0,
@@ -240,6 +279,7 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					operation.nickname !== undefined ||
 					operation.level !== undefined ||
 					operation.experience !== undefined ||
+					operation.originalTrainer !== undefined ||
 					operation.ivs !== undefined ||
 					operation.evs !== undefined ||
 					operation.moves !== undefined,

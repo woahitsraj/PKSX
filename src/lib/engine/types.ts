@@ -76,6 +76,7 @@ export type BoxSlotSummary = {
 	types: SlotTypeSummary[];
 	stats: SlotStatSummary[];
 	moves: SlotMoveSummary[];
+	originalTrainerEditConstraints: PokemonOriginalTrainerEditConstraints;
 	statEditConstraints: PokemonStatEditConstraints;
 	moveSetEditConstraints: PokemonMoveSetEditConstraints;
 	originalTrainer?: string | null;
@@ -149,6 +150,29 @@ export type PokemonMoveSetEditConstraints = {
 	unsupportedReason?: string | null;
 };
 
+export type PokemonOriginalTrainerOption = {
+	id: number;
+	name: string;
+};
+
+export type PokemonOriginalTrainerEditConstraints = {
+	supported: boolean;
+	currentName: string;
+	currentTrainerId: number;
+	currentSecretId: number;
+	currentGenderId: number;
+	currentLanguageId: number;
+	maxNameLength: number;
+	minTrainerId: number;
+	maxTrainerId: number;
+	supportsSecretId: boolean;
+	supportsGender: boolean;
+	supportsLanguage: boolean;
+	genders: PokemonOriginalTrainerOption[];
+	languages: PokemonOriginalTrainerOption[];
+	unsupportedReason?: string | null;
+};
+
 export type SaveWorkspace = {
 	summary: SaveSummary;
 	partySlots: PartySlotSummary[];
@@ -209,6 +233,7 @@ export type PokemonEditOperation = {
 	nickname?: string;
 	level?: number;
 	experience?: number;
+	originalTrainer?: PokemonOriginalTrainerEdit;
 	ivs?: PokemonStatEditSet;
 	evs?: PokemonStatEditSet;
 	moves?: PokemonMoveSlotEdit[];
@@ -228,6 +253,14 @@ export type PokemonMoveSlotEdit = {
 	move: number;
 	pp?: number;
 	ppUps?: number;
+};
+
+export type PokemonOriginalTrainerEdit = {
+	name: string;
+	trainerId: number;
+	secretId?: number;
+	genderId?: number;
+	languageId?: number;
 };
 
 export type PokemonEditOperationResult = {

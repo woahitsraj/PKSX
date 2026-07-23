@@ -219,7 +219,7 @@ test('Edit opens Pokemon Editor and returns focus to the command stack', async (
 	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
 
 	await page.keyboard.press('ArrowDown');
-	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
+	await expect(page.locator('#pokemon-editor-original-trainer-name')).toBeFocused();
 
 	await page.keyboard.press('ArrowUp');
 	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
@@ -271,6 +271,25 @@ test('Pokemon Editor applies nickname changes and refreshes Slot labels', async 
 	await expect(updatedEditor).toBeVisible();
 	await expect(updatedEditor).toContainText('Pokemon nickname updated.');
 	await expect(updatedEditor.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
+});
+
+test('Pokemon Editor applies Original Trainer name changes and returns focus', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Enter');
+
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	const trainerName = editor.getByLabel('Name', { exact: true });
+	await expect(editor).toContainText('Original Trainer');
+	await fillEditorInput(trainerName, 'RAJAN');
+	await expect(editor).toContainText('1 Pokemon edit drafted.');
+
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(trainerName).toHaveValue('RAJAN', { timeout: 15000 });
+	await expect(editor).toContainText('Pokemon edits applied.');
+	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 });
 
 test('Legality Check opens an engine report from an occupied Slot and dismisses cleanly', async ({
@@ -545,7 +564,7 @@ test('Pokemon Editor changes level through Apply and keeps editor focus', async 
 
 	await page.keyboard.press('ArrowDown');
 	await expect(editor.getByLabel('Nickname', { exact: true })).toBeFocused();
-	await page.keyboard.press('ArrowDown');
+	await page.locator('#pokemon-editor-mode').focus();
 	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
 	await expect(page.locator('#pokemon-editor-mode')).toHaveAttribute('aria-label', 'Editing Level');
 	await page.keyboard.press('Enter');

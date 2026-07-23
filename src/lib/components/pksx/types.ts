@@ -1,6 +1,7 @@
 import type {
 	PokemonExperienceProjection,
 	PokemonMoveSetEditConstraints,
+	PokemonOriginalTrainerEditConstraints,
 	PokemonStatEditConstraints,
 	SpriteIdentity
 } from '$lib/engine';
@@ -24,6 +25,7 @@ export type SlotView = {
 	types?: SlotTypeView[];
 	stats?: SlotStatView[];
 	moves?: SlotMoveView[];
+	originalTrainerEditConstraints?: PokemonOriginalTrainerEditConstraints;
 	statEditConstraints?: PokemonStatEditConstraints;
 	moveSetEditConstraints?: PokemonMoveSetEditConstraints;
 	originalTrainer?: string;

@@ -73,6 +73,7 @@ public sealed record PartySlotSummary(
     List<SlotTypeSummary> Types,
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
+    PokemonOriginalTrainerEditConstraints OriginalTrainerEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
     string? OriginalTrainer,
@@ -99,6 +100,7 @@ public sealed record PartySlotSummary(
             SlotDetailProjection.Types(pokemon),
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
+            SlotDetailProjection.OriginalTrainerEditConstraints(pokemon),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Party),
             SlotDetailProjection.OriginalTrainer(pokemon),
@@ -126,6 +128,7 @@ public sealed record BoxSlotSummary(
     List<SlotTypeSummary> Types,
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
+    PokemonOriginalTrainerEditConstraints OriginalTrainerEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
     string? OriginalTrainer,
@@ -153,6 +156,7 @@ public sealed record BoxSlotSummary(
             SlotDetailProjection.Types(pokemon),
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
+            SlotDetailProjection.OriginalTrainerEditConstraints(pokemon),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Box),
             SlotDetailProjection.OriginalTrainer(pokemon),
@@ -238,6 +242,25 @@ public sealed record SlotStatSummary(string Key, string Label, int Value, int? E
 
 public sealed record SlotMoveSummary(int Slot, ushort Id, string Name, string Type, int Hue, double Chroma, int? Pp, int? MaxPp, int? PpUps);
 
+public sealed record PokemonOriginalTrainerOption(int Id, string Name);
+
+public sealed record PokemonOriginalTrainerEditConstraints(
+    bool Supported,
+    string CurrentName,
+    int CurrentTrainerId,
+    int CurrentSecretId,
+    int CurrentGenderId,
+    int CurrentLanguageId,
+    int MaxNameLength,
+    int MinTrainerId,
+    int MaxTrainerId,
+    bool SupportsSecretId,
+    bool SupportsGender,
+    bool SupportsLanguage,
+    List<PokemonOriginalTrainerOption> Genders,
+    List<PokemonOriginalTrainerOption> Languages,
+    string? UnsupportedReason);
+
 public sealed record PokemonStatEditConstraints(
     bool Supported,
     int MinIv,
@@ -282,6 +305,7 @@ public sealed record PokemonEditOperationRequest(
     string? Nickname,
     int? Level,
     uint? Experience,
+    PokemonOriginalTrainerEdit? OriginalTrainer,
     PokemonStatEditSet? Ivs,
     PokemonStatEditSet? Evs,
     List<PokemonMoveSlotEdit>? Moves);
@@ -295,6 +319,13 @@ public sealed record PokemonStatEditSet(
     [property: JsonPropertyName("SPE")] int SPE);
 
 public sealed record PokemonMoveSlotEdit(int Slot, ushort Move, int? Pp, int? PpUps);
+
+public sealed record PokemonOriginalTrainerEdit(
+    string Name,
+    int TrainerId,
+    int? SecretId,
+    int? GenderId,
+    int? LanguageId);
 
 public sealed record PokemonEditOperationResult(
     string BytesBase64,
@@ -437,6 +468,49 @@ internal static class SlotDetailProjection
         }
 
         return result;
+    }
+
+    public static PokemonOriginalTrainerEditConstraints OriginalTrainerEditConstraints(PKM pokemon)
+    {
+        if (pokemon.Species == 0)
+        {
+            return new PokemonOriginalTrainerEditConstraints(
+                false, "", 0, 0, 0, 0, 0, 0, ushort.MaxValue, false, false, false, [], [],
+                "Original Trainer Data Editing needs an occupied Slot.");
+        }
+
+        var supportsExtendedFields = pokemon.Format >= 3;
+        var languages = supportsExtendedFields
+            ? GameInfo.LanguageDataSource(pokemon.Format, pokemon.Context)
+                .Where(option => option.Value > 0)
+                .GroupBy(option => option.Value)
+                .Select(group => group.First())
+                .Select(option => new PokemonOriginalTrainerOption(option.Value, option.Text))
+                .ToList()
+            : [];
+        if (supportsExtendedFields && languages.All(option => option.Id != pokemon.Language))
+            languages.Add(new PokemonOriginalTrainerOption(
+                pokemon.Language,
+                ((LanguageID)pokemon.Language).ToString()));
+
+        return new PokemonOriginalTrainerEditConstraints(
+            true,
+            pokemon.OriginalTrainerName,
+            pokemon.TID16,
+            pokemon.SID16,
+            pokemon.OriginalTrainerGender,
+            pokemon.Language,
+            pokemon.MaxStringLengthTrainer,
+            0,
+            ushort.MaxValue,
+            supportsExtendedFields,
+            supportsExtendedFields,
+            supportsExtendedFields,
+            supportsExtendedFields
+                ? [new PokemonOriginalTrainerOption(0, "Male"), new PokemonOriginalTrainerOption(1, "Female")]
+                : [],
+            languages,
+            null);
     }
 
     public static PokemonStatEditConstraints StatEditConstraints(PKM pokemon)

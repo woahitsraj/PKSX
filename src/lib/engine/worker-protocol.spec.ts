@@ -136,7 +136,11 @@ describe('parseEngineWorkerRequest', () => {
 				payload: {
 					bytes,
 					fileName: 'main.sav',
-					operation: { source: { zone: 'box', box: 0, slot: 0 }, level: 24 },
+					operation: {
+						source: { zone: 'box', box: 0, slot: 0 },
+						level: 24,
+						originalTrainer: { name: 'RAJAN', trainerId: 12345 }
+					},
 					activeBox: 0
 				}
 			})
@@ -149,7 +153,11 @@ describe('parseEngineWorkerRequest', () => {
 				payload: {
 					bytes,
 					fileName: 'main.sav',
-					operation: { source: { zone: 'box', box: 0, slot: 0 }, level: 24 },
+					operation: {
+						source: { zone: 'box', box: 0, slot: 0 },
+						level: 24,
+						originalTrainer: { name: 'RAJAN', trainerId: 12345 }
+					},
 					activeBox: 0
 				}
 			}
