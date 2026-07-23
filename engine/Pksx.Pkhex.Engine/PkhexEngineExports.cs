@@ -403,7 +403,8 @@ public static partial class PkhexEngineExports
             operation.Experience is null &&
             operation.Ivs is null &&
             operation.Evs is null &&
-            operation.Moves is null)
+            operation.Moves is null &&
+            operation.FriendshipEdits is null)
             return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a Pokemon edit to apply.");
 
         if (operation.Level is not null && operation.Experience is not null)
@@ -418,6 +419,8 @@ public static partial class PkhexEngineExports
         ushort[] originalMoves = [pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4];
         int[] originalPp = [pokemon.Move1_PP, pokemon.Move2_PP, pokemon.Move3_PP, pokemon.Move4_PP];
         int[] originalPpUps = [pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps];
+        var originalFriendship = pokemon.CurrentFriendship;
+        var originalAffection = CurrentAffection(pokemon);
 
         if (operation.Nickname is string nickname)
         {
@@ -505,6 +508,13 @@ public static partial class PkhexEngineExports
                 return moveResult;
         }
 
+        if (operation.FriendshipEdits is not null)
+        {
+            var friendshipResult = ApplyFriendshipEdits(pokemon, operation.FriendshipEdits);
+            if (!friendshipResult.Ok)
+                return friendshipResult;
+        }
+
         if (pokemon.PartyStatsPresent)
             pokemon.ResetPartyStats();
 
@@ -517,7 +527,9 @@ public static partial class PkhexEngineExports
             !originalEvs.SequenceEqual([pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE]) ||
             !originalMoves.SequenceEqual([pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4]) ||
             !originalPp.SequenceEqual([pokemon.Move1_PP, pokemon.Move2_PP, pokemon.Move3_PP, pokemon.Move4_PP]) ||
-            !originalPpUps.SequenceEqual([pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps]);
+            !originalPpUps.SequenceEqual([pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps]) ||
+            originalFriendship != pokemon.CurrentFriendship ||
+            originalAffection != CurrentAffection(pokemon);
         if (mutated)
             source.Set(save, pokemon);
 
@@ -526,6 +538,55 @@ public static partial class PkhexEngineExports
 
     private static int[] StatEditSetToArray(PokemonStatEditSet edits) =>
         [edits.HP, edits.ATK, edits.DEF, edits.SPE, edits.SPA, edits.SPD];
+
+    private static SlotMutationResult ApplyFriendshipEdits(PKM pokemon, List<PokemonFriendshipFieldEdit> edits)
+    {
+        if (edits.Count == 0)
+            return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a Friendship edit to apply.");
+
+        var constraints = SlotDetailProjection.FriendshipEditConstraints(pokemon);
+        if (!constraints.Supported)
+            return SlotMutationResult.Fail(
+                "unsupported-pokemon-edit",
+                constraints.UnsupportedReason ?? "Friendship Editing is not supported for this Pokemon format.");
+
+        var fields = constraints.Fields.ToDictionary(field => field.Key, StringComparer.Ordinal);
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var edit in edits)
+        {
+            if (!keys.Add(edit.Key))
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"Friendship field '{edit.Key}' is duplicated.");
+            if (!fields.TryGetValue(edit.Key, out var field))
+                return SlotMutationResult.Fail("unsupported-pokemon-edit", $"Friendship field '{edit.Key}' is not supported by this Pokemon format.");
+            if (edit.Value < field.Min || edit.Value > field.Max)
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"{field.Label} must be between {field.Min} and {field.Max}.");
+
+            switch (edit.Key)
+            {
+                case "friendship":
+                case "hatch-counter":
+                    pokemon.CurrentFriendship = (byte)edit.Value;
+                    break;
+                case "affection" when pokemon is IAffection affection:
+                    if (pokemon.CurrentHandler == 0)
+                        affection.OriginalTrainerAffection = (byte)edit.Value;
+                    else
+                        affection.HandlingTrainerAffection = (byte)edit.Value;
+                    break;
+                default:
+                    return SlotMutationResult.Fail("unsupported-pokemon-edit", $"Friendship field '{edit.Key}' is not supported by this Pokemon format.");
+            }
+        }
+
+        return SlotMutationResult.Success(true);
+    }
+
+    private static int? CurrentAffection(PKM pokemon) =>
+        pokemon is not IAffection affection
+            ? null
+            : pokemon.CurrentHandler == 0
+                ? affection.OriginalTrainerAffection
+                : affection.HandlingTrainerAffection;
 
     private static SlotMutationResult ApplyMoveSetEdits(PKM pokemon, List<PokemonMoveSlotEdit> edits, StorageSlotType storageSlotType)
     {

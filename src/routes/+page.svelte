@@ -2341,7 +2341,8 @@
 			operation.experience === undefined &&
 			operation.ivs === undefined &&
 			operation.evs === undefined &&
-			operation.moves === undefined
+			operation.moves === undefined &&
+			operation.friendshipEdits === undefined
 		) {
 			return 'Pokemon nickname updated.';
 		}
@@ -2403,6 +2404,15 @@
 			});
 		}
 
+		if (draft.friendship) {
+			nextState = stagePokemonEditorEdit(nextState, {
+				id: 'friendship',
+				capability: 'friendship-editing',
+				label: 'Set Friendship fields',
+				payload: draft.friendship
+			});
+		}
+
 		return nextState;
 	}
 
@@ -2420,6 +2430,10 @@
 				id: move.id,
 				pp: move.pp ?? 0,
 				ppUps: move.ppUps ?? 0
+			})),
+			friendship: slot.friendshipEditConstraints?.fields.map((field) => ({
+				key: field.key,
+				value: field.value
 			}))
 		});
 	}
@@ -2939,6 +2953,7 @@
 			moves: slot.moves,
 			statEditConstraints: slot.statEditConstraints,
 			moveSetEditConstraints: slot.moveSetEditConstraints,
+			friendshipEditConstraints: slot.friendshipEditConstraints,
 			originalTrainer: slot.originalTrainer ?? undefined,
 			metLabel: slot.metLabel ?? undefined,
 			entityBytesBase64: slot.entityBytesBase64 ?? null

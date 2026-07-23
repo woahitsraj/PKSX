@@ -64,6 +64,10 @@ const partySlot: PartySlotSummary = {
 		availableMoves: [],
 		unsupportedReason: 'Fixture'
 	},
+	friendshipEditConstraints: {
+		supported: true,
+		fields: [{ key: 'friendship', label: 'Friendship', value: 70, min: 0, max: 255 }]
+	},
 	spriteIdentity: {
 		speciesId: 304,
 		form: 0,

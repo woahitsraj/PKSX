@@ -580,6 +580,33 @@ test('Pokemon Editor changes level through Apply and keeps editor focus', async 
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 });
 
+test('Pokemon Editor stages and applies Friendship while restoring focus', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'Edit' }).click();
+
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	const friendship = editor.getByRole('spinbutton', { name: /^Friendship/ });
+	await expect(friendship).toBeEnabled();
+	const original = Number(await friendship.inputValue());
+	const updated = original === 255 ? 254 : original + 1;
+
+	await fillEditorInput(friendship, String(updated));
+	await expect(editor).toContainText('1 Pokemon edit drafted.');
+	await editor.getByRole('button', { name: 'Cancel edits' }).click();
+	await expect(friendship).toHaveValue(String(original));
+
+	await fillEditorInput(friendship, String(updated));
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
+	await expect(editor.getByRole('spinbutton', { name: /^Friendship/ })).toHaveValue(
+		String(updated)
+	);
+	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
+});
+
 test('creates and restores a manual backup for the loaded Save File', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await importEmeraldThroughSaves(page);

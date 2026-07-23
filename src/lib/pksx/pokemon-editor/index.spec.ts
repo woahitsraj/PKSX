@@ -11,6 +11,7 @@ import {
 	maxPpForPpUps,
 	moveSetEditPayloadFromSlot,
 	stageEvEdit,
+	stageFriendshipEdit,
 	stageIvEdit,
 	stageLevelExperienceEdit,
 	stageMoveSetEdit,
@@ -54,7 +55,14 @@ const pokemonSlot: SlotView = {
 		displaySex: 'default'
 	},
 	isEgg: false,
-	kind: 'pokemon'
+	kind: 'pokemon',
+	friendshipEditConstraints: {
+		supported: true,
+		fields: [
+			{ key: 'friendship', label: 'Friendship', value: 70, min: 0, max: 255 },
+			{ key: 'affection', label: 'Affection', value: 0, min: 0, max: 255 }
+		]
+	}
 };
 
 const editablePokemonSlot: SlotView = {
@@ -314,6 +322,69 @@ describe('Pokemon editor state', () => {
 		});
 	});
 
+	it('stages engine-projected Friendship fields into one operation', () => {
+		const staged = stageFriendshipEdit(openEditor(), {
+			fields: [
+				{ key: 'friendship', value: 255 },
+				{ key: 'affection', value: 100 }
+			]
+		});
+
+		expect(staged.stagedEdits).toEqual([
+			{
+				id: 'friendship',
+				capability: 'friendship-editing',
+				label: 'Set Friendship and Affection',
+				payload: {
+					fields: [
+						{ key: 'friendship', value: 255 },
+						{ key: 'affection', value: 100 }
+					]
+				}
+			}
+		]);
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: {
+				source: slotRef,
+				friendshipEdits: [
+					{ key: 'friendship', value: 255 },
+					{ key: 'affection', value: 100 }
+				]
+			}
+		});
+	});
+
+	it('rejects invalid and unsupported Friendship fields', () => {
+		const invalid = stageFriendshipEdit(openEditor(), {
+			fields: [{ key: 'friendship', value: 256 }]
+		});
+		const unsupportedSlot: SlotView = {
+			...pokemonSlot,
+			friendshipEditConstraints: {
+				supported: false,
+				fields: [],
+				unsupportedReason: 'Friendship Editing is not supported for Generation 1 Pokemon.'
+			}
+		};
+		const opened = createPokemonEditorState(source, unsupportedSlot);
+		if (!opened.ok) throw new Error('Expected Pokemon Editor to open.');
+		const unsupported = stageFriendshipEdit(opened.state, {
+			fields: [{ key: 'friendship', value: 100 }]
+		});
+
+		expect(invalid.applyOutcome).toEqual({
+			status: 'rejected',
+			message: 'Friendship must be between 0 and 255.',
+			reason: 'invalid-pokemon-edit'
+		});
+		expect(unsupported.applyOutcome).toEqual({
+			status: 'rejected',
+			message: 'Friendship Editing is not supported for Generation 1 Pokemon.',
+			reason: 'invalid-pokemon-edit'
+		});
+	});
+
 	it('rejects invalid level and experience ranges without staging mutation', () => {
 		const invalidLevel = stageLevelExperienceEdit(openEditor(), { mode: 'level', level: 101 });
 		const invalidExperience = stageLevelExperienceEdit(openEditor(), {
@@ -547,7 +618,9 @@ describe('Pokemon editor state', () => {
 
 	it('keeps cancel non-mutating and clears staged feedback', () => {
 		const staged = markUnsupportedPokemonEditorApply(
-			stagePokemonEditorEdit(openEditor(), stagedEdit)
+			stageFriendshipEdit(openEditor(), {
+				fields: [{ key: 'friendship', value: 120 }]
+			})
 		);
 
 		expect(cancelPokemonEditor(staged)).toMatchObject({
@@ -673,7 +746,9 @@ describe('Pokemon editor state', () => {
 			storagePokemonId: 'stored-pokemon-1',
 			location: 'Storage Box 1, slot 1'
 		};
-		const state = stagePokemonEditorEdit(openEditor(storageSource), stagedEdit);
+		const state = stageFriendshipEdit(openEditor(storageSource), {
+			fields: [{ key: 'friendship', value: 120 }]
+		});
 		const services = applyServices({
 			ensureSaveFileBackup: vi.fn(async () => ({ ok: true as const }))
 		});
@@ -684,6 +759,25 @@ describe('Pokemon editor state', () => {
 		expect(services.mutateStoragePokemon).toHaveBeenCalledWith(state);
 		expect(services.ensureSaveFileBackup).not.toHaveBeenCalled();
 		expect(services.mutateSaveFilePokemon).not.toHaveBeenCalled();
+	});
+
+	it('keeps Friendship edits staged when apply fails', async () => {
+		const state = stageFriendshipEdit(openEditor(), {
+			fields: [{ key: 'friendship', value: 120 }]
+		});
+		const services = applyServices({
+			mutateSaveFilePokemon: vi.fn(async () => ({
+				ok: false as const,
+				status: 'failed' as const,
+				message: 'Engine mutation failed.',
+				reason: 'engine-unavailable'
+			}))
+		});
+
+		const result = await applyPokemonEditorEdits(state, services);
+
+		expect(result.outcome.status).toBe('failed');
+		expect(result.state.stagedEdits).toEqual(state.stagedEdits);
 	});
 
 	it('keeps level edits staged when Save File mutation fails', async () => {

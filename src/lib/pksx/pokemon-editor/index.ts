@@ -1,5 +1,6 @@
 import type {
 	PokemonEditOperation,
+	PokemonFriendshipFieldEdit,
 	PokemonMoveSlotEdit,
 	PokemonStatEditSet,
 	SaveSlotRef
@@ -61,12 +62,17 @@ export type PokemonMoveSetEditPayload = {
 	moves: PokemonMoveSlotEdit[];
 };
 
+export type PokemonFriendshipEditPayload = {
+	fields: PokemonFriendshipFieldEdit[];
+};
+
 export type PokemonEditorDraftEdits = {
 	nickname?: string;
 	levelExperience?: LevelExperienceEditPayload;
 	ivs?: PokemonStatEditPayload;
 	evs?: PokemonStatEditPayload;
 	moveSet?: PokemonMoveSetEditPayload;
+	friendship?: PokemonFriendshipEditPayload;
 };
 
 export type PokemonEditorApplyOutcome =
@@ -475,6 +481,27 @@ export function stageMoveSetEdit(
 	});
 }
 
+export function stageFriendshipEdit(
+	state: PokemonEditorState,
+	payload: PokemonFriendshipEditPayload
+): PokemonEditorState {
+	const validation = validateFriendshipEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'friendship'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'friendship',
+		capability: 'friendship-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
 export function statEditPayloadFromSlot(
 	slot: SlotView,
 	value: 'iv' | 'ev'
@@ -505,7 +532,7 @@ export function createPokemonEditOperation(
 		return {
 			ok: false,
 			status: 'unsupported',
-			message: 'Pokemon Storage level and experience editing is not available yet.',
+			message: 'Pokemon Storage editing is not available yet.',
 			reason: 'storage-unavailable'
 		};
 	}
@@ -517,7 +544,15 @@ export function createPokemonEditOperation(
 	const ivEdit = state.stagedEdits.find((candidate) => candidate.id === 'ivs');
 	const evEdit = state.stagedEdits.find((candidate) => candidate.id === 'evs');
 	const moveSetEdit = state.stagedEdits.find((candidate) => candidate.id === 'move-set');
-	if (!nicknameEdit && !levelExperienceEdit && !ivEdit && !evEdit && !moveSetEdit) {
+	const friendshipEdit = state.stagedEdits.find((candidate) => candidate.id === 'friendship');
+	if (
+		!nicknameEdit &&
+		!levelExperienceEdit &&
+		!ivEdit &&
+		!evEdit &&
+		!moveSetEdit &&
+		!friendshipEdit
+	) {
 		return {
 			ok: false,
 			status: 'unsupported',
@@ -640,6 +675,30 @@ export function createPokemonEditOperation(
 		}
 
 		operation.moves = validation.payload.moves.map((move) => ({ ...move }));
+	}
+
+	if (friendshipEdit) {
+		const payload = friendshipEdit.payload;
+		if (!isPokemonFriendshipEditPayload(payload)) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: 'Friendship edit payload is invalid.',
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		const validation = validateFriendshipEdit(state.slot, payload);
+		if (!validation.ok) {
+			return {
+				ok: false,
+				status: 'rejected',
+				message: validation.message,
+				reason: 'invalid-pokemon-edit'
+			};
+		}
+
+		operation.friendshipEdits = validation.payload.fields.map((field) => ({ ...field }));
 	}
 
 	return { ok: true, operation };
@@ -765,6 +824,58 @@ function validateMoveSetEdit(
 	}
 
 	return { ok: true, payload, label: 'Set Move Set' };
+}
+
+export function validateFriendshipEdit(
+	slot: SlotView,
+	payload: PokemonFriendshipEditPayload
+): PokemonEditorPayloadValidation<PokemonFriendshipEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Friendship Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.friendshipEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ??
+				'Friendship Editing is not supported for this Pokemon format.'
+		};
+	}
+	if (payload.fields.length === 0) {
+		return { ok: false, message: 'Choose a Friendship edit to apply.' };
+	}
+
+	const availableFields = new Map(constraints.fields.map((field) => [field.key, field]));
+	const keys = new Set<string>();
+	for (const edit of payload.fields) {
+		if (keys.has(edit.key)) {
+			return { ok: false, message: `${edit.key} is duplicated.` };
+		}
+		keys.add(edit.key);
+
+		const field = availableFields.get(edit.key);
+		if (!field) {
+			return { ok: false, message: `Friendship field '${edit.key}' is not supported.` };
+		}
+		if (!Number.isInteger(edit.value)) {
+			return { ok: false, message: `${field.label} must be a whole number.` };
+		}
+		if (edit.value < field.min || edit.value > field.max) {
+			return {
+				ok: false,
+				message: `${field.label} must be between ${field.min} and ${field.max}.`
+			};
+		}
+	}
+
+	const labels = payload.fields.map((edit) => availableFields.get(edit.key)?.label ?? edit.key);
+	return {
+		ok: true,
+		payload,
+		label: `Set ${labels.join(' and ')}`
+	};
 }
 
 export function maxPpForPpUps(basePp: number, ppUps: number): number {
@@ -995,6 +1106,24 @@ function isPokemonMoveSetEditPayload(value: unknown): value is PokemonMoveSetEdi
 				typeof move.move === 'number' &&
 				(!('pp' in move) || typeof move.pp === 'number') &&
 				(!('ppUps' in move) || typeof move.ppUps === 'number')
+		)
+	);
+}
+
+function isPokemonFriendshipEditPayload(value: unknown): value is PokemonFriendshipEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'fields' in value &&
+		Array.isArray(value.fields) &&
+		value.fields.every(
+			(field) =>
+				typeof field === 'object' &&
+				field !== null &&
+				'key' in field &&
+				typeof field.key === 'string' &&
+				'value' in field &&
+				typeof field.value === 'number'
 		)
 	);
 }
