@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
 
 permissions:
   contents: read
@@ -93,3 +95,162 @@ jobs:
 
       - name: End-to-end tests
         run: pnpm test:e2e
+
+      - name: Build web app
+        run: pnpm build
+
+      - name: Upload web build
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-build
+          path: build
+          compression-level: 0
+          retention-days: 7
+
+  deploy-preview:
+    name: Cloudflare preview
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    needs:
+      - svelte-checks
+      - pkhex-engine
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cloudflare-preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Upload Cloudflare preview
+        run: pnpm deploy:preview -- --message "PR #${{ github.event.pull_request.number }} at ${{ github.sha }}"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  deploy-staging:
+    name: Cloudflare staging
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - svelte-checks
+      - pkhex-engine
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cloudflare-staging
+      cancel-in-progress: true
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Deploy Cloudflare staging
+        run: pnpm deploy:staging -- --message "main at ${{ github.sha }}"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  deploy-production:
+    name: Cloudflare production
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs:
+      - svelte-checks
+      - pkhex-engine
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cloudflare-production
+      cancel-in-progress: false
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Verify release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if ! [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tags must use vX.Y.Z."
+            exit 1
+          fi
+
+          tag_object=$(gh api "repos/${{ github.repository }}/git/ref/tags/$RELEASE_TAG")
+          if [ "$(jq -r '.object.type' <<<"$tag_object")" != "tag" ]; then
+            echo "::error::Release tag must be annotated and signed."
+            exit 1
+          fi
+
+          tag_sha=$(jq -r '.object.sha' <<<"$tag_object")
+          verified=$(gh api "repos/${{ github.repository }}/git/tags/$tag_sha" --jq '.verification.verified')
+          if [ "$verified" != "true" ]; then
+            echo "::error::GitHub did not verify the release tag signature."
+            exit 1
+          fi
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Deploy Cloudflare production
+        run: pnpm deploy:production -- --message "${{ github.ref_name }} at ${{ github.sha }}"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

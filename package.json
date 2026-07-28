@@ -7,6 +7,9 @@
 		"dev": "portless run vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
+		"deploy:preview": "wrangler versions upload --env staging",
+		"deploy:staging": "wrangler deploy --env staging",
+		"deploy:production": "wrangler deploy --env production",
 		"engine:sync": "node scripts/sync-pkhex-engine.ts",
 		"sprites:download": "node scripts/download-sprite-catalog.ts",
 		"sprites:validate": "node scripts/download-sprite-catalog.ts --validate",
@@ -48,7 +51,8 @@
 		"typescript": "^6.0.2",
 		"typescript-eslint": "^8.58.1",
 		"vite": "^8.0.7",
-		"vitest": "^4.1.3"
+		"vitest": "^4.1.3",
+		"wrangler": "^4.114.0"
 	},
 	"dependencies": {
 		"@capacitor/core": "^8.4.2",
