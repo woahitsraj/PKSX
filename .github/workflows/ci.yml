@@ -145,7 +145,8 @@ jobs:
           path: build
 
       - name: Upload Cloudflare preview
-        run: pnpm deploy:preview -- --message "PR #${{ github.event.pull_request.number }} at ${{ github.sha }}"
+        run: |
+          pnpm deploy:preview -- --message "PR #${{ github.event.pull_request.number }} at ${{ github.sha }}"
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
