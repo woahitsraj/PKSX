@@ -45,6 +45,7 @@ The initial native distribution targets are TestFlight and Google Play internal 
 - Production is served at `pksx.app`.
 - Staging is served at `staging.pksx.app`.
 - Pull requests use Cloudflare-generated version preview URLs.
+- If the staging Worker does not exist, the first same-repository pull request deploys its verified build to bootstrap it; later pull requests upload inactive preview versions.
 - The custom hostnames use Cloudflare-managed DNS.
 - Staging and pull-request preview URLs are publicly reachable.
 - GitHub Actions is the sole build and release orchestrator.
