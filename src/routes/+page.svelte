@@ -63,10 +63,11 @@
 		type WorkbenchSlotRef
 	} from '$lib/pksx/storage-workbench';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
-	import type {
-		StoredPokemonStorage,
-		StoredPokemonStoragePokemon,
-		StoredSaveFile
+	import {
+		createEmptyPokemonStorage,
+		type StoredPokemonStorage,
+		type StoredPokemonStoragePokemon,
+		type StoredSaveFile
 	} from '$lib/pksx/local-library';
 	import {
 		getCachedActiveWorkspaceBox,
@@ -1873,25 +1874,6 @@
 			zone: ref.zone,
 			box: ref.zone === 'box' ? ref.box : null,
 			slot: ref.slot
-		};
-	}
-
-	function createEmptyPokemonStorage(boxCount = placeholderBoxCount): StoredPokemonStorage {
-		return {
-			id: 'pokemon-storage',
-			schemaVersion: 1,
-			boxCount,
-			boxSlotCount: BOX_SLOT_COUNT,
-			updatedAt: new Date().toISOString(),
-			boxes: Array.from({ length: boxCount }, (_, box) => ({
-				index: box,
-				name: boxNameFor(box),
-				slots: Array.from({ length: BOX_SLOT_COUNT }, (_, slot) => ({
-					box,
-					slot,
-					pokemon: null
-				}))
-			}))
 		};
 	}
 

@@ -36,6 +36,43 @@ async function importEmeraldThroughSaves(page: Page) {
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 }
 
+// Seeds a Pokemon Storage shape the app never creates itself, so a later read proves persistence.
+async function seedPokemonStorageBoxes(page: Page, boxCount: number) {
+	await page.evaluate(
+		(boxes) =>
+			new Promise<void>((resolve, reject) => {
+				const open = indexedDB.open('pksx-local-library');
+
+				open.onerror = () => reject(open.error ?? new Error('Could not open the local library.'));
+				open.onsuccess = () => {
+					const database = open.result;
+					const transaction = database.transaction('pokemonStorage', 'readwrite');
+
+					transaction.objectStore('pokemonStorage').put({
+						id: 'pokemon-storage',
+						schemaVersion: 1,
+						boxCount: boxes,
+						boxSlotCount: 30,
+						updatedAt: '2026-05-16T12:00:00.000Z',
+						boxes: Array.from({ length: boxes }, (_, box) => ({
+							index: box,
+							name: `Box ${String(box + 1).padStart(2, '0')}`,
+							slots: Array.from({ length: 30 }, (_, slot) => ({ box, slot, pokemon: null }))
+						}))
+					});
+
+					transaction.onerror = () =>
+						reject(transaction.error ?? new Error('Could not seed Pokemon Storage.'));
+					transaction.oncomplete = () => {
+						database.close();
+						resolve();
+					};
+				};
+			}),
+		boxCount
+	);
+}
+
 async function moveFirstEmeraldBoxSlotToThirdSlot(page: Page) {
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -119,6 +156,51 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 	await page.getByRole('button', { name: 'Previous box' }).click();
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('switches to durable Pokemon Storage with focusable empty Slot actions', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await page.getByRole('button', { name: 'Add source' }).click();
+	await page.getByRole('button', { name: /Pokemon Storage/ }).click();
+	await expect(page.locator('.pane-state-tag')).toContainText('AUTO-SAVED');
+	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+
+	await page.getByRole('button', { name: 'Switch Pokemon Storage source' }).click();
+	await page.getByRole('button', { name: /011020251345.sav/ }).click();
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
+
+	await seedPokemonStorageBoxes(page, 5);
+	await page.goto('/?source=pokemon-storage');
+	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('PageDown');
+	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
+	await expect(page.locator('#box-1-slot-0')).toHaveAttribute('aria-selected', 'true');
+
+	await page.getByRole('button', { name: 'Next box' }).click();
+	await page.getByRole('button', { name: 'Next box' }).click();
+	await page.getByRole('button', { name: 'Next box' }).click();
+	// Only reachable when the persisted five-box shape survived the reload; a fresh shape wraps at Box 03.
+	await expect(page.getByRole('heading', { name: 'Box 05' })).toBeVisible();
+	await expect(page.locator('#box-4-slot-0')).toContainText('Empty');
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+
+	const actions = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(actions).toBeVisible();
+	await expect(actions.getByRole('button', { name: 'Move' })).toHaveAttribute(
+		'data-availability',
+		'empty-slot'
+	);
+	await expect(actions.getByRole('button', { name: 'Move' })).toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
 });
 
 test('confirm opens slot actions and back restores the grid focus', async ({ page }) => {
