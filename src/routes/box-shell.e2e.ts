@@ -36,6 +36,43 @@ async function importEmeraldThroughSaves(page: Page) {
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 }
 
+// Seeds a Pokemon Storage shape the app never creates itself, so a later read proves persistence.
+async function seedPokemonStorageBoxes(page: Page, boxCount: number) {
+	await page.evaluate(
+		(boxes) =>
+			new Promise<void>((resolve, reject) => {
+				const open = indexedDB.open('pksx-local-library');
+
+				open.onerror = () => reject(open.error ?? new Error('Could not open the local library.'));
+				open.onsuccess = () => {
+					const database = open.result;
+					const transaction = database.transaction('pokemonStorage', 'readwrite');
+
+					transaction.objectStore('pokemonStorage').put({
+						id: 'pokemon-storage',
+						schemaVersion: 1,
+						boxCount: boxes,
+						boxSlotCount: 30,
+						updatedAt: '2026-05-16T12:00:00.000Z',
+						boxes: Array.from({ length: boxes }, (_, box) => ({
+							index: box,
+							name: `Box ${String(box + 1).padStart(2, '0')}`,
+							slots: Array.from({ length: 30 }, (_, slot) => ({ box, slot, pokemon: null }))
+						}))
+					});
+
+					transaction.onerror = () =>
+						reject(transaction.error ?? new Error('Could not seed Pokemon Storage.'));
+					transaction.oncomplete = () => {
+						database.close();
+						resolve();
+					};
+				};
+			}),
+		boxCount
+	);
+}
+
 async function moveFirstEmeraldBoxSlotToThirdSlot(page: Page) {
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -134,10 +171,23 @@ test('switches to durable Pokemon Storage with focusable empty Slot actions', as
 	await page.getByRole('button', { name: /011020251345.sav/ }).click();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 
+	await seedPokemonStorageBoxes(page, 5);
 	await page.goto('/?source=pokemon-storage');
-	await page.reload();
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('PageDown');
+	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
+	await expect(page.locator('#box-1-slot-0')).toHaveAttribute('aria-selected', 'true');
+
+	await page.getByRole('button', { name: 'Next box' }).click();
+	await page.getByRole('button', { name: 'Next box' }).click();
+	await page.getByRole('button', { name: 'Next box' }).click();
+	// Only reachable when the persisted five-box shape survived the reload; a fresh shape wraps at Box 03.
+	await expect(page.getByRole('heading', { name: 'Box 05' })).toBeVisible();
+	await expect(page.locator('#box-4-slot-0')).toContainText('Empty');
+
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
 
