@@ -112,6 +112,9 @@ jobs:
     if: >-
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write
     needs:
       - svelte-checks
       - pkhex-engine
@@ -145,25 +148,83 @@ jobs:
           path: build
 
       - name: Upload Cloudflare preview
+        id: preview
         run: |
+          preview_alias="pr-${{ github.event.pull_request.number }}"
+
           set +e
-          preview_output=$(pnpm deploy:preview --message "PR #${{ github.event.pull_request.number }} at ${{ github.sha }}" 2>&1)
+          preview_output=$(pnpm deploy:preview --preview-alias "$preview_alias" --message "PR #${{ github.event.pull_request.number }} at ${{ github.event.pull_request.head.sha }}" 2>&1)
           preview_status=$?
           set -e
           printf '%s\n' "$preview_output"
 
-          if [ "$preview_status" -eq 0 ]; then
-            exit 0
-          fi
-
-          if grep -Fq 'does not yet exist' <<<"$preview_output"; then
+          if [ "$preview_status" -ne 0 ] && grep -Fq 'does not yet exist' <<<"$preview_output"; then
             pnpm deploy:staging --message "Initial staging deployment from PR #${{ github.event.pull_request.number }}"
-          else
+            preview_output=$(pnpm deploy:preview --preview-alias "$preview_alias" --message "PR #${{ github.event.pull_request.number }} at ${{ github.event.pull_request.head.sha }}" 2>&1)
+            printf '%s\n' "$preview_output"
+          elif [ "$preview_status" -ne 0 ]; then
             exit "$preview_status"
           fi
+
+          preview_url=$(grep -Eo 'https://[^[:space:]]+\.workers\.dev' <<<"$preview_output" | tail -n 1)
+          if [ -z "$preview_url" ]; then
+            echo "::error::Wrangler did not return a preview URL."
+            exit 1
+          fi
+
+          printf 'url=%s\n' "$preview_url" >>"$GITHUB_OUTPUT"
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Update pull request preview comment
+        uses: actions/github-script@v9
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        with:
+          script: |
+            const marker = '<!-- pksx-cloudflare-preview -->';
+            const previewUrl = process.env.PREVIEW_URL;
+            const pullRequest = context.payload.pull_request;
+            const sha = pullRequest.head.sha;
+            const shortSha = sha.slice(0, 7);
+            const commitUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/commit/${sha}`;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = `${marker}
+            ## Cloudflare preview
+
+            | Environment | Link |
+            | --- | --- |
+            | This pull request | [Open preview](${previewUrl}) |
+            | Staging | [staging.pksx.app](https://staging.pksx.app/) |
+
+            Updated for commit [\`${shortSha}\`](${commitUrl}). [View workflow run](${runUrl}).`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pullRequest.number,
+              per_page: 100
+            });
+            const existing = comments.find(
+              (comment) => comment.user?.type === 'Bot' && comment.body?.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pullRequest.number,
+                body
+              });
+            }
 
   deploy-staging:
     name: Cloudflare staging
@@ -220,6 +281,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Verify release tag
         env:
@@ -238,9 +301,22 @@ jobs:
           fi
 
           tag_sha=$(jq -r '.object.sha' <<<"$tag_object")
-          verified=$(gh api "repos/${{ github.repository }}/git/tags/$tag_sha" --jq '.verification.verified')
+          tag_details=$(gh api "repos/${{ github.repository }}/git/tags/$tag_sha")
+          verified=$(jq -r '.verification.verified' <<<"$tag_details")
           if [ "$verified" != "true" ]; then
             echo "::error::GitHub did not verify the release tag signature."
+            exit 1
+          fi
+
+          if [ "$(jq -r '.object.type' <<<"$tag_details")" != "commit" ]; then
+            echo "::error::Release tag must point directly to a commit."
+            exit 1
+          fi
+
+          release_commit=$(jq -r '.object.sha' <<<"$tag_details")
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$release_commit" origin/main; then
+            echo "::error::Release tag must point to a commit contained in main."
             exit 1
           fi
 

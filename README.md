@@ -4,6 +4,13 @@ PKSX is an offline-first Pokemon save management app. The app uses a controller-
 
 The first milestone is a browser/PWA tracer bullet: prove that the Svelte app can load local save bytes, call PKHeX-compatible logic through WebAssembly, and keep user-controlled import/export workflows explicit.
 
+## Environments
+
+| Environment | URL                                           | Deployment                               |
+| ----------- | --------------------------------------------- | ---------------------------------------- |
+| Production  | [pksx.app](https://pksx.app/)                 | Signed `vX.Y.Z` release tags from `main` |
+| Staging     | [staging.pksx.app](https://staging.pksx.app/) | Every push to `main`                     |
+
 ## Project Shape
 
 - **Frontend**: SvelteKit 2, Svelte 5, Tailwind CSS, static adapter
