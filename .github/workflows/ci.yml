@@ -107,6 +107,72 @@ jobs:
           compression-level: 0
           retention-days: 7
 
+  release-gate:
+    name: Verify release tag
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Verify signed release tag
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          scripts/verify-release-tag.sh
+          printf 'version=%s\n' "${RELEASE_TAG#v}" >>"$GITHUB_OUTPUT"
+
+  ios-build:
+    name: iOS build
+    needs:
+      - pkhex-engine
+    runs-on: macos-26
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Sync Capacitor iOS project
+        run: pnpm exec cap sync ios
+
+      - name: Build iOS app without signing
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/PKSXDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
   deploy-preview:
     name: Cloudflare preview
     if: >-
@@ -272,7 +338,8 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     needs:
       - svelte-checks
-      - pkhex-engine
+      - ios-build
+      - release-gate
     runs-on: ubuntu-latest
     concurrency:
       group: cloudflare-production
@@ -281,44 +348,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Verify release tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          if ! [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Release tags must use vX.Y.Z."
-            exit 1
-          fi
-
-          tag_object=$(gh api "repos/${{ github.repository }}/git/ref/tags/$RELEASE_TAG")
-          if [ "$(jq -r '.object.type' <<<"$tag_object")" != "tag" ]; then
-            echo "::error::Release tag must be annotated and signed."
-            exit 1
-          fi
-
-          tag_sha=$(jq -r '.object.sha' <<<"$tag_object")
-          tag_details=$(gh api "repos/${{ github.repository }}/git/tags/$tag_sha")
-          verified=$(jq -r '.verification.verified' <<<"$tag_details")
-          if [ "$verified" != "true" ]; then
-            echo "::error::GitHub did not verify the release tag signature."
-            exit 1
-          fi
-
-          if [ "$(jq -r '.object.type' <<<"$tag_details")" != "commit" ]; then
-            echo "::error::Release tag must point directly to a commit."
-            exit 1
-          fi
-
-          release_commit=$(jq -r '.object.sha' <<<"$tag_details")
-          git fetch origin main
-          if ! git merge-base --is-ancestor "$release_commit" origin/main; then
-            echo "::error::Release tag must point to a commit contained in main."
-            exit 1
-          fi
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -345,3 +374,154 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  deploy-testflight:
+    name: TestFlight internal testing
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs:
+      - svelte-checks
+      - ios-build
+      - release-gate
+    runs-on: macos-26
+    timeout-minutes: 45
+    concurrency:
+      group: testflight-release
+      cancel-in-progress: false
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Sync Capacitor iOS project
+        run: pnpm exec cap sync ios
+
+      - name: Install signing credentials
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+        run: |
+          certificate_path="$RUNNER_TEMP/distribution.p12"
+          profile_path="$RUNNER_TEMP/pksx.mobileprovision"
+          profile_plist="$RUNNER_TEMP/profile.plist"
+          key_path="$RUNNER_TEMP/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          keychain_path="$RUNNER_TEMP/pksx-signing.keychain-db"
+          keychain_password=$(openssl rand -hex 24)
+
+          echo "::add-mask::$keychain_password"
+          printf '%s' "$IOS_CERTIFICATE_BASE64" | base64 --decode >"$certificate_path"
+          printf '%s' "$IOS_PROFILE_BASE64" | base64 --decode >"$profile_path"
+          printf '%s' "$APP_STORE_CONNECT_KEY_BASE64" | base64 --decode >"$key_path"
+          chmod 600 "$key_path"
+
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" \
+            -P "$IOS_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$keychain_path"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain_path"
+          security default-keychain -s "$keychain_path"
+
+          security cms -D -i "$profile_path" >"$profile_plist"
+          profile_uuid=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$profile_plist")
+          profile_name=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$profile_plist")
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$profile_path" "$HOME/Library/MobileDevice/Provisioning Profiles/$profile_uuid.mobileprovision"
+
+          printf 'IOS_KEYCHAIN_PATH=%s\n' "$keychain_path" >>"$GITHUB_ENV"
+          printf 'IOS_PROFILE_NAME=%s\n' "$profile_name" >>"$GITHUB_ENV"
+          printf 'IOS_PROFILE_UUID=%s\n' "$profile_uuid" >>"$GITHUB_ENV"
+          printf 'APP_STORE_CONNECT_KEY_PATH=%s\n' "$key_path" >>"$GITHUB_ENV"
+
+      - name: Archive iOS app
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RELEASE_VERSION: ${{ needs.release-gate.outputs.version }}
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/PKSX.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY='Apple Distribution' \
+            PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_NAME" \
+            MARKETING_VERSION="$RELEASE_VERSION" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $IOS_KEYCHAIN_PATH" \
+            clean archive
+
+      - name: Upload build to TestFlight
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          export_options="$RUNNER_TEMP/ExportOptions.plist"
+          plutil -create xml1 "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :method string app-store-connect' "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :destination string upload' "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :signingStyle string manual' "$export_options"
+          /usr/libexec/PlistBuddy -c "Add :teamID string $APPLE_TEAM_ID" "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :signingCertificate string Apple Distribution' "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :manageAppVersionAndBuildNumber bool false' "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :testFlightInternalTestingOnly bool true' "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :provisioningProfiles dict' "$export_options"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.pksx.app string $IOS_PROFILE_NAME" "$export_options"
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$RUNNER_TEMP/PKSX.xcarchive" \
+            -exportPath "$RUNNER_TEMP/TestFlight" \
+            -exportOptionsPlist "$export_options" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$APP_STORE_CONNECT_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+
+      - name: Remove signing credentials
+        if: always()
+        run: |
+          if [ -n "${IOS_KEYCHAIN_PATH:-}" ] && [ -f "$IOS_KEYCHAIN_PATH" ]; then
+            security delete-keychain "$IOS_KEYCHAIN_PATH"
+          fi
+          if [ -n "${IOS_PROFILE_UUID:-}" ]; then
+            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$IOS_PROFILE_UUID.mobileprovision"
+          fi
+          rm -f \
+            "$RUNNER_TEMP/distribution.p12" \
+            "$RUNNER_TEMP/pksx.mobileprovision" \
+            "$RUNNER_TEMP/profile.plist" \
+            "${APP_STORE_CONNECT_KEY_PATH:-}"

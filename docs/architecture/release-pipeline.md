@@ -9,13 +9,19 @@ The initial native distribution targets are TestFlight and Google Play internal 
 - The Apple Developer and Google Play developer accounts are personally owned by the maintainer.
 - PKSX is distributed as a free, noncommercial app without in-app purchases or subscriptions.
 - A future organization may receive the apps through the stores' transfer processes rather than sharing the personal owner accounts.
-- The maintainer has paid for an individual Apple Developer Program membership; activation is pending.
+- The maintainer has an active individual Apple Developer Program membership.
 - The maintainer has an active personal Google Play developer account.
 
 ## Application Identity
 
 - `com.pksx.app` is the permanent Capacitor app ID, Android application ID, Google Play package name, and iOS bundle identifier.
 - `PKSX` is the display name on web, iOS, and Android.
+
+## App Icon
+
+- The icon uses a flat, opaque source design so Apple and Android can apply their platform masks and materials cleanly.
+- The editable source is split into background, orbit, storage-grid, and negative-space layers.
+- PWA and native fallback icons are generated from the same vector source.
 
 ## PWA Offline Model
 
@@ -55,3 +61,24 @@ The initial native distribution targets are TestFlight and Google Play internal 
 - GitHub Actions has the Cloudflare account ID and deployment API token as encrypted repository secrets.
 - Worker names, static asset settings, preview settings, and custom-domain bindings are committed in Wrangler configuration.
 - Cloudflare creates the custom-domain DNS records and TLS certificates during deployment.
+
+## TestFlight
+
+- Pull requests and `main` builds compile the Capacitor iOS app without signing.
+- Signed release tags archive with the Apple distribution certificate and provisioning profile stored as GitHub Actions secrets.
+- App Store Connect API credentials upload the archive directly to TestFlight.
+- Uploaded builds are restricted to internal testing.
+- The app declares the Filesystem plugin's required file-timestamp reason in `PrivacyInfo.xcprivacy`.
+
+## Creating a Release
+
+Create and push an annotated, SSH-signed tag from a commit already on `main`:
+
+```sh
+git switch main
+git pull --ff-only
+git tag -s v0.1.0 -m "PKSX v0.1.0"
+git push origin v0.1.0
+```
+
+GitHub Actions verifies the tag and deploys that commit to `pksx.app` and TestFlight. Google Play internal testing joins the same tag workflow when the Android project and Play service account are configured.

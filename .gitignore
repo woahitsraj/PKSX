@@ -9,6 +9,10 @@ node_modules
 /.svelte-kit
 /build
 /static/pkhex-engine
+/ios/App/App/public
+/ios/App/App/capacitor.config.json
+/ios/App/App/config.xml
+/ios/capacitor-cordova-ios-plugins
 /artifacts
 bin/
 obj/

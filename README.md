@@ -66,6 +66,8 @@ pnpm dev -- --open
 | `pnpm typecheck`          | Run `svelte-check` and TypeScript checks for `scripts/**/*.ts`.                             |
 | `pnpm check`              | Alias for `pnpm typecheck`.                                                                 |
 | `pnpm check:watch`        | Run Svelte type checking in watch mode.                                                     |
+| `pnpm native:sync:ios`    | Build the web app and sync it into the Capacitor iOS project.                               |
+| `pnpm ios:open`           | Open the native iOS project in Xcode.                                                       |
 | `pnpm lint`               | Check Prettier formatting and ESLint.                                                       |
 | `pnpm format`             | Format the repo with Prettier.                                                              |
 | `pnpm test:unit -- --run` | Run unit tests once.                                                                        |
@@ -116,7 +118,7 @@ PKSX selects its Local Library adapter at runtime. Web and installed PWA builds 
 
 The native adapter stores imported saves, active Workspace bytes, and Backups as binary files under `pksx-local-library`. A versioned JSON catalog stores metadata, while Pokemon Storage uses a separate JSON file. Raw Save File and Backup bytes never enter TinyBase, and unchanged Export reads the original imported file.
 
-After adding or updating a native platform project, run `pnpm exec cap sync`. iOS projects must also include the Filesystem plugin's required privacy manifest entry before App Store submission.
+After adding or updating a native platform project, run `pnpm exec cap sync`. The iOS project includes the Filesystem plugin's required privacy manifest entry for App Store submission.
 
 ### Engine Versioning
 

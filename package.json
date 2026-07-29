@@ -10,6 +10,8 @@
 		"deploy:preview": "wrangler versions upload --env staging",
 		"deploy:staging": "wrangler deploy --env staging",
 		"deploy:production": "wrangler deploy --env production",
+		"native:sync:ios": "pnpm build && cap sync ios",
+		"ios:open": "cap open ios",
 		"engine:sync": "node scripts/sync-pkhex-engine.ts",
 		"sprites:download": "node scripts/download-sprite-catalog.ts",
 		"sprites:validate": "node scripts/download-sprite-catalog.ts --validate",
@@ -25,6 +27,8 @@
 		"test:e2e": "playwright install && playwright test --pass-with-no-tests"
 	},
 	"devDependencies": {
+		"@capacitor/assets": "^3.0.5",
+		"@capacitor/cli": "^8.4.2",
 		"@eslint/compat": "^2.0.4",
 		"@eslint/js": "^10.0.1",
 		"@playwright/test": "^1.59.1",
@@ -57,6 +61,7 @@
 	"dependencies": {
 		"@capacitor/core": "^8.4.2",
 		"@capacitor/filesystem": "^8.1.2",
+		"@capacitor/ios": "^8.4.2",
 		"zod": "^4.4.3"
 	}
 }
