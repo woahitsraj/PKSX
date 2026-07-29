@@ -70,6 +70,15 @@ The initial native distribution targets are TestFlight and Google Play internal 
 - Uploaded builds are restricted to internal testing.
 - The app declares the Filesystem plugin's required file-timestamp reason in `PrivacyInfo.xcprivacy`.
 
+## Google Play Internal Testing
+
+- Pull requests and `main` builds compile the Capacitor Android app as an Android App Bundle.
+- Signed release tags build with the upload key stored as GitHub Actions secrets.
+- The Google Play Developer API assigns the bundle to the internal testing track.
+- Google Play App Signing holds the app-signing key; CI only uses the replaceable upload key.
+- The first signed bundle must be uploaded manually in Play Console before API uploads can find the package.
+- CI expects `ANDROID_UPLOAD_KEYSTORE_BASE64`, `ANDROID_UPLOAD_KEYSTORE_PASSWORD`, `ANDROID_UPLOAD_KEY_ALIAS`, `ANDROID_UPLOAD_KEY_PASSWORD`, and `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` as GitHub Actions secrets.
+
 ## Creating a Release
 
 Create and push an annotated, SSH-signed tag from a commit already on `main`:
@@ -81,4 +90,4 @@ git tag -s v0.1.0 -m "PKSX v0.1.0"
 git push origin v0.1.0
 ```
 
-GitHub Actions verifies the tag and deploys that commit to `pksx.app` and TestFlight. Google Play internal testing joins the same tag workflow when the Android project and Play service account are configured.
+GitHub Actions verifies the tag and deploys that commit to `pksx.app`, TestFlight, and Google Play internal testing.

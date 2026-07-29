@@ -57,22 +57,24 @@ pnpm dev -- --open
 
 ## Commands
 
-| Command                   | Purpose                                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------------------- |
-| `pnpm dev`                | Start the Vite/SvelteKit dev server through Portless at `https://pksx.localhost`.           |
-| `pnpm build`              | Build the static production app.                                                            |
-| `pnpm preview`            | Preview the production build locally.                                                       |
-| `pnpm engine:sync`        | Publish the PKHeX Engine and sync generated browser WASM assets into `static/pkhex-engine`. |
-| `pnpm typecheck`          | Run `svelte-check` and TypeScript checks for `scripts/**/*.ts`.                             |
-| `pnpm check`              | Alias for `pnpm typecheck`.                                                                 |
-| `pnpm check:watch`        | Run Svelte type checking in watch mode.                                                     |
-| `pnpm native:sync:ios`    | Build the web app and sync it into the Capacitor iOS project.                               |
-| `pnpm ios:open`           | Open the native iOS project in Xcode.                                                       |
-| `pnpm lint`               | Check Prettier formatting and ESLint.                                                       |
-| `pnpm format`             | Format the repo with Prettier.                                                              |
-| `pnpm test:unit -- --run` | Run unit tests once.                                                                        |
-| `pnpm test:e2e`           | Run Playwright tests. Currently passes when no E2E tests exist.                             |
-| `pnpm test`               | Run unit tests and Playwright tests.                                                        |
+| Command                    | Purpose                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------------------- |
+| `pnpm dev`                 | Start the Vite/SvelteKit dev server through Portless at `https://pksx.localhost`.           |
+| `pnpm build`               | Build the static production app.                                                            |
+| `pnpm preview`             | Preview the production build locally.                                                       |
+| `pnpm engine:sync`         | Publish the PKHeX Engine and sync generated browser WASM assets into `static/pkhex-engine`. |
+| `pnpm typecheck`           | Run `svelte-check` and TypeScript checks for `scripts/**/*.ts`.                             |
+| `pnpm check`               | Alias for `pnpm typecheck`.                                                                 |
+| `pnpm check:watch`         | Run Svelte type checking in watch mode.                                                     |
+| `pnpm native:sync:ios`     | Build the web app and sync it into the Capacitor iOS project.                               |
+| `pnpm ios:open`            | Open the native iOS project in Xcode.                                                       |
+| `pnpm native:sync:android` | Build the web app and sync it into the Capacitor Android project.                           |
+| `pnpm android:open`        | Open the native Android project in Android Studio.                                          |
+| `pnpm lint`                | Check Prettier formatting and ESLint.                                                       |
+| `pnpm format`              | Format the repo with Prettier.                                                              |
+| `pnpm test:unit -- --run`  | Run unit tests once.                                                                        |
+| `pnpm test:e2e`            | Run Playwright tests. Currently passes when no E2E tests exist.                             |
+| `pnpm test`                | Run unit tests and Playwright tests.                                                        |
 
 ## PKHeX Engine
 

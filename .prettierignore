@@ -8,5 +8,6 @@ bun.lockb
 # Miscellaneous
 /static/
 /ios/
+/android/
 /resources/
 /drizzle/

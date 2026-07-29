@@ -12,6 +12,8 @@
 		"deploy:production": "wrangler deploy --env production",
 		"native:sync:ios": "pnpm build && cap sync ios",
 		"ios:open": "cap open ios",
+		"native:sync:android": "pnpm build && cap sync android",
+		"android:open": "cap open android",
 		"engine:sync": "node scripts/sync-pkhex-engine.ts",
 		"sprites:download": "node scripts/download-sprite-catalog.ts",
 		"sprites:validate": "node scripts/download-sprite-catalog.ts --validate",
@@ -59,6 +61,7 @@
 		"wrangler": "^4.114.0"
 	},
 	"dependencies": {
+		"@capacitor/android": "^8.4.2",
 		"@capacitor/core": "^8.4.2",
 		"@capacitor/filesystem": "^8.1.2",
 		"@capacitor/ios": "^8.4.2",

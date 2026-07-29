@@ -173,6 +173,53 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
+  android-build:
+    name: Android build
+    needs:
+      - pkhex-engine
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install Android SDK packages
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Sync Capacitor Android project
+        run: pnpm exec cap sync android
+
+      - name: Build Android app bundle
+        working-directory: android
+        run: ./gradlew bundleDebug --no-daemon
+
   deploy-preview:
     name: Cloudflare preview
     if: >-
@@ -337,6 +384,7 @@ jobs:
     name: Cloudflare production
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     needs:
+      - android-build
       - svelte-checks
       - ios-build
       - release-gate
@@ -379,6 +427,7 @@ jobs:
     name: TestFlight internal testing
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     needs:
+      - android-build
       - svelte-checks
       - ios-build
       - release-gate
@@ -525,3 +574,82 @@ jobs:
             "$RUNNER_TEMP/pksx.mobileprovision" \
             "$RUNNER_TEMP/profile.plist" \
             "${APP_STORE_CONNECT_KEY_PATH:-}"
+
+  deploy-google-play:
+    name: Google Play internal testing
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs:
+      - android-build
+      - svelte-checks
+      - ios-build
+      - release-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: google-play-release
+      cancel-in-progress: false
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install Android SDK packages
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Sync Capacitor Android project
+        run: pnpm exec cap sync android
+
+      - name: Build signed Android app bundle
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          RELEASE_VERSION: ${{ needs.release-gate.outputs.version }}
+        run: |
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/pksx-upload.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode >"$ANDROID_KEYSTORE_PATH"
+          ./gradlew bundleRelease --no-daemon
+
+      - name: Upload build to Google Play
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.pksx.app
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          tracks: internal
+          status: completed
+          releaseName: ${{ github.ref_name }}
+
+      - name: Remove Android signing credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/pksx-upload.jks"
