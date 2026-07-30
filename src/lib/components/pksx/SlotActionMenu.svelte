@@ -315,7 +315,7 @@
 		outline: none;
 	}
 
-	@media (max-width: 820px) {
+	@media (max-width: 1024px) {
 		.slot-context,
 		.slot-context.align-start,
 		.slot-context.align-end,

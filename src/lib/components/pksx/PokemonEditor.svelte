@@ -1040,10 +1040,15 @@
 
 	.icon-close:hover,
 	.icon-close:focus-visible,
+	.icon-close:focus,
 	.close-editor:hover,
 	.close-editor:focus-visible,
+	.close-editor:focus,
 	.unsupported-apply:hover,
-	.unsupported-apply:focus-visible {
+	.unsupported-apply:focus-visible,
+	.unsupported-apply:focus,
+	.pokemon-editor button:focus,
+	.pokemon-editor input:focus {
 		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
 		outline-offset: 1px;
 	}
@@ -1429,7 +1434,8 @@
 	}
 
 	.move-picker-option.active,
-	.move-picker-option:focus-visible {
+	.move-picker-option:focus-visible,
+	.move-picker-option:focus {
 		border-color: color-mix(in srgb, var(--rust), transparent 20%);
 		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
 		outline-offset: 1px;

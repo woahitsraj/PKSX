@@ -368,7 +368,7 @@
 		text-overflow: ellipsis;
 	}
 
-	@media (max-width: 820px) {
+	@media (max-width: 1024px) {
 		.party-slot {
 			min-height: 56px;
 			padding: 4px;

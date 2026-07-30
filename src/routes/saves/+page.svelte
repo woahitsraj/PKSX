@@ -10,7 +10,7 @@
 		type StoredPokemonStorage,
 		type StoredSaveFile
 	} from '$lib/pksx/local-library';
-	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
+	import { appChrome, updateAppChrome } from '$lib/pksx/app-chrome.svelte';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 	import {
 		getCachedSaveLibrarySnapshot,
@@ -70,7 +70,6 @@
 	let statusMessage = $state('Loading Local Library...');
 	let errorMessage = $state<string | null>(null);
 	let busy = $state(false);
-	let controllerStatus = $state('No controller detected');
 	let activeControlIndex = $state(0);
 	let pendingDelete = $state<PendingDelete | null>(null);
 	let libraryRefreshRequest = 0;
@@ -140,63 +139,6 @@
 			default:
 				return null;
 		}
-	}
-
-	function savesGamepadNavigation() {
-		if (typeof navigator === 'undefined' || typeof requestAnimationFrame === 'undefined') {
-			return;
-		}
-
-		let previousPressed: Array<'previous' | 'next' | 'confirm'> = [];
-		let frame = 0;
-
-		const read = () => {
-			const gamepad = navigator.getGamepads().find((pad) => pad);
-
-			if (!gamepad) {
-				controllerStatus = 'No controller detected';
-				frame = requestAnimationFrame(read);
-				return;
-			}
-
-			controllerStatus = gamepad.id;
-			const pressed = readGamepadActions(gamepad);
-
-			for (const action of pressed) {
-				if (!previousPressed.includes(action)) {
-					dispatchControlAction(action);
-				}
-			}
-
-			previousPressed = pressed;
-			frame = requestAnimationFrame(read);
-		};
-
-		frame = requestAnimationFrame(read);
-
-		return () => cancelAnimationFrame(frame);
-	}
-
-	function readGamepadActions(gamepad: Gamepad): Array<'previous' | 'next' | 'confirm'> {
-		const actions: Array<'previous' | 'next' | 'confirm'> = [];
-		const axisX = gamepad.axes[0] ?? 0;
-		const axisY = gamepad.axes[1] ?? 0;
-
-		if (isPressed(gamepad, 14) || isPressed(gamepad, 12) || axisX < -0.55 || axisY < -0.55) {
-			actions.push('previous');
-		}
-		if (isPressed(gamepad, 15) || isPressed(gamepad, 13) || axisX > 0.55 || axisY > 0.55) {
-			actions.push('next');
-		}
-		if (isPressed(gamepad, 0)) {
-			actions.push('confirm');
-		}
-
-		return actions;
-	}
-
-	function isPressed(gamepad: Gamepad, index: number) {
-		return gamepad.buttons[index]?.pressed === true;
 	}
 
 	function dispatchControlAction(action: 'previous' | 'next' | 'confirm') {
@@ -763,8 +705,7 @@
 <section
 	class="saves-page"
 	aria-labelledby="saves-title"
-	data-controller-status={controllerStatus}
-	{@attach savesGamepadNavigation}
+	data-controller-status={appChrome.controllerStatus ?? 'No controller detected'}
 >
 	<section class="save-picker-panel" aria-labelledby="saves-title">
 		<header class="page-bar">
@@ -1468,7 +1409,7 @@
 		}
 	}
 
-	@media (max-width: 820px) {
+	@media (max-width: 1024px) {
 		.saves-page {
 			flex: 0 0 auto;
 			min-height: auto;

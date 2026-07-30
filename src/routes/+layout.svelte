@@ -2,11 +2,13 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import './layout.css';
 	import AppUpdatePrompt from '$lib/components/pksx/AppUpdatePrompt.svelte';
 	import MobileTabbar from '$lib/components/pksx/MobileTabbar.svelte';
 	import TopBar from '$lib/components/pksx/TopBar.svelte';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
+	import { readGamepadKeys, type ControllerKey } from '$lib/pksx/controller-input';
 
 	let { children } = $props();
 
@@ -113,35 +115,86 @@
 		dispatchChromeAction(action);
 	}
 
-	function chromeGamepadNavigation() {
+	function controllerNavigation() {
 		if (typeof navigator === 'undefined' || typeof requestAnimationFrame === 'undefined') {
 			return;
 		}
 
-		let previousPressed: Array<'previous' | 'next' | 'confirm'> = [];
+		const nativePressed = new SvelteSet<ControllerKey>();
+		let nativeControllerId: string | null = null;
+		let previousPressed = new SvelteSet<ControllerKey>();
+		const repeatAt = new SvelteMap<ControllerKey, number>();
 		let frame = 0;
+		const repeatDelay = 280;
+		const repeatInterval = 110;
 
-		const read = () => {
-			if (!appChrome.controllerInputActive) {
-				const gamepad = navigator.getGamepads().find((pad) => pad);
-				const pressed = gamepad ? readGamepadActions(gamepad) : [];
+		const handleNativeInput = (event: Event) => {
+			const detail = (event as CustomEvent<NativeControllerInput>).detail;
+			if (!detail || !isControllerKey(detail.key)) return;
 
-				for (const action of pressed) {
-					if (!previousPressed.includes(action)) {
-						dispatchChromeAction(action);
-					}
+			nativeControllerId = detail.id || 'Android controller';
+			if (detail.pressed) nativePressed.add(detail.key);
+			else nativePressed.delete(detail.key);
+		};
+
+		const read = (time: number) => {
+			const gamepad = navigator.getGamepads?.().find((pad) => pad) ?? null;
+			const pressed = new SvelteSet<ControllerKey>([
+				...nativePressed,
+				...(gamepad ? readGamepadKeys(gamepad) : [])
+			]);
+			appChrome.controllerStatus = nativeControllerId ?? gamepad?.id ?? null;
+
+			for (const key of pressed) {
+				const firstPress = !previousPressed.has(key);
+				const nextRepeat = repeatAt.get(key) ?? 0;
+				if (firstPress || (isRepeatable(key) && time >= nextRepeat)) {
+					window.dispatchEvent(
+						new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+					);
+					repeatAt.set(key, time + (firstPress ? repeatDelay : repeatInterval));
 				}
-
-				previousPressed = pressed;
 			}
 
+			for (const key of previousPressed) {
+				if (!pressed.has(key)) repeatAt.delete(key);
+			}
+			previousPressed = pressed;
 			frame = requestAnimationFrame(read);
 		};
 
+		window.addEventListener('pksxcontroller', handleNativeInput);
 		frame = requestAnimationFrame(read);
 
-		return () => cancelAnimationFrame(frame);
+		return () => {
+			window.removeEventListener('pksxcontroller', handleNativeInput);
+			cancelAnimationFrame(frame);
+		};
 	}
+
+	function isRepeatable(key: ControllerKey) {
+		return key.startsWith('Arrow');
+	}
+
+	function isControllerKey(key: string): key is ControllerKey {
+		return [
+			'ArrowUp',
+			'ArrowDown',
+			'ArrowLeft',
+			'ArrowRight',
+			'Enter',
+			'Escape',
+			'PageUp',
+			'PageDown',
+			'y'
+		].includes(key);
+	}
+
+	type NativeControllerInput = {
+		key: string;
+		pressed: boolean;
+		id?: string;
+	};
 
 	function dispatchChromeAction(action: 'previous' | 'next' | 'confirm') {
 		if (!chromeFocus) {
@@ -169,28 +222,6 @@
 		if (action === 'confirm') {
 			selectMobileTab(nextIndex);
 		}
-	}
-
-	function readGamepadActions(gamepad: Gamepad): Array<'previous' | 'next' | 'confirm'> {
-		const actions: Array<'previous' | 'next' | 'confirm'> = [];
-		const axisX = gamepad.axes[0] ?? 0;
-		const axisY = gamepad.axes[1] ?? 0;
-
-		if (isPressed(gamepad, 14) || isPressed(gamepad, 12) || axisX < -0.55 || axisY < -0.55) {
-			actions.push('previous');
-		}
-		if (isPressed(gamepad, 15) || isPressed(gamepad, 13) || axisX > 0.55 || axisY > 0.55) {
-			actions.push('next');
-		}
-		if (isPressed(gamepad, 0)) {
-			actions.push('confirm');
-		}
-
-		return actions;
-	}
-
-	function isPressed(gamepad: Gamepad, index: number) {
-		return gamepad.buttons[index]?.pressed === true;
 	}
 
 	function keyboardAction(event: KeyboardEvent) {
@@ -247,7 +278,7 @@
 	class={['app-shell', darkMode && 'dark']}
 	aria-labelledby="screen-title"
 	onfocusin={handleShellFocusIn}
-	{@attach chromeGamepadNavigation}
+	{@attach controllerNavigation}
 >
 	<TopBar
 		{sectionPills}
