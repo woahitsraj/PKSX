@@ -1,0 +1,36 @@
+{
+	"name": "PKSX",
+	"short_name": "PKSX",
+	"description": "A local-first Pokémon save editor.",
+	"start_url": "/",
+	"scope": "/",
+	"display": "standalone",
+	"background_color": "#2a241c",
+	"theme_color": "#2a241c",
+	"icons": [
+		{
+			"src": "/icons/icon-192.png",
+			"type": "image/png",
+			"sizes": "192x192",
+			"purpose": "any"
+		},
+		{
+			"src": "/icons/icon-512.png",
+			"type": "image/png",
+			"sizes": "512x512",
+			"purpose": "any"
+		},
+		{
+			"src": "/icons/icon-maskable-192.png",
+			"type": "image/png",
+			"sizes": "192x192",
+			"purpose": "maskable"
+		},
+		{
+			"src": "/icons/icon-maskable-512.png",
+			"type": "image/png",
+			"sizes": "512x512",
+			"purpose": "maskable"
+		}
+	]
+}

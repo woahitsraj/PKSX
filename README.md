@@ -4,6 +4,13 @@ PKSX is an offline-first Pokemon save management app. The app uses a controller-
 
 The first milestone is a browser/PWA tracer bullet: prove that the Svelte app can load local save bytes, call PKHeX-compatible logic through WebAssembly, and keep user-controlled import/export workflows explicit.
 
+## Environments
+
+| Environment | URL                                           | Deployment                               |
+| ----------- | --------------------------------------------- | ---------------------------------------- |
+| Production  | [pksx.app](https://pksx.app/)                 | Signed `vX.Y.Z` release tags from `main` |
+| Staging     | [staging.pksx.app](https://staging.pksx.app/) | Every push to `main`                     |
+
 ## Project Shape
 
 - **Frontend**: SvelteKit 2, Svelte 5, Tailwind CSS, static adapter
@@ -50,20 +57,24 @@ pnpm dev -- --open
 
 ## Commands
 
-| Command                   | Purpose                                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------------------- |
-| `pnpm dev`                | Start the Vite/SvelteKit dev server through Portless at `https://pksx.localhost`.           |
-| `pnpm build`              | Build the static production app.                                                            |
-| `pnpm preview`            | Preview the production build locally.                                                       |
-| `pnpm engine:sync`        | Publish the PKHeX Engine and sync generated browser WASM assets into `static/pkhex-engine`. |
-| `pnpm typecheck`          | Run `svelte-check` and TypeScript checks for `scripts/**/*.ts`.                             |
-| `pnpm check`              | Alias for `pnpm typecheck`.                                                                 |
-| `pnpm check:watch`        | Run Svelte type checking in watch mode.                                                     |
-| `pnpm lint`               | Check Prettier formatting and ESLint.                                                       |
-| `pnpm format`             | Format the repo with Prettier.                                                              |
-| `pnpm test:unit -- --run` | Run unit tests once.                                                                        |
-| `pnpm test:e2e`           | Run Playwright tests. Currently passes when no E2E tests exist.                             |
-| `pnpm test`               | Run unit tests and Playwright tests.                                                        |
+| Command                    | Purpose                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------------------- |
+| `pnpm dev`                 | Start the Vite/SvelteKit dev server through Portless at `https://pksx.localhost`.           |
+| `pnpm build`               | Build the static production app.                                                            |
+| `pnpm preview`             | Preview the production build locally.                                                       |
+| `pnpm engine:sync`         | Publish the PKHeX Engine and sync generated browser WASM assets into `static/pkhex-engine`. |
+| `pnpm typecheck`           | Run `svelte-check` and TypeScript checks for `scripts/**/*.ts`.                             |
+| `pnpm check`               | Alias for `pnpm typecheck`.                                                                 |
+| `pnpm check:watch`         | Run Svelte type checking in watch mode.                                                     |
+| `pnpm native:sync:ios`     | Build the web app and sync it into the Capacitor iOS project.                               |
+| `pnpm ios:open`            | Open the native iOS project in Xcode.                                                       |
+| `pnpm native:sync:android` | Build the web app and sync it into the Capacitor Android project.                           |
+| `pnpm android:open`        | Open the native Android project in Android Studio.                                          |
+| `pnpm lint`                | Check Prettier formatting and ESLint.                                                       |
+| `pnpm format`              | Format the repo with Prettier.                                                              |
+| `pnpm test:unit -- --run`  | Run unit tests once.                                                                        |
+| `pnpm test:e2e`            | Run Playwright tests. Currently passes when no E2E tests exist.                             |
+| `pnpm test`                | Run unit tests and Playwright tests.                                                        |
 
 ## PKHeX Engine
 
@@ -109,7 +120,7 @@ PKSX selects its Local Library adapter at runtime. Web and installed PWA builds 
 
 The native adapter stores imported saves, active Workspace bytes, and Backups as binary files under `pksx-local-library`. A versioned JSON catalog stores metadata, while Pokemon Storage uses a separate JSON file. Raw Save File and Backup bytes never enter TinyBase, and unchanged Export reads the original imported file.
 
-After adding or updating a native platform project, run `pnpm exec cap sync`. iOS projects must also include the Filesystem plugin's required privacy manifest entry before App Store submission.
+After adding or updating a native platform project, run `pnpm exec cap sync`. The iOS project includes the Filesystem plugin's required privacy manifest entry for App Store submission.
 
 ### Engine Versioning
 

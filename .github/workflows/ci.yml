@@ -2,9 +2,18 @@ name: CI
 
 on:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      android_version:
+        description: Version name for the first manually uploaded Android bundle
+        required: true
+        default: 0.1.0
+        type: string
   push:
     branches:
       - main
+    tags:
+      - 'v*'
 
 permissions:
   contents: read
@@ -93,3 +102,622 @@ jobs:
 
       - name: End-to-end tests
         run: pnpm test:e2e
+
+      - name: Build web app
+        run: pnpm build
+
+      - name: Upload web build
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-build
+          path: build
+          compression-level: 0
+          retention-days: 7
+
+  release-gate:
+    name: Verify release tag
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Verify signed release tag
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          scripts/verify-release-tag.sh
+          printf 'version=%s\n' "${RELEASE_TAG#v}" >>"$GITHUB_OUTPUT"
+
+  ios-build:
+    name: iOS build
+    needs:
+      - pkhex-engine
+    runs-on: macos-26
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Sync Capacitor iOS project
+        run: pnpm exec cap sync ios
+
+      - name: Build iOS app without signing
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/PKSXDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+  android-build:
+    name: Android build
+    needs:
+      - pkhex-engine
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Sync Capacitor Android project
+        run: pnpm exec cap sync android
+
+      - name: Build Android app bundle
+        working-directory: android
+        run: ./gradlew bundleDebug --no-daemon
+
+  android-bootstrap-bundle:
+    name: Signed Android bootstrap bundle
+    if: github.event_name == 'workflow_dispatch'
+    needs:
+      - android-build
+      - svelte-checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Sync Capacitor Android project
+        run: pnpm exec cap sync android
+
+      - name: Build signed Android app bundle
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          RELEASE_VERSION: ${{ inputs.android_version }}
+        run: |
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/pksx-upload.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode >"$ANDROID_KEYSTORE_PATH"
+          ./gradlew bundleRelease --no-daemon
+
+      - name: Upload signed bundle artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: pksx-android-${{ inputs.android_version }}
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 3
+
+      - name: Remove Android signing credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/pksx-upload.jks"
+
+  deploy-preview:
+    name: Cloudflare preview
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write
+    needs:
+      - svelte-checks
+      - pkhex-engine
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cloudflare-preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Upload Cloudflare preview
+        id: preview
+        run: |
+          preview_alias="pr-${{ github.event.pull_request.number }}"
+
+          set +e
+          preview_output=$(pnpm deploy:preview --preview-alias "$preview_alias" --message "PR #${{ github.event.pull_request.number }} at ${{ github.event.pull_request.head.sha }}" 2>&1)
+          preview_status=$?
+          set -e
+          printf '%s\n' "$preview_output"
+
+          if [ "$preview_status" -ne 0 ] && grep -Fq 'does not yet exist' <<<"$preview_output"; then
+            pnpm deploy:staging --message "Initial staging deployment from PR #${{ github.event.pull_request.number }}"
+            preview_output=$(pnpm deploy:preview --preview-alias "$preview_alias" --message "PR #${{ github.event.pull_request.number }} at ${{ github.event.pull_request.head.sha }}" 2>&1)
+            printf '%s\n' "$preview_output"
+          elif [ "$preview_status" -ne 0 ]; then
+            exit "$preview_status"
+          fi
+
+          preview_url=$(grep -Eo 'https://[^[:space:]]+\.workers\.dev' <<<"$preview_output" | tail -n 1)
+          if [ -z "$preview_url" ]; then
+            echo "::error::Wrangler did not return a preview URL."
+            exit 1
+          fi
+
+          printf 'url=%s\n' "$preview_url" >>"$GITHUB_OUTPUT"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Update pull request preview comment
+        uses: actions/github-script@v9
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        with:
+          script: |
+            const marker = '<!-- pksx-cloudflare-preview -->';
+            const previewUrl = process.env.PREVIEW_URL;
+            const pullRequest = context.payload.pull_request;
+            const sha = pullRequest.head.sha;
+            const shortSha = sha.slice(0, 7);
+            const commitUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/commit/${sha}`;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = `${marker}
+            ## Cloudflare preview
+
+            | Environment | Link |
+            | --- | --- |
+            | This pull request | [Open preview](${previewUrl}) |
+            | Staging | [staging.pksx.app](https://staging.pksx.app/) |
+
+            Updated for commit [\`${shortSha}\`](${commitUrl}). [View workflow run](${runUrl}).`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pullRequest.number,
+              per_page: 100
+            });
+            const existing = comments.find(
+              (comment) => comment.user?.type === 'Bot' && comment.body?.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pullRequest.number,
+                body
+              });
+            }
+
+  deploy-staging:
+    name: Cloudflare staging
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - svelte-checks
+      - pkhex-engine
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cloudflare-staging
+      cancel-in-progress: true
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Deploy Cloudflare staging
+        run: pnpm deploy:staging --message "main at ${{ github.sha }}"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  deploy-production:
+    name: Cloudflare production
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs:
+      - android-build
+      - svelte-checks
+      - ios-build
+      - release-gate
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cloudflare-production
+      cancel-in-progress: false
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Deploy Cloudflare production
+        run: pnpm deploy:production --message "${{ github.ref_name }} at ${{ github.sha }}"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  deploy-testflight:
+    name: TestFlight internal testing
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs:
+      - android-build
+      - svelte-checks
+      - ios-build
+      - release-gate
+    runs-on: macos-26
+    timeout-minutes: 45
+    concurrency:
+      group: testflight-release
+      cancel-in-progress: false
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Sync Capacitor iOS project
+        run: pnpm exec cap sync ios
+
+      - name: Install signing credentials
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+        run: |
+          certificate_path="$RUNNER_TEMP/distribution.p12"
+          profile_path="$RUNNER_TEMP/pksx.mobileprovision"
+          profile_plist="$RUNNER_TEMP/profile.plist"
+          key_path="$RUNNER_TEMP/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          keychain_path="$RUNNER_TEMP/pksx-signing.keychain-db"
+          keychain_password=$(openssl rand -hex 24)
+
+          echo "::add-mask::$keychain_password"
+          printf '%s' "$IOS_CERTIFICATE_BASE64" | base64 --decode >"$certificate_path"
+          printf '%s' "$IOS_PROFILE_BASE64" | base64 --decode >"$profile_path"
+          printf '%s' "$APP_STORE_CONNECT_KEY_BASE64" | base64 --decode >"$key_path"
+          chmod 600 "$key_path"
+
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" \
+            -P "$IOS_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$keychain_path"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain_path"
+          security default-keychain -s "$keychain_path"
+
+          security cms -D -i "$profile_path" >"$profile_plist"
+          profile_uuid=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$profile_plist")
+          profile_name=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$profile_plist")
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$profile_path" "$HOME/Library/MobileDevice/Provisioning Profiles/$profile_uuid.mobileprovision"
+
+          printf 'IOS_KEYCHAIN_PATH=%s\n' "$keychain_path" >>"$GITHUB_ENV"
+          printf 'IOS_PROFILE_NAME=%s\n' "$profile_name" >>"$GITHUB_ENV"
+          printf 'IOS_PROFILE_UUID=%s\n' "$profile_uuid" >>"$GITHUB_ENV"
+          printf 'APP_STORE_CONNECT_KEY_PATH=%s\n' "$key_path" >>"$GITHUB_ENV"
+
+      - name: Archive iOS app
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RELEASE_VERSION: ${{ needs.release-gate.outputs.version }}
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/PKSX.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY='Apple Distribution' \
+            PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_NAME" \
+            MARKETING_VERSION="$RELEASE_VERSION" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $IOS_KEYCHAIN_PATH" \
+            clean archive
+
+      - name: Upload build to TestFlight
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          export_options="$RUNNER_TEMP/ExportOptions.plist"
+          plutil -create xml1 "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :method string app-store-connect' "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :destination string upload' "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :signingStyle string manual' "$export_options"
+          /usr/libexec/PlistBuddy -c "Add :teamID string $APPLE_TEAM_ID" "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :signingCertificate string Apple Distribution' "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :manageAppVersionAndBuildNumber bool false' "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :testFlightInternalTestingOnly bool true' "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :provisioningProfiles dict' "$export_options"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.pksx.app string $IOS_PROFILE_NAME" "$export_options"
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$RUNNER_TEMP/PKSX.xcarchive" \
+            -exportPath "$RUNNER_TEMP/TestFlight" \
+            -exportOptionsPlist "$export_options" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$APP_STORE_CONNECT_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+
+      - name: Remove signing credentials
+        if: always()
+        run: |
+          if [ -n "${IOS_KEYCHAIN_PATH:-}" ] && [ -f "$IOS_KEYCHAIN_PATH" ]; then
+            security delete-keychain "$IOS_KEYCHAIN_PATH"
+          fi
+          if [ -n "${IOS_PROFILE_UUID:-}" ]; then
+            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$IOS_PROFILE_UUID.mobileprovision"
+          fi
+          rm -f \
+            "$RUNNER_TEMP/distribution.p12" \
+            "$RUNNER_TEMP/pksx.mobileprovision" \
+            "$RUNNER_TEMP/profile.plist" \
+            "${APP_STORE_CONNECT_KEY_PATH:-}"
+
+  deploy-google-play:
+    name: Google Play internal testing
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs:
+      - android-build
+      - svelte-checks
+      - ios-build
+      - release-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: google-play-release
+      cancel-in-progress: false
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Sync Capacitor Android project
+        run: pnpm exec cap sync android
+
+      - name: Build signed Android app bundle
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          RELEASE_VERSION: ${{ needs.release-gate.outputs.version }}
+        run: |
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/pksx-upload.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode >"$ANDROID_KEYSTORE_PATH"
+          ./gradlew bundleRelease --no-daemon
+
+      - name: Upload build to Google Play
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.pksx.app
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          tracks: internal
+          status: completed
+          releaseName: ${{ github.ref_name }}
+
+      - name: Remove Android signing credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/pksx-upload.jks"
