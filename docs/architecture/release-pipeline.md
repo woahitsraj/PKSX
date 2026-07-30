@@ -77,6 +77,7 @@ The initial native distribution targets are TestFlight and Google Play internal 
 - The Google Play Developer API assigns the bundle to the internal testing track.
 - Google Play App Signing holds the app-signing key; CI only uses the replaceable upload key.
 - The first signed bundle must be uploaded manually in Play Console before API uploads can find the package.
+- The manual `Signed Android bootstrap bundle` workflow produces that first bundle as a short-lived GitHub artifact without publishing it.
 - CI expects `ANDROID_UPLOAD_KEYSTORE_BASE64`, `ANDROID_UPLOAD_KEYSTORE_PASSWORD`, `ANDROID_UPLOAD_KEY_ALIAS`, `ANDROID_UPLOAD_KEY_PASSWORD`, and `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` as GitHub Actions secrets.
 
 ## Creating a Release

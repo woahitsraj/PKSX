@@ -2,6 +2,13 @@ name: CI
 
 on:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      android_version:
+        description: Version name for the first manually uploaded Android bundle
+        required: true
+        default: 0.1.0
+        type: string
   push:
     branches:
       - main
@@ -216,6 +223,73 @@ jobs:
       - name: Build Android app bundle
         working-directory: android
         run: ./gradlew bundleDebug --no-daemon
+
+  android-bootstrap-bundle:
+    name: Signed Android bootstrap bundle
+    if: github.event_name == 'workflow_dispatch'
+    needs:
+      - android-build
+      - svelte-checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download web build
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: build
+
+      - name: Sync Capacitor Android project
+        run: pnpm exec cap sync android
+
+      - name: Build signed Android app bundle
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          RELEASE_VERSION: ${{ inputs.android_version }}
+        run: |
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/pksx-upload.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode >"$ANDROID_KEYSTORE_PATH"
+          ./gradlew bundleRelease --no-daemon
+
+      - name: Upload signed bundle artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: pksx-android-${{ inputs.android_version }}
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 3
+
+      - name: Remove Android signing credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/pksx-upload.jks"
 
   deploy-preview:
     name: Cloudflare preview
