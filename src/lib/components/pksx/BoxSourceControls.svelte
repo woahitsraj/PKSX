@@ -89,7 +89,7 @@
 		color: var(--rust);
 	}
 
-	@media (max-width: 820px) {
+	@media (max-width: 1024px) {
 		.box-source-controls {
 			flex-wrap: wrap;
 			justify-content: center;

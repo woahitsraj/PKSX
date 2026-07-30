@@ -38,7 +38,7 @@
 		display: none;
 	}
 
-	@media (max-width: 820px) {
+	@media (max-width: 1024px) {
 		.mobile-tabbar {
 			position: fixed;
 			bottom: 0;

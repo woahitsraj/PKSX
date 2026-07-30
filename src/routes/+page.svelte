@@ -40,7 +40,7 @@
 		destinationStateForStorageOperation,
 		type PendingStorageSlotOperation
 	} from '$lib/pksx/storage-operations';
-	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
+	import { appChrome, updateAppChrome } from '$lib/pksx/app-chrome.svelte';
 	import {
 		addBoxPane,
 		applyPokemonStorageSlotOperation,
@@ -323,7 +323,6 @@
 	}));
 
 	let navigation = $state<BoxNavigationState>(createInitialNavigationState(placeholderBoxCount));
-	let gamepadStatus = $state('No controller detected');
 	let loadedSave = $state<WorkspaceState | null>(null);
 	let importError = $state<string | null>(null);
 	let statusMessage = $state('Import a Save File to begin.');
@@ -356,10 +355,8 @@
 	let engine: EngineApi | null = null;
 	let workspaceLoadRequest = 0;
 
-	const controllerConnected = $derived(
-		gamepadStatus !== 'No controller detected' && gamepadStatus.length > 0
-	);
-	const mobileTabsAvailable = $derived(viewportWidth <= 820);
+	const controllerConnected = $derived(appChrome.controllerStatus !== null);
+	const mobileTabsAvailable = $derived(viewportWidth <= 1024);
 	const activePane = $derived(
 		workbenchPanes.find((pane) => pane.id === activePaneId) ?? workbenchPanes[0]
 	);
@@ -2429,11 +2426,11 @@
 		}
 
 		const rect = focusElement.getBoundingClientRect();
-		actionSurfaceTop = window.matchMedia('(max-width: 820px)').matches
+		actionSurfaceTop = window.matchMedia('(max-width: 1024px)').matches
 			? Math.max(12, rect.bottom + 6)
 			: null;
 		actionSurfaceAnchor =
-			activeSlotFocus.zone === 'party' && !window.matchMedia('(max-width: 820px)').matches
+			activeSlotFocus.zone === 'party' && !window.matchMedia('(max-width: 1024px)').matches
 				? {
 						top: Math.max(12, rect.top),
 						left: Math.max(12, Math.min(rect.right + 8, window.innerWidth - 236))
@@ -2442,7 +2439,7 @@
 	}
 
 	function handleWindowResize() {
-		if (viewportWidth > 820 && navigation.focus.zone === 'mobileTabs') {
+		if (viewportWidth > 1024 && navigation.focus.zone === 'mobileTabs') {
 			navigation = { ...navigation, focus: focusBoxSlot(BOX_SLOT_COUNT - BOX_COLUMNS + 1) };
 			queueMicrotask(focusActiveControl);
 		}
@@ -2480,84 +2477,6 @@
 		return (
 			activeSlotFocus !== null && activeSlotFocus.zone === zone && activeSlotFocus.slot === slot
 		);
-	}
-
-	function gamepadNavigation() {
-		if (typeof navigator === 'undefined' || typeof requestAnimationFrame === 'undefined') {
-			return;
-		}
-
-		let previousPressed: NavigationAction[] = [];
-		const repeatState: Partial<Record<NavigationAction, number>> = {};
-		let frame = 0;
-
-		const repeatDelay = 280;
-		const repeatInterval = 110;
-
-		const read = (time: number) => {
-			const gamepad = navigator.getGamepads().find((pad) => pad);
-
-			if (!gamepad) {
-				gamepadStatus = 'No controller detected';
-				frame = requestAnimationFrame(read);
-				return;
-			}
-
-			gamepadStatus = `${gamepad.id}`;
-			const pressed = readGamepadActions(gamepad);
-
-			for (const action of pressed) {
-				const repeatable = isDirectional(action);
-				const firstPress = !previousPressed.includes(action);
-				const nextRepeatAt = repeatState[action] ?? 0;
-
-				if (firstPress || (repeatable && time >= nextRepeatAt)) {
-					syncNavigationFocusFromActiveElement();
-					dispatch(action);
-					repeatState[action] = time + (firstPress ? repeatDelay : repeatInterval);
-				}
-			}
-
-			for (const action of previousPressed) {
-				if (!pressed.includes(action)) {
-					delete repeatState[action];
-				}
-			}
-
-			previousPressed = pressed;
-
-			frame = requestAnimationFrame(read);
-		};
-
-		frame = requestAnimationFrame(read);
-
-		return () => cancelAnimationFrame(frame);
-	}
-
-	function readGamepadActions(gamepad: Gamepad): NavigationAction[] {
-		const actions: NavigationAction[] = [];
-		const axisX = gamepad.axes[0] ?? 0;
-		const axisY = gamepad.axes[1] ?? 0;
-
-		if (isPressed(gamepad, 12) || axisY < -0.55) actions.push('up');
-		if (isPressed(gamepad, 13) || axisY > 0.55) actions.push('down');
-		if (isPressed(gamepad, 14) || axisX < -0.55) actions.push('left');
-		if (isPressed(gamepad, 15) || axisX > 0.55) actions.push('right');
-		if (isPressed(gamepad, 0)) actions.push('confirm');
-		if (isPressed(gamepad, 1)) actions.push('back');
-		if (isPressed(gamepad, 3)) actions.push('sourceAction');
-		if (isPressed(gamepad, 4)) actions.push('previousBox');
-		if (isPressed(gamepad, 5)) actions.push('nextBox');
-
-		return actions;
-	}
-
-	function isPressed(gamepad: Gamepad, index: number) {
-		return gamepad.buttons[index]?.pressed === true;
-	}
-
-	function isDirectional(action: NavigationAction) {
-		return action === 'up' || action === 'down' || action === 'left' || action === 'right';
 	}
 
 	onMount(() => {
@@ -2995,7 +2914,7 @@
 	onresize={handleWindowResize}
 />
 
-<section class="boxes-route" aria-label="Boxes workspace" {@attach gamepadNavigation}>
+<section class="boxes-route" aria-label="Boxes workspace">
 	{#if importError}
 		<StatusStrip variant="error" label="Import error" message={importError} />
 	{/if}
@@ -3403,7 +3322,7 @@
 		font-weight: 500;
 	}
 
-	@media (min-width: 821px) {
+	@media (min-width: 1025px) {
 		:global(html),
 		:global(body) {
 			height: 100%;
@@ -3853,6 +3772,11 @@
 		font-weight: 750;
 	}
 
+	.source-picker button:focus {
+		outline: 3px solid color-mix(in srgb, var(--rust), transparent 48%);
+		outline-offset: 2px;
+	}
+
 	.source-card-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -3908,7 +3832,7 @@
 		}
 	}
 
-	@media (max-width: 820px) {
+	@media (max-width: 1024px) {
 		.storage-workspace,
 		.box-zone,
 		.box-grid {

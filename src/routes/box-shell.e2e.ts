@@ -25,6 +25,24 @@ async function openEmptyLibrary(page: Page) {
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 }
 
+async function pressController(page: Page, key: string) {
+	await page.evaluate(async (controllerKey) => {
+		const dispatch = (pressed: boolean) =>
+			window.dispatchEvent(
+				new CustomEvent('pksxcontroller', {
+					detail: { key: controllerKey, pressed, id: 'Test controller' }
+				})
+			);
+		const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+		dispatch(true);
+		await nextFrame();
+		await nextFrame();
+		dispatch(false);
+		await nextFrame();
+	}, key);
+}
+
 async function importEmeraldThroughSaves(page: Page) {
 	await page.goto('/saves');
 	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
@@ -445,6 +463,46 @@ test('keyboard navigation reaches top controls and mobile tabs', async ({ page }
 	await expect(page.locator('#box-0-slot-25')).toBeFocused();
 });
 
+test('controller input follows the keyboard navigation path', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await page.locator('#box-grid').focus();
+
+	await pressController(page, 'ArrowRight');
+	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+
+	await pressController(page, 'Enter');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
+
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#slot-action-1')).toBeFocused();
+	await expect(page.locator('#slot-action-1')).toHaveClass(/controller-focused/);
+
+	await pressController(page, 'Escape');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
+	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+
+	await pressController(page, 'y');
+	await expect(page.getByRole('dialog', { name: 'Add Box Source' })).toBeVisible();
+	await expect(page.locator('.source-card').first()).toBeFocused();
+	await expect
+		.poll(() =>
+			page
+				.locator('.source-card')
+				.first()
+				.evaluate((control) => getComputedStyle(control).outlineStyle)
+		)
+		.toBe('solid');
+});
+
+test('small widescreen viewports use the mobile shell', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await page.setViewportSize({ width: 960, height: 540 });
+
+	await expect(page.locator('.mobile-tabbar')).toBeVisible();
+	await expect(page.locator('.section-pills')).toBeHidden();
+	await expect(page.locator('.box-sidebar')).toBeHidden();
+});
+
 test('mobile slot actions stay inside the viewport without adding page overflow', async ({
 	page
 }) => {
@@ -828,7 +886,7 @@ test('keyboard navigation covers the Saves route controls and desktop overflow s
 	page
 }) => {
 	await openEmptyLibrary(page);
-	await page.setViewportSize({ width: 960, height: 520 });
+	await page.setViewportSize({ width: 1100, height: 520 });
 	await page.goto('/saves');
 
 	await page.locator('#top-control-0').focus();
