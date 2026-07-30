@@ -353,6 +353,7 @@
 			statusMessage = `${file.name} imported and made active.`;
 		} catch (error) {
 			errorMessage = getErrorMessage(error);
+			statusMessage = 'Import failed. Current active Save File was not changed.';
 			await refreshLibrary();
 			statusMessage = 'Import failed. Current active Save File was not changed.';
 		} finally {
