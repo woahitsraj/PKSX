@@ -180,6 +180,9 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
+      - name: Test iOS controller acceptance criteria
+        run: bash scripts/run-ios-acceptance.sh
+
   android-build:
     name: Android build
     needs:
@@ -223,6 +226,31 @@ jobs:
       - name: Build Android app bundle
         working-directory: android
         run: ./gradlew bundleDebug --no-daemon
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Test Android controller acceptance criteria
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          working-directory: android
+          emulator-options: >-
+            -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            adb shell cmd window fixed-to-user-rotation enabled
+            adb shell cmd window user-rotation lock 1
+            sleep 1
+            adb shell wm size 540x960
+            adb shell wm density 160
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon
 
   android-bootstrap-bundle:
     name: Signed Android bootstrap bundle

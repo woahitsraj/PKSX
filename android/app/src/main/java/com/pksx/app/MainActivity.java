@@ -14,7 +14,6 @@ public class MainActivity extends BridgeActivity {
         "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"
     };
 
-    private final Set<String> keyDirections = new HashSet<>();
     private final Set<String> motionDirections = new HashSet<>();
     private final Set<String> dispatchedDirections = new HashSet<>();
 
@@ -26,13 +25,7 @@ public class MainActivity extends BridgeActivity {
         if (key == null) return super.dispatchKeyEvent(event);
 
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
-        if (key.startsWith("Arrow")) {
-            if (pressed) keyDirections.add(key);
-            else keyDirections.remove(key);
-            dispatchDirectionChanges();
-        } else {
-            dispatchControllerInput(key, pressed);
-        }
+        dispatchControllerInput(key, pressed, true);
         return true;
     }
 
@@ -58,16 +51,16 @@ public class MainActivity extends BridgeActivity {
 
     private void dispatchDirectionChanges() {
         for (String direction : Arrays.asList(DIRECTIONS)) {
-            boolean pressed = keyDirections.contains(direction) || motionDirections.contains(direction);
+            boolean pressed = motionDirections.contains(direction);
             if (pressed == dispatchedDirections.contains(direction)) continue;
 
             if (pressed) dispatchedDirections.add(direction);
             else dispatchedDirections.remove(direction);
-            dispatchControllerInput(direction, pressed);
+            dispatchControllerInput(direction, pressed, false);
         }
     }
 
-    private void dispatchControllerInput(String key, boolean pressed) {
+    private void dispatchControllerInput(String key, boolean pressed, boolean discrete) {
         if (getBridge() == null || getBridge().getWebView() == null) return;
 
         String script =
@@ -75,6 +68,8 @@ public class MainActivity extends BridgeActivity {
                 + key
                 + "',pressed:"
                 + pressed
+                + ",discrete:"
+                + discrete
                 + ",id:'Android controller'}}));";
         getBridge().getWebView().evaluateJavascript(script, null);
     }
