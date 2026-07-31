@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import { Capacitor } from '@capacitor/core';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import './layout.css';
 	import AppUpdatePrompt from '$lib/components/pksx/AppUpdatePrompt.svelte';
@@ -127,6 +128,7 @@
 		let frame = 0;
 		const repeatDelay = 280;
 		const repeatInterval = 110;
+		const nativePlatform = Capacitor.isNativePlatform();
 
 		const dispatchKey = (key: ControllerKey) =>
 			window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
@@ -168,7 +170,7 @@
 			// The native bridge is authoritative once seen; on iOS the same controller
 			// also surfaces through the Gamepad API and would double every press.
 			let gamepad: Gamepad | null = null;
-			if (nativeControllerId === null) {
+			if (!nativePlatform && nativeControllerId === null) {
 				try {
 					gamepad = navigator.getGamepads?.().find((pad) => pad) ?? null;
 				} catch {
