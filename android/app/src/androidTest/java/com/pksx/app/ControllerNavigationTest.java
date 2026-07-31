@@ -44,6 +44,7 @@ public class ControllerNavigationTest {
         pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_A,
             "document.querySelector('[role=\"dialog\"][aria-label=\"Slot actions\"]') !== null"
+                + " && document.activeElement?.id === 'slot-action-0'"
         );
 
         pressGamepadKey(
