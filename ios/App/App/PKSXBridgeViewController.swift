@@ -38,6 +38,8 @@ final class PKSXBridgeViewController: CAPBridgeViewController {
         guard let gamepad = controller.extendedGamepad else { return }
         let controllerID = ObjectIdentifier(controller).hashValue
 
+        sendConnection(controller)
+
         gamepad.dpad.valueChangedHandler = { [weak self, weak controller] _, x, y in
             guard let controller else { return }
             self?.updateDirections(
@@ -138,6 +140,20 @@ final class PKSXBridgeViewController: CAPBridgeViewController {
         DispatchQueue.main.async { [weak self] in
             self?.webView?.evaluateJavaScript(
                 "window.dispatchEvent(new CustomEvent('pksxcontroller',{detail:\(json)}))"
+            )
+        }
+    }
+
+    private func sendConnection(_ controller: GCController) {
+        let detail = ["id": controller.vendorName ?? "iOS controller"]
+        guard
+            let data = try? JSONSerialization.data(withJSONObject: detail),
+            let json = String(data: data, encoding: .utf8)
+        else { return }
+
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript(
+                "window.dispatchEvent(new CustomEvent('pksxcontrollerconnection',{detail:\(json)}))"
             )
         }
     }

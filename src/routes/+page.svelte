@@ -21,6 +21,7 @@
 		focusPaneBoundarySlot,
 		focusPaneControl,
 		focusPartySlot,
+		focusPartyToggle,
 		getBoxSlotPosition,
 		getFocusId,
 		PARTY_SLOT_COUNT,
@@ -539,7 +540,8 @@
 			paneControlCount: activePaneControlCount,
 			mobileTabCount,
 			mobileTabsAvailable,
-			partyAvailable
+			partyAvailable,
+			partyCollapsed
 		});
 
 		if (action === 'confirm') {
@@ -808,6 +810,11 @@
 			return;
 		}
 
+		if (activeElement.id === 'party-toggle') {
+			navigation = { ...navigation, focus: focusPartyToggle() };
+			return;
+		}
+
 		const paneControlMatch = activeElement.id.match(/^pane-control-(\d+)$/);
 		if (paneControlMatch) {
 			navigation = {
@@ -921,6 +928,14 @@
 	function focusBox(slot: number) {
 		navigation = { ...navigation, focus: focusBoxSlot(slot) };
 		queueMicrotask(focusActiveControl);
+	}
+
+	function togglePartyCollapsed() {
+		partyCollapsed = !partyCollapsed;
+		if (partyCollapsed && navigation.focus.zone === 'party') {
+			navigation = { ...navigation, focus: focusPartyToggle() };
+			queueMicrotask(focusActiveControl);
+		}
 	}
 
 	function firstRowFocusForBoxChange(): SlotFocus {
@@ -1637,6 +1652,10 @@
 	function activateFocusedControl(focus = navigation.focus) {
 		if (focus.zone === 'topbar') {
 			document.getElementById(`top-control-${focus.index}`)?.click();
+		}
+
+		if (focus.zone === 'partyToggle') {
+			document.getElementById('party-toggle')?.click();
 		}
 
 		if (focus.zone === 'paneControls') {
@@ -2426,16 +2445,30 @@
 		}
 
 		const rect = focusElement.getBoundingClientRect();
-		actionSurfaceTop = window.matchMedia('(max-width: 1024px)').matches
-			? Math.max(12, rect.bottom + 6)
-			: null;
-		actionSurfaceAnchor =
-			activeSlotFocus.zone === 'party' && !window.matchMedia('(max-width: 1024px)').matches
-				? {
-						top: Math.max(12, rect.top),
-						left: Math.max(12, Math.min(rect.right + 8, window.innerWidth - 236))
-					}
-				: null;
+		const menu = document.querySelector<HTMLElement>('.slot-context');
+		const menuRect = menu?.getBoundingClientRect();
+
+		if (window.matchMedia('(max-width: 1024px)').matches) {
+			// Keep room for the menu above the tab bar; the sheet scrolls when clamped.
+			const tabbarTop =
+				document.querySelector('.mobile-tabbar')?.getBoundingClientRect().top ?? window.innerHeight;
+			const wantedHeight = Math.min(menu?.scrollHeight ?? 320, 280);
+			actionSurfaceTop = Math.max(12, Math.min(rect.bottom + 6, tabbarTop - 8 - wantedHeight));
+			actionSurfaceAnchor = null;
+			return;
+		}
+
+		actionSurfaceTop = null;
+		const menuWidth = menuRect?.width || 218;
+		const menuHeight = menuRect?.height || 320;
+		const left =
+			rect.right + 8 + menuWidth <= window.innerWidth - 12
+				? rect.right + 8
+				: Math.max(12, rect.left - menuWidth - 8);
+		actionSurfaceAnchor = {
+			top: Math.max(12, Math.min(rect.top, window.innerHeight - menuHeight - 12)),
+			left
+		};
 	}
 
 	function handleWindowResize() {
@@ -2464,7 +2497,7 @@
 
 		if (
 			target.closest(
-				'.slot-cell, .slot-context, .box-switcher, .party-toggle, .pokemon-editor, .legality-report'
+				'.slot-cell, .slot-context, .box-arrow, .party-toggle, .pokemon-editor, .legality-report'
 			)
 		) {
 			return;
@@ -2968,16 +3001,19 @@
 				>
 					<div class="zone-header party-header">
 						<button
+							id="party-toggle"
 							class="party-toggle"
+							class:controller-focused={navigation.focus.zone === 'partyToggle'}
 							type="button"
 							aria-expanded={!partyCollapsed}
 							aria-controls="party-list"
-							onclick={() => (partyCollapsed = !partyCollapsed)}
+							onfocus={() => (navigation = { ...navigation, focus: focusPartyToggle() })}
+							onclick={togglePartyCollapsed}
 						>
-							<span aria-hidden="true">▾</span>
+							<span class="party-chevron" aria-hidden="true">▾</span>
 							<strong>Party</strong>
+							<span class="party-meta">6 / 6 · on hand · {partyCollapsed ? 'show' : 'hide'}</span>
 						</button>
-						<span>6 / 6 · on hand</span>
 					</div>
 					<div id="party-list" class="party-list">
 						{#each partySlots as slot (slot.slot)}
@@ -3011,21 +3047,6 @@
 						{/each}
 					</div>
 				</div>
-
-				{#if navigation.actionSurfaceOpen && activeSlotFocus?.zone === 'party'}
-					<SlotActionMenu
-						align="start"
-						slot={focusedSlot}
-						location={`Party slot ${activeSlotFocus.slot + 1}`}
-						mobileTop={actionSurfaceTop}
-						viewportTop={actionSurfaceAnchor?.top ?? null}
-						viewportLeft={actionSurfaceAnchor?.left ?? null}
-						activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
-						onFocusCommand={focusActionCommand}
-						onSelectCommand={selectSlotActionCommand}
-						onClose={closeActionSurface}
-					/>
-				{/if}
 			{/if}
 
 			<div
@@ -3166,23 +3187,6 @@
 											: undefined}
 										onOpenSlot={openFocusedSlot}
 									/>
-									{#if paneActive && navigation.actionSurfaceOpen && isFocused('box', slot.slot)}
-										<SlotActionMenu
-											align={position.column <= 2
-												? 'start'
-												: position.column >= BOX_COLUMNS - 3
-													? 'end'
-													: 'center'}
-											vertical={position.row === 0 ? 'top' : 'bottom'}
-											{slot}
-											location={`${pane.source.label}, Box ${paneBox + 1}, slot ${slot.slot + 1}`}
-											mobileTop={actionSurfaceTop}
-											activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
-											onFocusCommand={focusActionCommand}
-											onSelectCommand={selectSlotActionCommand}
-											onClose={closeActionSurface}
-										/>
-									{/if}
 								</div>
 							{/each}
 						</div>
@@ -3205,6 +3209,22 @@
 					</div>
 				{/each}
 			</div>
+
+			{#if navigation.actionSurfaceOpen && activeSlotFocus !== null}
+				<SlotActionMenu
+					slot={focusedSlot}
+					location={activeSlotFocus.zone === 'party'
+						? `Party slot ${activeSlotFocus.slot + 1}`
+						: `${activePane?.source.label ?? 'Box Source'}, Box ${activePaneBox + 1}, slot ${activeSlotFocus.slot + 1}`}
+					mobileTop={actionSurfaceTop}
+					viewportTop={actionSurfaceAnchor?.top ?? null}
+					viewportLeft={actionSurfaceAnchor?.left ?? null}
+					activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
+					onFocusCommand={focusActionCommand}
+					onSelectCommand={selectSlotActionCommand}
+					onClose={closeActionSurface}
+				/>
+			{/if}
 		</div>
 
 		<DetailRail
@@ -3473,7 +3493,7 @@
 
 	.party-zone {
 		flex: 0 0 auto;
-		overflow: hidden;
+		overflow: visible;
 	}
 
 	.box-pane-strip {
@@ -3612,30 +3632,47 @@
 		margin-bottom: 9px;
 	}
 
+	.party-zone.collapsed .party-header {
+		margin-bottom: 0;
+	}
+
 	.party-toggle {
-		display: inline-flex;
+		flex: 1 1 auto;
+		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 0;
+		min-height: 36px;
+		padding: 4px 8px;
+		border-radius: var(--pksx-radius-sm);
 		background: transparent;
 		box-shadow: none;
 		color: var(--ink);
+		text-align: left;
 	}
 
-	.party-toggle span {
+	.party-toggle .party-chevron {
 		display: inline-block;
 		color: var(--ink-soft);
+		font-size: 0.8rem;
 		transition: transform 160ms ease;
 	}
 
-	.party-zone.collapsed .party-toggle span {
+	.party-zone.collapsed .party-chevron {
 		transform: rotate(-90deg);
+	}
+
+	.party-toggle .party-meta {
+		margin-left: auto;
+		color: var(--ink-soft);
+		font-size: 0.68rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
 	}
 
 	.party-list {
 		display: grid;
 		grid-template-columns: repeat(6, minmax(52px, 80px));
-		grid-auto-rows: minmax(52px, 80px);
+		grid-auto-rows: auto;
 		justify-content: center;
 		gap: 6px;
 	}
@@ -3647,6 +3684,12 @@
 	.party-toggle:hover {
 		background: var(--rust-wash);
 		color: var(--rust);
+	}
+
+	.party-toggle.controller-focused,
+	.party-toggle:focus-visible {
+		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
+		outline-offset: 1px;
 	}
 
 	.filter-row {
@@ -3840,11 +3883,14 @@
 			min-height: 0;
 		}
 
-		.workspace-column,
-		.party-zone {
+		.workspace-column {
 			overflow-x: hidden;
 			overflow-y: auto;
 			min-height: 0;
+		}
+
+		.party-zone {
+			overflow: visible;
 		}
 
 		.box-header {
@@ -3887,7 +3933,7 @@
 		}
 
 		.party-list {
-			grid-template-columns: repeat(6, minmax(44px, 1fr));
+			grid-template-columns: repeat(6, minmax(44px, 80px));
 			gap: 6px;
 		}
 

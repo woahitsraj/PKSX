@@ -107,7 +107,8 @@ strong {
 	--shadow-deep: var(--pksx-shadow-panel);
 	height: 100dvh;
 	min-height: 100dvh;
-	padding: 18px;
+	padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right))
+		max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
@@ -130,7 +131,8 @@ strong {
 	.app-shell {
 		height: auto;
 		min-height: 100dvh;
-		padding: 10px 10px 78px;
+		padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+			calc(78px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left));
 		gap: 10px;
 		overflow: visible;
 	}

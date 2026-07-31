@@ -11,6 +11,10 @@
 </script>
 
 <div class="box-source-controls" aria-label="Box source controls">
+	<button type="button" class="box-arrow" aria-label="Previous box" onclick={onPreviousBox}
+		>‹</button
+	>
+
 	<div class="box-title">
 		<h2>{source.activeBoxLabel}</h2>
 		<span>
@@ -19,10 +23,7 @@
 		</span>
 	</div>
 
-	<div class="box-switcher" aria-label={`${source.label} box switcher`}>
-		<button type="button" aria-label="Previous box" onclick={onPreviousBox}>‹</button>
-		<button type="button" aria-label="Next box" onclick={onNextBox}>›</button>
-	</div>
+	<button type="button" class="box-arrow" aria-label="Next box" onclick={onNextBox}>›</button>
 </div>
 
 <style>
@@ -39,6 +40,8 @@
 		min-width: 0;
 		display: grid;
 		gap: 2px;
+		justify-items: center;
+		text-align: center;
 	}
 
 	.box-title h2 {
@@ -50,6 +53,7 @@
 	.box-title span {
 		display: flex;
 		flex-wrap: wrap;
+		justify-content: center;
 		gap: 8px;
 		color: var(--ink-mute);
 		font:
@@ -66,42 +70,21 @@
 		font-weight: 700;
 	}
 
-	.box-switcher {
+	.box-arrow {
 		flex: 0 0 auto;
-		display: flex;
-		gap: 6px;
-	}
-
-	.box-switcher button {
-		width: 30px;
-		min-height: 32px;
+		width: 38px;
+		min-height: 38px;
 		padding: 0;
 		border-radius: var(--pksx-radius-md);
 		background: var(--paper-hi);
 		box-shadow: var(--shadow-sm);
 		color: var(--ink);
-		font-size: 1.1rem;
+		font-size: 1.2rem;
 		font-weight: 700;
 	}
 
-	.box-switcher button:hover {
+	.box-arrow:hover {
 		background: var(--rust-wash);
 		color: var(--rust);
-	}
-
-	@media (max-width: 1024px) {
-		.box-source-controls {
-			flex-wrap: wrap;
-			justify-content: center;
-		}
-
-		.box-title {
-			justify-items: center;
-			text-align: center;
-		}
-
-		.box-switcher {
-			gap: 12px;
-		}
 	}
 </style>

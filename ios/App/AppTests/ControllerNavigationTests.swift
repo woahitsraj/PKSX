@@ -20,7 +20,7 @@ final class ControllerNavigationTests: XCTestCase {
 
         controller.extendedGamepad?.buttonA.setValue(1)
         try await waitForJavaScript(
-            "document.querySelector('[role=\"dialog\"][aria-label=\"Slot actions\"]') !== null",
+            "document.querySelector('[role=\"dialog\"][aria-label=\"Slot actions\"]') !== null && document.activeElement?.id === 'slot-action-0'",
             in: webView
         )
         controller.extendedGamepad?.buttonA.setValue(0)
@@ -89,7 +89,11 @@ final class ControllerNavigationTests: XCTestCase {
             in: webView
         )
         _ = try await webView.evaluateJavaScript("document.querySelector('#box-grid').focus()")
+        _ = try await webView.evaluateJavaScript(
+            "window.__pksxControllerConnected = false; window.addEventListener('pksxcontrollerconnection', () => window.__pksxControllerConnected = true, { once: true })"
+        )
         NotificationCenter.default.post(name: .GCControllerDidConnect, object: controller)
+        try await waitForJavaScript("window.__pksxControllerConnected === true", in: webView)
         return webView
     }
 
