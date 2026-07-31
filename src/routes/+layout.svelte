@@ -156,6 +156,12 @@
 			}
 		};
 
+		const handleNativeConnection = (event: Event) => {
+			const detail = (event as CustomEvent<NativeControllerConnection>).detail;
+			nativeControllerId = detail?.id || 'Controller';
+			appChrome.controllerStatus = nativeControllerId;
+		};
+
 		const read = (time: number) => {
 			frame = requestAnimationFrame(read);
 
@@ -192,10 +198,12 @@
 		};
 
 		window.addEventListener('pksxcontroller', handleNativeInput);
+		window.addEventListener('pksxcontrollerconnection', handleNativeConnection);
 		frame = requestAnimationFrame(read);
 
 		return () => {
 			window.removeEventListener('pksxcontroller', handleNativeInput);
+			window.removeEventListener('pksxcontrollerconnection', handleNativeConnection);
 			cancelAnimationFrame(frame);
 		};
 	}
@@ -222,6 +230,10 @@
 		key: string;
 		pressed: boolean;
 		discrete?: boolean;
+		id?: string;
+	};
+
+	type NativeControllerConnection = {
 		id?: string;
 	};
 
