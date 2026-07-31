@@ -180,6 +180,9 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
+      - name: Test iOS controller acceptance criteria
+        run: bash scripts/run-ios-acceptance.sh
+
   android-build:
     name: Android build
     needs:
