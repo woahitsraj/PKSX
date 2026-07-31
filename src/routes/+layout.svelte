@@ -120,7 +120,7 @@
 			return;
 		}
 
-		const nativePressed = new SvelteSet<ControllerKey>();
+		const nativeHeld = new SvelteSet<ControllerKey>();
 		let nativeControllerId: string | null = null;
 		let previousPressed = new SvelteSet<ControllerKey>();
 		const repeatAt = new SvelteMap<ControllerKey, number>();
@@ -128,32 +128,50 @@
 		const repeatDelay = 280;
 		const repeatInterval = 110;
 
+		const dispatchKey = (key: ControllerKey) =>
+			window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+
 		const handleNativeInput = (event: Event) => {
 			const detail = (event as CustomEvent<NativeControllerInput>).detail;
 			if (!detail || !isControllerKey(detail.key)) return;
 
-			nativeControllerId = detail.id || 'Android controller';
+			nativeControllerId = detail.id || 'Controller';
+			appChrome.controllerStatus = nativeControllerId;
 			if (detail.discrete) {
-				if (detail.pressed) {
-					window.dispatchEvent(
-						new KeyboardEvent('keydown', {
-							key: detail.key,
-							bubbles: true,
-							cancelable: true
-						})
-					);
-				}
+				if (detail.pressed) dispatchKey(detail.key);
 				return;
 			}
 
-			if (detail.pressed) nativePressed.add(detail.key);
-			else nativePressed.delete(detail.key);
+			if (!detail.pressed) {
+				nativeHeld.delete(detail.key);
+				return;
+			}
+
+			// Dispatch held directions immediately; the frame loop only owns key repeat.
+			if (!nativeHeld.has(detail.key)) {
+				nativeHeld.add(detail.key);
+				previousPressed.add(detail.key);
+				repeatAt.set(detail.key, performance.now() + repeatDelay);
+				dispatchKey(detail.key);
+			}
 		};
 
 		const read = (time: number) => {
-			const gamepad = navigator.getGamepads?.().find((pad) => pad) ?? null;
+			frame = requestAnimationFrame(read);
+
+			// The native bridge is authoritative once seen; on iOS the same controller
+			// also surfaces through the Gamepad API and would double every press.
+			let gamepad: Gamepad | null = null;
+			if (nativeControllerId === null) {
+				try {
+					gamepad = navigator.getGamepads?.().find((pad) => pad) ?? null;
+				} catch {
+					gamepad = null;
+				}
+			}
+
 			const pressed = new SvelteSet<ControllerKey>([
-				...nativePressed,
+				...nativeHeld,
 				...(gamepad ? readGamepadKeys(gamepad) : [])
 			]);
 			appChrome.controllerStatus = nativeControllerId ?? gamepad?.id ?? null;
@@ -162,9 +180,7 @@
 				const firstPress = !previousPressed.has(key);
 				const nextRepeat = repeatAt.get(key) ?? 0;
 				if (firstPress || (isRepeatable(key) && time >= nextRepeat)) {
-					window.dispatchEvent(
-						new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
-					);
+					dispatchKey(key);
 					repeatAt.set(key, time + (firstPress ? repeatDelay : repeatInterval));
 				}
 			}
@@ -173,7 +189,6 @@
 				if (!pressed.has(key)) repeatAt.delete(key);
 			}
 			previousPressed = pressed;
-			frame = requestAnimationFrame(read);
 		};
 
 		window.addEventListener('pksxcontroller', handleNativeInput);

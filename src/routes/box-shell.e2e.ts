@@ -494,6 +494,87 @@ test('controller input follows the keyboard navigation path', async ({ page }) =
 		.toBe('solid');
 });
 
+test('controller shoulder buttons switch boxes and A drives the party toggle and editor', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+
+	await pressController(page, 'PageDown');
+	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
+	await pressController(page, 'PageUp');
+	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+
+	await pressController(page, 'ArrowUp');
+	await expect(page.locator('#party-slot-0')).toBeFocused();
+	await pressController(page, 'ArrowUp');
+	await expect(page.locator('#party-toggle')).toBeFocused();
+
+	await pressController(page, 'Enter');
+	await expect(page.locator('#party-list')).toBeHidden();
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+	await pressController(page, 'ArrowUp');
+	await expect(page.locator('#party-toggle')).toBeFocused();
+	await pressController(page, 'Enter');
+	await expect(page.locator('#party-list')).toBeVisible();
+
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#party-slot-0')).toBeFocused();
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+	await pressController(page, 'Enter');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
+	await pressController(page, 'Enter');
+	await expect(page.locator('.pokemon-editor')).toBeVisible();
+	await pressController(page, 'Escape');
+	await expect(page.locator('.pokemon-editor')).toBeHidden();
+	await pressController(page, 'Escape');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+});
+
+test('desktop slot actions render fully visible beside the focused slot', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await page.locator('#box-grid').focus();
+
+	for (let step = 0; step < 5; step += 1) {
+		await page.keyboard.press('ArrowRight');
+	}
+	for (let step = 0; step < 4; step += 1) {
+		await page.keyboard.press('ArrowDown');
+	}
+	await expect(page.locator('#box-0-slot-29')).toHaveAttribute('aria-selected', 'true');
+	await page.keyboard.press('Enter');
+
+	const dialog = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(dialog).toBeVisible();
+	await expect(dialog).toHaveClass(/viewport-anchored/);
+
+	const menuState = await dialog.evaluate((element) => {
+		const rect = element.getBoundingClientRect();
+		return {
+			top: rect.top,
+			left: rect.left,
+			bottom: rect.bottom,
+			right: rect.right,
+			viewportWidth: window.innerWidth,
+			viewportHeight: window.innerHeight,
+			menuOwnsCenter: element.contains(
+				document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+			)
+		};
+	});
+
+	expect(menuState.top).toBeGreaterThanOrEqual(0);
+	expect(menuState.left).toBeGreaterThanOrEqual(0);
+	expect(menuState.right).toBeLessThanOrEqual(menuState.viewportWidth);
+	expect(menuState.bottom).toBeLessThanOrEqual(menuState.viewportHeight);
+	expect(menuState.menuOwnsCenter).toBe(true);
+});
+
 test('small widescreen viewports use the mobile shell', async ({ page }) => {
 	await openEmptyLibrary(page);
 	await page.setViewportSize({ width: 960, height: 540 });
