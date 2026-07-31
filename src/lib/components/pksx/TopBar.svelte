@@ -334,9 +334,12 @@
 	}
 
 	.section-pills button.controller-focused,
+	.section-pills button:focus,
 	.save-actions button.controller-focused,
-	.theme-toggle.controller-focused {
-		outline: 3px solid color-mix(in srgb, var(--rust), transparent 58%);
+	.save-actions button:focus,
+	.theme-toggle.controller-focused,
+	.theme-toggle:focus {
+		outline: 3px solid var(--rust-ring);
 		outline-offset: 2px;
 	}
 
