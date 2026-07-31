@@ -70,6 +70,8 @@ pnpm dev -- --open
 | `pnpm ios:open`            | Open the native iOS project in Xcode.                                                       |
 | `pnpm native:sync:android` | Build the web app and sync it into the Capacitor Android project.                           |
 | `pnpm android:open`        | Open the native Android project in Android Studio.                                          |
+| `pnpm android:build`       | Build and sync the web app, then assemble an Android debug APK.                             |
+| `pnpm test:android`        | Run native controller acceptance tests on the API 36 test emulator.                         |
 | `pnpm lint`                | Check Prettier formatting and ESLint.                                                       |
 | `pnpm format`              | Format the repo with Prettier.                                                              |
 | `pnpm test:unit -- --run`  | Run unit tests once.                                                                        |
@@ -77,6 +79,9 @@ pnpm dev -- --open
 | `pnpm test`                | Run unit tests and Playwright tests.                                                        |
 
 ## PKHeX Engine
+
+See [Android testing](./docs/testing/android.md) for the one-time emulator setup and
+headless local acceptance-test workflow.
 
 The Svelte app loads the engine from `/pkhex-engine`, which maps to generated static files under `static/pkhex-engine`.
 

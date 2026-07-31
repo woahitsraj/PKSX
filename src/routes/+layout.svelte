@@ -133,6 +133,19 @@
 			if (!detail || !isControllerKey(detail.key)) return;
 
 			nativeControllerId = detail.id || 'Android controller';
+			if (detail.discrete) {
+				if (detail.pressed) {
+					window.dispatchEvent(
+						new KeyboardEvent('keydown', {
+							key: detail.key,
+							bubbles: true,
+							cancelable: true
+						})
+					);
+				}
+				return;
+			}
+
 			if (detail.pressed) nativePressed.add(detail.key);
 			else nativePressed.delete(detail.key);
 		};
@@ -193,6 +206,7 @@
 	type NativeControllerInput = {
 		key: string;
 		pressed: boolean;
+		discrete?: boolean;
 		id?: string;
 	};
 
