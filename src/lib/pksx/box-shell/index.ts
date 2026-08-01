@@ -91,6 +91,7 @@ export function createSlotView(slot: PartySlotSummary | BoxSlotSummary): SlotVie
 		moves: slot.moves,
 		statEditConstraints: slot.statEditConstraints,
 		moveSetEditConstraints: slot.moveSetEditConstraints,
+		friendshipEditConstraints: slot.friendshipEditConstraints,
 		originalTrainer: slot.originalTrainer ?? undefined,
 		metLabel: slot.metLabel ?? undefined,
 		entityBytesBase64: slot.entityBytesBase64 ?? null
@@ -168,6 +169,14 @@ export function stagePokemonEditorDraftEdits(
 					label: 'Set Move Set',
 					payload: draft.moveSet
 				}
+			: null,
+		draft.friendship
+			? {
+					id: 'friendship',
+					capability: 'friendship-editing',
+					label: 'Set Friendship fields',
+					payload: draft.friendship
+				}
 			: null
 	].filter((edit) => edit !== null);
 
@@ -188,6 +197,10 @@ export function pokemonEditorDraftResetKey(state: PokemonEditorState): string {
 			id: move.id,
 			pp: move.pp ?? 0,
 			ppUps: move.ppUps ?? 0
+		})),
+		friendship: state.slot.friendshipEditConstraints?.fields.map((field) => ({
+			key: field.key,
+			value: field.value
 		}))
 	});
 }
@@ -198,9 +211,15 @@ export function pokemonEditSuccessMessage(
 ): string {
 	if (!mutated) return 'No Pokemon change made.';
 
-	const editedFields = ['nickname', 'level', 'experience', 'ivs', 'evs', 'moves'].filter(
-		(field) => operation[field as keyof PokemonEditOperation] !== undefined
-	);
+	const editedFields = [
+		'nickname',
+		'level',
+		'experience',
+		'ivs',
+		'evs',
+		'moves',
+		'friendshipEdits'
+	].filter((field) => operation[field as keyof PokemonEditOperation] !== undefined);
 	return editedFields.length === 1 && editedFields[0] === 'nickname'
 		? 'Pokemon nickname updated.'
 		: 'Pokemon edits applied.';

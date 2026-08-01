@@ -35,6 +35,7 @@
 	};
 
 	type DraftStats = Record<PokemonStatKey, string>;
+	type DraftFriendship = Record<string, string>;
 
 	let {
 		editor,
@@ -58,6 +59,12 @@
 	const baseIvs = $derived(statEditPayloadFromSlot(slot, 'iv'));
 	const baseEvs = $derived(statEditPayloadFromSlot(slot, 'ev'));
 	const baseMoveSet = $derived(moveSetEditPayloadFromSlot(slot));
+	const friendshipEditConstraints = $derived(slot.friendshipEditConstraints);
+	const baseFriendship = $derived(
+		Object.fromEntries(
+			(friendshipEditConstraints?.fields ?? []).map((field) => [field.key, String(field.value)])
+		) as DraftFriendship
+	);
 	let draftNickname = $state(untrack(() => slot.label));
 	let draftLevel = $state(untrack(() => String(slot.level ?? 1)));
 	let draftExperience = $state(untrack(() => String(slot.experience ?? 0)));
@@ -73,11 +80,13 @@
 			}))
 		)
 	);
+	let draftFriendship = $state<DraftFriendship>(untrack(() => ({ ...baseFriendship })));
 	let lastAppliedDraftSignature = $state('');
 	const statEditConstraints = $derived(slot.statEditConstraints);
 	const moveSetEditConstraints = $derived(slot.moveSetEditConstraints);
 	const canEditStats = $derived(statEditConstraints?.supported ?? false);
 	const canEditMoveSet = $derived(moveSetEditConstraints?.supported ?? false);
+	const canEditFriendship = $derived(friendshipEditConstraints?.supported ?? false);
 	const moveOptions = $derived(moveSetEditConstraints?.availableMoves ?? []);
 	const totalEvs = $derived(
 		statKeys.reduce((total, key) => {
@@ -162,6 +171,10 @@
 
 	function setEv(key: PokemonStatKey, value: string) {
 		draftEvs = { ...draftEvs, [key]: value };
+	}
+
+	function setFriendship(key: string, value: string) {
+		draftFriendship = { ...draftFriendship, [key]: value };
 	}
 
 	function setMove(index: number, value: string) {
@@ -431,6 +444,7 @@
 			pp: String(move.pp ?? 0),
 			ppUps: String(move.ppUps ?? 0)
 		}));
+		draftFriendship = { ...baseFriendship };
 	}
 
 	function countDraftEdits() {
@@ -440,6 +454,7 @@
 		if (isDraftStatsDirty(draftIvs, baseIvs)) count += 1;
 		if (isDraftStatsDirty(draftEvs, baseEvs)) count += 1;
 		if (isDraftMoveSetDirty()) count += 1;
+		if (isDraftFriendshipDirty()) count += 1;
 		return count;
 	}
 
@@ -455,6 +470,13 @@
 		if (isDraftStatsDirty(draftIvs, baseIvs)) draft.ivs = draftStatsToPayload(draftIvs);
 		if (isDraftStatsDirty(draftEvs, baseEvs)) draft.evs = draftStatsToPayload(draftEvs);
 		if (isDraftMoveSetDirty()) draft.moveSet = draftMoveSetToPayload();
+		if (isDraftFriendshipDirty()) {
+			draft.friendship = {
+				fields: (friendshipEditConstraints?.fields ?? [])
+					.filter((field) => draftFriendship[field.key] !== String(field.value))
+					.map((field) => ({ key: field.key, value: parseDraftNumber(draftFriendship[field.key]) }))
+			};
+		}
 		return draft;
 	}
 
@@ -477,6 +499,12 @@
 				move.ppUps !== String(base?.ppUps ?? 0)
 			);
 		});
+	}
+
+	function isDraftFriendshipDirty() {
+		return (friendshipEditConstraints?.fields ?? []).some(
+			(field) => draftFriendship[field.key] !== String(field.value)
+		);
 	}
 
 	function draftStatsToPayload(draft: DraftStats): PokemonStatEditPayload {
@@ -677,6 +705,47 @@
 						</label>
 					{/if}
 				</div>
+			</div>
+
+			<div class="editor-panel" aria-label="Friendship Editing">
+				<div class="panel-title">
+					<span>Friendship</span>
+					<small>{canEditFriendship ? 'Editable' : 'Unsupported'}</small>
+				</div>
+				{#if canEditFriendship}
+					<div class="stat-edit-controls">
+						{#each friendshipEditConstraints?.fields ?? [] as field (field.key)}
+							<label>
+								<span>{field.label} ({field.min}-{field.max})</span>
+								<input
+									id={`pokemon-editor-${field.key}`}
+									type="number"
+									min={field.min}
+									max={field.max}
+									step="1"
+									value={draftFriendship[field.key]}
+									disabled={applying}
+									readonly={!isInputEditing(`pokemon-editor-${field.key}`)}
+									data-controller-editing={draftInputEditingValue(`pokemon-editor-${field.key}`)}
+									onpointerdown={() => activateDraftInput(`pokemon-editor-${field.key}`, false)}
+									onclick={() => activateDraftInput(`pokemon-editor-${field.key}`, false)}
+									onblur={() => deactivateDraftInput(`pokemon-editor-${field.key}`)}
+									onkeydown={(event) =>
+										handleDraftInputKeydown(event, `pokemon-editor-${field.key}`)}
+									oninput={(event) => {
+										const target = event.currentTarget;
+										if (target instanceof HTMLInputElement) setFriendship(field.key, target.value);
+									}}
+								/>
+							</label>
+						{/each}
+					</div>
+				{:else}
+					<p class="unsupported-copy">
+						{friendshipEditConstraints?.unsupportedReason ??
+							'Friendship Editing is not supported for this Pokemon format.'}
+					</p>
+				{/if}
 			</div>
 
 			<div class="editor-panel" aria-label="Move Set Editing">

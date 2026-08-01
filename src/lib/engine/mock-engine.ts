@@ -102,6 +102,13 @@ const mockPikachuDetails = {
 			{ id: 98, name: 'Quick Attack', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 30 }
 		]
 	},
+	friendshipEditConstraints: {
+		supported: true,
+		fields: [
+			{ key: 'friendship', label: 'Friendship', value: 70, min: 0, max: 255 },
+			{ key: 'affection', label: 'Affection', value: 0, min: 0, max: 255 }
+		]
+	},
 	originalTrainer: 'PKSX',
 	metLabel: 'Lv. 5',
 	spriteIdentity: {
@@ -164,6 +171,11 @@ const mockBoxSlots: BoxSlotSummary[] = [
 			maxMoveSlots: 0,
 			availableMoves: [],
 			unsupportedReason: 'Move Set Editing needs an occupied Slot.'
+		},
+		friendshipEditConstraints: {
+			supported: false,
+			fields: [],
+			unsupportedReason: 'Friendship Editing needs an occupied Slot.'
 		}
 	}
 ];
@@ -242,7 +254,8 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					operation.experience !== undefined ||
 					operation.ivs !== undefined ||
 					operation.evs !== undefined ||
-					operation.moves !== undefined,
+					operation.moves !== undefined ||
+					operation.friendshipEdits !== undefined,
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,
