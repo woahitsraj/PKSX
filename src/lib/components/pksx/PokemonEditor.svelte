@@ -13,6 +13,7 @@
 		statEditPayloadFromSlot,
 		type PokemonStatKey
 	} from '$lib/pksx/pokemon-editor';
+	import { getSpriteIdentityLabels } from '$lib/pksx/sprite-catalog';
 
 	interface Props {
 		editor: PokemonEditorState;
@@ -34,6 +35,7 @@
 	};
 
 	type DraftStats = Record<PokemonStatKey, string>;
+	type DraftFriendship = Record<string, string>;
 
 	let {
 		editor,
@@ -57,6 +59,12 @@
 	const baseIvs = $derived(statEditPayloadFromSlot(slot, 'iv'));
 	const baseEvs = $derived(statEditPayloadFromSlot(slot, 'ev'));
 	const baseMoveSet = $derived(moveSetEditPayloadFromSlot(slot));
+	const friendshipEditConstraints = $derived(slot.friendshipEditConstraints);
+	const baseFriendship = $derived(
+		Object.fromEntries(
+			(friendshipEditConstraints?.fields ?? []).map((field) => [field.key, String(field.value)])
+		) as DraftFriendship
+	);
 	let draftNickname = $state(untrack(() => slot.label));
 	let draftLevel = $state(untrack(() => String(slot.level ?? 1)));
 	let draftExperience = $state(untrack(() => String(slot.experience ?? 0)));
@@ -73,6 +81,7 @@
 			}))
 		)
 	);
+	let draftFriendship = $state<DraftFriendship>(untrack(() => ({ ...baseFriendship })));
 	let lastAppliedDraftSignature = $state('');
 	const statEditConstraints = $derived(slot.statEditConstraints);
 	const moveSetEditConstraints = $derived(slot.moveSetEditConstraints);
@@ -80,6 +89,7 @@
 	const canEditStats = $derived(statEditConstraints?.supported ?? false);
 	const canEditMoveSet = $derived(moveSetEditConstraints?.supported ?? false);
 	const canEditNature = $derived(natureEditConstraints?.supported ?? false);
+	const canEditFriendship = $derived(friendshipEditConstraints?.supported ?? false);
 	const moveOptions = $derived(moveSetEditConstraints?.availableMoves ?? []);
 	const originalNature = $derived(
 		natureEditConstraints?.options.find(
@@ -103,6 +113,7 @@
 	const speciesLabel = $derived(
 		slot.speciesId ? `Species #${String(slot.speciesId).padStart(4, '0')}` : 'Unknown species'
 	);
+	const spriteIdentityLabels = $derived(getSpriteIdentityLabels(slot.spriteIdentity));
 	const sourceLabel = $derived(
 		editor.source.owner === 'save-file' ? 'Save File Pokemon' : 'Pokemon Storage Pokemon'
 	);
@@ -185,6 +196,10 @@
 
 	function setEv(key: PokemonStatKey, value: string) {
 		draftEvs = { ...draftEvs, [key]: value };
+	}
+
+	function setFriendship(key: string, value: string) {
+		draftFriendship = { ...draftFriendship, [key]: value };
 	}
 
 	function setMove(index: number, value: string) {
@@ -455,6 +470,7 @@
 			pp: String(move.pp ?? 0),
 			ppUps: String(move.ppUps ?? 0)
 		}));
+		draftFriendship = { ...baseFriendship };
 	}
 
 	function countDraftEdits() {
@@ -465,6 +481,7 @@
 		if (isDraftStatsDirty(draftIvs, baseIvs)) count += 1;
 		if (isDraftStatsDirty(draftEvs, baseEvs)) count += 1;
 		if (isDraftMoveSetDirty()) count += 1;
+		if (isDraftFriendshipDirty()) count += 1;
 		return count;
 	}
 
@@ -481,6 +498,13 @@
 		if (isDraftStatsDirty(draftIvs, baseIvs)) draft.ivs = draftStatsToPayload(draftIvs);
 		if (isDraftStatsDirty(draftEvs, baseEvs)) draft.evs = draftStatsToPayload(draftEvs);
 		if (isDraftMoveSetDirty()) draft.moveSet = draftMoveSetToPayload();
+		if (isDraftFriendshipDirty()) {
+			draft.friendship = {
+				fields: (friendshipEditConstraints?.fields ?? [])
+					.filter((field) => draftFriendship[field.key] !== String(field.value))
+					.map((field) => ({ key: field.key, value: parseDraftNumber(draftFriendship[field.key]) }))
+			};
+		}
 		return draft;
 	}
 
@@ -507,6 +531,12 @@
 				move.ppUps !== String(base?.ppUps ?? 0)
 			);
 		});
+	}
+
+	function isDraftFriendshipDirty() {
+		return (friendshipEditConstraints?.fields ?? []).some(
+			(field) => draftFriendship[field.key] !== String(field.value)
+		);
 	}
 
 	function draftStatsToPayload(draft: DraftStats): PokemonStatEditPayload {
@@ -586,7 +616,9 @@
 			<div class="summary-strip" aria-label="Pokemon identity">
 				<strong>{speciesLabel}</strong>
 				{#if slot.level !== null}<span>Level {slot.level}</span>{/if}
-				{#if slot.form !== null && slot.form > 0}<span>Form {slot.form}</span>{/if}
+				{#if spriteIdentityLabels.form}<span>{spriteIdentityLabels.form}</span>{/if}
+				{#if spriteIdentityLabels.shiny}<span>{spriteIdentityLabels.shiny}</span>{/if}
+				{#if spriteIdentityLabels.displaySex}<span>{spriteIdentityLabels.displaySex}</span>{/if}
 				{#if slot.isEgg}<span>Egg</span>{/if}
 			</div>
 
@@ -747,6 +779,47 @@
 						</label>
 					{/if}
 				</div>
+			</div>
+
+			<div class="editor-panel" aria-label="Friendship Editing">
+				<div class="panel-title">
+					<span>Friendship</span>
+					<small>{canEditFriendship ? 'Editable' : 'Unsupported'}</small>
+				</div>
+				{#if canEditFriendship}
+					<div class="stat-edit-controls">
+						{#each friendshipEditConstraints?.fields ?? [] as field (field.key)}
+							<label>
+								<span>{field.label} ({field.min}-{field.max})</span>
+								<input
+									id={`pokemon-editor-${field.key}`}
+									type="number"
+									min={field.min}
+									max={field.max}
+									step="1"
+									value={draftFriendship[field.key]}
+									disabled={applying}
+									readonly={!isInputEditing(`pokemon-editor-${field.key}`)}
+									data-controller-editing={draftInputEditingValue(`pokemon-editor-${field.key}`)}
+									onpointerdown={() => activateDraftInput(`pokemon-editor-${field.key}`, false)}
+									onclick={() => activateDraftInput(`pokemon-editor-${field.key}`, false)}
+									onblur={() => deactivateDraftInput(`pokemon-editor-${field.key}`)}
+									onkeydown={(event) =>
+										handleDraftInputKeydown(event, `pokemon-editor-${field.key}`)}
+									oninput={(event) => {
+										const target = event.currentTarget;
+										if (target instanceof HTMLInputElement) setFriendship(field.key, target.value);
+									}}
+								/>
+							</label>
+						{/each}
+					</div>
+				{:else}
+					<p class="unsupported-copy">
+						{friendshipEditConstraints?.unsupportedReason ??
+							'Friendship Editing is not supported for this Pokemon format.'}
+					</p>
+				{/if}
 			</div>
 
 			<div class="editor-panel" aria-label="Move Set Editing">
@@ -1114,10 +1187,15 @@
 
 	.icon-close:hover,
 	.icon-close:focus-visible,
+	.icon-close:focus,
 	.close-editor:hover,
 	.close-editor:focus-visible,
+	.close-editor:focus,
 	.unsupported-apply:hover,
-	.unsupported-apply:focus-visible {
+	.unsupported-apply:focus-visible,
+	.unsupported-apply:focus,
+	.pokemon-editor button:focus,
+	.pokemon-editor input:focus {
 		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
 		outline-offset: 1px;
 	}
@@ -1546,7 +1624,8 @@
 	}
 
 	.move-picker-option.active,
-	.move-picker-option:focus-visible {
+	.move-picker-option:focus-visible,
+	.move-picker-option:focus {
 		border-color: color-mix(in srgb, var(--rust), transparent 20%);
 		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
 		outline-offset: 1px;
@@ -1680,17 +1759,28 @@
 		color: white;
 	}
 
-	@media (max-width: 720px) {
+	@media (max-width: 1024px) {
 		.pokemon-editor {
-			top: 12px;
-			bottom: 12px;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			left: 0;
+			width: auto;
 			max-height: none;
-			transform: translateX(-50%);
+			border-radius: 0;
+			transform: none;
+			padding: calc(14px + env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right))
+				calc(14px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left));
 		}
 
 		.editor-body {
-			grid-template-columns: 1fr;
 			overflow-y: auto;
+		}
+	}
+
+	@media (max-width: 720px) {
+		.editor-body {
+			grid-template-columns: 1fr;
 		}
 
 		.editor-summary {

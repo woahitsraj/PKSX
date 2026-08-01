@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { SaveSummary } from '$lib/engine';
+	import { getSpriteIdentityLabels } from '$lib/pksx/sprite-catalog';
 	import type { SlotView } from './types';
 
 	interface Props {
@@ -30,11 +31,7 @@
 			? `Species #${String(focusedSlot.speciesId).padStart(4, '0')}`
 			: null
 	);
-	const formLabel = $derived(
-		isPokemon && focusedSlot.form !== null && focusedSlot.form > 0
-			? `Form ${focusedSlot.form}`
-			: null
-	);
+	const identityLabels = $derived(getSpriteIdentityLabels(focusedSlot.spriteIdentity));
 	const details = $derived(
 		[
 			focusedSlot.nature,
@@ -122,12 +119,14 @@
 		{/if}
 	</div>
 
-	{#if isPokemon && (speciesLabel || formLabel || focusedSlot.gender || focusedSlot.isEgg)}
+	{#if isPokemon}
 		<div class="identity-strip" aria-label="Pokemon identity">
 			{#if speciesLabel}<span>{speciesLabel}</span>{/if}
+			{#if identityLabels.form}<span>{identityLabels.form}</span>{/if}
+			{#if identityLabels.shiny}<span>{identityLabels.shiny}</span>{/if}
+			{#if identityLabels.displaySex}<span>{identityLabels.displaySex}</span>{/if}
 			{#if focusedSlot.gender}<span>{focusedSlot.gender}</span>{/if}
 			{#if focusedSlot.isEgg}<span>Egg</span>{/if}
-			{#if formLabel}<span>{formLabel}</span>{/if}
 			<span>{locationLabel}</span>
 		</div>
 	{/if}
@@ -587,7 +586,7 @@
 		overflow-wrap: anywhere;
 	}
 
-	@media (max-width: 820px) {
+	@media (max-width: 1024px) {
 		.detail-rail {
 			order: 2;
 			position: static;

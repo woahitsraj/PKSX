@@ -1,5 +1,6 @@
 import type {
 	PokemonExperienceProjection,
+	PokemonFriendshipEditConstraints,
 	PokemonMoveSetEditConstraints,
 	PokemonNatureEditConstraints,
 	PokemonStatEditConstraints,
@@ -28,6 +29,7 @@ export type SlotView = {
 	natureEditConstraints?: PokemonNatureEditConstraints;
 	statEditConstraints?: PokemonStatEditConstraints;
 	moveSetEditConstraints?: PokemonMoveSetEditConstraints;
+	friendshipEditConstraints?: PokemonFriendshipEditConstraints;
 	originalTrainer?: string;
 	metLabel?: string;
 	entityBytesBase64?: string | null;

@@ -1,0 +1,2 @@
+# Loaded through Tailwind CSS @plugin directives in src/routes/layout.css.
+ignoreDependencies = ["@tailwindcss/forms", "@tailwindcss/typography"]

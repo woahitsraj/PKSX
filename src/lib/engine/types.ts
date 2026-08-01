@@ -79,6 +79,7 @@ export type BoxSlotSummary = {
 	natureEditConstraints: PokemonNatureEditConstraints;
 	statEditConstraints: PokemonStatEditConstraints;
 	moveSetEditConstraints: PokemonMoveSetEditConstraints;
+	friendshipEditConstraints: PokemonFriendshipEditConstraints;
 	originalTrainer?: string | null;
 	metLabel?: string | null;
 	spriteIdentity: SpriteIdentity;
@@ -166,6 +167,20 @@ export type PokemonMoveSetEditConstraints = {
 	unsupportedReason?: string | null;
 };
 
+export type PokemonFriendshipField = {
+	key: string;
+	label: string;
+	value: number;
+	min: number;
+	max: number;
+};
+
+export type PokemonFriendshipEditConstraints = {
+	supported: boolean;
+	fields: PokemonFriendshipField[];
+	unsupportedReason?: string | null;
+};
+
 export type SaveWorkspace = {
 	summary: SaveSummary;
 	partySlots: PartySlotSummary[];
@@ -230,6 +245,7 @@ export type PokemonEditOperation = {
 	ivs?: PokemonStatEditSet;
 	evs?: PokemonStatEditSet;
 	moves?: PokemonMoveSlotEdit[];
+	friendshipEdits?: PokemonFriendshipFieldEdit[];
 };
 
 export type PokemonStatEditSet = {
@@ -246,6 +262,11 @@ export type PokemonMoveSlotEdit = {
 	move: number;
 	pp?: number;
 	ppUps?: number;
+};
+
+export type PokemonFriendshipFieldEdit = {
+	key: string;
+	value: number;
 };
 
 export type PokemonEditOperationResult = {

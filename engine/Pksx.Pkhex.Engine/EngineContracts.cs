@@ -76,6 +76,7 @@ public sealed record PartySlotSummary(
     PokemonNatureEditConstraints NatureEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
+    PokemonFriendshipEditConstraints FriendshipEditConstraints,
     string? OriginalTrainer,
     string? MetLabel,
     SpriteIdentity SpriteIdentity,
@@ -103,6 +104,7 @@ public sealed record PartySlotSummary(
             SlotDetailProjection.NatureEditConstraints(pokemon),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Party),
+            SlotDetailProjection.FriendshipEditConstraints(pokemon),
             SlotDetailProjection.OriginalTrainer(pokemon),
             SlotDetailProjection.MetLabel(pokemon),
             SpriteIdentity.From(pokemon),
@@ -131,6 +133,7 @@ public sealed record BoxSlotSummary(
     PokemonNatureEditConstraints NatureEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
+    PokemonFriendshipEditConstraints FriendshipEditConstraints,
     string? OriginalTrainer,
     string? MetLabel,
     SpriteIdentity SpriteIdentity,
@@ -159,6 +162,7 @@ public sealed record BoxSlotSummary(
             SlotDetailProjection.NatureEditConstraints(pokemon),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Box),
+            SlotDetailProjection.FriendshipEditConstraints(pokemon),
             SlotDetailProjection.OriginalTrainer(pokemon),
             SlotDetailProjection.MetLabel(pokemon),
             SpriteIdentity.From(pokemon),
@@ -270,6 +274,13 @@ public sealed record PokemonMoveSetEditConstraints(
     List<PokemonMoveOption> AvailableMoves,
     string? UnsupportedReason);
 
+public sealed record PokemonFriendshipField(string Key, string Label, int Value, int Min, int Max);
+
+public sealed record PokemonFriendshipEditConstraints(
+    bool Supported,
+    List<PokemonFriendshipField> Fields,
+    string? UnsupportedReason);
+
 public sealed record SaveWorkspace(
     SaveSummary Summary,
     List<PartySlotSummary> PartySlots,
@@ -300,7 +311,8 @@ public sealed record PokemonEditOperationRequest(
     int? NatureId,
     PokemonStatEditSet? Ivs,
     PokemonStatEditSet? Evs,
-    List<PokemonMoveSlotEdit>? Moves);
+    List<PokemonMoveSlotEdit>? Moves,
+    List<PokemonFriendshipFieldEdit>? FriendshipEdits);
 
 public sealed record PokemonStatEditSet(
     [property: JsonPropertyName("HP")] int HP,
@@ -311,6 +323,8 @@ public sealed record PokemonStatEditSet(
     [property: JsonPropertyName("SPE")] int SPE);
 
 public sealed record PokemonMoveSlotEdit(int Slot, ushort Move, int? Pp, int? PpUps);
+
+public sealed record PokemonFriendshipFieldEdit(string Key, int Value);
 
 public sealed record PokemonEditOperationResult(
     string BytesBase64,
@@ -376,6 +390,34 @@ internal static class SlotDetailProjection
 
     public static string? HeldItem(PKM pokemon) =>
         pokemon.Species == 0 || pokemon.HeldItem <= 0 ? null : NameAt(GameInfo.Strings.Item, pokemon.HeldItem);
+
+    public static PokemonFriendshipEditConstraints FriendshipEditConstraints(PKM pokemon)
+    {
+        if (pokemon.Species == 0)
+            return new(false, [], "Friendship Editing needs an occupied Slot.");
+        if (pokemon.Format < 2)
+            return new(false, [], "Friendship Editing is not supported for Generation 1 Pokemon.");
+
+        var fields = new List<PokemonFriendshipField>
+        {
+            new(
+                pokemon.IsEgg ? "hatch-counter" : "friendship",
+                pokemon.IsEgg ? "Hatch Counter" : "Friendship",
+                pokemon.CurrentFriendship,
+                byte.MinValue,
+                byte.MaxValue)
+        };
+
+        if (!pokemon.IsEgg && pokemon is IAffection affection)
+        {
+            var value = pokemon.CurrentHandler == 0
+                ? affection.OriginalTrainerAffection
+                : affection.HandlingTrainerAffection;
+            fields.Add(new("affection", "Affection", value, byte.MinValue, byte.MaxValue));
+        }
+
+        return new(true, fields, null);
+    }
 
     public static List<SlotTypeSummary> Types(PKM pokemon)
     {
