@@ -33,6 +33,14 @@ const occupiedSlot: BoxSlotSummary = {
 		maxTotalEv: 510
 	},
 	moveSetEditConstraints: { supported: false, maxMoveSlots: 4, availableMoves: [] },
+	natureEditConstraints: {
+		supported: false,
+		currentNatureId: 0,
+		originalNatureId: 0,
+		statNatureId: 0,
+		usesStatNature: false,
+		options: []
+	},
 	friendshipEditConstraints: { supported: false, fields: [] },
 	spriteIdentity: {
 		speciesId: 304,

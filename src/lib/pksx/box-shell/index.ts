@@ -163,9 +163,8 @@ export function stagePokemonEditorDraftEdits(
 					id: 'nature',
 					capability: 'nature-editing',
 					label: `Set Nature to ${
-						state.slot.natureEditConstraints?.options.find(
-							(option) => option.id === draft.natureId
-						)?.name ?? draft.natureId
+						state.slot.natureEditConstraints?.options.find((option) => option.id === draft.natureId)
+							?.name ?? draft.natureId
 					}`,
 					payload: { natureId: draft.natureId }
 				},
