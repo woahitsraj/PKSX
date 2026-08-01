@@ -9,7 +9,13 @@
 	import MobileTabbar from '$lib/components/pksx/MobileTabbar.svelte';
 	import TopBar from '$lib/components/pksx/TopBar.svelte';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
-	import { readGamepadKeys, type ControllerKey } from '$lib/pksx/controller-input';
+	import {
+		controllerFocusSystem,
+		dispatchControllerKey,
+		isControllerKeyboardEvent,
+		readGamepadKeys,
+		type ControllerKey
+	} from '$lib/pksx/controller-input';
 
 	let { children } = $props();
 
@@ -99,7 +105,7 @@
 	}
 
 	function handleChromeKeydown(event: KeyboardEvent) {
-		if (appChrome.controllerInputActive) {
+		if (appChrome.controllerInputActive || isControllerKeyboardEvent(event)) {
 			return;
 		}
 
@@ -130,8 +136,7 @@
 		const repeatInterval = 110;
 		const nativePlatform = Capacitor.isNativePlatform();
 
-		const dispatchKey = (key: ControllerKey) =>
-			window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+		const dispatchKey = dispatchControllerKey;
 
 		const handleNativeInput = (event: Event) => {
 			const detail = (event as CustomEvent<NativeControllerInput>).detail;
@@ -322,6 +327,7 @@
 	aria-labelledby="screen-title"
 	onfocusin={handleShellFocusIn}
 	{@attach controllerNavigation}
+	{@attach controllerFocusSystem}
 >
 	<TopBar
 		{sectionPills}

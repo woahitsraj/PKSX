@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { onMount } from 'svelte';
 	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
 
 	type SaveEditorSection = 'trainer' | 'money' | 'bag';
@@ -77,7 +78,7 @@
 		pockets.find((pocket) => pocket.key === activePocket)?.label ?? 'Medicine'
 	);
 
-	$effect(() => {
+	onMount(() => {
 		updateAppChrome({
 			route: 'save-file',
 			saveSummary: {
@@ -100,10 +101,12 @@
 			fileName,
 			busy: false,
 			hasLoadedSave: true,
-			controllerInputActive: false,
+			controllerInputActive: true,
 			importSave: null,
 			exportSave: null
 		});
+
+		return () => updateAppChrome({ controllerInputActive: false });
 	});
 
 	function openBoxes() {
@@ -117,7 +120,9 @@
 
 <section class="save-file-route" aria-label="Save File Editor mock">
 	<div class="mobile-heading">
-		<button type="button" aria-label="Back to boxes" onclick={openBoxes}>‹</button>
+		<button type="button" aria-label="Back to boxes" data-controller-back onclick={openBoxes}
+			>‹</button
+		>
 		<div>
 			<h1>Save File editor</h1>
 			<p>{fileName} · {gameName}</p>
