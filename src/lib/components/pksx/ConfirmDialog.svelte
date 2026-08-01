@@ -267,7 +267,8 @@
 		cursor: pointer;
 	}
 
-	.dialog-actions button:focus-visible {
+	.dialog-actions button:focus-visible,
+	.dialog-actions button:focus {
 		outline: 3px solid color-mix(in srgb, var(--pksx-color-accent-primary), transparent 58%);
 		outline-offset: 3px;
 	}
