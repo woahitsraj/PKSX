@@ -181,7 +181,7 @@ export class ActiveWorkspaceService {
 			if (slotRow.zone === 'box') boxSlots.push(projection);
 		}
 		partySlots.sort((a, b) => a.slot - b.slot);
-		boxSlots.sort((a, b) => a.slot - b.slot);
+		boxSlots.sort((a, b) => a.box - b.box || a.slot - b.slot);
 
 		return {
 			file: this.artifact.file,
