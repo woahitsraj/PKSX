@@ -2,12 +2,43 @@ import { describe, expect, test } from 'vitest';
 import {
 	createSpriteCatalogKey,
 	getSpriteCatalogEntries,
+	getSpriteIdentityLabels,
 	resolveSpriteCatalogEntry,
 	resolveSpriteCatalogEntryFromEntries,
 	type SpriteCatalogEntry
 } from './index';
 
 describe('Sprite Catalog', () => {
+	test('creates user-facing Sprite Identity labels', () => {
+		expect(
+			getSpriteIdentityLabels({
+				speciesId: 25,
+				form: 6,
+				isEgg: false,
+				isShiny: true,
+				displaySex: 'female'
+			})
+		).toEqual({ form: 'Alola form', shiny: 'Shiny', displaySex: 'Female sprite' });
+		expect(
+			getSpriteIdentityLabels({
+				speciesId: 1,
+				form: 0,
+				isEgg: false,
+				isShiny: false,
+				displaySex: 'default'
+			})
+		).toEqual({ form: null, shiny: null, displaySex: null });
+		expect(
+			getSpriteIdentityLabels({
+				speciesId: 9999,
+				form: 2,
+				isEgg: false,
+				isShiny: false,
+				displaySex: 'default'
+			})
+		).toEqual({ form: 'Form 2', shiny: null, displaySex: null });
+	});
+
 	test('creates deterministic catalog keys', () => {
 		expect(
 			createSpriteCatalogKey({

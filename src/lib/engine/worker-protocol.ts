@@ -107,6 +107,24 @@ export const pokemonStatEditConstraintsSchema = z.object({
 	unsupportedReason: z.string().nullable().optional()
 });
 
+export const pokemonNatureEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	currentNatureId: z.number().int().default(-1),
+	originalNatureId: z.number().int().default(-1),
+	statNatureId: z.number().int().default(-1),
+	usesStatNature: z.boolean().default(false),
+	options: z
+		.array(
+			z.object({
+				id: z.number().int(),
+				name: z.string(),
+				effect: z.string()
+			})
+		)
+		.default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
 export const pokemonHeldItemOptionSchema = z.object({
 	id: z.number().int(),
 	name: z.string(),
@@ -134,6 +152,20 @@ export const pokemonMoveSetEditConstraintsSchema = z.object({
 	supported: z.boolean().default(false),
 	maxMoveSlots: z.number().default(4),
 	availableMoves: z.array(pokemonMoveOptionSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
+export const pokemonFriendshipFieldSchema = z.object({
+	key: z.string(),
+	label: z.string(),
+	value: z.number().int(),
+	min: z.number().int(),
+	max: z.number().int()
+});
+
+export const pokemonFriendshipEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	fields: z.array(pokemonFriendshipFieldSchema).default([]),
 	unsupportedReason: z.string().nullable().optional()
 });
 
@@ -176,6 +208,15 @@ const slotSummaryFields = {
 	types: z.array(slotTypeSummarySchema).default([]),
 	stats: z.array(slotStatSummarySchema).default([]),
 	moves: z.array(slotMoveSummarySchema).default([]),
+	natureEditConstraints: pokemonNatureEditConstraintsSchema.default({
+		supported: false,
+		currentNatureId: -1,
+		originalNatureId: -1,
+		statNatureId: -1,
+		usesStatNature: false,
+		options: [],
+		unsupportedReason: 'Nature Editing is not available for this Pokemon projection.'
+	}),
 	heldItemEditConstraints: pokemonHeldItemEditConstraintsSchema.default({
 		supported: false,
 		currentItemId: 0,
@@ -196,6 +237,11 @@ const slotSummaryFields = {
 		maxMoveSlots: 4,
 		availableMoves: [],
 		unsupportedReason: 'Move Set Editing is not available for this Pokemon projection.'
+	}),
+	friendshipEditConstraints: pokemonFriendshipEditConstraintsSchema.default({
+		supported: false,
+		fields: [],
+		unsupportedReason: 'Friendship Editing is not available for this Pokemon projection.'
 	}),
 	originalTrainer: z.string().nullable().optional(),
 	metLabel: z.string().nullable().optional(),
@@ -278,6 +324,7 @@ export const pokemonEditOperationSchema = z.object({
 	nickname: z.string().optional(),
 	level: z.number().int().optional(),
 	experience: z.number().int().optional(),
+	natureId: z.number().int().optional(),
 	heldItemId: z.number().int().optional(),
 	ivs: z
 		.object({
@@ -306,6 +353,14 @@ export const pokemonEditOperationSchema = z.object({
 				move: z.number().int(),
 				pp: z.number().int().optional(),
 				ppUps: z.number().int().optional()
+			})
+		)
+		.optional(),
+	friendshipEdits: z
+		.array(
+			z.object({
+				key: z.string(),
+				value: z.number().int()
 			})
 		)
 		.optional()

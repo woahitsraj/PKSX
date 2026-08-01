@@ -73,9 +73,11 @@ public sealed record PartySlotSummary(
     List<SlotTypeSummary> Types,
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
+    PokemonNatureEditConstraints NatureEditConstraints,
     PokemonHeldItemEditConstraints HeldItemEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
+    PokemonFriendshipEditConstraints FriendshipEditConstraints,
     string? OriginalTrainer,
     string? MetLabel,
     SpriteIdentity SpriteIdentity,
@@ -100,9 +102,11 @@ public sealed record PartySlotSummary(
             SlotDetailProjection.Types(pokemon),
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
+            SlotDetailProjection.NatureEditConstraints(pokemon),
             SlotDetailProjection.HeldItemEditConstraints(pokemon, save),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Party),
+            SlotDetailProjection.FriendshipEditConstraints(pokemon),
             SlotDetailProjection.OriginalTrainer(pokemon),
             SlotDetailProjection.MetLabel(pokemon),
             SpriteIdentity.From(pokemon),
@@ -128,9 +132,11 @@ public sealed record BoxSlotSummary(
     List<SlotTypeSummary> Types,
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
+    PokemonNatureEditConstraints NatureEditConstraints,
     PokemonHeldItemEditConstraints HeldItemEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
+    PokemonFriendshipEditConstraints FriendshipEditConstraints,
     string? OriginalTrainer,
     string? MetLabel,
     SpriteIdentity SpriteIdentity,
@@ -156,9 +162,11 @@ public sealed record BoxSlotSummary(
             SlotDetailProjection.Types(pokemon),
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
+            SlotDetailProjection.NatureEditConstraints(pokemon),
             SlotDetailProjection.HeldItemEditConstraints(pokemon, save),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Box),
+            SlotDetailProjection.FriendshipEditConstraints(pokemon),
             SlotDetailProjection.OriginalTrainer(pokemon),
             SlotDetailProjection.MetLabel(pokemon),
             SpriteIdentity.From(pokemon),
@@ -242,6 +250,17 @@ public sealed record SlotStatSummary(string Key, string Label, int Value, int? E
 
 public sealed record SlotMoveSummary(int Slot, ushort Id, string Name, string Type, int Hue, double Chroma, int? Pp, int? MaxPp, int? PpUps);
 
+public sealed record PokemonNatureOption(int Id, string Name, string Effect);
+
+public sealed record PokemonNatureEditConstraints(
+    bool Supported,
+    int CurrentNatureId,
+    int OriginalNatureId,
+    int StatNatureId,
+    bool UsesStatNature,
+    List<PokemonNatureOption> Options,
+    string? UnsupportedReason);
+
 public sealed record PokemonHeldItemOption(int Id, string Name, bool Available, string? UnavailableReason);
 
 public sealed record PokemonHeldItemEditConstraints(
@@ -265,6 +284,13 @@ public sealed record PokemonMoveSetEditConstraints(
     bool Supported,
     int MaxMoveSlots,
     List<PokemonMoveOption> AvailableMoves,
+    string? UnsupportedReason);
+
+public sealed record PokemonFriendshipField(string Key, string Label, int Value, int Min, int Max);
+
+public sealed record PokemonFriendshipEditConstraints(
+    bool Supported,
+    List<PokemonFriendshipField> Fields,
     string? UnsupportedReason);
 
 public sealed record SaveWorkspace(
@@ -294,10 +320,12 @@ public sealed record PokemonEditOperationRequest(
     string? Nickname,
     int? Level,
     uint? Experience,
+    int? NatureId,
     int? HeldItemId,
     PokemonStatEditSet? Ivs,
     PokemonStatEditSet? Evs,
-    List<PokemonMoveSlotEdit>? Moves);
+    List<PokemonMoveSlotEdit>? Moves,
+    List<PokemonFriendshipFieldEdit>? FriendshipEdits);
 
 public sealed record PokemonStatEditSet(
     [property: JsonPropertyName("HP")] int HP,
@@ -308,6 +336,8 @@ public sealed record PokemonStatEditSet(
     [property: JsonPropertyName("SPE")] int SPE);
 
 public sealed record PokemonMoveSlotEdit(int Slot, ushort Move, int? Pp, int? PpUps);
+
+public sealed record PokemonFriendshipFieldEdit(string Key, int Value);
 
 public sealed record PokemonEditOperationResult(
     string BytesBase64,
@@ -337,6 +367,8 @@ public sealed record LegalityReport(
 
 internal static class SlotDetailProjection
 {
+    private static readonly string[] NatureStats = ["Attack", "Defense", "Speed", "Sp. Atk", "Sp. Def"];
+
     private static readonly string[] StatKeys = ["HP", "ATK", "DEF", "SPA", "SPD", "SPE"];
 
     private static readonly string[] StatLabels = ["HP", "ATK", "DEF", "SPA", "SPD", "SPE"];
@@ -373,6 +405,34 @@ internal static class SlotDetailProjection
         pokemon.Species == 0 || pokemon.HeldItem <= 0
             ? null
             : NameAt(GameInfo.Strings.GetItemStrings(pokemon.Context, pokemon.Version), pokemon.HeldItem);
+
+    public static PokemonFriendshipEditConstraints FriendshipEditConstraints(PKM pokemon)
+    {
+        if (pokemon.Species == 0)
+            return new(false, [], "Friendship Editing needs an occupied Slot.");
+        if (pokemon.Format < 2)
+            return new(false, [], "Friendship Editing is not supported for Generation 1 Pokemon.");
+
+        var fields = new List<PokemonFriendshipField>
+        {
+            new(
+                pokemon.IsEgg ? "hatch-counter" : "friendship",
+                pokemon.IsEgg ? "Hatch Counter" : "Friendship",
+                pokemon.CurrentFriendship,
+                byte.MinValue,
+                byte.MaxValue)
+        };
+
+        if (!pokemon.IsEgg && pokemon is IAffection affection)
+        {
+            var value = pokemon.CurrentHandler == 0
+                ? affection.OriginalTrainerAffection
+                : affection.HandlingTrainerAffection;
+            fields.Add(new("affection", "Affection", value, byte.MinValue, byte.MaxValue));
+        }
+
+        return new(true, fields, null);
+    }
 
     public static List<SlotTypeSummary> Types(PKM pokemon)
     {
@@ -498,6 +558,13 @@ internal static class SlotDetailProjection
                 [],
                 "Held Item Editing is not supported for this Pokemon Entity format.");
 
+        if (pokemon.IsEgg)
+            return new PokemonHeldItemEditConstraints(
+                false,
+                pokemon.HeldItem,
+                [],
+                "Egg Pokemon cannot hold items.");
+
         var options = new List<PokemonHeldItemOption>(save.HeldItems.Length + 1)
         {
             new(0, "No item", true, null)
@@ -522,6 +589,47 @@ internal static class SlotDetailProjection
         }
 
         return new PokemonHeldItemEditConstraints(true, pokemon.HeldItem, options, null);
+    }
+
+    public static PokemonNatureEditConstraints NatureEditConstraints(PKM pokemon)
+    {
+        if (pokemon.Species == 0)
+            return new PokemonNatureEditConstraints(
+                false,
+                -1,
+                -1,
+                -1,
+                false,
+                [],
+                "Nature Editing needs an occupied Slot.");
+
+        if (pokemon.Format < 3)
+            return new PokemonNatureEditConstraints(
+                false,
+                -1,
+                (int)pokemon.Nature,
+                (int)pokemon.StatNature,
+                false,
+                [],
+                "Nature Editing is not supported for this Pokemon format.");
+
+        var options = new List<PokemonNatureOption>(25);
+        for (var id = 0; id < 25; id++)
+        {
+            var name = NameAt(GameInfo.Strings.Natures, id);
+            if (name is not null)
+                options.Add(new PokemonNatureOption(id, name, NatureEffect(id)));
+        }
+
+        var usesStatNature = pokemon.Format >= 8;
+        return new PokemonNatureEditConstraints(
+            options.Count == 25,
+            usesStatNature ? (int)pokemon.StatNature : (int)pokemon.Nature,
+            (int)pokemon.Nature,
+            (int)pokemon.StatNature,
+            usesStatNature,
+            options,
+            options.Count == 25 ? null : "PKHeX did not provide every Nature choice.");
     }
 
     public static PokemonMoveSetEditConstraints MoveSetEditConstraints(PKM pokemon, StorageSlotType storageSlotType)
@@ -594,14 +702,18 @@ internal static class SlotDetailProjection
             MoveInfo.GetPP(pokemon.Context, move));
     }
 
-    private static string? HeldItemUnavailableReason(PKM pokemon, ushort item, string name)
-    {
-        if (pokemon.IsEgg)
-            return "Egg Pokemon cannot hold items.";
-
-        return ItemRestrictions.IsHeldItemAllowed(item, pokemon.Context)
+    private static string? HeldItemUnavailableReason(PKM pokemon, ushort item, string name) =>
+        ItemRestrictions.IsHeldItemAllowed(item, pokemon.Context)
             ? null
             : $"{name} is not supported by this Pokemon Entity format.";
+
+    private static string NatureEffect(int nature)
+    {
+        var increased = nature / 5;
+        var decreased = nature % 5;
+        return increased == decreased
+            ? "No stat change"
+            : $"+{NatureStats[increased]}, -{NatureStats[decreased]}";
     }
 
     private static string? TypeName(int type) => NameAt(GameInfo.Strings.Types, type);

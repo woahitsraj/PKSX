@@ -13,6 +13,7 @@
 		statEditPayloadFromSlot,
 		type PokemonStatKey
 	} from '$lib/pksx/pokemon-editor';
+	import { getSpriteIdentityLabels } from '$lib/pksx/sprite-catalog';
 
 	interface Props {
 		editor: PokemonEditorState;
@@ -34,6 +35,7 @@
 	};
 
 	type DraftStats = Record<PokemonStatKey, string>;
+	type DraftFriendship = Record<string, string>;
 
 	let {
 		editor,
@@ -57,9 +59,16 @@
 	const baseIvs = $derived(statEditPayloadFromSlot(slot, 'iv'));
 	const baseEvs = $derived(statEditPayloadFromSlot(slot, 'ev'));
 	const baseMoveSet = $derived(moveSetEditPayloadFromSlot(slot));
+	const friendshipEditConstraints = $derived(slot.friendshipEditConstraints);
+	const baseFriendship = $derived(
+		Object.fromEntries(
+			(friendshipEditConstraints?.fields ?? []).map((field) => [field.key, String(field.value)])
+		) as DraftFriendship
+	);
 	let draftNickname = $state(untrack(() => slot.label));
 	let draftLevel = $state(untrack(() => String(slot.level ?? 1)));
 	let draftExperience = $state(untrack(() => String(slot.experience ?? 0)));
+	let draftNatureId = $state(untrack(() => slot.natureEditConstraints?.currentNatureId ?? -1));
 	let draftHeldItemId = $state(untrack(() => slot.heldItemEditConstraints?.currentItemId ?? 0));
 	let draftIvs = $state<DraftStats>(untrack(() => statsToDraft(baseIvs)));
 	let draftEvs = $state<DraftStats>(untrack(() => statsToDraft(baseEvs)));
@@ -73,16 +82,30 @@
 			}))
 		)
 	);
+	let draftFriendship = $state<DraftFriendship>(untrack(() => ({ ...baseFriendship })));
 	let lastAppliedDraftSignature = $state('');
 	const statEditConstraints = $derived(slot.statEditConstraints);
 	const moveSetEditConstraints = $derived(slot.moveSetEditConstraints);
+	const natureEditConstraints = $derived(slot.natureEditConstraints);
 	const heldItemEditConstraints = $derived(slot.heldItemEditConstraints);
 	const canEditStats = $derived(statEditConstraints?.supported ?? false);
 	const canEditMoveSet = $derived(moveSetEditConstraints?.supported ?? false);
+	const canEditNature = $derived(natureEditConstraints?.supported ?? false);
 	const canEditHeldItem = $derived(heldItemEditConstraints?.supported ?? false);
+	const canEditFriendship = $derived(friendshipEditConstraints?.supported ?? false);
 	const moveOptions = $derived(moveSetEditConstraints?.availableMoves ?? []);
 	const unavailableHeldItemCount = $derived(
 		heldItemEditConstraints?.options.filter((option) => !option.available).length ?? 0
+	);
+	const originalNature = $derived(
+		natureEditConstraints?.options.find(
+			(option) => option.id === natureEditConstraints.originalNatureId
+		)
+	);
+	const statNature = $derived(
+		natureEditConstraints?.options.find(
+			(option) => option.id === natureEditConstraints.statNatureId
+		)
 	);
 	const totalEvs = $derived(
 		statKeys.reduce((total, key) => {
@@ -96,6 +119,7 @@
 	const speciesLabel = $derived(
 		slot.speciesId ? `Species #${String(slot.speciesId).padStart(4, '0')}` : 'Unknown species'
 	);
+	const spriteIdentityLabels = $derived(getSpriteIdentityLabels(slot.spriteIdentity));
 	const sourceLabel = $derived(
 		editor.source.owner === 'save-file' ? 'Save File Pokemon' : 'Pokemon Storage Pokemon'
 	);
@@ -129,7 +153,15 @@
 	const identityRows = $derived(
 		[
 			slot.gender ? { label: 'Gender', value: slot.gender } : null,
-			slot.nature ? { label: 'Nature', value: slot.nature } : null,
+			slot.nature
+				? {
+						label: natureEditConstraints?.usesStatNature ? 'Original Nature' : 'Nature',
+						value: slot.nature
+					}
+				: null,
+			natureEditConstraints?.usesStatNature && statNature
+				? { label: 'Stat Nature', value: statNature.name }
+				: null,
 			slot.ability ? { label: 'Ability', value: slot.ability } : null,
 			slot.heldItem ? { label: 'Held Item', value: slot.heldItem } : null,
 			slot.originalTrainer || saveSummary?.trainerName
@@ -160,6 +192,10 @@
 		draftExperience = value;
 	}
 
+	function setDraftNature(value: string) {
+		draftNatureId = Number(value);
+	}
+
 	function setDraftHeldItem(value: string) {
 		draftHeldItemId = Number(value);
 	}
@@ -176,6 +212,10 @@
 
 	function setEv(key: PokemonStatKey, value: string) {
 		draftEvs = { ...draftEvs, [key]: value };
+	}
+
+	function setFriendship(key: string, value: string) {
+		draftFriendship = { ...draftFriendship, [key]: value };
 	}
 
 	function setMove(index: number, value: string) {
@@ -437,6 +477,7 @@
 		draftNickname = slot.label;
 		draftLevel = String(slot.level ?? 1);
 		draftExperience = String(slot.experience ?? 0);
+		draftNatureId = slot.natureEditConstraints?.currentNatureId ?? -1;
 		draftHeldItemId = slot.heldItemEditConstraints?.currentItemId ?? 0;
 		draftIvs = statsToDraft(baseIvs);
 		draftEvs = statsToDraft(baseEvs);
@@ -446,16 +487,19 @@
 			pp: String(move.pp ?? 0),
 			ppUps: String(move.ppUps ?? 0)
 		}));
+		draftFriendship = { ...baseFriendship };
 	}
 
 	function countDraftEdits() {
 		let count = 0;
 		if (draftNickname !== slot.label) count += 1;
 		if (isLevelExperienceDirty()) count += 1;
+		if (isNatureDirty()) count += 1;
 		if (isHeldItemDirty()) count += 1;
 		if (isDraftStatsDirty(draftIvs, baseIvs)) count += 1;
 		if (isDraftStatsDirty(draftEvs, baseEvs)) count += 1;
 		if (isDraftMoveSetDirty()) count += 1;
+		if (isDraftFriendshipDirty()) count += 1;
 		return count;
 	}
 
@@ -468,10 +512,18 @@
 					? { mode: 'level', level: parseDraftNumber(draftLevel) }
 					: { mode: 'experience', experience: parseDraftNumber(draftExperience) };
 		}
+		if (isNatureDirty()) draft.natureId = draftNatureId;
 		if (isHeldItemDirty()) draft.heldItemId = draftHeldItemId;
 		if (isDraftStatsDirty(draftIvs, baseIvs)) draft.ivs = draftStatsToPayload(draftIvs);
 		if (isDraftStatsDirty(draftEvs, baseEvs)) draft.evs = draftStatsToPayload(draftEvs);
 		if (isDraftMoveSetDirty()) draft.moveSet = draftMoveSetToPayload();
+		if (isDraftFriendshipDirty()) {
+			draft.friendship = {
+				fields: (friendshipEditConstraints?.fields ?? [])
+					.filter((field) => draftFriendship[field.key] !== String(field.value))
+					.map((field) => ({ key: field.key, value: parseDraftNumber(draftFriendship[field.key]) }))
+			};
+		}
 		return draft;
 	}
 
@@ -479,6 +531,10 @@
 		return editMode === 'level'
 			? draftLevel !== String(slot.level ?? 1)
 			: draftExperience !== String(slot.experience ?? 0);
+	}
+
+	function isNatureDirty() {
+		return draftNatureId !== (natureEditConstraints?.currentNatureId ?? -1);
 	}
 
 	function isHeldItemDirty() {
@@ -498,6 +554,12 @@
 				move.ppUps !== String(base?.ppUps ?? 0)
 			);
 		});
+	}
+
+	function isDraftFriendshipDirty() {
+		return (friendshipEditConstraints?.fields ?? []).some(
+			(field) => draftFriendship[field.key] !== String(field.value)
+		);
 	}
 
 	function draftStatsToPayload(draft: DraftStats): PokemonStatEditPayload {
@@ -577,7 +639,9 @@
 			<div class="summary-strip" aria-label="Pokemon identity">
 				<strong>{speciesLabel}</strong>
 				{#if slot.level !== null}<span>Level {slot.level}</span>{/if}
-				{#if slot.form !== null && slot.form > 0}<span>Form {slot.form}</span>{/if}
+				{#if spriteIdentityLabels.form}<span>{spriteIdentityLabels.form}</span>{/if}
+				{#if spriteIdentityLabels.shiny}<span>{spriteIdentityLabels.shiny}</span>{/if}
+				{#if spriteIdentityLabels.displaySex}<span>{spriteIdentityLabels.displaySex}</span>{/if}
 				{#if slot.isEgg}<span>Egg</span>{/if}
 			</div>
 
@@ -616,6 +680,48 @@
 				<p id="pokemon-editor-nickname-hint">
 					Leave empty to restore the default species nickname.
 				</p>
+			</div>
+
+			<div class="editor-panel" aria-label="Nature Editing">
+				<div class="panel-title">
+					<span>Nature</span>
+					<small>{canEditNature ? 'Engine constrained' : 'Unsupported'}</small>
+				</div>
+				{#if canEditNature}
+					<div class="nature-edit-summary">
+						<span
+							>{natureEditConstraints?.usesStatNature ? 'Original Nature' : 'Current Nature'}</span
+						>
+						<strong>{originalNature?.name ?? slot.nature ?? 'Unknown'}</strong>
+						{#if natureEditConstraints?.usesStatNature}
+							<span>Stat Nature</span>
+							<strong>{statNature?.name ?? 'Unknown'}</strong>
+						{/if}
+					</div>
+					<label class="nature-edit-controls">
+						<span>Nature choice</span>
+						<select
+							id="pokemon-editor-nature"
+							value={draftNatureId}
+							disabled={applying}
+							onchange={(event) => setDraftNature(event.currentTarget.value)}
+						>
+							{#each natureEditConstraints?.options ?? [] as option (option.id)}
+								<option value={option.id}>{option.name} — {option.effect}</option>
+							{/each}
+						</select>
+					</label>
+					<p class="nature-edit-hint">
+						{natureEditConstraints?.usesStatNature
+							? 'Changes the stat Nature while preserving the original Nature.'
+							: 'Changes the underlying Nature for this Pokemon format.'}
+					</p>
+				{:else}
+					<p class="unsupported-copy">
+						{natureEditConstraints?.unsupportedReason ??
+							'Nature Editing is not supported for this Pokemon format.'}
+					</p>
+				{/if}
 			</div>
 
 			<div class="editor-panel" aria-label="Held Item Editing">
@@ -736,6 +842,47 @@
 						</label>
 					{/if}
 				</div>
+			</div>
+
+			<div class="editor-panel" aria-label="Friendship Editing">
+				<div class="panel-title">
+					<span>Friendship</span>
+					<small>{canEditFriendship ? 'Editable' : 'Unsupported'}</small>
+				</div>
+				{#if canEditFriendship}
+					<div class="stat-edit-controls">
+						{#each friendshipEditConstraints?.fields ?? [] as field (field.key)}
+							<label>
+								<span>{field.label} ({field.min}-{field.max})</span>
+								<input
+									id={`pokemon-editor-${field.key}`}
+									type="number"
+									min={field.min}
+									max={field.max}
+									step="1"
+									value={draftFriendship[field.key]}
+									disabled={applying}
+									readonly={!isInputEditing(`pokemon-editor-${field.key}`)}
+									data-controller-editing={draftInputEditingValue(`pokemon-editor-${field.key}`)}
+									onpointerdown={() => activateDraftInput(`pokemon-editor-${field.key}`, false)}
+									onclick={() => activateDraftInput(`pokemon-editor-${field.key}`, false)}
+									onblur={() => deactivateDraftInput(`pokemon-editor-${field.key}`)}
+									onkeydown={(event) =>
+										handleDraftInputKeydown(event, `pokemon-editor-${field.key}`)}
+									oninput={(event) => {
+										const target = event.currentTarget;
+										if (target instanceof HTMLInputElement) setFriendship(field.key, target.value);
+									}}
+								/>
+							</label>
+						{/each}
+					</div>
+				{:else}
+					<p class="unsupported-copy">
+						{friendshipEditConstraints?.unsupportedReason ??
+							'Friendship Editing is not supported for this Pokemon format.'}
+					</p>
+				{/if}
 			</div>
 
 			<div class="editor-panel" aria-label="Move Set Editing">
@@ -1103,10 +1250,15 @@
 
 	.icon-close:hover,
 	.icon-close:focus-visible,
+	.icon-close:focus,
 	.close-editor:hover,
 	.close-editor:focus-visible,
+	.close-editor:focus,
 	.unsupported-apply:hover,
-	.unsupported-apply:focus-visible {
+	.unsupported-apply:focus-visible,
+	.unsupported-apply:focus,
+	.pokemon-editor button:focus,
+	.pokemon-editor input:focus {
 		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
 		outline-offset: 1px;
 	}
@@ -1193,7 +1345,8 @@
 
 	.field-grid,
 	.stat-grid,
-	.level-edit-grid {
+	.level-edit-grid,
+	.nature-edit-summary {
 		display: grid;
 		grid-template-columns: max-content minmax(0, 1fr);
 		gap: 7px 12px;
@@ -1204,6 +1357,7 @@
 
 	.field-grid span,
 	.level-edit-grid span,
+	.nature-edit-summary span,
 	.stat-grid span,
 	.stat-grid em {
 		color: var(--ink-mute);
@@ -1215,6 +1369,7 @@
 
 	.field-grid strong,
 	.level-edit-grid strong,
+	.nature-edit-summary strong,
 	.stat-grid strong {
 		min-width: 0;
 		overflow-wrap: anywhere;
@@ -1263,6 +1418,7 @@
 		opacity: 0.55;
 	}
 
+	.nature-edit-controls,
 	.held-item-edit-controls {
 		display: grid;
 		gap: 5px;
@@ -1271,6 +1427,8 @@
 		background: var(--paper-deep);
 	}
 
+	.nature-edit-controls span,
+	.nature-edit-hint,
 	.held-item-edit-controls span,
 	.held-item-restrictions {
 		margin: 0;
@@ -1281,10 +1439,12 @@
 		line-height: 1.2;
 	}
 
+	.nature-edit-controls span,
 	.held-item-edit-controls span {
 		text-transform: uppercase;
 	}
 
+	.nature-edit-controls select,
 	.held-item-edit-controls select {
 		width: 100%;
 		min-width: 0;
@@ -1299,6 +1459,7 @@
 			monospace;
 	}
 
+	.nature-edit-controls select:disabled,
 	.held-item-edit-controls select:disabled {
 		opacity: 0.55;
 	}
@@ -1532,7 +1693,8 @@
 	}
 
 	.move-picker-option.active,
-	.move-picker-option:focus-visible {
+	.move-picker-option:focus-visible,
+	.move-picker-option:focus {
 		border-color: color-mix(in srgb, var(--rust), transparent 20%);
 		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
 		outline-offset: 1px;
@@ -1666,17 +1828,28 @@
 		color: white;
 	}
 
-	@media (max-width: 720px) {
+	@media (max-width: 1024px) {
 		.pokemon-editor {
-			top: 12px;
-			bottom: 12px;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			left: 0;
+			width: auto;
 			max-height: none;
-			transform: translateX(-50%);
+			border-radius: 0;
+			transform: none;
+			padding: calc(14px + env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right))
+				calc(14px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left));
 		}
 
 		.editor-body {
-			grid-template-columns: 1fr;
 			overflow-y: auto;
+		}
+	}
+
+	@media (max-width: 720px) {
+		.editor-body {
+			grid-template-columns: 1fr;
 		}
 
 		.editor-summary {

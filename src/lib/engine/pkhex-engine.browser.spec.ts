@@ -247,6 +247,46 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		}
 	);
 
+	test('projects and applies Affection only for a supporting Pokemon format', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(xFixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const workspace = await engine.loadSaveWorkspace(fixtureBytes, '011020252224', 0);
+		expect(workspace.ok, JSON.stringify(workspace.error)).toBe(true);
+		if (!workspace.ok) throw new Error('Expected Pokemon X workspace to load.');
+
+		const partySlot = workspace.value.partySlots.find((candidate) => !candidate.isEmpty);
+		const boxSlot = workspace.value.boxSlots.find((candidate) => !candidate.isEmpty);
+		const slot = partySlot ?? boxSlot;
+		const affection = slot?.friendshipEditConstraints.fields.find(
+			(field) => field.key === 'affection'
+		);
+		if (!slot || !affection) throw new Error('Expected an Affection-capable Pokemon.');
+		const value = affection.value === 255 ? 254 : affection.value + 1;
+		const edited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020252224',
+			{
+				source: partySlot
+					? { zone: 'party', slot: partySlot.slot }
+					: { zone: 'box', box: boxSlot!.box, slot: boxSlot!.slot },
+				friendshipEdits: [{ key: 'affection', value }]
+			},
+			0
+		);
+
+		expect(edited.ok, JSON.stringify(edited.error)).toBe(true);
+		if (!edited.ok) throw new Error('Expected Affection edit to succeed.');
+		const updatedSlot = partySlot
+			? edited.value.workspace.partySlots[partySlot.slot]
+			: edited.value.workspace.boxSlots[boxSlot!.slot];
+		expect(updatedSlot?.friendshipEditConstraints.fields).toEqual(
+			expect.arrayContaining([expect.objectContaining({ key: 'affection', value })])
+		);
+	});
+
 	test.each(rajSaveFixtureCases)(
 		"parses and loads Raj's $name Save File fixture",
 		async (fixture) => {
@@ -371,7 +411,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('applies Save File Pokemon edits through the browser-wasm bundle', async () => {
-		expect.assertions(22);
+		expect.assertions(32);
 
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
@@ -468,6 +508,52 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			level: 25
 		});
 
+		const natureConstraints = edited.value.workspace.boxSlots[0]?.natureEditConstraints;
+		expect(natureConstraints).toMatchObject({
+			supported: true,
+			usesStatNature: false
+		});
+		expect(natureConstraints?.options).toHaveLength(25);
+		const nature = natureConstraints?.options.find(
+			(option) => option.id !== natureConstraints.currentNatureId
+		);
+		if (!nature) throw new Error('Expected an alternate Nature choice.');
+
+		const natureEdited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				natureId: nature.id
+			},
+			0
+		);
+		expect(natureEdited.ok).toBe(true);
+		if (!natureEdited.ok) throw new Error('Expected Pokemon Nature edit to succeed.');
+		expect(natureEdited.value.mutated).toBe(true);
+		expect(natureEdited.value.workspace.boxSlots[0]).toMatchObject({
+			nature: nature.name,
+			natureEditConstraints: {
+				currentNatureId: nature.id,
+				originalNatureId: nature.id,
+				statNatureId: nature.id
+			}
+		});
+
+		const invalidNature = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				natureId: 99
+			},
+			0
+		);
+		expect(invalidNature).toMatchObject({
+			ok: false,
+			error: { code: 'invalid-pokemon-edit' }
+		});
+
 		const statEdited = await engine.applyPokemonEditOperation(
 			copyBytes(fixtureBytes),
 			'011020251345.sav',
@@ -523,6 +609,42 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			availableMoves: expect.arrayContaining([
 				expect.objectContaining({ id: firstMove.id, name: firstMove.name })
 			])
+		});
+
+		const friendshipField =
+			edited.value.workspace.boxSlots[0]?.friendshipEditConstraints.fields.find(
+				(field) => field.key === 'friendship'
+			);
+		if (!friendshipField) throw new Error('Expected Friendship Editing to be supported.');
+		const friendship = friendshipField.value === 255 ? 254 : friendshipField.value + 1;
+		const friendshipEdited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				friendshipEdits: [{ key: 'friendship', value: friendship }]
+			},
+			0
+		);
+		expect(friendshipEdited.ok).toBe(true);
+		if (!friendshipEdited.ok) throw new Error('Expected Friendship edit to succeed.');
+		expect(friendshipEdited.value.mutated).toBe(true);
+		expect(friendshipEdited.value.workspace.boxSlots[0]?.friendshipEditConstraints.fields).toEqual(
+			expect.arrayContaining([expect.objectContaining({ key: 'friendship', value: friendship })])
+		);
+
+		const invalidFriendship = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				friendshipEdits: [{ key: 'friendship', value: 256 }]
+			},
+			0
+		);
+		expect(invalidFriendship).toMatchObject({
+			ok: false,
+			error: { code: 'invalid-pokemon-edit' }
 		});
 
 		const emptySource = await engine.applyPokemonEditOperation(

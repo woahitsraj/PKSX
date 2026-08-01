@@ -11,10 +11,12 @@ import {
 	maxPpForPpUps,
 	moveSetEditPayloadFromSlot,
 	stageEvEdit,
+	stageFriendshipEdit,
 	stageHeldItemEdit,
 	stageIvEdit,
 	stageLevelExperienceEdit,
 	stageMoveSetEdit,
+	stageNatureEdit,
 	stagePokemonEditorEdit,
 	statEditPayloadFromSlot,
 	type PokemonEditorApplyServices,
@@ -55,7 +57,14 @@ const pokemonSlot: SlotView = {
 		displaySex: 'default'
 	},
 	isEgg: false,
-	kind: 'pokemon'
+	kind: 'pokemon',
+	friendshipEditConstraints: {
+		supported: true,
+		fields: [
+			{ key: 'friendship', label: 'Friendship', value: 70, min: 0, max: 255 },
+			{ key: 'affection', label: 'Affection', value: 0, min: 0, max: 255 }
+		]
+	}
 };
 
 const editablePokemonSlot: SlotView = {
@@ -122,6 +131,18 @@ const editablePokemonSlot: SlotView = {
 			{ id: 33, name: 'Tackle', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 35 },
 			{ id: 45, name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 40 },
 			{ id: 575, name: 'Sparkling Aria', type: 'Water', hue: 238, chroma: 0.09, maxPp: 10 }
+		]
+	},
+	nature: 'Adamant',
+	natureEditConstraints: {
+		supported: true,
+		currentNatureId: 3,
+		originalNatureId: 3,
+		statNatureId: 3,
+		usesStatNature: false,
+		options: [
+			{ id: 3, name: 'Adamant', effect: '+Attack, -Sp. Atk' },
+			{ id: 15, name: 'Modest', effect: '+Sp. Atk, -Attack' }
 		]
 	}
 };
@@ -329,6 +350,69 @@ describe('Pokemon editor state', () => {
 		});
 	});
 
+	it('stages engine-projected Friendship fields into one operation', () => {
+		const staged = stageFriendshipEdit(openEditor(), {
+			fields: [
+				{ key: 'friendship', value: 255 },
+				{ key: 'affection', value: 100 }
+			]
+		});
+
+		expect(staged.stagedEdits).toEqual([
+			{
+				id: 'friendship',
+				capability: 'friendship-editing',
+				label: 'Set Friendship and Affection',
+				payload: {
+					fields: [
+						{ key: 'friendship', value: 255 },
+						{ key: 'affection', value: 100 }
+					]
+				}
+			}
+		]);
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: {
+				source: slotRef,
+				friendshipEdits: [
+					{ key: 'friendship', value: 255 },
+					{ key: 'affection', value: 100 }
+				]
+			}
+		});
+	});
+
+	it('rejects invalid and unsupported Friendship fields', () => {
+		const invalid = stageFriendshipEdit(openEditor(), {
+			fields: [{ key: 'friendship', value: 256 }]
+		});
+		const unsupportedSlot: SlotView = {
+			...pokemonSlot,
+			friendshipEditConstraints: {
+				supported: false,
+				fields: [],
+				unsupportedReason: 'Friendship Editing is not supported for Generation 1 Pokemon.'
+			}
+		};
+		const opened = createPokemonEditorState(source, unsupportedSlot);
+		if (!opened.ok) throw new Error('Expected Pokemon Editor to open.');
+		const unsupported = stageFriendshipEdit(opened.state, {
+			fields: [{ key: 'friendship', value: 100 }]
+		});
+
+		expect(invalid.applyOutcome).toEqual({
+			status: 'rejected',
+			message: 'Friendship must be between 0 and 255.',
+			reason: 'invalid-pokemon-edit'
+		});
+		expect(unsupported.applyOutcome).toEqual({
+			status: 'rejected',
+			message: 'Friendship Editing is not supported for Generation 1 Pokemon.',
+			reason: 'invalid-pokemon-edit'
+		});
+	});
+
 	it('stages an engine-provided Held Item choice', () => {
 		const staged = stageHeldItemEdit(openEditableEditor(), { heldItemId: 213 });
 
@@ -424,6 +508,85 @@ describe('Pokemon editor state', () => {
 				message: 'Level must be between 1 and 100.',
 				reason: 'invalid-pokemon-edit'
 			}
+		});
+	});
+
+	it('stages an engine-backed Nature choice', () => {
+		const staged = stageNatureEdit(openEditableEditor(), { natureId: 15 });
+
+		expect(staged.stagedEdits).toEqual([
+			{
+				id: 'nature',
+				capability: 'nature-editing',
+				label: 'Set Nature to Modest',
+				payload: { natureId: 15 }
+			}
+		]);
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: { source: slotRef, natureId: 15 }
+		});
+	});
+
+	it('rejects unsupported and unknown Nature choices', () => {
+		const unsupported = stageNatureEdit(
+			{
+				...openEditableEditor(),
+				slot: {
+					...editablePokemonSlot,
+					natureEditConstraints: {
+						...editablePokemonSlot.natureEditConstraints!,
+						supported: false,
+						unsupportedReason: 'Nature Editing is not supported for this Pokemon format.'
+					}
+				}
+			},
+			{ natureId: 15 }
+		);
+		const unknown = stageNatureEdit(openEditableEditor(), { natureId: 99 });
+
+		expect(unsupported.applyOutcome).toMatchObject({
+			status: 'rejected',
+			message: 'Nature Editing is not supported for this Pokemon format.'
+		});
+		expect(unknown.applyOutcome).toMatchObject({
+			status: 'rejected',
+			message: 'Nature 99 is not available.'
+		});
+	});
+
+	it('keeps Nature edits staged on failure and clears them on cancel', async () => {
+		const state = stageNatureEdit(openEditableEditor(), { natureId: 15 });
+		const services = applyServices({
+			mutateSaveFilePokemon: vi.fn(async () => ({
+				ok: false as const,
+				status: 'failed' as const,
+				message: 'Engine mutation failed.'
+			}))
+		});
+
+		const result = await applyPokemonEditorEdits(state, services);
+
+		expect(result.state.stagedEdits).toEqual(state.stagedEdits);
+		expect(cancelPokemonEditor(result.state).stagedEdits).toEqual([]);
+	});
+
+	it('keeps Pokemon Storage Nature edits behind the storage ownership boundary', () => {
+		const opened = createPokemonEditorState(
+			{
+				owner: 'pokemon-storage',
+				storagePokemonId: 'stored-pokemon-1',
+				location: 'Storage Box 1, slot 1'
+			},
+			editablePokemonSlot
+		);
+		if (!opened.ok) throw new Error('Expected Pokemon Editor to open.');
+		const state = stageNatureEdit(opened.state, { natureId: 15 });
+
+		expect(createPokemonEditOperation(state)).toMatchObject({
+			ok: false,
+			status: 'unsupported',
+			reason: 'storage-unavailable'
 		});
 	});
 
@@ -597,6 +760,47 @@ describe('Pokemon editor state', () => {
 		});
 	});
 
+	it('rejects malformed Move Set operation payloads', () => {
+		const staged = stagePokemonEditorEdit(openEditableEditor(), {
+			id: 'move-set',
+			capability: 'move-set-editing',
+			label: 'Set Move Set',
+			payload: { moves: 'invalid' }
+		});
+
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: false,
+			status: 'rejected',
+			message: 'Move Set edit payload is invalid.',
+			reason: 'invalid-pokemon-edit'
+		});
+	});
+
+	it('reports unsupported Move Set Editing constraints', () => {
+		const editor = openEditableEditor();
+		const unsupported = stageMoveSetEdit(
+			{
+				...editor,
+				slot: {
+					...editor.slot,
+					moveSetEditConstraints: {
+						...editor.slot.moveSetEditConstraints!,
+						supported: false,
+						unsupportedReason: 'Move Set Editing is unavailable for this format.'
+					}
+				}
+			},
+			{ moves: [{ slot: 0, move: 33 }] }
+		);
+
+		expect(unsupported.applyOutcome).toEqual({
+			status: 'rejected',
+			message: 'Move Set Editing is unavailable for this format.',
+			reason: 'invalid-pokemon-edit'
+		});
+		expect(unsupported.stagedEdits).toEqual([]);
+	});
+
 	it('creates stat payloads from visible Slot projections', () => {
 		expect(statEditPayloadFromSlot(editablePokemonSlot, 'iv')).toEqual({
 			HP: 31,
@@ -618,7 +822,9 @@ describe('Pokemon editor state', () => {
 
 	it('keeps cancel non-mutating and clears staged feedback', () => {
 		const staged = markUnsupportedPokemonEditorApply(
-			stagePokemonEditorEdit(openEditor(), stagedEdit)
+			stageFriendshipEdit(openEditor(), {
+				fields: [{ key: 'friendship', value: 120 }]
+			})
 		);
 
 		expect(cancelPokemonEditor(staged)).toMatchObject({
@@ -744,7 +950,9 @@ describe('Pokemon editor state', () => {
 			storagePokemonId: 'stored-pokemon-1',
 			location: 'Storage Box 1, slot 1'
 		};
-		const state = stagePokemonEditorEdit(openEditor(storageSource), stagedEdit);
+		const state = stageFriendshipEdit(openEditor(storageSource), {
+			fields: [{ key: 'friendship', value: 120 }]
+		});
 		const services = applyServices({
 			ensureSaveFileBackup: vi.fn(async () => ({ ok: true as const }))
 		});
@@ -755,6 +963,25 @@ describe('Pokemon editor state', () => {
 		expect(services.mutateStoragePokemon).toHaveBeenCalledWith(state);
 		expect(services.ensureSaveFileBackup).not.toHaveBeenCalled();
 		expect(services.mutateSaveFilePokemon).not.toHaveBeenCalled();
+	});
+
+	it('keeps Friendship edits staged when apply fails', async () => {
+		const state = stageFriendshipEdit(openEditor(), {
+			fields: [{ key: 'friendship', value: 120 }]
+		});
+		const services = applyServices({
+			mutateSaveFilePokemon: vi.fn(async () => ({
+				ok: false as const,
+				status: 'failed' as const,
+				message: 'Engine mutation failed.',
+				reason: 'engine-unavailable'
+			}))
+		});
+
+		const result = await applyPokemonEditorEdits(state, services);
+
+		expect(result.outcome.status).toBe('failed');
+		expect(result.state.stagedEdits).toEqual(state.stagedEdits);
 	});
 
 	it('keeps Held Item edits staged after failure and routes storage ownership correctly', async () => {

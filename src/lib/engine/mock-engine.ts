@@ -49,6 +49,18 @@ const mockPikachuDetails = {
 	},
 	gender: '♂',
 	nature: 'Hardy',
+	natureEditConstraints: {
+		supported: true,
+		currentNatureId: 0,
+		originalNatureId: 0,
+		statNatureId: 0,
+		usesStatNature: true,
+		options: [
+			{ id: 0, name: 'Hardy', effect: 'No stat change' },
+			{ id: 3, name: 'Adamant', effect: '+Attack, -Sp. Atk' },
+			{ id: 15, name: 'Modest', effect: '+Sp. Atk, -Attack' }
+		]
+	},
 	ability: 'Static',
 	heldItem: 'Light Ball',
 	types: [{ name: 'Electric', hue: 94, chroma: 0.16 }],
@@ -111,6 +123,13 @@ const mockPikachuDetails = {
 			{ id: 98, name: 'Quick Attack', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 30 }
 		]
 	},
+	friendshipEditConstraints: {
+		supported: true,
+		fields: [
+			{ key: 'friendship', label: 'Friendship', value: 70, min: 0, max: 255 },
+			{ key: 'affection', label: 'Affection', value: 0, min: 0, max: 255 }
+		]
+	},
 	originalTrainer: 'PKSX',
 	metLabel: 'Lv. 5',
 	spriteIdentity: {
@@ -159,6 +178,15 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		types: [],
 		stats: [],
 		moves: [],
+		natureEditConstraints: {
+			supported: false,
+			currentNatureId: -1,
+			originalNatureId: -1,
+			statNatureId: -1,
+			usesStatNature: false,
+			options: [],
+			unsupportedReason: 'Nature Editing needs an occupied Slot.'
+		},
 		heldItemEditConstraints: {
 			supported: false,
 			currentItemId: 0,
@@ -179,6 +207,11 @@ const mockBoxSlots: BoxSlotSummary[] = [
 			maxMoveSlots: 0,
 			availableMoves: [],
 			unsupportedReason: 'Move Set Editing needs an occupied Slot.'
+		},
+		friendshipEditConstraints: {
+			supported: false,
+			fields: [],
+			unsupportedReason: 'Friendship Editing needs an occupied Slot.'
 		}
 	}
 ];
@@ -255,10 +288,12 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					operation.nickname !== undefined ||
 					operation.level !== undefined ||
 					operation.experience !== undefined ||
+					operation.natureId !== undefined ||
 					operation.heldItemId !== undefined ||
 					operation.ivs !== undefined ||
 					operation.evs !== undefined ||
-					operation.moves !== undefined,
+					operation.moves !== undefined ||
+					operation.friendshipEdits !== undefined,
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,

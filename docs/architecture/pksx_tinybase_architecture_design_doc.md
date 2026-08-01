@@ -63,6 +63,16 @@ Parser/serializer = trusted conversion layer between artifacts and editable stat
 
 TinyBase should reference Local Library artifacts by stable IDs or blob references. It should not be the repository for raw save bytes or backup bytes.
 
+### Active Workspace foundation
+
+The first integration slice uses a versioned TinyBase store behind `ActiveWorkspaceService`:
+
+- `workspaces`, `boxes`, `slots`, and `validation` hold active parsed projections and stable Save File artifact references.
+- TinyBase values hold the schema/parser versions, active Save File ID, Dirty Workspace state, and editor/validation state.
+- Save File bytes and Pokemon Entity bytes stay outside TinyBase and remain owned by Local Library and the PKHeX Engine.
+- Workspace projection persistence is injected separately from `LocalLibraryStorage`, so platform storage changes do not affect UI or engine contracts.
+- Svelte consumers subscribe to the service and use `WorkspaceState`; they do not mutate TinyBase tables directly.
+
 ### Keep RxDB as a later possibility
 
 RxDB may become appropriate later if `pksx` evolves into a persistent Pokémon vault with:
