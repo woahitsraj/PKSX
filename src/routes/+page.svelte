@@ -20,6 +20,7 @@
 		focusPaneBoundarySlot,
 		focusPaneControl,
 		focusPartySlot,
+		focusPartyToggle,
 		getBoxSlotPosition,
 		getFocusId,
 		PARTY_SLOT_COUNT,
@@ -39,7 +40,7 @@
 		destinationStateForStorageOperation,
 		type PendingStorageSlotOperation
 	} from '$lib/pksx/storage-operations';
-	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
+	import { appChrome, updateAppChrome } from '$lib/pksx/app-chrome.svelte';
 	import {
 		addBoxPane,
 		applyPokemonStorageSlotOperation,
@@ -62,10 +63,11 @@
 		type WorkbenchSlotRef
 	} from '$lib/pksx/storage-workbench';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
-	import type {
-		StoredPokemonStorage,
-		StoredPokemonStoragePokemon,
-		StoredSaveFile
+	import {
+		createEmptyPokemonStorage,
+		type StoredPokemonStorage,
+		type StoredPokemonStoragePokemon,
+		type StoredSaveFile
 	} from '$lib/pksx/local-library';
 	import {
 		getCachedActiveWorkspaceBox,
@@ -108,12 +110,10 @@
 		createBoxSlotViews,
 		createPartySlotViews,
 		createSlotView,
-		isDirectional,
 		isNativeEditorActivation,
 		keyboardAction,
 		pokemonEditorDraftResetKey,
 		pokemonEditSuccessMessage,
-		readGamepadActions,
 		stagePokemonEditorDraftEdits
 	} from '$lib/pksx/box-shell';
 
@@ -335,7 +335,6 @@
 	}));
 
 	let navigation = $state<BoxNavigationState>(createInitialNavigationState(placeholderBoxCount));
-	let gamepadStatus = $state('No controller detected');
 	let loadedSave = $state<WorkspaceState | null>(null);
 	let importError = $state<string | null>(null);
 	let statusMessage = $state('Import a Save File to begin.');
@@ -368,10 +367,8 @@
 	let engine: EngineApi | null = null;
 	let workspaceLoadRequest = 0;
 
-	const controllerConnected = $derived(
-		gamepadStatus !== 'No controller detected' && gamepadStatus.length > 0
-	);
-	const mobileTabsAvailable = $derived(viewportWidth <= 820);
+	const controllerConnected = $derived(appChrome.controllerStatus !== null);
+	const mobileTabsAvailable = $derived(viewportWidth <= 1024);
 	const activePane = $derived(
 		workbenchPanes.find((pane) => pane.id === activePaneId) ?? workbenchPanes[0]
 	);
@@ -557,7 +554,8 @@
 			paneControlCount: activePaneControlCount,
 			mobileTabCount,
 			mobileTabsAvailable,
-			partyAvailable
+			partyAvailable,
+			partyCollapsed
 		});
 
 		if (action === 'confirm') {
@@ -826,6 +824,11 @@
 			return;
 		}
 
+		if (activeElement.id === 'party-toggle') {
+			navigation = { ...navigation, focus: focusPartyToggle() };
+			return;
+		}
+
 		const paneControlMatch = activeElement.id.match(/^pane-control-(\d+)$/);
 		if (paneControlMatch) {
 			navigation = {
@@ -870,6 +873,14 @@
 	function focusBox(slot: number) {
 		navigation = { ...navigation, focus: focusBoxSlot(slot) };
 		queueMicrotask(focusActiveControl);
+	}
+
+	function togglePartyCollapsed() {
+		partyCollapsed = !partyCollapsed;
+		if (partyCollapsed && navigation.focus.zone === 'party') {
+			navigation = { ...navigation, focus: focusPartyToggle() };
+			queueMicrotask(focusActiveControl);
+		}
 	}
 
 	function firstRowFocusForBoxChange(): SlotFocus {
@@ -1588,6 +1599,10 @@
 			document.getElementById(`top-control-${focus.index}`)?.click();
 		}
 
+		if (focus.zone === 'partyToggle') {
+			document.getElementById('party-toggle')?.click();
+		}
+
 		if (focus.zone === 'paneControls') {
 			document.getElementById(`pane-control-${focus.index}`)?.click();
 		}
@@ -1820,25 +1835,6 @@
 			zone: ref.zone,
 			box: ref.zone === 'box' ? ref.box : null,
 			slot: ref.slot
-		};
-	}
-
-	function createEmptyPokemonStorage(boxCount = placeholderBoxCount): StoredPokemonStorage {
-		return {
-			id: 'pokemon-storage',
-			schemaVersion: 1,
-			boxCount,
-			boxSlotCount: BOX_SLOT_COUNT,
-			updatedAt: new Date().toISOString(),
-			boxes: Array.from({ length: boxCount }, (_, box) => ({
-				index: box,
-				name: boxNameFor(box),
-				slots: Array.from({ length: BOX_SLOT_COUNT }, (_, slot) => ({
-					box,
-					slot,
-					pokemon: null
-				}))
-			}))
 		};
 	}
 
@@ -2313,20 +2309,34 @@
 		}
 
 		const rect = focusElement.getBoundingClientRect();
-		actionSurfaceTop = window.matchMedia('(max-width: 820px)').matches
-			? Math.max(12, rect.bottom + 6)
-			: null;
-		actionSurfaceAnchor =
-			activeSlotFocus.zone === 'party' && !window.matchMedia('(max-width: 820px)').matches
-				? {
-						top: Math.max(12, rect.top),
-						left: Math.max(12, Math.min(rect.right + 8, window.innerWidth - 236))
-					}
-				: null;
+		const menu = document.querySelector<HTMLElement>('.slot-context');
+		const menuRect = menu?.getBoundingClientRect();
+
+		if (window.matchMedia('(max-width: 1024px)').matches) {
+			// Keep room for the menu above the tab bar; the sheet scrolls when clamped.
+			const tabbarTop =
+				document.querySelector('.mobile-tabbar')?.getBoundingClientRect().top ?? window.innerHeight;
+			const wantedHeight = Math.min(menu?.scrollHeight ?? 320, 280);
+			actionSurfaceTop = Math.max(12, Math.min(rect.bottom + 6, tabbarTop - 8 - wantedHeight));
+			actionSurfaceAnchor = null;
+			return;
+		}
+
+		actionSurfaceTop = null;
+		const menuWidth = menuRect?.width || 218;
+		const menuHeight = menuRect?.height || 320;
+		const left =
+			rect.right + 8 + menuWidth <= window.innerWidth - 12
+				? rect.right + 8
+				: Math.max(12, rect.left - menuWidth - 8);
+		actionSurfaceAnchor = {
+			top: Math.max(12, Math.min(rect.top, window.innerHeight - menuHeight - 12)),
+			left
+		};
 	}
 
 	function handleWindowResize() {
-		if (viewportWidth > 820 && navigation.focus.zone === 'mobileTabs') {
+		if (viewportWidth > 1024 && navigation.focus.zone === 'mobileTabs') {
 			navigation = { ...navigation, focus: focusBoxSlot(BOX_SLOT_COUNT - BOX_COLUMNS + 1) };
 			queueMicrotask(focusActiveControl);
 		}
@@ -2351,7 +2361,7 @@
 
 		if (
 			target.closest(
-				'.slot-cell, .slot-context, .box-switcher, .party-toggle, .pokemon-editor, .legality-report'
+				'.slot-cell, .slot-context, .box-arrow, .party-toggle, .pokemon-editor, .legality-report'
 			)
 		) {
 			return;
@@ -2364,58 +2374,6 @@
 		return (
 			activeSlotFocus !== null && activeSlotFocus.zone === zone && activeSlotFocus.slot === slot
 		);
-	}
-
-	function gamepadNavigation() {
-		if (typeof navigator === 'undefined' || typeof requestAnimationFrame === 'undefined') {
-			return;
-		}
-
-		let previousPressed: NavigationAction[] = [];
-		const repeatState: Partial<Record<NavigationAction, number>> = {};
-		let frame = 0;
-
-		const repeatDelay = 280;
-		const repeatInterval = 110;
-
-		const read = (time: number) => {
-			const gamepad = navigator.getGamepads().find((pad) => pad);
-
-			if (!gamepad) {
-				gamepadStatus = 'No controller detected';
-				frame = requestAnimationFrame(read);
-				return;
-			}
-
-			gamepadStatus = `${gamepad.id}`;
-			const pressed = readGamepadActions(gamepad);
-
-			for (const action of pressed) {
-				const repeatable = isDirectional(action);
-				const firstPress = !previousPressed.includes(action);
-				const nextRepeatAt = repeatState[action] ?? 0;
-
-				if (firstPress || (repeatable && time >= nextRepeatAt)) {
-					syncNavigationFocusFromActiveElement();
-					dispatch(action);
-					repeatState[action] = time + (firstPress ? repeatDelay : repeatInterval);
-				}
-			}
-
-			for (const action of previousPressed) {
-				if (!pressed.includes(action)) {
-					delete repeatState[action];
-				}
-			}
-
-			previousPressed = pressed;
-
-			frame = requestAnimationFrame(read);
-		};
-
-		frame = requestAnimationFrame(read);
-
-		return () => cancelAnimationFrame(frame);
 	}
 
 	onMount(() => {
@@ -2776,7 +2734,7 @@
 	onresize={handleWindowResize}
 />
 
-<section class="boxes-route" aria-label="Boxes workspace" {@attach gamepadNavigation}>
+<section class="boxes-route" aria-label="Boxes workspace">
 	{#if importError}
 		<StatusStrip variant="error" label="Import error" message={importError} />
 	{/if}
@@ -2830,16 +2788,19 @@
 				>
 					<div class="zone-header party-header">
 						<button
+							id="party-toggle"
 							class="party-toggle"
+							class:controller-focused={navigation.focus.zone === 'partyToggle'}
 							type="button"
 							aria-expanded={!partyCollapsed}
 							aria-controls="party-list"
-							onclick={() => (partyCollapsed = !partyCollapsed)}
+							onfocus={() => (navigation = { ...navigation, focus: focusPartyToggle() })}
+							onclick={togglePartyCollapsed}
 						>
-							<span aria-hidden="true">▾</span>
+							<span class="party-chevron" aria-hidden="true">▾</span>
 							<strong>Party</strong>
+							<span class="party-meta">6 / 6 · on hand · {partyCollapsed ? 'show' : 'hide'}</span>
 						</button>
-						<span>6 / 6 · on hand</span>
 					</div>
 					<div id="party-list" class="party-list">
 						{#each partySlots as slot (slot.slot)}
@@ -2873,21 +2834,6 @@
 						{/each}
 					</div>
 				</div>
-
-				{#if navigation.actionSurfaceOpen && activeSlotFocus?.zone === 'party'}
-					<SlotActionMenu
-						align="start"
-						slot={focusedSlot}
-						location={`Party slot ${activeSlotFocus.slot + 1}`}
-						mobileTop={actionSurfaceTop}
-						viewportTop={actionSurfaceAnchor?.top ?? null}
-						viewportLeft={actionSurfaceAnchor?.left ?? null}
-						activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
-						onFocusCommand={focusActionCommand}
-						onSelectCommand={selectSlotActionCommand}
-						onClose={closeActionSurface}
-					/>
-				{/if}
 			{/if}
 
 			<div
@@ -3028,23 +2974,6 @@
 											: undefined}
 										onOpenSlot={openFocusedSlot}
 									/>
-									{#if paneActive && navigation.actionSurfaceOpen && isFocused('box', slot.slot)}
-										<SlotActionMenu
-											align={position.column <= 2
-												? 'start'
-												: position.column >= BOX_COLUMNS - 3
-													? 'end'
-													: 'center'}
-											vertical={position.row === 0 ? 'top' : 'bottom'}
-											{slot}
-											location={`${pane.source.label}, Box ${paneBox + 1}, slot ${slot.slot + 1}`}
-											mobileTop={actionSurfaceTop}
-											activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
-											onFocusCommand={focusActionCommand}
-											onSelectCommand={selectSlotActionCommand}
-											onClose={closeActionSurface}
-										/>
-									{/if}
 								</div>
 							{/each}
 						</div>
@@ -3067,6 +2996,22 @@
 					</div>
 				{/each}
 			</div>
+
+			{#if navigation.actionSurfaceOpen && activeSlotFocus !== null}
+				<SlotActionMenu
+					slot={focusedSlot}
+					location={activeSlotFocus.zone === 'party'
+						? `Party slot ${activeSlotFocus.slot + 1}`
+						: `${activePane?.source.label ?? 'Box Source'}, Box ${activePaneBox + 1}, slot ${activeSlotFocus.slot + 1}`}
+					mobileTop={actionSurfaceTop}
+					viewportTop={actionSurfaceAnchor?.top ?? null}
+					viewportLeft={actionSurfaceAnchor?.left ?? null}
+					activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
+					onFocusCommand={focusActionCommand}
+					onSelectCommand={selectSlotActionCommand}
+					onClose={closeActionSurface}
+				/>
+			{/if}
 		</div>
 
 		<DetailRail
@@ -3184,7 +3129,7 @@
 		font-weight: 500;
 	}
 
-	@media (min-width: 821px) {
+	@media (min-width: 1025px) {
 		:global(html),
 		:global(body) {
 			height: 100%;
@@ -3335,7 +3280,7 @@
 
 	.party-zone {
 		flex: 0 0 auto;
-		overflow: hidden;
+		overflow: visible;
 	}
 
 	.box-pane-strip {
@@ -3474,30 +3419,47 @@
 		margin-bottom: 9px;
 	}
 
+	.party-zone.collapsed .party-header {
+		margin-bottom: 0;
+	}
+
 	.party-toggle {
-		display: inline-flex;
+		flex: 1 1 auto;
+		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 0;
+		min-height: 36px;
+		padding: 4px 8px;
+		border-radius: var(--pksx-radius-sm);
 		background: transparent;
 		box-shadow: none;
 		color: var(--ink);
+		text-align: left;
 	}
 
-	.party-toggle span {
+	.party-toggle .party-chevron {
 		display: inline-block;
 		color: var(--ink-soft);
+		font-size: 0.8rem;
 		transition: transform 160ms ease;
 	}
 
-	.party-zone.collapsed .party-toggle span {
+	.party-zone.collapsed .party-chevron {
 		transform: rotate(-90deg);
+	}
+
+	.party-toggle .party-meta {
+		margin-left: auto;
+		color: var(--ink-soft);
+		font-size: 0.68rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
 	}
 
 	.party-list {
 		display: grid;
 		grid-template-columns: repeat(6, minmax(52px, 80px));
-		grid-auto-rows: minmax(52px, 80px);
+		grid-auto-rows: auto;
 		justify-content: center;
 		gap: 6px;
 	}
@@ -3509,6 +3471,12 @@
 	.party-toggle:hover {
 		background: var(--rust-wash);
 		color: var(--rust);
+	}
+
+	.party-toggle.controller-focused,
+	.party-toggle:focus-visible {
+		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
+		outline-offset: 1px;
 	}
 
 	.filter-row {
@@ -3634,6 +3602,11 @@
 		font-weight: 750;
 	}
 
+	.source-picker button:focus {
+		outline: 3px solid color-mix(in srgb, var(--rust), transparent 48%);
+		outline-offset: 2px;
+	}
+
 	.source-card-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -3689,7 +3662,7 @@
 		}
 	}
 
-	@media (max-width: 820px) {
+	@media (max-width: 1024px) {
 		.storage-workspace,
 		.box-zone,
 		.box-grid {
@@ -3697,11 +3670,14 @@
 			min-height: 0;
 		}
 
-		.workspace-column,
-		.party-zone {
+		.workspace-column {
 			overflow-x: hidden;
 			overflow-y: auto;
 			min-height: 0;
+		}
+
+		.party-zone {
+			overflow: visible;
 		}
 
 		.box-header {
@@ -3744,7 +3720,7 @@
 		}
 
 		.party-list {
-			grid-template-columns: repeat(6, minmax(44px, 1fr));
+			grid-template-columns: repeat(6, minmax(44px, 80px));
 			gap: 6px;
 		}
 

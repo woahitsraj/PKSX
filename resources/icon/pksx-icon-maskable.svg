@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#2a241c"/>
+  <g transform="translate(61.44 61.44) scale(.88)">
+    <g fill="none" stroke-width="80">
+      <circle cx="512" cy="512" r="390" stroke="#b85838" stroke-dasharray="550 1900" transform="rotate(185 512 512)"/>
+      <circle cx="512" cy="512" r="390" stroke="#c89a3e" stroke-dasharray="550 1900" transform="rotate(-85 512 512)"/>
+      <circle cx="512" cy="512" r="390" stroke="#7aa86a" stroke-dasharray="550 1900" transform="rotate(5 512 512)"/>
+      <circle cx="512" cy="512" r="390" stroke="#4d8fa8" stroke-dasharray="550 1900" transform="rotate(95 512 512)"/>
+    </g>
+    <g fill="#f4ecdf">
+      <rect x="278" y="278" width="220" height="220" rx="44"/>
+      <rect x="526" y="278" width="220" height="220" rx="44"/>
+      <rect x="278" y="526" width="220" height="220" rx="44"/>
+      <rect x="526" y="526" width="220" height="220" rx="44"/>
+    </g>
+    <g fill="#2a241c">
+      <rect x="478" y="338" width="68" height="348" rx="14" transform="rotate(45 512 512)"/>
+      <rect x="478" y="338" width="68" height="348" rx="14" transform="rotate(-45 512 512)"/>
+    </g>
+  </g>
+</svg>

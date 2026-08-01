@@ -5,10 +5,8 @@ import {
 	briefToolbarStatus,
 	createPartySlotViews,
 	createSlotView,
-	isDirectional,
 	keyboardAction,
-	pokemonEditSuccessMessage,
-	readGamepadActions
+	pokemonEditSuccessMessage
 } from './index';
 
 const occupiedSlot: BoxSlotSummary = {
@@ -45,18 +43,11 @@ const occupiedSlot: BoxSlotSummary = {
 };
 
 describe('box shell helpers', () => {
-	it('normalizes keyboard and gamepad input into Navigation Actions', () => {
-		expect.assertions(4);
+	it('normalizes keyboard input into Navigation Actions', () => {
+		expect.assertions(2);
 
 		expect(keyboardAction({ key: 'PageDown' })).toBe('nextBox');
 		expect(keyboardAction({ key: 'Y' })).toBe('sourceAction');
-		expect(
-			readGamepadActions({
-				axes: [0.7, -0.8],
-				buttons: Array.from({ length: 16 }, (_, index) => ({ pressed: index === 0 }))
-			})
-		).toEqual(['up', 'right', 'confirm']);
-		expect(isDirectional('confirm')).toBe(false);
 	});
 
 	it('creates occupied, empty, and padded party Slot views', () => {

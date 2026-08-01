@@ -9,11 +9,6 @@ import {
 } from '$lib/pksx/pokemon-editor';
 import type { BoxSourceType } from '$lib/pksx/storage-workbench';
 
-type GamepadInput = {
-	axes: readonly number[];
-	buttons: readonly { pressed: boolean }[];
-};
-
 const toolbarStatusRules: [string[], string][] = [
 	[['failed', 'could not'], 'Needs attention'],
 	[['checking'], 'Checking'],
@@ -73,32 +68,6 @@ export function isNativeEditorActivation(
 			? ['up', 'down', 'back']
 			: ['back', 'left', 'right'];
 	return nativeActions.includes(action) || (action === 'confirm' && event.key === ' ');
-}
-
-export function readGamepadActions(gamepad: GamepadInput): NavigationAction[] {
-	const actions: NavigationAction[] = [];
-	const axisX = gamepad.axes[0] ?? 0;
-	const axisY = gamepad.axes[1] ?? 0;
-
-	if (isPressed(gamepad, 12) || axisY < -0.55) actions.push('up');
-	if (isPressed(gamepad, 13) || axisY > 0.55) actions.push('down');
-	if (isPressed(gamepad, 14) || axisX < -0.55) actions.push('left');
-	if (isPressed(gamepad, 15) || axisX > 0.55) actions.push('right');
-	if (isPressed(gamepad, 0)) actions.push('confirm');
-	if (isPressed(gamepad, 1)) actions.push('back');
-	if (isPressed(gamepad, 3)) actions.push('sourceAction');
-	if (isPressed(gamepad, 4)) actions.push('previousBox');
-	if (isPressed(gamepad, 5)) actions.push('nextBox');
-
-	return actions;
-}
-
-function isPressed(gamepad: GamepadInput, index: number): boolean {
-	return gamepad.buttons[index]?.pressed === true;
-}
-
-export function isDirectional(action: NavigationAction): boolean {
-	return action === 'up' || action === 'down' || action === 'left' || action === 'right';
 }
 
 export function createPartySlotViews(slots: PartySlotSummary[]): SlotView[] {
