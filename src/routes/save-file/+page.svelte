@@ -952,7 +952,7 @@
 		color: var(--mock-rust);
 	}
 
-	@media (max-width: 980px) {
+	@media (max-width: 1024px) {
 		.save-file-route {
 			grid-template-columns: 1fr;
 			grid-template-rows: auto minmax(0, 1fr) auto;

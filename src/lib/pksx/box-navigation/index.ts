@@ -5,7 +5,14 @@ export const BOX_SLOT_COUNT = BOX_COLUMNS * BOX_ROWS;
 export const TOP_CONTROL_COUNT = 5;
 export const MOBILE_TAB_COUNT = 3;
 
-export type FocusZone = 'topbar' | 'party' | 'paneControls' | 'box' | 'actions' | 'mobileTabs';
+export type FocusZone =
+	| 'topbar'
+	| 'partyToggle'
+	| 'party'
+	| 'paneControls'
+	| 'box'
+	| 'actions'
+	| 'mobileTabs';
 
 export type SlotFocus =
 	| {
@@ -21,6 +28,9 @@ export type ControllerFocus =
 	| {
 			zone: 'topbar';
 			index: number;
+	  }
+	| {
+			zone: 'partyToggle';
 	  }
 	| {
 			zone: 'paneControls';
@@ -62,6 +72,7 @@ export type NavigationOptions = {
 	mobileTabCount?: number;
 	mobileTabsAvailable?: boolean;
 	partyAvailable?: boolean;
+	partyCollapsed?: boolean;
 };
 
 type ResolvedNavigationOptions = Required<NavigationOptions>;
@@ -119,7 +130,8 @@ function resolveNavigationOptions(options: NavigationOptions): ResolvedNavigatio
 		paneControlCount: Math.max(0, options.paneControlCount ?? 0),
 		mobileTabCount: Math.max(1, options.mobileTabCount ?? MOBILE_TAB_COUNT),
 		mobileTabsAvailable: options.mobileTabsAvailable ?? true,
-		partyAvailable: options.partyAvailable ?? true
+		partyAvailable: options.partyAvailable ?? true,
+		partyCollapsed: options.partyCollapsed ?? false
 	};
 }
 
@@ -183,6 +195,10 @@ export function focusPartySlot(slot: number): ControllerFocus {
 	return { zone: 'party', slot: clamp(slot, 0, PARTY_SLOT_COUNT - 1) };
 }
 
+export function focusPartyToggle(): ControllerFocus {
+	return { zone: 'partyToggle' };
+}
+
 export function focusBoxSlot(slot: number): ControllerFocus {
 	return { zone: 'box', slot: clamp(slot, 0, BOX_SLOT_COUNT - 1) };
 }
@@ -220,6 +236,8 @@ export function getFocusId(focus: ControllerFocus, activeBox: number): string {
 	switch (focus.zone) {
 		case 'topbar':
 			return `top-control-${focus.index}`;
+		case 'partyToggle':
+			return 'party-toggle';
 		case 'paneControls':
 			return `pane-control-${focus.index}`;
 		case 'party':
@@ -269,7 +287,9 @@ function moveUp(focus: ControllerFocus, options: ResolvedNavigationOptions): Con
 		case 'paneControls':
 			return moveUpFromPaneControls(focus.index, options);
 		case 'party':
-			return moveUpFromParty(focus.slot, options.topControlCount);
+			return focusPartyToggle();
+		case 'partyToggle':
+			return focusTopbarFromBelow(0, options.topControlCount);
 		case 'box':
 			return moveUpFromBox(focus.slot, options);
 		case 'mobileTabs':
@@ -299,18 +319,20 @@ function moveUpFromPaneControls(
 	options: ResolvedNavigationOptions
 ): ControllerFocus {
 	if (options.partyAvailable) {
-		return focusPartySlot(Math.min(index, PARTY_SLOT_COUNT - 1));
+		return options.partyCollapsed
+			? focusPartyToggle()
+			: focusPartySlot(Math.min(index, PARTY_SLOT_COUNT - 1));
 	}
 
-	return moveUpFromParty(index, options.topControlCount);
+	return focusTopbarFromBelow(
+		Math.min(index, options.topControlCount - 1),
+		options.topControlCount
+	);
 }
 
-function moveUpFromParty(slot: number, topControlCount: number): ControllerFocus {
+function focusTopbarFromBelow(fallbackIndex: number, topControlCount: number): ControllerFocus {
 	const sourceControlIndex = getSourceControlIndex(topControlCount);
-	return focusTopControl(
-		sourceControlIndex ?? Math.min(slot, topControlCount - 1),
-		topControlCount
-	);
+	return focusTopControl(sourceControlIndex ?? fallbackIndex, topControlCount);
 }
 
 function moveUpFromBox(slot: number, options: ResolvedNavigationOptions): ControllerFocus {
@@ -324,15 +346,21 @@ function moveUpFromBox(slot: number, options: ResolvedNavigationOptions): Contro
 			options.paneControlCount
 		);
 	}
-	return options.partyAvailable
-		? focusPartySlot(column)
-		: moveUpFromParty(column, options.topControlCount);
+	if (!options.partyAvailable) {
+		return focusTopbarFromBelow(
+			Math.min(column, options.topControlCount - 1),
+			options.topControlCount
+		);
+	}
+	return options.partyCollapsed ? focusPartyToggle() : focusPartySlot(column);
 }
 
 function moveDown(focus: ControllerFocus, options: ResolvedNavigationOptions): ControllerFocus {
 	switch (focus.zone) {
 		case 'topbar':
 			return moveDownFromTopbar(focus.index, options);
+		case 'partyToggle':
+			return moveDownFromPartyToggle(options);
 		case 'party':
 			return moveDownFromParty(focus.slot, options.paneControlCount);
 		case 'paneControls':
@@ -351,11 +379,20 @@ function moveDownFromTopbar(index: number, options: ResolvedNavigationOptions): 
 		return focusTopControl(sourceControlIndex, options.topControlCount);
 	}
 	if (options.partyAvailable) {
-		return focusPartySlot(Math.min(index, PARTY_SLOT_COUNT - 1));
+		return focusPartyToggle();
 	}
 	return options.paneControlCount > 0
 		? focusPaneControl(0, options.paneControlCount)
 		: focusBoxSlot(Math.min(index, BOX_COLUMNS - 1));
+}
+
+function moveDownFromPartyToggle(options: ResolvedNavigationOptions): ControllerFocus {
+	if (!options.partyCollapsed) {
+		return focusPartySlot(0);
+	}
+	return options.paneControlCount > 0
+		? focusPaneControl(0, options.paneControlCount)
+		: focusBoxSlot(0);
 }
 
 function moveDownFromParty(slot: number, paneControlCount: number): ControllerFocus {
@@ -378,6 +415,8 @@ function moveLeft(focus: ControllerFocus, options: ResolvedNavigationOptions): C
 	switch (focus.zone) {
 		case 'topbar':
 			return focusOrderedTopControl(focus.index, -1, firstTopControlIndex, options.topControlCount);
+		case 'partyToggle':
+			return focus;
 		case 'paneControls':
 			return focusPaneControl(focus.index - 1, options.paneControlCount);
 		case 'party':
@@ -399,6 +438,8 @@ function moveRight(focus: ControllerFocus, options: ResolvedNavigationOptions): 
 	switch (focus.zone) {
 		case 'topbar':
 			return focusOrderedTopControl(focus.index, 1, firstTopControlIndex, options.topControlCount);
+		case 'partyToggle':
+			return focus;
 		case 'paneControls':
 			return focusPaneControl(focus.index + 1, options.paneControlCount);
 		case 'party':
