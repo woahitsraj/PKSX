@@ -25,6 +25,24 @@ async function openEmptyLibrary(page: Page) {
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 }
 
+async function pressController(page: Page, key: string) {
+	await page.evaluate(async (controllerKey) => {
+		const dispatch = (pressed: boolean) =>
+			window.dispatchEvent(
+				new CustomEvent('pksxcontroller', {
+					detail: { key: controllerKey, pressed, id: 'Test controller' }
+				})
+			);
+		const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+		dispatch(true);
+		await nextFrame();
+		await nextFrame();
+		dispatch(false);
+		await nextFrame();
+	}, key);
+}
+
 async function importEmeraldThroughSaves(page: Page) {
 	await page.goto('/saves');
 	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
@@ -34,6 +52,43 @@ async function importEmeraldThroughSaves(page: Page) {
 	await page.goto('/');
 	await expect(page.locator('.save-chip')).toContainText('011020251345.sav', { timeout: 15000 });
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
+}
+
+// Seeds a Pokemon Storage shape the app never creates itself, so a later read proves persistence.
+async function seedPokemonStorageBoxes(page: Page, boxCount: number) {
+	await page.evaluate(
+		(boxes) =>
+			new Promise<void>((resolve, reject) => {
+				const open = indexedDB.open('pksx-local-library');
+
+				open.onerror = () => reject(open.error ?? new Error('Could not open the local library.'));
+				open.onsuccess = () => {
+					const database = open.result;
+					const transaction = database.transaction('pokemonStorage', 'readwrite');
+
+					transaction.objectStore('pokemonStorage').put({
+						id: 'pokemon-storage',
+						schemaVersion: 1,
+						boxCount: boxes,
+						boxSlotCount: 30,
+						updatedAt: '2026-05-16T12:00:00.000Z',
+						boxes: Array.from({ length: boxes }, (_, box) => ({
+							index: box,
+							name: `Box ${String(box + 1).padStart(2, '0')}`,
+							slots: Array.from({ length: 30 }, (_, slot) => ({ box, slot, pokemon: null }))
+						}))
+					});
+
+					transaction.onerror = () =>
+						reject(transaction.error ?? new Error('Could not seed Pokemon Storage.'));
+					transaction.oncomplete = () => {
+						database.close();
+						resolve();
+					};
+				};
+			}),
+		boxCount
+	);
 }
 
 async function moveFirstEmeraldBoxSlotToThirdSlot(page: Page) {
@@ -119,6 +174,51 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 	await page.getByRole('button', { name: 'Previous box' }).click();
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('switches to durable Pokemon Storage with focusable empty Slot actions', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+
+	await page.getByRole('button', { name: 'Add source' }).click();
+	await page.getByRole('button', { name: /Pokemon Storage/ }).click();
+	await expect(page.locator('.pane-state-tag')).toContainText('AUTO-SAVED');
+	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+
+	await page.getByRole('button', { name: 'Switch Pokemon Storage source' }).click();
+	await page.getByRole('button', { name: /011020251345.sav/ }).click();
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
+
+	await seedPokemonStorageBoxes(page, 5);
+	await page.goto('/?source=pokemon-storage');
+	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('PageDown');
+	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
+	await expect(page.locator('#box-1-slot-0')).toHaveAttribute('aria-selected', 'true');
+
+	await page.getByRole('button', { name: 'Next box' }).click();
+	await page.getByRole('button', { name: 'Next box' }).click();
+	await page.getByRole('button', { name: 'Next box' }).click();
+	// Only reachable when the persisted five-box shape survived the reload; a fresh shape wraps at Box 03.
+	await expect(page.getByRole('heading', { name: 'Box 05' })).toBeVisible();
+	await expect(page.locator('#box-4-slot-0')).toContainText('Empty');
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+
+	const actions = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(actions).toBeVisible();
+	await expect(actions.getByRole('button', { name: 'Move' })).toHaveAttribute(
+		'data-availability',
+		'empty-slot'
+	);
+	await expect(actions.getByRole('button', { name: 'Move' })).toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
 });
 
 test('confirm opens slot actions and back restores the grid focus', async ({ page }) => {
@@ -361,6 +461,127 @@ test('keyboard navigation reaches top controls and mobile tabs', async ({ page }
 	await expect(page.locator('#mobile-tab-1')).toBeFocused();
 	await page.keyboard.press('ArrowUp');
 	await expect(page.locator('#box-0-slot-25')).toBeFocused();
+});
+
+test('controller input follows the keyboard navigation path', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await page.locator('#box-grid').focus();
+
+	await pressController(page, 'ArrowRight');
+	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+
+	await pressController(page, 'Enter');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
+
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#slot-action-1')).toBeFocused();
+	await expect(page.locator('#slot-action-1')).toHaveClass(/controller-focused/);
+
+	await pressController(page, 'Escape');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
+	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+
+	await pressController(page, 'y');
+	await expect(page.getByRole('dialog', { name: 'Add Box Source' })).toBeVisible();
+	await expect(page.locator('.source-card').first()).toBeFocused();
+	await expect
+		.poll(() =>
+			page
+				.locator('.source-card')
+				.first()
+				.evaluate((control) => getComputedStyle(control).outlineStyle)
+		)
+		.toBe('solid');
+});
+
+test('controller shoulder buttons switch boxes and A drives the party toggle and editor', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+
+	await pressController(page, 'PageDown');
+	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
+	await pressController(page, 'PageUp');
+	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+
+	await pressController(page, 'ArrowUp');
+	await expect(page.locator('#party-slot-0')).toBeFocused();
+	await pressController(page, 'ArrowUp');
+	await expect(page.locator('#party-toggle')).toBeFocused();
+
+	await pressController(page, 'Enter');
+	await expect(page.locator('#party-list')).toBeHidden();
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+	await pressController(page, 'ArrowUp');
+	await expect(page.locator('#party-toggle')).toBeFocused();
+	await pressController(page, 'Enter');
+	await expect(page.locator('#party-list')).toBeVisible();
+
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#party-slot-0')).toBeFocused();
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+	await pressController(page, 'Enter');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
+	await pressController(page, 'Enter');
+	await expect(page.locator('.pokemon-editor')).toBeVisible();
+	await pressController(page, 'Escape');
+	await expect(page.locator('.pokemon-editor')).toBeHidden();
+	await pressController(page, 'Escape');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+});
+
+test('desktop slot actions render fully visible beside the focused slot', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await page.locator('#box-grid').focus();
+
+	for (let step = 0; step < 5; step += 1) {
+		await page.keyboard.press('ArrowRight');
+	}
+	for (let step = 0; step < 4; step += 1) {
+		await page.keyboard.press('ArrowDown');
+	}
+	await expect(page.locator('#box-0-slot-29')).toHaveAttribute('aria-selected', 'true');
+	await page.keyboard.press('Enter');
+
+	const dialog = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(dialog).toBeVisible();
+	await expect(dialog).toHaveClass(/viewport-anchored/);
+
+	const menuState = await dialog.evaluate((element) => {
+		const rect = element.getBoundingClientRect();
+		return {
+			top: rect.top,
+			left: rect.left,
+			bottom: rect.bottom,
+			right: rect.right,
+			viewportWidth: window.innerWidth,
+			viewportHeight: window.innerHeight,
+			menuOwnsCenter: element.contains(
+				document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+			)
+		};
+	});
+
+	expect(menuState.top).toBeGreaterThanOrEqual(0);
+	expect(menuState.left).toBeGreaterThanOrEqual(0);
+	expect(menuState.right).toBeLessThanOrEqual(menuState.viewportWidth);
+	expect(menuState.bottom).toBeLessThanOrEqual(menuState.viewportHeight);
+	expect(menuState.menuOwnsCenter).toBe(true);
+});
+
+test('small widescreen viewports use the mobile shell', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await page.setViewportSize({ width: 960, height: 540 });
+
+	await expect(page.locator('.mobile-tabbar')).toBeVisible();
+	await expect(page.locator('.section-pills')).toBeHidden();
+	await expect(page.locator('.box-sidebar')).toBeHidden();
 });
 
 test('mobile slot actions stay inside the viewport without adding page overflow', async ({
@@ -746,7 +967,7 @@ test('keyboard navigation covers the Saves route controls and desktop overflow s
 	page
 }) => {
 	await openEmptyLibrary(page);
-	await page.setViewportSize({ width: 960, height: 520 });
+	await page.setViewportSize({ width: 1100, height: 520 });
 	await page.goto('/saves');
 
 	await page.locator('#top-control-0').focus();
