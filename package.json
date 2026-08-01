@@ -17,6 +17,7 @@
 		"native:sync:android": "pnpm build && cap sync android",
 		"android:open": "cap open android",
 		"android:build": "pnpm native:sync:android && cd android && ./gradlew :app:assembleDebug --no-daemon",
+		"android:run": "bash scripts/run-android.sh",
 		"test:android": "pnpm native:sync:android && bash scripts/run-android-acceptance.sh",
 		"engine:sync": "node scripts/sync-pkhex-engine.ts",
 		"sprites:download": "node scripts/download-sprite-catalog.ts",
