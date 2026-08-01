@@ -10,7 +10,7 @@ import {
 	type WorkspaceState
 } from '$lib/pksx/backup-workflow';
 import {
-	IndexedDbLocalLibraryStorage,
+	createLocalLibraryStorage,
 	type BackupMetadata,
 	type SaveFileId,
 	type StoredSaveFile
@@ -34,7 +34,7 @@ type SaveDetailsCacheEntry = {
 	details: SaveCardDetails | null;
 };
 
-const storage = new IndexedDbLocalLibraryStorage();
+const storage = createLocalLibraryStorage();
 const detailsCache = new Map<SaveFileId, SaveDetailsCacheEntry>();
 
 let engine: EngineApi | null = null;

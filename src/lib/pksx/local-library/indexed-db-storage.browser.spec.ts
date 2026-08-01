@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { bytesEqual } from './bytes';
 import { deleteIndexedDbLocalLibrary, IndexedDbLocalLibraryStorage } from './indexed-db-storage';
+import { createEmptyPokemonStorage } from './pokemon-storage';
 
 describe('IndexedDbLocalLibraryStorage', () => {
 	let databaseName: string;
@@ -115,6 +116,19 @@ describe('IndexedDbLocalLibraryStorage', () => {
 		await storage.clearWorkspace(saveFile.id);
 
 		await expect(storage.getWorkspace(saveFile.id)).resolves.toBeNull();
+	});
+
+	it('persists empty Pokemon Storage across Local Library instances', async () => {
+		const emptyStorage = createEmptyPokemonStorage(2, 4, () => '2026-05-16T11:00:00.000Z');
+		await storage.putPokemonStorage(emptyStorage);
+		emptyStorage.boxes[0]!.name = 'Changed after write';
+
+		const reloaded = await new IndexedDbLocalLibraryStorage({ databaseName }).getPokemonStorage();
+
+		expect(reloaded).toStrictEqual({
+			...createEmptyPokemonStorage(2, 4, () => '2026-05-16T11:00:00.000Z'),
+			updatedAt: '2026-05-16T12:00:00.000Z'
+		});
 	});
 
 	it('rejects workspace persistence for an unknown save file', async () => {

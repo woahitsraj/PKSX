@@ -11,6 +11,7 @@ export const appChrome = $state({
 	busy: false,
 	hasLoadedSave: false,
 	controllerInputActive: false,
+	controllerStatus: null as string | null,
 	importSave: null as ((file: File) => void) | null,
 	exportSave: null as (() => void) | null
 });
