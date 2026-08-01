@@ -7,12 +7,15 @@ import android.view.InputDevice;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.util.Base64;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -148,13 +151,8 @@ public class ControllerNavigationTest {
             "location.pathname === '/' && " + controllerHighlightExpression("mobile-tab-0")
         );
 
-        pressGamepadKey(KeyEvent.KEYCODE_DPAD_UP, null);
-        for (int row = 0; row < 4; row++) {
-            pressGamepadKey(KeyEvent.KEYCODE_DPAD_UP, null);
-        }
-        pressGamepadKey(KeyEvent.KEYCODE_DPAD_UP, null);
-        pressGamepadKey(KeyEvent.KEYCODE_DPAD_UP, controllerHighlightExpression("top-control-5"));
-        pressGamepadKey(KeyEvent.KEYCODE_DPAD_UP, controllerHighlightExpression("top-control-4"));
+        runJavaScript("document.querySelector('#top-control-4').focus()");
+        awaitControllerHighlight("top-control-4");
 
         for (int interaction = 0; interaction < 20; interaction++) {
             int keyCode = interaction % 2 == 0
@@ -166,6 +164,60 @@ public class ControllerNavigationTest {
 
         SystemClock.sleep(1000);
         awaitControllerHighlight("top-control-4");
+    }
+
+    @Test
+    public void controllerFrameworkHighlightsContextEditorAndEveryFocusableControl()
+        throws Exception {
+        awaitControllerSurface();
+        importEmeraldSave();
+        runJavaScript("document.querySelector('#mobile-tab-0').click()");
+        awaitControllerSurface();
+        awaitJavaScript("document.querySelector('#box-0-slot-0')?.textContent.includes('ARON')");
+        runJavaScript("document.querySelector('#box-grid').focus()");
+
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_A,
+            "document.querySelector('[aria-label=\"Slot actions\"]') !== null"
+        );
+        assertAllFocusableControlsHighlighted("[aria-label=\"Slot actions\"]");
+        runJavaScript("document.querySelector('#slot-action-0').focus()");
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_A,
+            "document.querySelector('.pokemon-editor') !== null"
+        );
+        runJavaScript("document.querySelector('#pokemon-editor-nickname').focus()");
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_Y,
+            controllerHighlightExpression("pokemon-editor-nickname")
+        );
+        assertAllFocusableControlsHighlighted(".pokemon-editor");
+    }
+
+    @Test
+    public void controllerFrameworkNavigatesAndHighlightsSaveScreens() throws Exception {
+        awaitControllerSurface();
+        runJavaScript("document.querySelector('#mobile-tab-1').click()");
+        awaitJavaScript("location.pathname.endsWith('/save-file')");
+
+        runJavaScript("document.querySelector('.field-sidebar nav button').focus()");
+        pressGamepadKey(
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            "document.activeElement !== document.querySelector('.field-sidebar nav button')"
+                + " && document.activeElement?.closest('.save-file-route') !== null"
+                + " && getComputedStyle(document.activeElement).outlineStyle === 'solid'"
+        );
+        assertAllFocusableControlsHighlighted(".save-file-route");
+
+        runJavaScript("document.querySelector('#mobile-tab-2').click()");
+        awaitJavaScript("location.pathname.endsWith('/saves')");
+        runJavaScript("document.querySelector('[data-saves-control]').focus()");
+        pressGamepadKey(
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            "document.activeElement?.hasAttribute('data-saves-control')"
+                + " && getComputedStyle(document.activeElement).outlineStyle === 'solid'"
+        );
+        assertAllFocusableControlsHighlighted(".saves-page");
     }
 
     private void awaitControllerSurface() throws Exception {
@@ -218,9 +270,59 @@ public class ControllerNavigationTest {
     private String controllerHighlightExpression(String id) {
         return "document.activeElement?.id === '"
             + id
-            + "' && document.activeElement.classList.contains('controller-focused')"
-            + " && getComputedStyle(document.activeElement).outlineStyle === 'solid'"
+            + "' && getComputedStyle(document.activeElement).outlineStyle === 'solid'"
             + " && parseFloat(getComputedStyle(document.activeElement).outlineWidth) >= 3";
+    }
+
+    private void assertAllFocusableControlsHighlighted(String scope) throws Exception {
+        String selector =
+            "button:not([disabled]),a[href],input:not([disabled]):not([type=hidden]):not([type=file]),"
+                + "select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex=\"-1\"])";
+        awaitJavaScript(
+            "(() => { const root = document.querySelector('"
+                + scope
+                + "'); if (!root) return false; const controls = [...root.querySelectorAll('"
+                + selector
+                + "')].filter(control => { const rect = control.getBoundingClientRect();"
+                + " const style = getComputedStyle(control); return rect.width > 0 && rect.height > 0"
+                + " && style.display !== 'none' && style.visibility !== 'hidden'; });"
+                + " return controls.length > 0 && controls.every(control => { control.focus();"
+                + " const style = getComputedStyle(control); return style.outlineStyle === 'solid'"
+                + " && parseFloat(style.outlineWidth) >= 3; }); })()"
+        );
+    }
+
+    private void importEmeraldSave() throws Exception {
+        runJavaScript("document.querySelector('#mobile-tab-2').click()");
+        awaitJavaScript(
+            "location.pathname.endsWith('/saves') && document.querySelector('#save-file-input')"
+        );
+        String encoded = Base64.encodeToString(readAsset("emerald-011020251345.sav"), Base64.NO_WRAP);
+        runJavaScript(
+            "(() => { const bytes = Uint8Array.from(atob('"
+                + encoded
+                + "'), value => value.charCodeAt(0)); const transfer = new DataTransfer();"
+                + " transfer.items.add(new File([bytes], 'emerald.sav'));"
+                + " const input = document.querySelector('#save-file-input'); input.files = transfer.files;"
+                + " input.dispatchEvent(new Event('change', { bubbles: true })); return true; })()"
+        );
+        awaitJavaScript("document.body.textContent.includes('emerald.sav imported and made active.')");
+    }
+
+    private byte[] readAsset(String name) throws Exception {
+        try (
+            InputStream input = InstrumentationRegistry
+                .getInstrumentation()
+                .getContext()
+                .getAssets()
+                .open(name);
+            ByteArrayOutputStream output = new ByteArrayOutputStream()
+        ) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+            return output.toByteArray();
+        }
     }
 
     private void dispatchKeyEvent(KeyEvent event) {

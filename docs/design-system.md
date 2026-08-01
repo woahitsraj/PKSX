@@ -58,6 +58,14 @@ Reusable template and scoped CSS live under `src/lib/components/pksx/`:
 - `MobileTabbar.svelte`: mobile section navigation.
 - `types.ts`: shared presentational data shapes for PKSX components.
 
+## Controller Focus
+
+Controller input and fallback navigation live in `src/lib/pksx/controller-input.ts` and are installed once by the root layout. Controller events set `data-input-modality="controller"` on the document, and `src/routes/layout.css` applies the shared focus ring to every focused control. Components must use native focusable elements such as `button`, `a`, `input`, `select`, and `textarea`. New controls do not need a component-specific `controller-focused` class.
+
+Screens with custom focus graphs can prevent the generated keyboard event and keep their existing navigation. Unhandled screens automatically receive spatial arrow navigation, A/Enter activation, B/Escape back behavior, and scroll-into-view. Use `data-controller-autofocus` to override the first control in a scope and `data-controller-back` for a route-level back action. Visible dialogs are treated as the active controller scope.
+
+The browser and Android acceptance suites audit the computed focus ring on every visible interactive element. A new control that is not focusable or loses the shared ring must fail those audits.
+
 ## Follow-Up Candidates
 
 - Extract the party/box zone headers into components if more routes reuse the storage workspace shell.

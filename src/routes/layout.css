@@ -82,6 +82,11 @@ strong {
 	font-weight: 650;
 }
 
+html[data-input-modality='controller'] body :focus {
+	outline: 3px solid var(--pksx-color-accent-ring) !important;
+	outline-offset: 3px !important;
+}
+
 .app-shell,
 .app-shell * {
 	box-sizing: border-box;

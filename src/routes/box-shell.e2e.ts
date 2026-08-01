@@ -43,6 +43,29 @@ async function pressController(page: Page, key: string) {
 	}, key);
 }
 
+async function expectControllerHighlights(page: Page, scope: Locator) {
+	const controls = scope.locator(
+		'button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"]):not([type="file"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+	);
+	let audited = 0;
+
+	for (let index = 0; index < (await controls.count()); index += 1) {
+		const control = controls.nth(index);
+		if (!(await control.isVisible())) continue;
+
+		await control.focus();
+		const ring = await control.evaluate((element) => {
+			const style = getComputedStyle(element);
+			return { style: style.outlineStyle, width: parseFloat(style.outlineWidth) };
+		});
+		expect(ring.style).toBe('solid');
+		expect(ring.width).toBeGreaterThanOrEqual(3);
+		audited += 1;
+	}
+
+	expect(audited).toBeGreaterThan(0);
+}
+
 async function importEmeraldThroughSaves(page: Page) {
 	await page.goto('/saves');
 	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
@@ -492,6 +515,56 @@ test('controller input follows the keyboard navigation path', async ({ page }) =
 				.evaluate((control) => getComputedStyle(control).outlineStyle)
 		)
 		.toBe('solid');
+});
+
+test('controller focus framework covers every interactive surface', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await page.locator('#box-grid').focus();
+	await pressController(page, 'ArrowRight');
+	await expect(page.locator('html')).toHaveAttribute('data-input-modality', 'controller');
+
+	await pressController(page, 'Enter');
+	const slotActions = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(slotActions).toBeVisible();
+	await expectControllerHighlights(page, slotActions);
+	await pressController(page, 'Escape');
+
+	await pressController(page, 'y');
+	const sourcePicker = page.getByRole('dialog', { name: 'Add Box Source' });
+	await expect(sourcePicker).toBeVisible();
+	await expectControllerHighlights(page, sourcePicker);
+	await pressController(page, 'Escape');
+
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await pressController(page, 'Enter');
+	await pressController(page, 'Enter');
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	await expect(editor).toBeVisible();
+	await expectControllerHighlights(page, editor);
+	await pressController(page, 'Escape');
+
+	await page.getByRole('button', { name: 'Save File' }).click();
+	await expect(page).toHaveURL(/\/save-file$/);
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('.save-file-route').locator(':focus')).toHaveCount(1);
+	await expectControllerHighlights(page, page.locator('.save-file-route'));
+	await page.getByRole('button', { name: /Money/ }).first().click();
+	await pressController(page, 'ArrowDown');
+	await expectControllerHighlights(page, page.locator('.save-file-route'));
+	await page.getByRole('button', { name: /Bag Inventory pockets/ }).click();
+	await pressController(page, 'ArrowDown');
+	await expectControllerHighlights(page, page.locator('.save-file-route'));
+
+	await page.getByRole('button', { name: 'Saves' }).click();
+	await expect(page).toHaveURL(/\/saves$/);
+	await pressController(page, 'ArrowDown');
+	await expectControllerHighlights(page, page.locator('.saves-page'));
+	await page.locator('.save-card.active .danger-action').click();
+	const confirmDialog = page.getByRole('alertdialog');
+	await expect(confirmDialog).toBeVisible();
+	await pressController(page, 'ArrowRight');
+	await expectControllerHighlights(page, confirmDialog);
 });
 
 test('controller shoulder buttons switch boxes and A drives the party toggle and editor', async ({

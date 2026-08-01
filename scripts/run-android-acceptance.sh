@@ -2,6 +2,7 @@
 set -euo pipefail
 
 sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"
+export ANDROID_HOME="$sdk_root"
 adb_bin="$sdk_root/platform-tools/adb"
 emulator_bin="$sdk_root/emulator/emulator"
 avd_name="${PKSX_ANDROID_AVD:-pksx-api-36}"

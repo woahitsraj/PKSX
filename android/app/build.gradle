@@ -37,6 +37,9 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    sourceSets {
+        androidTest.assets.srcDirs += ['../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves']
+    }
 }
 
 repositories {
