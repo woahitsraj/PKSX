@@ -101,6 +101,73 @@ public class ControllerNavigationTest {
         );
     }
 
+    @Test
+    public void controllerHighlightSurvivesRepeatedTopAndBottomNavigation() throws Exception {
+        awaitControllerSurface();
+        runJavaScript("document.querySelector('#box-grid').focus()");
+
+        for (int row = 0; row < 5; row++) {
+            pressGamepadKey(KeyEvent.KEYCODE_DPAD_DOWN, null);
+        }
+        awaitControllerHighlight("mobile-tab-1");
+
+        for (int interaction = 0; interaction < 20; interaction++) {
+            int keyCode = interaction % 2 == 0
+                ? KeyEvent.KEYCODE_DPAD_LEFT
+                : KeyEvent.KEYCODE_DPAD_RIGHT;
+            String expectedId = interaction % 2 == 0 ? "mobile-tab-0" : "mobile-tab-1";
+            pressGamepadKey(keyCode, controllerHighlightExpression(expectedId));
+        }
+
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_A,
+            "location.pathname.endsWith('/save-file') && "
+                + controllerHighlightExpression("mobile-tab-1")
+        );
+        SystemClock.sleep(1000);
+        awaitControllerHighlight("mobile-tab-1");
+        pressGamepadKey(
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+            controllerHighlightExpression("mobile-tab-2")
+        );
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_A,
+            "location.pathname.endsWith('/saves') && "
+                + controllerHighlightExpression("mobile-tab-2")
+        );
+        pressGamepadKey(
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            controllerHighlightExpression("mobile-tab-1")
+        );
+        pressGamepadKey(
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            controllerHighlightExpression("mobile-tab-0")
+        );
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_A,
+            "location.pathname === '/' && " + controllerHighlightExpression("mobile-tab-0")
+        );
+
+        pressGamepadKey(KeyEvent.KEYCODE_DPAD_UP, null);
+        for (int row = 0; row < 4; row++) {
+            pressGamepadKey(KeyEvent.KEYCODE_DPAD_UP, null);
+        }
+        pressGamepadKey(KeyEvent.KEYCODE_DPAD_UP, null);
+        pressGamepadKey(KeyEvent.KEYCODE_DPAD_UP, controllerHighlightExpression("top-control-5"));
+        pressGamepadKey(KeyEvent.KEYCODE_DPAD_UP, controllerHighlightExpression("top-control-4"));
+
+        for (int interaction = 0; interaction < 20; interaction++) {
+            int keyCode = interaction % 2 == 0
+                ? KeyEvent.KEYCODE_DPAD_RIGHT
+                : KeyEvent.KEYCODE_DPAD_LEFT;
+            String expectedId = interaction % 2 == 0 ? "top-control-6" : "top-control-4";
+            pressGamepadKey(keyCode, controllerHighlightExpression(expectedId));
+        }
+
+        SystemClock.sleep(1000);
+        awaitControllerHighlight("top-control-4");
+    }
+
     private void awaitControllerSurface() throws Exception {
         awaitJavaScript(
             "document.readyState === 'complete'"
@@ -126,7 +193,7 @@ public class ControllerNavigationTest {
                 InputDevice.SOURCE_GAMEPAD
             )
         );
-        awaitJavaScript(expectedState);
+        if (expectedState != null) awaitJavaScript(expectedState);
         dispatchKeyEvent(
             new KeyEvent(
                 downTime,
@@ -142,6 +209,18 @@ public class ControllerNavigationTest {
             )
         );
         runJavaScript("true");
+    }
+
+    private void awaitControllerHighlight(String id) throws Exception {
+        awaitJavaScript(controllerHighlightExpression(id));
+    }
+
+    private String controllerHighlightExpression(String id) {
+        return "document.activeElement?.id === '"
+            + id
+            + "' && document.activeElement.classList.contains('controller-focused')"
+            + " && getComputedStyle(document.activeElement).outlineStyle === 'solid'"
+            + " && parseFloat(getComputedStyle(document.activeElement).outlineWidth) >= 3";
     }
 
     private void dispatchKeyEvent(KeyEvent event) {

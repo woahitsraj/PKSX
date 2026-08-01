@@ -35,15 +35,15 @@
 	);
 
 	function openBoxes() {
-		void goto(resolve('/'));
+		void goto(resolve('/'), { keepFocus: true });
 	}
 
 	function openSaves() {
-		void goto(resolve('/saves'));
+		void goto(resolve('/saves'), { keepFocus: true });
 	}
 
 	function openSaveFile() {
-		void goto(resolve('/save-file'));
+		void goto(resolve('/save-file'), { keepFocus: true });
 	}
 
 	function handleImport(file: File) {

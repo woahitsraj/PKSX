@@ -73,6 +73,7 @@ pnpm dev -- --open
 | `pnpm native:sync:android` | Build the web app and sync it into the Capacitor Android project.                           |
 | `pnpm android:open`        | Open the native Android project in Android Studio.                                          |
 | `pnpm android:build`       | Build and sync the web app, then assemble an Android debug APK.                             |
+| `pnpm android:run`         | Build PKSX, start the visible Android emulator, install it, and launch the app.             |
 | `pnpm test:android`        | Run native controller acceptance tests on the API 36 test emulator.                         |
 | `pnpm lint`                | Check Prettier formatting and ESLint.                                                       |
 | `pnpm format`              | Format the repo with Prettier.                                                              |
