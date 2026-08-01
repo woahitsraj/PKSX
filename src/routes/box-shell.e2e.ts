@@ -426,6 +426,7 @@ test('Pokemon Editor changes Held Item and returns focus to the command stack', 
 	await page.locator('#pokemon-editor-close').focus();
 	await page.keyboard.press('ArrowDown');
 	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('ArrowDown');
 	await expect(heldItem).toBeFocused();
 	await page.keyboard.press('Enter');
 	await expect(heldItem).not.toHaveValue(originalItem);
@@ -433,7 +434,7 @@ test('Pokemon Editor changes Held Item and returns focus to the command stack', 
 	await expect(editor).toContainText('1 Pokemon edit drafted.');
 
 	await editor.getByRole('button', { name: 'Apply edits' }).click();
-	await expect(editor).toContainText('Pokemon Held Item updated.', { timeout: 15000 });
+	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
 	await expect(heldItem).toHaveValue(changedItem);
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 
