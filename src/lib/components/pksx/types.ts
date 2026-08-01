@@ -1,7 +1,10 @@
 import type {
 	PokemonExperienceProjection,
 	PokemonAbilityEditConstraints,
+	PokemonFriendshipEditConstraints,
+	PokemonHeldItemEditConstraints,
 	PokemonMoveSetEditConstraints,
+	PokemonNatureEditConstraints,
 	PokemonStatEditConstraints,
 	SpriteIdentity
 } from '$lib/engine';
@@ -25,9 +28,12 @@ export type SlotView = {
 	types?: SlotTypeView[];
 	stats?: SlotStatView[];
 	moves?: SlotMoveView[];
+	natureEditConstraints?: PokemonNatureEditConstraints;
+	heldItemEditConstraints?: PokemonHeldItemEditConstraints;
 	abilityEditConstraints?: PokemonAbilityEditConstraints;
 	statEditConstraints?: PokemonStatEditConstraints;
 	moveSetEditConstraints?: PokemonMoveSetEditConstraints;
+	friendshipEditConstraints?: PokemonFriendshipEditConstraints;
 	originalTrainer?: string;
 	metLabel?: string;
 	entityBytesBase64?: string | null;
