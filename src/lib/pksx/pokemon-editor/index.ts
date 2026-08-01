@@ -62,13 +62,10 @@ export type PokemonMoveSetEditPayload = {
 	moves: PokemonMoveSlotEdit[];
 };
 
-<<<<<<< HEAD
 export type NatureEditPayload = {
 	natureId: number;
 };
 
-=======
->>>>>>> origin/main
 export type PokemonFriendshipEditPayload = {
 	fields: PokemonFriendshipFieldEdit[];
 };
@@ -621,7 +618,6 @@ const pokemonEditOperationBuilders = [
 	{ id: 'friendship', build: buildFriendshipEdit }
 ] satisfies { id: string; build: PokemonEditOperationBuilder }[];
 
-<<<<<<< HEAD
 function buildNatureEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
 	if (!isNatureEditPayload(payload)) {
 		return invalidPokemonEdit('Nature edit payload is invalid.');
@@ -662,8 +658,6 @@ function validateNatureEdit(
 	return { ok: true, payload, label: `Set Nature to ${option.name}` };
 }
 
-=======
->>>>>>> origin/main
 function buildFriendshipEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
 	if (!isPokemonFriendshipEditPayload(payload)) {
 		return invalidPokemonEdit('Friendship edit payload is invalid.');

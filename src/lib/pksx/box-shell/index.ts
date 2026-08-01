@@ -228,10 +228,7 @@ export function pokemonEditSuccessMessage(
 		'nickname',
 		'level',
 		'experience',
-<<<<<<< HEAD
 		'natureId',
-=======
->>>>>>> origin/main
 		'ivs',
 		'evs',
 		'moves',
