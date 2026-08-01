@@ -13,6 +13,7 @@
 		statEditPayloadFromSlot,
 		type PokemonStatKey
 	} from '$lib/pksx/pokemon-editor';
+	import { getSpriteIdentityLabels } from '$lib/pksx/sprite-catalog';
 
 	interface Props {
 		editor: PokemonEditorState;
@@ -99,6 +100,7 @@
 	const speciesLabel = $derived(
 		slot.speciesId ? `Species #${String(slot.speciesId).padStart(4, '0')}` : 'Unknown species'
 	);
+	const spriteIdentityLabels = $derived(getSpriteIdentityLabels(slot.spriteIdentity));
 	const sourceLabel = $derived(
 		editor.source.owner === 'save-file' ? 'Save File Pokemon' : 'Pokemon Storage Pokemon'
 	);
@@ -582,7 +584,9 @@
 			<div class="summary-strip" aria-label="Pokemon identity">
 				<strong>{speciesLabel}</strong>
 				{#if slot.level !== null}<span>Level {slot.level}</span>{/if}
-				{#if slot.form !== null && slot.form > 0}<span>Form {slot.form}</span>{/if}
+				{#if spriteIdentityLabels.form}<span>{spriteIdentityLabels.form}</span>{/if}
+				{#if spriteIdentityLabels.shiny}<span>{spriteIdentityLabels.shiny}</span>{/if}
+				{#if spriteIdentityLabels.displaySex}<span>{spriteIdentityLabels.displaySex}</span>{/if}
 				{#if slot.isEgg}<span>Egg</span>{/if}
 			</div>
 
@@ -1109,10 +1113,15 @@
 
 	.icon-close:hover,
 	.icon-close:focus-visible,
+	.icon-close:focus,
 	.close-editor:hover,
 	.close-editor:focus-visible,
+	.close-editor:focus,
 	.unsupported-apply:hover,
-	.unsupported-apply:focus-visible {
+	.unsupported-apply:focus-visible,
+	.unsupported-apply:focus,
+	.pokemon-editor button:focus,
+	.pokemon-editor input:focus {
 		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
 		outline-offset: 1px;
 	}
@@ -1498,7 +1507,8 @@
 	}
 
 	.move-picker-option.active,
-	.move-picker-option:focus-visible {
+	.move-picker-option:focus-visible,
+	.move-picker-option:focus {
 		border-color: color-mix(in srgb, var(--rust), transparent 20%);
 		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
 		outline-offset: 1px;
@@ -1632,17 +1642,28 @@
 		color: white;
 	}
 
-	@media (max-width: 720px) {
+	@media (max-width: 1024px) {
 		.pokemon-editor {
-			top: 12px;
-			bottom: 12px;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			left: 0;
+			width: auto;
 			max-height: none;
-			transform: translateX(-50%);
+			border-radius: 0;
+			transform: none;
+			padding: calc(14px + env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right))
+				calc(14px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left));
 		}
 
 		.editor-body {
-			grid-template-columns: 1fr;
 			overflow-y: auto;
+		}
+	}
+
+	@media (max-width: 720px) {
+		.editor-body {
+			grid-template-columns: 1fr;
 		}
 
 		.editor-summary {

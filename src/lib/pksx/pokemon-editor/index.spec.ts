@@ -597,6 +597,47 @@ describe('Pokemon editor state', () => {
 		});
 	});
 
+	it('rejects malformed Move Set operation payloads', () => {
+		const staged = stagePokemonEditorEdit(openEditableEditor(), {
+			id: 'move-set',
+			capability: 'move-set-editing',
+			label: 'Set Move Set',
+			payload: { moves: 'invalid' }
+		});
+
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: false,
+			status: 'rejected',
+			message: 'Move Set edit payload is invalid.',
+			reason: 'invalid-pokemon-edit'
+		});
+	});
+
+	it('reports unsupported Move Set Editing constraints', () => {
+		const editor = openEditableEditor();
+		const unsupported = stageMoveSetEdit(
+			{
+				...editor,
+				slot: {
+					...editor.slot,
+					moveSetEditConstraints: {
+						...editor.slot.moveSetEditConstraints!,
+						supported: false,
+						unsupportedReason: 'Move Set Editing is unavailable for this format.'
+					}
+				}
+			},
+			{ moves: [{ slot: 0, move: 33 }] }
+		);
+
+		expect(unsupported.applyOutcome).toEqual({
+			status: 'rejected',
+			message: 'Move Set Editing is unavailable for this format.',
+			reason: 'invalid-pokemon-edit'
+		});
+		expect(unsupported.stagedEdits).toEqual([]);
+	});
+
 	it('creates stat payloads from visible Slot projections', () => {
 		expect(statEditPayloadFromSlot(editablePokemonSlot, 'iv')).toEqual({
 			HP: 31,
