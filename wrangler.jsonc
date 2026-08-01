@@ -1,0 +1,36 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "pksx-local",
+	"compatibility_date": "2026-07-28",
+	"workers_dev": true,
+	"preview_urls": true,
+	"assets": {
+		"directory": "./build",
+		"html_handling": "auto-trailing-slash",
+		"not_found_handling": "404-page"
+	},
+	"env": {
+		"staging": {
+			"name": "pksx-staging",
+			"workers_dev": true,
+			"preview_urls": true,
+			"routes": [
+				{
+					"pattern": "staging.pksx.app",
+					"custom_domain": true
+				}
+			]
+		},
+		"production": {
+			"name": "pksx-production",
+			"workers_dev": false,
+			"preview_urls": false,
+			"routes": [
+				{
+					"pattern": "pksx.app",
+					"custom_domain": true
+				}
+			]
+		}
+	}
+}
