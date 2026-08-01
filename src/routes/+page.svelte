@@ -3,7 +3,6 @@
 	import { page } from '$app/state';
 	import { onMount, tick } from 'svelte';
 	import {
-		base64ToBytes,
 		type EngineApi,
 		type EngineError,
 		type PokemonEditOperation,
@@ -71,6 +70,7 @@
 		type StoredSaveFile
 	} from '$lib/pksx/local-library';
 	import {
+		getActiveWorkspaceService,
 		getCachedActiveWorkspaceBox,
 		getLocalLibraryStorage,
 		getPkhexEngine,
@@ -140,6 +140,7 @@
 	const placeholderBoxCount = 3;
 	const activeSavePaneId = 'pane-active-save';
 	const storage = getLocalLibraryStorage();
+	const workspaceService = getActiveWorkspaceService();
 
 	const slotPalette = [16, 28, 48, 100, 140, 180, 195, 210, 220, 260, 280, 295, 330, 52];
 	const topControlCount = 7;
@@ -2513,14 +2514,18 @@
 	}
 
 	onMount(() => {
+		const unsubscribe = workspaceService.subscribe((state) => {
+			loadedSave = state;
+		});
 		engine = getPkhexEngine();
 		void restoreInitialState();
+		return unsubscribe;
 	});
 
 	async function restoreInitialState() {
 		await restorePokemonStorage();
 		if (page.url.searchParams.get('source') === 'pokemon-storage') {
-			loadedSave = null;
+			setCachedActiveWorkspace(null, 0);
 			saveFiles = await storage.listSaves();
 			workbenchPanes = [
 				createBoxPane('pane-pokemon-storage', pokemonStorageSource(), {
@@ -2761,16 +2766,7 @@
 				throw new Error('The PKHeX Engine is not ready.');
 			}
 
-			const result = await activeEngine.serializeSave(
-				loadedSave.bytes,
-				loadedSave.file.originalFileName ?? undefined
-			);
-
-			if (!result.ok) {
-				throw result.error;
-			}
-
-			const bytes = base64ToBytes(result.value.bytesBase64, result.value.byteLength);
+			const bytes = await workspaceService.exportBytes(loadedSave);
 			downloadBytes(bytes, createExportFileName(loadedSave.file.originalFileName));
 			statusMessage = 'Export ready.';
 		} catch (error) {
