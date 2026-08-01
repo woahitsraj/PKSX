@@ -73,6 +73,7 @@ public sealed record PartySlotSummary(
     List<SlotTypeSummary> Types,
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
+    PokemonNatureEditConstraints NatureEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
     PokemonFriendshipEditConstraints FriendshipEditConstraints,
@@ -100,6 +101,7 @@ public sealed record PartySlotSummary(
             SlotDetailProjection.Types(pokemon),
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
+            SlotDetailProjection.NatureEditConstraints(pokemon),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Party),
             SlotDetailProjection.FriendshipEditConstraints(pokemon),
@@ -128,6 +130,7 @@ public sealed record BoxSlotSummary(
     List<SlotTypeSummary> Types,
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
+    PokemonNatureEditConstraints NatureEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
     PokemonFriendshipEditConstraints FriendshipEditConstraints,
@@ -156,6 +159,7 @@ public sealed record BoxSlotSummary(
             SlotDetailProjection.Types(pokemon),
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
+            SlotDetailProjection.NatureEditConstraints(pokemon),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Box),
             SlotDetailProjection.FriendshipEditConstraints(pokemon),
@@ -242,6 +246,17 @@ public sealed record SlotStatSummary(string Key, string Label, int Value, int? E
 
 public sealed record SlotMoveSummary(int Slot, ushort Id, string Name, string Type, int Hue, double Chroma, int? Pp, int? MaxPp, int? PpUps);
 
+public sealed record PokemonNatureOption(int Id, string Name, string Effect);
+
+public sealed record PokemonNatureEditConstraints(
+    bool Supported,
+    int CurrentNatureId,
+    int OriginalNatureId,
+    int StatNatureId,
+    bool UsesStatNature,
+    List<PokemonNatureOption> Options,
+    string? UnsupportedReason);
+
 public sealed record PokemonStatEditConstraints(
     bool Supported,
     int MinIv,
@@ -293,6 +308,7 @@ public sealed record PokemonEditOperationRequest(
     string? Nickname,
     int? Level,
     uint? Experience,
+    int? NatureId,
     PokemonStatEditSet? Ivs,
     PokemonStatEditSet? Evs,
     List<PokemonMoveSlotEdit>? Moves,
@@ -338,6 +354,8 @@ public sealed record LegalityReport(
 
 internal static class SlotDetailProjection
 {
+    private static readonly string[] NatureStats = ["Attack", "Defense", "Speed", "Sp. Atk", "Sp. Def"];
+
     private static readonly string[] StatKeys = ["HP", "ATK", "DEF", "SPA", "SPD", "SPE"];
 
     private static readonly string[] StatLabels = ["HP", "ATK", "DEF", "SPA", "SPD", "SPE"];
@@ -509,6 +527,47 @@ internal static class SlotDetailProjection
             null);
     }
 
+    public static PokemonNatureEditConstraints NatureEditConstraints(PKM pokemon)
+    {
+        if (pokemon.Species == 0)
+            return new PokemonNatureEditConstraints(
+                false,
+                -1,
+                -1,
+                -1,
+                false,
+                [],
+                "Nature Editing needs an occupied Slot.");
+
+        if (pokemon.Format < 3)
+            return new PokemonNatureEditConstraints(
+                false,
+                -1,
+                (int)pokemon.Nature,
+                (int)pokemon.StatNature,
+                false,
+                [],
+                "Nature Editing is not supported for this Pokemon format.");
+
+        var options = new List<PokemonNatureOption>(25);
+        for (var id = 0; id < 25; id++)
+        {
+            var name = NameAt(GameInfo.Strings.Natures, id);
+            if (name is not null)
+                options.Add(new PokemonNatureOption(id, name, NatureEffect(id)));
+        }
+
+        var usesStatNature = pokemon.Format >= 8;
+        return new PokemonNatureEditConstraints(
+            options.Count == 25,
+            usesStatNature ? (int)pokemon.StatNature : (int)pokemon.Nature,
+            (int)pokemon.Nature,
+            (int)pokemon.StatNature,
+            usesStatNature,
+            options,
+            options.Count == 25 ? null : "PKHeX did not provide every Nature choice.");
+    }
+
     public static PokemonMoveSetEditConstraints MoveSetEditConstraints(PKM pokemon, StorageSlotType storageSlotType)
     {
         if (pokemon.Species == 0)
@@ -577,6 +636,15 @@ internal static class SlotDetailProjection
             TypeHue(typeId),
             TypeChroma(typeId),
             MoveInfo.GetPP(pokemon.Context, move));
+    }
+
+    private static string NatureEffect(int nature)
+    {
+        var increased = nature / 5;
+        var decreased = nature % 5;
+        return increased == decreased
+            ? "No stat change"
+            : $"+{NatureStats[increased]}, -{NatureStats[decreased]}";
     }
 
     private static string? TypeName(int type) => NameAt(GameInfo.Strings.Types, type);

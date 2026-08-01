@@ -704,6 +704,7 @@
 		return [
 			'#pokemon-editor-close',
 			'#pokemon-editor-nickname',
+			'#pokemon-editor-nature',
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',
 			'.stat-edit-controls input:not([disabled])',
@@ -714,7 +715,11 @@
 		]
 			.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
 			.filter((control) => {
-				if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
+				if (
+					control instanceof HTMLButtonElement ||
+					control instanceof HTMLInputElement ||
+					control instanceof HTMLSelectElement
+				) {
 					return !control.disabled;
 				}
 				return true;
@@ -755,6 +760,15 @@
 				return;
 			}
 			focusPokemonEditorControl(1);
+			return;
+		}
+
+		if (activeElement instanceof HTMLSelectElement && !activeElement.disabled) {
+			try {
+				activeElement.showPicker();
+			} catch {
+				activeElement.focus();
+			}
 		}
 	}
 

@@ -31,6 +31,8 @@ export type {
 	PokemonMoveOption,
 	PokemonMoveSetEditConstraints,
 	PokemonMoveSlotEdit,
+	PokemonNatureEditConstraints,
+	PokemonNatureOption,
 	PokemonStatEditConstraints,
 	PokemonStatEditSet,
 	SaveFileEditOperation,

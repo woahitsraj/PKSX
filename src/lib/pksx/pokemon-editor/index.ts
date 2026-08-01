@@ -62,6 +62,10 @@ export type PokemonMoveSetEditPayload = {
 	moves: PokemonMoveSlotEdit[];
 };
 
+export type NatureEditPayload = {
+	natureId: number;
+};
+
 export type PokemonFriendshipEditPayload = {
 	fields: PokemonFriendshipFieldEdit[];
 };
@@ -69,6 +73,7 @@ export type PokemonFriendshipEditPayload = {
 export type PokemonEditorDraftEdits = {
 	nickname?: string;
 	levelExperience?: LevelExperienceEditPayload;
+	natureId?: number;
 	ivs?: PokemonStatEditPayload;
 	evs?: PokemonStatEditPayload;
 	moveSet?: PokemonMoveSetEditPayload;
@@ -424,6 +429,31 @@ export function stageLevelExperienceEdit(
 	});
 }
 
+export function stageNatureEdit(
+	state: PokemonEditorState,
+	payload: NatureEditPayload
+): PokemonEditorState {
+	const validation = validateNatureEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'nature'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	if (payload.natureId === state.slot.natureEditConstraints?.currentNatureId) {
+		return removePokemonEditorEdit(state, 'nature');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'nature',
+		capability: 'nature-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
 export function stageIvEdit(
 	state: PokemonEditorState,
 	payload: PokemonStatEditPayload
@@ -581,11 +611,52 @@ export function createPokemonEditOperation(
 const pokemonEditOperationBuilders = [
 	{ id: 'nickname', build: buildNicknameEdit },
 	{ id: 'level-experience', build: buildLevelExperienceEdit },
+	{ id: 'nature', build: buildNatureEdit },
 	{ id: 'ivs', build: buildIvEdit },
 	{ id: 'evs', build: buildEvEdit },
 	{ id: 'move-set', build: buildMoveSetEdit },
 	{ id: 'friendship', build: buildFriendshipEdit }
 ] satisfies { id: string; build: PokemonEditOperationBuilder }[];
+
+function buildNatureEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isNatureEditPayload(payload)) {
+		return invalidPokemonEdit('Nature edit payload is invalid.');
+	}
+
+	const validation = validateNatureEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	return { ok: true, patch: { natureId: validation.payload.natureId } };
+}
+
+function validateNatureEdit(
+	slot: SlotView,
+	payload: NatureEditPayload
+): PokemonEditorPayloadValidation<NatureEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Nature Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.natureEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ?? 'Nature Editing is not supported for this Pokemon format.'
+		};
+	}
+
+	if (!Number.isInteger(payload.natureId)) {
+		return { ok: false, message: 'Nature choice is invalid.' };
+	}
+
+	const option = constraints.options.find((candidate) => candidate.id === payload.natureId);
+	if (!option) {
+		return { ok: false, message: `Nature ${payload.natureId} is not available.` };
+	}
+
+	return { ok: true, payload, label: `Set Nature to ${option.name}` };
+}
 
 function buildFriendshipEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
 	if (!isPokemonFriendshipEditPayload(payload)) {
@@ -1047,6 +1118,15 @@ function isNicknameEditPayload(value: unknown): value is { nickname: string } {
 		value !== null &&
 		'nickname' in value &&
 		typeof value.nickname === 'string'
+	);
+}
+
+function isNatureEditPayload(value: unknown): value is NatureEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'natureId' in value &&
+		typeof value.natureId === 'number'
 	);
 }
 

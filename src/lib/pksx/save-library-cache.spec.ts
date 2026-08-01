@@ -49,6 +49,15 @@ const partySlot: PartySlotSummary = {
 	types: [],
 	stats: [],
 	moves: [],
+	natureEditConstraints: {
+		supported: false,
+		currentNatureId: -1,
+		originalNatureId: -1,
+		statNatureId: -1,
+		usesStatNature: false,
+		options: [],
+		unsupportedReason: 'Nature Editing is unavailable.'
+	},
 	statEditConstraints: {
 		supported: false,
 		minIv: 0,

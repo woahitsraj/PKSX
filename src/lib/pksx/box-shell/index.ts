@@ -84,6 +84,7 @@ export function createSlotView(slot: PartySlotSummary | BoxSlotSummary): SlotVie
 	const details = {
 		gender: slot.gender ?? undefined,
 		nature: slot.nature ?? undefined,
+		natureEditConstraints: slot.natureEditConstraints,
 		ability: slot.ability ?? undefined,
 		heldItem: slot.heldItem ?? undefined,
 		types: slot.types,
@@ -156,6 +157,17 @@ export function stagePokemonEditorDraftEdits(
 					payload: draft.levelExperience
 				}
 			: null,
+		draft.natureId === undefined
+			? null
+			: {
+					id: 'nature',
+					capability: 'nature-editing',
+					label: `Set Nature to ${
+						state.slot.natureEditConstraints?.options.find((option) => option.id === draft.natureId)
+							?.name ?? draft.natureId
+					}`,
+					payload: { natureId: draft.natureId }
+				},
 		draft.ivs
 			? { id: 'ivs', capability: 'iv-editing', label: 'Set IVs', payload: draft.ivs }
 			: null,
@@ -190,6 +202,7 @@ export function pokemonEditorDraftResetKey(state: PokemonEditorState): string {
 		label: state.slot.label,
 		level: state.slot.level,
 		experience: state.slot.experience,
+		natureId: state.slot.natureEditConstraints?.currentNatureId,
 		ivs: state.slot.stats?.map((stat) => stat.iv ?? 0),
 		evs: state.slot.stats?.map((stat) => stat.ev ?? 0),
 		moves: state.slot.moves?.map((move) => ({
@@ -215,6 +228,7 @@ export function pokemonEditSuccessMessage(
 		'nickname',
 		'level',
 		'experience',
+		'natureId',
 		'ivs',
 		'evs',
 		'moves',
