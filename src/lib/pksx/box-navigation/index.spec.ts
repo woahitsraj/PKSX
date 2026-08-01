@@ -258,6 +258,24 @@ describe('box navigation', () => {
 		});
 	});
 
+	it('keeps slot actions modal until back or the final command dismisses them', () => {
+		expect.assertions(5);
+
+		const opened = move({ focus: focusBoxSlot(8) }, 'confirm', { actionCount: 3 });
+		for (const action of ['previousBox', 'nextBox', 'sourceAction'] as const) {
+			expect(applyNavigationAction(opened, action, { actionCount: 3 })).toEqual(opened);
+		}
+
+		const onFinalCommand = { ...opened, focus: focusActionCommand(2, 3) };
+		expect(applyNavigationAction(onFinalCommand, 'confirm', { actionCount: 3 })).toMatchObject({
+			actionSurfaceOpen: false,
+			focus: focusBoxSlot(8)
+		});
+		expect(
+			applyNavigationAction({ ...opened, focus: focusBoxSlot(8) }, 'back', { actionCount: 3 })
+		).toMatchObject({ actionSurfaceOpen: false, focus: focusBoxSlot(8) });
+	});
+
 	it('exposes stable active descendant ids', () => {
 		expect.assertions(6);
 
