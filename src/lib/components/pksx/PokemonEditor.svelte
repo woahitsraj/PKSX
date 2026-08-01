@@ -88,7 +88,10 @@
 	const natureEditConstraints = $derived(slot.natureEditConstraints);
 	const canEditStats = $derived(statEditConstraints?.supported ?? false);
 	const canEditMoveSet = $derived(moveSetEditConstraints?.supported ?? false);
+<<<<<<< HEAD
 	const canEditNature = $derived(natureEditConstraints?.supported ?? false);
+=======
+>>>>>>> origin/main
 	const canEditFriendship = $derived(friendshipEditConstraints?.supported ?? false);
 	const moveOptions = $derived(moveSetEditConstraints?.availableMoves ?? []);
 	const originalNature = $derived(
