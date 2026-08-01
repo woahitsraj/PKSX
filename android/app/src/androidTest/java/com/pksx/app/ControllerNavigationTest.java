@@ -173,6 +173,7 @@ public class ControllerNavigationTest {
         importEmeraldSave();
         runJavaScript("document.querySelector('#mobile-tab-0').click()");
         awaitControllerSurface();
+        awaitJavaScript("document.querySelector('#box-0-slot-0')?.textContent.includes('ARON')");
         runJavaScript("document.querySelector('#box-grid').focus()");
 
         pressGamepadKey(
