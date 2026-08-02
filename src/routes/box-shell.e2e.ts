@@ -324,6 +324,10 @@ test('occupied slot actions expose Edit and Close dismisses', async ({ page }) =
 		'aria-disabled',
 		'true'
 	);
+	await expect(page.getByRole('button', { name: 'Pokemon Actions' })).not.toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
 	await expect(
 		page.getByRole('button', {
 			name: 'Create Pokemon'
@@ -333,6 +337,39 @@ test('occupied slot actions expose Edit and Close dismisses', async ({ page }) =
 	await page.getByRole('button', { name: 'Close' }).click();
 	await expect(dialog).toBeHidden();
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+});
+
+test('Pokemon Actions cancel without mutation and explicitly apply an evolution', async ({
+	page
+}) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'Pokemon Actions' }).click();
+
+	const actions = page.getByRole('dialog', { name: 'Pokemon Actions' });
+	await expect(actions).toBeVisible({ timeout: 15000 });
+	await expect(actions).toContainText('ARON');
+	const evolve = actions.getByRole('button', { name: /Lairon.*Level 32/i });
+	await expect(evolve).toBeEnabled();
+	await evolve.click();
+	await expect(actions).toContainText('Preview');
+	await expect(actions).toContainText('Aron');
+	await expect(actions).toContainText('Lairon');
+
+	await actions.getByRole('button', { name: 'Cancel' }).click();
+	await expect(actions).toContainText('Preview Legality Fix');
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+	await expect(page.getByText('Unsaved edits')).toHaveCount(0);
+
+	await actions.getByRole('button', { name: /Lairon.*Level 32/i }).click();
+	await actions.getByRole('button', { name: 'Apply Pokemon Action' }).click();
+	await expect(actions).toBeHidden({ timeout: 15000 });
+	await expect(page.locator('#box-0-slot-0')).toContainText('LAIRON');
+	await expect(page.locator('#box-0-slot-0')).toContainText('Lv 32');
+	await expect(page.getByText('Unsaved edits')).toBeVisible();
+	await expect(page.locator('#slot-action-6')).toBeFocused();
 });
 
 test('creates a Pokemon from an empty Slot after explicit apply and preserves cancel', async ({

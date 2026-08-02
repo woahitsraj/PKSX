@@ -4,6 +4,7 @@
 	type CommandAvailability = 'available' | 'unsupported' | 'empty-slot' | 'occupied-slot';
 	type SlotActionCommandKey =
 		| 'pokemon-action'
+		| 'pokemon-actions'
 		| 'create-pokemon'
 		| 'move'
 		| 'copy'
@@ -106,6 +107,11 @@
 			{
 				key: 'legality-check',
 				label: 'Legality Check',
+				availability: 'available'
+			},
+			{
+				key: 'pokemon-actions',
+				label: 'Pokemon Actions',
 				availability: 'available'
 			},
 			{

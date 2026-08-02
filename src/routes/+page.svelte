@@ -6,6 +6,7 @@
 		type EngineApi,
 		type EngineError,
 		type PokemonEditOperation,
+		type StoredPokemonActionResult,
 		type PokemonEditOperationResult,
 		type PokemonSpeciesFormEditProjection,
 		type SaveSlotRef,
@@ -50,6 +51,8 @@
 		destinationStateForEvaluation,
 		evaluateDestination,
 		refreshSaveFilePaneWorkspaces,
+		getStoragePokemon,
+		putStoragePokemon,
 		removeStoragePokemon,
 		setPaneActiveBox,
 		stateTagForPane,
@@ -84,6 +87,7 @@
 	import ClearSlotConfirm from '$lib/components/pksx/ClearSlotConfirm.svelte';
 	import DetailRail from '$lib/components/pksx/DetailRail.svelte';
 	import LegalityReportDialog from '$lib/components/pksx/LegalityReportDialog.svelte';
+	import PokemonActionDialog from '$lib/components/pksx/PokemonActionDialog.svelte';
 	import PokemonCreation from '$lib/components/pksx/PokemonCreation.svelte';
 	import PokemonEditor from '$lib/components/pksx/PokemonEditor.svelte';
 	import SlotActionMenu from '$lib/components/pksx/SlotActionMenu.svelte';
@@ -112,6 +116,17 @@
 		requestLegalityReport,
 		type LegalityReportState
 	} from '$lib/pksx/legality-report';
+	import {
+		applyPokemonAction,
+		clearPokemonActionSelection,
+		createPokemonActionLoadingState,
+		createPokemonActionReadyState,
+		requestPokemonActionPreview,
+		selectPokemonAction,
+		selectedPokemonActionOperation,
+		type PokemonActionState,
+		type PokemonActionTarget
+	} from '$lib/pksx/pokemon-actions';
 	import {
 		briefToolbarStatus,
 		createBoxSlotViews,
@@ -144,6 +159,11 @@
 	type SavePaneWorkspace = {
 		state: WorkspaceState;
 		loadedBox: number;
+	};
+
+	type PokemonActionContext = {
+		target: PokemonActionTarget;
+		storageRef: SaveSlotRef | null;
 	};
 
 	const noSelectedSlot: SlotView = {
@@ -412,6 +432,9 @@
 	let pokemonSpeciesFormRequest = 0;
 	let legalityReport = $state<LegalityReportState>({ status: 'idle' });
 	let legalityReportRequest = 0;
+	let pokemonAction = $state<PokemonActionState>({ status: 'idle' });
+	let pokemonActionRequest = 0;
+	let pokemonActionContext = $state<PokemonActionContext | null>(null);
 	let partyCollapsed = $state(false);
 	let actionSurfaceTop = $state<number | null>(null);
 	let actionSurfaceAnchor = $state<{ top: number; left: number } | null>(null);
@@ -560,7 +583,9 @@
 	);
 	const pokemonStorageBoxCount = $derived(pokemonStorage?.boxCount ?? placeholderBoxCount);
 
-	$effect(() => {
+	$effect(syncAppChrome);
+
+	function syncAppChrome() {
 		updateAppChrome({
 			route: 'boxes',
 			saveSummary,
@@ -577,7 +602,7 @@
 		return () => {
 			updateAppChrome({ controllerInputActive: false });
 		};
-	});
+	}
 
 	function dispatch(action: NavigationAction) {
 		if (dispatchToActiveSurface(action)) return;
@@ -602,6 +627,11 @@
 
 		if (pokemonCreation) {
 			dispatchPokemonCreation(action);
+			return true;
+		}
+
+		if (pokemonAction.status !== 'idle') {
+			dispatchPokemonAction(action);
 			return true;
 		}
 
@@ -703,6 +733,7 @@
 			pokemonCreation ||
 			pokemonEditor ||
 			clearSlotConfirmation ||
+			pokemonAction.status !== 'idle' ||
 			legalityReport.status !== 'idle'
 		) {
 			return;
@@ -792,6 +823,45 @@
 		}
 	}
 
+	function dispatchPokemonAction(action: NavigationAction) {
+		const controls = pokemonActionControls();
+		const activeElement = document.activeElement;
+		const currentIndex =
+			activeElement instanceof HTMLButtonElement ? controls.indexOf(activeElement) : -1;
+
+		switch (action) {
+			case 'left':
+			case 'up':
+				focusPokemonActionControl(currentIndex - 1, controls);
+				break;
+			case 'right':
+			case 'down':
+				focusPokemonActionControl(currentIndex + 1, controls);
+				break;
+			case 'confirm':
+				if (activeElement instanceof HTMLButtonElement && !activeElement.disabled) {
+					activeElement.click();
+				} else {
+					focusPokemonActionControl(0, controls);
+				}
+				break;
+			case 'back':
+				if (
+					(pokemonAction.status === 'ready' || pokemonAction.status === 'applying') &&
+					pokemonAction.selection
+				) {
+					clearPokemonActionPreview();
+				} else {
+					closePokemonActions();
+				}
+				break;
+			case 'previousBox':
+			case 'nextBox':
+			case 'sourceAction':
+				break;
+		}
+	}
+
 	function dispatchPokemonCreation(action: NavigationAction) {
 		switch (action) {
 			case 'left':
@@ -813,6 +883,21 @@
 			case 'sourceAction':
 				break;
 		}
+	}
+
+	function pokemonActionControls() {
+		return Array.from(
+			document.querySelectorAll<HTMLButtonElement>('[data-pokemon-action-control]')
+		).filter((control) => !control.disabled);
+	}
+
+	function focusPokemonActionControl(index: number, controls = pokemonActionControls()) {
+		if (controls.length === 0) {
+			return;
+		}
+
+		const nextIndex = ((index % controls.length) + controls.length) % controls.length;
+		controls[nextIndex]?.focus();
 	}
 
 	function pokemonCreationControls() {
@@ -1171,6 +1256,9 @@
 		pokemonEditorApplyRequest += 1;
 		pokemonEditor = null;
 		pokemonEditorFeedback = null;
+		pokemonActionRequest += 1;
+		pokemonAction = { status: 'idle' };
+		pokemonActionContext = null;
 		legalityReportRequest += 1;
 		legalityReport = { status: 'idle' };
 		dispatch('back');
@@ -1813,7 +1901,7 @@
 
 	function getActionCountForFocusedSlot() {
 		const slot = focusedSlot;
-		return slot.kind === 'pokemon' ? 8 : 6;
+		return slot.kind === 'pokemon' ? 9 : 6;
 	}
 
 	function activateFocusedControl(focus = navigation.focus) {
@@ -1843,6 +1931,7 @@
 							'clear',
 							'export',
 							'legality-check',
+							'pokemon-actions',
 							'create-pokemon'
 						]
 					: ['create-pokemon', 'move', 'copy', 'export', 'legality-check'];
@@ -2214,9 +2303,269 @@
 					void openLegalityReport();
 				}
 				break;
+			case 'pokemon-actions':
+				void openPokemonActions();
+				break;
 			default:
 				break;
 		}
+	}
+
+	async function openPokemonActions() {
+		const activeEngine = engine;
+		if (!navigation.actionSurfaceOpen || focusedSlot.kind !== 'pokemon' || !activeEngine) {
+			return;
+		}
+
+		const source = slotRefForFocus();
+		const location = activeSlotPositionLabel;
+		let context: PokemonActionContext | null = null;
+
+		if (source.zone === 'party') {
+			if (loadedSave) {
+				context = {
+					target: {
+						owner: 'save-file',
+						workspace: loadedSave,
+						source,
+						activeBox: activePaneBox
+					},
+					storageRef: null
+				};
+			}
+		} else if (activePane?.source.type === 'pokemon-storage') {
+			if (focusedSlot.entityBytesBase64) {
+				context = {
+					target: {
+						owner: 'pokemon-storage',
+						entityBytesBase64: focusedSlot.entityBytesBase64
+					},
+					storageRef: source
+				};
+			}
+		} else {
+			const paneWorkspace = saveWorkspaceForPane(activePane);
+			if (paneWorkspace) {
+				context = {
+					target: {
+						owner: 'save-file',
+						workspace: paneWorkspace.state,
+						source,
+						activeBox: activePaneBox
+					},
+					storageRef: null
+				};
+			}
+		}
+
+		if (!context) {
+			statusMessage = 'Pokemon Actions are unavailable for this source.';
+			showToast('error', statusMessage);
+			return;
+		}
+
+		const request = (pokemonActionRequest += 1);
+		pokemonActionContext = context;
+		pokemonAction = createPokemonActionLoadingState(location, focusedSlot.label);
+		statusMessage = 'Loading Pokemon Actions...';
+
+		const result = await requestPokemonActionPreview(activeEngine, context.target);
+		if (request !== pokemonActionRequest) {
+			return;
+		}
+
+		if (!result.ok) {
+			pokemonAction = {
+				status: 'error',
+				location,
+				pokemonLabel: focusedSlot.label,
+				message: result.error.message
+			};
+			statusMessage = result.error.message;
+			showToast('error', result.error.message);
+			return;
+		}
+
+		pokemonAction = createPokemonActionReadyState(location, focusedSlot.label, result.value);
+		statusMessage = `Pokemon Actions ready for ${focusedSlot.label}.`;
+		await tick();
+		focusPokemonActionControl(0);
+	}
+
+	function selectPokemonActionPreview(kind: 'legality-fix' | 'evolve', choiceId?: string) {
+		if (pokemonAction.status !== 'ready') {
+			return;
+		}
+
+		pokemonAction = selectPokemonAction(pokemonAction, kind, choiceId);
+		void tick().then(() => document.getElementById('pokemon-action-apply')?.focus());
+	}
+
+	function clearPokemonActionPreview() {
+		if (pokemonAction.status !== 'ready') {
+			return;
+		}
+
+		pokemonAction = clearPokemonActionSelection(pokemonAction);
+		void tick().then(() => focusPokemonActionControl(0));
+	}
+
+	async function applySelectedPokemonAction() {
+		const activeEngine = engine;
+		const context = pokemonActionContext;
+		if (!activeEngine || !context || pokemonAction.status !== 'ready') {
+			return;
+		}
+
+		const operation = selectedPokemonActionOperation(pokemonAction);
+		if (!operation) {
+			return;
+		}
+
+		pokemonAction = { ...pokemonAction, status: 'applying' };
+		busy = true;
+		statusMessage = 'Applying Pokemon Action...';
+		const request = pokemonActionRequest;
+
+		try {
+			const result = await applyPokemonAction(activeEngine, context.target, operation, {
+				createAutomaticBackup: async (state, reason) => {
+					statusMessage = 'Creating Backup...';
+					await storage.createBackup({
+						saveFileId: state.file.id,
+						bytes: state.bytes,
+						reason
+					});
+					statusMessage = 'Applying Pokemon Action...';
+				},
+				persistWorkspace,
+				persistStoredPokemon: (storedResult) => persistStoredPokemonAction(context, storedResult)
+			});
+
+			if (!result.ok) {
+				if (result.workspace) {
+					installPokemonActionWorkspace(result.workspace, context.target);
+					refreshPokemonActionContextWorkspace(context, result.workspace);
+				}
+				if (request !== pokemonActionRequest) {
+					return;
+				}
+				if (pokemonAction.status === 'applying') {
+					pokemonAction = { ...pokemonAction, status: 'ready' };
+				}
+				statusMessage = result.error.message;
+				showToast('error', result.error.message);
+				return;
+			}
+
+			if (result.owner === 'save-file') {
+				installPokemonActionWorkspace(result.workspace, context.target);
+				refreshPokemonActionContextWorkspace(context, result.workspace);
+			}
+
+			const actionLabel = operation.kind === 'legality-fix' ? 'Legality Fix' : 'Evolution';
+			statusMessage = `${actionLabel} applied.`;
+			showToast('success', statusMessage);
+			if (request === pokemonActionRequest) {
+				resetPokemonActions();
+			}
+		} catch (error) {
+			const message = getErrorMessage(error);
+			if (request !== pokemonActionRequest) {
+				return;
+			}
+			if (pokemonAction.status === 'applying') {
+				pokemonAction = { ...pokemonAction, status: 'ready' };
+			}
+			statusMessage = message;
+			showToast('error', message);
+		} finally {
+			busy = false;
+		}
+	}
+
+	function refreshPokemonActionContextWorkspace(
+		context: PokemonActionContext,
+		nextState: WorkspaceState
+	) {
+		if (context.target.owner !== 'save-file' || pokemonActionContext !== context) {
+			return;
+		}
+
+		pokemonActionContext = {
+			...context,
+			target: { ...context.target, workspace: nextState }
+		};
+	}
+
+	function installPokemonActionWorkspace(nextState: WorkspaceState, target: PokemonActionTarget) {
+		if (target.owner !== 'save-file') {
+			return;
+		}
+
+		if (loadedSave?.file.id === nextState.file.id) {
+			loadedSave = nextState;
+			setCachedActiveWorkspace(nextState, target.activeBox);
+			invalidateSaveLibraryCache();
+		}
+
+		const refreshed = refreshSaveFilePaneWorkspaces(
+			workbenchPanes,
+			savePaneWorkspaces,
+			nextState,
+			target.activeBox
+		);
+		workbenchPanes = refreshed.panes;
+		savePaneWorkspaces = refreshed.workspaces;
+	}
+
+	async function persistStoredPokemonAction(
+		context: PokemonActionContext,
+		result: StoredPokemonActionResult
+	) {
+		const ref = context.storageRef;
+		if (!ref || ref.zone !== 'box' || context.target.owner !== 'pokemon-storage') {
+			throw new Error('The Pokemon Storage target is unavailable.');
+		}
+
+		const stored = pokemonStorage ?? createEmptyPokemonStorage();
+		const existing = getStoragePokemon(stored, ref);
+		if (!existing) {
+			throw new Error('The Pokemon Storage slot is empty.');
+		}
+
+		// The slot may have been reused while the engine ran; only write back the same Pokemon.
+		if (existing.entityBytesBase64 !== context.target.entityBytesBase64) {
+			throw new Error('The Pokemon Storage Slot changed while the action was applied.');
+		}
+
+		const projected = createSlotView(result.projection);
+		const nextPokemon = {
+			...storedPokemonFromSlot(projected, null),
+			provenance: existing.provenance,
+			entityBytesBase64: result.entityBytesBase64
+		};
+		const nextStorage = {
+			...putStoragePokemon(stored, ref, nextPokemon),
+			updatedAt: new Date().toISOString()
+		};
+		pokemonStorage = await storage.putPokemonStorage(nextStorage);
+	}
+
+	function closePokemonActions() {
+		if (busy || pokemonAction.status === 'applying') {
+			return;
+		}
+
+		resetPokemonActions();
+	}
+
+	function resetPokemonActions() {
+		pokemonActionRequest += 1;
+		pokemonAction = { status: 'idle' };
+		pokemonActionContext = null;
+		navigation = { ...navigation, focus: { zone: 'actions', index: 6 } };
+		queueMicrotask(focusActiveControl);
 	}
 
 	function openPokemonCreation() {
@@ -2784,7 +3133,7 @@
 			return;
 		}
 
-		if (pokemonCreation || pokemonEditor) {
+		if (pokemonCreation || pokemonEditor || pokemonAction.status !== 'idle') {
 			return;
 		}
 
@@ -2796,7 +3145,7 @@
 
 		if (
 			target.closest(
-				'.slot-cell, .slot-context, .box-arrow, .party-toggle, .pokemon-creation, .pokemon-editor, .legality-report'
+				'.slot-cell, .slot-context, .box-arrow, .party-toggle, .pokemon-creation, .pokemon-editor, .pokemon-action-dialog, .legality-report'
 			)
 		) {
 			return;
@@ -3545,6 +3894,16 @@
 			onClose={closePokemonEditor}
 		/>
 	{/key}
+{/if}
+
+{#if pokemonAction.status !== 'idle'}
+	<PokemonActionDialog
+		state={pokemonAction}
+		onSelect={selectPokemonActionPreview}
+		onClearSelection={clearPokemonActionPreview}
+		onApply={applySelectedPokemonAction}
+		onClose={closePokemonActions}
+	/>
 {/if}
 
 {#if clearSlotConfirmation}

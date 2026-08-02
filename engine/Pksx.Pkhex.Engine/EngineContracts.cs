@@ -503,8 +503,54 @@ public sealed record LegalityReport(
     bool Legal,
     string Judgement,
     string Summary,
+    List<string> FixableProblems,
     List<LegalityReportLine> Warnings,
     List<LegalityReportLine> Messages);
+
+public sealed record PokemonActionChange(string Field, string Before, string After);
+
+public sealed record PokemonEvolutionChoice(
+    string Id,
+    ushort SpeciesId,
+    byte Form,
+    string SpeciesName,
+    string Method,
+    string Requirement,
+    List<PokemonActionChange> Changes);
+
+public sealed record PokemonActionAvailability(
+    string Kind,
+    bool Available,
+    string? UnavailableReason,
+    List<PokemonActionChange> Changes,
+    List<PokemonEvolutionChoice> Choices);
+
+public sealed record PokemonActionPreview(
+    LegalityReport LegalityReport,
+    List<PokemonActionAvailability> Actions);
+
+public sealed record PokemonActionRequest(
+    string Kind,
+    SaveSlotRef? Source,
+    string? ChoiceId,
+    int ActiveBox);
+
+public sealed record PokemonActionResult(
+    string BytesBase64,
+    int ByteLength,
+    bool Mutated,
+    SaveWorkspace Workspace,
+    List<PokemonActionChange> Changes);
+
+public sealed record StoredPokemonActionRequest(
+    string Kind,
+    string? ChoiceId);
+
+public sealed record StoredPokemonActionResult(
+    string EntityBytesBase64,
+    bool Mutated,
+    BoxSlotSummary Projection,
+    List<PokemonActionChange> Changes);
 
 internal static class SlotDetailProjection
 {

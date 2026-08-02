@@ -24,6 +24,13 @@ export type {
 	PartySlotSummary,
 	PokemonAbilityEditConstraints,
 	PokemonAbilityOption,
+	PokemonActionAvailability,
+	PokemonActionChange,
+	PokemonActionKind,
+	PokemonActionOperation,
+	PokemonActionPreview,
+	PokemonActionResult,
+	PokemonEvolutionChoice,
 	PokemonEditOperation,
 	PokemonEditOperationResult,
 	PokemonCreationOperation,
@@ -62,7 +69,9 @@ export type {
 	SlotOperationResult,
 	SerializedSave,
 	SaveSummary,
-	SpriteIdentity
+	SpriteIdentity,
+	StoredPokemonActionOperation,
+	StoredPokemonActionResult
 } from './types';
 export type { EngineWorkerFactory, EngineWorkerPort } from './pkhex-worker-engine';
 export type {

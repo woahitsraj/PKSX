@@ -6,6 +6,9 @@ import type {
 	EngineResult,
 	EngineVersion,
 	LegalityReport,
+	PokemonActionOperation,
+	PokemonActionPreview,
+	PokemonActionResult,
 	PokemonCreationOperation,
 	PokemonCreationResult,
 	PokemonEditOperation,
@@ -17,6 +20,7 @@ import type {
 	SlotOperation,
 	SlotOperationResult,
 	StoredPokemonImportResult,
+	StoredPokemonActionResult,
 	SerializedSave,
 	SaveSummary
 } from './types';
@@ -76,6 +80,18 @@ type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		sourceJson: string
 	): string;
+	PreviewPokemonActionsJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		sourceJson: string
+	): string;
+	ApplyPokemonActionJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		actionJson: string
+	): string;
+	PreviewStoredPokemonActionsJson(entityBytesBase64: string): string;
+	ApplyStoredPokemonActionJson(entityBytesBase64: string, actionJson: string): string;
 };
 
 const knownEngineErrorCodes = new Set<EngineErrorCode>([
@@ -87,6 +103,8 @@ const knownEngineErrorCodes = new Set<EngineErrorCode>([
 	'unsupported-slot-operation',
 	'invalid-pokemon-edit',
 	'unsupported-pokemon-edit',
+	'invalid-pokemon-action',
+	'unsupported-pokemon-action',
 	'invalid-pokemon-creation',
 	'unsupported-pokemon-creation',
 	'invalid-pokemon-import',
@@ -206,6 +224,31 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 		checkSlotLegality: async (bytes, fileName, source) =>
 			parseEngineResult<LegalityReport>(
 				engine.CheckSlotLegalityJson(bytes, fileName, JSON.stringify(source))
+			),
+		previewPokemonActions: async (bytes, fileName, source) =>
+			parseEngineResult<PokemonActionPreview>(
+				engine.PreviewPokemonActionsJson(bytes, fileName, JSON.stringify(source))
+			),
+		applyPokemonAction: async (bytes, fileName, operation, activeBox) =>
+			decodeMutationResult(
+				parseEngineResult<RawPokemonActionResult>(
+					engine.ApplyPokemonActionJson(
+						bytes,
+						fileName,
+						JSON.stringify({
+							...operation,
+							activeBox
+						} satisfies RawPokemonActionRequest)
+					)
+				)
+			),
+		previewStoredPokemonActions: async (entityBytesBase64) =>
+			parseEngineResult<PokemonActionPreview>(
+				engine.PreviewStoredPokemonActionsJson(entityBytesBase64)
+			),
+		applyStoredPokemonAction: async (entityBytesBase64, operation) =>
+			parseEngineResult<StoredPokemonActionResult>(
+				engine.ApplyStoredPokemonActionJson(entityBytesBase64, JSON.stringify(operation))
 			)
 	};
 }
@@ -219,6 +262,7 @@ type RawStoredPokemonImportRequest = {
 	destination: import('./types').SaveSlotRef;
 	activeBox: number;
 };
+type RawPokemonActionRequest = PokemonActionOperation & { activeBox: number };
 
 type SaveSummaryDefaultedFields = 'trainerId' | 'playTime' | 'playedHours' | 'playedMinutes';
 type RawSaveSummary = Omit<SaveSummary, SaveSummaryDefaultedFields> &
@@ -245,6 +289,11 @@ type RawSaveFileEditOperationResult = Omit<SaveFileEditOperationResult, 'bytes' 
 	workspace: RawSaveWorkspace;
 };
 type RawStoredPokemonImportResult = Omit<StoredPokemonImportResult, 'bytes' | 'workspace'> & {
+	bytesBase64: string;
+	byteLength: number;
+	workspace: RawSaveWorkspace;
+};
+type RawPokemonActionResult = Omit<PokemonActionResult, 'bytes' | 'workspace'> & {
 	bytesBase64: string;
 	byteLength: number;
 	workspace: RawSaveWorkspace;
@@ -309,26 +358,32 @@ function engineFailure<T>(code: EngineErrorCode, message: string): EngineResult<
 }
 
 function decodeMutationResult<
-	T extends { bytes: Uint8Array; mutated: boolean; workspace: SaveWorkspace }
->(
-	result: EngineResult<{
+	T extends {
 		bytesBase64: string;
 		byteLength: number;
 		mutated: boolean;
 		workspace: RawSaveWorkspace;
-	}>
-): EngineResult<T> {
+	}
+>(
+	result: EngineResult<T>
+): EngineResult<
+	Omit<T, 'bytesBase64' | 'byteLength' | 'workspace'> & {
+		bytes: Uint8Array;
+		workspace: SaveWorkspace;
+	}
+> {
 	if (!result.ok) {
 		return result;
 	}
 
+	const { bytesBase64, byteLength, workspace, ...value } = result.value;
 	return {
 		ok: true,
 		value: {
-			bytes: base64ToBytes(result.value.bytesBase64, result.value.byteLength),
-			mutated: result.value.mutated,
-			workspace: normalizeSaveWorkspace(result.value.workspace)
-		} as T,
+			...value,
+			bytes: base64ToBytes(bytesBase64, byteLength),
+			workspace: normalizeSaveWorkspace(workspace)
+		},
 		error: null
 	};
 }

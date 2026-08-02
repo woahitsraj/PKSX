@@ -222,6 +222,7 @@ function createEngineExports(): DotnetPkhexEngineExports {
 					legal: true,
 					judgement: 'Legal',
 					summary: 'PKHeX judged this Pokemon legal.',
+					fixableProblems: [],
 					warnings: [],
 					messages: [
 						{
@@ -232,6 +233,30 @@ function createEngineExports(): DotnetPkhexEngineExports {
 					]
 				},
 				error: null
+			}),
+		PreviewPokemonActionsJson: () =>
+			JSON.stringify({
+				ok: false,
+				value: null,
+				error: { code: 'unsupported-pokemon-action', message: 'Unavailable in this fixture.' }
+			}),
+		ApplyPokemonActionJson: () =>
+			JSON.stringify({
+				ok: false,
+				value: null,
+				error: { code: 'unsupported-pokemon-action', message: 'Unavailable in this fixture.' }
+			}),
+		PreviewStoredPokemonActionsJson: () =>
+			JSON.stringify({
+				ok: false,
+				value: null,
+				error: { code: 'unsupported-pokemon-action', message: 'Unavailable in this fixture.' }
+			}),
+		ApplyStoredPokemonActionJson: () =>
+			JSON.stringify({
+				ok: false,
+				value: null,
+				error: { code: 'unsupported-pokemon-action', message: 'Unavailable in this fixture.' }
 			})
 	};
 }
