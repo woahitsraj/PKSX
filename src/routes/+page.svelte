@@ -301,6 +301,32 @@
 				{ index: 1, id: 31, name: 'Lightning Rod', hidden: false, available: true }
 			]
 		},
+		metDataEditConstraints: {
+			supported: true,
+			currentLocationId: 16,
+			currentMetLevel: 5,
+			currentOriginGameId: 3,
+			currentBallId: 4,
+			minMetLevel: 0,
+			maxMetLevel: 100,
+			supportsMetDate: false,
+			supportsOriginGame: true,
+			supportsBall: true,
+			locationGroups: [
+				{
+					originGameId: 3,
+					options: [
+						{ id: 16, name: 'Route 101' },
+						{ id: 24, name: 'Littleroot Town' }
+					]
+				}
+			],
+			originGames: [{ id: 3, name: 'Emerald' }],
+			balls: [
+				{ id: 4, name: 'Poké Ball' },
+				{ id: 3, name: 'Great Ball' }
+			]
+		},
 		statEditConstraints: {
 			supported: true,
 			minIv: 0,
@@ -733,6 +759,11 @@
 			'#pokemon-editor-nature',
 			'#pokemon-editor-held-item',
 			'#pokemon-editor-ability',
+			'#pokemon-editor-met-location',
+			'#pokemon-editor-met-level',
+			'#pokemon-editor-origin-game',
+			'#pokemon-editor-ball',
+			'#pokemon-editor-met-date',
 			'.battle-field-controls select:not([disabled])',
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',

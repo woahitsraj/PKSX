@@ -43,6 +43,21 @@ const occupiedSlot: BoxSlotSummary = {
 	},
 	heldItemEditConstraints: { supported: false, currentItemId: 0, options: [] },
 	abilityEditConstraints: { supported: false, currentAbilityIndex: -1, options: [] },
+	metDataEditConstraints: {
+		supported: false,
+		currentLocationId: 0,
+		currentMetLevel: 0,
+		currentOriginGameId: 0,
+		currentBallId: 0,
+		minMetLevel: 0,
+		maxMetLevel: 100,
+		supportsMetDate: false,
+		supportsOriginGame: false,
+		supportsBall: false,
+		locationGroups: [],
+		originGames: [],
+		balls: []
+	},
 	friendshipEditConstraints: { supported: false, fields: [] },
 	battleFields: [],
 	spriteIdentity: {

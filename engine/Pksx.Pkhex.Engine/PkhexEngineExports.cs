@@ -404,6 +404,7 @@ public static partial class PkhexEngineExports
             operation.NatureId is null &&
             operation.HeldItemId is null &&
             operation.AbilityIndex is null &&
+            operation.MetData is null &&
             operation.Ivs is null &&
             operation.Evs is null &&
             operation.Moves is null &&
@@ -424,6 +425,16 @@ public static partial class PkhexEngineExports
         var originalHeldItem = pokemon.HeldItem;
         var originalAbility = pokemon.Ability;
         var originalAbilityNumber = pokemon.AbilityNumber;
+        var originalMetLocation = pokemon.MetLocation;
+        var originalMetLevel = pokemon.MetLevel;
+        var originalMetDate = pokemon.MetDate;
+        var originalVersion = pokemon.Version;
+        var originalBall = pokemon.Ball;
+        var originalLegalityMessages = operation.MetData is null
+            ? null
+            : InvalidLegalityMessages(pokemon, source.StorageSlotType)
+                .Select(LegalityMessageKey)
+                .ToHashSet(StringComparer.Ordinal);
         int[] originalIvs = [pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE];
         int[] originalEvs = [pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE];
         ushort[] originalMoves = [pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4];
@@ -546,6 +557,13 @@ public static partial class PkhexEngineExports
                 pokemon.SetAbilityIndex(abilityIndex);
         }
 
+        if (operation.MetData is not null)
+        {
+            var metDataResult = ApplyMetDataEdit(pokemon, operation.MetData);
+            if (!metDataResult.Ok)
+                return metDataResult;
+        }
+
         if (operation.Ivs is not null)
         {
             var ivs = StatEditSetToArray(operation.Ivs);
@@ -609,6 +627,16 @@ public static partial class PkhexEngineExports
             tera.SetTeraType((byte)teraType);
         }
 
+        if (originalLegalityMessages is not null)
+        {
+            var introducedIssue = InvalidLegalityMessages(pokemon, source.StorageSlotType)
+                .FirstOrDefault(message => !originalLegalityMessages.Contains(LegalityMessageKey(message)));
+            if (introducedIssue is not null)
+                return SlotMutationResult.Fail(
+                    "invalid-pokemon-edit",
+                    $"Met Data edit is not valid for this Pokemon encounter. {introducedIssue.Message}");
+        }
+
         if (pokemon.PartyStatsPresent)
             pokemon.ResetPartyStats();
 
@@ -623,6 +651,11 @@ public static partial class PkhexEngineExports
             originalHeldItem != pokemon.HeldItem ||
             originalAbility != pokemon.Ability ||
             originalAbilityNumber != pokemon.AbilityNumber ||
+            originalMetLocation != pokemon.MetLocation ||
+            originalMetLevel != pokemon.MetLevel ||
+            originalMetDate != pokemon.MetDate ||
+            originalVersion != pokemon.Version ||
+            originalBall != pokemon.Ball ||
             !originalIvs.SequenceEqual([pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE]) ||
             !originalEvs.SequenceEqual([pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE]) ||
             !originalMoves.SequenceEqual([pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4]) ||
@@ -636,6 +669,73 @@ public static partial class PkhexEngineExports
 
         return SlotMutationResult.Success(mutated);
     }
+
+    private static SlotMutationResult ApplyMetDataEdit(PKM pokemon, PokemonMetDataEdit edit)
+    {
+        var constraints = SlotDetailProjection.MetDataEditConstraints(pokemon);
+        if (!constraints.Supported)
+            return SlotMutationResult.Fail(
+                "unsupported-pokemon-edit",
+                constraints.UnsupportedReason ?? "Met Data Editing is not supported for this Pokemon Entity format.");
+
+        var originGameId = edit.OriginGameId ?? constraints.CurrentOriginGameId;
+        if (constraints.SupportsOriginGame && constraints.OriginGames.All(option => option.Id != originGameId))
+            return SlotMutationResult.Fail("invalid-pokemon-edit", $"Origin game {originGameId} is not supported by this Pokemon Entity format.");
+
+        var locationGroup = constraints.LocationGroups.Find(group => group.OriginGameId == originGameId);
+        if (locationGroup is null || locationGroup.Options.All(option => option.Id != edit.LocationId))
+            return SlotMutationResult.Fail(
+                "invalid-pokemon-edit",
+                $"Met location {edit.LocationId} is not available for the selected origin game.");
+
+        if (edit.MetLevel < constraints.MinMetLevel || edit.MetLevel > constraints.MaxMetLevel)
+            return SlotMutationResult.Fail(
+                "invalid-pokemon-edit",
+                $"Met level must be between {constraints.MinMetLevel} and {constraints.MaxMetLevel}.");
+
+        if (edit.OriginGameId is int requestedOriginGameId)
+        {
+            if (!constraints.SupportsOriginGame)
+                return SlotMutationResult.Fail("unsupported-pokemon-edit", "Origin game editing is not supported by this Pokemon Entity format.");
+            pokemon.Version = (GameVersion)requestedOriginGameId;
+        }
+
+        if (edit.BallId is int ballId)
+        {
+            if (!constraints.SupportsBall)
+                return SlotMutationResult.Fail("unsupported-pokemon-edit", "Ball editing is not supported by this Pokemon Entity format.");
+            if (constraints.Balls.All(option => option.Id != ballId))
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"Ball {ballId} is not supported by this Pokemon Entity format.");
+            pokemon.Ball = (byte)ballId;
+            if (pokemon.Ball != ballId)
+                return SlotMutationResult.Fail("unsupported-pokemon-edit", $"Ball {ballId} cannot be stored by this Pokemon Entity format.");
+        }
+
+        if (constraints.SupportsMetDate)
+        {
+            if (edit.MetDate is not null &&
+                (!DateOnly.TryParseExact(edit.MetDate, "yyyy-MM-dd", out var metDate) ||
+                 metDate.Year is < 2000 or > 2255))
+                return SlotMutationResult.Fail("invalid-pokemon-edit", "Met date must use YYYY-MM-DD and be between 2000 and 2255.");
+            pokemon.MetDate = edit.MetDate is null ? null : DateOnly.ParseExact(edit.MetDate, "yyyy-MM-dd");
+        }
+        else if (edit.MetDate is not null)
+        {
+            return SlotMutationResult.Fail("unsupported-pokemon-edit", "Met date editing is not supported by this Pokemon Entity format.");
+        }
+
+        pokemon.MetLocation = (ushort)edit.LocationId;
+        pokemon.MetLevel = (byte)edit.MetLevel;
+        return SlotMutationResult.Success(true);
+    }
+
+    private static List<LegalityReportLine> InvalidLegalityMessages(PKM pokemon, StorageSlotType storageSlotType) =>
+        CreateLegalityMessages(new LegalityAnalysis(pokemon, storageSlotType), includeGeneric: true)
+            .Where(message => !StringComparer.Ordinal.Equals(message.Severity, Severity.Valid.ToString()))
+            .ToList();
+
+    private static string LegalityMessageKey(LegalityReportLine message) =>
+        $"{message.Severity}|{message.Identifier}|{message.Message}";
 
     private static int[] StatEditSetToArray(PokemonStatEditSet edits) =>
         [edits.HP, edits.ATK, edits.DEF, edits.SPE, edits.SPA, edits.SPD];

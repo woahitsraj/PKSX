@@ -1,6 +1,7 @@
 import type {
 	PokemonEditOperation,
 	PokemonFriendshipFieldEdit,
+	PokemonMetDataEdit,
 	PokemonMoveSlotEdit,
 	PokemonStatEditSet,
 	SaveSlotRef
@@ -62,6 +63,8 @@ export type PokemonMoveSetEditPayload = {
 	moves: PokemonMoveSlotEdit[];
 };
 
+export type PokemonMetDataEditPayload = PokemonMetDataEdit;
+
 export type NatureEditPayload = {
 	natureId: number;
 };
@@ -88,6 +91,7 @@ export type PokemonEditorDraftEdits = {
 	natureId?: number;
 	heldItemId?: number;
 	abilityIndex?: number;
+	metData?: PokemonMetDataEditPayload;
 	ivs?: PokemonStatEditPayload;
 	evs?: PokemonStatEditPayload;
 	moveSet?: PokemonMoveSetEditPayload;
@@ -444,6 +448,31 @@ export function stageLevelExperienceEdit(
 	});
 }
 
+export function stageMetDataEdit(
+	state: PokemonEditorState,
+	payload: PokemonMetDataEditPayload
+): PokemonEditorState {
+	const validation = validateMetDataEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'met-data'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	if (metDataEditMatchesSlot(state.slot, validation.payload)) {
+		return removePokemonEditorEdit(state, 'met-data');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'met-data',
+		capability: 'met-data-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
 export function stageNatureEdit(
 	state: PokemonEditorState,
 	payload: NatureEditPayload
@@ -679,6 +708,7 @@ const pokemonEditOperationBuilders = [
 	{ id: 'nature', build: buildNatureEdit },
 	{ id: 'held-item', build: buildHeldItemEdit },
 	{ id: 'ability', build: buildAbilityEdit },
+	{ id: 'met-data', build: buildMetDataEdit },
 	{ id: 'ivs', build: buildIvEdit },
 	{ id: 'evs', build: buildEvEdit },
 	{ id: 'move-set', build: buildMoveSetEdit },
@@ -973,6 +1003,114 @@ function buildMoveSetEdit(payload: unknown, slot: SlotView): PokemonEditPatchRes
 function invalidPokemonEdit(message: string): Extract<PokemonEditValidationResult, { ok: false }> {
 	return { ok: false, status: 'rejected', message, reason: 'invalid-pokemon-edit' };
 }
+
+function buildMetDataEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isPokemonMetDataEditPayload(payload)) {
+		return invalidPokemonEdit('Met Data edit payload is invalid.');
+	}
+
+	const validation = validateMetDataEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	return { ok: true, patch: { metData: { ...validation.payload } } };
+}
+
+function validateMetDataEdit(
+	slot: SlotView,
+	payload: PokemonMetDataEditPayload
+): PokemonEditorPayloadValidation<PokemonMetDataEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Met Data Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.metDataEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ??
+				'Met Data Editing is not supported for this Pokemon Entity format.'
+		};
+	}
+
+	if (!Number.isInteger(payload.metLevel)) {
+		return { ok: false, message: 'Met level must be a whole number.' };
+	}
+	if (payload.metLevel < constraints.minMetLevel || payload.metLevel > constraints.maxMetLevel) {
+		return {
+			ok: false,
+			message: `Met level must be between ${constraints.minMetLevel} and ${constraints.maxMetLevel}.`
+		};
+	}
+
+	const originGameId = payload.originGameId ?? constraints.currentOriginGameId;
+	if (
+		payload.originGameId !== undefined &&
+		(!constraints.supportsOriginGame ||
+			!constraints.originGames.some((option) => option.id === payload.originGameId))
+	) {
+		return { ok: false, message: 'Origin game choice is not supported by this Pokemon Entity.' };
+	}
+
+	const locationGroup = constraints.locationGroups.find(
+		(group) => group.originGameId === originGameId
+	);
+	if (
+		!Number.isInteger(payload.locationId) ||
+		!locationGroup?.options.some((option) => option.id === payload.locationId)
+	) {
+		return {
+			ok: false,
+			message: 'Met location is not available for the selected origin game.'
+		};
+	}
+
+	if (
+		payload.ballId !== undefined &&
+		(!constraints.supportsBall || !constraints.balls.some((option) => option.id === payload.ballId))
+	) {
+		return { ok: false, message: 'Ball choice is not supported by this Pokemon Entity.' };
+	}
+
+	if (payload.metDate !== undefined) {
+		if (!constraints.supportsMetDate) {
+			return {
+				ok: false,
+				message: 'Met date editing is not supported by this Pokemon Entity format.'
+			};
+		}
+		if (payload.metDate !== null && !isValidMetDate(payload.metDate)) {
+			return { ok: false, message: 'Met date must be a valid date from 2000 through 2255.' };
+		}
+	}
+
+	return { ok: true, payload, label: 'Set Met Data' };
+}
+
+function metDataEditMatchesSlot(slot: SlotView, payload: PokemonMetDataEditPayload): boolean {
+	const constraints = slot.metDataEditConstraints;
+	return (
+		constraints !== undefined &&
+		payload.locationId === constraints.currentLocationId &&
+		payload.metLevel === constraints.currentMetLevel &&
+		(payload.metDate ?? null) === (constraints.currentMetDate ?? null) &&
+		(payload.originGameId ?? constraints.currentOriginGameId) === constraints.currentOriginGameId &&
+		(payload.ballId ?? constraints.currentBallId) === constraints.currentBallId
+	);
+}
+
+function isValidMetDate(value: string): boolean {
+	if (!/^2\d{3}-\d{2}-\d{2}$/.test(value)) return false;
+	const parsed = new Date(`${value}T00:00:00Z`);
+	const year = Number(value.slice(0, 4));
+	return (
+		year >= 2000 &&
+		year <= 2255 &&
+		!Number.isNaN(parsed.valueOf()) &&
+		parsed.toISOString().slice(0, 10) === value
+	);
+}
+
 function validateIvEdit(
 	slot: SlotView,
 	payload: PokemonStatEditPayload
@@ -1357,6 +1495,20 @@ function isNicknameEditPayload(value: unknown): value is { nickname: string } {
 		value !== null &&
 		'nickname' in value &&
 		typeof value.nickname === 'string'
+	);
+}
+
+function isPokemonMetDataEditPayload(value: unknown): value is PokemonMetDataEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'locationId' in value &&
+		typeof value.locationId === 'number' &&
+		'metLevel' in value &&
+		typeof value.metLevel === 'number' &&
+		(!('metDate' in value) || value.metDate === null || typeof value.metDate === 'string') &&
+		(!('originGameId' in value) || typeof value.originGameId === 'number') &&
+		(!('ballId' in value) || typeof value.ballId === 'number')
 	);
 }
 

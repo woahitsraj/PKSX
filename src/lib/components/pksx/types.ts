@@ -4,6 +4,7 @@ import type {
 	PokemonAbilityEditConstraints,
 	PokemonFriendshipEditConstraints,
 	PokemonHeldItemEditConstraints,
+	PokemonMetDataEditConstraints,
 	PokemonMoveSetEditConstraints,
 	PokemonNatureEditConstraints,
 	PokemonStatEditConstraints,
@@ -32,6 +33,7 @@ export type SlotView = {
 	natureEditConstraints?: PokemonNatureEditConstraints;
 	heldItemEditConstraints?: PokemonHeldItemEditConstraints;
 	abilityEditConstraints?: PokemonAbilityEditConstraints;
+	metDataEditConstraints?: PokemonMetDataEditConstraints;
 	statEditConstraints?: PokemonStatEditConstraints;
 	moveSetEditConstraints?: PokemonMoveSetEditConstraints;
 	friendshipEditConstraints?: PokemonFriendshipEditConstraints;

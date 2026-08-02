@@ -171,6 +171,36 @@ export const pokemonMoveSetEditConstraintsSchema = z.object({
 	unsupportedReason: z.string().nullable().optional()
 });
 
+const pokemonMetDataOptionSchema = z.object({
+	id: z.number().int(),
+	name: z.string()
+});
+
+const pokemonMetDataEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	currentLocationId: z.number().int().default(0),
+	currentMetLevel: z.number().int().default(0),
+	currentMetDate: z.string().nullable().optional(),
+	currentOriginGameId: z.number().int().default(0),
+	currentBallId: z.number().int().default(0),
+	minMetLevel: z.number().int().default(0),
+	maxMetLevel: z.number().int().default(100),
+	supportsMetDate: z.boolean().default(false),
+	supportsOriginGame: z.boolean().default(false),
+	supportsBall: z.boolean().default(false),
+	locationGroups: z
+		.array(
+			z.object({
+				originGameId: z.number().int(),
+				options: z.array(pokemonMetDataOptionSchema)
+			})
+		)
+		.default([]),
+	originGames: z.array(pokemonMetDataOptionSchema).default([]),
+	balls: z.array(pokemonMetDataOptionSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
 export const pokemonFriendshipFieldSchema = z.object({
 	key: z.string(),
 	label: z.string(),
@@ -259,6 +289,22 @@ const slotSummaryFields = {
 		currentAbilityIndex: -1,
 		options: [],
 		unsupportedReason: 'Ability Editing is not available for this Pokemon projection.'
+	}),
+	metDataEditConstraints: pokemonMetDataEditConstraintsSchema.default({
+		supported: false,
+		currentLocationId: 0,
+		currentMetLevel: 0,
+		currentOriginGameId: 0,
+		currentBallId: 0,
+		minMetLevel: 0,
+		maxMetLevel: 100,
+		supportsMetDate: false,
+		supportsOriginGame: false,
+		supportsBall: false,
+		locationGroups: [],
+		originGames: [],
+		balls: [],
+		unsupportedReason: 'Met Data Editing is not available for this Pokemon projection.'
 	}),
 	statEditConstraints: pokemonStatEditConstraintsSchema.default({
 		supported: false,
@@ -365,6 +411,15 @@ export const pokemonEditOperationSchema = z.object({
 	natureId: z.number().int().optional(),
 	heldItemId: z.number().int().optional(),
 	abilityIndex: z.number().int().optional(),
+	metData: z
+		.object({
+			locationId: z.number().int(),
+			metLevel: z.number().int(),
+			metDate: z.string().nullable().optional(),
+			originGameId: z.number().int().optional(),
+			ballId: z.number().int().optional()
+		})
+		.optional(),
 	ivs: z
 		.object({
 			HP: z.number().int(),

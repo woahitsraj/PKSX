@@ -69,6 +69,22 @@ const partySlot: PartySlotSummary = {
 		options: [],
 		unsupportedReason: 'Fixture'
 	},
+	metDataEditConstraints: {
+		supported: false,
+		currentLocationId: 0,
+		currentMetLevel: 0,
+		currentOriginGameId: 0,
+		currentBallId: 0,
+		minMetLevel: 0,
+		maxMetLevel: 100,
+		supportsMetDate: false,
+		supportsOriginGame: false,
+		supportsBall: false,
+		locationGroups: [],
+		originGames: [],
+		balls: [],
+		unsupportedReason: 'Fixture'
+	},
 	statEditConstraints: {
 		supported: false,
 		minIv: 0,

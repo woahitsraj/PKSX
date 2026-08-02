@@ -87,6 +87,7 @@ export function createSlotView(slot: PartySlotSummary | BoxSlotSummary): SlotVie
 		natureEditConstraints: slot.natureEditConstraints,
 		heldItemEditConstraints: slot.heldItemEditConstraints,
 		abilityEditConstraints: slot.abilityEditConstraints,
+		metDataEditConstraints: slot.metDataEditConstraints,
 		ability: slot.ability ?? undefined,
 		heldItem: slot.heldItem ?? undefined,
 		types: slot.types,
@@ -198,6 +199,14 @@ export function stagePokemonEditorDraftEdits(
 					}`,
 					payload: { abilityIndex: draft.abilityIndex }
 				},
+		draft.metData
+			? {
+					id: 'met-data',
+					capability: 'met-data-editing',
+					label: 'Set Met Data',
+					payload: draft.metData
+				}
+			: null,
 		draft.ivs
 			? { id: 'ivs', capability: 'iv-editing', label: 'Set IVs', payload: draft.ivs }
 			: null,
@@ -243,6 +252,15 @@ export function pokemonEditorDraftResetKey(state: PokemonEditorState): string {
 		natureId: state.slot.natureEditConstraints?.currentNatureId,
 		heldItemId: state.slot.heldItemEditConstraints?.currentItemId,
 		abilityIndex: state.slot.abilityEditConstraints?.currentAbilityIndex,
+		metData: state.slot.metDataEditConstraints
+			? {
+					locationId: state.slot.metDataEditConstraints.currentLocationId,
+					metLevel: state.slot.metDataEditConstraints.currentMetLevel,
+					metDate: state.slot.metDataEditConstraints.currentMetDate ?? null,
+					originGameId: state.slot.metDataEditConstraints.currentOriginGameId,
+					ballId: state.slot.metDataEditConstraints.currentBallId
+				}
+			: null,
 		ivs: state.slot.stats?.map((stat) => stat.iv ?? 0),
 		evs: state.slot.stats?.map((stat) => stat.ev ?? 0),
 		moves: state.slot.moves?.map((move) => ({
@@ -272,6 +290,7 @@ export function pokemonEditSuccessMessage(
 		'natureId',
 		'heldItemId',
 		'abilityIndex',
+		'metData',
 		'ivs',
 		'evs',
 		'moves',

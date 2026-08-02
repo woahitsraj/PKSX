@@ -368,7 +368,31 @@ test('Edit opens Pokemon Editor and returns focus to the command stack', async (
 	await expect(page.locator('#pokemon-editor-ability')).toBeFocused();
 
 	await page.keyboard.press('ArrowDown');
+	await expect(editor.locator('#pokemon-editor-met-location')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.locator('#pokemon-editor-met-level')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.locator('#pokemon-editor-origin-game')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.locator('#pokemon-editor-ball')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
+
+	await page.keyboard.press('ArrowUp');
+	await expect(editor.locator('#pokemon-editor-ball')).toBeFocused();
+
+	await page.keyboard.press('ArrowUp');
+	await expect(editor.locator('#pokemon-editor-origin-game')).toBeFocused();
+
+	await page.keyboard.press('ArrowUp');
+	await expect(editor.locator('#pokemon-editor-met-level')).toBeFocused();
+
+	await page.keyboard.press('ArrowUp');
+	await expect(editor.locator('#pokemon-editor-met-location')).toBeFocused();
 
 	await page.keyboard.press('ArrowUp');
 	await expect(page.locator('#pokemon-editor-ability')).toBeFocused();
@@ -497,6 +521,38 @@ test('Pokemon Editor changes Ability and returns focus to the command stack', as
 
 	await page.keyboard.press('Escape');
 	await expect(editor).toBeHidden();
+	await expect(page.locator('#slot-action-0')).toBeFocused();
+});
+
+test('Pokemon Editor applies Met Data and returns focus to Edit', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Enter');
+
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	const ball = editor.locator('#pokemon-editor-ball');
+	await expect(ball).toBeVisible();
+	const currentBall = await ball.inputValue();
+	const ballChoices = await ball.locator('option').evaluateAll((options) =>
+		options.map((option) => ({
+			value: (option as HTMLOptionElement).value,
+			label: option.textContent ?? ''
+		}))
+	);
+	const nextBall = ballChoices.find((option) => option.value !== currentBall);
+	if (!nextBall) throw new Error('Expected another engine-provided Ball choice.');
+
+	await ball.selectOption(nextBall.value);
+	await expect(editor).toContainText('1 Pokemon edit drafted.');
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+
+	const updatedEditor = page.getByRole('dialog', { name: 'ARON' });
+	await expect(updatedEditor).toContainText('Pokemon edits applied.', { timeout: 15000 });
+	await expect(updatedEditor.locator('#pokemon-editor-ball')).toHaveValue(nextBall.value);
+	await updatedEditor.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(updatedEditor).toBeHidden();
 	await expect(page.locator('#slot-action-0')).toBeFocused();
 });
 
@@ -949,6 +1005,14 @@ test('Pokemon Editor changes level through Apply and keeps editor focus', async 
 	await expect(page.locator('#pokemon-editor-held-item')).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#pokemon-editor-ability')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.locator('#pokemon-editor-met-location')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.locator('#pokemon-editor-met-level')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.locator('#pokemon-editor-origin-game')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(editor.locator('#pokemon-editor-ball')).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
 	await expect(page.locator('#pokemon-editor-mode')).toHaveAttribute('aria-label', 'Editing Level');
