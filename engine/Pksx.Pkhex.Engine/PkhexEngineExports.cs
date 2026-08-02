@@ -726,7 +726,7 @@ public static partial class PkhexEngineExports
             if (introducedIssue is not null)
                 return SlotMutationResult.Fail(
                     "invalid-pokemon-edit",
-                    $"{LegalityEditFailurePrefix(operation)} {introducedIssue.Message}");
+                    $"Met Data edit is not valid for this Pokemon encounter. {introducedIssue.Message}");
         }
 
         if (pokemon.PartyStatsPresent)
