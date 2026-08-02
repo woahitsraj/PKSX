@@ -66,6 +66,42 @@ const partySlot: PartySlotSummary = {
 		languages: [],
 		unsupportedReason: 'Fixture'
 	},
+	natureEditConstraints: {
+		supported: false,
+		currentNatureId: -1,
+		originalNatureId: -1,
+		statNatureId: -1,
+		usesStatNature: false,
+		options: [],
+		unsupportedReason: 'Nature Editing is unavailable.'
+	},
+	heldItemEditConstraints: {
+		supported: true,
+		currentItemId: 0,
+		options: [{ id: 0, name: 'No item', available: true }]
+	},
+	abilityEditConstraints: {
+		supported: false,
+		currentAbilityIndex: -1,
+		options: [],
+		unsupportedReason: 'Fixture'
+	},
+	metDataEditConstraints: {
+		supported: false,
+		currentLocationId: 0,
+		currentMetLevel: 0,
+		currentOriginGameId: 0,
+		currentBallId: 0,
+		minMetLevel: 0,
+		maxMetLevel: 100,
+		supportsMetDate: false,
+		supportsOriginGame: false,
+		supportsBall: false,
+		locationGroups: [],
+		originGames: [],
+		balls: [],
+		unsupportedReason: 'Fixture'
+	},
 	statEditConstraints: {
 		supported: false,
 		minIv: 0,
@@ -81,6 +117,11 @@ const partySlot: PartySlotSummary = {
 		availableMoves: [],
 		unsupportedReason: 'Fixture'
 	},
+	friendshipEditConstraints: {
+		supported: true,
+		fields: [{ key: 'friendship', label: 'Friendship', value: 70, min: 0, max: 255 }]
+	},
+	battleFields: [],
 	spriteIdentity: {
 		speciesId: 304,
 		form: 0,

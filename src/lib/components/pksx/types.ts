@@ -1,6 +1,12 @@
 import type {
+	PokemonBattleFieldProjection,
 	PokemonExperienceProjection,
+	PokemonAbilityEditConstraints,
+	PokemonFriendshipEditConstraints,
+	PokemonHeldItemEditConstraints,
+	PokemonMetDataEditConstraints,
 	PokemonMoveSetEditConstraints,
+	PokemonNatureEditConstraints,
 	PokemonOriginalTrainerEditConstraints,
 	PokemonStatEditConstraints,
 	SpriteIdentity
@@ -25,9 +31,15 @@ export type SlotView = {
 	types?: SlotTypeView[];
 	stats?: SlotStatView[];
 	moves?: SlotMoveView[];
+	natureEditConstraints?: PokemonNatureEditConstraints;
+	heldItemEditConstraints?: PokemonHeldItemEditConstraints;
+	abilityEditConstraints?: PokemonAbilityEditConstraints;
+	metDataEditConstraints?: PokemonMetDataEditConstraints;
 	originalTrainerEditConstraints?: PokemonOriginalTrainerEditConstraints;
 	statEditConstraints?: PokemonStatEditConstraints;
 	moveSetEditConstraints?: PokemonMoveSetEditConstraints;
+	friendshipEditConstraints?: PokemonFriendshipEditConstraints;
+	battleFields?: PokemonBattleFieldProjection[];
 	originalTrainer?: string;
 	metLabel?: string;
 	entityBytesBase64?: string | null;

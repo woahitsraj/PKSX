@@ -49,6 +49,18 @@ const mockPikachuDetails = {
 	},
 	gender: '♂',
 	nature: 'Hardy',
+	natureEditConstraints: {
+		supported: true,
+		currentNatureId: 0,
+		originalNatureId: 0,
+		statNatureId: 0,
+		usesStatNature: true,
+		options: [
+			{ id: 0, name: 'Hardy', effect: 'No stat change' },
+			{ id: 3, name: 'Adamant', effect: '+Attack, -Sp. Atk' },
+			{ id: 15, name: 'Modest', effect: '+Sp. Atk, -Attack' }
+		]
+	},
 	ability: 'Static',
 	heldItem: 'Light Ball',
 	types: [{ name: 'Electric', hue: 94, chroma: 0.16 }],
@@ -84,6 +96,50 @@ const mockPikachuDetails = {
 			ppUps: 0
 		}
 	],
+	heldItemEditConstraints: {
+		supported: true,
+		currentItemId: 236,
+		options: [
+			{ id: 0, name: 'No item', available: true },
+			{ id: 236, name: 'Light Ball', available: true },
+			{ id: 25, name: 'Poke Doll', available: false, unavailableReason: 'Unavailable.' }
+		]
+	},
+	abilityEditConstraints: {
+		supported: true,
+		currentAbilityIndex: 0,
+		options: [
+			{ index: 0, id: 9, name: 'Static', hidden: false, available: true },
+			{ index: 1, id: 31, name: 'Lightning Rod', hidden: false, available: true }
+		]
+	},
+	metDataEditConstraints: {
+		supported: true,
+		currentLocationId: 6,
+		currentMetLevel: 5,
+		currentMetDate: '2024-01-15',
+		currentOriginGameId: 45,
+		currentBallId: 4,
+		minMetLevel: 0,
+		maxMetLevel: 100,
+		supportsMetDate: true,
+		supportsOriginGame: true,
+		supportsBall: true,
+		locationGroups: [
+			{
+				originGameId: 45,
+				options: [
+					{ id: 6, name: 'South Province (Area One)' },
+					{ id: 10, name: 'Poco Path' }
+				]
+			}
+		],
+		originGames: [{ id: 45, name: 'Violet' }],
+		balls: [
+			{ id: 4, name: 'Poké Ball' },
+			{ id: 3, name: 'Great Ball' }
+		]
+	},
 	statEditConstraints: {
 		supported: true,
 		minIv: 0,
@@ -124,6 +180,26 @@ const mockPikachuDetails = {
 			{ id: 2, name: 'English' }
 		]
 	},
+	friendshipEditConstraints: {
+		supported: true,
+		fields: [
+			{ key: 'friendship', label: 'Friendship', value: 70, min: 0, max: 255 },
+			{ key: 'affection', label: 'Affection', value: 0, min: 0, max: 255 }
+		]
+	},
+	battleFields: [
+		{
+			key: 'tera-type',
+			label: 'Tera Type',
+			value: 12,
+			valueLabel: 'Electric',
+			supported: true,
+			options: [
+				{ value: 9, label: 'Fire' },
+				{ value: 12, label: 'Electric' }
+			]
+		}
+	],
 	originalTrainer: 'PKSX',
 	metLabel: 'Lv. 5',
 	spriteIdentity: {
@@ -172,6 +248,43 @@ const mockBoxSlots: BoxSlotSummary[] = [
 		types: [],
 		stats: [],
 		moves: [],
+		natureEditConstraints: {
+			supported: false,
+			currentNatureId: -1,
+			originalNatureId: -1,
+			statNatureId: -1,
+			usesStatNature: false,
+			options: [],
+			unsupportedReason: 'Nature Editing needs an occupied Slot.'
+		},
+		heldItemEditConstraints: {
+			supported: false,
+			currentItemId: 0,
+			options: [],
+			unsupportedReason: 'Held Item Editing needs an occupied Slot.'
+		},
+		abilityEditConstraints: {
+			supported: false,
+			currentAbilityIndex: -1,
+			options: [],
+			unsupportedReason: 'Ability Editing needs an occupied Slot.'
+		},
+		metDataEditConstraints: {
+			supported: false,
+			currentLocationId: 0,
+			currentMetLevel: 0,
+			currentOriginGameId: 0,
+			currentBallId: 0,
+			minMetLevel: 0,
+			maxMetLevel: 100,
+			supportsMetDate: false,
+			supportsOriginGame: false,
+			supportsBall: false,
+			locationGroups: [],
+			originGames: [],
+			balls: [],
+			unsupportedReason: 'Met Data Editing needs an occupied Slot.'
+		},
 		originalTrainerEditConstraints: {
 			supported: false,
 			currentName: '',
@@ -203,7 +316,13 @@ const mockBoxSlots: BoxSlotSummary[] = [
 			maxMoveSlots: 0,
 			availableMoves: [],
 			unsupportedReason: 'Move Set Editing needs an occupied Slot.'
-		}
+		},
+		friendshipEditConstraints: {
+			supported: false,
+			fields: [],
+			unsupportedReason: 'Friendship Editing needs an occupied Slot.'
+		},
+		battleFields: []
 	}
 ];
 
@@ -279,10 +398,15 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					operation.nickname !== undefined ||
 					operation.level !== undefined ||
 					operation.experience !== undefined ||
+					operation.natureId !== undefined ||
+					operation.heldItemId !== undefined ||
+					operation.abilityIndex !== undefined ||
+					operation.metData !== undefined ||
 					operation.originalTrainer !== undefined ||
 					operation.ivs !== undefined ||
 					operation.evs !== undefined ||
-					operation.moves !== undefined,
+					operation.moves !== undefined ||
+					operation.friendshipEdits !== undefined,
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,

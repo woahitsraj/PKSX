@@ -76,9 +76,15 @@ export type BoxSlotSummary = {
 	types: SlotTypeSummary[];
 	stats: SlotStatSummary[];
 	moves: SlotMoveSummary[];
+	natureEditConstraints: PokemonNatureEditConstraints;
+	heldItemEditConstraints: PokemonHeldItemEditConstraints;
+	abilityEditConstraints: PokemonAbilityEditConstraints;
+	metDataEditConstraints: PokemonMetDataEditConstraints;
 	originalTrainerEditConstraints: PokemonOriginalTrainerEditConstraints;
 	statEditConstraints: PokemonStatEditConstraints;
 	moveSetEditConstraints: PokemonMoveSetEditConstraints;
+	friendshipEditConstraints: PokemonFriendshipEditConstraints;
+	battleFields: PokemonBattleFieldProjection[];
 	originalTrainer?: string | null;
 	metLabel?: string | null;
 	spriteIdentity: SpriteIdentity;
@@ -134,6 +140,52 @@ export type PokemonStatEditConstraints = {
 	unsupportedReason?: string | null;
 };
 
+export type PokemonNatureOption = {
+	id: number;
+	name: string;
+	effect: string;
+};
+
+export type PokemonNatureEditConstraints = {
+	supported: boolean;
+	currentNatureId: number;
+	originalNatureId: number;
+	statNatureId: number;
+	usesStatNature: boolean;
+	options: PokemonNatureOption[];
+	unsupportedReason?: string | null;
+};
+
+export type PokemonHeldItemOption = {
+	id: number;
+	name: string;
+	available: boolean;
+	unavailableReason?: string | null;
+};
+
+export type PokemonHeldItemEditConstraints = {
+	supported: boolean;
+	currentItemId: number;
+	options: PokemonHeldItemOption[];
+	unsupportedReason?: string | null;
+};
+
+export type PokemonAbilityOption = {
+	index: number;
+	id: number;
+	name: string;
+	hidden: boolean;
+	available: boolean;
+	unavailableReason?: string | null;
+};
+
+export type PokemonAbilityEditConstraints = {
+	supported: boolean;
+	currentAbilityIndex: number;
+	options: PokemonAbilityOption[];
+	unsupportedReason?: string | null;
+};
+
 export type PokemonMoveOption = {
 	id: number;
 	name: string;
@@ -148,6 +200,11 @@ export type PokemonMoveSetEditConstraints = {
 	maxMoveSlots: number;
 	availableMoves: PokemonMoveOption[];
 	unsupportedReason?: string | null;
+};
+
+export type PokemonMetDataOption = {
+	id: number;
+	name: string;
 };
 
 export type PokemonOriginalTrainerOption = {
@@ -170,6 +227,58 @@ export type PokemonOriginalTrainerEditConstraints = {
 	supportsLanguage: boolean;
 	genders: PokemonOriginalTrainerOption[];
 	languages: PokemonOriginalTrainerOption[];
+	unsupportedReason?: string | null;
+};
+
+export type PokemonMetLocationGroup = {
+	originGameId: number;
+	options: PokemonMetDataOption[];
+};
+
+export type PokemonMetDataEditConstraints = {
+	supported: boolean;
+	currentLocationId: number;
+	currentMetLevel: number;
+	currentMetDate?: string | null;
+	currentOriginGameId: number;
+	currentBallId: number;
+	minMetLevel: number;
+	maxMetLevel: number;
+	supportsMetDate: boolean;
+	supportsOriginGame: boolean;
+	supportsBall: boolean;
+	locationGroups: PokemonMetLocationGroup[];
+	originGames: PokemonMetDataOption[];
+	balls: PokemonMetDataOption[];
+	unsupportedReason?: string | null;
+};
+
+export type PokemonFriendshipField = {
+	key: string;
+	label: string;
+	value: number;
+	min: number;
+	max: number;
+};
+
+export type PokemonFriendshipEditConstraints = {
+	supported: boolean;
+	fields: PokemonFriendshipField[];
+	unsupportedReason?: string | null;
+};
+
+export type PokemonBattleFieldOption = {
+	value: number;
+	label: string;
+};
+
+export type PokemonBattleFieldProjection = {
+	key: string;
+	label: string;
+	value: number;
+	valueLabel: string;
+	supported: boolean;
+	options: PokemonBattleFieldOption[];
 	unsupportedReason?: string | null;
 };
 
@@ -233,10 +342,24 @@ export type PokemonEditOperation = {
 	nickname?: string;
 	level?: number;
 	experience?: number;
+	natureId?: number;
+	heldItemId?: number;
+	abilityIndex?: number;
+	metData?: PokemonMetDataEdit;
 	originalTrainer?: PokemonOriginalTrainerEdit;
 	ivs?: PokemonStatEditSet;
 	evs?: PokemonStatEditSet;
 	moves?: PokemonMoveSlotEdit[];
+	friendshipEdits?: PokemonFriendshipFieldEdit[];
+	teraType?: number;
+};
+
+export type PokemonMetDataEdit = {
+	locationId: number;
+	metLevel: number;
+	metDate?: string | null;
+	originGameId?: number;
+	ballId?: number;
 };
 
 export type PokemonStatEditSet = {
@@ -261,6 +384,11 @@ export type PokemonOriginalTrainerEdit = {
 	secretId?: number;
 	genderId?: number;
 	languageId?: number;
+};
+
+export type PokemonFriendshipFieldEdit = {
+	key: string;
+	value: number;
 };
 
 export type PokemonEditOperationResult = {

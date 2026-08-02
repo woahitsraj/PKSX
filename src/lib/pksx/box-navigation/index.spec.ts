@@ -9,6 +9,7 @@ import {
 	focusPaneBoundarySlot,
 	focusPaneControl,
 	focusPartySlot,
+	focusPartyToggle,
 	focusTopControl,
 	getFocusId,
 	selectActiveBox,
@@ -38,9 +39,10 @@ describe('box navigation', () => {
 	});
 
 	it('transitions vertically between top controls, party, box, and mobile tabs', () => {
-		expect.assertions(7);
+		expect.assertions(8);
 
-		expect(move({ focus: focusTopControl(1) }, 'down').focus).toEqual(focusPartySlot(1));
+		expect(move({ focus: focusTopControl(1) }, 'down').focus).toEqual(focusPartyToggle());
+		expect(move({ focus: focusPartyToggle() }, 'down').focus).toEqual(focusPartySlot(0));
 		expect(move({ focus: focusPartySlot(2) }, 'down').focus).toEqual(focusBoxSlot(2));
 		expect(move({ focus: focusBoxSlot(2) }, 'up').focus).toEqual(focusPartySlot(2));
 		expect(move({ focus: focusBoxSlot(28) }, 'down').focus).toEqual(focusMobileTab(1));
@@ -76,21 +78,40 @@ describe('box navigation', () => {
 			focusTopControl(5, 7)
 		);
 		expect(move({ focus: focusTopControl(5, 7) }, 'down', { topControlCount: 7 }).focus).toEqual(
-			focusPartySlot(5)
+			focusPartyToggle()
 		);
 		expect(move({ focus: focusPaneControl(0, 2) }, 'right', { paneControlCount: 2 }).focus).toEqual(
 			focusPaneControl(1, 2)
 		);
 	});
 
-	it('moves up from party slots to the matching top bar route controls', () => {
-		expect.assertions(6);
+	it('moves up from party slots through the party toggle to the top bar', () => {
+		expect.assertions(7);
 
 		for (let slot = 0; slot < 6; slot += 1) {
 			expect(move({ focus: focusPartySlot(slot) }, 'up', { topControlCount: 7 }).focus).toEqual(
-				focusTopControl(5, 7)
+				focusPartyToggle()
 			);
 		}
+
+		expect(move({ focus: focusPartyToggle() }, 'up', { topControlCount: 7 }).focus).toEqual(
+			focusTopControl(5, 7)
+		);
+	});
+
+	it('skips hidden party slots while the party is collapsed', () => {
+		expect.assertions(4);
+
+		const options = { partyCollapsed: true };
+
+		expect(move({ focus: focusPartyToggle() }, 'down', options).focus).toEqual(focusBoxSlot(0));
+		expect(move({ focus: focusBoxSlot(3) }, 'up', options).focus).toEqual(focusPartyToggle());
+		expect(
+			move({ focus: focusPartyToggle() }, 'down', { ...options, paneControlCount: 1 }).focus
+		).toEqual(focusPaneControl(0, 1));
+		expect(
+			move({ focus: focusPaneControl(0, 1) }, 'up', { ...options, paneControlCount: 1 }).focus
+		).toEqual(focusPartyToggle());
 	});
 
 	it('can reach a single pane source selector from party and box focus', () => {
@@ -237,10 +258,29 @@ describe('box navigation', () => {
 		});
 	});
 
-	it('exposes stable active descendant ids', () => {
+	it('keeps slot actions modal until back or the final command dismisses them', () => {
 		expect.assertions(5);
 
+		const opened = move({ focus: focusBoxSlot(8) }, 'confirm', { actionCount: 3 });
+		for (const action of ['previousBox', 'nextBox', 'sourceAction'] as const) {
+			expect(applyNavigationAction(opened, action, { actionCount: 3 })).toEqual(opened);
+		}
+
+		const onFinalCommand = { ...opened, focus: focusActionCommand(2, 3) };
+		expect(applyNavigationAction(onFinalCommand, 'confirm', { actionCount: 3 })).toMatchObject({
+			actionSurfaceOpen: false,
+			focus: focusBoxSlot(8)
+		});
+		expect(
+			applyNavigationAction({ ...opened, focus: focusBoxSlot(8) }, 'back', { actionCount: 3 })
+		).toMatchObject({ actionSurfaceOpen: false, focus: focusBoxSlot(8) });
+	});
+
+	it('exposes stable active descendant ids', () => {
+		expect.assertions(6);
+
 		expect(getFocusId(focusTopControl(1), 1)).toBe('top-control-1');
+		expect(getFocusId(focusPartyToggle(), 1)).toBe('party-toggle');
 		expect(getFocusId(focusPaneControl(1, 2), 1)).toBe('pane-control-1');
 		expect(getFocusId(focusPartySlot(4), 1)).toBe('party-slot-4');
 		expect(getFocusId(focusBoxSlot(4), 1)).toBe('box-1-slot-4');
