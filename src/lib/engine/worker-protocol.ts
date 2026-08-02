@@ -11,6 +11,7 @@ export const engineWorkerMethodSchema = z.enum([
 	'applySlotOperation',
 	'applyPokemonEditOperation',
 	'createPokemon',
+	'previewPokemonSpeciesFormEdit',
 	'applySaveFileEditOperation',
 	'importStoredPokemon',
 	'checkSlotLegality'
@@ -110,6 +111,54 @@ export const pokemonStatEditConstraintsSchema = z.object({
 	unsupportedReason: z.string().nullable().optional()
 });
 
+export const pokemonNatureEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	currentNatureId: z.number().int().default(-1),
+	originalNatureId: z.number().int().default(-1),
+	statNatureId: z.number().int().default(-1),
+	usesStatNature: z.boolean().default(false),
+	options: z
+		.array(
+			z.object({
+				id: z.number().int(),
+				name: z.string(),
+				effect: z.string()
+			})
+		)
+		.default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
+export const pokemonHeldItemOptionSchema = z.object({
+	id: z.number().int(),
+	name: z.string(),
+	available: z.boolean().default(false),
+	unavailableReason: z.string().nullable().optional()
+});
+
+export const pokemonHeldItemEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	currentItemId: z.number().int().default(0),
+	options: z.array(pokemonHeldItemOptionSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
+export const pokemonAbilityOptionSchema = z.object({
+	index: z.number().int(),
+	id: z.number().int(),
+	name: z.string(),
+	hidden: z.boolean().default(false),
+	available: z.boolean().default(false),
+	unavailableReason: z.string().nullable().optional()
+});
+
+export const pokemonAbilityEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	currentAbilityIndex: z.number().int().default(-1),
+	options: z.array(pokemonAbilityOptionSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
 export const pokemonMoveOptionSchema = z.object({
 	id: z.number(),
 	name: z.string(),
@@ -123,6 +172,88 @@ export const pokemonMoveSetEditConstraintsSchema = z.object({
 	supported: z.boolean().default(false),
 	maxMoveSlots: z.number().default(4),
 	availableMoves: z.array(pokemonMoveOptionSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
+const pokemonMetDataOptionSchema = z.object({
+	id: z.number().int(),
+	name: z.string()
+});
+
+export const pokemonOriginalTrainerOptionSchema = z.object({
+	id: z.number().int(),
+	name: z.string()
+});
+
+export const pokemonOriginalTrainerEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	currentName: z.string().default(''),
+	currentTrainerId: z.number().int().default(0),
+	currentSecretId: z.number().int().default(0),
+	currentGenderId: z.number().int().default(0),
+	currentLanguageId: z.number().int().default(0),
+	maxNameLength: z.number().int().default(0),
+	minTrainerId: z.number().int().default(0),
+	maxTrainerId: z.number().int().default(65535),
+	supportsSecretId: z.boolean().default(false),
+	supportsGender: z.boolean().default(false),
+	supportsLanguage: z.boolean().default(false),
+	genders: z.array(pokemonOriginalTrainerOptionSchema).default([]),
+	languages: z.array(pokemonOriginalTrainerOptionSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
+const pokemonMetDataEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	currentLocationId: z.number().int().default(0),
+	currentMetLevel: z.number().int().default(0),
+	currentMetDate: z.string().nullable().optional(),
+	currentOriginGameId: z.number().int().default(0),
+	currentBallId: z.number().int().default(0),
+	minMetLevel: z.number().int().default(0),
+	maxMetLevel: z.number().int().default(100),
+	supportsMetDate: z.boolean().default(false),
+	supportsOriginGame: z.boolean().default(false),
+	supportsBall: z.boolean().default(false),
+	locationGroups: z
+		.array(
+			z.object({
+				originGameId: z.number().int(),
+				options: z.array(pokemonMetDataOptionSchema)
+			})
+		)
+		.default([]),
+	originGames: z.array(pokemonMetDataOptionSchema).default([]),
+	balls: z.array(pokemonMetDataOptionSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
+export const pokemonFriendshipFieldSchema = z.object({
+	key: z.string(),
+	label: z.string(),
+	value: z.number().int(),
+	min: z.number().int(),
+	max: z.number().int()
+});
+
+export const pokemonFriendshipEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	fields: z.array(pokemonFriendshipFieldSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
+export const pokemonBattleFieldProjectionSchema = z.object({
+	key: z.string(),
+	label: z.string(),
+	value: z.number().int(),
+	valueLabel: z.string(),
+	supported: z.boolean(),
+	options: z.array(
+		z.object({
+			value: z.number().int(),
+			label: z.string()
+		})
+	),
 	unsupportedReason: z.string().nullable().optional()
 });
 
@@ -165,6 +296,60 @@ const slotSummaryFields = {
 	types: z.array(slotTypeSummarySchema).default([]),
 	stats: z.array(slotStatSummarySchema).default([]),
 	moves: z.array(slotMoveSummarySchema).default([]),
+	natureEditConstraints: pokemonNatureEditConstraintsSchema.default({
+		supported: false,
+		currentNatureId: -1,
+		originalNatureId: -1,
+		statNatureId: -1,
+		usesStatNature: false,
+		options: [],
+		unsupportedReason: 'Nature Editing is not available for this Pokemon projection.'
+	}),
+	heldItemEditConstraints: pokemonHeldItemEditConstraintsSchema.default({
+		supported: false,
+		currentItemId: 0,
+		options: [],
+		unsupportedReason: 'Held Item Editing is not available for this Pokemon projection.'
+	}),
+	abilityEditConstraints: pokemonAbilityEditConstraintsSchema.default({
+		supported: false,
+		currentAbilityIndex: -1,
+		options: [],
+		unsupportedReason: 'Ability Editing is not available for this Pokemon projection.'
+	}),
+	metDataEditConstraints: pokemonMetDataEditConstraintsSchema.default({
+		supported: false,
+		currentLocationId: 0,
+		currentMetLevel: 0,
+		currentOriginGameId: 0,
+		currentBallId: 0,
+		minMetLevel: 0,
+		maxMetLevel: 100,
+		supportsMetDate: false,
+		supportsOriginGame: false,
+		supportsBall: false,
+		locationGroups: [],
+		originGames: [],
+		balls: [],
+		unsupportedReason: 'Met Data Editing is not available for this Pokemon projection.'
+	}),
+	originalTrainerEditConstraints: pokemonOriginalTrainerEditConstraintsSchema.default({
+		supported: false,
+		currentName: '',
+		currentTrainerId: 0,
+		currentSecretId: 0,
+		currentGenderId: 0,
+		currentLanguageId: 0,
+		maxNameLength: 0,
+		minTrainerId: 0,
+		maxTrainerId: 65535,
+		supportsSecretId: false,
+		supportsGender: false,
+		supportsLanguage: false,
+		genders: [],
+		languages: [],
+		unsupportedReason: 'Original Trainer Data Editing is not available for this projection.'
+	}),
 	statEditConstraints: pokemonStatEditConstraintsSchema.default({
 		supported: false,
 		minIv: 0,
@@ -180,6 +365,12 @@ const slotSummaryFields = {
 		availableMoves: [],
 		unsupportedReason: 'Move Set Editing is not available for this Pokemon projection.'
 	}),
+	friendshipEditConstraints: pokemonFriendshipEditConstraintsSchema.default({
+		supported: false,
+		fields: [],
+		unsupportedReason: 'Friendship Editing is not available for this Pokemon projection.'
+	}),
+	battleFields: z.array(pokemonBattleFieldProjectionSchema).default([]),
 	originalTrainer: z.string().nullable().optional(),
 	metLabel: z.string().nullable().optional(),
 	spriteIdentity: spriteIdentitySchema.optional(),
@@ -258,9 +449,32 @@ export const slotOperationResultSchema = z.object({
 
 export const pokemonEditOperationSchema = z.object({
 	source: saveSlotRefSchema,
+	speciesId: z.number().int().optional(),
+	form: z.number().int().optional(),
 	nickname: z.string().optional(),
 	level: z.number().int().optional(),
 	experience: z.number().int().optional(),
+	natureId: z.number().int().optional(),
+	heldItemId: z.number().int().optional(),
+	abilityIndex: z.number().int().optional(),
+	metData: z
+		.object({
+			locationId: z.number().int(),
+			metLevel: z.number().int(),
+			metDate: z.string().nullable().optional(),
+			originGameId: z.number().int().optional(),
+			ballId: z.number().int().optional()
+		})
+		.optional(),
+	originalTrainer: z
+		.object({
+			name: z.string(),
+			trainerId: z.number().int(),
+			secretId: z.number().int().optional(),
+			genderId: z.number().int().optional(),
+			languageId: z.number().int().optional()
+		})
+		.optional(),
 	ivs: z
 		.object({
 			HP: z.number().int(),
@@ -290,7 +504,16 @@ export const pokemonEditOperationSchema = z.object({
 				ppUps: z.number().int().optional()
 			})
 		)
-		.optional()
+		.optional(),
+	friendshipEdits: z
+		.array(
+			z.object({
+				key: z.string(),
+				value: z.number().int()
+			})
+		)
+		.optional(),
+	teraType: z.number().int().optional()
 });
 
 export const pokemonEditOperationResultSchema = z.object({
@@ -309,6 +532,25 @@ export const pokemonCreationResultSchema = z.object({
 	bytes: z.instanceof(ArrayBuffer),
 	mutated: z.boolean(),
 	workspace: saveWorkspaceSchema
+});
+
+export const pokemonSpeciesFormEditProjectionSchema = z.object({
+	availableSpecies: z.array(z.object({ id: z.number().int(), name: z.string() })),
+	availableForms: z.array(z.object({ id: z.number().int(), name: z.string() })),
+	preview: z.object({
+		speciesId: z.number().int(),
+		speciesName: z.string(),
+		form: z.number().int(),
+		formName: z.string(),
+		ability: z.string().nullable().optional(),
+		gender: z.string().nullable().optional(),
+		types: z.array(z.string()),
+		moves: z.array(z.string()),
+		spriteIdentity: spriteIdentitySchema,
+		legal: z.boolean(),
+		legalitySummary: z.string(),
+		consequences: z.array(z.string())
+	})
 });
 
 export const saveFileEditOperationSchema = z.object({
@@ -382,6 +624,10 @@ export const pokemonEditOperationResultResultSchema = engineResultSchema(
 );
 
 export const pokemonCreationResultResultSchema = engineResultSchema(pokemonCreationResultSchema);
+
+export const pokemonSpeciesFormEditProjectionResultSchema = engineResultSchema(
+	pokemonSpeciesFormEditProjectionSchema
+);
 
 export const saveFileEditOperationResultResultSchema = engineResultSchema(
 	saveFileEditOperationResultSchema
@@ -482,6 +728,19 @@ export const engineWorkerCreatePokemonRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerPreviewPokemonSpeciesFormEditRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('previewPokemonSpeciesFormEdit'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional(),
+		source: saveSlotRefSchema,
+		speciesId: z.number().int(),
+		form: z.number().int()
+	})
+});
+
 export const engineWorkerApplySaveFileEditOperationRequestSchema = z.object({
 	type: z.literal('request'),
 	id: engineWorkerRequestIdSchema,
@@ -526,6 +785,7 @@ export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerApplySlotOperationRequestSchema,
 	engineWorkerApplyPokemonEditOperationRequestSchema,
 	engineWorkerCreatePokemonRequestSchema,
+	engineWorkerPreviewPokemonSpeciesFormEditRequestSchema,
 	engineWorkerApplySaveFileEditOperationRequestSchema,
 	engineWorkerImportStoredPokemonRequestSchema,
 	engineWorkerCheckSlotLegalityRequestSchema
@@ -587,6 +847,13 @@ export const engineWorkerCreatePokemonResponseSchema = z.object({
 	result: pokemonCreationResultResultSchema
 });
 
+export const engineWorkerPreviewPokemonSpeciesFormEditResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('previewPokemonSpeciesFormEdit'),
+	result: pokemonSpeciesFormEditProjectionResultSchema
+});
+
 export const engineWorkerApplySaveFileEditOperationResponseSchema = z.object({
 	type: z.literal('response'),
 	id: engineWorkerRequestIdSchema,
@@ -617,6 +884,7 @@ export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerApplySlotOperationResponseSchema,
 	engineWorkerApplyPokemonEditOperationResponseSchema,
 	engineWorkerCreatePokemonResponseSchema,
+	engineWorkerPreviewPokemonSpeciesFormEditResponseSchema,
 	engineWorkerApplySaveFileEditOperationResponseSchema,
 	engineWorkerImportStoredPokemonResponseSchema,
 	engineWorkerCheckSlotLegalityResponseSchema
@@ -682,6 +950,10 @@ export type EngineWorkerApplyPokemonEditOperationRequest = z.infer<
 
 export type EngineWorkerCreatePokemonRequest = z.infer<
 	typeof engineWorkerCreatePokemonRequestSchema
+>;
+
+export type EngineWorkerPreviewPokemonSpeciesFormEditRequest = z.infer<
+	typeof engineWorkerPreviewPokemonSpeciesFormEditRequestSchema
 >;
 
 export type EngineWorkerApplySaveFileEditOperationRequest = z.infer<

@@ -1,4 +1,5 @@
 import catalogManifest from './catalog.generated.json';
+import pkhexFormNames from '../../../../scripts/data/pkhex-form-names.generated.json';
 
 export type DisplaySex = 'default' | 'male' | 'female';
 
@@ -32,6 +33,35 @@ type SpriteCatalogManifest = {
 };
 
 const manifest = catalogManifest as SpriteCatalogManifest;
+const formNamesBySpecies = pkhexFormNames as Record<string, string[]>;
+
+export function getSpriteIdentityLabels(identity: SpriteIdentity | null): {
+	form: string | null;
+	shiny: string | null;
+	displaySex: string | null;
+} {
+	if (!identity) {
+		return { form: null, shiny: null, displaySex: null };
+	}
+
+	const formName = formNamesBySpecies[String(identity.speciesId)]?.[identity.form]
+		?.replaceAll('*', '')
+		.trim();
+
+	return {
+		form:
+			formName && formName !== 'Normal'
+				? `${formName} form`
+				: identity.form > 0
+					? `Form ${identity.form}`
+					: null,
+		shiny: identity.isShiny ? 'Shiny' : null,
+		displaySex:
+			identity.displaySex === 'default'
+				? null
+				: `${identity.displaySex === 'female' ? 'Female' : 'Male'} sprite`
+	};
+}
 
 export function createSpriteCatalogKey(identity: {
 	speciesId: number;

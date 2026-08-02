@@ -7,6 +7,7 @@ import type {
 	LegalityReport,
 	PokemonCreationResult,
 	PokemonEditOperationResult,
+	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperationResult,
 	SaveWorkspace,
 	SlotOperationResult,
@@ -225,6 +226,26 @@ export function createPkhexWorkerEngine(
 				[buffer]
 			);
 		},
+		previewPokemonSpeciesFormEdit: (bytes, fileName, source, speciesId, form) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'previewPokemonSpeciesFormEdit',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'previewPokemonSpeciesFormEdit',
+					payload: {
+						bytes: buffer,
+						fileName,
+						source: cloneSlotRef(source),
+						speciesId,
+						form
+					}
+				},
+				[buffer]
+			);
+		},
 		applySaveFileEditOperation: (bytes, fileName, operation, activeBox) => {
 			const buffer = copyBytesToArrayBuffer(bytes);
 			const payloadOperation = structuredClone(operation);
@@ -310,6 +331,11 @@ export function createPkhexWorkerEngine(
 		request: Extract<EngineWorkerRequest, { method: 'createPokemon' }>,
 		transfer: Transferable[]
 	): Promise<EngineResult<PokemonCreationResult>>;
+	async function sendRequest(
+		method: 'previewPokemonSpeciesFormEdit',
+		request: Extract<EngineWorkerRequest, { method: 'previewPokemonSpeciesFormEdit' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<PokemonSpeciesFormEditProjection>>;
 	async function sendRequest(
 		method: 'applySaveFileEditOperation',
 		request: Extract<EngineWorkerRequest, { method: 'applySaveFileEditOperation' }>,

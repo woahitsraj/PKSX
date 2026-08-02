@@ -4,6 +4,7 @@ export type BackupReason =
 	| 'manual'
 	| 'pokemon-movement'
 	| 'pokemon-editing'
+	| 'pokemon-creation'
 	| 'trainer-editing'
 	| 'inventory-editing'
 	| 'legality-fix'

@@ -6,6 +6,7 @@ import type {
 	LegalityReport,
 	PokemonCreationResult,
 	PokemonEditOperationResult,
+	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperationResult,
 	SaveSummary,
 	SaveWorkspace,
@@ -21,6 +22,7 @@ import {
 	type EngineWorkerApplySlotOperationRequest,
 	type EngineWorkerApplyPokemonEditOperationRequest,
 	type EngineWorkerCreatePokemonRequest,
+	type EngineWorkerPreviewPokemonSpeciesFormEditRequest,
 	type EngineWorkerApplySaveFileEditOperationRequest,
 	type EngineWorkerImportStoredPokemonRequest,
 	type EngineWorkerCheckSlotLegalityRequest,
@@ -50,6 +52,11 @@ export type DotnetPkhexEngineExports = {
 		operationJson: string
 	): string;
 	CreatePokemonJson(bytes: Uint8Array, fileName: string | undefined, operationJson: string): string;
+	PreviewPokemonSpeciesFormEditJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		requestJson: string
+	): string;
 	ApplySaveFileEditOperationJson?(
 		bytes: Uint8Array,
 		fileName: string | undefined,
@@ -198,6 +205,11 @@ export function createPkhexEngineWorkerRuntime({
 			case 'createPokemon':
 				postPokemonCreationResponse(postMessage, request, createPokemon(engine, request));
 				return;
+			case 'previewPokemonSpeciesFormEdit':
+				postMessage(
+					createEngineWorkerResponse(request, previewPokemonSpeciesFormEdit(engine, request))
+				);
+				return;
 			case 'applySaveFileEditOperation':
 				postSaveFileEditOperationResponse(
 					postMessage,
@@ -320,6 +332,23 @@ function createPokemon(
 			JSON.stringify({
 				...request.payload.operation,
 				activeBox: request.payload.activeBox
+			})
+		)
+	);
+}
+
+function previewPokemonSpeciesFormEdit(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerPreviewPokemonSpeciesFormEditRequest
+): EngineResult<PokemonSpeciesFormEditProjection> {
+	return parseEngineResult<PokemonSpeciesFormEditProjection>(
+		engine.PreviewPokemonSpeciesFormEditJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			JSON.stringify({
+				source: request.payload.source,
+				speciesId: request.payload.speciesId,
+				form: request.payload.form
 			})
 		)
 	);
@@ -528,6 +557,8 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<PokemonEditOperationResult>;
 		case 'createPokemon':
 			return result satisfies EngineResult<PokemonCreationResult>;
+		case 'previewPokemonSpeciesFormEdit':
+			return result satisfies EngineResult<PokemonSpeciesFormEditProjection>;
 		case 'applySaveFileEditOperation':
 			return result satisfies EngineResult<SaveFileEditOperationResult>;
 		case 'importStoredPokemon':
