@@ -58,6 +58,22 @@ const occupiedSlot: BoxSlotSummary = {
 		originGames: [],
 		balls: []
 	},
+	originalTrainerEditConstraints: {
+		supported: false,
+		currentName: '',
+		currentTrainerId: 0,
+		currentSecretId: 0,
+		currentGenderId: 0,
+		currentLanguageId: 0,
+		maxNameLength: 0,
+		minTrainerId: 0,
+		maxTrainerId: 65535,
+		supportsSecretId: false,
+		supportsGender: false,
+		supportsLanguage: false,
+		genders: [],
+		languages: []
+	},
 	friendshipEditConstraints: { supported: false, fields: [] },
 	battleFields: [],
 	spriteIdentity: {

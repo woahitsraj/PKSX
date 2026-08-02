@@ -380,7 +380,37 @@ test('Edit opens Pokemon Editor and returns focus to the command stack', async (
 	await expect(editor.locator('#pokemon-editor-ball')).toBeFocused();
 
 	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-original-trainer-name')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-trainer-id')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-secret-id')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-trainer-gender')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-pokemon-language')).toBeFocused();
+
+	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
+
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#pokemon-editor-pokemon-language')).toBeFocused();
+
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#pokemon-editor-trainer-gender')).toBeFocused();
+
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#pokemon-editor-secret-id')).toBeFocused();
+
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#pokemon-editor-trainer-id')).toBeFocused();
+
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#pokemon-editor-original-trainer-name')).toBeFocused();
 
 	await page.keyboard.press('ArrowUp');
 	await expect(editor.locator('#pokemon-editor-ball')).toBeFocused();
@@ -453,6 +483,25 @@ test('Pokemon Editor applies nickname changes and refreshes Slot labels', async 
 	await expect(updatedEditor).toBeVisible();
 	await expect(updatedEditor).toContainText('Pokemon nickname updated.');
 	await expect(updatedEditor.getByRole('button', { name: 'Apply edits' })).toBeDisabled();
+});
+
+test('Pokemon Editor applies Original Trainer name changes and returns focus', async ({ page }) => {
+	await openEmptyLibrary(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Enter');
+
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	const trainerName = editor.getByLabel('Name', { exact: true });
+	await expect(editor).toContainText('Original Trainer');
+	await fillEditorInput(trainerName, 'RAJAN');
+	await expect(editor).toContainText('1 Pokemon edit drafted.');
+
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(trainerName).toHaveValue('RAJAN', { timeout: 15000 });
+	await expect(editor).toContainText('Pokemon edits applied.');
+	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 });
 
 test('Pokemon Editor changes Held Item and returns focus to the command stack', async ({
@@ -1014,6 +1063,16 @@ test('Pokemon Editor changes level through Apply and keeps editor focus', async 
 	await page.keyboard.press('ArrowDown');
 	await expect(editor.locator('#pokemon-editor-ball')).toBeFocused();
 	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-original-trainer-name')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-trainer-id')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-secret-id')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-trainer-gender')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#pokemon-editor-pokemon-language')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#pokemon-editor-mode')).toBeFocused();
 	await expect(page.locator('#pokemon-editor-mode')).toHaveAttribute('aria-label', 'Editing Level');
 	await page.keyboard.press('Enter');
@@ -1059,7 +1118,7 @@ test('Pokemon Editor stages, cancels, and applies an engine-projected Tera Type'
 	await page.getByRole('button', { name: 'Edit' }).click();
 
 	const editor = page.getByRole('dialog').filter({ hasText: 'Battle Fields' });
-	const teraType = editor.getByLabel('Tera Type');
+	const teraType = editor.locator('#pokemon-editor-battle-field-tera-type');
 	await expect(teraType).toBeVisible({ timeout: 60000 });
 	const original = await teraType.inputValue();
 	const next = await teraType.locator('option').evaluateAll((options, current) => {
@@ -1076,7 +1135,7 @@ test('Pokemon Editor stages, cancels, and applies an engine-projected Tera Type'
 	await teraType.selectOption(next);
 	await editor.getByRole('button', { name: 'Apply edits' }).click();
 	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 60000 });
-	await expect(editor.getByLabel('Tera Type')).toHaveValue(next);
+	await expect(editor.locator('#pokemon-editor-battle-field-tera-type')).toHaveValue(next);
 	await expect(page.getByText('Unsaved edits')).toBeVisible();
 });
 

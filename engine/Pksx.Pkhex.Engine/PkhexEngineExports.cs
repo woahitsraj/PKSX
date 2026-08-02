@@ -405,6 +405,7 @@ public static partial class PkhexEngineExports
             operation.HeldItemId is null &&
             operation.AbilityIndex is null &&
             operation.MetData is null &&
+            operation.OriginalTrainer is null &&
             operation.Ivs is null &&
             operation.Evs is null &&
             operation.Moves is null &&
@@ -430,7 +431,12 @@ public static partial class PkhexEngineExports
         var originalMetDate = pokemon.MetDate;
         var originalVersion = pokemon.Version;
         var originalBall = pokemon.Ball;
-        var originalLegalityMessages = operation.MetData is null
+        var originalTrainerName = pokemon.OriginalTrainerName;
+        var originalTrainerId = pokemon.TID16;
+        var originalSecretId = pokemon.SID16;
+        var originalTrainerGender = pokemon.OriginalTrainerGender;
+        var originalLanguage = pokemon.Language;
+        var originalLegalityMessages = operation.MetData is null && operation.OriginalTrainer is null
             ? null
             : InvalidLegalityMessages(pokemon, source.StorageSlotType)
                 .Select(LegalityMessageKey)
@@ -564,6 +570,13 @@ public static partial class PkhexEngineExports
                 return metDataResult;
         }
 
+        if (operation.OriginalTrainer is not null)
+        {
+            var trainerResult = ApplyOriginalTrainerEdit(pokemon, operation.OriginalTrainer);
+            if (!trainerResult.Ok)
+                return trainerResult;
+        }
+
         if (operation.Ivs is not null)
         {
             var ivs = StatEditSetToArray(operation.Ivs);
@@ -656,6 +669,11 @@ public static partial class PkhexEngineExports
             originalMetDate != pokemon.MetDate ||
             originalVersion != pokemon.Version ||
             originalBall != pokemon.Ball ||
+            !StringComparer.Ordinal.Equals(originalTrainerName, pokemon.OriginalTrainerName) ||
+            originalTrainerId != pokemon.TID16 ||
+            originalSecretId != pokemon.SID16 ||
+            originalTrainerGender != pokemon.OriginalTrainerGender ||
+            originalLanguage != pokemon.Language ||
             !originalIvs.SequenceEqual([pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE]) ||
             !originalEvs.SequenceEqual([pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE]) ||
             !originalMoves.SequenceEqual([pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4]) ||
@@ -668,6 +686,82 @@ public static partial class PkhexEngineExports
             source.Set(save, pokemon);
 
         return SlotMutationResult.Success(mutated);
+    }
+
+    private static string LegalityEditFailurePrefix(PokemonEditOperationRequest operation)
+    {
+        if (operation.MetData is not null && operation.OriginalTrainer is not null)
+            return "Pokemon edit is not valid for this Pokemon Entity.";
+
+        return operation.MetData is not null
+            ? "Met Data edit is not valid for this Pokemon encounter."
+            : "Original Trainer data is not valid for this Pokemon Entity.";
+    }
+
+    private static SlotMutationResult ApplyOriginalTrainerEdit(PKM pokemon, PokemonOriginalTrainerEdit edit)
+    {
+        var constraints = SlotDetailProjection.OriginalTrainerEditConstraints(pokemon);
+        if (!constraints.Supported)
+            return SlotMutationResult.Fail(
+                "unsupported-pokemon-edit",
+                constraints.UnsupportedReason ?? "Original Trainer Data Editing is not supported for this Pokemon Entity format.");
+
+        if (string.IsNullOrWhiteSpace(edit.Name))
+            return SlotMutationResult.Fail("invalid-pokemon-edit", "Original Trainer name is required.");
+        if (edit.Name.Length > constraints.MaxNameLength)
+            return SlotMutationResult.Fail(
+                "invalid-pokemon-edit",
+                $"Original Trainer name must be {constraints.MaxNameLength} characters or fewer.");
+        if (edit.TrainerId < constraints.MinTrainerId || edit.TrainerId > constraints.MaxTrainerId)
+            return SlotMutationResult.Fail(
+                "invalid-pokemon-edit",
+                $"Trainer ID must be between {constraints.MinTrainerId} and {constraints.MaxTrainerId}.");
+        if (edit.SecretId is int secretId &&
+            (!constraints.SupportsSecretId || secretId < constraints.MinTrainerId || secretId > constraints.MaxTrainerId))
+            return SlotMutationResult.Fail(
+                constraints.SupportsSecretId ? "invalid-pokemon-edit" : "unsupported-pokemon-edit",
+                constraints.SupportsSecretId
+                    ? $"Secret ID must be between {constraints.MinTrainerId} and {constraints.MaxTrainerId}."
+                    : "Secret ID editing is not supported by this Pokemon Entity format.");
+        if (edit.GenderId is int genderId &&
+            (!constraints.SupportsGender || constraints.Genders.All(option => option.Id != genderId)))
+            return SlotMutationResult.Fail(
+                constraints.SupportsGender ? "invalid-pokemon-edit" : "unsupported-pokemon-edit",
+                constraints.SupportsGender
+                    ? "Original Trainer gender choice is invalid."
+                    : "Original Trainer gender editing is not supported by this Pokemon Entity format.");
+        if (edit.LanguageId is int languageId &&
+            (!constraints.SupportsLanguage || constraints.Languages.All(option => option.Id != languageId)))
+            return SlotMutationResult.Fail(
+                constraints.SupportsLanguage ? "invalid-pokemon-edit" : "unsupported-pokemon-edit",
+                constraints.SupportsLanguage
+                    ? "Pokemon language choice is invalid."
+                    : "Pokemon language editing is not supported by this Pokemon Entity format.");
+
+        if (edit.LanguageId is int nextLanguage)
+            pokemon.Language = nextLanguage;
+
+        try
+        {
+            pokemon.OriginalTrainerName = edit.Name;
+        }
+        catch (Exception ex)
+        {
+            return SlotMutationResult.Fail("invalid-pokemon-edit", ex.Message);
+        }
+
+        if (!StringComparer.Ordinal.Equals(pokemon.OriginalTrainerName, edit.Name))
+            return SlotMutationResult.Fail(
+                "invalid-pokemon-edit",
+                "Original Trainer name contains characters that are not valid for this Pokemon format or language.");
+
+        pokemon.TID16 = (ushort)edit.TrainerId;
+        if (edit.SecretId is int nextSecretId)
+            pokemon.SID16 = (ushort)nextSecretId;
+        if (edit.GenderId is int nextGender)
+            pokemon.OriginalTrainerGender = (byte)nextGender;
+
+        return SlotMutationResult.Success(true);
     }
 
     private static SlotMutationResult ApplyMetDataEdit(PKM pokemon, PokemonMetDataEdit edit)

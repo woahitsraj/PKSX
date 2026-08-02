@@ -138,12 +138,14 @@ describe('parseEngineWorkerRequest', () => {
 					fileName: 'main.sav',
 					operation: {
 						source: { zone: 'box', box: 0, slot: 0 },
+						level: 24,
 						metData: {
 							locationId: 16,
 							metLevel: 10,
 							originGameId: 3,
 							ballId: 4
-						}
+						},
+						originalTrainer: { name: 'RAJAN', trainerId: 12345 }
 					},
 					activeBox: 0
 				}
@@ -159,12 +161,14 @@ describe('parseEngineWorkerRequest', () => {
 					fileName: 'main.sav',
 					operation: {
 						source: { zone: 'box', box: 0, slot: 0 },
+						level: 24,
 						metData: {
 							locationId: 16,
 							metLevel: 10,
 							originGameId: 3,
 							ballId: 4
-						}
+						},
+						originalTrainer: { name: 'RAJAN', trainerId: 12345 }
 					},
 					activeBox: 0
 				}

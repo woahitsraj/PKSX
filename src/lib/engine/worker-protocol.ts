@@ -176,6 +176,29 @@ const pokemonMetDataOptionSchema = z.object({
 	name: z.string()
 });
 
+export const pokemonOriginalTrainerOptionSchema = z.object({
+	id: z.number().int(),
+	name: z.string()
+});
+
+export const pokemonOriginalTrainerEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	currentName: z.string().default(''),
+	currentTrainerId: z.number().int().default(0),
+	currentSecretId: z.number().int().default(0),
+	currentGenderId: z.number().int().default(0),
+	currentLanguageId: z.number().int().default(0),
+	maxNameLength: z.number().int().default(0),
+	minTrainerId: z.number().int().default(0),
+	maxTrainerId: z.number().int().default(65535),
+	supportsSecretId: z.boolean().default(false),
+	supportsGender: z.boolean().default(false),
+	supportsLanguage: z.boolean().default(false),
+	genders: z.array(pokemonOriginalTrainerOptionSchema).default([]),
+	languages: z.array(pokemonOriginalTrainerOptionSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
 const pokemonMetDataEditConstraintsSchema = z.object({
 	supported: z.boolean().default(false),
 	currentLocationId: z.number().int().default(0),
@@ -306,6 +329,23 @@ const slotSummaryFields = {
 		balls: [],
 		unsupportedReason: 'Met Data Editing is not available for this Pokemon projection.'
 	}),
+	originalTrainerEditConstraints: pokemonOriginalTrainerEditConstraintsSchema.default({
+		supported: false,
+		currentName: '',
+		currentTrainerId: 0,
+		currentSecretId: 0,
+		currentGenderId: 0,
+		currentLanguageId: 0,
+		maxNameLength: 0,
+		minTrainerId: 0,
+		maxTrainerId: 65535,
+		supportsSecretId: false,
+		supportsGender: false,
+		supportsLanguage: false,
+		genders: [],
+		languages: [],
+		unsupportedReason: 'Original Trainer Data Editing is not available for this projection.'
+	}),
 	statEditConstraints: pokemonStatEditConstraintsSchema.default({
 		supported: false,
 		minIv: 0,
@@ -418,6 +458,15 @@ export const pokemonEditOperationSchema = z.object({
 			metDate: z.string().nullable().optional(),
 			originGameId: z.number().int().optional(),
 			ballId: z.number().int().optional()
+		})
+		.optional(),
+	originalTrainer: z
+		.object({
+			name: z.string(),
+			trainerId: z.number().int(),
+			secretId: z.number().int().optional(),
+			genderId: z.number().int().optional(),
+			languageId: z.number().int().optional()
 		})
 		.optional(),
 	ivs: z

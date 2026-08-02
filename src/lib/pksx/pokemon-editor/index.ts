@@ -3,6 +3,7 @@ import type {
 	PokemonFriendshipFieldEdit,
 	PokemonMetDataEdit,
 	PokemonMoveSlotEdit,
+	PokemonOriginalTrainerEdit,
 	PokemonStatEditSet,
 	SaveSlotRef
 } from '$lib/engine';
@@ -63,6 +64,8 @@ export type PokemonMoveSetEditPayload = {
 	moves: PokemonMoveSlotEdit[];
 };
 
+export type PokemonOriginalTrainerEditPayload = PokemonOriginalTrainerEdit;
+
 export type PokemonMetDataEditPayload = PokemonMetDataEdit;
 
 export type NatureEditPayload = {
@@ -92,6 +95,7 @@ export type PokemonEditorDraftEdits = {
 	heldItemId?: number;
 	abilityIndex?: number;
 	metData?: PokemonMetDataEditPayload;
+	originalTrainer?: PokemonOriginalTrainerEditPayload;
 	ivs?: PokemonStatEditPayload;
 	evs?: PokemonStatEditPayload;
 	moveSet?: PokemonMoveSetEditPayload;
@@ -448,6 +452,31 @@ export function stageLevelExperienceEdit(
 	});
 }
 
+export function stageOriginalTrainerEdit(
+	state: PokemonEditorState,
+	payload: PokemonOriginalTrainerEditPayload
+): PokemonEditorState {
+	const validation = validateOriginalTrainerEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'original-trainer'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	if (originalTrainerEditMatchesSlot(state.slot, validation.payload)) {
+		return removePokemonEditorEdit(state, 'original-trainer');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'original-trainer',
+		capability: 'original-trainer-data-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
 export function stageMetDataEdit(
 	state: PokemonEditorState,
 	payload: PokemonMetDataEditPayload
@@ -709,6 +738,7 @@ const pokemonEditOperationBuilders = [
 	{ id: 'held-item', build: buildHeldItemEdit },
 	{ id: 'ability', build: buildAbilityEdit },
 	{ id: 'met-data', build: buildMetDataEdit },
+	{ id: 'original-trainer', build: buildOriginalTrainerEdit },
 	{ id: 'ivs', build: buildIvEdit },
 	{ id: 'evs', build: buildEvEdit },
 	{ id: 'move-set', build: buildMoveSetEdit },
@@ -1111,6 +1141,111 @@ function isValidMetDate(value: string): boolean {
 	);
 }
 
+function buildOriginalTrainerEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isPokemonOriginalTrainerEditPayload(payload)) {
+		return invalidPokemonEdit('Original Trainer edit payload is invalid.');
+	}
+
+	const validation = validateOriginalTrainerEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	return { ok: true, patch: { originalTrainer: { ...validation.payload } } };
+}
+
+function validateOriginalTrainerEdit(
+	slot: SlotView,
+	payload: PokemonOriginalTrainerEditPayload
+): PokemonEditorPayloadValidation<PokemonOriginalTrainerEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Original Trainer Data Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.originalTrainerEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ??
+				'Original Trainer Data Editing is not supported for this Pokemon Entity format.'
+		};
+	}
+
+	if (payload.name.trim().length === 0) {
+		return { ok: false, message: 'Original Trainer name is required.' };
+	}
+	if (payload.name.length > constraints.maxNameLength) {
+		return {
+			ok: false,
+			message: `Original Trainer name must be ${constraints.maxNameLength} characters or fewer.`
+		};
+	}
+	if (
+		!Number.isInteger(payload.trainerId) ||
+		payload.trainerId < constraints.minTrainerId ||
+		payload.trainerId > constraints.maxTrainerId
+	) {
+		return {
+			ok: false,
+			message: `Trainer ID must be between ${constraints.minTrainerId} and ${constraints.maxTrainerId}.`
+		};
+	}
+	if (
+		payload.secretId !== undefined &&
+		(!constraints.supportsSecretId ||
+			!Number.isInteger(payload.secretId) ||
+			payload.secretId < constraints.minTrainerId ||
+			payload.secretId > constraints.maxTrainerId)
+	) {
+		return {
+			ok: false,
+			message: constraints.supportsSecretId
+				? `Secret ID must be between ${constraints.minTrainerId} and ${constraints.maxTrainerId}.`
+				: 'Secret ID editing is not supported by this Pokemon Entity format.'
+		};
+	}
+	if (
+		payload.genderId !== undefined &&
+		(!constraints.supportsGender ||
+			!constraints.genders.some((option) => option.id === payload.genderId))
+	) {
+		return {
+			ok: false,
+			message: constraints.supportsGender
+				? 'Original Trainer gender choice is invalid.'
+				: 'Original Trainer gender editing is not supported by this Pokemon Entity format.'
+		};
+	}
+	if (
+		payload.languageId !== undefined &&
+		(!constraints.supportsLanguage ||
+			!constraints.languages.some((option) => option.id === payload.languageId))
+	) {
+		return {
+			ok: false,
+			message: constraints.supportsLanguage
+				? 'Pokemon language choice is invalid.'
+				: 'Pokemon language editing is not supported by this Pokemon Entity format.'
+		};
+	}
+
+	return { ok: true, payload, label: 'Set Original Trainer data' };
+}
+
+function originalTrainerEditMatchesSlot(
+	slot: SlotView,
+	payload: PokemonOriginalTrainerEditPayload
+): boolean {
+	const constraints = slot.originalTrainerEditConstraints;
+	return (
+		constraints !== undefined &&
+		payload.name === constraints.currentName &&
+		payload.trainerId === constraints.currentTrainerId &&
+		(payload.secretId ?? constraints.currentSecretId) === constraints.currentSecretId &&
+		(payload.genderId ?? constraints.currentGenderId) === constraints.currentGenderId &&
+		(payload.languageId ?? constraints.currentLanguageId) === constraints.currentLanguageId
+	);
+}
+
 function validateIvEdit(
 	slot: SlotView,
 	payload: PokemonStatEditPayload
@@ -1495,6 +1630,22 @@ function isNicknameEditPayload(value: unknown): value is { nickname: string } {
 		value !== null &&
 		'nickname' in value &&
 		typeof value.nickname === 'string'
+	);
+}
+
+function isPokemonOriginalTrainerEditPayload(
+	value: unknown
+): value is PokemonOriginalTrainerEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'name' in value &&
+		typeof value.name === 'string' &&
+		'trainerId' in value &&
+		typeof value.trainerId === 'number' &&
+		(!('secretId' in value) || typeof value.secretId === 'number') &&
+		(!('genderId' in value) || typeof value.genderId === 'number') &&
+		(!('languageId' in value) || typeof value.languageId === 'number')
 	);
 }
 

@@ -764,6 +764,7 @@
 			'#pokemon-editor-origin-game',
 			'#pokemon-editor-ball',
 			'#pokemon-editor-met-date',
+			'.trainer-edit-controls input:not([disabled]), .trainer-edit-controls select:not([disabled])',
 			'.battle-field-controls select:not([disabled])',
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',

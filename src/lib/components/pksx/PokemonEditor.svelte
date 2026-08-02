@@ -70,6 +70,22 @@
 	let draftNickname = $state(untrack(() => slot.label));
 	let draftLevel = $state(untrack(() => String(slot.level ?? 1)));
 	let draftExperience = $state(untrack(() => String(slot.experience ?? 0)));
+	const originalTrainerEditConstraints = $derived(slot.originalTrainerEditConstraints);
+	let draftOriginalTrainerName = $state(
+		untrack(() => slot.originalTrainerEditConstraints?.currentName ?? '')
+	);
+	let draftTrainerId = $state(
+		untrack(() => String(slot.originalTrainerEditConstraints?.currentTrainerId ?? 0))
+	);
+	let draftSecretId = $state(
+		untrack(() => String(slot.originalTrainerEditConstraints?.currentSecretId ?? 0))
+	);
+	let draftTrainerGenderId = $state(
+		untrack(() => slot.originalTrainerEditConstraints?.currentGenderId ?? 0)
+	);
+	let draftLanguageId = $state(
+		untrack(() => slot.originalTrainerEditConstraints?.currentLanguageId ?? 0)
+	);
 	let draftNatureId = $state(untrack(() => slot.natureEditConstraints?.currentNatureId ?? -1));
 	let draftHeldItemId = $state(untrack(() => slot.heldItemEditConstraints?.currentItemId ?? 0));
 	let draftAbilityIndex = $state(
@@ -116,6 +132,14 @@
 	const canEditAbility = $derived(abilityEditConstraints?.supported ?? false);
 	const canEditFriendship = $derived(friendshipEditConstraints?.supported ?? false);
 	const canEditMetData = $derived(metDataEditConstraints?.supported ?? false);
+	const canEditOriginalTrainer = $derived(originalTrainerEditConstraints?.supported ?? false);
+	const unsupportedOriginalTrainerFields = $derived(
+		[
+			originalTrainerEditConstraints?.supportsSecretId ? null : 'Secret ID',
+			originalTrainerEditConstraints?.supportsGender ? null : 'gender',
+			originalTrainerEditConstraints?.supportsLanguage ? null : 'language'
+		].filter((field): field is string => field !== null)
+	);
 	const metLocationOptions = $derived(
 		metDataEditConstraints?.locationGroups.find((group) => group.originGameId === draftOriginGameId)
 			?.options ?? []
@@ -220,6 +244,18 @@
 
 	function setDraftExperience(value: string) {
 		draftExperience = value;
+	}
+
+	function setDraftOriginalTrainerName(value: string) {
+		draftOriginalTrainerName = value;
+	}
+
+	function setDraftTrainerId(value: string) {
+		draftTrainerId = value;
+	}
+
+	function setDraftSecretId(value: string) {
+		draftSecretId = value;
 	}
 
 	function setDraftMetLocation(value: string) {
@@ -549,6 +585,11 @@
 		draftNickname = slot.label;
 		draftLevel = String(slot.level ?? 1);
 		draftExperience = String(slot.experience ?? 0);
+		draftOriginalTrainerName = originalTrainerEditConstraints?.currentName ?? '';
+		draftTrainerId = String(originalTrainerEditConstraints?.currentTrainerId ?? 0);
+		draftSecretId = String(originalTrainerEditConstraints?.currentSecretId ?? 0);
+		draftTrainerGenderId = originalTrainerEditConstraints?.currentGenderId ?? 0;
+		draftLanguageId = originalTrainerEditConstraints?.currentLanguageId ?? 0;
 		draftNatureId = slot.natureEditConstraints?.currentNatureId ?? -1;
 		draftHeldItemId = slot.heldItemEditConstraints?.currentItemId ?? 0;
 		draftAbilityIndex = slot.abilityEditConstraints?.currentAbilityIndex ?? -1;
@@ -577,6 +618,7 @@
 		if (isHeldItemDirty()) count += 1;
 		if (isAbilityDirty()) count += 1;
 		if (isMetDataDirty()) count += 1;
+		if (isOriginalTrainerDirty()) count += 1;
 		if (isDraftStatsDirty(draftIvs, baseIvs)) count += 1;
 		if (isDraftStatsDirty(draftEvs, baseEvs)) count += 1;
 		if (isDraftMoveSetDirty()) count += 1;
@@ -598,6 +640,21 @@
 		if (isHeldItemDirty()) draft.heldItemId = draftHeldItemId;
 		if (isAbilityDirty()) draft.abilityIndex = draftAbilityIndex;
 		if (isMetDataDirty()) draft.metData = draftMetDataToPayload();
+		if (isOriginalTrainerDirty() && originalTrainerEditConstraints) {
+			draft.originalTrainer = {
+				name: draftOriginalTrainerName,
+				trainerId: parseDraftNumber(draftTrainerId)
+			};
+			if (originalTrainerEditConstraints.supportsSecretId) {
+				draft.originalTrainer.secretId = parseDraftNumber(draftSecretId);
+			}
+			if (originalTrainerEditConstraints.supportsGender) {
+				draft.originalTrainer.genderId = draftTrainerGenderId;
+			}
+			if (originalTrainerEditConstraints.supportsLanguage) {
+				draft.originalTrainer.languageId = draftLanguageId;
+			}
+		}
 		if (isDraftStatsDirty(draftIvs, baseIvs)) draft.ivs = draftStatsToPayload(draftIvs);
 		if (isDraftStatsDirty(draftEvs, baseEvs)) draft.evs = draftStatsToPayload(draftEvs);
 		if (isDraftMoveSetDirty()) draft.moveSet = draftMoveSetToPayload();
@@ -617,6 +674,18 @@
 		return editMode === 'level'
 			? draftLevel !== String(slot.level ?? 1)
 			: draftExperience !== String(slot.experience ?? 0);
+	}
+
+	function isOriginalTrainerDirty() {
+		const constraints = originalTrainerEditConstraints;
+		return (
+			constraints !== undefined &&
+			(draftOriginalTrainerName !== constraints.currentName ||
+				draftTrainerId !== String(constraints.currentTrainerId) ||
+				(constraints.supportsSecretId && draftSecretId !== String(constraints.currentSecretId)) ||
+				(constraints.supportsGender && draftTrainerGenderId !== constraints.currentGenderId) ||
+				(constraints.supportsLanguage && draftLanguageId !== constraints.currentLanguageId))
+		);
 	}
 
 	function isNatureDirty() {
@@ -1054,6 +1123,132 @@
 					<p class="unsupported-copy">
 						{metDataEditConstraints?.unsupportedReason ??
 							'Met Data Editing is not supported for this Pokemon Entity format.'}
+					</p>
+				{/if}
+			</div>
+
+			<div class="editor-panel" aria-label="Original Trainer Data Editing">
+				<div class="panel-title">
+					<span>Original Trainer</span>
+					<small>{canEditOriginalTrainer ? 'Engine validated' : 'Unsupported'}</small>
+				</div>
+				{#if canEditOriginalTrainer && originalTrainerEditConstraints}
+					<div class="trainer-edit-controls">
+						<label class="trainer-name-field">
+							<span>Name</span>
+							<input
+								id="pokemon-editor-original-trainer-name"
+								type="text"
+								maxlength={originalTrainerEditConstraints.maxNameLength}
+								value={draftOriginalTrainerName}
+								disabled={applying}
+								readonly={!isInputEditing('pokemon-editor-original-trainer-name')}
+								data-controller-editing={draftInputEditingValue(
+									'pokemon-editor-original-trainer-name'
+								)}
+								onpointerdown={() =>
+									activateDraftInput('pokemon-editor-original-trainer-name', false)}
+								onclick={() => activateDraftInput('pokemon-editor-original-trainer-name', false)}
+								onblur={() => deactivateDraftInput('pokemon-editor-original-trainer-name')}
+								onkeydown={(event) =>
+									handleDraftInputKeydown(event, 'pokemon-editor-original-trainer-name')}
+								oninput={(event) => {
+									const target = event.currentTarget;
+									if (target instanceof HTMLInputElement) setDraftOriginalTrainerName(target.value);
+								}}
+							/>
+						</label>
+						<label>
+							<span>Trainer ID</span>
+							<input
+								id="pokemon-editor-trainer-id"
+								type="number"
+								min={originalTrainerEditConstraints.minTrainerId}
+								max={originalTrainerEditConstraints.maxTrainerId}
+								step="1"
+								value={draftTrainerId}
+								disabled={applying}
+								readonly={!isInputEditing('pokemon-editor-trainer-id')}
+								data-controller-editing={draftInputEditingValue('pokemon-editor-trainer-id')}
+								onpointerdown={() => activateDraftInput('pokemon-editor-trainer-id', false)}
+								onclick={() => activateDraftInput('pokemon-editor-trainer-id', false)}
+								onblur={() => deactivateDraftInput('pokemon-editor-trainer-id')}
+								onkeydown={(event) => handleDraftInputKeydown(event, 'pokemon-editor-trainer-id')}
+								oninput={(event) => {
+									const target = event.currentTarget;
+									if (target instanceof HTMLInputElement) setDraftTrainerId(target.value);
+								}}
+							/>
+						</label>
+						{#if originalTrainerEditConstraints.supportsSecretId}
+							<label>
+								<span>Secret ID</span>
+								<input
+									id="pokemon-editor-secret-id"
+									type="number"
+									min={originalTrainerEditConstraints.minTrainerId}
+									max={originalTrainerEditConstraints.maxTrainerId}
+									step="1"
+									value={draftSecretId}
+									disabled={applying}
+									readonly={!isInputEditing('pokemon-editor-secret-id')}
+									data-controller-editing={draftInputEditingValue('pokemon-editor-secret-id')}
+									onpointerdown={() => activateDraftInput('pokemon-editor-secret-id', false)}
+									onclick={() => activateDraftInput('pokemon-editor-secret-id', false)}
+									onblur={() => deactivateDraftInput('pokemon-editor-secret-id')}
+									onkeydown={(event) => handleDraftInputKeydown(event, 'pokemon-editor-secret-id')}
+									oninput={(event) => {
+										const target = event.currentTarget;
+										if (target instanceof HTMLInputElement) setDraftSecretId(target.value);
+									}}
+								/>
+							</label>
+						{/if}
+						{#if originalTrainerEditConstraints.supportsGender}
+							<label>
+								<span>Gender</span>
+								<select
+									id="pokemon-editor-trainer-gender"
+									value={draftTrainerGenderId}
+									disabled={applying}
+									onchange={(event) => {
+										draftTrainerGenderId = Number(event.currentTarget.value);
+									}}
+								>
+									{#each originalTrainerEditConstraints.genders as option (option.id)}
+										<option value={option.id}>{option.name}</option>
+									{/each}
+								</select>
+							</label>
+						{/if}
+						{#if originalTrainerEditConstraints.supportsLanguage}
+							<label>
+								<span>Language</span>
+								<select
+									id="pokemon-editor-pokemon-language"
+									value={draftLanguageId}
+									disabled={applying}
+									onchange={(event) => {
+										draftLanguageId = Number(event.currentTarget.value);
+									}}
+								>
+									{#each originalTrainerEditConstraints.languages as option (option.id)}
+										<option value={option.id}>{option.name}</option>
+									{/each}
+								</select>
+							</label>
+						{/if}
+					</div>
+					{#if unsupportedOriginalTrainerFields.length > 0}
+						<p class="unsupported-copy">
+							This Pokemon Entity format does not support editing:
+							{unsupportedOriginalTrainerFields.join(', ')}.
+						</p>
+					{/if}
+				{:else}
+					<p class="unsupported-copy">
+						{originalTrainerEditConstraints?.unsupportedReason ??
+							'Original Trainer Data Editing is not supported for this Pokemon Entity format.'}
 					</p>
 				{/if}
 			</div>
@@ -1913,6 +2108,7 @@
 	}
 
 	.stat-edit-controls,
+	.trainer-edit-controls,
 	.move-edit-controls {
 		display: grid;
 		gap: 8px;
@@ -1925,6 +2121,14 @@
 		grid-template-columns: repeat(4, minmax(0, 1fr));
 	}
 
+	.trainer-edit-controls {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.trainer-name-field {
+		grid-column: 1 / -1;
+	}
+
 	.move-edit-row {
 		display: grid;
 		grid-template-columns: minmax(150px, 1fr) 74px 84px;
@@ -1933,6 +2137,7 @@
 	}
 
 	.stat-edit-controls label,
+	.trainer-edit-controls label,
 	.move-edit-controls label,
 	.move-picker-field {
 		min-width: 0;
@@ -1941,6 +2146,7 @@
 	}
 
 	.stat-edit-controls label span,
+	.trainer-edit-controls label span,
 	.move-edit-controls label span,
 	.move-picker-field > span,
 	.unsupported-copy {
@@ -1954,6 +2160,8 @@
 	}
 
 	.stat-edit-controls input,
+	.trainer-edit-controls input,
+	.trainer-edit-controls select,
 	.move-edit-controls input,
 	.move-picker-trigger {
 		width: 100%;
@@ -2077,6 +2285,8 @@
 	}
 
 	.stat-edit-controls input:disabled,
+	.trainer-edit-controls input:disabled,
+	.trainer-edit-controls select:disabled,
 	.move-edit-controls input:disabled,
 	.move-picker-trigger:disabled {
 		opacity: 0.55;
