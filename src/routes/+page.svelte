@@ -7,6 +7,7 @@
 		type EngineError,
 		type PokemonEditOperation,
 		type PokemonEditOperationResult,
+		type PokemonSpeciesFormEditProjection,
 		type SaveSlotRef,
 		type SlotOperation
 	} from '$lib/engine';
@@ -391,6 +392,10 @@
 	let pokemonEditor = $state<PokemonEditorState | null>(null);
 	let pokemonEditorFeedback = $state<string | null>(null);
 	let pokemonEditorApplyRequest = 0;
+	let pokemonSpeciesFormProjection = $state<PokemonSpeciesFormEditProjection | null>(null);
+	let pokemonSpeciesFormError = $state<string | null>(null);
+	let pokemonSpeciesFormLoading = $state(false);
+	let pokemonSpeciesFormRequest = 0;
 	let legalityReport = $state<LegalityReportState>({ status: 'idle' });
 	let legalityReportRequest = 0;
 	let partyCollapsed = $state(false);
@@ -755,6 +760,7 @@
 	function pokemonEditorControls() {
 		return [
 			'#pokemon-editor-close',
+			'.species-form-controls select:not([disabled])',
 			'#pokemon-editor-nickname',
 			'#pokemon-editor-nature',
 			'#pokemon-editor-held-item',
@@ -860,6 +866,10 @@
 			} catch {
 				activeElement.focus();
 			}
+		}
+
+		if (activeElement instanceof HTMLSelectElement && activeElement.closest('.pokemon-editor')) {
+			activeElement.click();
 		}
 	}
 
@@ -2123,6 +2133,12 @@
 		pokemonEditorApplyRequest += 1;
 		pokemonEditor = result.state;
 		pokemonEditorFeedback = null;
+		pokemonSpeciesFormProjection = null;
+		pokemonSpeciesFormError = null;
+		void previewPokemonSpeciesFormEdit({
+			speciesId: result.state.slot.speciesId ?? 0,
+			form: result.state.slot.form ?? 0
+		});
 		void tick().then(focusPokemonEditorClose);
 	}
 
@@ -2130,6 +2146,10 @@
 		pokemonEditorApplyRequest += 1;
 		pokemonEditor = null;
 		pokemonEditorFeedback = null;
+		pokemonSpeciesFormRequest += 1;
+		pokemonSpeciesFormProjection = null;
+		pokemonSpeciesFormError = null;
+		pokemonSpeciesFormLoading = false;
 		navigation = { ...navigation, focus: { zone: 'actions', index: 0 } };
 		queueMicrotask(focusActiveControl);
 	}
@@ -2200,7 +2220,57 @@
 
 		pokemonEditor = cancelPokemonEditor(pokemonEditor);
 		pokemonEditorFeedback = null;
+		void previewPokemonSpeciesFormEdit({
+			speciesId: pokemonEditor.slot.speciesId ?? 0,
+			form: pokemonEditor.slot.form ?? 0
+		});
 		queueMicrotask(focusPokemonEditorApply);
+	}
+
+	async function previewPokemonSpeciesFormEdit(target: { speciesId: number; form: number }) {
+		const editor = pokemonEditor;
+		const activeEngine = engine;
+		const workingState = loadedSave;
+		if (editor?.source.owner === 'pokemon-storage') {
+			pokemonSpeciesFormProjection = null;
+			pokemonSpeciesFormError =
+				'Species and Form preview is not available for Pokemon Storage Pokemon yet.';
+			return;
+		}
+
+		if (
+			!editor ||
+			editor.source.owner !== 'save-file' ||
+			!activeEngine ||
+			!workingState ||
+			target.speciesId <= 0
+		) {
+			pokemonSpeciesFormProjection = null;
+			pokemonSpeciesFormError =
+				'Species and Form Editing is unavailable until the PKHeX Engine is ready.';
+			return;
+		}
+
+		const request = (pokemonSpeciesFormRequest += 1);
+		pokemonSpeciesFormLoading = true;
+		pokemonSpeciesFormError = null;
+		const result = await activeEngine.previewPokemonSpeciesFormEdit(
+			workingState.bytes,
+			workingState.file.originalFileName ?? undefined,
+			editor.source.slotRef,
+			target.speciesId,
+			target.form
+		);
+
+		if (request !== pokemonSpeciesFormRequest || pokemonEditor !== editor) return;
+		pokemonSpeciesFormLoading = false;
+		if (!result.ok) {
+			pokemonSpeciesFormProjection = null;
+			pokemonSpeciesFormError = result.error.message;
+			return;
+		}
+
+		pokemonSpeciesFormProjection = result.value;
 	}
 
 	async function applyPokemonEditor(draft: PokemonEditorDraftEdits) {
@@ -2357,6 +2427,10 @@
 		pokemonEditorFeedback = result.outcome.message;
 		if (result.outcome.status === 'success') {
 			showToast('success', result.outcome.message);
+			void previewPokemonSpeciesFormEdit({
+				speciesId: result.state.slot.speciesId ?? 0,
+				form: result.state.slot.form ?? 0
+			});
 		} else if (result.outcome.status !== 'noop') {
 			showToast('error', result.outcome.message ?? 'Pokemon edit failed.');
 		}
@@ -3196,6 +3270,10 @@
 			slotHueStyle={slotStyle(pokemonEditor.slot, activePaneBox)}
 			feedback={pokemonEditorFeedback}
 			applying={busy}
+			speciesFormProjection={pokemonSpeciesFormProjection}
+			speciesFormLoading={pokemonSpeciesFormLoading}
+			speciesFormError={pokemonSpeciesFormError}
+			onPreviewSpeciesForm={previewPokemonSpeciesFormEdit}
 			onApply={applyPokemonEditor}
 			onCancelEdits={cancelPokemonEditorEdits}
 			onClose={closePokemonEditor}

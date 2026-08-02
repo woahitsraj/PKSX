@@ -5,6 +5,7 @@ import type {
 	EngineVersion,
 	LegalityReport,
 	PokemonEditOperationResult,
+	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperationResult,
 	SaveSummary,
 	SaveWorkspace,
@@ -19,6 +20,7 @@ import {
 	parseEngineWorkerRequest,
 	type EngineWorkerApplySlotOperationRequest,
 	type EngineWorkerApplyPokemonEditOperationRequest,
+	type EngineWorkerPreviewPokemonSpeciesFormEditRequest,
 	type EngineWorkerApplySaveFileEditOperationRequest,
 	type EngineWorkerImportStoredPokemonRequest,
 	type EngineWorkerCheckSlotLegalityRequest,
@@ -46,6 +48,11 @@ export type DotnetPkhexEngineExports = {
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		operationJson: string
+	): string;
+	PreviewPokemonSpeciesFormEditJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		requestJson: string
 	): string;
 	ApplySaveFileEditOperationJson?(
 		bytes: Uint8Array,
@@ -188,6 +195,11 @@ export function createPkhexEngineWorkerRuntime({
 					applyPokemonEditOperation(engine, request)
 				);
 				return;
+			case 'previewPokemonSpeciesFormEdit':
+				postMessage(
+					createEngineWorkerResponse(request, previewPokemonSpeciesFormEdit(engine, request))
+				);
+				return;
 			case 'applySaveFileEditOperation':
 				postSaveFileEditOperationResponse(
 					postMessage,
@@ -294,6 +306,23 @@ function applyPokemonEditOperation(
 			JSON.stringify({
 				...request.payload.operation,
 				activeBox: request.payload.activeBox
+			})
+		)
+	);
+}
+
+function previewPokemonSpeciesFormEdit(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerPreviewPokemonSpeciesFormEditRequest
+): EngineResult<PokemonSpeciesFormEditProjection> {
+	return parseEngineResult<PokemonSpeciesFormEditProjection>(
+		engine.PreviewPokemonSpeciesFormEditJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			JSON.stringify({
+				source: request.payload.source,
+				speciesId: request.payload.speciesId,
+				form: request.payload.form
 			})
 		)
 	);
@@ -476,6 +505,8 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<SlotOperationResult>;
 		case 'applyPokemonEditOperation':
 			return result satisfies EngineResult<PokemonEditOperationResult>;
+		case 'previewPokemonSpeciesFormEdit':
+			return result satisfies EngineResult<PokemonSpeciesFormEditProjection>;
 		case 'applySaveFileEditOperation':
 			return result satisfies EngineResult<SaveFileEditOperationResult>;
 		case 'importStoredPokemon':

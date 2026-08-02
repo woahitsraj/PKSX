@@ -793,6 +793,67 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(fixtureBytes.byteLength).toBe(131088);
 	});
 
+	test('previews and applies engine-backed Species and Form edits', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const source = { zone: 'box' as const, box: 0, slot: 0 };
+
+		const preview = await engine.previewPokemonSpeciesFormEdit(
+			fixtureBytes,
+			'011020251345.sav',
+			source,
+			305,
+			0
+		);
+		expect(preview.ok).toBe(true);
+		if (!preview.ok) throw new Error('Expected Species and Form preview to succeed.');
+		expect(preview.value.availableSpecies).toContainEqual({ id: 305, name: 'Lairon' });
+		expect(preview.value.availableForms).toContainEqual({ id: 0, name: 'Default' });
+		expect(preview.value.preview).toMatchObject({
+			speciesId: 305,
+			speciesName: 'Lairon',
+			form: 0,
+			spriteIdentity: { speciesId: 305, form: 0 },
+			legalitySummary: expect.stringContaining('PKHeX')
+		});
+		expect(preview.value.preview.consequences).toEqual(
+			expect.arrayContaining([
+				expect.stringContaining('Sprite Identity'),
+				expect.stringContaining('Move Set')
+			])
+		);
+
+		const edited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{ source, speciesId: 305, form: 0 },
+			0
+		);
+		expect(edited.ok).toBe(true);
+		if (!edited.ok) throw new Error('Expected Species and Form edit to succeed.');
+		expect(edited.value.workspace.boxSlots[0]).toMatchObject({
+			speciesId: 305,
+			form: 0,
+			nickname: 'LAIRON',
+			spriteIdentity: { speciesId: 305, form: 0 }
+		});
+
+		const unsupportedForm = await engine.previewPokemonSpeciesFormEdit(
+			fixtureBytes,
+			'011020251345.sav',
+			source,
+			305,
+			1
+		);
+		expect(unsupportedForm).toMatchObject({
+			ok: false,
+			error: { code: 'unsupported-pokemon-edit' }
+		});
+	});
+
 	test('projects, changes, and removes generation-safe Held Items', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),

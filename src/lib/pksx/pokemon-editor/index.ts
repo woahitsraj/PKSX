@@ -64,6 +64,11 @@ export type PokemonMoveSetEditPayload = {
 	moves: PokemonMoveSlotEdit[];
 };
 
+export type PokemonSpeciesFormEditPayload = {
+	speciesId: number;
+	form: number;
+};
+
 export type PokemonOriginalTrainerEditPayload = PokemonOriginalTrainerEdit;
 
 export type PokemonMetDataEditPayload = PokemonMetDataEdit;
@@ -89,6 +94,7 @@ export type PokemonBattleFieldEditPayload = {
 };
 
 export type PokemonEditorDraftEdits = {
+	speciesForm?: PokemonSpeciesFormEditPayload;
 	nickname?: string;
 	levelExperience?: LevelExperienceEditPayload;
 	natureId?: number;
@@ -640,6 +646,39 @@ export function stageMoveSetEdit(
 	});
 }
 
+export function stageSpeciesFormEdit(
+	state: PokemonEditorState,
+	payload: PokemonSpeciesFormEditPayload
+): PokemonEditorState {
+	if (state.slot.kind !== 'pokemon') {
+		return removePokemonEditorEdit(state, 'species-form');
+	}
+
+	if (state.slot.speciesId === payload.speciesId && (state.slot.form ?? 0) === payload.form) {
+		return removePokemonEditorEdit(state, 'species-form');
+	}
+
+	if (
+		!Number.isInteger(payload.speciesId) ||
+		payload.speciesId <= 0 ||
+		!Number.isInteger(payload.form) ||
+		payload.form < 0
+	) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'species-form'), {
+			status: 'rejected',
+			message: 'Species and Form selection is invalid.',
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'species-form',
+		capability: 'species-form-editing',
+		label: `Set species ${payload.speciesId}, form ${payload.form}`,
+		payload
+	});
+}
+
 export function stageFriendshipEdit(
 	state: PokemonEditorState,
 	payload: PokemonFriendshipEditPayload
@@ -732,6 +771,7 @@ export function createPokemonEditOperation(
 }
 
 const pokemonEditOperationBuilders = [
+	{ id: 'species-form', build: buildSpeciesFormEdit },
 	{ id: 'nickname', build: buildNicknameEdit },
 	{ id: 'level-experience', build: buildLevelExperienceEdit },
 	{ id: 'nature', build: buildNatureEdit },
@@ -745,6 +785,14 @@ const pokemonEditOperationBuilders = [
 	{ id: 'friendship', build: buildFriendshipEdit },
 	{ id: 'battle-fields', build: buildBattleFieldEdit }
 ] satisfies { id: string; build: PokemonEditOperationBuilder }[];
+
+function buildSpeciesFormEdit(payload: unknown): PokemonEditPatchResult {
+	if (!isPokemonSpeciesFormEditPayload(payload)) {
+		return invalidPokemonEdit('Species and Form edit payload is invalid.');
+	}
+
+	return { ok: true, patch: { speciesId: payload.speciesId, form: payload.form } };
+}
 
 function buildNatureEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
 	if (!isNatureEditPayload(payload)) {
@@ -1716,6 +1764,21 @@ function isPokemonMoveSetEditPayload(value: unknown): value is PokemonMoveSetEdi
 				(!('pp' in move) || typeof move.pp === 'number') &&
 				(!('ppUps' in move) || typeof move.ppUps === 'number')
 		)
+	);
+}
+
+function isPokemonSpeciesFormEditPayload(value: unknown): value is PokemonSpeciesFormEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'speciesId' in value &&
+		typeof value.speciesId === 'number' &&
+		Number.isInteger(value.speciesId) &&
+		value.speciesId > 0 &&
+		'form' in value &&
+		typeof value.form === 'number' &&
+		Number.isInteger(value.form) &&
+		value.form >= 0
 	);
 }
 

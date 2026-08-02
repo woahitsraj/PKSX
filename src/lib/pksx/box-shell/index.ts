@@ -143,6 +143,14 @@ export function stagePokemonEditorDraftEdits(
 ): PokemonEditorState {
 	let nextState = cancelPokemonEditor(state);
 	const edits = [
+		draft.speciesForm
+			? {
+					id: 'species-form',
+					capability: 'species-form-editing',
+					label: `Set species ${draft.speciesForm.speciesId}, form ${draft.speciesForm.form}`,
+					payload: draft.speciesForm
+				}
+			: null,
 		draft.nickname === undefined
 			? null
 			: {
@@ -256,6 +264,8 @@ export function pokemonEditorDraftResetKey(state: PokemonEditorState): string {
 	return JSON.stringify({
 		source: state.source.identity.key,
 		label: state.slot.label,
+		speciesId: state.slot.speciesId,
+		form: state.slot.form,
 		level: state.slot.level,
 		experience: state.slot.experience,
 		natureId: state.slot.natureEditConstraints?.currentNatureId,
@@ -302,6 +312,8 @@ export function pokemonEditSuccessMessage(
 	if (!mutated) return 'No Pokemon change made.';
 
 	const editedFields = [
+		'speciesId',
+		'form',
 		'nickname',
 		'level',
 		'experience',

@@ -21,6 +21,7 @@ import {
 	stageNatureEdit,
 	stageOriginalTrainerEdit,
 	stagePokemonEditorEdit,
+	stageSpeciesFormEdit,
 	statEditPayloadFromSlot,
 	validateBattleFieldEdits,
 	type PokemonEditorApplyServices,
@@ -411,6 +412,36 @@ describe('Pokemon editor state', () => {
 		expect(staged.stagedEdits).toEqual([stagedEdit]);
 		expect(staged.slot).toBe(pokemonSlot);
 		expect(opened.staged).toBe(false);
+	});
+
+	it('stages and cancels a Species and Form edit without mutating the source projection', () => {
+		const opened = openEditor();
+		const staged = stageSpeciesFormEdit(opened, { speciesId: 305, form: 0 });
+
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: { source: slotRef, speciesId: 305, form: 0 }
+		});
+		expect(staged.slot).toBe(pokemonSlot);
+		expect(cancelPokemonEditor(staged)).toMatchObject({
+			stagedEdits: [],
+			staged: false,
+			slot: pokemonSlot
+		});
+	});
+
+	it('rejects malformed Species and Form edits before apply', () => {
+		const invalid = stageSpeciesFormEdit(openEditor(), { speciesId: 0, form: -1 });
+
+		expect(invalid).toMatchObject({
+			stagedEdits: [],
+			staged: false,
+			applyOutcome: {
+				status: 'rejected',
+				message: 'Species and Form selection is invalid.',
+				reason: 'invalid-pokemon-edit'
+			}
+		});
 	});
 
 	it('replaces staged commands from the same capability instance', () => {
@@ -1280,6 +1311,25 @@ describe('Pokemon editor state', () => {
 		expect(result.state.stagedEdits).toEqual([stagedEdit]);
 	});
 
+	it('routes Pokemon Storage-owned Species and Form apply through the storage mutation boundary', async () => {
+		const storageSource: PokemonEditorSourceInput = {
+			owner: 'pokemon-storage',
+			storagePokemonId: 'stored-pokemon-1',
+			location: 'Storage Box 1, slot 1'
+		};
+		const state = stageSpeciesFormEdit(openEditor(storageSource), { speciesId: 305, form: 0 });
+		const services = applyServices({
+			ensureSaveFileBackup: vi.fn(async () => ({ ok: true as const }))
+		});
+
+		const result = await applyPokemonEditorEdits(state, services);
+
+		expect(result.outcome.status).toBe('success');
+		expect(services.mutateStoragePokemon).toHaveBeenCalledWith(state);
+		expect(services.ensureSaveFileBackup).not.toHaveBeenCalled();
+		expect(services.mutateSaveFilePokemon).not.toHaveBeenCalled();
+	});
+
 	it('routes Pokemon Storage-owned apply through the storage mutation boundary', async () => {
 		const storageSource: PokemonEditorSourceInput = {
 			owner: 'pokemon-storage',
@@ -1299,6 +1349,27 @@ describe('Pokemon editor state', () => {
 		expect(services.mutateStoragePokemon).toHaveBeenCalledWith(state);
 		expect(services.ensureSaveFileBackup).not.toHaveBeenCalled();
 		expect(services.mutateSaveFilePokemon).not.toHaveBeenCalled();
+	});
+
+	it('keeps Species and Form edits staged when Save File mutation fails', async () => {
+		const state = stageSpeciesFormEdit(openEditor(), { speciesId: 305, form: 0 });
+		const services = applyServices({
+			mutateSaveFilePokemon: vi.fn(async () => ({
+				ok: false as const,
+				status: 'failed' as const,
+				message: 'Engine mutation failed.',
+				reason: 'engine-unavailable'
+			}))
+		});
+
+		const result = await applyPokemonEditorEdits(state, services);
+
+		expect(result.outcome).toEqual({
+			status: 'failed',
+			message: 'Engine mutation failed.',
+			reason: 'engine-unavailable'
+		});
+		expect(result.state.stagedEdits).toEqual(state.stagedEdits);
 	});
 
 	it('keeps Ability edits staged when Save File mutation fails', async () => {

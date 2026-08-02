@@ -335,6 +335,34 @@ public sealed record PokemonMoveSetEditConstraints(
     List<PokemonMoveOption> AvailableMoves,
     string? UnsupportedReason);
 
+public sealed record PokemonSpeciesOption(ushort Id, string Name);
+
+public sealed record PokemonFormOption(byte Id, string Name);
+
+public sealed record PokemonSpeciesFormPreviewRequest(
+    SaveSlotRef Source,
+    ushort SpeciesId,
+    byte Form);
+
+public sealed record PokemonSpeciesFormPreview(
+    ushort SpeciesId,
+    string SpeciesName,
+    byte Form,
+    string FormName,
+    string? Ability,
+    string? Gender,
+    List<string> Types,
+    List<string> Moves,
+    SpriteIdentity SpriteIdentity,
+    bool Legal,
+    string LegalitySummary,
+    List<string> Consequences);
+
+public sealed record PokemonSpeciesFormEditProjection(
+    List<PokemonSpeciesOption> AvailableSpecies,
+    List<PokemonFormOption> AvailableForms,
+    PokemonSpeciesFormPreview Preview);
+
 public sealed record PokemonMetDataOption(int Id, string Name);
 
 public sealed record PokemonMetLocationGroup(int OriginGameId, List<PokemonMetDataOption> Options);
@@ -398,6 +426,8 @@ public sealed record SlotOperationResult(
 public sealed record PokemonEditOperationRequest(
     SaveSlotRef Source,
     int ActiveBox,
+    ushort? SpeciesId,
+    byte? Form,
     string? Nickname,
     int? Level,
     uint? Experience,

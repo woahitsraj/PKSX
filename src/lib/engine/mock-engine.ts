@@ -5,6 +5,7 @@ import type {
 	EngineVersion,
 	LegalityReport,
 	PokemonEditOperationResult,
+	PokemonSpeciesFormEditProjection,
 	SaveSlotRef,
 	PartySlotSummary,
 	SaveSummary,
@@ -411,6 +412,29 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,
 					boxSlots: activeBox === 0 ? mockBoxSlots : []
+				}
+			}),
+		previewPokemonSpeciesFormEdit: async (_bytes, _fileName, _source, speciesId, form) =>
+			success<PokemonSpeciesFormEditProjection>({
+				availableSpecies: [{ id: speciesId, name: `Species ${speciesId}` }],
+				availableForms: [{ id: form, name: form === 0 ? 'Default' : `Form ${form}` }],
+				preview: {
+					speciesId,
+					speciesName: `Species ${speciesId}`,
+					form,
+					formName: form === 0 ? 'Default' : `Form ${form}`,
+					types: [],
+					moves: [],
+					spriteIdentity: {
+						speciesId,
+						form,
+						isEgg: false,
+						isShiny: false,
+						displaySex: 'default'
+					},
+					legal: true,
+					legalitySummary: 'PKHeX judged this Pokemon legal.',
+					consequences: []
 				}
 			}),
 		applySaveFileEditOperation: async () => ({

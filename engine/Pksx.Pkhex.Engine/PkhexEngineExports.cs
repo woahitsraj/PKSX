@@ -195,6 +195,70 @@ public static partial class PkhexEngineExports
     }
 
     [JSExport]
+    public static string PreviewPokemonSpeciesFormEditJson(byte[] bytes, string? fileName, string requestJson)
+    {
+        try
+        {
+            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var request = System.Text.Json.JsonSerializer.Deserialize(
+                requestJson,
+                EngineJsonContext.Default.PokemonSpeciesFormPreviewRequest);
+            if (request is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("invalid-pokemon-edit", "Species and Form preview payload is missing."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var sourceResult = SlotRef.From(save, request.Source);
+            if (!sourceResult.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(sourceResult.Code, sourceResult.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var pokemon = sourceResult.Value.Get(save);
+            if (pokemon.Species == 0)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("empty-source-slot", "Species and Form Editing needs an occupied Slot."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var projection = CreateSpeciesFormProjection(
+                save,
+                pokemon,
+                sourceResult.Value.StorageSlotType,
+                request.SpeciesId,
+                request.Form);
+            if (!projection.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(projection.Code, projection.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(projection.Value),
+                EngineJsonContext.Default.EngineResultPokemonSpeciesFormEditProjection);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
     public static string ApplyPokemonEditOperationJson(byte[] bytes, string? fileName, string operationJson)
     {
         try
@@ -398,6 +462,8 @@ public static partial class PkhexEngineExports
             return SlotMutationResult.Fail("empty-source-slot", "Pokemon editing needs an occupied source Slot.");
 
         if (
+            operation.SpeciesId is null &&
+            operation.Form is null &&
             operation.Nickname is null &&
             operation.Level is null &&
             operation.Experience is null &&
@@ -416,16 +482,22 @@ public static partial class PkhexEngineExports
         if (operation.Level is not null && operation.Experience is not null)
             return SlotMutationResult.Fail("invalid-pokemon-edit", "Apply either level or experience, not both.");
 
+        if (operation.SpeciesId is null != operation.Form is null)
+            return SlotMutationResult.Fail("invalid-pokemon-edit", "Species and Form edits require both values.");
+
+        var originalSpecies = pokemon.Species;
+        var originalForm = pokemon.Form;
         var originalNickname = pokemon.Nickname;
         var originalIsNicknamed = pokemon.IsNicknamed;
+        var originalAbility = pokemon.Ability;
+        var originalAbilityNumber = pokemon.AbilityNumber;
+        var originalGender = pokemon.Gender;
         var originalLevel = pokemon.CurrentLevel;
         var originalExperience = pokemon.EXP;
         var originalNature = pokemon.Nature;
         var originalStatNature = pokemon.StatNature;
         var originalPid = pokemon.PID;
         var originalHeldItem = pokemon.HeldItem;
-        var originalAbility = pokemon.Ability;
-        var originalAbilityNumber = pokemon.AbilityNumber;
         var originalMetLocation = pokemon.MetLocation;
         var originalMetLevel = pokemon.MetLevel;
         var originalMetDate = pokemon.MetDate;
@@ -449,6 +521,13 @@ public static partial class PkhexEngineExports
         var originalFriendship = pokemon.CurrentFriendship;
         var originalAffection = CurrentAffection(pokemon);
         var originalTeraType = TeraTypeState(pokemon);
+
+        if (operation.SpeciesId is ushort speciesId && operation.Form is byte form)
+        {
+            var speciesFormResult = ApplySpeciesFormEdit(save, pokemon, speciesId, form);
+            if (!speciesFormResult.Ok)
+                return speciesFormResult;
+        }
 
         if (operation.Nickname is string nickname)
         {
@@ -654,16 +733,19 @@ public static partial class PkhexEngineExports
             pokemon.ResetPartyStats();
 
         var mutated =
+            originalSpecies != pokemon.Species ||
+            originalForm != pokemon.Form ||
             !StringComparer.Ordinal.Equals(originalNickname, pokemon.Nickname) ||
             originalIsNicknamed != pokemon.IsNicknamed ||
+            originalAbility != pokemon.Ability ||
+            originalAbilityNumber != pokemon.AbilityNumber ||
+            originalGender != pokemon.Gender ||
             originalLevel != pokemon.CurrentLevel ||
             originalExperience != pokemon.EXP ||
             originalNature != pokemon.Nature ||
             originalStatNature != pokemon.StatNature ||
             originalPid != pokemon.PID ||
             originalHeldItem != pokemon.HeldItem ||
-            originalAbility != pokemon.Ability ||
-            originalAbilityNumber != pokemon.AbilityNumber ||
             originalMetLocation != pokemon.MetLocation ||
             originalMetLevel != pokemon.MetLevel ||
             originalMetDate != pokemon.MetDate ||
@@ -686,6 +768,92 @@ public static partial class PkhexEngineExports
             source.Set(save, pokemon);
 
         return SlotMutationResult.Success(mutated);
+    }
+
+    private static SpeciesFormProjectionResult CreateSpeciesFormProjection(
+        SaveFile save,
+        PKM source,
+        StorageSlotType storageSlotType,
+        ushort speciesId,
+        byte form)
+    {
+        var preview = source.Clone();
+        var mutation = ApplySpeciesFormEdit(save, preview, speciesId, form);
+        if (!mutation.Ok)
+            return SpeciesFormProjectionResult.Fail(mutation.Code, mutation.Message);
+
+        if (preview.PartyStatsPresent)
+            preview.ResetPartyStats();
+
+        var species = new List<PokemonSpeciesOption>();
+        for (ushort id = 1; id <= Math.Min(save.MaxSpeciesID, source.MaxSpeciesID); id++)
+        {
+            if (!save.Personal.IsSpeciesInGame(id))
+                continue;
+
+            species.Add(new PokemonSpeciesOption(id, PokemonName(id)));
+        }
+
+        var forms = GetFormOptions(save, preview.Context, speciesId);
+        var legality = CreateLegalityReport(preview, storageSlotType);
+        var consequences = CreateSpeciesFormConsequences(source, preview, forms, legality);
+        var projection = new PokemonSpeciesFormEditProjection(
+            species,
+            forms,
+            new PokemonSpeciesFormPreview(
+                preview.Species,
+                PokemonName(preview.Species),
+                preview.Form,
+                FormName(forms, preview.Form),
+                SlotDetailProjection.Ability(preview),
+                SlotDetailProjection.Gender(preview),
+                SlotDetailProjection.Types(preview).Select(type => type.Name).ToList(),
+                SlotDetailProjection.Moves(preview).Select(move => move.Name).ToList(),
+                SpriteIdentity.From(preview),
+                legality.Legal,
+                legality.Summary,
+                consequences));
+        return SpeciesFormProjectionResult.Success(projection);
+    }
+
+    private static SlotMutationResult ApplySpeciesFormEdit(
+        SaveFile save,
+        PKM pokemon,
+        ushort speciesId,
+        byte form)
+    {
+        if (speciesId == 0 || speciesId > pokemon.MaxSpeciesID || !save.Personal.IsSpeciesInGame(speciesId))
+            return SlotMutationResult.Fail(
+                "unsupported-pokemon-edit",
+                $"Species {speciesId} is not supported by this Pokemon format and Save File.");
+
+        if (!save.Personal.IsPresentInGame(speciesId, form))
+            return SlotMutationResult.Fail(
+                "unsupported-pokemon-edit",
+                $"Form {form} is not supported for {PokemonName(speciesId)} in this Save File.");
+
+        if (pokemon.Species == speciesId && pokemon.Form == form)
+            return SlotMutationResult.Success(false);
+
+        var wasNicknamed = pokemon.IsNicknamed;
+        var currentLevel = Experience.ClampLevel(pokemon.CurrentLevel);
+        var abilityIndex = pokemon.AbilityNumber switch
+        {
+            2 => 1,
+            4 => 2,
+            _ => 0,
+        };
+
+        pokemon.Species = speciesId;
+        pokemon.Form = form;
+        pokemon.RefreshAbility(Math.Min(abilityIndex, Math.Max(0, pokemon.PersonalInfo.AbilityCount - 1)));
+        pokemon.Gender = pokemon.GetSaneGender();
+        // Re-anchor experience so a growth-rate change keeps the pre-edit level.
+        pokemon.EXP = Experience.GetEXP(currentLevel, pokemon.PersonalInfo.EXPGrowth);
+        if (!wasNicknamed)
+            pokemon.ClearNickname();
+
+        return SlotMutationResult.Success(true);
     }
 
     private static string LegalityEditFailurePrefix(PokemonEditOperationRequest operation)
@@ -763,6 +931,72 @@ public static partial class PkhexEngineExports
 
         return SlotMutationResult.Success(true);
     }
+
+    private static List<PokemonFormOption> GetFormOptions(
+        SaveFile save,
+        EntityContext context,
+        ushort speciesId)
+    {
+        var names = FormConverter.GetFormList(
+            speciesId,
+            GameInfo.Strings.Types,
+            GameInfo.Strings.forms,
+            GameInfo.GenderSymbolUnicode,
+            context);
+        var forms = new List<PokemonFormOption>();
+        for (byte form = 0; form < names.Length; form++)
+        {
+            if (!save.Personal.IsPresentInGame(speciesId, form))
+                continue;
+
+            forms.Add(new PokemonFormOption(
+                form,
+                string.IsNullOrWhiteSpace(names[form]) ? (form == 0 ? "Default" : $"Form {form}") : names[form]));
+        }
+
+        if (forms.Count == 0 && save.Personal.IsPresentInGame(speciesId, 0))
+            forms.Add(new PokemonFormOption(0, "Default"));
+        return forms;
+    }
+
+    private static List<string> CreateSpeciesFormConsequences(
+        PKM source,
+        PKM preview,
+        IReadOnlyList<PokemonFormOption> forms,
+        LegalityReport legality)
+    {
+        var consequences = new List<string>();
+        if (source.Species != preview.Species || source.Form != preview.Form)
+            consequences.Add($"Species identity changes to {PokemonName(preview.Species)} ({FormName(forms, preview.Form)}).");
+        if (source.Ability != preview.Ability)
+            consequences.Add($"Ability updates from {SlotDetailProjection.Ability(source) ?? "None"} to {SlotDetailProjection.Ability(preview) ?? "None"}.");
+        if (source.Gender != preview.Gender)
+            consequences.Add($"Gender updates from {SlotDetailProjection.Gender(source) ?? "None"} to {SlotDetailProjection.Gender(preview) ?? "None"}.");
+        if (!StringComparer.Ordinal.Equals(source.Nickname, preview.Nickname))
+            consequences.Add($"Default nickname updates to {preview.Nickname}.");
+
+        var sourceTypes = SlotDetailProjection.Types(source).Select(type => type.Name);
+        var previewTypes = SlotDetailProjection.Types(preview).Select(type => type.Name);
+        if (!sourceTypes.SequenceEqual(previewTypes))
+            consequences.Add($"Types update to {string.Join(" / ", previewTypes)}.");
+        if (!SlotDetailProjection.Stats(source).Select(stat => stat.Value)
+            .SequenceEqual(SlotDetailProjection.Stats(preview).Select(stat => stat.Value)))
+            consequences.Add("Projected stats update for the selected species and form.");
+        if (SlotDetailProjection.Moves(source).Count > 0)
+            consequences.Add("Move Set is retained and re-evaluated by the PKHeX legality engine.");
+
+        consequences.Add("Evolution identity and Sprite Identity update; Met Data and Original Trainer Data remain unchanged.");
+        consequences.Add(legality.Summary);
+        return consequences;
+    }
+
+    private static string PokemonName(ushort speciesId) =>
+        speciesId < GameInfo.Strings.Species.Count && !string.IsNullOrWhiteSpace(GameInfo.Strings.Species[speciesId])
+            ? GameInfo.Strings.Species[speciesId]
+            : $"Species {speciesId}";
+
+    private static string FormName(IReadOnlyList<PokemonFormOption> forms, byte form) =>
+        forms.FirstOrDefault(option => option.Id == form)?.Name ?? (form == 0 ? "Default" : $"Form {form}");
 
     private static SlotMutationResult ApplyMetDataEdit(PKM pokemon, PokemonMetDataEdit edit)
     {
@@ -1172,5 +1406,18 @@ public static partial class PkhexEngineExports
         public static SlotMutationResult Success(bool mutated) => new(true, mutated, "", "");
 
         public static SlotMutationResult Fail(string code, string message) => new(false, false, code, message);
+    }
+
+    private readonly record struct SpeciesFormProjectionResult(
+        bool Ok,
+        PokemonSpeciesFormEditProjection Value,
+        string Code,
+        string Message)
+    {
+        public static SpeciesFormProjectionResult Success(PokemonSpeciesFormEditProjection value) =>
+            new(true, value, "", "");
+
+        public static SpeciesFormProjectionResult Fail(string code, string message) =>
+            new(false, default!, code, message);
     }
 }
