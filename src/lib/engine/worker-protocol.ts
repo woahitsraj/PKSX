@@ -139,6 +139,22 @@ export const pokemonHeldItemEditConstraintsSchema = z.object({
 	unsupportedReason: z.string().nullable().optional()
 });
 
+export const pokemonAbilityOptionSchema = z.object({
+	index: z.number().int(),
+	id: z.number().int(),
+	name: z.string(),
+	hidden: z.boolean().default(false),
+	available: z.boolean().default(false),
+	unavailableReason: z.string().nullable().optional()
+});
+
+export const pokemonAbilityEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	currentAbilityIndex: z.number().int().default(-1),
+	options: z.array(pokemonAbilityOptionSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
 export const pokemonMoveOptionSchema = z.object({
 	id: z.number(),
 	name: z.string(),
@@ -222,6 +238,12 @@ const slotSummaryFields = {
 		currentItemId: 0,
 		options: [],
 		unsupportedReason: 'Held Item Editing is not available for this Pokemon projection.'
+	}),
+	abilityEditConstraints: pokemonAbilityEditConstraintsSchema.default({
+		supported: false,
+		currentAbilityIndex: -1,
+		options: [],
+		unsupportedReason: 'Ability Editing is not available for this Pokemon projection.'
 	}),
 	statEditConstraints: pokemonStatEditConstraintsSchema.default({
 		supported: false,
@@ -326,6 +348,7 @@ export const pokemonEditOperationSchema = z.object({
 	experience: z.number().int().optional(),
 	natureId: z.number().int().optional(),
 	heldItemId: z.number().int().optional(),
+	abilityIndex: z.number().int().optional(),
 	ivs: z
 		.object({
 			HP: z.number().int(),

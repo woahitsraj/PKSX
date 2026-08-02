@@ -63,6 +63,12 @@ const partySlot: PartySlotSummary = {
 		currentItemId: 0,
 		options: [{ id: 0, name: 'No item', available: true }]
 	},
+	abilityEditConstraints: {
+		supported: false,
+		currentAbilityIndex: -1,
+		options: [],
+		unsupportedReason: 'Fixture'
+	},
 	statEditConstraints: {
 		supported: false,
 		minIv: 0,

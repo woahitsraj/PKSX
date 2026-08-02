@@ -293,6 +293,14 @@
 				}
 			]
 		},
+		abilityEditConstraints: {
+			supported: true,
+			currentAbilityIndex: 0,
+			options: [
+				{ index: 0, id: 9, name: 'Static', hidden: false, available: true },
+				{ index: 1, id: 31, name: 'Lightning Rod', hidden: false, available: true }
+			]
+		},
 		statEditConstraints: {
 			supported: true,
 			minIv: 0,
@@ -724,6 +732,7 @@
 			'#pokemon-editor-nickname',
 			'#pokemon-editor-nature',
 			'#pokemon-editor-held-item',
+			'#pokemon-editor-ability',
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',
 			'.stat-edit-controls input:not([disabled])',

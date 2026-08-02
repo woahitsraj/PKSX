@@ -22,6 +22,8 @@ export type {
 	LegalityReport,
 	LegalityReportLine,
 	PartySlotSummary,
+	PokemonAbilityEditConstraints,
+	PokemonAbilityOption,
 	PokemonEditOperation,
 	PokemonEditOperationResult,
 	PokemonExperienceProjection,

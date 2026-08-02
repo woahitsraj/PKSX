@@ -70,6 +70,10 @@ export type HeldItemEditPayload = {
 	heldItemId: number;
 };
 
+export type AbilityEditPayload = {
+	abilityIndex: number;
+};
+
 export type PokemonFriendshipEditPayload = {
 	fields: PokemonFriendshipFieldEdit[];
 };
@@ -79,6 +83,7 @@ export type PokemonEditorDraftEdits = {
 	levelExperience?: LevelExperienceEditPayload;
 	natureId?: number;
 	heldItemId?: number;
+	abilityIndex?: number;
 	ivs?: PokemonStatEditPayload;
 	evs?: PokemonStatEditPayload;
 	moveSet?: PokemonMoveSetEditPayload;
@@ -484,6 +489,31 @@ export function stageHeldItemEdit(
 	});
 }
 
+export function stageAbilityEdit(
+	state: PokemonEditorState,
+	payload: AbilityEditPayload
+): PokemonEditorState {
+	const validation = validateAbilityEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'ability'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	if (payload.abilityIndex === state.slot.abilityEditConstraints?.currentAbilityIndex) {
+		return removePokemonEditorEdit(state, 'ability');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'ability',
+		capability: 'ability-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
 export function stageIvEdit(
 	state: PokemonEditorState,
 	payload: PokemonStatEditPayload
@@ -643,6 +673,7 @@ const pokemonEditOperationBuilders = [
 	{ id: 'level-experience', build: buildLevelExperienceEdit },
 	{ id: 'nature', build: buildNatureEdit },
 	{ id: 'held-item', build: buildHeldItemEdit },
+	{ id: 'ability', build: buildAbilityEdit },
 	{ id: 'ivs', build: buildIvEdit },
 	{ id: 'evs', build: buildEvEdit },
 	{ id: 'move-set', build: buildMoveSetEdit },
@@ -742,6 +773,57 @@ function validateHeldItemEdit(
 		payload,
 		label: payload.heldItemId === 0 ? 'Remove Held Item' : `Set Held Item to ${option.name}`
 	};
+}
+
+function buildAbilityEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isAbilityEditPayload(payload)) {
+		return invalidPokemonEdit('Ability edit payload is invalid.');
+	}
+
+	const validation = validateAbilityEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	return { ok: true, patch: { abilityIndex: validation.payload.abilityIndex } };
+}
+
+function validateAbilityEdit(
+	slot: SlotView,
+	payload: AbilityEditPayload
+): PokemonEditorPayloadValidation<AbilityEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Ability Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.abilityEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ??
+				'Ability Editing is not supported for this Pokemon format.'
+		};
+	}
+
+	if (!Number.isInteger(payload.abilityIndex)) {
+		return { ok: false, message: 'Ability choice is invalid.' };
+	}
+
+	const option = constraints.options.find((candidate) => candidate.index === payload.abilityIndex);
+	if (!option) {
+		return {
+			ok: false,
+			message: `Ability slot ${payload.abilityIndex + 1} is not supported by this Pokemon.`
+		};
+	}
+
+	if (!option.available) {
+		return {
+			ok: false,
+			message: option.unavailableReason ?? `${option.name} is not legal for this Pokemon.`
+		};
+	}
+
+	return { ok: true, payload, label: `Set Ability to ${option.name}` };
 }
 
 function buildFriendshipEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
@@ -1221,6 +1303,15 @@ function isHeldItemEditPayload(value: unknown): value is HeldItemEditPayload {
 		value !== null &&
 		'heldItemId' in value &&
 		typeof value.heldItemId === 'number'
+	);
+}
+
+function isAbilityEditPayload(value: unknown): value is AbilityEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'abilityIndex' in value &&
+		typeof value.abilityIndex === 'number'
 	);
 }
 

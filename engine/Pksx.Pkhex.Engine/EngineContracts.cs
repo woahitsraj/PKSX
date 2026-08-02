@@ -75,6 +75,7 @@ public sealed record PartySlotSummary(
     List<SlotMoveSummary> Moves,
     PokemonNatureEditConstraints NatureEditConstraints,
     PokemonHeldItemEditConstraints HeldItemEditConstraints,
+    PokemonAbilityEditConstraints AbilityEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
     PokemonFriendshipEditConstraints FriendshipEditConstraints,
@@ -104,6 +105,7 @@ public sealed record PartySlotSummary(
             SlotDetailProjection.Moves(pokemon),
             SlotDetailProjection.NatureEditConstraints(pokemon),
             SlotDetailProjection.HeldItemEditConstraints(pokemon, save),
+            SlotDetailProjection.AbilityEditConstraints(pokemon),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Party),
             SlotDetailProjection.FriendshipEditConstraints(pokemon),
@@ -134,6 +136,7 @@ public sealed record BoxSlotSummary(
     List<SlotMoveSummary> Moves,
     PokemonNatureEditConstraints NatureEditConstraints,
     PokemonHeldItemEditConstraints HeldItemEditConstraints,
+    PokemonAbilityEditConstraints AbilityEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
     PokemonFriendshipEditConstraints FriendshipEditConstraints,
@@ -164,6 +167,7 @@ public sealed record BoxSlotSummary(
             SlotDetailProjection.Moves(pokemon),
             SlotDetailProjection.NatureEditConstraints(pokemon),
             SlotDetailProjection.HeldItemEditConstraints(pokemon, save),
+            SlotDetailProjection.AbilityEditConstraints(pokemon),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Box),
             SlotDetailProjection.FriendshipEditConstraints(pokemon),
@@ -269,6 +273,20 @@ public sealed record PokemonHeldItemEditConstraints(
     List<PokemonHeldItemOption> Options,
     string? UnsupportedReason);
 
+public sealed record PokemonAbilityOption(
+    int Index,
+    int Id,
+    string Name,
+    bool Hidden,
+    bool Available,
+    string? UnavailableReason);
+
+public sealed record PokemonAbilityEditConstraints(
+    bool Supported,
+    int CurrentAbilityIndex,
+    List<PokemonAbilityOption> Options,
+    string? UnsupportedReason);
+
 public sealed record PokemonStatEditConstraints(
     bool Supported,
     int MinIv,
@@ -322,6 +340,7 @@ public sealed record PokemonEditOperationRequest(
     uint? Experience,
     int? NatureId,
     int? HeldItemId,
+    int? AbilityIndex,
     PokemonStatEditSet? Ivs,
     PokemonStatEditSet? Evs,
     List<PokemonMoveSlotEdit>? Moves,
@@ -542,6 +561,40 @@ internal static class SlotDetailProjection
             null);
     }
 
+    public static PokemonAbilityEditConstraints AbilityEditConstraints(PKM pokemon)
+    {
+        if (pokemon.Species == 0)
+            return new PokemonAbilityEditConstraints(
+                false,
+                -1,
+                [],
+                "Ability Editing needs an occupied Slot.");
+
+        if (pokemon.Format < 3 || pokemon.PersonalInfo.AbilityCount == 0)
+            return new PokemonAbilityEditConstraints(
+                false,
+                -1,
+                [],
+                "Ability Editing is not supported for this Pokemon format.");
+
+        var options = new List<PokemonAbilityOption>(pokemon.PersonalInfo.AbilityCount);
+        for (var index = 0; index < pokemon.PersonalInfo.AbilityCount; index++)
+        {
+            var ability = pokemon.PersonalInfo.GetAbilityAtIndex(index);
+            if (ability <= 0)
+                continue;
+
+            var name = NameAt(GameInfo.Strings.Ability, ability) ?? $"Ability {ability}";
+            options.Add(new PokemonAbilityOption(index, ability, name, index == 2, true, null));
+        }
+
+        return new PokemonAbilityEditConstraints(
+            options.Count > 0,
+            CurrentAbilityIndex(pokemon),
+            options,
+            options.Count > 0 ? null : "PKHeX found no Ability choices for this Pokemon.");
+    }
+
     public static PokemonHeldItemEditConstraints HeldItemEditConstraints(PKM pokemon, SaveFile save)
     {
         if (pokemon.Species == 0)
@@ -700,6 +753,18 @@ internal static class SlotDetailProjection
             TypeHue(typeId),
             TypeChroma(typeId),
             MoveInfo.GetPP(pokemon.Context, move));
+    }
+
+    private static int CurrentAbilityIndex(PKM pokemon)
+    {
+        if (pokemon.Format >= 6 && AbilityVerifier.IsValidAbilityBits(pokemon.AbilityNumber))
+            return pokemon.AbilityNumber >> 1;
+
+        var index = pokemon.PersonalInfo.GetIndexOfAbility(pokemon.Ability);
+        if (index >= 2)
+            return index;
+
+        return pokemon.PIDAbility >= 0 ? pokemon.PIDAbility : index;
     }
 
     private static string? HeldItemUnavailableReason(PKM pokemon, ushort item, string name) =>

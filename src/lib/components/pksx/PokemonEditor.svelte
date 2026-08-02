@@ -70,6 +70,9 @@
 	let draftExperience = $state(untrack(() => String(slot.experience ?? 0)));
 	let draftNatureId = $state(untrack(() => slot.natureEditConstraints?.currentNatureId ?? -1));
 	let draftHeldItemId = $state(untrack(() => slot.heldItemEditConstraints?.currentItemId ?? 0));
+	let draftAbilityIndex = $state(
+		untrack(() => slot.abilityEditConstraints?.currentAbilityIndex ?? -1)
+	);
 	let draftIvs = $state<DraftStats>(untrack(() => statsToDraft(baseIvs)));
 	let draftEvs = $state<DraftStats>(untrack(() => statsToDraft(baseEvs)));
 	let draftMoves = $state<DraftMoveSlot[]>(
@@ -88,14 +91,19 @@
 	const moveSetEditConstraints = $derived(slot.moveSetEditConstraints);
 	const natureEditConstraints = $derived(slot.natureEditConstraints);
 	const heldItemEditConstraints = $derived(slot.heldItemEditConstraints);
+	const abilityEditConstraints = $derived(slot.abilityEditConstraints);
 	const canEditStats = $derived(statEditConstraints?.supported ?? false);
 	const canEditMoveSet = $derived(moveSetEditConstraints?.supported ?? false);
 	const canEditNature = $derived(natureEditConstraints?.supported ?? false);
 	const canEditHeldItem = $derived(heldItemEditConstraints?.supported ?? false);
+	const canEditAbility = $derived(abilityEditConstraints?.supported ?? false);
 	const canEditFriendship = $derived(friendshipEditConstraints?.supported ?? false);
 	const moveOptions = $derived(moveSetEditConstraints?.availableMoves ?? []);
 	const unavailableHeldItemCount = $derived(
 		heldItemEditConstraints?.options.filter((option) => !option.available).length ?? 0
+	);
+	const unavailableAbilityOptions = $derived(
+		abilityEditConstraints?.options.filter((option) => !option.available) ?? []
 	);
 	const originalNature = $derived(
 		natureEditConstraints?.options.find(
@@ -200,10 +208,21 @@
 		draftHeldItemId = Number(value);
 	}
 
+	function setDraftAbility(value: string) {
+		draftAbilityIndex = Number(value);
+	}
+
 	function heldItemOptionLabel(
 		option: NonNullable<typeof heldItemEditConstraints>['options'][number]
 	) {
 		return `${option.name}${option.available ? '' : ' (Unavailable for format)'}`;
+	}
+
+	function abilityOptionLabel(
+		option: NonNullable<typeof abilityEditConstraints>['options'][number]
+	) {
+		const slotLabel = option.hidden ? 'Hidden Ability' : `Ability ${option.index + 1}`;
+		return `${slotLabel}: ${option.name}${option.available ? '' : ' (Unavailable)'}`;
 	}
 
 	function setIv(key: PokemonStatKey, value: string) {
@@ -479,6 +498,7 @@
 		draftExperience = String(slot.experience ?? 0);
 		draftNatureId = slot.natureEditConstraints?.currentNatureId ?? -1;
 		draftHeldItemId = slot.heldItemEditConstraints?.currentItemId ?? 0;
+		draftAbilityIndex = slot.abilityEditConstraints?.currentAbilityIndex ?? -1;
 		draftIvs = statsToDraft(baseIvs);
 		draftEvs = statsToDraft(baseEvs);
 		draftMoves = baseMoveSet.moves.map((move) => ({
@@ -496,6 +516,7 @@
 		if (isLevelExperienceDirty()) count += 1;
 		if (isNatureDirty()) count += 1;
 		if (isHeldItemDirty()) count += 1;
+		if (isAbilityDirty()) count += 1;
 		if (isDraftStatsDirty(draftIvs, baseIvs)) count += 1;
 		if (isDraftStatsDirty(draftEvs, baseEvs)) count += 1;
 		if (isDraftMoveSetDirty()) count += 1;
@@ -514,6 +535,7 @@
 		}
 		if (isNatureDirty()) draft.natureId = draftNatureId;
 		if (isHeldItemDirty()) draft.heldItemId = draftHeldItemId;
+		if (isAbilityDirty()) draft.abilityIndex = draftAbilityIndex;
 		if (isDraftStatsDirty(draftIvs, baseIvs)) draft.ivs = draftStatsToPayload(draftIvs);
 		if (isDraftStatsDirty(draftEvs, baseEvs)) draft.evs = draftStatsToPayload(draftEvs);
 		if (isDraftMoveSetDirty()) draft.moveSet = draftMoveSetToPayload();
@@ -539,6 +561,10 @@
 
 	function isHeldItemDirty() {
 		return draftHeldItemId !== (heldItemEditConstraints?.currentItemId ?? 0);
+	}
+
+	function isAbilityDirty() {
+		return draftAbilityIndex !== (abilityEditConstraints?.currentAbilityIndex ?? -1);
 	}
 
 	function isDraftStatsDirty(draft: DraftStats, base: PokemonStatEditPayload) {
@@ -760,6 +786,42 @@
 					<p class="unsupported-copy">
 						{heldItemEditConstraints?.unsupportedReason ??
 							'Held Item Editing is not supported for this Pokemon Entity format.'}
+					</p>
+				{/if}
+			</div>
+
+			<div class="editor-panel" aria-label="Ability Editing">
+				<div class="panel-title">
+					<span>Ability</span>
+					<small>{canEditAbility ? 'Engine constrained' : 'Unsupported'}</small>
+				</div>
+				{#if abilityEditConstraints && abilityEditConstraints.options.length > 0}
+					<label class="ability-edit-controls">
+						<span>Ability choice</span>
+						<select
+							id="pokemon-editor-ability"
+							value={draftAbilityIndex}
+							disabled={!canEditAbility || applying}
+							onchange={(event) => setDraftAbility(event.currentTarget.value)}
+						>
+							{#each abilityEditConstraints.options as option (option.index)}
+								<option value={option.index} disabled={!option.available}>
+									{abilityOptionLabel(option)}
+								</option>
+							{/each}
+						</select>
+					</label>
+					{#if unavailableAbilityOptions.length > 0}
+						<ul class="ability-restrictions" aria-label="Unavailable Ability choices">
+							{#each unavailableAbilityOptions as option (option.index)}
+								<li>{option.unavailableReason ?? `${option.name} is unavailable.`}</li>
+							{/each}
+						</ul>
+					{/if}
+				{:else}
+					<p class="unsupported-copy">
+						{abilityEditConstraints?.unsupportedReason ??
+							'Ability Editing is not supported for this Pokemon format.'}
 					</p>
 				{/if}
 			</div>
@@ -1419,7 +1481,8 @@
 	}
 
 	.nature-edit-controls,
-	.held-item-edit-controls {
+	.held-item-edit-controls,
+	.ability-edit-controls {
 		display: grid;
 		gap: 5px;
 		padding: 12px;
@@ -1430,7 +1493,9 @@
 	.nature-edit-controls span,
 	.nature-edit-hint,
 	.held-item-edit-controls span,
-	.held-item-restrictions {
+	.held-item-restrictions,
+	.ability-edit-controls span,
+	.ability-restrictions {
 		margin: 0;
 		color: var(--ink-mute);
 		font:
@@ -1440,12 +1505,14 @@
 	}
 
 	.nature-edit-controls span,
-	.held-item-edit-controls span {
+	.held-item-edit-controls span,
+	.ability-edit-controls span {
 		text-transform: uppercase;
 	}
 
 	.nature-edit-controls select,
-	.held-item-edit-controls select {
+	.held-item-edit-controls select,
+	.ability-edit-controls select {
 		width: 100%;
 		min-width: 0;
 		height: 44px;
@@ -1460,8 +1527,13 @@
 	}
 
 	.nature-edit-controls select:disabled,
-	.held-item-edit-controls select:disabled {
+	.held-item-edit-controls select:disabled,
+	.ability-edit-controls select:disabled {
 		opacity: 0.55;
+	}
+
+	.ability-restrictions {
+		padding: 0 12px 0 28px;
 	}
 
 	.level-edit-controls {

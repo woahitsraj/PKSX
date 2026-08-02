@@ -10,6 +10,7 @@ import {
 	markUnsupportedPokemonEditorApply,
 	maxPpForPpUps,
 	moveSetEditPayloadFromSlot,
+	stageAbilityEdit,
 	stageEvEdit,
 	stageFriendshipEdit,
 	stageHeldItemEdit,
@@ -115,6 +116,23 @@ const editablePokemonSlot: SlotView = {
 			}
 		]
 	},
+	ability: 'Sturdy',
+	abilityEditConstraints: {
+		supported: true,
+		currentAbilityIndex: 0,
+		options: [
+			{ index: 0, id: 5, name: 'Sturdy', hidden: false, available: true },
+			{ index: 1, id: 69, name: 'Rock Head', hidden: false, available: true },
+			{
+				index: 2,
+				id: 134,
+				name: 'Heavy Metal',
+				hidden: true,
+				available: false,
+				unavailableReason: "Heavy Metal is not legal for this Pokemon's encounter and format."
+			}
+		]
+	},
 	statEditConstraints: {
 		supported: true,
 		minIv: 0,
@@ -184,8 +202,8 @@ function openEditor(sourceOverride = source) {
 	return opened.state;
 }
 
-function openEditableEditor() {
-	const opened = createPokemonEditorState(source, editablePokemonSlot);
+function openEditableEditor(sourceOverride = source) {
+	const opened = createPokemonEditorState(sourceOverride, editablePokemonSlot);
 	if (!opened.ok) throw new Error('Expected Pokemon Editor to open.');
 	return opened.state;
 }
@@ -525,6 +543,44 @@ describe('Pokemon editor state', () => {
 		expect(createPokemonEditOperation(staged)).toEqual({
 			ok: true,
 			operation: { source: slotRef, natureId: 15 }
+		});
+	});
+
+	it('stages an engine-backed Ability choice and cancels without mutation', () => {
+		const staged = stageAbilityEdit(openEditableEditor(), { abilityIndex: 1 });
+
+		expect(staged.stagedEdits).toEqual([
+			{
+				id: 'ability',
+				capability: 'ability-editing',
+				label: 'Set Ability to Rock Head',
+				payload: { abilityIndex: 1 }
+			}
+		]);
+		expect(createPokemonEditOperation(staged)).toEqual({
+			ok: true,
+			operation: { source: slotRef, abilityIndex: 1 }
+		});
+		expect(cancelPokemonEditor(staged)).toMatchObject({
+			slot: editablePokemonSlot,
+			stagedEdits: [],
+			staged: false
+		});
+	});
+
+	it('rejects unavailable and unsupported Ability choices', () => {
+		const unavailable = stageAbilityEdit(openEditableEditor(), { abilityIndex: 2 });
+		const unsupported = stageAbilityEdit(openEditor(), { abilityIndex: 0 });
+
+		expect(unavailable.applyOutcome).toEqual({
+			status: 'rejected',
+			message: "Heavy Metal is not legal for this Pokemon's encounter and format.",
+			reason: 'invalid-pokemon-edit'
+		});
+		expect(unsupported.applyOutcome).toEqual({
+			status: 'rejected',
+			message: 'Ability Editing is not supported for this Pokemon format.',
+			reason: 'invalid-pokemon-edit'
 		});
 	});
 
@@ -963,6 +1019,27 @@ describe('Pokemon editor state', () => {
 		expect(services.mutateStoragePokemon).toHaveBeenCalledWith(state);
 		expect(services.ensureSaveFileBackup).not.toHaveBeenCalled();
 		expect(services.mutateSaveFilePokemon).not.toHaveBeenCalled();
+	});
+
+	it('keeps Ability edits staged when Save File mutation fails', async () => {
+		const state = stageAbilityEdit(openEditableEditor(), { abilityIndex: 1 });
+		const services = applyServices({
+			mutateSaveFilePokemon: vi.fn(async () => ({
+				ok: false as const,
+				status: 'failed' as const,
+				message: 'Engine mutation failed.',
+				reason: 'engine-unavailable'
+			}))
+		});
+
+		const result = await applyPokemonEditorEdits(state, services);
+
+		expect(result.outcome).toEqual({
+			status: 'failed',
+			message: 'Engine mutation failed.',
+			reason: 'engine-unavailable'
+		});
+		expect(result.state.stagedEdits).toEqual(state.stagedEdits);
 	});
 
 	it('keeps Friendship edits staged when apply fails', async () => {

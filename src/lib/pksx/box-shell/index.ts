@@ -86,6 +86,7 @@ export function createSlotView(slot: PartySlotSummary | BoxSlotSummary): SlotVie
 		nature: slot.nature ?? undefined,
 		natureEditConstraints: slot.natureEditConstraints,
 		heldItemEditConstraints: slot.heldItemEditConstraints,
+		abilityEditConstraints: slot.abilityEditConstraints,
 		ability: slot.ability ?? undefined,
 		heldItem: slot.heldItem ?? undefined,
 		types: slot.types,
@@ -184,6 +185,18 @@ export function stagePokemonEditorDraftEdits(
 								}`,
 					payload: { heldItemId: draft.heldItemId }
 				},
+		draft.abilityIndex === undefined
+			? null
+			: {
+					id: 'ability',
+					capability: 'ability-editing',
+					label: `Set Ability to ${
+						state.slot.abilityEditConstraints?.options.find(
+							(option) => option.index === draft.abilityIndex
+						)?.name ?? `slot ${draft.abilityIndex + 1}`
+					}`,
+					payload: { abilityIndex: draft.abilityIndex }
+				},
 		draft.ivs
 			? { id: 'ivs', capability: 'iv-editing', label: 'Set IVs', payload: draft.ivs }
 			: null,
@@ -220,6 +233,7 @@ export function pokemonEditorDraftResetKey(state: PokemonEditorState): string {
 		experience: state.slot.experience,
 		natureId: state.slot.natureEditConstraints?.currentNatureId,
 		heldItemId: state.slot.heldItemEditConstraints?.currentItemId,
+		abilityIndex: state.slot.abilityEditConstraints?.currentAbilityIndex,
 		ivs: state.slot.stats?.map((stat) => stat.iv ?? 0),
 		evs: state.slot.stats?.map((stat) => stat.ev ?? 0),
 		moves: state.slot.moves?.map((move) => ({
@@ -247,6 +261,7 @@ export function pokemonEditSuccessMessage(
 		'experience',
 		'natureId',
 		'heldItemId',
+		'abilityIndex',
 		'ivs',
 		'evs',
 		'moves',
