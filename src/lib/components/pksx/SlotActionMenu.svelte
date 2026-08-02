@@ -24,6 +24,7 @@
 		viewportTop?: number | null;
 		viewportLeft?: number | null;
 		activeIndex: number;
+		createPokemonAvailable?: boolean;
 		onFocusCommand: (index: number) => void;
 		onSelectCommand: (command: SlotActionCommandKey) => void;
 		onClose: () => void;
@@ -36,21 +37,22 @@
 		viewportTop = null,
 		viewportLeft = null,
 		activeIndex,
+		createPokemonAvailable = false,
 		onFocusCommand,
 		onSelectCommand,
 		onClose
 	}: Props = $props();
 
-	const commands = $derived(createCommands(slot));
+	const commands = $derived(createCommands(slot, createPokemonAvailable));
 	const occupied = $derived(slot.kind === 'pokemon');
 
-	function createCommands(slot: SlotView): SlotActionCommand[] {
+	function createCommands(slot: SlotView, canCreatePokemon: boolean): SlotActionCommand[] {
 		if (slot.kind === 'empty') {
 			return [
 				{
 					key: 'create-pokemon',
 					label: 'Create Pokemon',
-					availability: 'unsupported'
+					availability: canCreatePokemon ? 'available' : 'unsupported'
 				},
 				{
 					key: 'move',

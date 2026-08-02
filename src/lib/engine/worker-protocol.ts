@@ -10,6 +10,7 @@ export const engineWorkerMethodSchema = z.enum([
 	'serializeSave',
 	'applySlotOperation',
 	'applyPokemonEditOperation',
+	'createPokemon',
 	'previewPokemonSpeciesFormEdit',
 	'applySaveFileEditOperation',
 	'importStoredPokemon',
@@ -27,6 +28,8 @@ export const engineErrorCodeSchema = z.enum([
 	'unsupported-slot-operation',
 	'invalid-pokemon-edit',
 	'unsupported-pokemon-edit',
+	'invalid-pokemon-creation',
+	'unsupported-pokemon-creation',
 	'invalid-pokemon-import',
 	'invalid-stored-pokemon',
 	'incompatible-stored-pokemon',
@@ -519,6 +522,18 @@ export const pokemonEditOperationResultSchema = z.object({
 	workspace: saveWorkspaceSchema
 });
 
+export const pokemonCreationOperationSchema = z.object({
+	destination: saveSlotRefSchema,
+	speciesId: z.number().int().optional(),
+	level: z.number().int()
+});
+
+export const pokemonCreationResultSchema = z.object({
+	bytes: z.instanceof(ArrayBuffer),
+	mutated: z.boolean(),
+	workspace: saveWorkspaceSchema
+});
+
 export const pokemonSpeciesFormEditProjectionSchema = z.object({
 	availableSpecies: z.array(z.object({ id: z.number().int(), name: z.string() })),
 	availableForms: z.array(z.object({ id: z.number().int(), name: z.string() })),
@@ -607,6 +622,8 @@ export const slotOperationResultResultSchema = engineResultSchema(slotOperationR
 export const pokemonEditOperationResultResultSchema = engineResultSchema(
 	pokemonEditOperationResultSchema
 );
+
+export const pokemonCreationResultResultSchema = engineResultSchema(pokemonCreationResultSchema);
 
 export const pokemonSpeciesFormEditProjectionResultSchema = engineResultSchema(
 	pokemonSpeciesFormEditProjectionSchema
@@ -699,6 +716,18 @@ export const engineWorkerApplyPokemonEditOperationRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerCreatePokemonRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('createPokemon'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional(),
+		operation: pokemonCreationOperationSchema,
+		activeBox: z.number().int()
+	})
+});
+
 export const engineWorkerPreviewPokemonSpeciesFormEditRequestSchema = z.object({
 	type: z.literal('request'),
 	id: engineWorkerRequestIdSchema,
@@ -755,6 +784,7 @@ export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerSerializeSaveRequestSchema,
 	engineWorkerApplySlotOperationRequestSchema,
 	engineWorkerApplyPokemonEditOperationRequestSchema,
+	engineWorkerCreatePokemonRequestSchema,
 	engineWorkerPreviewPokemonSpeciesFormEditRequestSchema,
 	engineWorkerApplySaveFileEditOperationRequestSchema,
 	engineWorkerImportStoredPokemonRequestSchema,
@@ -810,6 +840,13 @@ export const engineWorkerApplyPokemonEditOperationResponseSchema = z.object({
 	result: pokemonEditOperationResultResultSchema
 });
 
+export const engineWorkerCreatePokemonResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('createPokemon'),
+	result: pokemonCreationResultResultSchema
+});
+
 export const engineWorkerPreviewPokemonSpeciesFormEditResponseSchema = z.object({
 	type: z.literal('response'),
 	id: engineWorkerRequestIdSchema,
@@ -846,6 +883,7 @@ export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerSerializeSaveResponseSchema,
 	engineWorkerApplySlotOperationResponseSchema,
 	engineWorkerApplyPokemonEditOperationResponseSchema,
+	engineWorkerCreatePokemonResponseSchema,
 	engineWorkerPreviewPokemonSpeciesFormEditResponseSchema,
 	engineWorkerApplySaveFileEditOperationResponseSchema,
 	engineWorkerImportStoredPokemonResponseSchema,
@@ -908,6 +946,10 @@ export type EngineWorkerApplySlotOperationRequest = z.infer<
 
 export type EngineWorkerApplyPokemonEditOperationRequest = z.infer<
 	typeof engineWorkerApplyPokemonEditOperationRequestSchema
+>;
+
+export type EngineWorkerCreatePokemonRequest = z.infer<
+	typeof engineWorkerCreatePokemonRequestSchema
 >;
 
 export type EngineWorkerPreviewPokemonSpeciesFormEditRequest = z.infer<

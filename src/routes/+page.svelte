@@ -84,12 +84,18 @@
 	import ClearSlotConfirm from '$lib/components/pksx/ClearSlotConfirm.svelte';
 	import DetailRail from '$lib/components/pksx/DetailRail.svelte';
 	import LegalityReportDialog from '$lib/components/pksx/LegalityReportDialog.svelte';
+	import PokemonCreation from '$lib/components/pksx/PokemonCreation.svelte';
 	import PokemonEditor from '$lib/components/pksx/PokemonEditor.svelte';
 	import SlotActionMenu from '$lib/components/pksx/SlotActionMenu.svelte';
 	import StatusStrip from '$lib/components/pksx/StatusStrip.svelte';
 	import StorageSlot from '$lib/components/pksx/StorageSlot.svelte';
 	import ToastRegion from '$lib/components/pksx/ToastRegion.svelte';
 	import type { BoxNavItem, BoxSourceView, SlotView } from '$lib/components/pksx/types';
+	import {
+		createPokemonCreationOperation,
+		pokemonCreationAvailability,
+		type PokemonCreationDraft
+	} from '$lib/pksx/pokemon-creation';
 	import {
 		applyPokemonEditorEdits,
 		cancelPokemonEditor,
@@ -128,6 +134,11 @@
 		source: SaveSlotRef;
 		location: string;
 		pokemonLabel: string;
+	};
+
+	type PokemonCreationView = {
+		destination: SaveSlotRef;
+		location: string;
 	};
 
 	type SavePaneWorkspace = {
@@ -389,6 +400,9 @@
 	let importError = $state<string | null>(null);
 	let statusMessage = $state('Import a Save File to begin.');
 	let busy = $state(false);
+	let pokemonCreation = $state<PokemonCreationView | null>(null);
+	let pokemonCreationFeedback = $state<string | null>(null);
+	let pokemonCreationRequest = 0;
 	let pokemonEditor = $state<PokemonEditorState | null>(null);
 	let pokemonEditorFeedback = $state<string | null>(null);
 	let pokemonEditorApplyRequest = 0;
@@ -451,6 +465,17 @@
 			: activeSlotFocus.zone === 'party'
 				? (partySlots[activeSlotFocus.slot] ?? noSelectedSlot)
 				: (activeBoxSlots[activeSlotFocus.slot] ?? noSelectedSlot)
+	);
+	const createPokemonAvailability = $derived(
+		pokemonCreationAvailability(
+			activeSlotFocus?.zone === 'party'
+				? 'save-file'
+				: (activePane?.source.type ?? 'pokemon-storage'),
+			focusedSlot,
+			loadedSave !== null &&
+				(activeSlotFocus?.zone === 'party' ||
+					(activePane?.source.type === 'save-file' && activePane.source.id === loadedSave.file.id))
+		)
 	);
 	const saveSummary = $derived(loadedSave?.workspace.summary ?? null);
 	const boxIndices = $derived(Array.from({ length: activePaneBoxCount }, (_, index) => index));
@@ -575,6 +600,11 @@
 			return true;
 		}
 
+		if (pokemonCreation) {
+			dispatchPokemonCreation(action);
+			return true;
+		}
+
 		if (pokemonEditor) {
 			dispatchPokemonEditor(action);
 			return true;
@@ -669,7 +699,12 @@
 			return;
 		}
 
-		if (pokemonEditor || clearSlotConfirmation || legalityReport.status !== 'idle') {
+		if (
+			pokemonCreation ||
+			pokemonEditor ||
+			clearSlotConfirmation ||
+			legalityReport.status !== 'idle'
+		) {
 			return;
 		}
 
@@ -754,6 +789,74 @@
 			case 'nextBox':
 			case 'sourceAction':
 				break;
+		}
+	}
+
+	function dispatchPokemonCreation(action: NavigationAction) {
+		switch (action) {
+			case 'left':
+			case 'up':
+				focusPokemonCreationControl(-1);
+				break;
+			case 'right':
+			case 'down':
+				focusPokemonCreationControl(1);
+				break;
+			case 'confirm':
+				activatePokemonCreationControl();
+				break;
+			case 'back':
+				closePokemonCreation();
+				break;
+			case 'previousBox':
+			case 'nextBox':
+			case 'sourceAction':
+				break;
+		}
+	}
+
+	function pokemonCreationControls() {
+		return [
+			'#pokemon-creation-close',
+			'#pokemon-creation-species',
+			'#pokemon-creation-level',
+			'#pokemon-creation-cancel',
+			'#pokemon-creation-apply'
+		]
+			.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
+			.filter((control) => {
+				if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
+					return !control.disabled;
+				}
+				return true;
+			});
+	}
+
+	function focusPokemonCreationControl(direction: -1 | 1) {
+		const controls = pokemonCreationControls();
+		if (controls.length === 0) return;
+
+		const activeElement = document.activeElement;
+		const currentIndex =
+			activeElement instanceof HTMLElement ? controls.indexOf(activeElement) : -1;
+		const nextIndex =
+			currentIndex >= 0
+				? (currentIndex + direction + controls.length) % controls.length
+				: direction > 0
+					? 0
+					: controls.length - 1;
+		controls[nextIndex]?.focus();
+	}
+
+	function activatePokemonCreationControl() {
+		const activeElement = document.activeElement;
+		if (activeElement instanceof HTMLButtonElement && !activeElement.disabled) {
+			activeElement.click();
+			return;
+		}
+
+		if (activeElement instanceof HTMLInputElement) {
+			focusPokemonCreationControl(1);
 		}
 	}
 
@@ -911,13 +1014,13 @@
 			return;
 		}
 
-		if (pokemonEditor && isNativeEditorActivation(event, action)) {
+		if ((pokemonEditor || pokemonCreation) && isNativeEditorActivation(event, action)) {
 			return;
 		}
 
 		event.preventDefault();
 		syncNavigationFocusFromActiveElement();
-		if (pokemonEditor) {
+		if (pokemonEditor || pokemonCreation) {
 			dispatch(action);
 			return;
 		}
@@ -1062,6 +1165,9 @@
 	}
 
 	function closeActionSurface() {
+		pokemonCreationRequest += 1;
+		pokemonCreation = null;
+		pokemonCreationFeedback = null;
 		pokemonEditorApplyRequest += 1;
 		pokemonEditor = null;
 		pokemonEditorFeedback = null;
@@ -2088,6 +2194,9 @@
 
 	function selectSlotActionCommand(command: string) {
 		switch (command) {
+			case 'create-pokemon':
+				openPokemonCreation();
+				break;
 			case 'pokemon-action':
 				openPokemonEditor();
 				break;
@@ -2107,6 +2216,152 @@
 				break;
 			default:
 				break;
+		}
+	}
+
+	function openPokemonCreation() {
+		if (!navigation.actionSurfaceOpen || focusedSlot.kind !== 'empty') {
+			return;
+		}
+
+		if (!createPokemonAvailability.available) {
+			statusMessage = createPokemonAvailability.reason;
+			showToast('error', createPokemonAvailability.reason);
+			return;
+		}
+
+		pokemonCreationRequest += 1;
+		pokemonCreation = {
+			destination: slotRefForFocus(),
+			location: activeSlotPositionLabel
+		};
+		pokemonCreationFeedback = null;
+		void tick().then(() =>
+			requestAnimationFrame(() => document.getElementById('pokemon-creation-close')?.focus())
+		);
+	}
+
+	function closePokemonCreation() {
+		if (busy) return;
+
+		pokemonCreationRequest += 1;
+		pokemonCreation = null;
+		pokemonCreationFeedback = null;
+		navigation = { ...navigation, focus: { zone: 'actions', index: 0 } };
+		queueMicrotask(focusActiveControl);
+	}
+
+	async function applyPokemonCreation(draft: PokemonCreationDraft) {
+		const view = pokemonCreation;
+		if (!view) return;
+
+		const operation = createPokemonCreationOperation(view.destination, draft);
+		if (!operation.ok) {
+			pokemonCreationFeedback = operation.reason;
+			statusMessage = operation.reason;
+			return;
+		}
+
+		const activeEngine = engine;
+		let workingState = loadedSave;
+		if (!workingState) {
+			pokemonCreationFeedback = 'Load a Save File before creating Pokemon.';
+			return;
+		}
+		if (!activeEngine) {
+			pokemonCreationFeedback = 'The PKHeX Engine is not ready.';
+			return;
+		}
+		if (slotForRef(view.destination)?.kind !== 'empty') {
+			pokemonCreationFeedback = 'Create Pokemon needs an empty destination Slot.';
+			return;
+		}
+
+		busy = true;
+		pokemonCreationFeedback = 'Creating Pokemon...';
+		const request = (pokemonCreationRequest += 1);
+
+		try {
+			if (shouldCreateAutomaticBackup(workingState)) {
+				statusMessage = 'Creating Backup...';
+				await storage.createBackup({
+					saveFileId: workingState.file.id,
+					bytes: workingState.bytes,
+					reason: 'pokemon-creation'
+				});
+				workingState = markAutomaticBackupCreated(workingState);
+				loadedSave = workingState;
+			}
+
+			statusMessage = 'Creating Pokemon...';
+			const result = await activeEngine.createPokemon(
+				workingState.bytes,
+				workingState.file.originalFileName ?? undefined,
+				operation.operation,
+				activePaneBox
+			);
+			if (!result.ok) {
+				throw result.error;
+			}
+
+			const nextState: WorkspaceState = {
+				...workingState,
+				bytes: result.value.bytes,
+				workspace: result.value.workspace,
+				dirty: workingState.dirty || result.value.mutated,
+				restoredFromBackup: null
+			};
+			if (nextState.dirty) {
+				await persistWorkspace(nextState);
+			}
+
+			loadedSave = nextState;
+			const refreshedSavePanes = refreshSaveFilePaneWorkspaces(
+				workbenchPanes,
+				savePaneWorkspaces,
+				nextState,
+				activePaneBox
+			);
+			workbenchPanes = refreshedSavePanes.panes;
+			savePaneWorkspaces = refreshedSavePanes.workspaces;
+			setCachedActiveWorkspace(nextState, activePaneBox);
+			invalidateSaveLibraryCache();
+
+			const createdSlot = slotViewForRefFromWorkspace(
+				nextState.workspace,
+				operation.operation.destination
+			);
+			const message = createdSlot
+				? `${createdSlot.label} created in ${view.location}.`
+				: `Pokemon created in ${view.location}.`;
+			if (request === pokemonCreationRequest) {
+				pokemonCreation = null;
+				pokemonCreationFeedback = null;
+				navigation = {
+					...navigation,
+					focus:
+						view.destination.zone === 'party'
+							? focusPartySlot(view.destination.slot)
+							: focusBoxSlot(view.destination.slot),
+					actionSurfaceOpen: false,
+					actionOrigin: null
+				};
+				statusMessage = message;
+				showToast('success', message);
+				queueMicrotask(focusActiveControl);
+			}
+		} catch (error) {
+			const message = getErrorMessage(error);
+			if (request === pokemonCreationRequest) {
+				pokemonCreationFeedback = message;
+				statusMessage = 'Create Pokemon failed.';
+				showToast('error', message);
+			}
+		} finally {
+			if (request === pokemonCreationRequest) {
+				busy = false;
+				queueMicrotask(() => document.getElementById('pokemon-creation-apply')?.focus());
+			}
 		}
 	}
 
@@ -2529,7 +2784,7 @@
 			return;
 		}
 
-		if (pokemonEditor) {
+		if (pokemonCreation || pokemonEditor) {
 			return;
 		}
 
@@ -2541,7 +2796,7 @@
 
 		if (
 			target.closest(
-				'.slot-cell, .slot-context, .box-arrow, .party-toggle, .pokemon-editor, .legality-report'
+				'.slot-cell, .slot-context, .box-arrow, .party-toggle, .pokemon-creation, .pokemon-editor, .legality-report'
 			)
 		) {
 			return;
@@ -3182,6 +3437,7 @@
 					viewportTop={actionSurfaceAnchor?.top ?? null}
 					viewportLeft={actionSurfaceAnchor?.left ?? null}
 					activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
+					createPokemonAvailable={createPokemonAvailability.available}
 					onFocusCommand={focusActionCommand}
 					onSelectCommand={selectSlotActionCommand}
 					onClose={closeActionSurface}
@@ -3259,6 +3515,16 @@
 			</div>
 		</div>
 	</div>
+{/if}
+
+{#if pokemonCreation}
+	<PokemonCreation
+		location={pokemonCreation.location}
+		feedback={pokemonCreationFeedback}
+		applying={busy}
+		onApply={applyPokemonCreation}
+		onClose={closePokemonCreation}
+	/>
 {/if}
 
 {#if pokemonEditor}

@@ -40,6 +40,7 @@
 		manual: 'Manual',
 		'pokemon-movement': 'Pokemon movement',
 		'pokemon-editing': 'Pokemon editing',
+		'pokemon-creation': 'Pokemon creation',
 		'trainer-editing': 'Trainer editing',
 		'inventory-editing': 'Inventory editing',
 		'legality-fix': 'Legality Fix',

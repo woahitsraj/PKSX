@@ -55,10 +55,13 @@ export function isNativeEditorActivation(
 	if (!(event.target instanceof Element)) return false;
 
 	const input = event.target.closest(
-		'.pokemon-editor input, .pokemon-editor select, .pokemon-editor textarea'
+		'.pokemon-editor input, .pokemon-editor select, .pokemon-editor textarea, .pokemon-creation input, .pokemon-creation select'
 	);
 	if (!input)
-		return action === 'confirm' && event.target.closest('.pokemon-editor button') !== null;
+		return (
+			action === 'confirm' &&
+			event.target.closest('.pokemon-editor button, .pokemon-creation button') !== null
+		);
 	if (input instanceof HTMLInputElement && input.dataset.controllerEditing === 'false')
 		return false;
 	if (event.key === 'Escape') return false;
