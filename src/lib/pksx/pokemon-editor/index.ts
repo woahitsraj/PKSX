@@ -1,6 +1,9 @@
 import type {
 	PokemonEditOperation,
+	PokemonFriendshipFieldEdit,
+	PokemonMetDataEdit,
 	PokemonMoveSlotEdit,
+	PokemonOriginalTrainerEdit,
 	PokemonStatEditSet,
 	SaveSlotRef
 } from '$lib/engine';
@@ -66,13 +69,44 @@ export type PokemonSpeciesFormEditPayload = {
 	form: number;
 };
 
+export type PokemonOriginalTrainerEditPayload = PokemonOriginalTrainerEdit;
+
+export type PokemonMetDataEditPayload = PokemonMetDataEdit;
+
+export type NatureEditPayload = {
+	natureId: number;
+};
+
+export type HeldItemEditPayload = {
+	heldItemId: number;
+};
+
+export type AbilityEditPayload = {
+	abilityIndex: number;
+};
+
+export type PokemonFriendshipEditPayload = {
+	fields: PokemonFriendshipFieldEdit[];
+};
+
+export type PokemonBattleFieldEditPayload = {
+	fields: Array<{ key: string; value: number }>;
+};
+
 export type PokemonEditorDraftEdits = {
 	speciesForm?: PokemonSpeciesFormEditPayload;
 	nickname?: string;
 	levelExperience?: LevelExperienceEditPayload;
+	natureId?: number;
+	heldItemId?: number;
+	abilityIndex?: number;
+	metData?: PokemonMetDataEditPayload;
+	originalTrainer?: PokemonOriginalTrainerEditPayload;
 	ivs?: PokemonStatEditPayload;
 	evs?: PokemonStatEditPayload;
 	moveSet?: PokemonMoveSetEditPayload;
+	friendship?: PokemonFriendshipEditPayload;
+	battleFields?: PokemonBattleFieldEditPayload;
 };
 
 export type PokemonEditorApplyOutcome =
@@ -154,6 +188,12 @@ export type PokemonEditOperationBuildResult =
 			operation: PokemonEditOperation;
 	  }
 	| Extract<PokemonEditValidationResult, { ok: false }>;
+
+type PokemonEditPatch = Partial<Omit<PokemonEditOperation, 'source'>>;
+type PokemonEditPatchResult =
+	| { ok: true; patch: PokemonEditPatch }
+	| Extract<PokemonEditValidationResult, { ok: false }>;
+type PokemonEditOperationBuilder = (payload: unknown, slot: SlotView) => PokemonEditPatchResult;
 
 export type PokemonEditorMutationResult =
 	| {
@@ -418,6 +458,131 @@ export function stageLevelExperienceEdit(
 	});
 }
 
+export function stageOriginalTrainerEdit(
+	state: PokemonEditorState,
+	payload: PokemonOriginalTrainerEditPayload
+): PokemonEditorState {
+	const validation = validateOriginalTrainerEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'original-trainer'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	if (originalTrainerEditMatchesSlot(state.slot, validation.payload)) {
+		return removePokemonEditorEdit(state, 'original-trainer');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'original-trainer',
+		capability: 'original-trainer-data-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
+export function stageMetDataEdit(
+	state: PokemonEditorState,
+	payload: PokemonMetDataEditPayload
+): PokemonEditorState {
+	const validation = validateMetDataEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'met-data'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	if (metDataEditMatchesSlot(state.slot, validation.payload)) {
+		return removePokemonEditorEdit(state, 'met-data');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'met-data',
+		capability: 'met-data-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
+export function stageNatureEdit(
+	state: PokemonEditorState,
+	payload: NatureEditPayload
+): PokemonEditorState {
+	const validation = validateNatureEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'nature'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	if (payload.natureId === state.slot.natureEditConstraints?.currentNatureId) {
+		return removePokemonEditorEdit(state, 'nature');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'nature',
+		capability: 'nature-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
+export function stageHeldItemEdit(
+	state: PokemonEditorState,
+	payload: HeldItemEditPayload
+): PokemonEditorState {
+	const validation = validateHeldItemEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'held-item'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	if (payload.heldItemId === state.slot.heldItemEditConstraints?.currentItemId) {
+		return removePokemonEditorEdit(state, 'held-item');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'held-item',
+		capability: 'held-item-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
+export function stageAbilityEdit(
+	state: PokemonEditorState,
+	payload: AbilityEditPayload
+): PokemonEditorState {
+	const validation = validateAbilityEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'ability'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	if (payload.abilityIndex === state.slot.abilityEditConstraints?.currentAbilityIndex) {
+		return removePokemonEditorEdit(state, 'ability');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'ability',
+		capability: 'ability-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
 export function stageIvEdit(
 	state: PokemonEditorState,
 	payload: PokemonStatEditPayload
@@ -485,6 +650,10 @@ export function stageSpeciesFormEdit(
 	state: PokemonEditorState,
 	payload: PokemonSpeciesFormEditPayload
 ): PokemonEditorState {
+	if (state.slot.kind !== 'pokemon') {
+		return removePokemonEditorEdit(state, 'species-form');
+	}
+
 	if (state.slot.speciesId === payload.speciesId && (state.slot.form ?? 0) === payload.form) {
 		return removePokemonEditorEdit(state, 'species-form');
 	}
@@ -507,6 +676,37 @@ export function stageSpeciesFormEdit(
 		capability: 'species-form-editing',
 		label: `Set species ${payload.speciesId}, form ${payload.form}`,
 		payload
+	});
+}
+
+export function stageFriendshipEdit(
+	state: PokemonEditorState,
+	payload: PokemonFriendshipEditPayload
+): PokemonEditorState {
+	const currentValues = new Map(
+		(state.slot.friendshipEditConstraints?.fields ?? []).map((field) => [field.key, field.value])
+	);
+	const changedFields = payload.fields.filter(
+		(field) => currentValues.get(field.key) !== field.value
+	);
+	if (changedFields.length === 0) {
+		return removePokemonEditorEdit(state, 'friendship');
+	}
+
+	const validation = validateFriendshipEdit(state.slot, { fields: changedFields });
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'friendship'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'friendship',
+		capability: 'friendship-editing',
+		label: validation.label,
+		payload: validation.payload
 	});
 }
 
@@ -540,27 +740,25 @@ export function createPokemonEditOperation(
 		return {
 			ok: false,
 			status: 'unsupported',
-			message: 'Pokemon Storage level and experience editing is not available yet.',
+			message: 'Pokemon Storage editing is not available yet.',
 			reason: 'storage-unavailable'
 		};
 	}
 
-	const nicknameEdit = state.stagedEdits.find((candidate) => candidate.id === 'nickname');
-	const levelExperienceEdit = state.stagedEdits.find(
-		(candidate) => candidate.id === 'level-experience'
-	);
-	const ivEdit = state.stagedEdits.find((candidate) => candidate.id === 'ivs');
-	const evEdit = state.stagedEdits.find((candidate) => candidate.id === 'evs');
-	const moveSetEdit = state.stagedEdits.find((candidate) => candidate.id === 'move-set');
-	const speciesFormEdit = state.stagedEdits.find((candidate) => candidate.id === 'species-form');
-	if (
-		!nicknameEdit &&
-		!levelExperienceEdit &&
-		!ivEdit &&
-		!evEdit &&
-		!moveSetEdit &&
-		!speciesFormEdit
-	) {
+	const operation: PokemonEditOperation = { source: state.source.slotRef };
+	let supportedEditFound = false;
+
+	for (const { id, build } of pokemonEditOperationBuilders) {
+		const edit = state.stagedEdits.find((candidate) => candidate.id === id);
+		if (!edit) continue;
+
+		supportedEditFound = true;
+		const result = build(edit.payload, state.slot);
+		if (!result.ok) return result;
+		Object.assign(operation, result.patch);
+	}
+
+	if (!supportedEditFound) {
 		return {
 			ok: false,
 			status: 'unsupported',
@@ -569,138 +767,531 @@ export function createPokemonEditOperation(
 		};
 	}
 
-	const operation: PokemonEditOperation = { source: state.source.slotRef };
-
-	if (speciesFormEdit) {
-		const payload = speciesFormEdit.payload;
-		if (!isPokemonSpeciesFormEditPayload(payload)) {
-			return {
-				ok: false,
-				status: 'rejected',
-				message: 'Species and Form edit payload is invalid.',
-				reason: 'invalid-pokemon-edit'
-			};
-		}
-
-		operation.speciesId = payload.speciesId;
-		operation.form = payload.form;
-	}
-
-	if (nicknameEdit) {
-		const nicknamePayload = nicknameEdit.payload;
-		if (!isNicknameEditPayload(nicknamePayload)) {
-			return {
-				ok: false,
-				status: 'rejected',
-				message: 'Nickname edit payload is invalid.',
-				reason: 'invalid-pokemon-edit'
-			};
-		}
-
-		operation.nickname = nicknamePayload.nickname;
-	}
-
-	if (levelExperienceEdit) {
-		const payload = levelExperienceEdit.payload;
-		if (!isLevelExperienceEditPayload(payload)) {
-			return {
-				ok: false,
-				status: 'rejected',
-				message: 'Level and Experience edit payload is invalid.',
-				reason: 'invalid-pokemon-edit'
-			};
-		}
-
-		const validation = validateLevelExperienceEdit(state.slot, payload);
-		if (!validation.ok) {
-			return {
-				ok: false,
-				status: 'rejected',
-				message: validation.message,
-				reason: 'invalid-pokemon-edit'
-			};
-		}
-
-		if (payload.mode === 'level') {
-			operation.level = payload.level;
-		} else {
-			operation.experience = payload.experience;
-		}
-	}
-
-	if (ivEdit) {
-		const payload = ivEdit.payload;
-		if (!isPokemonStatEditPayload(payload)) {
-			return {
-				ok: false,
-				status: 'rejected',
-				message: 'IV edit payload is invalid.',
-				reason: 'invalid-pokemon-edit'
-			};
-		}
-
-		const validation = validateIvEdit(state.slot, payload);
-		if (!validation.ok) {
-			return {
-				ok: false,
-				status: 'rejected',
-				message: validation.message,
-				reason: 'invalid-pokemon-edit'
-			};
-		}
-
-		operation.ivs = cloneStatEditPayload(validation.payload);
-	}
-
-	if (evEdit) {
-		const payload = evEdit.payload;
-		if (!isPokemonStatEditPayload(payload)) {
-			return {
-				ok: false,
-				status: 'rejected',
-				message: 'EV edit payload is invalid.',
-				reason: 'invalid-pokemon-edit'
-			};
-		}
-
-		const validation = validateEvEdit(state.slot, payload);
-		if (!validation.ok) {
-			return {
-				ok: false,
-				status: 'rejected',
-				message: validation.message,
-				reason: 'invalid-pokemon-edit'
-			};
-		}
-
-		operation.evs = cloneStatEditPayload(validation.payload);
-	}
-
-	if (moveSetEdit) {
-		const payload = moveSetEdit.payload;
-		if (!isPokemonMoveSetEditPayload(payload)) {
-			return {
-				ok: false,
-				status: 'rejected',
-				message: 'Move Set edit payload is invalid.',
-				reason: 'invalid-pokemon-edit'
-			};
-		}
-
-		const validation = validateMoveSetEdit(state.slot, payload);
-		if (!validation.ok) {
-			return {
-				ok: false,
-				status: 'rejected',
-				message: validation.message,
-				reason: 'invalid-pokemon-edit'
-			};
-		}
-
-		operation.moves = validation.payload.moves.map((move) => ({ ...move }));
-	}
-
 	return { ok: true, operation };
+}
+
+const pokemonEditOperationBuilders = [
+	{ id: 'species-form', build: buildSpeciesFormEdit },
+	{ id: 'nickname', build: buildNicknameEdit },
+	{ id: 'level-experience', build: buildLevelExperienceEdit },
+	{ id: 'nature', build: buildNatureEdit },
+	{ id: 'held-item', build: buildHeldItemEdit },
+	{ id: 'ability', build: buildAbilityEdit },
+	{ id: 'met-data', build: buildMetDataEdit },
+	{ id: 'original-trainer', build: buildOriginalTrainerEdit },
+	{ id: 'ivs', build: buildIvEdit },
+	{ id: 'evs', build: buildEvEdit },
+	{ id: 'move-set', build: buildMoveSetEdit },
+	{ id: 'friendship', build: buildFriendshipEdit },
+	{ id: 'battle-fields', build: buildBattleFieldEdit }
+] satisfies { id: string; build: PokemonEditOperationBuilder }[];
+
+function buildSpeciesFormEdit(payload: unknown): PokemonEditPatchResult {
+	if (!isPokemonSpeciesFormEditPayload(payload)) {
+		return invalidPokemonEdit('Species and Form edit payload is invalid.');
+	}
+
+	return { ok: true, patch: { speciesId: payload.speciesId, form: payload.form } };
+}
+
+function buildNatureEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isNatureEditPayload(payload)) {
+		return invalidPokemonEdit('Nature edit payload is invalid.');
+	}
+
+	const validation = validateNatureEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	return { ok: true, patch: { natureId: validation.payload.natureId } };
+}
+
+function validateNatureEdit(
+	slot: SlotView,
+	payload: NatureEditPayload
+): PokemonEditorPayloadValidation<NatureEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Nature Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.natureEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ?? 'Nature Editing is not supported for this Pokemon format.'
+		};
+	}
+
+	if (!Number.isInteger(payload.natureId)) {
+		return { ok: false, message: 'Nature choice is invalid.' };
+	}
+
+	const option = constraints.options.find((candidate) => candidate.id === payload.natureId);
+	if (!option) {
+		return { ok: false, message: `Nature ${payload.natureId} is not available.` };
+	}
+
+	return { ok: true, payload, label: `Set Nature to ${option.name}` };
+}
+
+function buildHeldItemEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isHeldItemEditPayload(payload)) {
+		return invalidPokemonEdit('Held Item edit payload is invalid.');
+	}
+
+	const validation = validateHeldItemEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	return { ok: true, patch: { heldItemId: validation.payload.heldItemId } };
+}
+
+function validateHeldItemEdit(
+	slot: SlotView,
+	payload: HeldItemEditPayload
+): PokemonEditorPayloadValidation<HeldItemEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Held Item Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.heldItemEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ??
+				'Held Item Editing is not supported for this Pokemon Entity format.'
+		};
+	}
+
+	if (!Number.isInteger(payload.heldItemId)) {
+		return { ok: false, message: 'Held Item choice is invalid.' };
+	}
+
+	const option = constraints.options.find((candidate) => candidate.id === payload.heldItemId);
+	if (!option) {
+		return {
+			ok: false,
+			message: `Item ${payload.heldItemId} is not available for this Save File and Pokemon Entity format.`
+		};
+	}
+
+	if (!option.available) {
+		return {
+			ok: false,
+			message: option.unavailableReason ?? `${option.name} is not available for this Pokemon.`
+		};
+	}
+
+	return {
+		ok: true,
+		payload,
+		label: payload.heldItemId === 0 ? 'Remove Held Item' : `Set Held Item to ${option.name}`
+	};
+}
+
+function buildAbilityEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isAbilityEditPayload(payload)) {
+		return invalidPokemonEdit('Ability edit payload is invalid.');
+	}
+
+	const validation = validateAbilityEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	return { ok: true, patch: { abilityIndex: validation.payload.abilityIndex } };
+}
+
+function validateAbilityEdit(
+	slot: SlotView,
+	payload: AbilityEditPayload
+): PokemonEditorPayloadValidation<AbilityEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Ability Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.abilityEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ??
+				'Ability Editing is not supported for this Pokemon format.'
+		};
+	}
+
+	if (!Number.isInteger(payload.abilityIndex)) {
+		return { ok: false, message: 'Ability choice is invalid.' };
+	}
+
+	const option = constraints.options.find((candidate) => candidate.index === payload.abilityIndex);
+	if (!option) {
+		return {
+			ok: false,
+			message: `Ability slot ${payload.abilityIndex + 1} is not supported by this Pokemon.`
+		};
+	}
+
+	if (!option.available) {
+		return {
+			ok: false,
+			message: option.unavailableReason ?? `${option.name} is not legal for this Pokemon.`
+		};
+	}
+
+	return { ok: true, payload, label: `Set Ability to ${option.name}` };
+}
+
+function buildFriendshipEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isPokemonFriendshipEditPayload(payload)) {
+		return invalidPokemonEdit('Friendship edit payload is invalid.');
+	}
+
+	const validation = validateFriendshipEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	return {
+		ok: true,
+		patch: { friendshipEdits: validation.payload.fields.map((field) => ({ ...field })) }
+	};
+}
+
+function buildBattleFieldEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isPokemonBattleFieldEditPayload(payload)) {
+		return invalidPokemonEdit('Battle field edit payload is invalid.');
+	}
+
+	const validation = validateBattleFieldEdits(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	const patch: PokemonEditPatch = {};
+	for (const field of validation.payload.fields) {
+		if (field.key === 'tera-type') patch.teraType = field.value;
+	}
+	return { ok: true, patch };
+}
+
+export function validateBattleFieldEdits(
+	slot: SlotView,
+	payload: PokemonBattleFieldEditPayload
+): PokemonEditorPayloadValidation<PokemonBattleFieldEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Battle Field Editing needs an occupied Slot.' };
+	}
+
+	if (payload.fields.length === 0) {
+		return { ok: false, message: 'Choose a battle field to edit.' };
+	}
+
+	const projections = new Map((slot.battleFields ?? []).map((field) => [field.key, field]));
+	const seen = new Set<string>();
+	for (const edit of payload.fields) {
+		if (seen.has(edit.key)) {
+			return { ok: false, message: `Battle field ${edit.key} is duplicated.` };
+		}
+		seen.add(edit.key);
+
+		const projection = projections.get(edit.key);
+		if (!projection) {
+			return {
+				ok: false,
+				message: 'This Pokemon format does not expose that battle field.'
+			};
+		}
+
+		if (!projection.supported) {
+			return {
+				ok: false,
+				message:
+					projection.unsupportedReason ?? `${projection.label} is not supported for this Pokemon.`
+			};
+		}
+
+		if (edit.key !== 'tera-type') {
+			return { ok: false, message: `${projection.label} editing is not implemented.` };
+		}
+
+		if (
+			!Number.isInteger(edit.value) ||
+			!projection.options.some((option) => option.value === edit.value)
+		) {
+			return { ok: false, message: `Choose a valid ${projection.label}.` };
+		}
+	}
+
+	return { ok: true, payload, label: 'Set battle fields' };
+}
+
+function buildNicknameEdit(payload: unknown): PokemonEditPatchResult {
+	return isNicknameEditPayload(payload)
+		? { ok: true, patch: { nickname: payload.nickname } }
+		: invalidPokemonEdit('Nickname edit payload is invalid.');
+}
+
+function buildLevelExperienceEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isLevelExperienceEditPayload(payload)) {
+		return invalidPokemonEdit('Level and Experience edit payload is invalid.');
+	}
+
+	const validation = validateLevelExperienceEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	return {
+		ok: true,
+		patch: payload.mode === 'level' ? { level: payload.level } : { experience: payload.experience }
+	};
+}
+
+function buildIvEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	return buildStatEdit(payload, slot, 'ivs');
+}
+
+function buildEvEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	return buildStatEdit(payload, slot, 'evs');
+}
+
+function buildStatEdit(
+	payload: unknown,
+	slot: SlotView,
+	kind: 'ivs' | 'evs'
+): PokemonEditPatchResult {
+	if (!isPokemonStatEditPayload(payload)) {
+		return invalidPokemonEdit(`${kind === 'ivs' ? 'IV' : 'EV'} edit payload is invalid.`);
+	}
+
+	const validation = kind === 'ivs' ? validateIvEdit(slot, payload) : validateEvEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	const stats = cloneStatEditPayload(validation.payload);
+	return { ok: true, patch: kind === 'ivs' ? { ivs: stats } : { evs: stats } };
+}
+
+function buildMoveSetEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isPokemonMoveSetEditPayload(payload)) {
+		return invalidPokemonEdit('Move Set edit payload is invalid.');
+	}
+
+	const validation = validateMoveSetEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	return {
+		ok: true,
+		patch: { moves: validation.payload.moves.map((move) => ({ ...move })) }
+	};
+}
+
+function invalidPokemonEdit(message: string): Extract<PokemonEditValidationResult, { ok: false }> {
+	return { ok: false, status: 'rejected', message, reason: 'invalid-pokemon-edit' };
+}
+
+function buildMetDataEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isPokemonMetDataEditPayload(payload)) {
+		return invalidPokemonEdit('Met Data edit payload is invalid.');
+	}
+
+	const validation = validateMetDataEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	return { ok: true, patch: { metData: { ...validation.payload } } };
+}
+
+function validateMetDataEdit(
+	slot: SlotView,
+	payload: PokemonMetDataEditPayload
+): PokemonEditorPayloadValidation<PokemonMetDataEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Met Data Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.metDataEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ??
+				'Met Data Editing is not supported for this Pokemon Entity format.'
+		};
+	}
+
+	if (!Number.isInteger(payload.metLevel)) {
+		return { ok: false, message: 'Met level must be a whole number.' };
+	}
+	if (payload.metLevel < constraints.minMetLevel || payload.metLevel > constraints.maxMetLevel) {
+		return {
+			ok: false,
+			message: `Met level must be between ${constraints.minMetLevel} and ${constraints.maxMetLevel}.`
+		};
+	}
+
+	const originGameId = payload.originGameId ?? constraints.currentOriginGameId;
+	if (
+		payload.originGameId !== undefined &&
+		(!constraints.supportsOriginGame ||
+			!constraints.originGames.some((option) => option.id === payload.originGameId))
+	) {
+		return { ok: false, message: 'Origin game choice is not supported by this Pokemon Entity.' };
+	}
+
+	const locationGroup = constraints.locationGroups.find(
+		(group) => group.originGameId === originGameId
+	);
+	if (
+		!Number.isInteger(payload.locationId) ||
+		!locationGroup?.options.some((option) => option.id === payload.locationId)
+	) {
+		return {
+			ok: false,
+			message: 'Met location is not available for the selected origin game.'
+		};
+	}
+
+	if (
+		payload.ballId !== undefined &&
+		(!constraints.supportsBall || !constraints.balls.some((option) => option.id === payload.ballId))
+	) {
+		return { ok: false, message: 'Ball choice is not supported by this Pokemon Entity.' };
+	}
+
+	if (payload.metDate !== undefined) {
+		if (!constraints.supportsMetDate) {
+			return {
+				ok: false,
+				message: 'Met date editing is not supported by this Pokemon Entity format.'
+			};
+		}
+		if (payload.metDate !== null && !isValidMetDate(payload.metDate)) {
+			return { ok: false, message: 'Met date must be a valid date from 2000 through 2255.' };
+		}
+	}
+
+	return { ok: true, payload, label: 'Set Met Data' };
+}
+
+function metDataEditMatchesSlot(slot: SlotView, payload: PokemonMetDataEditPayload): boolean {
+	const constraints = slot.metDataEditConstraints;
+	return (
+		constraints !== undefined &&
+		payload.locationId === constraints.currentLocationId &&
+		payload.metLevel === constraints.currentMetLevel &&
+		(payload.metDate ?? null) === (constraints.currentMetDate ?? null) &&
+		(payload.originGameId ?? constraints.currentOriginGameId) === constraints.currentOriginGameId &&
+		(payload.ballId ?? constraints.currentBallId) === constraints.currentBallId
+	);
+}
+
+function isValidMetDate(value: string): boolean {
+	if (!/^2\d{3}-\d{2}-\d{2}$/.test(value)) return false;
+	const parsed = new Date(`${value}T00:00:00Z`);
+	const year = Number(value.slice(0, 4));
+	return (
+		year >= 2000 &&
+		year <= 2255 &&
+		!Number.isNaN(parsed.valueOf()) &&
+		parsed.toISOString().slice(0, 10) === value
+	);
+}
+
+function buildOriginalTrainerEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isPokemonOriginalTrainerEditPayload(payload)) {
+		return invalidPokemonEdit('Original Trainer edit payload is invalid.');
+	}
+
+	const validation = validateOriginalTrainerEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	return { ok: true, patch: { originalTrainer: { ...validation.payload } } };
+}
+
+function validateOriginalTrainerEdit(
+	slot: SlotView,
+	payload: PokemonOriginalTrainerEditPayload
+): PokemonEditorPayloadValidation<PokemonOriginalTrainerEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Original Trainer Data Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.originalTrainerEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ??
+				'Original Trainer Data Editing is not supported for this Pokemon Entity format.'
+		};
+	}
+
+	if (payload.name.trim().length === 0) {
+		return { ok: false, message: 'Original Trainer name is required.' };
+	}
+	if (payload.name.length > constraints.maxNameLength) {
+		return {
+			ok: false,
+			message: `Original Trainer name must be ${constraints.maxNameLength} characters or fewer.`
+		};
+	}
+	if (
+		!Number.isInteger(payload.trainerId) ||
+		payload.trainerId < constraints.minTrainerId ||
+		payload.trainerId > constraints.maxTrainerId
+	) {
+		return {
+			ok: false,
+			message: `Trainer ID must be between ${constraints.minTrainerId} and ${constraints.maxTrainerId}.`
+		};
+	}
+	if (
+		payload.secretId !== undefined &&
+		(!constraints.supportsSecretId ||
+			!Number.isInteger(payload.secretId) ||
+			payload.secretId < constraints.minTrainerId ||
+			payload.secretId > constraints.maxTrainerId)
+	) {
+		return {
+			ok: false,
+			message: constraints.supportsSecretId
+				? `Secret ID must be between ${constraints.minTrainerId} and ${constraints.maxTrainerId}.`
+				: 'Secret ID editing is not supported by this Pokemon Entity format.'
+		};
+	}
+	if (
+		payload.genderId !== undefined &&
+		(!constraints.supportsGender ||
+			!constraints.genders.some((option) => option.id === payload.genderId))
+	) {
+		return {
+			ok: false,
+			message: constraints.supportsGender
+				? 'Original Trainer gender choice is invalid.'
+				: 'Original Trainer gender editing is not supported by this Pokemon Entity format.'
+		};
+	}
+	if (
+		payload.languageId !== undefined &&
+		(!constraints.supportsLanguage ||
+			!constraints.languages.some((option) => option.id === payload.languageId))
+	) {
+		return {
+			ok: false,
+			message: constraints.supportsLanguage
+				? 'Pokemon language choice is invalid.'
+				: 'Pokemon language editing is not supported by this Pokemon Entity format.'
+		};
+	}
+
+	return { ok: true, payload, label: 'Set Original Trainer data' };
+}
+
+function originalTrainerEditMatchesSlot(
+	slot: SlotView,
+	payload: PokemonOriginalTrainerEditPayload
+): boolean {
+	const constraints = slot.originalTrainerEditConstraints;
+	return (
+		constraints !== undefined &&
+		payload.name === constraints.currentName &&
+		payload.trainerId === constraints.currentTrainerId &&
+		(payload.secretId ?? constraints.currentSecretId) === constraints.currentSecretId &&
+		(payload.genderId ?? constraints.currentGenderId) === constraints.currentGenderId &&
+		(payload.languageId ?? constraints.currentLanguageId) === constraints.currentLanguageId
+	);
 }
 
 function validateIvEdit(
@@ -801,28 +1392,90 @@ function validateMoveSetEdit(
 
 	const options = new Map(constraints.availableMoves.map((option) => [option.id, option]));
 	for (const edit of payload.moves) {
-		if (!Number.isInteger(edit.slot) || edit.slot < 0 || edit.slot >= constraints.maxMoveSlots) {
-			return { ok: false, message: 'Move Set slot must be between 1 and 4.' };
-		}
-
-		const option = options.get(edit.move);
-		if (!option) {
-			return { ok: false, message: `Move ${edit.move} is not available for this Pokemon.` };
-		}
-
-		const ppUps = edit.ppUps ?? 0;
-		if (!Number.isInteger(ppUps) || ppUps < 0 || ppUps > 3) {
-			return { ok: false, message: 'PP Ups must be between 0 and 3.' };
-		}
-
-		const maxPp = maxPpForPpUps(option.maxPp, ppUps);
-		const pp = edit.pp ?? maxPp;
-		if (!Number.isInteger(pp) || pp < 0 || pp > maxPp) {
-			return { ok: false, message: `PP for ${option.name} must be between 0 and ${maxPp}.` };
-		}
+		const message = validateMoveSlotEdit(edit, constraints, options);
+		if (message) return { ok: false, message };
 	}
 
 	return { ok: true, payload, label: 'Set Move Set' };
+}
+
+export function validateFriendshipEdit(
+	slot: SlotView,
+	payload: PokemonFriendshipEditPayload
+): PokemonEditorPayloadValidation<PokemonFriendshipEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Friendship Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.friendshipEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ??
+				'Friendship Editing is not supported for this Pokemon format.'
+		};
+	}
+	if (payload.fields.length === 0) {
+		return { ok: false, message: 'Choose a Friendship edit to apply.' };
+	}
+
+	const availableFields = new Map(constraints.fields.map((field) => [field.key, field]));
+	const keys = new Set<string>();
+	for (const edit of payload.fields) {
+		if (keys.has(edit.key)) {
+			return { ok: false, message: `${edit.key} is duplicated.` };
+		}
+		keys.add(edit.key);
+
+		const field = availableFields.get(edit.key);
+		if (!field) {
+			return { ok: false, message: `Friendship field '${edit.key}' is not supported.` };
+		}
+		if (!Number.isInteger(edit.value)) {
+			return { ok: false, message: `${field.label} must be a whole number.` };
+		}
+		if (edit.value < field.min || edit.value > field.max) {
+			return {
+				ok: false,
+				message: `${field.label} must be between ${field.min} and ${field.max}.`
+			};
+		}
+	}
+
+	const labels = payload.fields.map((edit) => availableFields.get(edit.key)?.label ?? edit.key);
+	return {
+		ok: true,
+		payload,
+		label: `Set ${labels.join(' and ')}`
+	};
+}
+
+type MoveSetEditConstraints = NonNullable<SlotView['moveSetEditConstraints']>;
+type MoveOption = MoveSetEditConstraints['availableMoves'][number];
+
+function validateMoveSlotEdit(
+	edit: PokemonMoveSlotEdit,
+	constraints: MoveSetEditConstraints,
+	options: Map<number, MoveOption>
+): string | null {
+	if (!Number.isInteger(edit.slot) || edit.slot < 0 || edit.slot >= constraints.maxMoveSlots) {
+		return 'Move Set slot must be between 1 and 4.';
+	}
+
+	const option = options.get(edit.move);
+	if (!option) return `Move ${edit.move} is not available for this Pokemon.`;
+
+	const ppUps = edit.ppUps ?? 0;
+	if (!Number.isInteger(ppUps) || ppUps < 0 || ppUps > 3) {
+		return 'PP Ups must be between 0 and 3.';
+	}
+
+	const maxPp = maxPpForPpUps(option.maxPp, ppUps);
+	const pp = edit.pp ?? maxPp;
+	return !Number.isInteger(pp) || pp < 0 || pp > maxPp
+		? `PP for ${option.name} must be between 0 and ${maxPp}.`
+		: null;
 }
 
 export function maxPpForPpUps(basePp: number, ppUps: number): number {
@@ -1028,6 +1681,63 @@ function isNicknameEditPayload(value: unknown): value is { nickname: string } {
 	);
 }
 
+function isPokemonOriginalTrainerEditPayload(
+	value: unknown
+): value is PokemonOriginalTrainerEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'name' in value &&
+		typeof value.name === 'string' &&
+		'trainerId' in value &&
+		typeof value.trainerId === 'number' &&
+		(!('secretId' in value) || typeof value.secretId === 'number') &&
+		(!('genderId' in value) || typeof value.genderId === 'number') &&
+		(!('languageId' in value) || typeof value.languageId === 'number')
+	);
+}
+
+function isPokemonMetDataEditPayload(value: unknown): value is PokemonMetDataEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'locationId' in value &&
+		typeof value.locationId === 'number' &&
+		'metLevel' in value &&
+		typeof value.metLevel === 'number' &&
+		(!('metDate' in value) || value.metDate === null || typeof value.metDate === 'string') &&
+		(!('originGameId' in value) || typeof value.originGameId === 'number') &&
+		(!('ballId' in value) || typeof value.ballId === 'number')
+	);
+}
+
+function isNatureEditPayload(value: unknown): value is NatureEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'natureId' in value &&
+		typeof value.natureId === 'number'
+	);
+}
+
+function isHeldItemEditPayload(value: unknown): value is HeldItemEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'heldItemId' in value &&
+		typeof value.heldItemId === 'number'
+	);
+}
+
+function isAbilityEditPayload(value: unknown): value is AbilityEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'abilityIndex' in value &&
+		typeof value.abilityIndex === 'number'
+	);
+}
+
 function isPokemonStatEditPayload(value: unknown): value is PokemonStatEditPayload {
 	const candidate = value as Partial<Record<PokemonStatKey, unknown>>;
 	return (
@@ -1069,5 +1779,33 @@ function isPokemonSpeciesFormEditPayload(value: unknown): value is PokemonSpecie
 		typeof value.form === 'number' &&
 		Number.isInteger(value.form) &&
 		value.form >= 0
+	);
+}
+
+function isPokemonFriendshipEditPayload(value: unknown): value is PokemonFriendshipEditPayload {
+	return isPokemonFieldEditPayload(value);
+}
+
+function isPokemonBattleFieldEditPayload(value: unknown): value is PokemonBattleFieldEditPayload {
+	return isPokemonFieldEditPayload(value);
+}
+
+function isPokemonFieldEditPayload(
+	value: unknown
+): value is { fields: Array<{ key: string; value: number }> } {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'fields' in value &&
+		Array.isArray(value.fields) &&
+		value.fields.every(
+			(field) =>
+				typeof field === 'object' &&
+				field !== null &&
+				'key' in field &&
+				typeof field.key === 'string' &&
+				'value' in field &&
+				typeof field.value === 'number'
+		)
 	);
 }

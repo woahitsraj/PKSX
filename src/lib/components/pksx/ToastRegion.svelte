@@ -127,7 +127,7 @@
 		outline: none;
 	}
 
-	@media (max-width: 820px) {
+	@media (max-width: 1024px) {
 		.toast-region {
 			right: 10px;
 			bottom: 86px;

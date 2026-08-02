@@ -68,7 +68,7 @@ public static partial class PkhexEngineExports
 
             var slots = new List<BoxSlotSummary>(save.BoxSlotCount);
             for (var slot = 0; slot < save.BoxSlotCount; slot++)
-                slots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), box, slot));
+                slots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), save, box, slot));
 
             return EngineJson.Serialize(EngineResult.Ok(slots), EngineJsonContext.Default.EngineResultListBoxSlotSummary);
         }
@@ -421,11 +421,11 @@ public static partial class PkhexEngineExports
     {
         var partySlots = new List<PartySlotSummary>(save.PartyCount);
         for (var slot = 0; slot < save.PartyCount; slot++)
-            partySlots.Add(PartySlotSummary.From(save.GetPartySlotAtIndex(slot), slot));
+            partySlots.Add(PartySlotSummary.From(save.GetPartySlotAtIndex(slot), save, slot));
 
         var boxSlots = new List<BoxSlotSummary>(save.BoxSlotCount);
         for (var slot = 0; slot < save.BoxSlotCount; slot++)
-            boxSlots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), box, slot));
+            boxSlots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), save, box, slot));
 
         return new SaveWorkspace(SaveSummary.From(save, fileName), partySlots, boxSlots);
     }
@@ -467,9 +467,16 @@ public static partial class PkhexEngineExports
             operation.Nickname is null &&
             operation.Level is null &&
             operation.Experience is null &&
+            operation.NatureId is null &&
+            operation.HeldItemId is null &&
+            operation.AbilityIndex is null &&
+            operation.MetData is null &&
+            operation.OriginalTrainer is null &&
             operation.Ivs is null &&
             operation.Evs is null &&
-            operation.Moves is null)
+            operation.Moves is null &&
+            operation.FriendshipEdits is null &&
+            operation.TeraType is null)
             return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a Pokemon edit to apply.");
 
         if (operation.Level is not null && operation.Experience is not null)
@@ -487,11 +494,33 @@ public static partial class PkhexEngineExports
         var originalGender = pokemon.Gender;
         var originalLevel = pokemon.CurrentLevel;
         var originalExperience = pokemon.EXP;
+        var originalNature = pokemon.Nature;
+        var originalStatNature = pokemon.StatNature;
+        var originalPid = pokemon.PID;
+        var originalHeldItem = pokemon.HeldItem;
+        var originalMetLocation = pokemon.MetLocation;
+        var originalMetLevel = pokemon.MetLevel;
+        var originalMetDate = pokemon.MetDate;
+        var originalVersion = pokemon.Version;
+        var originalBall = pokemon.Ball;
+        var originalTrainerName = pokemon.OriginalTrainerName;
+        var originalTrainerId = pokemon.TID16;
+        var originalSecretId = pokemon.SID16;
+        var originalTrainerGender = pokemon.OriginalTrainerGender;
+        var originalLanguage = pokemon.Language;
+        var originalLegalityMessages = operation.MetData is null && operation.OriginalTrainer is null
+            ? null
+            : InvalidLegalityMessages(pokemon, source.StorageSlotType)
+                .Select(LegalityMessageKey)
+                .ToHashSet(StringComparer.Ordinal);
         int[] originalIvs = [pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE];
         int[] originalEvs = [pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE];
         ushort[] originalMoves = [pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4];
         int[] originalPp = [pokemon.Move1_PP, pokemon.Move2_PP, pokemon.Move3_PP, pokemon.Move4_PP];
         int[] originalPpUps = [pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps];
+        var originalFriendship = pokemon.CurrentFriendship;
+        var originalAffection = CurrentAffection(pokemon);
+        var originalTeraType = TeraTypeState(pokemon);
 
         if (operation.SpeciesId is ushort speciesId && operation.Form is byte form)
         {
@@ -548,6 +577,85 @@ public static partial class PkhexEngineExports
             pokemon.EXP = experience;
         }
 
+        if (operation.NatureId is int natureId)
+        {
+            var constraints = SlotDetailProjection.NatureEditConstraints(pokemon);
+            if (!constraints.Supported)
+                return SlotMutationResult.Fail(
+                    "unsupported-pokemon-edit",
+                    constraints.UnsupportedReason ?? "Nature Editing is not supported for this Pokemon format.");
+
+            var option = constraints.Options.Find(candidate => candidate.Id == natureId);
+            if (option is null)
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"Nature {natureId} is not available.");
+
+            if (natureId != constraints.CurrentNatureId)
+                CommonEdits.SetNature(pokemon, (Nature)natureId);
+        }
+
+        if (operation.HeldItemId is int heldItemId)
+        {
+            var constraints = SlotDetailProjection.HeldItemEditConstraints(pokemon, save);
+            if (!constraints.Supported)
+                return SlotMutationResult.Fail(
+                    "unsupported-pokemon-edit",
+                    constraints.UnsupportedReason ?? "Held Item Editing is not supported for this Pokemon.");
+
+            var option = constraints.Options.Find(candidate => candidate.Id == heldItemId);
+            if (option is null)
+                return SlotMutationResult.Fail(
+                    "unsupported-pokemon-edit",
+                    $"Item {heldItemId} is not available for this Save File and Pokemon Entity format.");
+
+            if (!option.Available)
+                return SlotMutationResult.Fail(
+                    "invalid-pokemon-edit",
+                    option.UnavailableReason ?? $"{option.Name} is not available for this Pokemon.");
+
+            pokemon.HeldItem = heldItemId;
+            var invalidItem = CreateLegalityMessages(
+                new LegalityAnalysis(pokemon, source.StorageSlotType),
+                includeGeneric: true).FirstOrDefault(message =>
+                    StringComparer.Ordinal.Equals(message.Identifier, CheckIdentifier.HeldItem.ToString()) &&
+                    StringComparer.Ordinal.Equals(message.Severity, Severity.Invalid.ToString()));
+            if (invalidItem is not null)
+                return SlotMutationResult.Fail(
+                    "invalid-pokemon-edit",
+                    $"Held Item edit is not legal for this Pokemon. {invalidItem.Message}");
+        }
+
+        if (operation.AbilityIndex is int abilityIndex)
+        {
+            var constraints = SlotDetailProjection.AbilityEditConstraints(pokemon);
+            var option = constraints.Options.Find(candidate => candidate.Index == abilityIndex);
+            if (option is null)
+                return SlotMutationResult.Fail(
+                    "unsupported-pokemon-edit",
+                    $"Ability slot {abilityIndex + 1} is not supported by this Pokemon's species, form, or format.");
+
+            if (!option.Available)
+                return SlotMutationResult.Fail(
+                    "invalid-pokemon-edit",
+                    option.UnavailableReason ?? $"{option.Name} is not legal for this Pokemon.");
+
+            if (abilityIndex != constraints.CurrentAbilityIndex)
+                pokemon.SetAbilityIndex(abilityIndex);
+        }
+
+        if (operation.MetData is not null)
+        {
+            var metDataResult = ApplyMetDataEdit(pokemon, operation.MetData);
+            if (!metDataResult.Ok)
+                return metDataResult;
+        }
+
+        if (operation.OriginalTrainer is not null)
+        {
+            var trainerResult = ApplyOriginalTrainerEdit(pokemon, operation.OriginalTrainer);
+            if (!trainerResult.Ok)
+                return trainerResult;
+        }
+
         if (operation.Ivs is not null)
         {
             var ivs = StatEditSetToArray(operation.Ivs);
@@ -586,6 +694,41 @@ public static partial class PkhexEngineExports
                 return moveResult;
         }
 
+        if (operation.FriendshipEdits is not null)
+        {
+            var friendshipResult = ApplyFriendshipEdits(pokemon, operation.FriendshipEdits);
+            if (!friendshipResult.Ok)
+                return friendshipResult;
+        }
+
+        if (operation.TeraType is int teraType)
+        {
+            if (pokemon is not ITeraType tera)
+                return SlotMutationResult.Fail(
+                    "unsupported-pokemon-edit",
+                    "Tera Type Editing is not supported for this Pokemon format.");
+
+            if (!TeraTypeUtil.CanChangeTeraType(pokemon.Species))
+                return SlotMutationResult.Fail(
+                    "unsupported-pokemon-edit",
+                    "Tera Type Editing is not supported for this Pokemon species.");
+
+            if (teraType < 0 || teraType > byte.MaxValue || !TeraTypeUtil.IsOverrideValid((byte)teraType))
+                return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a valid Tera Type.");
+
+            tera.SetTeraType((byte)teraType);
+        }
+
+        if (originalLegalityMessages is not null)
+        {
+            var introducedIssue = InvalidLegalityMessages(pokemon, source.StorageSlotType)
+                .FirstOrDefault(message => !originalLegalityMessages.Contains(LegalityMessageKey(message)));
+            if (introducedIssue is not null)
+                return SlotMutationResult.Fail(
+                    "invalid-pokemon-edit",
+                    $"{LegalityEditFailurePrefix(operation)} {introducedIssue.Message}");
+        }
+
         if (pokemon.PartyStatsPresent)
             pokemon.ResetPartyStats();
 
@@ -599,11 +742,28 @@ public static partial class PkhexEngineExports
             originalGender != pokemon.Gender ||
             originalLevel != pokemon.CurrentLevel ||
             originalExperience != pokemon.EXP ||
+            originalNature != pokemon.Nature ||
+            originalStatNature != pokemon.StatNature ||
+            originalPid != pokemon.PID ||
+            originalHeldItem != pokemon.HeldItem ||
+            originalMetLocation != pokemon.MetLocation ||
+            originalMetLevel != pokemon.MetLevel ||
+            originalMetDate != pokemon.MetDate ||
+            originalVersion != pokemon.Version ||
+            originalBall != pokemon.Ball ||
+            !StringComparer.Ordinal.Equals(originalTrainerName, pokemon.OriginalTrainerName) ||
+            originalTrainerId != pokemon.TID16 ||
+            originalSecretId != pokemon.SID16 ||
+            originalTrainerGender != pokemon.OriginalTrainerGender ||
+            originalLanguage != pokemon.Language ||
             !originalIvs.SequenceEqual([pokemon.IV_HP, pokemon.IV_ATK, pokemon.IV_DEF, pokemon.IV_SPA, pokemon.IV_SPD, pokemon.IV_SPE]) ||
             !originalEvs.SequenceEqual([pokemon.EV_HP, pokemon.EV_ATK, pokemon.EV_DEF, pokemon.EV_SPA, pokemon.EV_SPD, pokemon.EV_SPE]) ||
             !originalMoves.SequenceEqual([pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4]) ||
             !originalPp.SequenceEqual([pokemon.Move1_PP, pokemon.Move2_PP, pokemon.Move3_PP, pokemon.Move4_PP]) ||
-            !originalPpUps.SequenceEqual([pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps]);
+            !originalPpUps.SequenceEqual([pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps]) ||
+            originalFriendship != pokemon.CurrentFriendship ||
+            originalAffection != CurrentAffection(pokemon) ||
+            originalTeraType != TeraTypeState(pokemon);
         if (mutated)
             source.Set(save, pokemon);
 
@@ -676,6 +836,7 @@ public static partial class PkhexEngineExports
             return SlotMutationResult.Success(false);
 
         var wasNicknamed = pokemon.IsNicknamed;
+        var currentLevel = Experience.ClampLevel(pokemon.CurrentLevel);
         var abilityIndex = pokemon.AbilityNumber switch
         {
             2 => 1,
@@ -687,8 +848,86 @@ public static partial class PkhexEngineExports
         pokemon.Form = form;
         pokemon.RefreshAbility(Math.Min(abilityIndex, Math.Max(0, pokemon.PersonalInfo.AbilityCount - 1)));
         pokemon.Gender = pokemon.GetSaneGender();
+        // Re-anchor experience so a growth-rate change keeps the pre-edit level.
+        pokemon.EXP = Experience.GetEXP(currentLevel, pokemon.PersonalInfo.EXPGrowth);
         if (!wasNicknamed)
             pokemon.ClearNickname();
+
+        return SlotMutationResult.Success(true);
+    }
+
+    private static string LegalityEditFailurePrefix(PokemonEditOperationRequest operation)
+    {
+        if (operation.MetData is not null && operation.OriginalTrainer is not null)
+            return "Pokemon edit is not valid for this Pokemon Entity.";
+
+        return operation.MetData is not null
+            ? "Met Data edit is not valid for this Pokemon encounter."
+            : "Original Trainer data is not valid for this Pokemon Entity.";
+    }
+
+    private static SlotMutationResult ApplyOriginalTrainerEdit(PKM pokemon, PokemonOriginalTrainerEdit edit)
+    {
+        var constraints = SlotDetailProjection.OriginalTrainerEditConstraints(pokemon);
+        if (!constraints.Supported)
+            return SlotMutationResult.Fail(
+                "unsupported-pokemon-edit",
+                constraints.UnsupportedReason ?? "Original Trainer Data Editing is not supported for this Pokemon Entity format.");
+
+        if (string.IsNullOrWhiteSpace(edit.Name))
+            return SlotMutationResult.Fail("invalid-pokemon-edit", "Original Trainer name is required.");
+        if (edit.Name.Length > constraints.MaxNameLength)
+            return SlotMutationResult.Fail(
+                "invalid-pokemon-edit",
+                $"Original Trainer name must be {constraints.MaxNameLength} characters or fewer.");
+        if (edit.TrainerId < constraints.MinTrainerId || edit.TrainerId > constraints.MaxTrainerId)
+            return SlotMutationResult.Fail(
+                "invalid-pokemon-edit",
+                $"Trainer ID must be between {constraints.MinTrainerId} and {constraints.MaxTrainerId}.");
+        if (edit.SecretId is int secretId &&
+            (!constraints.SupportsSecretId || secretId < constraints.MinTrainerId || secretId > constraints.MaxTrainerId))
+            return SlotMutationResult.Fail(
+                constraints.SupportsSecretId ? "invalid-pokemon-edit" : "unsupported-pokemon-edit",
+                constraints.SupportsSecretId
+                    ? $"Secret ID must be between {constraints.MinTrainerId} and {constraints.MaxTrainerId}."
+                    : "Secret ID editing is not supported by this Pokemon Entity format.");
+        if (edit.GenderId is int genderId &&
+            (!constraints.SupportsGender || constraints.Genders.All(option => option.Id != genderId)))
+            return SlotMutationResult.Fail(
+                constraints.SupportsGender ? "invalid-pokemon-edit" : "unsupported-pokemon-edit",
+                constraints.SupportsGender
+                    ? "Original Trainer gender choice is invalid."
+                    : "Original Trainer gender editing is not supported by this Pokemon Entity format.");
+        if (edit.LanguageId is int languageId &&
+            (!constraints.SupportsLanguage || constraints.Languages.All(option => option.Id != languageId)))
+            return SlotMutationResult.Fail(
+                constraints.SupportsLanguage ? "invalid-pokemon-edit" : "unsupported-pokemon-edit",
+                constraints.SupportsLanguage
+                    ? "Pokemon language choice is invalid."
+                    : "Pokemon language editing is not supported by this Pokemon Entity format.");
+
+        if (edit.LanguageId is int nextLanguage)
+            pokemon.Language = nextLanguage;
+
+        try
+        {
+            pokemon.OriginalTrainerName = edit.Name;
+        }
+        catch (Exception ex)
+        {
+            return SlotMutationResult.Fail("invalid-pokemon-edit", ex.Message);
+        }
+
+        if (!StringComparer.Ordinal.Equals(pokemon.OriginalTrainerName, edit.Name))
+            return SlotMutationResult.Fail(
+                "invalid-pokemon-edit",
+                "Original Trainer name contains characters that are not valid for this Pokemon format or language.");
+
+        pokemon.TID16 = (ushort)edit.TrainerId;
+        if (edit.SecretId is int nextSecretId)
+            pokemon.SID16 = (ushort)nextSecretId;
+        if (edit.GenderId is int nextGender)
+            pokemon.OriginalTrainerGender = (byte)nextGender;
 
         return SlotMutationResult.Success(true);
     }
@@ -759,8 +998,129 @@ public static partial class PkhexEngineExports
     private static string FormName(IReadOnlyList<PokemonFormOption> forms, byte form) =>
         forms.FirstOrDefault(option => option.Id == form)?.Name ?? (form == 0 ? "Default" : $"Form {form}");
 
+    private static SlotMutationResult ApplyMetDataEdit(PKM pokemon, PokemonMetDataEdit edit)
+    {
+        var constraints = SlotDetailProjection.MetDataEditConstraints(pokemon);
+        if (!constraints.Supported)
+            return SlotMutationResult.Fail(
+                "unsupported-pokemon-edit",
+                constraints.UnsupportedReason ?? "Met Data Editing is not supported for this Pokemon Entity format.");
+
+        var originGameId = edit.OriginGameId ?? constraints.CurrentOriginGameId;
+        if (constraints.SupportsOriginGame && constraints.OriginGames.All(option => option.Id != originGameId))
+            return SlotMutationResult.Fail("invalid-pokemon-edit", $"Origin game {originGameId} is not supported by this Pokemon Entity format.");
+
+        var locationGroup = constraints.LocationGroups.Find(group => group.OriginGameId == originGameId);
+        if (locationGroup is null || locationGroup.Options.All(option => option.Id != edit.LocationId))
+            return SlotMutationResult.Fail(
+                "invalid-pokemon-edit",
+                $"Met location {edit.LocationId} is not available for the selected origin game.");
+
+        if (edit.MetLevel < constraints.MinMetLevel || edit.MetLevel > constraints.MaxMetLevel)
+            return SlotMutationResult.Fail(
+                "invalid-pokemon-edit",
+                $"Met level must be between {constraints.MinMetLevel} and {constraints.MaxMetLevel}.");
+
+        if (edit.OriginGameId is int requestedOriginGameId)
+        {
+            if (!constraints.SupportsOriginGame)
+                return SlotMutationResult.Fail("unsupported-pokemon-edit", "Origin game editing is not supported by this Pokemon Entity format.");
+            pokemon.Version = (GameVersion)requestedOriginGameId;
+        }
+
+        if (edit.BallId is int ballId)
+        {
+            if (!constraints.SupportsBall)
+                return SlotMutationResult.Fail("unsupported-pokemon-edit", "Ball editing is not supported by this Pokemon Entity format.");
+            if (constraints.Balls.All(option => option.Id != ballId))
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"Ball {ballId} is not supported by this Pokemon Entity format.");
+            pokemon.Ball = (byte)ballId;
+            if (pokemon.Ball != ballId)
+                return SlotMutationResult.Fail("unsupported-pokemon-edit", $"Ball {ballId} cannot be stored by this Pokemon Entity format.");
+        }
+
+        if (constraints.SupportsMetDate)
+        {
+            if (edit.MetDate is not null &&
+                (!DateOnly.TryParseExact(edit.MetDate, "yyyy-MM-dd", out var metDate) ||
+                 metDate.Year is < 2000 or > 2255))
+                return SlotMutationResult.Fail("invalid-pokemon-edit", "Met date must use YYYY-MM-DD and be between 2000 and 2255.");
+            pokemon.MetDate = edit.MetDate is null ? null : DateOnly.ParseExact(edit.MetDate, "yyyy-MM-dd");
+        }
+        else if (edit.MetDate is not null)
+        {
+            return SlotMutationResult.Fail("unsupported-pokemon-edit", "Met date editing is not supported by this Pokemon Entity format.");
+        }
+
+        pokemon.MetLocation = (ushort)edit.LocationId;
+        pokemon.MetLevel = (byte)edit.MetLevel;
+        return SlotMutationResult.Success(true);
+    }
+
+    private static List<LegalityReportLine> InvalidLegalityMessages(PKM pokemon, StorageSlotType storageSlotType) =>
+        CreateLegalityMessages(new LegalityAnalysis(pokemon, storageSlotType), includeGeneric: true)
+            .Where(message => !StringComparer.Ordinal.Equals(message.Severity, Severity.Valid.ToString()))
+            .ToList();
+
+    private static string LegalityMessageKey(LegalityReportLine message) =>
+        $"{message.Severity}|{message.Identifier}|{message.Message}";
+
     private static int[] StatEditSetToArray(PokemonStatEditSet edits) =>
         [edits.HP, edits.ATK, edits.DEF, edits.SPE, edits.SPA, edits.SPD];
+
+    private static (byte? Original, byte? Override) TeraTypeState(PKM pokemon) =>
+        pokemon is ITeraType tera
+            ? ((byte)tera.TeraTypeOriginal, (byte)tera.TeraTypeOverride)
+            : (null, null);
+
+    private static SlotMutationResult ApplyFriendshipEdits(PKM pokemon, List<PokemonFriendshipFieldEdit> edits)
+    {
+        if (edits.Count == 0)
+            return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a Friendship edit to apply.");
+
+        var constraints = SlotDetailProjection.FriendshipEditConstraints(pokemon);
+        if (!constraints.Supported)
+            return SlotMutationResult.Fail(
+                "unsupported-pokemon-edit",
+                constraints.UnsupportedReason ?? "Friendship Editing is not supported for this Pokemon format.");
+
+        var fields = constraints.Fields.ToDictionary(field => field.Key, StringComparer.Ordinal);
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var edit in edits)
+        {
+            if (!keys.Add(edit.Key))
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"Friendship field '{edit.Key}' is duplicated.");
+            if (!fields.TryGetValue(edit.Key, out var field))
+                return SlotMutationResult.Fail("unsupported-pokemon-edit", $"Friendship field '{edit.Key}' is not supported by this Pokemon format.");
+            if (edit.Value < field.Min || edit.Value > field.Max)
+                return SlotMutationResult.Fail("invalid-pokemon-edit", $"{field.Label} must be between {field.Min} and {field.Max}.");
+
+            switch (edit.Key)
+            {
+                case "friendship":
+                case "hatch-counter":
+                    pokemon.CurrentFriendship = (byte)edit.Value;
+                    break;
+                case "affection" when pokemon is IAffection affection:
+                    if (pokemon.CurrentHandler == 0)
+                        affection.OriginalTrainerAffection = (byte)edit.Value;
+                    else
+                        affection.HandlingTrainerAffection = (byte)edit.Value;
+                    break;
+                default:
+                    return SlotMutationResult.Fail("unsupported-pokemon-edit", $"Friendship field '{edit.Key}' is not supported by this Pokemon format.");
+            }
+        }
+
+        return SlotMutationResult.Success(true);
+    }
+
+    private static int? CurrentAffection(PKM pokemon) =>
+        pokemon is not IAffection affection
+            ? null
+            : pokemon.CurrentHandler == 0
+                ? affection.OriginalTrainerAffection
+                : affection.HandlingTrainerAffection;
 
     private static SlotMutationResult ApplyMoveSetEdits(PKM pokemon, List<PokemonMoveSlotEdit> edits, StorageSlotType storageSlotType)
     {

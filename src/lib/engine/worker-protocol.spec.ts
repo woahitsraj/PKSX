@@ -123,7 +123,7 @@ describe('parseEngineWorkerRequest', () => {
 		});
 	});
 
-	test('parses Pokemon edit requests with staged level or experience operations', () => {
+	test('parses Pokemon edit requests with staged Met Data operations', () => {
 		expect.assertions(1);
 
 		const bytes = new ArrayBuffer(4);
@@ -136,7 +136,17 @@ describe('parseEngineWorkerRequest', () => {
 				payload: {
 					bytes,
 					fileName: 'main.sav',
-					operation: { source: { zone: 'box', box: 0, slot: 0 }, level: 24 },
+					operation: {
+						source: { zone: 'box', box: 0, slot: 0 },
+						level: 24,
+						metData: {
+							locationId: 16,
+							metLevel: 10,
+							originGameId: 3,
+							ballId: 4
+						},
+						originalTrainer: { name: 'RAJAN', trainerId: 12345 }
+					},
 					activeBox: 0
 				}
 			})
@@ -149,7 +159,17 @@ describe('parseEngineWorkerRequest', () => {
 				payload: {
 					bytes,
 					fileName: 'main.sav',
-					operation: { source: { zone: 'box', box: 0, slot: 0 }, level: 24 },
+					operation: {
+						source: { zone: 'box', box: 0, slot: 0 },
+						level: 24,
+						metData: {
+							locationId: 16,
+							metLevel: 10,
+							originGameId: 3,
+							ballId: 4
+						},
+						originalTrainer: { name: 'RAJAN', trainerId: 12345 }
+					},
 					activeBox: 0
 				}
 			}
