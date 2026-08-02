@@ -946,6 +946,15 @@
 	}
 
 	function pokemonEditorControls() {
+		const openCombobox = document.querySelector<HTMLElement>(
+			'.pokemon-editor [data-combobox-open="true"]'
+		);
+		if (openCombobox) {
+			return Array.from(
+				openCombobox.querySelectorAll<HTMLElement>('input, [data-combobox-option]')
+			).filter((control) => control.getClientRects().length > 0);
+		}
+
 		return [
 			'#pokemon-editor-close',
 			'.species-form-controls select:not([disabled])',
@@ -963,7 +972,7 @@
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',
 			'.stat-edit-controls input:not([disabled])',
-			'.move-edit-controls .move-picker-trigger:not([disabled]), .move-edit-controls input:not([disabled])',
+			'.move-edit-controls .pksx-combobox-trigger:not([disabled]), .move-edit-controls input:not([disabled])',
 			'#pokemon-editor-apply',
 			'#pokemon-editor-cancel',
 			'#pokemon-editor-close-footer'
@@ -1034,6 +1043,17 @@
 
 	function activatePokemonEditorControl() {
 		const activeElement = document.activeElement;
+		if (
+			activeElement instanceof HTMLElement &&
+			activeElement.hasAttribute('data-combobox-search')
+		) {
+			document
+				.querySelector<HTMLButtonElement>(
+					'.pokemon-editor [data-combobox-open="true"] [data-combobox-option].active'
+				)
+				?.click();
+			return;
+		}
 		if (activeElement instanceof HTMLButtonElement && !activeElement.disabled) {
 			activeElement.click();
 			return;

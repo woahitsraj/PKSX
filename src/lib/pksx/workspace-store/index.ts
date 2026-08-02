@@ -112,6 +112,7 @@ export class ActiveWorkspaceService {
 				saveFileId,
 				activeBox,
 				summary: JSON.stringify(state.workspace.summary),
+				saveFile: JSON.stringify(state.workspace.saveFile ?? null),
 				restoredFromBackup: JSON.stringify(state.restoredFromBackup),
 				automaticBackupCreated: state.automaticBackupCreated
 			});
@@ -186,7 +187,13 @@ export class ActiveWorkspaceService {
 		return {
 			file: this.artifact.file,
 			bytes: new Uint8Array(this.artifact.bytes),
-			workspace: { summary: JSON.parse(row.summary), partySlots, boxSlots },
+			workspace: {
+				summary: JSON.parse(row.summary),
+				partySlots,
+				boxSlots,
+				saveFile:
+					typeof row.saveFile === 'string' ? (JSON.parse(row.saveFile) ?? undefined) : undefined
+			},
 			dirty: this.store.getValue('dirty') === true,
 			restoredFromBackup:
 				typeof row.restoredFromBackup === 'string' ? JSON.parse(row.restoredFromBackup) : null,

@@ -10,6 +10,7 @@ import type {
 	PokemonEditOperationResult,
 	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperationResult,
+	SaveFileInventoryCatalogue,
 	SaveSummary,
 	SaveWorkspace,
 	SlotOperationResult,
@@ -27,6 +28,7 @@ import {
 	type EngineWorkerCreatePokemonRequest,
 	type EngineWorkerPreviewPokemonSpeciesFormEditRequest,
 	type EngineWorkerApplySaveFileEditOperationRequest,
+	type EngineWorkerGetSaveFileInventoryCatalogueRequest,
 	type EngineWorkerImportStoredPokemonRequest,
 	type EngineWorkerCheckSlotLegalityRequest,
 	type EngineWorkerPreviewPokemonActionsRequest,
@@ -69,6 +71,7 @@ export type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		operationJson: string
 	): string;
+	GetSaveFileInventoryCatalogueJson?(bytes: Uint8Array, fileName: string | undefined): string;
 	ImportStoredPokemonJson(
 		bytes: Uint8Array,
 		fileName: string | undefined,
@@ -238,6 +241,11 @@ export function createPkhexEngineWorkerRuntime({
 					postMessage,
 					request,
 					applySaveFileEditOperation(engine, request)
+				);
+				return;
+			case 'getSaveFileInventoryCatalogue':
+				postMessage(
+					createEngineWorkerResponse(request, getSaveFileInventoryCatalogue(engine, request))
 				);
 				return;
 			case 'importStoredPokemon':
@@ -414,6 +422,29 @@ function applySaveFileEditOperation(
 				...request.payload.operation,
 				activeBox: request.payload.activeBox
 			})
+		)
+	);
+}
+
+function getSaveFileInventoryCatalogue(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerGetSaveFileInventoryCatalogueRequest
+): EngineResult<SaveFileInventoryCatalogue> {
+	if (!engine.GetSaveFileInventoryCatalogueJson) {
+		return {
+			ok: false,
+			value: null,
+			error: {
+				code: 'unsupported-save-file-edit',
+				message: 'Save File field editing is not available in this PKHeX Engine build.'
+			}
+		};
+	}
+
+	return parseEngineResult<SaveFileInventoryCatalogue>(
+		engine.GetSaveFileInventoryCatalogueJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName
 		)
 	);
 }
@@ -673,6 +704,8 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<PokemonSpeciesFormEditProjection>;
 		case 'applySaveFileEditOperation':
 			return result satisfies EngineResult<SaveFileEditOperationResult>;
+		case 'getSaveFileInventoryCatalogue':
+			return result satisfies EngineResult<SaveFileInventoryCatalogue>;
 		case 'importStoredPokemon':
 			return result satisfies EngineResult<StoredPokemonImportResult>;
 		case 'checkSlotLegality':

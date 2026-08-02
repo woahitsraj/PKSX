@@ -312,6 +312,80 @@ public static partial class PkhexEngineExports
     }
 
     [JSExport]
+    public static string ApplySaveFileEditOperationJson(byte[] bytes, string? fileName, string operationJson)
+    {
+        try
+        {
+            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var operation = System.Text.Json.JsonSerializer.Deserialize(
+                operationJson,
+                EngineJsonContext.Default.SaveFileEditOperationRequest);
+            if (operation is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("invalid-save-file-edit", "Save File edit payload is missing."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var mutation = ApplySaveFileEditOperation(save, operation);
+            if (!mutation.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(mutation.Code, mutation.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var serialized = save.Write(BinaryExportSetting.None).ToArray();
+            var workspace = CreateWorkspace(save, fileName, ClampActiveBox(operation.ActiveBox, save));
+            return EngineJson.Serialize(
+                EngineResult.Ok(new SaveFileEditOperationResult(
+                    Convert.ToBase64String(serialized),
+                    serialized.Length,
+                    mutation.Mutated,
+                    workspace)),
+                EngineJsonContext.Default.EngineResultSaveFileEditOperationResult);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
+    public static string GetSaveFileInventoryCatalogueJson(byte[] bytes, string? fileName)
+    {
+        try
+        {
+            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(SaveFileInventoryCatalogue.From(save)),
+                EngineJsonContext.Default.EngineResultSaveFileInventoryCatalogue);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
     public static string CreatePokemonJson(byte[] bytes, string? fileName, string operationJson)
     {
         try
@@ -675,7 +749,11 @@ public static partial class PkhexEngineExports
         for (var slot = 0; slot < save.BoxSlotCount; slot++)
             boxSlots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), save, box, slot));
 
-        return new SaveWorkspace(SaveSummary.From(save, fileName), partySlots, boxSlots);
+        return new SaveWorkspace(
+            SaveSummary.From(save, fileName),
+            partySlots,
+            boxSlots,
+            SaveFileEditableProjection.From(save));
     }
 
     private static SlotMutationResult ApplySlotOperation(SaveFile save, SlotOperationRequest operation)
@@ -974,7 +1052,7 @@ public static partial class PkhexEngineExports
             if (introducedIssue is not null)
                 return SlotMutationResult.Fail(
                     "invalid-pokemon-edit",
-                    $"Met Data edit is not valid for this Pokemon encounter. {introducedIssue.Message}");
+                    $"{LegalityEditFailurePrefix(operation)} {introducedIssue.Message}");
         }
 
         if (pokemon.PartyStatsPresent)
@@ -1016,6 +1094,146 @@ public static partial class PkhexEngineExports
             source.Set(save, pokemon);
 
         return SlotMutationResult.Success(mutated);
+    }
+
+    private static SlotMutationResult ApplySaveFileEditOperation(SaveFile save, SaveFileEditOperationRequest operation)
+    {
+        if (operation.TrainerProfile is null && operation.Money is null && (operation.Inventory is null || operation.Inventory.Count == 0))
+            return SlotMutationResult.Fail("invalid-save-file-edit", "Choose a Save File edit to apply.");
+
+        var mutated = false;
+        if (operation.TrainerProfile is { } trainer)
+        {
+            if (trainer.TrainerName is string trainerName)
+            {
+                if (!SaveFileFieldSupport.IsOverridden(save, nameof(SaveFile.OT)))
+                    return SlotMutationResult.Fail("unsupported-save-file-edit", "Trainer name editing is not supported for this Save File format.");
+                if (string.IsNullOrWhiteSpace(trainerName) || trainerName.Length > save.MaxStringLengthTrainer)
+                    return SlotMutationResult.Fail("invalid-save-file-edit", $"Trainer name must be between 1 and {save.MaxStringLengthTrainer} characters.");
+
+                var original = save.OT;
+                save.OT = trainerName;
+                // Formats normalize/truncate trainer names, so only reject a readback that lost everything.
+                if (string.IsNullOrWhiteSpace(save.OT))
+                {
+                    save.OT = original;
+                    return SlotMutationResult.Fail("invalid-save-file-edit", "Trainer name contains characters that are not valid for this Save File format or language.");
+                }
+                mutated |= !StringComparer.Ordinal.Equals(original, save.OT);
+            }
+
+            if (trainer.Gender is string gender)
+            {
+                if (!SaveFileFieldSupport.IsOverridden(save, nameof(SaveFile.Gender)))
+                    return SlotMutationResult.Fail("unsupported-save-file-edit", "Trainer gender editing is not supported for this Save File format.");
+                var value = gender switch
+                {
+                    "male" => (byte)0,
+                    "female" => (byte)1,
+                    _ => byte.MaxValue,
+                };
+                if (value == byte.MaxValue)
+                    return SlotMutationResult.Fail("invalid-save-file-edit", "Trainer gender must be male or female.");
+
+                var original = save.Gender;
+                save.Gender = value;
+                mutated |= original != save.Gender;
+            }
+        }
+
+        if (operation.Money is long money)
+        {
+            if (!SaveFileFieldSupport.IsOverridden(save, nameof(SaveFile.Money)))
+                return SlotMutationResult.Fail("unsupported-save-file-edit", "Money editing is not supported for this Save File format.");
+            if (money < 0 || money > save.MaxMoney)
+                return SlotMutationResult.Fail("invalid-save-file-edit", $"Money must be between 0 and {save.MaxMoney} for this Save File format.");
+
+            var original = save.Money;
+            save.Money = (uint)money;
+            mutated |= original != save.Money;
+        }
+
+        if (operation.Inventory is { Count: > 0 } inventoryEdits)
+        {
+            var bag = save.Inventory;
+            if (bag.Pouches.Count == 0)
+                return SlotMutationResult.Fail("unsupported-save-file-edit", "Inventory editing is not supported for this Save File format.");
+
+            var inventoryMutated = false;
+            var seen = new HashSet<(InventoryType, int)>();
+            foreach (var edit in inventoryEdits)
+            {
+                if (!Enum.TryParse<InventoryType>(edit.Pocket, true, out var type))
+                    return SlotMutationResult.Fail("invalid-save-file-edit", $"Inventory pocket '{edit.Pocket}' is not supported.");
+
+                var pouch = bag.Pouches.FirstOrDefault(candidate => candidate.Type == type);
+                if (pouch is null)
+                    return SlotMutationResult.Fail("unsupported-save-file-edit", $"{type} is not available in this Save File format.");
+                if (edit.ItemId <= 0 || edit.ItemId > save.MaxItemID || edit.ItemId > ushort.MaxValue || !pouch.CanContain((ushort)edit.ItemId))
+                    return SlotMutationResult.Fail("invalid-save-file-edit", $"Item {edit.ItemId} cannot be stored in {type}.");
+                if (!seen.Add((type, edit.ItemId)))
+                    return SlotMutationResult.Fail("invalid-save-file-edit", $"Item {edit.ItemId} has more than one staged edit in {type}.");
+
+                var existing = pouch.Items.FirstOrDefault(item => item.Index == edit.ItemId && item.Count > 0);
+                switch (edit.Kind)
+                {
+                    case "set":
+                        {
+                            if (existing is null)
+                                return SlotMutationResult.Fail("invalid-save-file-edit", $"Item {edit.ItemId} is no longer present in {type}.");
+                            var quantity = ValidateInventoryQuantity(bag, type, edit.ItemId, edit.Quantity);
+                            if (!quantity.Ok)
+                                return quantity;
+                            var value = edit.Quantity!.Value;
+                            if (!bag.IsLegal(type, edit.ItemId, value))
+                                return SlotMutationResult.Fail("invalid-save-file-edit", $"Item {edit.ItemId} is not valid in {type} with quantity {value}.");
+                            inventoryMutated |= existing.Count != value;
+                            existing.Count = value;
+                            break;
+                        }
+                    case "add":
+                        {
+                            if (existing is not null)
+                                return SlotMutationResult.Fail("invalid-save-file-edit", $"Item {edit.ItemId} is already present in {type}.");
+                            if (pouch.FindIndexFirstEmptySlot() < 0)
+                                return SlotMutationResult.Fail("unsupported-save-file-edit", $"{type} is full.");
+                            var quantity = ValidateInventoryQuantity(bag, type, edit.ItemId, edit.Quantity);
+                            if (!quantity.Ok)
+                                return quantity;
+                            var value = edit.Quantity!.Value;
+                            if (!bag.IsLegal(type, edit.ItemId, value))
+                                return SlotMutationResult.Fail("invalid-save-file-edit", $"Item {edit.ItemId} is not valid in {type} with quantity {value}.");
+                            if (pouch.GiveItem(bag, (ushort)edit.ItemId, value) < 0)
+                                return SlotMutationResult.Fail("unsupported-save-file-edit", $"{type} is full.");
+                            inventoryMutated = true;
+                            break;
+                        }
+                    case "remove":
+                        if (existing is null)
+                            return SlotMutationResult.Fail("invalid-save-file-edit", $"Item {edit.ItemId} is no longer present in {type}.");
+                        existing.Clear();
+                        pouch.ClearCount0();
+                        inventoryMutated = true;
+                        break;
+                    default:
+                        return SlotMutationResult.Fail("invalid-save-file-edit", $"Inventory edit '{edit.Kind}' is not supported.");
+                }
+            }
+
+            if (inventoryMutated)
+                bag.CopyTo(save);
+            mutated |= inventoryMutated;
+        }
+
+        return SlotMutationResult.Success(mutated);
+    }
+
+    private static SlotMutationResult ValidateInventoryQuantity(PlayerBag bag, InventoryType type, int itemId, int? quantity)
+    {
+        var max = bag.GetMaxCount(type, itemId);
+        if (quantity is null || quantity < 1 || quantity > max)
+            return SlotMutationResult.Fail("invalid-save-file-edit", $"Quantity for item {itemId} must be between 1 and {max} in {type}.");
+        return SlotMutationResult.Success(false);
     }
 
     private static SpeciesFormProjectionResult CreateSpeciesFormProjection(

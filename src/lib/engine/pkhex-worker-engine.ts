@@ -11,6 +11,7 @@ import type {
 	PokemonEditOperationResult,
 	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperationResult,
+	SaveFileInventoryCatalogue,
 	SaveWorkspace,
 	SlotOperationResult,
 	StoredPokemonImportResult,
@@ -264,6 +265,20 @@ export function createPkhexWorkerEngine(
 				[buffer]
 			);
 		},
+		getSaveFileInventoryCatalogue: (bytes, fileName) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'getSaveFileInventoryCatalogue',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'getSaveFileInventoryCatalogue',
+					payload: { bytes: buffer, fileName }
+				},
+				[buffer]
+			);
+		},
 		importStoredPokemon: (bytes, fileName, operation, activeBox) => {
 			const buffer = copyBytesToArrayBuffer(bytes);
 			const payloadOperation = {
@@ -391,6 +406,11 @@ export function createPkhexWorkerEngine(
 		request: Extract<EngineWorkerRequest, { method: 'applySaveFileEditOperation' }>,
 		transfer: Transferable[]
 	): Promise<EngineResult<SaveFileEditOperationResult>>;
+	async function sendRequest(
+		method: 'getSaveFileInventoryCatalogue',
+		request: Extract<EngineWorkerRequest, { method: 'getSaveFileInventoryCatalogue' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<SaveFileInventoryCatalogue>>;
 	async function sendRequest(
 		method: 'importStoredPokemon',
 		request: Extract<EngineWorkerRequest, { method: 'importStoredPokemon' }>,

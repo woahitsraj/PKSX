@@ -8,6 +8,7 @@ export const workspaceTablesSchema = {
 		saveFileId: { type: 'string' },
 		activeBox: { type: 'number' },
 		summary: { type: 'string' },
+		saveFile: { type: 'string' },
 		restoredFromBackup: { type: 'string' },
 		automaticBackupCreated: { type: 'boolean' }
 	},

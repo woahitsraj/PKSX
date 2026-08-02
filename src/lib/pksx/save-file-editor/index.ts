@@ -1,4 +1,14 @@
-import type { SaveFileEditOperation, SaveSummary, SaveWorkspace } from '$lib/engine';
+import type {
+	InventoryEditOperation,
+	InventoryItemOption,
+	SaveFileEditableProjection,
+	SaveFileEditOperation,
+	SaveSummary,
+	SaveWorkspace,
+	TrainerGender
+} from '$lib/engine';
+
+export type { SaveFileEditableProjection } from '$lib/engine';
 
 export type SaveFileEditorSourceIdentity = {
 	key: string;
@@ -12,24 +22,6 @@ export type SaveFileEditorSource = {
 
 export type SaveFileEditorSourceInput = Omit<SaveFileEditorSource, 'identity'> & {
 	identity?: SaveFileEditorSourceIdentity;
-};
-
-export type SaveFileEditableProjection = {
-	trainerProfile: {
-		trainerName: string | null;
-		trainerId: number;
-		gameVersion: string;
-		generation: number;
-	};
-	money: {
-		value: number | null;
-		supported: boolean;
-		unsupportedReason: string | null;
-	};
-	inventory: {
-		supported: boolean;
-		unsupportedReason: string | null;
-	};
 };
 
 export type SaveFileCommittedWorkspaceState = {
@@ -161,22 +153,38 @@ export function createSaveFileEditorSourceIdentity(
 	};
 }
 
-export function createSaveFileProjection(summary: SaveSummary): SaveFileEditableProjection {
+export function createSaveFileProjection(
+	summary: SaveSummary,
+	projection?: SaveFileEditableProjection
+): SaveFileEditableProjection {
+	if (projection) return projection;
+
 	return {
 		trainerProfile: {
 			trainerName: summary.trainerName ?? null,
+			trainerNameSupported: false,
+			trainerNameMaxLength: 0,
+			trainerNameUnsupportedReason:
+				'Trainer name projection is not available from the PKHeX Engine yet.',
+			gender: null,
+			genderSupported: false,
+			genderUnsupportedReason:
+				'Trainer gender projection is not available from the PKHeX Engine yet.',
 			trainerId: summary.trainerId,
 			gameVersion: summary.gameVersion,
 			generation: summary.generation
 		},
 		money: {
 			value: null,
+			min: 0,
+			max: 0,
 			supported: false,
 			unsupportedReason: 'Money projection is not available from the PKHeX Engine yet.'
 		},
 		inventory: {
 			supported: false,
-			unsupportedReason: 'Inventory projection is not available from the PKHeX Engine yet.'
+			unsupportedReason: 'Inventory projection is not available from the PKHeX Engine yet.',
+			pockets: []
 		}
 	};
 }
@@ -184,7 +192,8 @@ export function createSaveFileProjection(summary: SaveSummary): SaveFileEditable
 export function createSaveFileEditorState(
 	source: SaveFileEditorSourceInput,
 	summary: SaveSummary,
-	committedWorkspace: SaveFileCommittedWorkspaceState
+	committedWorkspace: SaveFileCommittedWorkspaceState,
+	projection?: SaveFileEditableProjection
 ): SaveFileEditorEntryResult {
 	return {
 		ok: true,
@@ -193,7 +202,7 @@ export function createSaveFileEditorState(
 				...source,
 				identity: source.identity ?? createSaveFileEditorSourceIdentity(summary)
 			},
-			projection: createSaveFileProjection(summary),
+			projection: createSaveFileProjection(summary, projection),
 			stagedEdits: [],
 			staged: false,
 			committedWorkspace,
@@ -220,17 +229,27 @@ export function stageTrainerNameEdit(
 	state: SaveFileEditorState,
 	trainerName: string
 ): SaveFileEditorState {
+	const profile = state.projection.trainerProfile;
+	if (!profile.trainerNameSupported) {
+		return rejectEdit(
+			state,
+			'trainer-name',
+			profile.trainerNameUnsupportedReason ?? 'Trainer name editing is unavailable.',
+			'unsupported'
+		);
+	}
+
 	const normalized = trainerName.trim();
-	if (normalized === (state.projection.trainerProfile.trainerName ?? '')) {
+	if (normalized === (profile.trainerName ?? '')) {
 		return removeSaveFileEditorEdit(state, 'trainer-name');
 	}
 
-	if (normalized.length === 0) {
-		return withApplyOutcome(removeSaveFileEditorEdit(state, 'trainer-name'), {
-			status: 'rejected',
-			message: 'Trainer name cannot be empty.',
-			reason: 'invalid-save-file-edit'
-		});
+	if (normalized.length === 0 || normalized.length > profile.trainerNameMaxLength) {
+		return rejectEdit(
+			state,
+			'trainer-name',
+			`Trainer name must be between 1 and ${profile.trainerNameMaxLength} characters.`
+		);
 	}
 
 	return stageSaveFileEditorEdit(state, {
@@ -241,12 +260,138 @@ export function stageTrainerNameEdit(
 	});
 }
 
+export function stageTrainerGenderEdit(
+	state: SaveFileEditorState,
+	gender: TrainerGender
+): SaveFileEditorState {
+	const profile = state.projection.trainerProfile;
+	if (!profile.genderSupported) {
+		return rejectEdit(
+			state,
+			'trainer-gender',
+			profile.genderUnsupportedReason ?? 'Trainer gender editing is unavailable.',
+			'unsupported'
+		);
+	}
+	if (gender === profile.gender) return removeSaveFileEditorEdit(state, 'trainer-gender');
+
+	return stageSaveFileEditorEdit(state, {
+		id: 'trainer-gender',
+		field: 'trainer-profile',
+		label: 'Set trainer gender',
+		payload: { gender }
+	});
+}
+
+export function stageMoneyEdit(state: SaveFileEditorState, money: number): SaveFileEditorState {
+	const projection = state.projection.money;
+	if (!projection.supported) {
+		return rejectEdit(
+			state,
+			'money',
+			projection.unsupportedReason ?? 'Money editing is unavailable.',
+			'unsupported'
+		);
+	}
+	if (!Number.isInteger(money) || money < projection.min || money > projection.max) {
+		return rejectEdit(
+			state,
+			'money',
+			`Money must be between ${projection.min.toLocaleString()} and ${projection.max.toLocaleString()}.`
+		);
+	}
+	if (money === projection.value) return removeSaveFileEditorEdit(state, 'money');
+
+	return stageSaveFileEditorEdit(state, {
+		id: 'money',
+		field: 'money',
+		label: 'Set money',
+		payload: { money }
+	});
+}
+
+export function stageInventoryQuantityEdit(
+	state: SaveFileEditorState,
+	pocket: string,
+	itemId: number,
+	quantity: number
+): SaveFileEditorState {
+	const item = findInventoryItem(state, pocket, itemId);
+	const id = inventoryEditId(pocket, itemId);
+	if (!item) return rejectEdit(state, id, 'That item is no longer available in this pocket.');
+	if (!Number.isInteger(quantity) || quantity < 1 || quantity > item.maxQuantity) {
+		return rejectEdit(
+			state,
+			id,
+			`Quantity for ${item.name} must be between 1 and ${item.maxQuantity}.`
+		);
+	}
+	if (quantity === item.quantity) return removeSaveFileEditorEdit(state, id);
+
+	return stageInventoryEdit(state, pocket, itemId, item.name, { kind: 'set', quantity });
+}
+
+export function stageInventoryAddEdit(
+	state: SaveFileEditorState,
+	pocket: string,
+	option: InventoryItemOption,
+	quantity = 1
+): SaveFileEditorState {
+	const projection = findInventoryPocket(state, pocket);
+	const itemId = option.id;
+	const id = inventoryEditId(pocket, itemId);
+	if (!projection) {
+		return rejectEdit(state, id, 'That item is not valid for this pocket.');
+	}
+	if (projection.full) return rejectEdit(state, id, `${projection.label} is full.`, 'unsupported');
+	if (projection.items.some((item) => item.id === itemId)) {
+		return rejectEdit(state, id, `${option.name} is already in ${projection.label}.`);
+	}
+	if (!Number.isInteger(quantity) || quantity < 1 || quantity > option.maxQuantity) {
+		return rejectEdit(
+			state,
+			id,
+			`Quantity for ${option.name} must be between 1 and ${option.maxQuantity}.`
+		);
+	}
+
+	return stageInventoryEdit(state, pocket, itemId, option.name, { kind: 'add', quantity });
+}
+
+export function stageInventoryRemoveEdit(
+	state: SaveFileEditorState,
+	pocket: string,
+	itemId: number
+): SaveFileEditorState {
+	const item = findInventoryItem(state, pocket, itemId);
+	const id = inventoryEditId(pocket, itemId);
+	if (!item) return rejectEdit(state, id, 'That item is no longer available in this pocket.');
+	return stageInventoryEdit(state, pocket, itemId, item.name, { kind: 'remove' });
+}
+
 export function cancelSaveFileEditor(state: SaveFileEditorState): SaveFileEditorState {
 	return withStagedEdits({
 		...state,
 		stagedEdits: [],
 		applyOutcome: { status: 'idle', message: null },
 		unsupportedReason: null
+	});
+}
+
+export function discardSaveFileEditorEdit(
+	state: SaveFileEditorState,
+	editId: string
+): SaveFileEditorState {
+	return removeSaveFileEditorEdit(state, editId);
+}
+
+export function getStagedInventoryEdits(
+	state: SaveFileEditorState,
+	pocket?: string
+): InventoryEditOperation[] {
+	return state.stagedEdits.flatMap((edit) => {
+		if (edit.field !== 'inventory' || !isInventoryPayload(edit.payload)) return [];
+		return pocket && edit.payload.pocket !== pocket ? [] : [edit.payload];
 	});
 }
 
@@ -263,6 +408,7 @@ export function createSaveFileEditOperation(
 	}
 
 	const operation: SaveFileEditOperation = {};
+	const inventory: InventoryEditOperation[] = [];
 
 	for (const edit of state.stagedEdits) {
 		if (edit.id === 'trainer-name') {
@@ -282,6 +428,17 @@ export function createSaveFileEditOperation(
 			continue;
 		}
 
+		if (edit.id === 'trainer-gender') {
+			if (!isTrainerGenderPayload(edit.payload)) {
+				return invalidPayload('Trainer gender');
+			}
+			operation.trainerProfile = {
+				...operation.trainerProfile,
+				gender: edit.payload.gender
+			};
+			continue;
+		}
+
 		if (edit.id === 'money') {
 			if (!isMoneyPayload(edit.payload)) {
 				return {
@@ -296,6 +453,14 @@ export function createSaveFileEditOperation(
 			continue;
 		}
 
+		if (edit.field === 'inventory') {
+			if (!isInventoryPayload(edit.payload)) {
+				return invalidPayload('Inventory');
+			}
+			inventory.push({ ...edit.payload });
+			continue;
+		}
+
 		return {
 			ok: false,
 			status: 'unsupported',
@@ -303,6 +468,8 @@ export function createSaveFileEditOperation(
 			reason: 'unsupported-save-file-edit'
 		};
 	}
+
+	if (inventory.length > 0) operation.inventory = inventory;
 
 	return {
 		ok: true,
@@ -357,10 +524,61 @@ export async function applySaveFileEditorEdits(
 	return completeMutation(backedUpState, mutation);
 }
 
+function stageInventoryEdit(
+	state: SaveFileEditorState,
+	pocket: string,
+	itemId: number,
+	itemName: string,
+	edit: { kind: InventoryEditOperation['kind']; quantity?: number }
+) {
+	return stageSaveFileEditorEdit(state, {
+		id: inventoryEditId(pocket, itemId),
+		field: 'inventory',
+		label: `${edit.kind === 'remove' ? 'Remove' : edit.kind === 'add' ? 'Add' : 'Update'} ${itemName}`,
+		payload: { ...edit, pocket, itemId }
+	});
+}
+
+function findInventoryPocket(state: SaveFileEditorState, pocket: string) {
+	return state.projection.inventory.pockets.find((candidate) => candidate.key === pocket);
+}
+
+function findInventoryItem(state: SaveFileEditorState, pocket: string, itemId: number) {
+	return findInventoryPocket(state, pocket)?.items.find((item) => item.id === itemId);
+}
+
+function inventoryEditId(pocket: string, itemId: number) {
+	return `inventory:${pocket}:${itemId}`;
+}
+
+function rejectEdit(
+	state: SaveFileEditorState,
+	editId: string,
+	message: string,
+	status: 'rejected' | 'unsupported' = 'rejected'
+) {
+	return withApplyOutcome(removeSaveFileEditorEdit(state, editId), {
+		status,
+		message,
+		reason: status === 'unsupported' ? 'unsupported-save-file-edit' : 'invalid-save-file-edit'
+	});
+}
+
+function invalidPayload(label: string): Extract<SaveFileEditValidationResult, { ok: false }> {
+	return {
+		ok: false,
+		status: 'rejected',
+		message: `${label} edit payload is invalid.`,
+		reason: 'invalid-save-file-edit'
+	};
+}
+
 function removeSaveFileEditorEdit(state: SaveFileEditorState, editId: string): SaveFileEditorState {
 	return withStagedEdits({
 		...state,
-		stagedEdits: state.stagedEdits.filter((existing) => existing.id !== editId)
+		stagedEdits: state.stagedEdits.filter((existing) => existing.id !== editId),
+		applyOutcome: { status: 'idle', message: null },
+		unsupportedReason: null
 	});
 }
 
@@ -375,7 +593,9 @@ function completeMutation(
 	return completeApply(
 		withStagedEdits({
 			...state,
-			projection: mutation.projection ?? createSaveFileProjection(mutation.workspace.summary),
+			projection:
+				mutation.projection ??
+				createSaveFileProjection(mutation.workspace.summary, mutation.workspace.saveFile),
 			source: {
 				...state.source,
 				identity: createSaveFileEditorSourceIdentity(mutation.workspace.summary)
@@ -460,5 +680,28 @@ function isMoneyPayload(value: unknown): value is { money: number } {
 		'money' in value &&
 		typeof value.money === 'number' &&
 		Number.isFinite(value.money)
+	);
+}
+
+function isTrainerGenderPayload(value: unknown): value is { gender: TrainerGender } {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'gender' in value &&
+		(value.gender === 'male' || value.gender === 'female')
+	);
+}
+
+function isInventoryPayload(value: unknown): value is InventoryEditOperation {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'kind' in value &&
+		(value.kind === 'set' || value.kind === 'add' || value.kind === 'remove') &&
+		'pocket' in value &&
+		typeof value.pocket === 'string' &&
+		'itemId' in value &&
+		typeof value.itemId === 'number' &&
+		(!('quantity' in value) || value.quantity === undefined || typeof value.quantity === 'number')
 	);
 }

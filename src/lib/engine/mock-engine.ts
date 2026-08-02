@@ -459,6 +459,14 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 				message: 'Save File field editing is not available for the mock engine.'
 			}
 		}),
+		getSaveFileInventoryCatalogue: async () => ({
+			ok: false,
+			value: null,
+			error: {
+				code: 'unsupported-save-file-edit',
+				message: 'Save File field editing is not available for the mock engine.'
+			}
+		}),
 		importStoredPokemon: async (bytes, fileName, _operation, activeBox) =>
 			success<StoredPokemonImportResult>({
 				bytes: copyBytes(bytes),

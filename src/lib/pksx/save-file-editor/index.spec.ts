@@ -1,12 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { SaveSummary, SaveWorkspace } from '$lib/engine';
+import type { SaveFileEditableProjection, SaveSummary, SaveWorkspace } from '$lib/engine';
 import {
 	applySaveFileEditorEdits,
 	cancelSaveFileEditor,
 	createSaveFileEditOperation,
 	createSaveFileEditorState,
+	getStagedInventoryEdits,
 	isSameSaveFileEditorSourceIdentity,
+	stageInventoryAddEdit,
+	stageInventoryQuantityEdit,
+	stageInventoryRemoveEdit,
+	stageMoneyEdit,
 	stageSaveFileEditorEdit,
+	stageTrainerGenderEdit,
 	stageTrainerNameEdit,
 	type SaveFileEditorApplyServices
 } from '.';
@@ -53,6 +59,38 @@ const source = {
 	fileName: 'emerald.sav'
 };
 
+const projection: SaveFileEditableProjection = {
+	trainerProfile: {
+		trainerName: 'DIXIE',
+		trainerNameSupported: true,
+		trainerNameMaxLength: 7,
+		trainerNameUnsupportedReason: null,
+		gender: 'female',
+		genderSupported: true,
+		genderUnsupportedReason: null,
+		trainerId: 12345,
+		gameVersion: 'E',
+		generation: 3
+	},
+	money: { value: 3000, min: 0, max: 999999, supported: true, unsupportedReason: null },
+	inventory: {
+		supported: true,
+		unsupportedReason: null,
+		pockets: [
+			{
+				key: 'Medicine',
+				label: 'Medicine',
+				capacity: 20,
+				full: false,
+				unsupportedReason: null,
+				items: [{ id: 13, name: 'Potion', quantity: 4, maxQuantity: 99 }]
+			}
+		]
+	}
+};
+
+const antidote = { id: 14, name: 'Antidote', maxQuantity: 99 };
+
 const stagedEdit = {
 	id: 'trainer-name',
 	field: 'trainer-profile' as const,
@@ -61,7 +99,7 @@ const stagedEdit = {
 };
 
 function openEditor() {
-	const opened = createSaveFileEditorState(source, summary, committedWorkspace);
+	const opened = createSaveFileEditorState(source, summary, committedWorkspace, projection);
 	if (!opened.ok) throw new Error('Expected Save File Editor to open.');
 	return opened.state;
 }
@@ -140,21 +178,24 @@ describe('Save File editor state', () => {
 	});
 
 	it('encodes every supported staged Save File edit into one operation', () => {
-		const trainerStaged = stageTrainerNameEdit(openEditor(), 'RAJ');
-		const staged = stageSaveFileEditorEdit(trainerStaged, {
-			id: 'money',
-			field: 'money',
-			label: 'Set money',
-			payload: { money: 5000 }
-		});
+		let staged = stageTrainerNameEdit(openEditor(), 'RAJ');
+		staged = stageTrainerGenderEdit(staged, 'male');
+		staged = stageMoneyEdit(staged, 5000);
+		staged = stageInventoryQuantityEdit(staged, 'Medicine', 13, 8);
+		staged = stageInventoryAddEdit(staged, 'Medicine', antidote, 2);
 
 		expect(createSaveFileEditOperation(staged)).toEqual({
 			ok: true,
 			operation: {
 				trainerProfile: {
-					trainerName: 'RAJ'
+					trainerName: 'RAJ',
+					gender: 'male'
 				},
-				money: 5000
+				money: 5000,
+				inventory: [
+					{ kind: 'set', pocket: 'Medicine', itemId: 13, quantity: 8 },
+					{ kind: 'add', pocket: 'Medicine', itemId: 14, quantity: 2 }
+				]
 			}
 		});
 	});
@@ -170,10 +211,22 @@ describe('Save File editor state', () => {
 
 		expect(createSaveFileEditOperation(staged)).toEqual({
 			ok: false,
-			status: 'unsupported',
-			message: 'Add inventory item is not supported by the Save File edit contract yet.',
-			reason: 'unsupported-save-file-edit'
+			status: 'rejected',
+			message: 'Inventory edit payload is invalid.',
+			reason: 'invalid-save-file-edit'
 		});
+	});
+
+	it('enforces projected bounds and stages explicit inventory removal', () => {
+		const invalidMoney = stageMoneyEdit(openEditor(), 1_000_000);
+		const invalidQuantity = stageInventoryQuantityEdit(openEditor(), 'Medicine', 13, 100);
+		const removed = stageInventoryRemoveEdit(openEditor(), 'Medicine', 13);
+
+		expect(invalidMoney.applyOutcome.status).toBe('rejected');
+		expect(invalidQuantity.applyOutcome.status).toBe('rejected');
+		expect(getStagedInventoryEdits(removed)).toEqual([
+			{ kind: 'remove', pocket: 'Medicine', itemId: 13 }
+		]);
 	});
 
 	it('rejects invalid staged input without marking the workspace dirty', () => {
@@ -185,7 +238,7 @@ describe('Save File editor state', () => {
 			committedWorkspace: { dirty: false },
 			applyOutcome: {
 				status: 'rejected',
-				message: 'Trainer name cannot be empty.',
+				message: 'Trainer name must be between 1 and 7 characters.',
 				reason: 'invalid-save-file-edit'
 			}
 		});

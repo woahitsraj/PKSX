@@ -16,6 +16,7 @@ import type {
 	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperation,
 	SaveFileEditOperationResult,
+	SaveFileInventoryCatalogue,
 	SaveWorkspace,
 	SlotOperation,
 	SlotOperationResult,
@@ -70,6 +71,7 @@ type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		operationJson: string
 	): string;
+	GetSaveFileInventoryCatalogueJson?(bytes: Uint8Array, fileName: string | undefined): string;
 	ImportStoredPokemonJson(
 		bytes: Uint8Array,
 		fileName: string | undefined,
@@ -206,6 +208,18 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 						} satisfies RawSaveFileEditOperationRequest)
 					)
 				)
+			);
+		},
+		getSaveFileInventoryCatalogue: async (bytes, fileName) => {
+			if (!engine.GetSaveFileInventoryCatalogueJson) {
+				return engineFailure(
+					'unsupported-save-file-edit',
+					'Save File field editing is not available in this PKHeX Engine build.'
+				);
+			}
+
+			return parseEngineResult<SaveFileInventoryCatalogue>(
+				engine.GetSaveFileInventoryCatalogueJson(bytes, fileName)
 			);
 		},
 		importStoredPokemon: async (bytes, fileName, operation, activeBox) =>
