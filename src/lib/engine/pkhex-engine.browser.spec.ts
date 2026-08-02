@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import type { SaveSlotRef } from './types';
 import colosseumFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/colosseum/011020251345.gci?url';
 import fixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav?url';
 import moonFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/moon/011020252257.sav?url';
@@ -794,6 +795,84 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(removed.value.workspace.boxSlots[0]).toMatchObject({
 			heldItem: null,
 			heldItemEditConstraints: { currentItemId: 0 }
+		});
+	});
+
+	test('projects and edits Tera Type only for supported Pokemon formats', async () => {
+		const [engine, scarletResponse, emeraldResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(scarletFixtureUrl),
+			fetch(fixtureUrl)
+		]);
+		const scarletBytes = new Uint8Array(await scarletResponse.arrayBuffer());
+		const emeraldBytes = new Uint8Array(await emeraldResponse.arrayBuffer());
+		const scarlet = await engine.loadSaveWorkspace(
+			scarletBytes,
+			'pokemon-scarlet-2025-03-24-main.sav',
+			0
+		);
+		expect(scarlet.ok).toBe(true);
+		if (!scarlet.ok) throw new Error('Expected Scarlet workspace to load.');
+
+		const slot = [...scarlet.value.partySlots, ...scarlet.value.boxSlots].find((candidate) =>
+			candidate.battleFields?.some((field) => field.key === 'tera-type' && field.supported)
+		);
+		if (!slot) throw new Error('Expected Scarlet fixture to include an editable Tera Type.');
+		const teraType = slot.battleFields?.find((field) => field.key === 'tera-type');
+		if (!teraType) throw new Error('Expected Tera Type projection.');
+		expect(teraType).toMatchObject({
+			label: 'Tera Type',
+			valueLabel: expect.any(String),
+			supported: true
+		});
+		const nextType = teraType.options.find((option) => option.value !== teraType.value);
+		if (!nextType) throw new Error('Expected another Tera Type choice.');
+
+		let source: SaveSlotRef;
+		if ('box' in slot && typeof slot.box === 'number') {
+			source = { zone: 'box', box: slot.box, slot: slot.slot };
+		} else {
+			source = { zone: 'party', slot: slot.slot };
+		}
+		const edited = await engine.applyPokemonEditOperation(
+			copyBytes(scarletBytes),
+			'pokemon-scarlet-2025-03-24-main.sav',
+			{ source, teraType: nextType.value },
+			0
+		);
+		expect(edited.ok).toBe(true);
+		if (!edited.ok) throw new Error('Expected Tera Type edit to succeed.');
+		expect(edited.value.mutated).toBe(true);
+		const updatedSlot =
+			source.zone === 'party'
+				? edited.value.workspace.partySlots.find((candidate) => candidate.slot === source.slot)
+				: edited.value.workspace.boxSlots.find(
+						(candidate) => candidate.box === source.box && candidate.slot === source.slot
+					);
+		expect(updatedSlot?.battleFields?.find((field) => field.key === 'tera-type')).toMatchObject({
+			value: nextType.value,
+			valueLabel: nextType.label
+		});
+		const invalid = await engine.applyPokemonEditOperation(
+			copyBytes(scarletBytes),
+			'pokemon-scarlet-2025-03-24-main.sav',
+			{ source, teraType: 19 },
+			0
+		);
+		expect(invalid).toMatchObject({
+			ok: false,
+			error: { code: 'invalid-pokemon-edit' }
+		});
+
+		const unsupported = await engine.applyPokemonEditOperation(
+			copyBytes(emeraldBytes),
+			'011020251345.sav',
+			{ source: { zone: 'box', box: 0, slot: 0 }, teraType: nextType.value },
+			0
+		);
+		expect(unsupported).toMatchObject({
+			ok: false,
+			error: { code: 'unsupported-pokemon-edit' }
 		});
 	});
 

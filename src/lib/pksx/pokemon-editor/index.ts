@@ -78,6 +78,10 @@ export type PokemonFriendshipEditPayload = {
 	fields: PokemonFriendshipFieldEdit[];
 };
 
+export type PokemonBattleFieldEditPayload = {
+	fields: Array<{ key: string; value: number }>;
+};
+
 export type PokemonEditorDraftEdits = {
 	nickname?: string;
 	levelExperience?: LevelExperienceEditPayload;
@@ -88,6 +92,7 @@ export type PokemonEditorDraftEdits = {
 	evs?: PokemonStatEditPayload;
 	moveSet?: PokemonMoveSetEditPayload;
 	friendship?: PokemonFriendshipEditPayload;
+	battleFields?: PokemonBattleFieldEditPayload;
 };
 
 export type PokemonEditorApplyOutcome =
@@ -677,7 +682,8 @@ const pokemonEditOperationBuilders = [
 	{ id: 'ivs', build: buildIvEdit },
 	{ id: 'evs', build: buildEvEdit },
 	{ id: 'move-set', build: buildMoveSetEdit },
-	{ id: 'friendship', build: buildFriendshipEdit }
+	{ id: 'friendship', build: buildFriendshipEdit },
+	{ id: 'battle-fields', build: buildBattleFieldEdit }
 ] satisfies { id: string; build: PokemonEditOperationBuilder }[];
 
 function buildNatureEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
@@ -838,6 +844,72 @@ function buildFriendshipEdit(payload: unknown, slot: SlotView): PokemonEditPatch
 		ok: true,
 		patch: { friendshipEdits: validation.payload.fields.map((field) => ({ ...field })) }
 	};
+}
+
+function buildBattleFieldEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isPokemonBattleFieldEditPayload(payload)) {
+		return invalidPokemonEdit('Battle field edit payload is invalid.');
+	}
+
+	const validation = validateBattleFieldEdits(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	const patch: PokemonEditPatch = {};
+	for (const field of validation.payload.fields) {
+		if (field.key === 'tera-type') patch.teraType = field.value;
+	}
+	return { ok: true, patch };
+}
+
+export function validateBattleFieldEdits(
+	slot: SlotView,
+	payload: PokemonBattleFieldEditPayload
+): PokemonEditorPayloadValidation<PokemonBattleFieldEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Battle Field Editing needs an occupied Slot.' };
+	}
+
+	if (payload.fields.length === 0) {
+		return { ok: false, message: 'Choose a battle field to edit.' };
+	}
+
+	const projections = new Map((slot.battleFields ?? []).map((field) => [field.key, field]));
+	const seen = new Set<string>();
+	for (const edit of payload.fields) {
+		if (seen.has(edit.key)) {
+			return { ok: false, message: `Battle field ${edit.key} is duplicated.` };
+		}
+		seen.add(edit.key);
+
+		const projection = projections.get(edit.key);
+		if (!projection) {
+			return {
+				ok: false,
+				message: 'This Pokemon format does not expose that battle field.'
+			};
+		}
+
+		if (!projection.supported) {
+			return {
+				ok: false,
+				message:
+					projection.unsupportedReason ?? `${projection.label} is not supported for this Pokemon.`
+			};
+		}
+
+		if (edit.key !== 'tera-type') {
+			return { ok: false, message: `${projection.label} editing is not implemented.` };
+		}
+
+		if (
+			!Number.isInteger(edit.value) ||
+			!projection.options.some((option) => option.value === edit.value)
+		) {
+			return { ok: false, message: `Choose a valid ${projection.label}.` };
+		}
+	}
+
+	return { ok: true, payload, label: 'Set battle fields' };
 }
 
 function buildNicknameEdit(payload: unknown): PokemonEditPatchResult {
@@ -1345,6 +1417,16 @@ function isPokemonMoveSetEditPayload(value: unknown): value is PokemonMoveSetEdi
 }
 
 function isPokemonFriendshipEditPayload(value: unknown): value is PokemonFriendshipEditPayload {
+	return isPokemonFieldEditPayload(value);
+}
+
+function isPokemonBattleFieldEditPayload(value: unknown): value is PokemonBattleFieldEditPayload {
+	return isPokemonFieldEditPayload(value);
+}
+
+function isPokemonFieldEditPayload(
+	value: unknown
+): value is { fields: Array<{ key: string; value: number }> } {
 	return (
 		typeof value === 'object' &&
 		value !== null &&

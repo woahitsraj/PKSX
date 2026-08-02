@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
-	import type { SaveSummary } from '$lib/engine';
+	import type { PokemonBattleFieldProjection, SaveSummary } from '$lib/engine';
 	import type {
 		PokemonEditorDraftEdits,
 		PokemonMoveSetEditPayload,
@@ -65,6 +65,7 @@
 			(friendshipEditConstraints?.fields ?? []).map((field) => [field.key, String(field.value)])
 		) as DraftFriendship
 	);
+	const battleFields = $derived(slot.battleFields ?? []);
 	let draftNickname = $state(untrack(() => slot.label));
 	let draftLevel = $state(untrack(() => String(slot.level ?? 1)));
 	let draftExperience = $state(untrack(() => String(slot.experience ?? 0)));
@@ -86,6 +87,9 @@
 		)
 	);
 	let draftFriendship = $state<DraftFriendship>(untrack(() => ({ ...baseFriendship })));
+	let draftBattleFields = $state<Record<string, number>>(
+		untrack(() => battleFieldsToDraft(battleFields))
+	);
 	let lastAppliedDraftSignature = $state('');
 	const statEditConstraints = $derived(slot.statEditConstraints);
 	const moveSetEditConstraints = $derived(slot.moveSetEditConstraints);
@@ -263,6 +267,10 @@
 		const moves = draftMoves.map((move) => ({ ...move }));
 		moves[index] = { ...moves[index], ppUps: value };
 		draftMoves = moves;
+	}
+
+	function setBattleField(key: string, value: string) {
+		draftBattleFields = { ...draftBattleFields, [key]: Number(value) };
 	}
 
 	function optionForMove(moveId: number) {
@@ -508,6 +516,7 @@
 			ppUps: String(move.ppUps ?? 0)
 		}));
 		draftFriendship = { ...baseFriendship };
+		draftBattleFields = battleFieldsToDraft(battleFields);
 	}
 
 	function countDraftEdits() {
@@ -521,6 +530,7 @@
 		if (isDraftStatsDirty(draftEvs, baseEvs)) count += 1;
 		if (isDraftMoveSetDirty()) count += 1;
 		if (isDraftFriendshipDirty()) count += 1;
+		count += changedBattleFields().length;
 		return count;
 	}
 
@@ -546,6 +556,8 @@
 					.map((field) => ({ key: field.key, value: parseDraftNumber(draftFriendship[field.key]) }))
 			};
 		}
+		const battleFieldEdits = changedBattleFields();
+		if (battleFieldEdits.length > 0) draft.battleFields = { fields: battleFieldEdits };
 		return draft;
 	}
 
@@ -588,6 +600,15 @@
 		);
 	}
 
+	function changedBattleFields() {
+		return battleFields
+			.filter((field) => draftBattleFields[field.key] !== field.value)
+			.map((field) => ({
+				key: field.key,
+				value: draftBattleFields[field.key] ?? Number.NaN
+			}));
+	}
+
 	function draftStatsToPayload(draft: DraftStats): PokemonStatEditPayload {
 		return Object.fromEntries(
 			statKeys.map((key) => [key, parseDraftNumber(draft[key])])
@@ -607,6 +628,10 @@
 
 	function statsToDraft(stats: PokemonStatEditPayload): DraftStats {
 		return Object.fromEntries(statKeys.map((key) => [key, String(stats[key])])) as DraftStats;
+	}
+
+	function battleFieldsToDraft(fields: PokemonBattleFieldProjection[]) {
+		return Object.fromEntries(fields.map((field) => [field.key, field.value]));
 	}
 
 	function parseDraftNumber(value: string) {
@@ -677,6 +702,37 @@
 						<span>{row.label}</span>
 						<strong>{row.value}</strong>
 					{/each}
+				</div>
+			{/if}
+
+			{#if battleFields.length > 0}
+				<div class="editor-panel" aria-label="Generation-Specific Battle Field Editing">
+					<div class="panel-title">
+						<span>Battle Fields</span>
+						<small
+							>{battleFields.some((field) => field.supported) ? 'Editable' : 'Unsupported'}</small
+						>
+					</div>
+					<div class="battle-field-controls">
+						{#each battleFields as field (field.key)}
+							<label>
+								<span>{field.label}</span>
+								<select
+									id={`pokemon-editor-battle-field-${field.key}`}
+									value={draftBattleFields[field.key]}
+									disabled={!field.supported || applying}
+									onchange={(event) => setBattleField(field.key, event.currentTarget.value)}
+								>
+									{#each field.options as option (option.value)}
+										<option value={option.value}>{option.label}</option>
+									{/each}
+								</select>
+							</label>
+							{#if !field.supported && field.unsupportedReason}
+								<p>{field.unsupportedReason}</p>
+							{/if}
+						{/each}
+					</div>
 				</div>
 			{/if}
 
@@ -1449,6 +1505,50 @@
 		padding: 12px;
 		border-radius: var(--pksx-radius-md);
 		background: var(--paper-deep);
+	}
+
+	.battle-field-controls {
+		display: grid;
+		gap: 8px;
+		padding: 12px;
+		border-radius: var(--pksx-radius-md);
+		background: var(--paper-deep);
+	}
+
+	.battle-field-controls label {
+		display: grid;
+		gap: 5px;
+	}
+
+	.battle-field-controls span,
+	.battle-field-controls p {
+		margin: 0;
+		color: var(--ink-mute);
+		font:
+			650 0.62rem var(--pksx-font-mono),
+			monospace;
+		line-height: 1.2;
+	}
+
+	.battle-field-controls span {
+		text-transform: uppercase;
+	}
+
+	.battle-field-controls select {
+		width: 100%;
+		height: 44px;
+		padding: 0 12px;
+		border: 1px solid var(--rule);
+		border-radius: var(--pksx-radius-sm);
+		background: var(--paper-hi);
+		color: var(--ink);
+		font:
+			750 0.86rem var(--pksx-font-mono),
+			monospace;
+	}
+
+	.battle-field-controls select:disabled {
+		opacity: 0.55;
 	}
 
 	.nickname-field span,

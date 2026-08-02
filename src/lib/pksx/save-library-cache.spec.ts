@@ -88,6 +88,7 @@ const partySlot: PartySlotSummary = {
 		supported: true,
 		fields: [{ key: 'friendship', label: 'Friendship', value: 70, min: 0, max: 255 }]
 	},
+	battleFields: [],
 	spriteIdentity: {
 		speciesId: 304,
 		form: 0,

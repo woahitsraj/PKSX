@@ -1,4 +1,5 @@
 import type {
+	PokemonBattleFieldProjection,
 	PokemonExperienceProjection,
 	PokemonAbilityEditConstraints,
 	PokemonFriendshipEditConstraints,
@@ -34,6 +35,7 @@ export type SlotView = {
 	statEditConstraints?: PokemonStatEditConstraints;
 	moveSetEditConstraints?: PokemonMoveSetEditConstraints;
 	friendshipEditConstraints?: PokemonFriendshipEditConstraints;
+	battleFields?: PokemonBattleFieldProjection[];
 	originalTrainer?: string;
 	metLabel?: string;
 	entityBytesBase64?: string | null;

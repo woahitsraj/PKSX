@@ -138,6 +138,19 @@ const mockPikachuDetails = {
 			{ key: 'affection', label: 'Affection', value: 0, min: 0, max: 255 }
 		]
 	},
+	battleFields: [
+		{
+			key: 'tera-type',
+			label: 'Tera Type',
+			value: 12,
+			valueLabel: 'Electric',
+			supported: true,
+			options: [
+				{ value: 9, label: 'Fire' },
+				{ value: 12, label: 'Electric' }
+			]
+		}
+	],
 	originalTrainer: 'PKSX',
 	metLabel: 'Lv. 5',
 	spriteIdentity: {
@@ -226,7 +239,8 @@ const mockBoxSlots: BoxSlotSummary[] = [
 			supported: false,
 			fields: [],
 			unsupportedReason: 'Friendship Editing needs an occupied Slot.'
-		}
+		},
+		battleFields: []
 	}
 ];
 

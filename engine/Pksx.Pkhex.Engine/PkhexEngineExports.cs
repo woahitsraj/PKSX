@@ -407,7 +407,8 @@ public static partial class PkhexEngineExports
             operation.Ivs is null &&
             operation.Evs is null &&
             operation.Moves is null &&
-            operation.FriendshipEdits is null)
+            operation.FriendshipEdits is null &&
+            operation.TeraType is null)
             return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a Pokemon edit to apply.");
 
         if (operation.Level is not null && operation.Experience is not null)
@@ -430,6 +431,7 @@ public static partial class PkhexEngineExports
         int[] originalPpUps = [pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps];
         var originalFriendship = pokemon.CurrentFriendship;
         var originalAffection = CurrentAffection(pokemon);
+        var originalTeraType = TeraTypeState(pokemon);
 
         if (operation.Nickname is string nickname)
         {
@@ -589,6 +591,24 @@ public static partial class PkhexEngineExports
                 return friendshipResult;
         }
 
+        if (operation.TeraType is int teraType)
+        {
+            if (pokemon is not ITeraType tera)
+                return SlotMutationResult.Fail(
+                    "unsupported-pokemon-edit",
+                    "Tera Type Editing is not supported for this Pokemon format.");
+
+            if (!TeraTypeUtil.CanChangeTeraType(pokemon.Species))
+                return SlotMutationResult.Fail(
+                    "unsupported-pokemon-edit",
+                    "Tera Type Editing is not supported for this Pokemon species.");
+
+            if (teraType < 0 || teraType > byte.MaxValue || !TeraTypeUtil.IsOverrideValid((byte)teraType))
+                return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a valid Tera Type.");
+
+            tera.SetTeraType((byte)teraType);
+        }
+
         if (pokemon.PartyStatsPresent)
             pokemon.ResetPartyStats();
 
@@ -609,7 +629,8 @@ public static partial class PkhexEngineExports
             !originalPp.SequenceEqual([pokemon.Move1_PP, pokemon.Move2_PP, pokemon.Move3_PP, pokemon.Move4_PP]) ||
             !originalPpUps.SequenceEqual([pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps]) ||
             originalFriendship != pokemon.CurrentFriendship ||
-            originalAffection != CurrentAffection(pokemon);
+            originalAffection != CurrentAffection(pokemon) ||
+            originalTeraType != TeraTypeState(pokemon);
         if (mutated)
             source.Set(save, pokemon);
 
@@ -618,6 +639,11 @@ public static partial class PkhexEngineExports
 
     private static int[] StatEditSetToArray(PokemonStatEditSet edits) =>
         [edits.HP, edits.ATK, edits.DEF, edits.SPE, edits.SPA, edits.SPD];
+
+    private static (byte? Original, byte? Override) TeraTypeState(PKM pokemon) =>
+        pokemon is ITeraType tera
+            ? ((byte)tera.TeraTypeOriginal, (byte)tera.TeraTypeOverride)
+            : (null, null);
 
     private static SlotMutationResult ApplyFriendshipEdits(PKM pokemon, List<PokemonFriendshipFieldEdit> edits)
     {

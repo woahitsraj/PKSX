@@ -27,6 +27,8 @@ export type {
 	PokemonEditOperation,
 	PokemonEditOperationResult,
 	PokemonExperienceProjection,
+	PokemonBattleFieldOption,
+	PokemonBattleFieldProjection,
 	PokemonFriendshipEditConstraints,
 	PokemonFriendshipField,
 	PokemonFriendshipFieldEdit,

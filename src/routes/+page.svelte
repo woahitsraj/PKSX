@@ -733,6 +733,7 @@
 			'#pokemon-editor-nature',
 			'#pokemon-editor-held-item',
 			'#pokemon-editor-ability',
+			'.battle-field-controls select:not([disabled])',
 			'#pokemon-editor-mode',
 			'.level-edit-controls input:not([disabled])',
 			'.stat-edit-controls input:not([disabled])',

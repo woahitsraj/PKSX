@@ -44,6 +44,7 @@ const occupiedSlot: BoxSlotSummary = {
 	heldItemEditConstraints: { supported: false, currentItemId: 0, options: [] },
 	abilityEditConstraints: { supported: false, currentAbilityIndex: -1, options: [] },
 	friendshipEditConstraints: { supported: false, fields: [] },
+	battleFields: [],
 	spriteIdentity: {
 		speciesId: 304,
 		form: 0,
