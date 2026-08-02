@@ -197,6 +197,7 @@ public class ControllerNavigationTest {
     @Test
     public void controllerFrameworkNavigatesAndHighlightsSaveScreens() throws Exception {
         awaitControllerSurface();
+        importEmeraldSave();
         runJavaScript("document.querySelector('#mobile-tab-1').click()");
         awaitJavaScript("location.pathname.endsWith('/save-file')");
 
