@@ -77,6 +77,7 @@ export type BoxSlotSummary = {
 	stats: SlotStatSummary[];
 	moves: SlotMoveSummary[];
 	natureEditConstraints: PokemonNatureEditConstraints;
+	heldItemEditConstraints: PokemonHeldItemEditConstraints;
 	statEditConstraints: PokemonStatEditConstraints;
 	moveSetEditConstraints: PokemonMoveSetEditConstraints;
 	friendshipEditConstraints: PokemonFriendshipEditConstraints;
@@ -148,6 +149,20 @@ export type PokemonNatureEditConstraints = {
 	statNatureId: number;
 	usesStatNature: boolean;
 	options: PokemonNatureOption[];
+	unsupportedReason?: string | null;
+};
+
+export type PokemonHeldItemOption = {
+	id: number;
+	name: string;
+	available: boolean;
+	unavailableReason?: string | null;
+};
+
+export type PokemonHeldItemEditConstraints = {
+	supported: boolean;
+	currentItemId: number;
+	options: PokemonHeldItemOption[];
 	unsupportedReason?: string | null;
 };
 
@@ -242,6 +257,7 @@ export type PokemonEditOperation = {
 	level?: number;
 	experience?: number;
 	natureId?: number;
+	heldItemId?: number;
 	ivs?: PokemonStatEditSet;
 	evs?: PokemonStatEditSet;
 	moves?: PokemonMoveSlotEdit[];

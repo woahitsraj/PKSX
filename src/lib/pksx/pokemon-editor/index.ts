@@ -66,6 +66,10 @@ export type NatureEditPayload = {
 	natureId: number;
 };
 
+export type HeldItemEditPayload = {
+	heldItemId: number;
+};
+
 export type PokemonFriendshipEditPayload = {
 	fields: PokemonFriendshipFieldEdit[];
 };
@@ -74,6 +78,7 @@ export type PokemonEditorDraftEdits = {
 	nickname?: string;
 	levelExperience?: LevelExperienceEditPayload;
 	natureId?: number;
+	heldItemId?: number;
 	ivs?: PokemonStatEditPayload;
 	evs?: PokemonStatEditPayload;
 	moveSet?: PokemonMoveSetEditPayload;
@@ -454,6 +459,31 @@ export function stageNatureEdit(
 	});
 }
 
+export function stageHeldItemEdit(
+	state: PokemonEditorState,
+	payload: HeldItemEditPayload
+): PokemonEditorState {
+	const validation = validateHeldItemEdit(state.slot, payload);
+	if (!validation.ok) {
+		return withApplyOutcome(removePokemonEditorEdit(state, 'held-item'), {
+			status: 'rejected',
+			message: validation.message,
+			reason: 'invalid-pokemon-edit'
+		});
+	}
+
+	if (payload.heldItemId === state.slot.heldItemEditConstraints?.currentItemId) {
+		return removePokemonEditorEdit(state, 'held-item');
+	}
+
+	return stagePokemonEditorEdit(state, {
+		id: 'held-item',
+		capability: 'held-item-editing',
+		label: validation.label,
+		payload: validation.payload
+	});
+}
+
 export function stageIvEdit(
 	state: PokemonEditorState,
 	payload: PokemonStatEditPayload
@@ -612,6 +642,7 @@ const pokemonEditOperationBuilders = [
 	{ id: 'nickname', build: buildNicknameEdit },
 	{ id: 'level-experience', build: buildLevelExperienceEdit },
 	{ id: 'nature', build: buildNatureEdit },
+	{ id: 'held-item', build: buildHeldItemEdit },
 	{ id: 'ivs', build: buildIvEdit },
 	{ id: 'evs', build: buildEvEdit },
 	{ id: 'move-set', build: buildMoveSetEdit },
@@ -656,6 +687,61 @@ function validateNatureEdit(
 	}
 
 	return { ok: true, payload, label: `Set Nature to ${option.name}` };
+}
+
+function buildHeldItemEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
+	if (!isHeldItemEditPayload(payload)) {
+		return invalidPokemonEdit('Held Item edit payload is invalid.');
+	}
+
+	const validation = validateHeldItemEdit(slot, payload);
+	if (!validation.ok) return invalidPokemonEdit(validation.message);
+
+	return { ok: true, patch: { heldItemId: validation.payload.heldItemId } };
+}
+
+function validateHeldItemEdit(
+	slot: SlotView,
+	payload: HeldItemEditPayload
+): PokemonEditorPayloadValidation<HeldItemEditPayload> {
+	if (slot.kind !== 'pokemon') {
+		return { ok: false, message: 'Held Item Editing needs an occupied Slot.' };
+	}
+
+	const constraints = slot.heldItemEditConstraints;
+	if (!constraints?.supported) {
+		return {
+			ok: false,
+			message:
+				constraints?.unsupportedReason ??
+				'Held Item Editing is not supported for this Pokemon Entity format.'
+		};
+	}
+
+	if (!Number.isInteger(payload.heldItemId)) {
+		return { ok: false, message: 'Held Item choice is invalid.' };
+	}
+
+	const option = constraints.options.find((candidate) => candidate.id === payload.heldItemId);
+	if (!option) {
+		return {
+			ok: false,
+			message: `Item ${payload.heldItemId} is not available for this Save File and Pokemon Entity format.`
+		};
+	}
+
+	if (!option.available) {
+		return {
+			ok: false,
+			message: option.unavailableReason ?? `${option.name} is not available for this Pokemon.`
+		};
+	}
+
+	return {
+		ok: true,
+		payload,
+		label: payload.heldItemId === 0 ? 'Remove Held Item' : `Set Held Item to ${option.name}`
+	};
 }
 
 function buildFriendshipEdit(payload: unknown, slot: SlotView): PokemonEditPatchResult {
@@ -733,7 +819,6 @@ function buildMoveSetEdit(payload: unknown, slot: SlotView): PokemonEditPatchRes
 function invalidPokemonEdit(message: string): Extract<PokemonEditValidationResult, { ok: false }> {
 	return { ok: false, status: 'rejected', message, reason: 'invalid-pokemon-edit' };
 }
-
 function validateIvEdit(
 	slot: SlotView,
 	payload: PokemonStatEditPayload
@@ -1127,6 +1212,15 @@ function isNatureEditPayload(value: unknown): value is NatureEditPayload {
 		value !== null &&
 		'natureId' in value &&
 		typeof value.natureId === 'number'
+	);
+}
+
+function isHeldItemEditPayload(value: unknown): value is HeldItemEditPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'heldItemId' in value &&
+		typeof value.heldItemId === 'number'
 	);
 }
 

@@ -58,6 +58,11 @@ const partySlot: PartySlotSummary = {
 		options: [],
 		unsupportedReason: 'Nature Editing is unavailable.'
 	},
+	heldItemEditConstraints: {
+		supported: true,
+		currentItemId: 0,
+		options: [{ id: 0, name: 'No item', available: true }]
+	},
 	statEditConstraints: {
 		supported: false,
 		minIv: 0,

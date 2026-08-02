@@ -678,6 +678,69 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(fixtureBytes.byteLength).toBe(131088);
 	});
 
+	test('projects, changes, and removes generation-safe Held Items', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const workspace = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
+		expect(workspace.ok).toBe(true);
+		if (!workspace.ok) throw new Error('Expected Emerald workspace to load.');
+
+		const slot = workspace.value.boxSlots[0];
+		expect(slot?.heldItemEditConstraints).toMatchObject({
+			supported: true,
+			options: expect.arrayContaining([
+				expect.objectContaining({ id: 0, name: 'No item', available: true })
+			])
+		});
+		const item = slot?.heldItemEditConstraints.options.find(
+			(option) =>
+				option.available &&
+				option.id !== 0 &&
+				option.id !== slot.heldItemEditConstraints.currentItemId
+		);
+		if (!item) throw new Error('Expected an available Held Item choice.');
+
+		const edited = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{ source: { zone: 'box', box: 0, slot: 0 }, heldItemId: item.id },
+			0
+		);
+		expect(edited.ok, JSON.stringify(edited.error)).toBe(true);
+		if (!edited.ok) throw new Error('Expected Held Item edit to succeed.');
+		expect(edited.value.workspace.boxSlots[0]).toMatchObject({
+			heldItem: item.name,
+			heldItemEditConstraints: { currentItemId: item.id }
+		});
+
+		const unsupported = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{ source: { zone: 'box', box: 0, slot: 0 }, heldItemId: 65_535 },
+			0
+		);
+		expect(unsupported).toMatchObject({
+			ok: false,
+			error: { code: 'unsupported-pokemon-edit' }
+		});
+
+		const removed = await engine.applyPokemonEditOperation(
+			edited.value.bytes,
+			'011020251345.sav',
+			{ source: { zone: 'box', box: 0, slot: 0 }, heldItemId: 0 },
+			0
+		);
+		expect(removed.ok).toBe(true);
+		if (!removed.ok) throw new Error('Expected Held Item removal to succeed.');
+		expect(removed.value.workspace.boxSlots[0]).toMatchObject({
+			heldItem: null,
+			heldItemEditConstraints: { currentItemId: 0 }
+		});
+	});
+
 	test('allows Primarina Ice Beam PP edits and explains real post-edit legality failures', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),

@@ -74,6 +74,7 @@ public sealed record PartySlotSummary(
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
     PokemonNatureEditConstraints NatureEditConstraints,
+    PokemonHeldItemEditConstraints HeldItemEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
     PokemonFriendshipEditConstraints FriendshipEditConstraints,
@@ -82,7 +83,7 @@ public sealed record PartySlotSummary(
     SpriteIdentity SpriteIdentity,
     string? EntityBytesBase64)
 {
-    public static PartySlotSummary From(PKM pokemon, int slot) =>
+    public static PartySlotSummary From(PKM pokemon, SaveFile save, int slot) =>
         new(
             slot,
             pokemon.Species,
@@ -102,6 +103,7 @@ public sealed record PartySlotSummary(
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
             SlotDetailProjection.NatureEditConstraints(pokemon),
+            SlotDetailProjection.HeldItemEditConstraints(pokemon, save),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Party),
             SlotDetailProjection.FriendshipEditConstraints(pokemon),
@@ -131,6 +133,7 @@ public sealed record BoxSlotSummary(
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
     PokemonNatureEditConstraints NatureEditConstraints,
+    PokemonHeldItemEditConstraints HeldItemEditConstraints,
     PokemonStatEditConstraints StatEditConstraints,
     PokemonMoveSetEditConstraints MoveSetEditConstraints,
     PokemonFriendshipEditConstraints FriendshipEditConstraints,
@@ -139,7 +142,7 @@ public sealed record BoxSlotSummary(
     SpriteIdentity SpriteIdentity,
     string? EntityBytesBase64)
 {
-    public static BoxSlotSummary From(PKM pokemon, int box, int slot) =>
+    public static BoxSlotSummary From(PKM pokemon, SaveFile save, int box, int slot) =>
         new(
             box,
             slot,
@@ -160,6 +163,7 @@ public sealed record BoxSlotSummary(
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
             SlotDetailProjection.NatureEditConstraints(pokemon),
+            SlotDetailProjection.HeldItemEditConstraints(pokemon, save),
             SlotDetailProjection.StatEditConstraints(pokemon),
             SlotDetailProjection.MoveSetEditConstraints(pokemon, StorageSlotType.Box),
             SlotDetailProjection.FriendshipEditConstraints(pokemon),
@@ -257,6 +261,14 @@ public sealed record PokemonNatureEditConstraints(
     List<PokemonNatureOption> Options,
     string? UnsupportedReason);
 
+public sealed record PokemonHeldItemOption(int Id, string Name, bool Available, string? UnavailableReason);
+
+public sealed record PokemonHeldItemEditConstraints(
+    bool Supported,
+    int CurrentItemId,
+    List<PokemonHeldItemOption> Options,
+    string? UnsupportedReason);
+
 public sealed record PokemonStatEditConstraints(
     bool Supported,
     int MinIv,
@@ -309,6 +321,7 @@ public sealed record PokemonEditOperationRequest(
     int? Level,
     uint? Experience,
     int? NatureId,
+    int? HeldItemId,
     PokemonStatEditSet? Ivs,
     PokemonStatEditSet? Evs,
     List<PokemonMoveSlotEdit>? Moves,
@@ -389,7 +402,9 @@ internal static class SlotDetailProjection
         pokemon.Species == 0 ? null : NameAt(GameInfo.Strings.Ability, pokemon.Ability);
 
     public static string? HeldItem(PKM pokemon) =>
-        pokemon.Species == 0 || pokemon.HeldItem <= 0 ? null : NameAt(GameInfo.Strings.Item, pokemon.HeldItem);
+        pokemon.Species == 0 || pokemon.HeldItem <= 0
+            ? null
+            : NameAt(GameInfo.Strings.GetItemStrings(pokemon.Context, pokemon.Version), pokemon.HeldItem);
 
     public static PokemonFriendshipEditConstraints FriendshipEditConstraints(PKM pokemon)
     {
@@ -527,6 +542,55 @@ internal static class SlotDetailProjection
             null);
     }
 
+    public static PokemonHeldItemEditConstraints HeldItemEditConstraints(PKM pokemon, SaveFile save)
+    {
+        if (pokemon.Species == 0)
+            return new PokemonHeldItemEditConstraints(
+                false,
+                0,
+                [],
+                "Held Item Editing needs an occupied Slot.");
+
+        if (pokemon.Format < 2 || save.HeldItems.Length == 0)
+            return new PokemonHeldItemEditConstraints(
+                false,
+                pokemon.HeldItem,
+                [],
+                "Held Item Editing is not supported for this Pokemon Entity format.");
+
+        if (pokemon.IsEgg)
+            return new PokemonHeldItemEditConstraints(
+                false,
+                pokemon.HeldItem,
+                [],
+                "Egg Pokemon cannot hold items.");
+
+        var options = new List<PokemonHeldItemOption>(save.HeldItems.Length + 1)
+        {
+            new(0, "No item", true, null)
+        };
+        var itemNames = GameInfo.Strings.GetItemStrings(pokemon.Context, pokemon.Version);
+
+        foreach (var item in save.HeldItems)
+        {
+            var name = NameAt(itemNames, item) ?? $"Item {item}";
+            var reason = HeldItemUnavailableReason(pokemon, item, name);
+            options.Add(new PokemonHeldItemOption(item, name, reason is null, reason));
+        }
+
+        if (pokemon.HeldItem > 0 && options.All(option => option.Id != pokemon.HeldItem))
+        {
+            var name = NameAt(itemNames, pokemon.HeldItem) ?? $"Item {pokemon.HeldItem}";
+            options.Add(new PokemonHeldItemOption(
+                pokemon.HeldItem,
+                name,
+                false,
+                $"{name} is not available in the active Save File."));
+        }
+
+        return new PokemonHeldItemEditConstraints(true, pokemon.HeldItem, options, null);
+    }
+
     public static PokemonNatureEditConstraints NatureEditConstraints(PKM pokemon)
     {
         if (pokemon.Species == 0)
@@ -637,6 +701,11 @@ internal static class SlotDetailProjection
             TypeChroma(typeId),
             MoveInfo.GetPP(pokemon.Context, move));
     }
+
+    private static string? HeldItemUnavailableReason(PKM pokemon, ushort item, string name) =>
+        ItemRestrictions.IsHeldItemAllowed(item, pokemon.Context)
+            ? null
+            : $"{name} is not supported by this Pokemon Entity format.";
 
     private static string NatureEffect(int nature)
     {

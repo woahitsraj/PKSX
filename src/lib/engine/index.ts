@@ -28,6 +28,8 @@ export type {
 	PokemonFriendshipEditConstraints,
 	PokemonFriendshipField,
 	PokemonFriendshipFieldEdit,
+	PokemonHeldItemEditConstraints,
+	PokemonHeldItemOption,
 	PokemonMoveOption,
 	PokemonMoveSetEditConstraints,
 	PokemonMoveSlotEdit,
