@@ -201,6 +201,7 @@ public class ControllerNavigationTest {
         runJavaScript("document.querySelector('#mobile-tab-1').click()");
         awaitJavaScript("location.pathname.endsWith('/save-file')");
 
+        awaitJavaScript("document.querySelector('.field-sidebar nav button') !== null");
         runJavaScript("document.querySelector('.field-sidebar nav button').focus()");
         pressGamepadKey(
             KeyEvent.KEYCODE_DPAD_DOWN,
