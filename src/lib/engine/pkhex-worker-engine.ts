@@ -7,7 +7,9 @@ import type {
 	LegalityReport,
 	PokemonActionPreview,
 	PokemonActionResult,
+	PokemonCreationResult,
 	PokemonEditOperationResult,
+	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperationResult,
 	SaveWorkspace,
 	SlotOperationResult,
@@ -209,6 +211,44 @@ export function createPkhexWorkerEngine(
 				[buffer]
 			);
 		},
+		createPokemon: (bytes, fileName, operation, activeBox) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+			const payloadOperation = {
+				...operation,
+				destination: cloneSlotRef(operation.destination)
+			};
+
+			return sendRequest(
+				'createPokemon',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'createPokemon',
+					payload: { bytes: buffer, fileName, operation: payloadOperation, activeBox }
+				},
+				[buffer]
+			);
+		},
+		previewPokemonSpeciesFormEdit: (bytes, fileName, source, speciesId, form) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'previewPokemonSpeciesFormEdit',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'previewPokemonSpeciesFormEdit',
+					payload: {
+						bytes: buffer,
+						fileName,
+						source: cloneSlotRef(source),
+						speciesId,
+						form
+					}
+				},
+				[buffer]
+			);
+		},
 		applySaveFileEditOperation: (bytes, fileName, operation, activeBox) => {
 			const buffer = copyBytesToArrayBuffer(bytes);
 			const payloadOperation = structuredClone(operation);
@@ -337,6 +377,16 @@ export function createPkhexWorkerEngine(
 		transfer: Transferable[]
 	): Promise<EngineResult<PokemonEditOperationResult>>;
 	async function sendRequest(
+		method: 'createPokemon',
+		request: Extract<EngineWorkerRequest, { method: 'createPokemon' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<PokemonCreationResult>>;
+	async function sendRequest(
+		method: 'previewPokemonSpeciesFormEdit',
+		request: Extract<EngineWorkerRequest, { method: 'previewPokemonSpeciesFormEdit' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<PokemonSpeciesFormEditProjection>>;
+	async function sendRequest(
 		method: 'applySaveFileEditOperation',
 		request: Extract<EngineWorkerRequest, { method: 'applySaveFileEditOperation' }>,
 		transfer: Transferable[]
@@ -432,6 +482,7 @@ function normalizeWorkerResult(response: EngineWorkerResponse): EngineResult<unk
 	if (
 		(response.method !== 'applySlotOperation' &&
 			response.method !== 'applyPokemonEditOperation' &&
+			response.method !== 'createPokemon' &&
 			response.method !== 'applySaveFileEditOperation' &&
 			response.method !== 'importStoredPokemon' &&
 			response.method !== 'applyPokemonAction') ||

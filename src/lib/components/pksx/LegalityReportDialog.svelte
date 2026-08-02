@@ -283,7 +283,9 @@
 	}
 
 	.icon-close:focus-visible,
-	.close-report:focus-visible {
+	.icon-close:focus,
+	.close-report:focus-visible,
+	.close-report:focus {
 		outline: 2px solid var(--pksx-color-accent-primary);
 		outline-offset: 2px;
 	}

@@ -9,8 +9,11 @@ import type {
 	PokemonActionOperation,
 	PokemonActionPreview,
 	PokemonActionResult,
+	PokemonCreationOperation,
+	PokemonCreationResult,
 	PokemonEditOperation,
 	PokemonEditOperationResult,
+	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperation,
 	SaveFileEditOperationResult,
 	SaveWorkspace,
@@ -56,6 +59,12 @@ type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		operationJson: string
 	): string;
+	PreviewPokemonSpeciesFormEditJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		requestJson: string
+	): string;
+	CreatePokemonJson(bytes: Uint8Array, fileName: string | undefined, operationJson: string): string;
 	ApplySaveFileEditOperationJson?(
 		bytes: Uint8Array,
 		fileName: string | undefined,
@@ -96,6 +105,8 @@ const knownEngineErrorCodes = new Set<EngineErrorCode>([
 	'unsupported-pokemon-edit',
 	'invalid-pokemon-action',
 	'unsupported-pokemon-action',
+	'invalid-pokemon-creation',
+	'unsupported-pokemon-creation',
 	'invalid-pokemon-import',
 	'invalid-stored-pokemon',
 	'incompatible-stored-pokemon',
@@ -153,6 +164,27 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 							activeBox
 						} satisfies RawPokemonEditOperationRequest)
 					)
+				)
+			),
+		createPokemon: async (bytes, fileName, operation, activeBox) =>
+			decodeMutationResult(
+				parseEngineResult<RawPokemonCreationResult>(
+					engine.CreatePokemonJson(
+						bytes,
+						fileName,
+						JSON.stringify({
+							...operation,
+							activeBox
+						} satisfies RawPokemonCreationRequest)
+					)
+				)
+			),
+		previewPokemonSpeciesFormEdit: async (bytes, fileName, source, speciesId, form) =>
+			parseEngineResult<PokemonSpeciesFormEditProjection>(
+				engine.PreviewPokemonSpeciesFormEditJson(
+					bytes,
+					fileName,
+					JSON.stringify({ source, speciesId, form })
 				)
 			),
 		applySaveFileEditOperation: async (bytes, fileName, operation, activeBox) => {
@@ -223,6 +255,7 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 
 type RawSlotOperationRequest = SlotOperation & { activeBox: number };
 type RawPokemonEditOperationRequest = PokemonEditOperation & { activeBox: number };
+type RawPokemonCreationRequest = PokemonCreationOperation & { activeBox: number };
 type RawSaveFileEditOperationRequest = SaveFileEditOperation & { activeBox: number };
 type RawStoredPokemonImportRequest = {
 	entityBytesBase64: string;
@@ -241,6 +274,11 @@ type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes' | 'workspace'> &
 	workspace: RawSaveWorkspace;
 };
 type RawPokemonEditOperationResult = Omit<PokemonEditOperationResult, 'bytes' | 'workspace'> & {
+	bytesBase64: string;
+	byteLength: number;
+	workspace: RawSaveWorkspace;
+};
+type RawPokemonCreationResult = Omit<PokemonCreationResult, 'bytes' | 'workspace'> & {
 	bytesBase64: string;
 	byteLength: number;
 	workspace: RawSaveWorkspace;

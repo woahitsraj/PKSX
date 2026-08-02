@@ -24,7 +24,8 @@
 		if (event.key !== 'Escape' && event.key !== 'Backspace') return;
 		event.preventDefault();
 		event.stopPropagation();
-		if ((state.status === 'ready' || state.status === 'applying') && state.selection) {
+		if (state.status === 'applying') return;
+		if (state.status === 'ready' && state.selection) {
 			onClearSelection();
 		} else {
 			onClose();
@@ -51,6 +52,7 @@
 				data-pokemon-action-control
 				type="button"
 				aria-label="Close Pokemon Actions"
+				disabled={state.status === 'applying'}
 				onclick={onClose}>×</button
 			>
 		</header>

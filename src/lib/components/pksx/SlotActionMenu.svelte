@@ -1,8 +1,6 @@
 <script lang="ts">
 	import type { SlotView } from './types';
 
-	type Align = 'start' | 'center' | 'end';
-	type VerticalAlign = 'top' | 'bottom';
 	type CommandAvailability = 'available' | 'unsupported' | 'empty-slot' | 'occupied-slot';
 	type SlotActionCommandKey =
 		| 'pokemon-action'
@@ -23,12 +21,11 @@
 	interface Props {
 		location: string;
 		slot: SlotView;
-		align?: Align;
-		vertical?: VerticalAlign;
 		mobileTop?: number | null;
 		viewportTop?: number | null;
 		viewportLeft?: number | null;
 		activeIndex: number;
+		createPokemonAvailable?: boolean;
 		onFocusCommand: (index: number) => void;
 		onSelectCommand: (command: SlotActionCommandKey) => void;
 		onClose: () => void;
@@ -37,27 +34,26 @@
 	let {
 		location,
 		slot,
-		align = 'center',
-		vertical = 'top',
 		mobileTop = null,
 		viewportTop = null,
 		viewportLeft = null,
 		activeIndex,
+		createPokemonAvailable = false,
 		onFocusCommand,
 		onSelectCommand,
 		onClose
 	}: Props = $props();
 
-	const commands = $derived(createCommands(slot));
+	const commands = $derived(createCommands(slot, createPokemonAvailable));
 	const occupied = $derived(slot.kind === 'pokemon');
 
-	function createCommands(slot: SlotView): SlotActionCommand[] {
+	function createCommands(slot: SlotView, canCreatePokemon: boolean): SlotActionCommand[] {
 		if (slot.kind === 'empty') {
 			return [
 				{
 					key: 'create-pokemon',
 					label: 'Create Pokemon',
-					availability: 'unsupported'
+					availability: canCreatePokemon ? 'available' : 'unsupported'
 				},
 				{
 					key: 'move',
@@ -128,13 +124,7 @@
 </script>
 
 <div
-	class={[
-		'slot-context',
-		align === 'start' && 'align-start',
-		align === 'end' && 'align-end',
-		vertical === 'bottom' && 'vertical-bottom',
-		viewportTop !== null && viewportLeft !== null && 'viewport-anchored'
-	]}
+	class={['slot-context', viewportTop !== null && viewportLeft !== null && 'viewport-anchored']}
 	role="dialog"
 	aria-label="Slot actions"
 	tabindex="0"
@@ -183,10 +173,10 @@
 
 <style>
 	.slot-context {
-		position: absolute;
-		z-index: 200;
-		top: calc(100% + 8px);
-		left: 50%;
+		position: fixed;
+		z-index: 500;
+		top: var(--viewport-surface-top, 0);
+		left: var(--viewport-surface-left, 0);
 		width: min(218px, calc(100vw - 24px));
 		display: grid;
 		gap: 4px;
@@ -194,34 +184,14 @@
 		border-radius: var(--pksx-radius-md);
 		background: var(--paper-hi);
 		box-shadow: var(--shadow-deep);
-		transform: translateX(-50%);
-	}
-
-	.slot-context.align-start {
-		top: 0;
-		left: calc(100% + 8px);
-		transform: none;
-	}
-
-	.slot-context.align-end {
-		top: 0;
-		right: calc(100% + 8px);
-		left: auto;
-		transform: none;
-	}
-
-	.slot-context.vertical-bottom {
-		top: auto;
-		bottom: 0;
+		/* Invisible (but focusable) until the anchor pass places it, so it never flashes unpositioned. */
+		opacity: 0;
+		pointer-events: none;
 	}
 
 	.slot-context.viewport-anchored {
-		position: fixed;
-		z-index: 500;
-		top: var(--viewport-surface-top);
-		left: var(--viewport-surface-left);
-		right: auto;
-		transform: none;
+		opacity: 1;
+		pointer-events: auto;
 	}
 
 	.slot-context-header {
@@ -321,20 +291,20 @@
 		outline: none;
 	}
 
-	@media (max-width: 820px) {
-		.slot-context,
-		.slot-context.align-start,
-		.slot-context.align-end,
-		.slot-context.vertical-bottom {
-			position: fixed;
+	@media (max-width: 1024px) {
+		.slot-context {
 			top: var(--mobile-surface-top, auto);
 			right: 12px;
 			bottom: auto;
 			left: 12px;
 			width: auto;
-			max-height: max(80px, calc(100dvh - var(--mobile-surface-top, 76px) - 88px));
+			max-height: max(
+				80px,
+				calc(100dvh - var(--mobile-surface-top, 76px) - 88px - env(safe-area-inset-bottom, 0px))
+			);
 			overflow-y: auto;
-			transform: none;
+			opacity: 1;
+			pointer-events: auto;
 		}
 
 		.close-command {
