@@ -107,6 +107,54 @@ export const pokemonStatEditConstraintsSchema = z.object({
 	unsupportedReason: z.string().nullable().optional()
 });
 
+export const pokemonNatureEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	currentNatureId: z.number().int().default(-1),
+	originalNatureId: z.number().int().default(-1),
+	statNatureId: z.number().int().default(-1),
+	usesStatNature: z.boolean().default(false),
+	options: z
+		.array(
+			z.object({
+				id: z.number().int(),
+				name: z.string(),
+				effect: z.string()
+			})
+		)
+		.default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
+export const pokemonHeldItemOptionSchema = z.object({
+	id: z.number().int(),
+	name: z.string(),
+	available: z.boolean().default(false),
+	unavailableReason: z.string().nullable().optional()
+});
+
+export const pokemonHeldItemEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	currentItemId: z.number().int().default(0),
+	options: z.array(pokemonHeldItemOptionSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
+export const pokemonAbilityOptionSchema = z.object({
+	index: z.number().int(),
+	id: z.number().int(),
+	name: z.string(),
+	hidden: z.boolean().default(false),
+	available: z.boolean().default(false),
+	unavailableReason: z.string().nullable().optional()
+});
+
+export const pokemonAbilityEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	currentAbilityIndex: z.number().int().default(-1),
+	options: z.array(pokemonAbilityOptionSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
 export const pokemonMoveOptionSchema = z.object({
 	id: z.number(),
 	name: z.string(),
@@ -153,6 +201,35 @@ const pokemonMetDataEditConstraintsSchema = z.object({
 	unsupportedReason: z.string().nullable().optional()
 });
 
+export const pokemonFriendshipFieldSchema = z.object({
+	key: z.string(),
+	label: z.string(),
+	value: z.number().int(),
+	min: z.number().int(),
+	max: z.number().int()
+});
+
+export const pokemonFriendshipEditConstraintsSchema = z.object({
+	supported: z.boolean().default(false),
+	fields: z.array(pokemonFriendshipFieldSchema).default([]),
+	unsupportedReason: z.string().nullable().optional()
+});
+
+export const pokemonBattleFieldProjectionSchema = z.object({
+	key: z.string(),
+	label: z.string(),
+	value: z.number().int(),
+	valueLabel: z.string(),
+	supported: z.boolean(),
+	options: z.array(
+		z.object({
+			value: z.number().int(),
+			label: z.string()
+		})
+	),
+	unsupportedReason: z.string().nullable().optional()
+});
+
 export const displaySexSchema = z.enum(['default', 'male', 'female']);
 
 export const spriteIdentitySchema = z.object({
@@ -192,6 +269,27 @@ const slotSummaryFields = {
 	types: z.array(slotTypeSummarySchema).default([]),
 	stats: z.array(slotStatSummarySchema).default([]),
 	moves: z.array(slotMoveSummarySchema).default([]),
+	natureEditConstraints: pokemonNatureEditConstraintsSchema.default({
+		supported: false,
+		currentNatureId: -1,
+		originalNatureId: -1,
+		statNatureId: -1,
+		usesStatNature: false,
+		options: [],
+		unsupportedReason: 'Nature Editing is not available for this Pokemon projection.'
+	}),
+	heldItemEditConstraints: pokemonHeldItemEditConstraintsSchema.default({
+		supported: false,
+		currentItemId: 0,
+		options: [],
+		unsupportedReason: 'Held Item Editing is not available for this Pokemon projection.'
+	}),
+	abilityEditConstraints: pokemonAbilityEditConstraintsSchema.default({
+		supported: false,
+		currentAbilityIndex: -1,
+		options: [],
+		unsupportedReason: 'Ability Editing is not available for this Pokemon projection.'
+	}),
 	metDataEditConstraints: pokemonMetDataEditConstraintsSchema.default({
 		supported: false,
 		currentLocationId: 0,
@@ -223,6 +321,12 @@ const slotSummaryFields = {
 		availableMoves: [],
 		unsupportedReason: 'Move Set Editing is not available for this Pokemon projection.'
 	}),
+	friendshipEditConstraints: pokemonFriendshipEditConstraintsSchema.default({
+		supported: false,
+		fields: [],
+		unsupportedReason: 'Friendship Editing is not available for this Pokemon projection.'
+	}),
+	battleFields: z.array(pokemonBattleFieldProjectionSchema).default([]),
 	originalTrainer: z.string().nullable().optional(),
 	metLabel: z.string().nullable().optional(),
 	spriteIdentity: spriteIdentitySchema.optional(),
@@ -304,6 +408,9 @@ export const pokemonEditOperationSchema = z.object({
 	nickname: z.string().optional(),
 	level: z.number().int().optional(),
 	experience: z.number().int().optional(),
+	natureId: z.number().int().optional(),
+	heldItemId: z.number().int().optional(),
+	abilityIndex: z.number().int().optional(),
 	metData: z
 		.object({
 			locationId: z.number().int(),
@@ -342,7 +449,16 @@ export const pokemonEditOperationSchema = z.object({
 				ppUps: z.number().int().optional()
 			})
 		)
-		.optional()
+		.optional(),
+	friendshipEdits: z
+		.array(
+			z.object({
+				key: z.string(),
+				value: z.number().int()
+			})
+		)
+		.optional(),
+	teraType: z.number().int().optional()
 });
 
 export const pokemonEditOperationResultSchema = z.object({
