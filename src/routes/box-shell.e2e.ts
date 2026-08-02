@@ -1118,7 +1118,7 @@ test('Pokemon Editor stages, cancels, and applies an engine-projected Tera Type'
 	await page.getByRole('button', { name: 'Edit' }).click();
 
 	const editor = page.getByRole('dialog').filter({ hasText: 'Battle Fields' });
-	const teraType = editor.locator('#pokemon-editor-tera-type');
+	const teraType = editor.locator('#pokemon-editor-battle-field-tera-type');
 	await expect(teraType).toBeVisible({ timeout: 60000 });
 	const original = await teraType.inputValue();
 	const next = await teraType.locator('option').evaluateAll((options, current) => {
@@ -1135,7 +1135,7 @@ test('Pokemon Editor stages, cancels, and applies an engine-projected Tera Type'
 	await teraType.selectOption(next);
 	await editor.getByRole('button', { name: 'Apply edits' }).click();
 	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 60000 });
-	await expect(editor.locator('#pokemon-editor-tera-type')).toHaveValue(next);
+	await expect(editor.locator('#pokemon-editor-battle-field-tera-type')).toHaveValue(next);
 	await expect(page.getByText('Unsaved edits')).toBeVisible();
 });
 
