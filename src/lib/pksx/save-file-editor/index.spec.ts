@@ -83,15 +83,13 @@ const projection: SaveFileEditableProjection = {
 				capacity: 20,
 				full: false,
 				unsupportedReason: null,
-				items: [{ id: 13, name: 'Potion', quantity: 4, maxQuantity: 99 }],
-				availableItems: [
-					{ id: 13, name: 'Potion', maxQuantity: 99 },
-					{ id: 14, name: 'Antidote', maxQuantity: 99 }
-				]
+				items: [{ id: 13, name: 'Potion', quantity: 4, maxQuantity: 99 }]
 			}
 		]
 	}
 };
+
+const antidote = { id: 14, name: 'Antidote', maxQuantity: 99 };
 
 const stagedEdit = {
 	id: 'trainer-name',
@@ -184,7 +182,7 @@ describe('Save File editor state', () => {
 		staged = stageTrainerGenderEdit(staged, 'male');
 		staged = stageMoneyEdit(staged, 5000);
 		staged = stageInventoryQuantityEdit(staged, 'Medicine', 13, 8);
-		staged = stageInventoryAddEdit(staged, 'Medicine', 14, 2);
+		staged = stageInventoryAddEdit(staged, 'Medicine', antidote, 2);
 
 		expect(createSaveFileEditOperation(staged)).toEqual({
 			ok: true,

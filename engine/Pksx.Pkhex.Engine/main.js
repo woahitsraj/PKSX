@@ -1,3 +1,5 @@
+// fallow-ignore-file unused-file
+// fallow-ignore-next-line unresolved-import
 import { dotnet } from './_framework/dotnet.js';
 
 const { getAssemblyExports, getConfig, runMain } = await dotnet.create();

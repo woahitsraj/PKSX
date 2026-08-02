@@ -138,6 +138,58 @@ function createEngineExports(): DotnetPkhexEngineExports {
 				},
 				error: null
 			}),
+		CreatePokemonJson: () =>
+			JSON.stringify({
+				ok: true,
+				value: {
+					bytesBase64: 'AQID',
+					byteLength: 3,
+					mutated: true,
+					workspace: {
+						summary: {
+							fileName: 'main.sav',
+							saveType: 'SAV9SV',
+							gameVersion: 'SV',
+							gameVersionId: 45,
+							generation: 9,
+							trainerName: 'PKSX',
+							partyCount: 1,
+							boxCount: 32,
+							boxSlotCount: 30
+						},
+						partySlots: [],
+						boxSlots: []
+					}
+				},
+				error: null
+			}),
+		PreviewPokemonSpeciesFormEditJson: () =>
+			JSON.stringify({
+				ok: true,
+				value: {
+					availableSpecies: [{ id: 25, name: 'Pikachu' }],
+					availableForms: [{ id: 0, name: 'Default' }],
+					preview: {
+						speciesId: 25,
+						speciesName: 'Pikachu',
+						form: 0,
+						formName: 'Default',
+						types: ['Electric'],
+						moves: [],
+						spriteIdentity: {
+							speciesId: 25,
+							form: 0,
+							isEgg: false,
+							isShiny: false,
+							displaySex: 'default'
+						},
+						legal: true,
+						legalitySummary: 'PKHeX judged this Pokemon legal.',
+						consequences: []
+					}
+				},
+				error: null
+			}),
 		ImportStoredPokemonJson: () =>
 			JSON.stringify({
 				ok: true,
@@ -170,6 +222,7 @@ function createEngineExports(): DotnetPkhexEngineExports {
 					legal: true,
 					judgement: 'Legal',
 					summary: 'PKHeX judged this Pokemon legal.',
+					fixableProblems: [],
 					warnings: [],
 					messages: [
 						{
@@ -180,6 +233,30 @@ function createEngineExports(): DotnetPkhexEngineExports {
 					]
 				},
 				error: null
+			}),
+		PreviewPokemonActionsJson: () =>
+			JSON.stringify({
+				ok: false,
+				value: null,
+				error: { code: 'unsupported-pokemon-action', message: 'Unavailable in this fixture.' }
+			}),
+		ApplyPokemonActionJson: () =>
+			JSON.stringify({
+				ok: false,
+				value: null,
+				error: { code: 'unsupported-pokemon-action', message: 'Unavailable in this fixture.' }
+			}),
+		PreviewStoredPokemonActionsJson: () =>
+			JSON.stringify({
+				ok: false,
+				value: null,
+				error: { code: 'unsupported-pokemon-action', message: 'Unavailable in this fixture.' }
+			}),
+		ApplyStoredPokemonActionJson: () =>
+			JSON.stringify({
+				ok: false,
+				value: null,
+				error: { code: 'unsupported-pokemon-action', message: 'Unavailable in this fixture.' }
 			})
 	};
 }

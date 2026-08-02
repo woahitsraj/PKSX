@@ -100,6 +100,7 @@ describe('legality report state', () => {
 					legal: false,
 					judgement: 'Illegal',
 					summary: 'PKHeX found legality issues for this Pokemon.',
+					fixableProblems: ['Move Set'],
 					warnings: [{ severity: 'Fishy', identifier: 'Encounter', message: 'Encounter warning.' }],
 					messages: [{ severity: 'Invalid', identifier: 'Moves', message: 'Invalid move.' }]
 				},

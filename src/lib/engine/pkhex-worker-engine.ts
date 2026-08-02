@@ -5,11 +5,17 @@ import type {
 	EngineResult,
 	EngineVersion,
 	LegalityReport,
+	PokemonActionPreview,
+	PokemonActionResult,
+	PokemonCreationResult,
 	PokemonEditOperationResult,
+	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperationResult,
+	SaveFileInventoryCatalogue,
 	SaveWorkspace,
 	SlotOperationResult,
 	StoredPokemonImportResult,
+	StoredPokemonActionResult,
 	SerializedSave,
 	SaveSummary
 } from './types';
@@ -206,6 +212,44 @@ export function createPkhexWorkerEngine(
 				[buffer]
 			);
 		},
+		createPokemon: (bytes, fileName, operation, activeBox) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+			const payloadOperation = {
+				...operation,
+				destination: cloneSlotRef(operation.destination)
+			};
+
+			return sendRequest(
+				'createPokemon',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'createPokemon',
+					payload: { bytes: buffer, fileName, operation: payloadOperation, activeBox }
+				},
+				[buffer]
+			);
+		},
+		previewPokemonSpeciesFormEdit: (bytes, fileName, source, speciesId, form) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'previewPokemonSpeciesFormEdit',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'previewPokemonSpeciesFormEdit',
+					payload: {
+						bytes: buffer,
+						fileName,
+						source: cloneSlotRef(source),
+						speciesId,
+						form
+					}
+				},
+				[buffer]
+			);
+		},
 		applySaveFileEditOperation: (bytes, fileName, operation, activeBox) => {
 			const buffer = copyBytesToArrayBuffer(bytes);
 			const payloadOperation = structuredClone(operation);
@@ -217,6 +261,20 @@ export function createPkhexWorkerEngine(
 					id: createRequestId(),
 					method: 'applySaveFileEditOperation',
 					payload: { bytes: buffer, fileName, operation: payloadOperation, activeBox }
+				},
+				[buffer]
+			);
+		},
+		getSaveFileInventoryCatalogue: (bytes, fileName) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'getSaveFileInventoryCatalogue',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'getSaveFileInventoryCatalogue',
+					payload: { bytes: buffer, fileName }
 				},
 				[buffer]
 			);
@@ -252,7 +310,54 @@ export function createPkhexWorkerEngine(
 				},
 				[buffer]
 			);
-		}
+		},
+		previewPokemonActions: (bytes, fileName, source) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'previewPokemonActions',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'previewPokemonActions',
+					payload: { bytes: buffer, fileName, source: cloneSlotRef(source) }
+				},
+				[buffer]
+			);
+		},
+		applyPokemonAction: (bytes, fileName, operation, activeBox) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'applyPokemonAction',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'applyPokemonAction',
+					payload: {
+						bytes: buffer,
+						fileName,
+						operation: { ...operation, source: cloneSlotRef(operation.source) },
+						activeBox
+					}
+				},
+				[buffer]
+			);
+		},
+		previewStoredPokemonActions: (entityBytesBase64) =>
+			sendRequest('previewStoredPokemonActions', {
+				type: 'request',
+				id: createRequestId(),
+				method: 'previewStoredPokemonActions',
+				payload: { entityBytesBase64 }
+			}),
+		applyStoredPokemonAction: (entityBytesBase64, operation) =>
+			sendRequest('applyStoredPokemonAction', {
+				type: 'request',
+				id: createRequestId(),
+				method: 'applyStoredPokemonAction',
+				payload: { entityBytesBase64, operation: structuredClone(operation) }
+			})
 	};
 
 	async function sendRequest(method: 'getVersion'): Promise<EngineResult<EngineVersion>>;
@@ -287,10 +392,25 @@ export function createPkhexWorkerEngine(
 		transfer: Transferable[]
 	): Promise<EngineResult<PokemonEditOperationResult>>;
 	async function sendRequest(
+		method: 'createPokemon',
+		request: Extract<EngineWorkerRequest, { method: 'createPokemon' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<PokemonCreationResult>>;
+	async function sendRequest(
+		method: 'previewPokemonSpeciesFormEdit',
+		request: Extract<EngineWorkerRequest, { method: 'previewPokemonSpeciesFormEdit' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<PokemonSpeciesFormEditProjection>>;
+	async function sendRequest(
 		method: 'applySaveFileEditOperation',
 		request: Extract<EngineWorkerRequest, { method: 'applySaveFileEditOperation' }>,
 		transfer: Transferable[]
 	): Promise<EngineResult<SaveFileEditOperationResult>>;
+	async function sendRequest(
+		method: 'getSaveFileInventoryCatalogue',
+		request: Extract<EngineWorkerRequest, { method: 'getSaveFileInventoryCatalogue' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<SaveFileInventoryCatalogue>>;
 	async function sendRequest(
 		method: 'importStoredPokemon',
 		request: Extract<EngineWorkerRequest, { method: 'importStoredPokemon' }>,
@@ -301,6 +421,24 @@ export function createPkhexWorkerEngine(
 		request: Extract<EngineWorkerRequest, { method: 'checkSlotLegality' }>,
 		transfer: Transferable[]
 	): Promise<EngineResult<LegalityReport>>;
+	async function sendRequest(
+		method: 'previewPokemonActions',
+		request: Extract<EngineWorkerRequest, { method: 'previewPokemonActions' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<PokemonActionPreview>>;
+	async function sendRequest(
+		method: 'applyPokemonAction',
+		request: Extract<EngineWorkerRequest, { method: 'applyPokemonAction' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<PokemonActionResult>>;
+	async function sendRequest(
+		method: 'previewStoredPokemonActions',
+		request: Extract<EngineWorkerRequest, { method: 'previewStoredPokemonActions' }>
+	): Promise<EngineResult<PokemonActionPreview>>;
+	async function sendRequest(
+		method: 'applyStoredPokemonAction',
+		request: Extract<EngineWorkerRequest, { method: 'applyStoredPokemonAction' }>
+	): Promise<EngineResult<StoredPokemonActionResult>>;
 	async function sendRequest(
 		method: EngineWorkerMethod,
 		request: EngineWorkerRequest = { type: 'request', id: createRequestId(), method: 'getVersion' },
@@ -364,8 +502,10 @@ function normalizeWorkerResult(response: EngineWorkerResponse): EngineResult<unk
 	if (
 		(response.method !== 'applySlotOperation' &&
 			response.method !== 'applyPokemonEditOperation' &&
+			response.method !== 'createPokemon' &&
 			response.method !== 'applySaveFileEditOperation' &&
-			response.method !== 'importStoredPokemon') ||
+			response.method !== 'importStoredPokemon' &&
+			response.method !== 'applyPokemonAction') ||
 		!response.result.ok
 	) {
 		return response.result;

@@ -1,5 +1,6 @@
 import type {
 	InventoryEditOperation,
+	InventoryItemOption,
 	SaveFileEditableProjection,
 	SaveFileEditOperation,
 	SaveSummary,
@@ -333,13 +334,13 @@ export function stageInventoryQuantityEdit(
 export function stageInventoryAddEdit(
 	state: SaveFileEditorState,
 	pocket: string,
-	itemId: number,
+	option: InventoryItemOption,
 	quantity = 1
 ): SaveFileEditorState {
 	const projection = findInventoryPocket(state, pocket);
-	const option = projection?.availableItems.find((item) => item.id === itemId);
+	const itemId = option.id;
 	const id = inventoryEditId(pocket, itemId);
-	if (!projection || !option) {
+	if (!projection) {
 		return rejectEdit(state, id, 'That item is not valid for this pocket.');
 	}
 	if (projection.full) return rejectEdit(state, id, `${projection.label} is full.`, 'unsupported');

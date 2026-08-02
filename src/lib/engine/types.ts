@@ -7,6 +7,10 @@ export type EngineErrorCode =
 	| 'unsupported-slot-operation'
 	| 'invalid-pokemon-edit'
 	| 'unsupported-pokemon-edit'
+	| 'invalid-pokemon-action'
+	| 'unsupported-pokemon-action'
+	| 'invalid-pokemon-creation'
+	| 'unsupported-pokemon-creation'
 	| 'invalid-pokemon-import'
 	| 'invalid-stored-pokemon'
 	| 'incompatible-stored-pokemon'
@@ -76,8 +80,15 @@ export type BoxSlotSummary = {
 	types: SlotTypeSummary[];
 	stats: SlotStatSummary[];
 	moves: SlotMoveSummary[];
+	natureEditConstraints: PokemonNatureEditConstraints;
+	heldItemEditConstraints: PokemonHeldItemEditConstraints;
+	abilityEditConstraints: PokemonAbilityEditConstraints;
+	metDataEditConstraints: PokemonMetDataEditConstraints;
+	originalTrainerEditConstraints: PokemonOriginalTrainerEditConstraints;
 	statEditConstraints: PokemonStatEditConstraints;
 	moveSetEditConstraints: PokemonMoveSetEditConstraints;
+	friendshipEditConstraints: PokemonFriendshipEditConstraints;
+	battleFields: PokemonBattleFieldProjection[];
 	originalTrainer?: string | null;
 	metLabel?: string | null;
 	spriteIdentity: SpriteIdentity;
@@ -133,6 +144,52 @@ export type PokemonStatEditConstraints = {
 	unsupportedReason?: string | null;
 };
 
+export type PokemonNatureOption = {
+	id: number;
+	name: string;
+	effect: string;
+};
+
+export type PokemonNatureEditConstraints = {
+	supported: boolean;
+	currentNatureId: number;
+	originalNatureId: number;
+	statNatureId: number;
+	usesStatNature: boolean;
+	options: PokemonNatureOption[];
+	unsupportedReason?: string | null;
+};
+
+export type PokemonHeldItemOption = {
+	id: number;
+	name: string;
+	available: boolean;
+	unavailableReason?: string | null;
+};
+
+export type PokemonHeldItemEditConstraints = {
+	supported: boolean;
+	currentItemId: number;
+	options: PokemonHeldItemOption[];
+	unsupportedReason?: string | null;
+};
+
+export type PokemonAbilityOption = {
+	index: number;
+	id: number;
+	name: string;
+	hidden: boolean;
+	available: boolean;
+	unavailableReason?: string | null;
+};
+
+export type PokemonAbilityEditConstraints = {
+	supported: boolean;
+	currentAbilityIndex: number;
+	options: PokemonAbilityOption[];
+	unsupportedReason?: string | null;
+};
+
 export type PokemonMoveOption = {
 	id: number;
 	name: string;
@@ -146,6 +203,117 @@ export type PokemonMoveSetEditConstraints = {
 	supported: boolean;
 	maxMoveSlots: number;
 	availableMoves: PokemonMoveOption[];
+	unsupportedReason?: string | null;
+};
+
+export type PokemonSpeciesOption = {
+	id: number;
+	name: string;
+};
+
+export type PokemonFormOption = {
+	id: number;
+	name: string;
+};
+
+export type PokemonMetDataOption = {
+	id: number;
+	name: string;
+};
+
+export type PokemonOriginalTrainerOption = {
+	id: number;
+	name: string;
+};
+
+export type PokemonSpeciesFormPreview = {
+	speciesId: number;
+	speciesName: string;
+	form: number;
+	formName: string;
+	ability?: string | null;
+	gender?: string | null;
+	types: string[];
+	moves: string[];
+	spriteIdentity: SpriteIdentity;
+	legal: boolean;
+	legalitySummary: string;
+	consequences: string[];
+};
+
+export type PokemonSpeciesFormEditProjection = {
+	availableSpecies: PokemonSpeciesOption[];
+	availableForms: PokemonFormOption[];
+	preview: PokemonSpeciesFormPreview;
+};
+
+export type PokemonOriginalTrainerEditConstraints = {
+	supported: boolean;
+	currentName: string;
+	currentTrainerId: number;
+	currentSecretId: number;
+	currentGenderId: number;
+	currentLanguageId: number;
+	maxNameLength: number;
+	minTrainerId: number;
+	maxTrainerId: number;
+	supportsSecretId: boolean;
+	supportsGender: boolean;
+	supportsLanguage: boolean;
+	genders: PokemonOriginalTrainerOption[];
+	languages: PokemonOriginalTrainerOption[];
+	unsupportedReason?: string | null;
+};
+
+export type PokemonMetLocationGroup = {
+	originGameId: number;
+	options: PokemonMetDataOption[];
+};
+
+export type PokemonMetDataEditConstraints = {
+	supported: boolean;
+	currentLocationId: number;
+	currentMetLevel: number;
+	currentMetDate?: string | null;
+	currentOriginGameId: number;
+	currentBallId: number;
+	minMetLevel: number;
+	maxMetLevel: number;
+	supportsMetDate: boolean;
+	supportsOriginGame: boolean;
+	supportsBall: boolean;
+	locationGroups: PokemonMetLocationGroup[];
+	originGames: PokemonMetDataOption[];
+	balls: PokemonMetDataOption[];
+	unsupportedReason?: string | null;
+};
+
+export type PokemonFriendshipField = {
+	key: string;
+	label: string;
+	value: number;
+	min: number;
+	max: number;
+};
+
+export type PokemonFriendshipEditConstraints = {
+	supported: boolean;
+	fields: PokemonFriendshipField[];
+	unsupportedReason?: string | null;
+};
+
+export type PokemonBattleFieldOption = {
+	value: number;
+	label: string;
+};
+
+export type PokemonBattleFieldProjection = {
+	key: string;
+	label: string;
+	value: number;
+	valueLabel: string;
+	supported: boolean;
+	options: PokemonBattleFieldOption[];
 	unsupportedReason?: string | null;
 };
 
@@ -192,7 +360,13 @@ export type InventoryPocketProjection = {
 	full: boolean;
 	unsupportedReason: string | null;
 	items: InventoryItemProjection[];
-	availableItems: InventoryItemOption[];
+};
+
+/** Fetched on demand: too large to embed in every workspace projection. */
+export type SaveFileInventoryCatalogue = {
+	supported: boolean;
+	unsupportedReason: string | null;
+	pockets: { key: string; availableItems: InventoryItemOption[] }[];
 };
 
 export type InventoryItemProjection = {
@@ -255,12 +429,29 @@ export type StoredPokemonImportResult = {
 
 export type PokemonEditOperation = {
 	source: SaveSlotRef;
+	speciesId?: number;
+	form?: number;
 	nickname?: string;
 	level?: number;
 	experience?: number;
+	natureId?: number;
+	heldItemId?: number;
+	abilityIndex?: number;
+	metData?: PokemonMetDataEdit;
+	originalTrainer?: PokemonOriginalTrainerEdit;
 	ivs?: PokemonStatEditSet;
 	evs?: PokemonStatEditSet;
 	moves?: PokemonMoveSlotEdit[];
+	friendshipEdits?: PokemonFriendshipFieldEdit[];
+	teraType?: number;
+};
+
+export type PokemonMetDataEdit = {
+	locationId: number;
+	metLevel: number;
+	metDate?: string | null;
+	originGameId?: number;
+	ballId?: number;
 };
 
 export type PokemonStatEditSet = {
@@ -279,7 +470,32 @@ export type PokemonMoveSlotEdit = {
 	ppUps?: number;
 };
 
+export type PokemonOriginalTrainerEdit = {
+	name: string;
+	trainerId: number;
+	secretId?: number;
+	genderId?: number;
+	languageId?: number;
+};
+
+export type PokemonFriendshipFieldEdit = {
+	key: string;
+	value: number;
+};
+
 export type PokemonEditOperationResult = {
+	bytes: Uint8Array;
+	mutated: boolean;
+	workspace: SaveWorkspace;
+};
+
+export type PokemonCreationOperation = {
+	destination: SaveSlotRef;
+	speciesId?: number;
+	level: number;
+};
+
+export type PokemonCreationResult = {
 	bytes: Uint8Array;
 	mutated: boolean;
 	workspace: SaveWorkspace;
@@ -317,8 +533,65 @@ export type LegalityReport = {
 	legal: boolean;
 	judgement: string;
 	summary: string;
+	fixableProblems: string[];
 	warnings: LegalityReportLine[];
 	messages: LegalityReportLine[];
+};
+
+export type PokemonActionKind = 'legality-fix' | 'evolve';
+
+export type PokemonActionChange = {
+	field: string;
+	before: string;
+	after: string;
+};
+
+export type PokemonEvolutionChoice = {
+	id: string;
+	speciesId: number;
+	form: number;
+	speciesName: string;
+	method: string;
+	requirement: string;
+	changes: PokemonActionChange[];
+};
+
+export type PokemonActionAvailability = {
+	kind: PokemonActionKind;
+	available: boolean;
+	unavailableReason?: string | null;
+	changes: PokemonActionChange[];
+	choices: PokemonEvolutionChoice[];
+};
+
+export type PokemonActionPreview = {
+	legalityReport: LegalityReport;
+	actions: PokemonActionAvailability[];
+};
+
+export type PokemonActionOperation = {
+	kind: PokemonActionKind;
+	source: SaveSlotRef;
+	choiceId?: string;
+};
+
+export type PokemonActionResult = {
+	bytes: Uint8Array;
+	mutated: boolean;
+	workspace: SaveWorkspace;
+	changes: PokemonActionChange[];
+};
+
+export type StoredPokemonActionOperation = {
+	kind: PokemonActionKind;
+	choiceId?: string;
+};
+
+export type StoredPokemonActionResult = {
+	entityBytesBase64: string;
+	mutated: boolean;
+	projection: BoxSlotSummary;
+	changes: PokemonActionChange[];
 };
 
 export type EngineApi = {
@@ -347,12 +620,29 @@ export type EngineApi = {
 		operation: PokemonEditOperation,
 		activeBox: number
 	): Promise<EngineResult<PokemonEditOperationResult>>;
+	previewPokemonSpeciesFormEdit(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		source: SaveSlotRef,
+		speciesId: number,
+		form: number
+	): Promise<EngineResult<PokemonSpeciesFormEditProjection>>;
+	createPokemon(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operation: PokemonCreationOperation,
+		activeBox: number
+	): Promise<EngineResult<PokemonCreationResult>>;
 	applySaveFileEditOperation(
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		operation: SaveFileEditOperation,
 		activeBox: number
 	): Promise<EngineResult<SaveFileEditOperationResult>>;
+	getSaveFileInventoryCatalogue(
+		bytes: Uint8Array,
+		fileName: string | undefined
+	): Promise<EngineResult<SaveFileInventoryCatalogue>>;
 	importStoredPokemon(
 		bytes: Uint8Array,
 		fileName: string | undefined,
@@ -364,4 +654,22 @@ export type EngineApi = {
 		fileName: string | undefined,
 		source: SaveSlotRef
 	): Promise<EngineResult<LegalityReport>>;
+	previewPokemonActions(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		source: SaveSlotRef
+	): Promise<EngineResult<PokemonActionPreview>>;
+	applyPokemonAction(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operation: PokemonActionOperation,
+		activeBox: number
+	): Promise<EngineResult<PokemonActionResult>>;
+	previewStoredPokemonActions(
+		entityBytesBase64: string
+	): Promise<EngineResult<PokemonActionPreview>>;
+	applyStoredPokemonAction(
+		entityBytesBase64: string,
+		operation: StoredPokemonActionOperation
+	): Promise<EngineResult<StoredPokemonActionResult>>;
 };

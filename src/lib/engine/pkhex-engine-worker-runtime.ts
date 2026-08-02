@@ -4,12 +4,18 @@ import type {
 	EngineResult,
 	EngineVersion,
 	LegalityReport,
+	PokemonActionPreview,
+	PokemonActionResult,
+	PokemonCreationResult,
 	PokemonEditOperationResult,
+	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperationResult,
+	SaveFileInventoryCatalogue,
 	SaveSummary,
 	SaveWorkspace,
 	SlotOperationResult,
 	StoredPokemonImportResult,
+	StoredPokemonActionResult,
 	SerializedSave
 } from './types';
 import {
@@ -19,9 +25,16 @@ import {
 	parseEngineWorkerRequest,
 	type EngineWorkerApplySlotOperationRequest,
 	type EngineWorkerApplyPokemonEditOperationRequest,
+	type EngineWorkerCreatePokemonRequest,
+	type EngineWorkerPreviewPokemonSpeciesFormEditRequest,
 	type EngineWorkerApplySaveFileEditOperationRequest,
+	type EngineWorkerGetSaveFileInventoryCatalogueRequest,
 	type EngineWorkerImportStoredPokemonRequest,
 	type EngineWorkerCheckSlotLegalityRequest,
+	type EngineWorkerPreviewPokemonActionsRequest,
+	type EngineWorkerApplyPokemonActionRequest,
+	type EngineWorkerPreviewStoredPokemonActionsRequest,
+	type EngineWorkerApplyStoredPokemonActionRequest,
 	type EngineWorkerLoadSaveWorkspaceRequest,
 	type EngineWorkerListBoxSlotsRequest,
 	type EngineWorkerMessage,
@@ -47,11 +60,18 @@ export type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		operationJson: string
 	): string;
+	CreatePokemonJson(bytes: Uint8Array, fileName: string | undefined, operationJson: string): string;
+	PreviewPokemonSpeciesFormEditJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		requestJson: string
+	): string;
 	ApplySaveFileEditOperationJson?(
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		operationJson: string
 	): string;
+	GetSaveFileInventoryCatalogueJson?(bytes: Uint8Array, fileName: string | undefined): string;
 	ImportStoredPokemonJson(
 		bytes: Uint8Array,
 		fileName: string | undefined,
@@ -62,6 +82,18 @@ export type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		sourceJson: string
 	): string;
+	PreviewPokemonActionsJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		sourceJson: string
+	): string;
+	ApplyPokemonActionJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		actionJson: string
+	): string;
+	PreviewStoredPokemonActionsJson(entityBytesBase64: string): string;
+	ApplyStoredPokemonActionJson(entityBytesBase64: string, actionJson: string): string;
 };
 
 type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes'> & {
@@ -72,11 +104,19 @@ type RawPokemonEditOperationResult = Omit<PokemonEditOperationResult, 'bytes'> &
 	bytesBase64: string;
 	byteLength: number;
 };
+type RawPokemonCreationResult = Omit<PokemonCreationResult, 'bytes'> & {
+	bytesBase64: string;
+	byteLength: number;
+};
 type RawSaveFileEditOperationResult = Omit<SaveFileEditOperationResult, 'bytes'> & {
 	bytesBase64: string;
 	byteLength: number;
 };
 type RawStoredPokemonImportResult = Omit<StoredPokemonImportResult, 'bytes'> & {
+	bytesBase64: string;
+	byteLength: number;
+};
+type RawPokemonActionResult = Omit<PokemonActionResult, 'bytes'> & {
 	bytesBase64: string;
 	byteLength: number;
 };
@@ -188,6 +228,14 @@ export function createPkhexEngineWorkerRuntime({
 					applyPokemonEditOperation(engine, request)
 				);
 				return;
+			case 'createPokemon':
+				postPokemonCreationResponse(postMessage, request, createPokemon(engine, request));
+				return;
+			case 'previewPokemonSpeciesFormEdit':
+				postMessage(
+					createEngineWorkerResponse(request, previewPokemonSpeciesFormEdit(engine, request))
+				);
+				return;
 			case 'applySaveFileEditOperation':
 				postSaveFileEditOperationResponse(
 					postMessage,
@@ -195,11 +243,30 @@ export function createPkhexEngineWorkerRuntime({
 					applySaveFileEditOperation(engine, request)
 				);
 				return;
+			case 'getSaveFileInventoryCatalogue':
+				postMessage(
+					createEngineWorkerResponse(request, getSaveFileInventoryCatalogue(engine, request))
+				);
+				return;
 			case 'importStoredPokemon':
 				postStoredPokemonImportResponse(postMessage, request, importStoredPokemon(engine, request));
 				return;
 			case 'checkSlotLegality':
 				postMessage(createEngineWorkerResponse(request, checkSlotLegality(engine, request)));
+				return;
+			case 'previewPokemonActions':
+				postMessage(createEngineWorkerResponse(request, previewPokemonActions(engine, request)));
+				return;
+			case 'applyPokemonAction':
+				postPokemonActionResponse(postMessage, request, applyPokemonAction(engine, request));
+				return;
+			case 'previewStoredPokemonActions':
+				postMessage(
+					createEngineWorkerResponse(request, previewStoredPokemonActions(engine, request))
+				);
+				return;
+			case 'applyStoredPokemonAction':
+				postMessage(createEngineWorkerResponse(request, applyStoredPokemonAction(engine, request)));
 				return;
 		}
 	}
@@ -299,6 +366,39 @@ function applyPokemonEditOperation(
 	);
 }
 
+function createPokemon(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerCreatePokemonRequest
+): EngineResult<RawPokemonCreationResult> {
+	return parseEngineResult<RawPokemonCreationResult>(
+		engine.CreatePokemonJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			JSON.stringify({
+				...request.payload.operation,
+				activeBox: request.payload.activeBox
+			})
+		)
+	);
+}
+
+function previewPokemonSpeciesFormEdit(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerPreviewPokemonSpeciesFormEditRequest
+): EngineResult<PokemonSpeciesFormEditProjection> {
+	return parseEngineResult<PokemonSpeciesFormEditProjection>(
+		engine.PreviewPokemonSpeciesFormEditJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			JSON.stringify({
+				source: request.payload.source,
+				speciesId: request.payload.speciesId,
+				form: request.payload.form
+			})
+		)
+	);
+}
+
 function applySaveFileEditOperation(
 	engine: DotnetPkhexEngineExports,
 	request: EngineWorkerApplySaveFileEditOperationRequest
@@ -322,6 +422,29 @@ function applySaveFileEditOperation(
 				...request.payload.operation,
 				activeBox: request.payload.activeBox
 			})
+		)
+	);
+}
+
+function getSaveFileInventoryCatalogue(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerGetSaveFileInventoryCatalogueRequest
+): EngineResult<SaveFileInventoryCatalogue> {
+	if (!engine.GetSaveFileInventoryCatalogueJson) {
+		return {
+			ok: false,
+			value: null,
+			error: {
+				code: 'unsupported-save-file-edit',
+				message: 'Save File field editing is not available in this PKHeX Engine build.'
+			}
+		};
+	}
+
+	return parseEngineResult<SaveFileInventoryCatalogue>(
+		engine.GetSaveFileInventoryCatalogueJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName
 		)
 	);
 }
@@ -355,6 +478,56 @@ function checkSlotLegality(
 	);
 }
 
+function previewPokemonActions(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerPreviewPokemonActionsRequest
+): EngineResult<PokemonActionPreview> {
+	return parseEngineResult<PokemonActionPreview>(
+		engine.PreviewPokemonActionsJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			JSON.stringify(request.payload.source)
+		)
+	);
+}
+
+function applyPokemonAction(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerApplyPokemonActionRequest
+): EngineResult<RawPokemonActionResult> {
+	return parseEngineResult<RawPokemonActionResult>(
+		engine.ApplyPokemonActionJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			JSON.stringify({
+				...request.payload.operation,
+				activeBox: request.payload.activeBox
+			})
+		)
+	);
+}
+
+function previewStoredPokemonActions(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerPreviewStoredPokemonActionsRequest
+): EngineResult<PokemonActionPreview> {
+	return parseEngineResult<PokemonActionPreview>(
+		engine.PreviewStoredPokemonActionsJson(request.payload.entityBytesBase64)
+	);
+}
+
+function applyStoredPokemonAction(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerApplyStoredPokemonActionRequest
+): EngineResult<StoredPokemonActionResult> {
+	return parseEngineResult<StoredPokemonActionResult>(
+		engine.ApplyStoredPokemonActionJson(
+			request.payload.entityBytesBase64,
+			JSON.stringify(request.payload.operation)
+		)
+	);
+}
+
 function postSlotOperationResponse(
 	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
 	request: EngineWorkerApplySlotOperationRequest,
@@ -383,6 +556,30 @@ function postPokemonEditOperationResponse(
 	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
 	request: EngineWorkerApplyPokemonEditOperationRequest,
 	result: EngineResult<RawPokemonEditOperationResult>
+) {
+	if (!result.ok) {
+		postMessage(createEngineWorkerResponse(request, result));
+		return;
+	}
+
+	const bytes = base64ToArrayBuffer(result.value.bytesBase64, result.value.byteLength);
+	const response = createEngineWorkerResponse(request, {
+		ok: true,
+		value: {
+			bytes,
+			mutated: result.value.mutated,
+			workspace: result.value.workspace
+		},
+		error: null
+	});
+
+	postMessage(response, [bytes]);
+}
+
+function postPokemonCreationResponse(
+	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
+	request: EngineWorkerCreatePokemonRequest,
+	result: EngineResult<RawPokemonCreationResult>
 ) {
 	if (!result.ok) {
 		postMessage(createEngineWorkerResponse(request, result));
@@ -451,6 +648,31 @@ function postStoredPokemonImportResponse(
 	postMessage(response, [bytes]);
 }
 
+function postPokemonActionResponse(
+	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
+	request: EngineWorkerApplyPokemonActionRequest,
+	result: EngineResult<RawPokemonActionResult>
+) {
+	if (!result.ok) {
+		postMessage(createEngineWorkerResponse(request, result));
+		return;
+	}
+
+	const bytes = base64ToArrayBuffer(result.value.bytesBase64, result.value.byteLength);
+	const response = createEngineWorkerResponse(request, {
+		ok: true,
+		value: {
+			bytes,
+			mutated: result.value.mutated,
+			workspace: result.value.workspace,
+			changes: result.value.changes
+		},
+		error: null
+	});
+
+	postMessage(response, [bytes]);
+}
+
 function unavailableResult(request: EngineWorkerRequest) {
 	const result = {
 		ok: false,
@@ -476,12 +698,25 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<SlotOperationResult>;
 		case 'applyPokemonEditOperation':
 			return result satisfies EngineResult<PokemonEditOperationResult>;
+		case 'createPokemon':
+			return result satisfies EngineResult<PokemonCreationResult>;
+		case 'previewPokemonSpeciesFormEdit':
+			return result satisfies EngineResult<PokemonSpeciesFormEditProjection>;
 		case 'applySaveFileEditOperation':
 			return result satisfies EngineResult<SaveFileEditOperationResult>;
+		case 'getSaveFileInventoryCatalogue':
+			return result satisfies EngineResult<SaveFileInventoryCatalogue>;
 		case 'importStoredPokemon':
 			return result satisfies EngineResult<StoredPokemonImportResult>;
 		case 'checkSlotLegality':
 			return result satisfies EngineResult<LegalityReport>;
+		case 'previewPokemonActions':
+		case 'previewStoredPokemonActions':
+			return result satisfies EngineResult<PokemonActionPreview>;
+		case 'applyPokemonAction':
+			return result satisfies EngineResult<PokemonActionResult>;
+		case 'applyStoredPokemonAction':
+			return result satisfies EngineResult<StoredPokemonActionResult>;
 	}
 }
 

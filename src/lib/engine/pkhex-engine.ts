@@ -6,14 +6,22 @@ import type {
 	EngineResult,
 	EngineVersion,
 	LegalityReport,
+	PokemonActionOperation,
+	PokemonActionPreview,
+	PokemonActionResult,
+	PokemonCreationOperation,
+	PokemonCreationResult,
 	PokemonEditOperation,
 	PokemonEditOperationResult,
+	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperation,
 	SaveFileEditOperationResult,
+	SaveFileInventoryCatalogue,
 	SaveWorkspace,
 	SlotOperation,
 	SlotOperationResult,
 	StoredPokemonImportResult,
+	StoredPokemonActionResult,
 	SerializedSave,
 	SaveSummary
 } from './types';
@@ -52,11 +60,18 @@ type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		operationJson: string
 	): string;
+	PreviewPokemonSpeciesFormEditJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		requestJson: string
+	): string;
+	CreatePokemonJson(bytes: Uint8Array, fileName: string | undefined, operationJson: string): string;
 	ApplySaveFileEditOperationJson?(
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		operationJson: string
 	): string;
+	GetSaveFileInventoryCatalogueJson?(bytes: Uint8Array, fileName: string | undefined): string;
 	ImportStoredPokemonJson(
 		bytes: Uint8Array,
 		fileName: string | undefined,
@@ -67,6 +82,18 @@ type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		sourceJson: string
 	): string;
+	PreviewPokemonActionsJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		sourceJson: string
+	): string;
+	ApplyPokemonActionJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		actionJson: string
+	): string;
+	PreviewStoredPokemonActionsJson(entityBytesBase64: string): string;
+	ApplyStoredPokemonActionJson(entityBytesBase64: string, actionJson: string): string;
 };
 
 const knownEngineErrorCodes = new Set<EngineErrorCode>([
@@ -78,6 +105,10 @@ const knownEngineErrorCodes = new Set<EngineErrorCode>([
 	'unsupported-slot-operation',
 	'invalid-pokemon-edit',
 	'unsupported-pokemon-edit',
+	'invalid-pokemon-action',
+	'unsupported-pokemon-action',
+	'invalid-pokemon-creation',
+	'unsupported-pokemon-creation',
 	'invalid-pokemon-import',
 	'invalid-stored-pokemon',
 	'incompatible-stored-pokemon',
@@ -137,6 +168,27 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 					)
 				)
 			),
+		createPokemon: async (bytes, fileName, operation, activeBox) =>
+			decodeMutationResult(
+				parseEngineResult<RawPokemonCreationResult>(
+					engine.CreatePokemonJson(
+						bytes,
+						fileName,
+						JSON.stringify({
+							...operation,
+							activeBox
+						} satisfies RawPokemonCreationRequest)
+					)
+				)
+			),
+		previewPokemonSpeciesFormEdit: async (bytes, fileName, source, speciesId, form) =>
+			parseEngineResult<PokemonSpeciesFormEditProjection>(
+				engine.PreviewPokemonSpeciesFormEditJson(
+					bytes,
+					fileName,
+					JSON.stringify({ source, speciesId, form })
+				)
+			),
 		applySaveFileEditOperation: async (bytes, fileName, operation, activeBox) => {
 			if (!engine.ApplySaveFileEditOperationJson) {
 				return engineFailure(
@@ -158,6 +210,18 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 				)
 			);
 		},
+		getSaveFileInventoryCatalogue: async (bytes, fileName) => {
+			if (!engine.GetSaveFileInventoryCatalogueJson) {
+				return engineFailure(
+					'unsupported-save-file-edit',
+					'Save File field editing is not available in this PKHeX Engine build.'
+				);
+			}
+
+			return parseEngineResult<SaveFileInventoryCatalogue>(
+				engine.GetSaveFileInventoryCatalogueJson(bytes, fileName)
+			);
+		},
 		importStoredPokemon: async (bytes, fileName, operation, activeBox) =>
 			decodeMutationResult(
 				parseEngineResult<RawStoredPokemonImportResult>(
@@ -174,18 +238,45 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 		checkSlotLegality: async (bytes, fileName, source) =>
 			parseEngineResult<LegalityReport>(
 				engine.CheckSlotLegalityJson(bytes, fileName, JSON.stringify(source))
+			),
+		previewPokemonActions: async (bytes, fileName, source) =>
+			parseEngineResult<PokemonActionPreview>(
+				engine.PreviewPokemonActionsJson(bytes, fileName, JSON.stringify(source))
+			),
+		applyPokemonAction: async (bytes, fileName, operation, activeBox) =>
+			decodeMutationResult(
+				parseEngineResult<RawPokemonActionResult>(
+					engine.ApplyPokemonActionJson(
+						bytes,
+						fileName,
+						JSON.stringify({
+							...operation,
+							activeBox
+						} satisfies RawPokemonActionRequest)
+					)
+				)
+			),
+		previewStoredPokemonActions: async (entityBytesBase64) =>
+			parseEngineResult<PokemonActionPreview>(
+				engine.PreviewStoredPokemonActionsJson(entityBytesBase64)
+			),
+		applyStoredPokemonAction: async (entityBytesBase64, operation) =>
+			parseEngineResult<StoredPokemonActionResult>(
+				engine.ApplyStoredPokemonActionJson(entityBytesBase64, JSON.stringify(operation))
 			)
 	};
 }
 
 type RawSlotOperationRequest = SlotOperation & { activeBox: number };
 type RawPokemonEditOperationRequest = PokemonEditOperation & { activeBox: number };
+type RawPokemonCreationRequest = PokemonCreationOperation & { activeBox: number };
 type RawSaveFileEditOperationRequest = SaveFileEditOperation & { activeBox: number };
 type RawStoredPokemonImportRequest = {
 	entityBytesBase64: string;
 	destination: import('./types').SaveSlotRef;
 	activeBox: number;
 };
+type RawPokemonActionRequest = PokemonActionOperation & { activeBox: number };
 
 type SaveSummaryDefaultedFields = 'trainerId' | 'playTime' | 'playedHours' | 'playedMinutes';
 type RawSaveSummary = Omit<SaveSummary, SaveSummaryDefaultedFields> &
@@ -201,12 +292,22 @@ type RawPokemonEditOperationResult = Omit<PokemonEditOperationResult, 'bytes' | 
 	byteLength: number;
 	workspace: RawSaveWorkspace;
 };
+type RawPokemonCreationResult = Omit<PokemonCreationResult, 'bytes' | 'workspace'> & {
+	bytesBase64: string;
+	byteLength: number;
+	workspace: RawSaveWorkspace;
+};
 type RawSaveFileEditOperationResult = Omit<SaveFileEditOperationResult, 'bytes' | 'workspace'> & {
 	bytesBase64: string;
 	byteLength: number;
 	workspace: RawSaveWorkspace;
 };
 type RawStoredPokemonImportResult = Omit<StoredPokemonImportResult, 'bytes' | 'workspace'> & {
+	bytesBase64: string;
+	byteLength: number;
+	workspace: RawSaveWorkspace;
+};
+type RawPokemonActionResult = Omit<PokemonActionResult, 'bytes' | 'workspace'> & {
 	bytesBase64: string;
 	byteLength: number;
 	workspace: RawSaveWorkspace;
@@ -271,26 +372,32 @@ function engineFailure<T>(code: EngineErrorCode, message: string): EngineResult<
 }
 
 function decodeMutationResult<
-	T extends { bytes: Uint8Array; mutated: boolean; workspace: SaveWorkspace }
->(
-	result: EngineResult<{
+	T extends {
 		bytesBase64: string;
 		byteLength: number;
 		mutated: boolean;
 		workspace: RawSaveWorkspace;
-	}>
-): EngineResult<T> {
+	}
+>(
+	result: EngineResult<T>
+): EngineResult<
+	Omit<T, 'bytesBase64' | 'byteLength' | 'workspace'> & {
+		bytes: Uint8Array;
+		workspace: SaveWorkspace;
+	}
+> {
 	if (!result.ok) {
 		return result;
 	}
 
+	const { bytesBase64, byteLength, workspace, ...value } = result.value;
 	return {
 		ok: true,
 		value: {
-			bytes: base64ToBytes(result.value.bytesBase64, result.value.byteLength),
-			mutated: result.value.mutated,
-			workspace: normalizeSaveWorkspace(result.value.workspace)
-		} as T,
+			...value,
+			bytes: base64ToBytes(bytesBase64, byteLength),
+			workspace: normalizeSaveWorkspace(workspace)
+		},
 		error: null
 	};
 }

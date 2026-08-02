@@ -2,7 +2,12 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import Combobox, { type ComboboxOption } from '$lib/components/pksx/Combobox.svelte';
-	import { base64ToBytes, type EngineApi, type InventoryItemProjection } from '$lib/engine';
+	import {
+		base64ToBytes,
+		type EngineApi,
+		type InventoryItemOption,
+		type InventoryItemProjection
+	} from '$lib/engine';
 	import { onMount } from 'svelte';
 	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
 	import {
@@ -35,7 +40,6 @@
 	} from '$lib/pksx/save-file-editor';
 
 	type SaveEditorSection = 'trainer' | 'money' | 'bag';
-	type SaveFileControlAction = 'previous' | 'next' | 'confirm' | 'back';
 
 	const sections = [
 		{ key: 'trainer' as const, label: 'Trainer profile', detail: 'Name & gender', icon: '◎' },
@@ -55,13 +59,18 @@
 	let loading = $state(true);
 	let busy = $state(false);
 	let loadError = $state<string | null>(null);
-	let controllerStatus = $state('No controller detected');
-	let activeControlIndex = $state(0);
+	// The available-item catalogue is thousands of entries, so it is fetched only when the Bag opens.
+	let itemCatalogue = $state<Record<string, InventoryItemOption[]> | null>(null);
+	let catalogueLoading = $state(false);
+	let catalogueError = $state<string | null>(null);
 
 	const projection = $derived(editor?.projection ?? null);
 	const pockets = $derived(projection?.inventory.pockets ?? []);
 	const activePocketProjection = $derived(
 		pockets.find((pocket) => pocket.key === activePocket) ?? pockets[0] ?? null
+	);
+	const activePocketItemCatalogue = $derived(
+		activePocketProjection ? (itemCatalogue?.[activePocketProjection.key] ?? []) : []
 	);
 	const stagedCount = $derived(editor?.stagedEdits.length ?? 0);
 	const displayedGender = $derived.by(() => {
@@ -75,7 +84,7 @@
 		if (!activePocketProjection) return [];
 		return stagedInventory.flatMap((edit) => {
 			if (edit.kind !== 'add') return [];
-			const option = activePocketProjection.availableItems.find((item) => item.id === edit.itemId);
+			const option = activePocketItemCatalogue.find((item) => item.id === edit.itemId);
 			return option ? [{ ...option, quantity: edit.quantity ?? 1 }] : [];
 		});
 	});
@@ -85,7 +94,7 @@
 			...activePocketProjection.items.map((item) => item.id),
 			...stagedAdds.map((item) => item.id)
 		]);
-		return activePocketProjection.availableItems.filter((item) => !occupied.has(item.id));
+		return activePocketItemCatalogue.filter((item) => !occupied.has(item.id));
 	});
 	const addItemOptions = $derived(
 		availableToAdd.map(
@@ -151,6 +160,34 @@
 		}
 	}
 
+	function selectSection(section: SaveEditorSection) {
+		activeSection = section;
+		if (section === 'bag') void loadItemCatalogue();
+	}
+
+	async function loadItemCatalogue() {
+		if (itemCatalogue || catalogueLoading || !workspace || !engine) return;
+		catalogueLoading = true;
+		catalogueError = null;
+		try {
+			const result = await engine.getSaveFileInventoryCatalogue(
+				workspace.bytes,
+				workspace.file.originalFileName ?? undefined
+			);
+			if (!result.ok) {
+				catalogueError = result.error.message;
+				return;
+			}
+			itemCatalogue = Object.fromEntries(
+				result.value.pockets.map((pocket) => [pocket.key, pocket.availableItems])
+			);
+		} catch (error) {
+			catalogueError = errorMessage(error);
+		} finally {
+			catalogueLoading = false;
+		}
+	}
+
 	function resetDrafts() {
 		trainerNameDraft = editor?.projection.trainerProfile.trainerName ?? '';
 		moneyDraft = editor?.projection.money.value?.toString() ?? '';
@@ -164,7 +201,12 @@
 
 	function stageMoney(event: Event) {
 		moneyDraft = (event.currentTarget as HTMLInputElement).value;
-		if (editor) editor = stageMoneyEdit(editor, Number(moneyDraft));
+		if (!editor) return;
+		// An empty field is "no edit", not zero money.
+		editor =
+			moneyDraft.trim() === ''
+				? discardSaveFileEditorEdit(editor, 'money')
+				: stageMoneyEdit(editor, Number(moneyDraft));
 	}
 
 	function chooseGender(gender: 'male' | 'female') {
@@ -179,7 +221,9 @@
 
 	function addSelectedItem() {
 		if (!editor || !activePocketProjection || !selectedItemId) return;
-		editor = stageInventoryAddEdit(editor, activePocketProjection.key, Number(selectedItemId));
+		const option = activePocketItemCatalogue.find((item) => item.id === Number(selectedItemId));
+		if (!option) return;
+		editor = stageInventoryAddEdit(editor, activePocketProjection.key, option);
 		selectedItemId = '';
 	}
 
@@ -206,8 +250,8 @@
 				: stageInventoryRemoveEdit(editor, pocket, item.id);
 	}
 
-	function updateAddedItem(pocket: string, itemId: number, quantity: number) {
-		if (editor) editor = stageInventoryAddEdit(editor, pocket, itemId, quantity);
+	function updateAddedItem(pocket: string, option: InventoryItemOption, quantity: number) {
+		if (editor) editor = stageInventoryAddEdit(editor, pocket, option, quantity);
 	}
 
 	function discardAddedItem(pocket: string, itemId: number) {
@@ -396,164 +440,11 @@
 	function openBoxes() {
 		void goto(resolve('/'));
 	}
-
-	function handleRouteKeydown(event: KeyboardEvent) {
-		if (event.defaultPrevented || event.target instanceof HTMLInputElement) return;
-		const action = keyboardAction(event);
-		if (!action) return;
-		event.preventDefault();
-		dispatchControlAction(action);
-	}
-
-	function keyboardAction(event: KeyboardEvent): SaveFileControlAction | null {
-		if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') return 'previous';
-		if (event.key === 'ArrowRight' || event.key === 'ArrowDown') return 'next';
-		if (event.key === 'Enter' || event.key === ' ') return 'confirm';
-		if (event.key === 'Escape') return 'back';
-		return null;
-	}
-
-	function saveFileGamepadNavigation() {
-		if (typeof navigator === 'undefined' || typeof requestAnimationFrame === 'undefined') return;
-
-		let previousPressed: SaveFileControlAction[] = [];
-		let frame = 0;
-		const read = () => {
-			const gamepad = navigator.getGamepads().find((pad) => pad);
-			if (!gamepad) {
-				controllerStatus = 'No controller detected';
-				frame = requestAnimationFrame(read);
-				return;
-			}
-
-			controllerStatus = gamepad.id;
-			const pressed = readGamepadActions(gamepad);
-			for (const action of pressed) {
-				if (!previousPressed.includes(action)) dispatchControlAction(action);
-			}
-			previousPressed = pressed;
-			frame = requestAnimationFrame(read);
-		};
-
-		frame = requestAnimationFrame(read);
-		return () => cancelAnimationFrame(frame);
-	}
-
-	function readGamepadActions(gamepad: Gamepad): SaveFileControlAction[] {
-		const actions: SaveFileControlAction[] = [];
-		const axisX = gamepad.axes[0] ?? 0;
-		const axisY = gamepad.axes[1] ?? 0;
-		if (
-			gamepad.buttons[14]?.pressed ||
-			gamepad.buttons[12]?.pressed ||
-			axisX < -0.55 ||
-			axisY < -0.55
-		) {
-			actions.push('previous');
-		}
-		if (
-			gamepad.buttons[15]?.pressed ||
-			gamepad.buttons[13]?.pressed ||
-			axisX > 0.55 ||
-			axisY > 0.55
-		) {
-			actions.push('next');
-		}
-		if (gamepad.buttons[0]?.pressed) actions.push('confirm');
-		if (gamepad.buttons[1]?.pressed) actions.push('back');
-		return actions;
-	}
-
-	function dispatchControlAction(action: SaveFileControlAction) {
-		if (action === 'back') {
-			const openCombobox = document.querySelector('.save-file-route [data-combobox-open="true"]');
-			if (openCombobox && document.activeElement instanceof HTMLElement) {
-				document.activeElement.dispatchEvent(
-					new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
-				);
-			} else {
-				openBoxes();
-			}
-			return;
-		}
-
-		const controls = getFocusableControls();
-		if (controls.length === 0) return;
-
-		const activeElement = document.activeElement;
-		if (
-			action === 'confirm' &&
-			activeElement instanceof HTMLElement &&
-			activeElement.hasAttribute('data-combobox-search')
-		) {
-			document
-				.querySelector<HTMLButtonElement>(
-					'.save-file-route [data-combobox-open="true"] [data-combobox-option].active'
-				)
-				?.click();
-			return;
-		}
-
-		const focusedIndex =
-			activeElement instanceof HTMLElement ? controls.indexOf(activeElement) : -1;
-		const currentIndex = focusedIndex >= 0 ? focusedIndex : activeControlIndex;
-		const nextIndex =
-			action === 'previous'
-				? (currentIndex + controls.length - 1) % controls.length
-				: action === 'next'
-					? (currentIndex + 1) % controls.length
-					: currentIndex;
-		const control = controls[nextIndex];
-		activeControlIndex = nextIndex;
-		control.focus();
-		control.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-		if (action === 'confirm') control.click();
-	}
-
-	function getFocusableControls() {
-		const openCombobox = document.querySelector<HTMLElement>(
-			'.save-file-route [data-combobox-open="true"]'
-		);
-		if (openCombobox) {
-			return Array.from(
-				openCombobox.querySelectorAll<HTMLElement>('input, [data-combobox-option]')
-			).filter(isFocusableControl);
-		}
-
-		return [
-			'#top-control-0',
-			'#top-control-1',
-			'#top-control-2',
-			'#top-control-3',
-			'#top-control-4',
-			'#top-control-6',
-			'.save-file-route button:not([disabled])',
-			'.save-file-route input:not([disabled])'
-		]
-			.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
-			.filter(isFocusableControl);
-	}
-
-	function isFocusableControl(control: HTMLElement) {
-		if (
-			control.hidden ||
-			control.getAttribute('aria-disabled') === 'true' ||
-			control.getClientRects().length === 0
-		) {
-			return false;
-		}
-		if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
-			return !control.disabled;
-		}
-		return control.tabIndex >= 0 || control.getAttribute('role') === 'option';
-	}
 </script>
 
 <svelte:head>
 	<title>Save File Editor · PKSX</title>
 </svelte:head>
-
-<svelte:window onkeydown={handleRouteKeydown} />
 
 {#if loading}
 	<section class="empty-editor" aria-live="polite">Loading Save File editor…</section>
@@ -564,14 +455,11 @@
 		<button type="button" onclick={openBoxes}>Back to Boxes</button>
 	</section>
 {:else}
-	<section
-		class="save-file-route"
-		aria-label="Save File Editor"
-		data-controller-status={controllerStatus}
-		{@attach saveFileGamepadNavigation}
-	>
+	<section class="save-file-route" aria-label="Save File Editor">
 		<div class="mobile-heading">
-			<button type="button" aria-label="Back to boxes" onclick={openBoxes}>‹</button>
+			<button type="button" aria-label="Back to boxes" data-controller-back onclick={openBoxes}
+				>‹</button
+			>
 			<div>
 				<h1>Save File editor</h1>
 				<p>
@@ -588,7 +476,7 @@
 					<button
 						type="button"
 						class:active={activeSection === section.key}
-						onclick={() => (activeSection = section.key)}
+						onclick={() => selectSection(section.key)}
 					>
 						<span class="nav-icon">{section.icon}</span>
 						<strong>{section.label}</strong>
@@ -610,7 +498,7 @@
 					<button
 						type="button"
 						class:active={activeSection === section.key}
-						onclick={() => (activeSection = section.key)}
+						onclick={() => selectSection(section.key)}
 					>
 						{section.label.replace(' profile', '')}
 						{#if sectionStagedCount(section.key) > 0}<span>{sectionStagedCount(section.key)}</span
@@ -649,6 +537,7 @@
 						>
 							<span>Trainer name</span>
 							<input
+								id="save-file-trainer-name"
 								value={trainerNameDraft}
 								maxlength={projection.trainerProfile.trainerNameMaxLength || undefined}
 								disabled={!projection.trainerProfile.trainerNameSupported || busy}
@@ -714,6 +603,7 @@
 										>−</button
 									>
 									<input
+										id="save-file-money"
 										aria-label="Money"
 										type="number"
 										min={projection.money.min}
@@ -788,10 +678,18 @@
 									placeholder={'Add an item to ' + activePocketProjection.label + '…'}
 									searchLabel={'Search items in ' + activePocketProjection.label}
 									searchPlaceholder="Search items"
-									disabled={activePocketProjection.full || availableToAdd.length === 0 || busy}
+									disabled={activePocketProjection.full ||
+										availableToAdd.length === 0 ||
+										catalogueLoading ||
+										busy}
 									onSelect={(value) => (selectedItemId = value)}
 								/>
-								<small>{availableToAdd.length} available</small>
+								<small
+									>{catalogueError ??
+										(catalogueLoading
+											? 'Loading items…'
+											: availableToAdd.length + ' available')}</small
+								>
 								<button type="button" disabled={!selectedItemId || busy} onclick={addSelectedItem}
 									>+ Add</button
 								>
@@ -871,7 +769,7 @@
 												type="button"
 												disabled={busy || item.quantity <= 1}
 												onclick={() =>
-													updateAddedItem(activePocketProjection.key, item.id, item.quantity - 1)}
+													updateAddedItem(activePocketProjection.key, item, item.quantity - 1)}
 												>−</button
 											>
 											<input
@@ -884,7 +782,7 @@
 												onchange={(event) =>
 													updateAddedItem(
 														activePocketProjection.key,
-														item.id,
+														item,
 														Number((event.currentTarget as HTMLInputElement).value)
 													)}
 											/>
@@ -892,7 +790,7 @@
 												type="button"
 												disabled={busy || item.quantity >= item.maxQuantity}
 												onclick={() =>
-													updateAddedItem(activePocketProjection.key, item.id, item.quantity + 1)}
+													updateAddedItem(activePocketProjection.key, item, item.quantity + 1)}
 												>+</button
 											>
 											<button
