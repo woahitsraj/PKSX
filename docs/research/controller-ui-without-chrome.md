@@ -25,7 +25,7 @@ Microsoft adds a directly related layout rule `[1P]`: place navigation "against 
 
 **PKSX's `MobileTabbar` sits below a long scrolling grid — the configuration Microsoft names as worst.**
 
-**Caveat that must travel with §1.** Android TV is landscape-only ("TV screens always display in landscape mode"), so this says *nothing* about PKSX's first-class portrait requirement. It is one-sided evidence: in portrait the axis economics invert and side-nav becomes the expensive choice.
+**Caveat that must travel with §1.** Android TV is landscape-only ("TV screens always display in landscape mode"), so this says _nothing_ about PKSX's first-class portrait requirement. It is one-sided evidence: in portrait the axis economics invert and side-nav becomes the expensive choice.
 
 ---
 
@@ -46,13 +46,14 @@ Constraints: limit to 5–6 destinations (PKSX has 3); every item needs an icon,
 
 Leanback's `BrowseSupportFragment` is the older form `[1P]`: `HEADERS_HIDDEN` collapses the header column by default, selecting it expands it, and `setHeadersTransitionOnBackEnabled` makes Back return to it. (Leanback is deprecated; Compose for TV is current.)
 
-**Why this matters most for PKSX:** it costs *zero buttons*. The mechanism is focus itself, which PKSX already models as a domain concept (**Controller Focus**, **Focus Zone**). It leaves the shoulder-button budget untouched, and it works on a bare phone with no gamepad at all.
+**Why this matters most for PKSX:** it costs _zero buttons_. The mechanism is focus itself, which PKSX already models as a domain concept (**Controller Focus**, **Focus Zone**). It leaves the shoulder-button budget untouched, and it works on a bare phone with no gamepad at all.
 
 ### Mechanism B — Summoned overlay on a system-ish button
 
 - **PlayStation 5** `[1P]`: "Press the PS button to display the control center." / "lets you quickly access various features of your PS5 console without leaving your game."
 - **Valve** `[1P, via Valve's ISteamNews API]`: "New system menu, for quick navigation to different parts of the interface" (Guide button); "New quick access menu… notifications, friends list, quick settings" (Guide + A). Three surfaces distinguished purely by binding.
 - **Microsoft** `[1P]`: the **View** button opens/closes the nav pane, with an explicit rationale:
+
   > While nav panes are very accessible with mouse and touch, gamepad/remote makes them less accessible since the user has to navigate to a button to open the pane.
 
   Microsoft's recommended belt-and-braces is **A and B together**: "have the **View** button open the nav pane, as well as allow the user to open it by navigating all the way to the left of the page."
@@ -95,7 +96,7 @@ A focusable box grid satisfies this in the normal case. It bites hardest on **em
 
 The structural point that the zero-chrome position has to confront: if a section-switch binding is taught by a persistent on-screen glyph, the header has not been deleted — it has been shrunk.
 
-Microsoft can assume prior training ("Most customers should already be familiar with this accelerator"). **PKSX's users are not Xbox users, and that assumption does not transfer for free.** So [#155](https://github.com/woahitsraj/PKSX/issues/155) must either accept a minimal glyph allowance, or accept that a binding is taught once and thereafter relied on from memory. Mechanism A avoids the dilemma — a visible collapsed rail *is* its own affordance and needs no glyph to explain it.
+Microsoft can assume prior training ("Most customers should already be familiar with this accelerator"). **PKSX's users are not Xbox users, and that assumption does not transfer for free.** So [#155](https://github.com/woahitsraj/PKSX/issues/155) must either accept a minimal glyph allowance, or accept that a binding is taught once and thereafter relied on from memory. Mechanism A avoids the dilemma — a visible collapsed rail _is_ its own affordance and needs no glyph to explain it.
 
 ### Evidence bearing on ADR 0009 specifically
 
@@ -104,7 +105,7 @@ No vendor publishes "always keep a persistent status strip." Published patterns 
 - Microsoft favours **always-visible labels** over hover-revealed ones at 10 feet `[1P]`: `CommandBar.DefaultLabelPosition = Right` "will also cause the labels to always be displayed, which works well for the 10-foot experience because it minimizes the number of clicks."
 - Microsoft warns against tooltips as a substitute `[1P]`: "**Try to avoid using `Tooltip` when designing for TV.**"
 
-Published consensus: *summon or reveal* durable state, but when shown, show it plainly as text — not on hover, not in a tooltip. That is compatible with superseding ADR 0009's *persistent* strip while preserving its *scanable, plain-text* intent.
+Published consensus: _summon or reveal_ durable state, but when shown, show it plainly as text — not on hover, not in a tooltip. That is compatible with superseding ADR 0009's _persistent_ strip while preserving its _scanable, plain-text_ intent.
 
 ---
 
@@ -114,24 +115,24 @@ This is the evidence [#156](https://github.com/woahitsraj/PKSX/issues/156) needs
 
 ### Apple explicitly assigns shoulders to section navigation `[1P]`
 
-From the HIG game-controls mapping table, for UI *outside* gameplay:
+From the HIG game-controls mapping table, for UI _outside_ gameplay:
 
-| Button | Expected behavior for UI |
-| --- | --- |
-| A | Activates a control |
-| B | Cancels an action or returns to previous screen |
-| **Left shoulder** | **Navigates left to a different screen or section** |
-| **Right shoulder** | **Navigates right to a different screen or section** |
-| Left/right thumbstick | Moves selection |
-| Directional pad | Moves selection |
-| Home/logo | Reserved for system controls |
-| Menu | Opens game settings or pauses gameplay |
+| Button                | Expected behavior for UI                             |
+| --------------------- | ---------------------------------------------------- |
+| A                     | Activates a control                                  |
+| B                     | Cancels an action or returns to previous screen      |
+| **Left shoulder**     | **Navigates left to a different screen or section**  |
+| **Right shoulder**    | **Navigates right to a different screen or section** |
+| Left/right thumbstick | Moves selection                                      |
+| Directional pad       | Moves selection                                      |
+| Home/logo             | Reserved for system controls                         |
+| Menu                  | Opens game settings or pauses gameplay               |
 
 X, Y, and both triggers are listed with **no** assigned UI behaviour.
 
 ### Microsoft assigns bumpers to paging, not sections `[1P]`
 
-Microsoft's accelerator table gives bumpers **Page left/right** for horizontally scrolling views and triggers **Page up/down**. Microsoft does *not* say "use bumpers to switch tabs"; its documented section-switcher is the **View** button.
+Microsoft's accelerator table gives bumpers **Page left/right** for horizontally scrolling views and triggers **Page up/down**. Microsoft does _not_ say "use bumpers to switch tabs"; its documented section-switcher is the **View** button.
 
 **Do not cite Microsoft as blessing bumper-based tab switching. It does not.**
 
@@ -143,7 +144,7 @@ Microsoft's accelerator table gives bumpers **Page left/right** for horizontally
 
 ### The conflict PKSX has to resolve
 
-`CONTEXT.md` already spends L1/R1: *"Shoulder navigation changes the active **Box** without changing the current **Focus Zone**."* Apple's HIG assigns those same buttons to section navigation. Both are defensible; they cannot coexist without a modifier.
+`CONTEXT.md` already spends L1/R1: _"Shoulder navigation changes the active **Box** without changing the current **Focus Zone**."_ Apple's HIG assigns those same buttons to section navigation. Both are defensible; they cannot coexist without a modifier.
 
 Three ways out, in rough order of published support:
 
@@ -178,18 +179,18 @@ Google, quality requirement TV-DM `[1P]`: "The app does not depend on a remote c
 
 ### Revised availability table
 
-| Index | Button | Verdict for PKSX |
-| --- | --- | --- |
-| 0, 1 | A, B | Reliable. Already bound (`Enter`, `Escape`), matches every vendor. |
-| 2, 3 | X, Y | Reliable on gamepads, absent on remotes. Y is Microsoft's search accelerator. PKSX binds 3. |
-| 4, 5 | L1/R1 bumpers | Reliable on gamepads. Currently spent on box navigation. |
-| 6, 7 | Triggers | Present on Backbone and Deck; analog, easy to half-press. |
-| 8 | Select/View | **Optional on iOS — never a sole path.** |
-| 9 | Menu/Start | **Most reliable non-face button.** Non-optional on iOS, on remotes per Microsoft. |
-| 10, 11 | Stick clicks | Optional on iOS. Avoid for UI entirely. |
-| 16 | Guide/PS/HOME | **Never bind.** OS-reserved; Backbone captures its own button. |
+| Index  | Button        | Verdict for PKSX                                                                            |
+| ------ | ------------- | ------------------------------------------------------------------------------------------- |
+| 0, 1   | A, B          | Reliable. Already bound (`Enter`, `Escape`), matches every vendor.                          |
+| 2, 3   | X, Y          | Reliable on gamepads, absent on remotes. Y is Microsoft's search accelerator. PKSX binds 3. |
+| 4, 5   | L1/R1 bumpers | Reliable on gamepads. Currently spent on box navigation.                                    |
+| 6, 7   | Triggers      | Present on Backbone and Deck; analog, easy to half-press.                                   |
+| 8      | Select/View   | **Optional on iOS — never a sole path.**                                                    |
+| 9      | Menu/Start    | **Most reliable non-face button.** Non-optional on iOS, on remotes per Microsoft.           |
+| 10, 11 | Stick clicks  | Optional on iOS. Avoid for UI entirely.                                                     |
+| 16     | Guide/PS/HOME | **Never bind.** OS-reserved; Backbone captures its own button.                              |
 
-**Google and Apple genuinely contradict each other here** — Google says don't depend on Menu, Apple says Menu is the one guaranteed button. They address different hardware populations (TV remotes vs. game controllers). PKSX's population is closer to Apple's, but a mechanism needing *no* button sidesteps the disagreement entirely.
+**Google and Apple genuinely contradict each other here** — Google says don't depend on Menu, Apple says Menu is the one guaranteed button. They address different hardware populations (TV remotes vs. game controllers). PKSX's population is closer to Apple's, but a mechanism needing _no_ button sidesteps the disagreement entirely.
 
 ---
 
@@ -197,17 +198,17 @@ Google, quality requirement TV-DM `[1P]`: "The app does not depend on a remote c
 
 Published answers converge: **don't label persistently; make bindings queryable, context-scoped, and rendered per-device.**
 
-- **Google Play Games Input SDK / Steam overlay** `[1P]`: declare a machine-readable action→control map, group it by context, let one always-available overlay render the *current context's* bindings as glyphs (both use Shift+Tab).
+- **Google Play Games Input SDK / Steam overlay** `[1P]`: declare a machine-readable action→control map, group it by context, let one always-available overlay render the _current context's_ bindings as glyphs (both use Shift+Tab).
 - **Deck Verified makes matching glyphs a certification requirement** `[1P]`: "On-screen glyphs must match the inputs being used, whether it's Deck, Steam Controller, or Xbox glyphs. Mouse and keyboard glyphs should not be shown if they are not the active input." Valve also warns against prompts flickering between controller and keyboard icons.
 - **Apple** `[1P]`: "Prefer using symbols, not text, to refer to game controller elements" (SF Symbols); "use the connected controller's labeling scheme."
 - **Microsoft** `[1P]`: legends optional ("if you like"), but must use Segoe Xbox MDL2 Symbol for shell consistency — and an accelerator must never be the only path: "make sure to provide other methods of access to search."
-- **Google** `[1P]`: bind by keycode (position-stable), render prompts per detected family; Switch-style pads swap A/B *labels* at the same *positions*. Controller images must be branding-free (TV-GC). Never write copy the device can't honour: "Do not use language like 'Tap here to continue'."
+- **Google** `[1P]`: bind by keycode (position-stable), render prompts per detected family; Switch-style pads swap A/B _labels_ at the same _positions_. Controller images must be branding-free (TV-GC). Never write copy the device can't honour: "Do not use language like 'Tap here to continue'."
 - **Don't cache glyphs** `[1P Valve]`: re-gather origins each frame so prompts update when the user rebinds.
 
 ### Four rules this yields for PKSX
 
 1. **Glyphs must be input-modality-aware.** Valve's rule forbids controller glyphs when the active input is keyboard/mouse and vice versa. PKSX already sets `data-input-modality` to `controller | keyboard | pointer`; the glyph layer should be driven off that attribute. **Already half-built.**
-2. **Glyphs must match the connected pad, not a hardcoded Xbox layout.** Backbone ships Xbox-layout *and* PlayStation-Edition SKUs with identical indices and different physical labels, and the `id` string is the only discriminator — so glyph family should be **a user setting with a sensible default**, not autodetection.
+2. **Glyphs must match the connected pad, not a hardcoded Xbox layout.** Backbone ships Xbox-layout _and_ PlayStation-Edition SKUs with identical indices and different physical labels, and the `id` string is the only discriminator — so glyph family should be **a user setting with a sensible default**, not autodetection.
 3. **On the touch path, show the action, not the button.** Apple `[1P]`: "Avoid using abstract shapes or controller-based naming like A, X, or R1 as artwork." A bare phone gets a labelled control, not an "L1" pill.
 4. **The cheapest discoverability is not inventing a binding** — see §4.
 
@@ -238,7 +239,7 @@ Google's canonical decision surface agrees in form: `GuidedStepSupportFragment` 
 
 Microsoft adds the visual convention `[1P]`: `LightDismissOverlayMode` "defaults to `Auto`, meaning that it is enabled on Xbox and disabled elsewhere" — a dimming scrim is the controller-context default, not a stylistic choice.
 
-**Honesty constraint:** neither Google nor Apple publishes a sentence saying "prefer full-screen over small dialogs on TV." That preference is a defensible *inference* from component design plus the 10-foot rationale. The popover unavailability is explicit; the takeover preference is not.
+**Honesty constraint:** neither Google nor Apple publishes a sentence saying "prefer full-screen over small dialogs on TV." That preference is a defensible _inference_ from component design plus the 10-foot rationale. The popover unavailability is explicit; the takeover preference is not.
 
 ---
 
@@ -256,11 +257,11 @@ This validates two existing `CONTEXT.md` rules — Slot Action Surface and Pokem
 
 ### The rule PKSX does not yet have: what happens when the focused item disappears
 
-Apple `[1P]`, *Focus and selection*:
+Apple `[1P]`, _Focus and selection_:
 
 > Avoid changing focus without people's interaction. […] **The exception is when people are moving focus using an input device that lets them make discrete, directional movements — like a keyboard, remote, or game controller — and a previously focused item disappears. In this scenario, there are only a small number of items within one discrete step of the previously focused item, so moving focus to one of these remaining items ensures that the focus indicator is in a location people can easily find. When people aren't moving focus by using such an input device, you can't predict the item they'll target next, so it's generally best to simply hide the focus indicator when the focused object disappears.**
 
-`CONTEXT.md`'s existing rules cover the case where the launching control still exists. Apple's rule covers the case PKSX **has not specified** — when the launching control is *gone*, which is exactly what a **Clear Slot**, a Move, or an orientation change produces. The answer splits by modality:
+`CONTEXT.md`'s existing rules cover the case where the launching control still exists. Apple's rule covers the case PKSX **has not specified** — when the launching control is _gone_, which is exactly what a **Clear Slot**, a Move, or an orientation change produces. The answer splits by modality:
 
 - **controller/keyboard** → move focus to a surviving item within one discrete step of the vanished one;
 - **pointer** → don't guess; hide the focus indicator.
@@ -269,7 +270,7 @@ PKSX already tracks `data-input-modality`, so it has the signal for both branche
 
 ### Focus engagement: the pattern for a large grid in a short viewport
 
-Microsoft's *focus engagement* `[1P]` describes exactly PKSX's Box grid case. With `IsFocusEngagementEnabled="True"` a list becomes a *single* focus target: A engages, directional input moves within, B disengages. Motivation:
+Microsoft's _focus engagement_ `[1P]` describes exactly PKSX's Box grid case. With `IsFocusEngagementEnabled="True"` a list becomes a _single_ focus target: A engages, directional input moves within, B disengages. Motivation:
 
 > if the `ListView` contains a large amount of data, this could be inconvenient and not an optimal user experience […] This will allow the user to quickly skip over the `ListView` by simply pressing down.
 
@@ -293,7 +294,7 @@ Plus the unreachable-centre problem: four corner elements and a centre element l
 
 - **Axis discipline** `[1P Google]`: "Give each direction a specific function" — categories vertical, items within a category horizontal. PKSX's Party/Box split already follows this.
 - **Back must not toggle** `[1P Google]`: Back "must never act as a toggle" (must not both open and close a menu). PKSX's layered Back-dismissal ordering should be checked against this.
-- **Avoid pointer emulation.** Microsoft `[1P]`: "**It is highly recommended that you turn this off and optimize your app for XY navigation**." Apple `[1P]`: "Avoid displaying a pointer." *(Microsoft gives no explicit rationale for why mouse mode is bad — don't attribute one it didn't write.)*
+- **Avoid pointer emulation.** Microsoft `[1P]`: "**It is highly recommended that you turn this off and optimize your app for XY navigation**." Apple `[1P]`: "Avoid displaying a pointer." _(Microsoft gives no explicit rationale for why mouse mode is bad — don't attribute one it didn't write.)_
 - **Total reachability** `[1P Apple]`: "you need to make sure that people can bring focus to every element in your app."
 
 ---
@@ -302,25 +303,25 @@ Plus the unreachable-centre problem: four corner elements and a centre element l
 
 ### Safe area — two vendors, same number
 
-| Source | Left/right | Top/bottom | Basis |
-| --- | --- | --- | --- |
-| Microsoft `[1P]` | 48 epx | 27 epx | 5% of 960×540 |
-| Google `[1P]` | 48 dp | 27 dp | 5% of 960×540 |
+| Source           | Left/right | Top/bottom | Basis         |
+| ---------------- | ---------- | ---------- | ------------- |
+| Microsoft `[1P]` | 48 epx     | 27 epx     | 5% of 960×540 |
+| Google `[1P]`    | 48 dp      | 27 dp      | 5% of 960×540 |
 
 Google's design page also states 58dp for grid margins, contradicting its own 48dp — treat **48/27 as the authoritative 5%**.
 
 Both agree on what should bleed past it. Microsoft `[1P]`: ScrollViewers, nav panes and CommandBars should "extend to the edges of the screen to provide more immersion," but "it's important to keep the focus visual and its associated item inside the TV-safe area." Google `[1P]`: "Don't adjust background screen elements that the user doesn't directly interact with."
 
-**Disanalogy to note:** TV overscan is not phone safe-area insets. PKSX's landscape insets come from notches and home indicators on the *sides* and are reported by `env(safe-area-inset-*)`. The 5% number is not transferable — but the *principle* is: backgrounds bleed, focusable content and focus rings do not.
+**Disanalogy to note:** TV overscan is not phone safe-area insets. PKSX's landscape insets come from notches and home indicators on the _sides_ and are reported by `env(safe-area-inset-*)`. The 5% number is not transferable — but the _principle_ is: backgrounds bleed, focusable content and focus rings do not.
 
 ### Legibility floors
 
-| Source | Floor | Context |
-| --- | --- | --- |
-| Valve Deck Verified `[1P]` | ≥ 9px at 1280×800 | Smallest character; readable at 12in/30cm |
-| Microsoft `[1P]` | ≥ 15 epx main, ≥ 12 epx supplemental | 10-foot, 1080p @ 200% scale |
-| Microsoft `[1P]` | ≥ 32 epx | Interactive element **height** |
-| Valve Big Picture `[1P]` | ≥ 24px at 1920×1080 | 10-foot |
+| Source                     | Floor                                | Context                                   |
+| -------------------------- | ------------------------------------ | ----------------------------------------- |
+| Valve Deck Verified `[1P]` | ≥ 9px at 1280×800                    | Smallest character; readable at 12in/30cm |
+| Microsoft `[1P]`           | ≥ 15 epx main, ≥ 12 epx supplemental | 10-foot, 1080p @ 200% scale               |
+| Microsoft `[1P]`           | ≥ 32 epx                             | Interactive element **height**            |
+| Valve Big Picture `[1P]`   | ≥ 24px at 1920×1080                  | 10-foot                                   |
 
 **Valve's Deck number is the relevant one** — a 7″ handheld at arm's length is PKSX's actual case, not a TV across a room. Steam Deck native resolution is 1280×800.
 
@@ -330,13 +331,13 @@ Microsoft `[1P]`: "When the user is navigating from one edge of the TV screen to
 
 Concrete and testable for [#159](https://github.com/woahitsraj/PKSX/issues/159) — PKSX's current grid almost certainly violates it.
 
-Microsoft's density principle `[1P]`: "The amount of information displayed on a TV should be comparable to what you'd see on a **mobile phone**, rather than on a desktop." This cuts *toward* the mobile-first inversion.
+Microsoft's density principle `[1P]`: "The amount of information displayed on a TV should be comparable to what you'd see on a **mobile phone**, rather than on a desktop." This cuts _toward_ the mobile-first inversion.
 
 One cost for density work `[1P Google]`: "provide sufficient padding within the focusable and selectable controls so that the highlights around them are clearly visible" — focus rings need room, and in a short viewport that room is expensive.
 
 ### Focus visuals
 
-Microsoft `[1P]`: "the focus visual is displayed by default when using a gamepad or remote control, but *not* a keyboard." PKSX already distinguishes these via `html[data-input-modality='controller']`.
+Microsoft `[1P]`: "the focus visual is displayed by default when using a gamepad or remote control, but _not_ a keyboard." PKSX already distinguishes these via `html[data-input-modality='controller']`.
 
 Google `[1P]`: "use color, size, animation, or a combination […] Use a uniform scheme." Apple `[1P]`: focusable items "can have up to five different states, each of which is visually distinct"; "Rely on system-provided focus effects."
 
@@ -361,12 +362,12 @@ Recorded explicitly so nobody fills them from memory.
 
 ## 11. What this changes on the map
 
-| Ticket | Effect |
-| --- | --- |
-| [#152 viewport budget](https://github.com/woahitsraj/PKSX/issues/152) | Concrete numbers now available: 5% safe-area principle, ≥9px text at 1280×800, ≥32epx interactive height, six-clicks-edge-to-edge density budget, Deck native 1280×800. |
-| [#155 chrome budget](https://github.com/woahitsraj/PKSX/issues/155) | "If a button already does it, don't draw it" licenses removal. But something must always be focusable — biting hardest on empty states, exactly ADR 0009's "empty-library guidance" duty. And **a glyph is itself chrome**, so a taught binding may not actually save pixels. Consensus favours summon-or-reveal over persistent, while keeping plain text over tooltips. |
-| [#156 section nav](https://github.com/woahitsraj/PKSX/issues/156) | **Two corrections.** (a) Apple's HIG explicitly assigns shoulders to section navigation — colliding with `CONTEXT.md` spending L1/R1 on box navigation. (b) The earlier "lots of free buttons" note was too optimistic: index 8 and stick clicks are optional on iOS, index 16 must never be bound, and gamepad presence is undetectable until first input. Focus-driven expand/collapse costs zero buttons and sidesteps both. |
-| [#158 overlay model](https://github.com/woahitsraj/PKSX/issues/158) | Popovers unavailable on tvOS; dismiss affordance belongs in content, not a top bar; don't stack modals — bears directly on `LegalityReportDialog` over `PokemonEditor`. Scrim is the console default. |
-| [#159 box-first surface](https://github.com/woahitsraj/PKSX/issues/159) | Six-clicks budget; Microsoft's three XY failure modes (oversized controls, overlapped controls, unreachable centre); nav belongs against the scroll direction and *above* a scrolling list, not below; focus rings need padding. |
-| [#160 Pokemon Editor](https://github.com/woahitsraj/PKSX/issues/160) | Apple's "app within an app" rule indicts the Slot → Slot Action Surface → Editor modal chain. **Making the editor a route rather than a modal** is a live option that removes it from the box surface's height budget. |
-| `CONTEXT.md` | A new relationship is needed: what **Controller Focus** does when the focused **Slot** disappears (Clear Slot, Move, orientation change) — controller/keyboard moves one discrete step; pointer hides the indicator. |
+| Ticket                                                                  | Effect                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [#152 viewport budget](https://github.com/woahitsraj/PKSX/issues/152)   | Concrete numbers now available: 5% safe-area principle, ≥9px text at 1280×800, ≥32epx interactive height, six-clicks-edge-to-edge density budget, Deck native 1280×800.                                                                                                                                                                                                                                                         |
+| [#155 chrome budget](https://github.com/woahitsraj/PKSX/issues/155)     | "If a button already does it, don't draw it" licenses removal. But something must always be focusable — biting hardest on empty states, exactly ADR 0009's "empty-library guidance" duty. And **a glyph is itself chrome**, so a taught binding may not actually save pixels. Consensus favours summon-or-reveal over persistent, while keeping plain text over tooltips.                                                       |
+| [#156 section nav](https://github.com/woahitsraj/PKSX/issues/156)       | **Two corrections.** (a) Apple's HIG explicitly assigns shoulders to section navigation — colliding with `CONTEXT.md` spending L1/R1 on box navigation. (b) The earlier "lots of free buttons" note was too optimistic: index 8 and stick clicks are optional on iOS, index 16 must never be bound, and gamepad presence is undetectable until first input. Focus-driven expand/collapse costs zero buttons and sidesteps both. |
+| [#158 overlay model](https://github.com/woahitsraj/PKSX/issues/158)     | Popovers unavailable on tvOS; dismiss affordance belongs in content, not a top bar; don't stack modals — bears directly on `LegalityReportDialog` over `PokemonEditor`. Scrim is the console default.                                                                                                                                                                                                                           |
+| [#159 box-first surface](https://github.com/woahitsraj/PKSX/issues/159) | Six-clicks budget; Microsoft's three XY failure modes (oversized controls, overlapped controls, unreachable centre); nav belongs against the scroll direction and _above_ a scrolling list, not below; focus rings need padding.                                                                                                                                                                                                |
+| [#160 Pokemon Editor](https://github.com/woahitsraj/PKSX/issues/160)    | Apple's "app within an app" rule indicts the Slot → Slot Action Surface → Editor modal chain. **Making the editor a route rather than a modal** is a live option that removes it from the box surface's height budget.                                                                                                                                                                                                          |
+| `CONTEXT.md`                                                            | A new relationship is needed: what **Controller Focus** does when the focused **Slot** disappears (Clear Slot, Move, orientation change) — controller/keyboard moves one discrete step; pointer hides the indicator.                                                                                                                                                                                                            |
