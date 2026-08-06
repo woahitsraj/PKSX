@@ -868,6 +868,7 @@ test('controller focus framework covers every interactive surface', async ({ pag
 
 	await page.getByRole('button', { name: 'Save File' }).click();
 	await expect(page).toHaveURL(/\/save-file$/);
+	await expect(page.locator('.field-sidebar nav button').first()).toBeVisible();
 	await pressController(page, 'ArrowDown');
 	await expect(page.locator('.save-file-route').locator(':focus')).toHaveCount(1);
 	await expectControllerHighlights(page, page.locator('.save-file-route'));
