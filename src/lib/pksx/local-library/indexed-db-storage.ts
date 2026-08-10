@@ -452,7 +452,7 @@ function clonePokemonStorage(storage: StoredPokemonStorage): StoredPokemonStorag
 							spriteIdentity: slot.pokemon.spriteIdentity
 								? { ...slot.pokemon.spriteIdentity }
 								: null,
-							provenance: { ...slot.pokemon.provenance }
+							origin: { ...slot.pokemon.origin }
 						}
 					: null
 			}))

@@ -1794,7 +1794,7 @@
 			sourceOwner,
 			pokemonLabel: slot.label,
 			sourceLabel: locationForSlotRef(source),
-			provenance: {
+			origin: {
 				entryMode: kind === 'copy' ? 'copied-in' : 'moved-in',
 				originSaveFileName: loadedSave?.file.originalFileName ?? null,
 				originGame: loadedSave?.workspace.summary.gameVersion ?? null,
@@ -2290,7 +2290,7 @@
 			originalTrainer: slot.originalTrainer,
 			metLabel: slot.metLabel,
 			entityBytesBase64: slot.entityBytesBase64 ?? undefined,
-			provenance: carry?.provenance ?? {
+			origin: carry?.origin ?? {
 				entryMode: 'imported',
 				originSaveFileName: loadedSave?.file.originalFileName ?? null,
 				originGame: loadedSave?.workspace.summary.gameVersion ?? null,
@@ -2562,7 +2562,7 @@
 		const projected = createSlotView(result.projection);
 		const nextPokemon = {
 			...storedPokemonFromSlot(projected, null),
-			provenance: existing.provenance,
+			origin: existing.origin,
 			entityBytesBase64: result.entityBytesBase64
 		};
 		const nextStorage = {

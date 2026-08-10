@@ -65,10 +65,10 @@ export type CarryState = {
 	sourceOwner: BoxSourceRef;
 	pokemonLabel: string;
 	sourceLabel: string;
-	provenance: PokemonProvenance;
+	origin: PokemonOrigin;
 };
 
-export type PokemonProvenance = {
+export type PokemonOrigin = {
 	entryMode: 'moved-in' | 'copied-in' | 'imported';
 	originSaveFileName: string | null;
 	originGame: string | null;
@@ -348,7 +348,7 @@ export function createCarryState(input: {
 		sourceOwner: input.pane.source,
 		pokemonLabel: input.slot.label,
 		sourceLabel: describeSlotRef(input.source, input.pane.source.label),
-		provenance: {
+		origin: {
 			entryMode: input.mode === 'copy' ? 'copied-in' : 'moved-in',
 			originSaveFileName:
 				input.pane.source.type === 'save-file' ? input.pane.source.label : 'Pokemon Storage',
@@ -364,8 +364,8 @@ export function toggleCarryMode(carry: CarryState): CarryState {
 	return {
 		...carry,
 		mode: carry.mode === 'move' ? 'copy' : 'move',
-		provenance: {
-			...carry.provenance,
+		origin: {
+			...carry.origin,
 			entryMode: carry.mode === 'move' ? 'copied-in' : 'moved-in'
 		}
 	};
