@@ -17,10 +17,14 @@ final class ControllerNavigationTests: XCTestCase {
         controller.extendedGamepad?.dpad.setValueForXAxis(1, yAxis: 0)
         try await waitForJavaScript("document.activeElement?.id === 'box-0-slot-1'", in: webView)
         controller.extendedGamepad?.dpad.setValueForXAxis(0, yAxis: 0)
+        try await waitForJavaScript(
+            "window.__pksxControllerEvents?.includes('ArrowRight:false')",
+            in: webView
+        )
 
         controller.extendedGamepad?.buttonA.setValue(1)
         try await waitForJavaScript(
-            "document.querySelector('[role=\"dialog\"][aria-label=\"Slot actions\"]') !== null && document.activeElement?.id === 'slot-action-0'",
+            "window.__pksxControllerEvents?.includes('Enter:true') && document.querySelector('[role=\"dialog\"][aria-label=\"Slot actions\"]') !== null && document.activeElement?.id === 'slot-action-0'",
             in: webView
         )
         controller.extendedGamepad?.buttonA.setValue(0)
@@ -31,6 +35,10 @@ final class ControllerNavigationTests: XCTestCase {
             in: webView
         )
         controller.extendedGamepad?.dpad.setValueForXAxis(0, yAxis: 0)
+        try await waitForJavaScript(
+            "window.__pksxControllerEvents?.includes('ArrowDown:false')",
+            in: webView
+        )
 
         controller.extendedGamepad?.buttonB.setValue(1)
         try await waitForJavaScript(
@@ -90,7 +98,7 @@ final class ControllerNavigationTests: XCTestCase {
         )
         _ = try await webView.evaluateJavaScript("document.querySelector('#box-grid').focus()")
         _ = try await webView.evaluateJavaScript(
-            "window.__pksxControllerConnected = false; window.addEventListener('pksxcontrollerconnection', () => window.__pksxControllerConnected = true, { once: true })"
+            "window.__pksxControllerConnected = false; window.__pksxControllerEvents = []; window.addEventListener('pksxcontroller', event => window.__pksxControllerEvents.push(event.detail.key + ':' + event.detail.pressed)); window.addEventListener('pksxcontrollerconnection', () => window.__pksxControllerConnected = true, { once: true })"
         )
         NotificationCenter.default.post(name: .GCControllerDidConnect, object: controller)
         try await waitForJavaScript("window.__pksxControllerConnected === true", in: webView)
