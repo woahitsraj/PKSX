@@ -1,5 +1,6 @@
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { copyBytes } from './bytes';
+import { clonePokemonStorage } from './pokemon-storage';
 import type {
 	BackupId,
 	BackupMetadata,
@@ -363,8 +364,4 @@ function bytesToBase64(bytes: Uint8Array) {
 function base64ToBytes(value: string) {
 	const binary = atob(value);
 	return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
-
-function clonePokemonStorage(storage: StoredPokemonStorage): StoredPokemonStorage {
-	return structuredClone(storage);
 }
