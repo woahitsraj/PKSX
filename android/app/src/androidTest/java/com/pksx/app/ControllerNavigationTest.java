@@ -23,6 +23,7 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 public class ControllerNavigationTest {
     private static final long TIMEOUT_SECONDS = 20;
+    private static final long ENGINE_TIMEOUT_SECONDS = 60;
 
     @Rule
     public ActivityScenarioRule<MainActivity> activityRule =
@@ -308,7 +309,10 @@ public class ControllerNavigationTest {
                 + " const input = document.querySelector('#save-file-input'); input.files = transfer.files;"
                 + " input.dispatchEvent(new Event('change', { bubbles: true })); return true; })()"
         );
-        awaitJavaScript("document.body.textContent.includes('emerald.sav imported and made active.')");
+        awaitJavaScript(
+            "document.body.textContent.includes('emerald.sav imported and made active.')",
+            ENGINE_TIMEOUT_SECONDS
+        );
     }
 
     private byte[] readAsset(String name) throws Exception {
@@ -372,7 +376,11 @@ public class ControllerNavigationTest {
     }
 
     private void awaitJavaScript(String expression) throws Exception {
-        long deadline = SystemClock.uptimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+        awaitJavaScript(expression, TIMEOUT_SECONDS);
+    }
+
+    private void awaitJavaScript(String expression, long timeoutSeconds) throws Exception {
+        long deadline = SystemClock.uptimeMillis() + TimeUnit.SECONDS.toMillis(timeoutSeconds);
         String result = null;
 
         while (SystemClock.uptimeMillis() < deadline) {

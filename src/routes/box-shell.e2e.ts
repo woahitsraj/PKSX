@@ -57,12 +57,10 @@ async function expectControllerHighlights(page: Page, scope: Locator) {
 		if (!(await control.isVisible())) continue;
 
 		await control.focus();
-		const ring = await control.evaluate((element) => {
-			const style = getComputedStyle(element);
-			return { style: style.outlineStyle, width: parseFloat(style.outlineWidth) };
-		});
-		expect(ring.style).toBe('solid');
-		expect(ring.width).toBeGreaterThanOrEqual(3);
+		await expect(control).toHaveCSS('outline-style', 'solid');
+		await expect
+			.poll(() => control.evaluate((element) => parseFloat(getComputedStyle(element).outlineWidth)))
+			.toBeGreaterThanOrEqual(3);
 		audited += 1;
 	}
 
