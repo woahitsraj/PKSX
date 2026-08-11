@@ -420,6 +420,7 @@
 	let importError = $state<string | null>(null);
 	let statusMessage = $state('Import a Save File to begin.');
 	let busy = $state(false);
+	let initialStateReady = $state(false);
 	let pokemonCreation = $state<PokemonCreationView | null>(null);
 	let pokemonCreationFeedback = $state<string | null>(null);
 	let pokemonCreationRequest = 0;
@@ -3202,9 +3203,11 @@
 			activePaneId = 'pane-pokemon-storage';
 			navigation = createInitialNavigationState(pokemonStorageBoxCount);
 			statusMessage = 'Pokemon Storage loaded.';
+			initialStateReady = true;
 			return;
 		}
 		await restoreMostRecentSave();
+		initialStateReady = true;
 	}
 
 	async function restorePokemonStorage() {
@@ -3533,7 +3536,11 @@
 	onresize={handleWindowResize}
 />
 
-<section class="boxes-route" aria-label="Boxes workspace">
+<section
+	class="boxes-route"
+	aria-label="Boxes workspace"
+	data-initial-state={initialStateReady ? 'ready' : 'loading'}
+>
 	{#if importError}
 		<StatusStrip variant="error" label="Import error" message={importError} />
 	{/if}
