@@ -1,4 +1,4 @@
-# Draw durable state in situ
+# Draw durable state in place
 
 PKSX draws durable app and workspace state on the object that state belongs to, and keeps toasts for transient outcomes of user actions. This supersedes ADR 0009, which committed PKSX to a persistent status strip for the same state. The app shell reserves no height and no width at rest, so a persistent strip has nowhere to live, and the state it narrated is better expressed where the user is already looking: a carried Pokemon Entity binds to Controller Focus and travels with it instead of being named in text, busy is shown by the region doing the work, and a Box Source carries its own identity. ADR 0009's toast half survives unchanged, and import errors move onto it because they are outcomes of a user action rather than durable state.
 

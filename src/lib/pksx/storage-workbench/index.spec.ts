@@ -69,7 +69,7 @@ const storedAron: StoredPokemonStoragePokemon = {
 	isEgg: false,
 	spriteIdentity: null,
 	originalTrainer: 'RAJ',
-	provenance: {
+	origin: {
 		entryMode: 'moved-in',
 		originSaveFileName: 'emerald.sav',
 		originGame: 'Pokemon Emerald',
@@ -82,8 +82,8 @@ const storedZubat: StoredPokemonStoragePokemon = {
 	...storedAron,
 	label: 'ZUBAT',
 	speciesId: 41,
-	provenance: {
-		...storedAron.provenance,
+	origin: {
+		...storedAron.origin,
 		originalTrainer: 'MAY'
 	}
 };
@@ -235,7 +235,7 @@ describe('storage workbench carry contract', () => {
 
 		expect(carry?.mode).toBe('move');
 		expect(carry?.pokemonLabel).toBe('ARON');
-		expect(carry?.provenance).toMatchObject({
+		expect(carry?.origin).toMatchObject({
 			entryMode: 'moved-in',
 			originSaveFileName: 'emerald.sav',
 			originGame: 'Pokemon Emerald',
@@ -243,7 +243,7 @@ describe('storage workbench carry contract', () => {
 		});
 
 		expect(toggleCarryMode(carry!).mode).toBe('copy');
-		expect(toggleCarryMode(carry!).provenance.entryMode).toBe('copied-in');
+		expect(toggleCarryMode(carry!).origin.entryMode).toBe('copied-in');
 	});
 
 	it('returns null when lifting an empty source slot', () => {

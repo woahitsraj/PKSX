@@ -79,7 +79,7 @@ export type StoredPokemonStoragePokemon = {
 	originalTrainer?: string;
 	metLabel?: string;
 	entityBytesBase64?: string;
-	provenance: {
+	origin: {
 		entryMode: 'moved-in' | 'copied-in' | 'imported';
 		originSaveFileName: string | null;
 		originGame: string | null;

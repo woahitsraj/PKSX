@@ -1,4 +1,5 @@
 import { copyBytes } from './bytes';
+import { clonePokemonStorage } from './pokemon-storage';
 import type {
 	BackupId,
 	BackupMetadata,
@@ -437,27 +438,6 @@ function migrateDatabase(database: IDBDatabase): void {
 	if (!database.objectStoreNames.contains(appStateStore)) {
 		database.createObjectStore(appStateStore, { keyPath: 'key' });
 	}
-}
-
-function clonePokemonStorage(storage: StoredPokemonStorage): StoredPokemonStorage {
-	return {
-		...storage,
-		boxes: storage.boxes.map((box) => ({
-			...box,
-			slots: box.slots.map((slot) => ({
-				...slot,
-				pokemon: slot.pokemon
-					? {
-							...slot.pokemon,
-							spriteIdentity: slot.pokemon.spriteIdentity
-								? { ...slot.pokemon.spriteIdentity }
-								: null,
-							provenance: { ...slot.pokemon.provenance }
-						}
-					: null
-			}))
-		}))
-	};
 }
 
 function requestToPromise<T>(request: IDBRequest): Promise<T> {
