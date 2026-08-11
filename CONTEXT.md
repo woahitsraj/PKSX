@@ -176,6 +176,18 @@ _Avoid_: backend, server
 The small C# API layer exposed by the PKHeX Engine to the Svelte app.
 _Avoid_: wrapper when referring to the public boundary
 
+**Viewport Budget**:
+The fixed raw-viewport floor and target constraints that every PKSX layout is designed and verified against.
+_Avoid_: device matrix, supported device list
+
+**Safe Canvas**:
+The drawable rectangle remaining after platform safe-area insets are removed from the raw viewport. Shell and screen padding are design spend inside it.
+_Avoid_: raw viewport, screen size
+
+**Height Band**:
+One of PKSX's two app-wide layout modes, Short below 560 CSS px and Tall at or above it, selected solely by raw viewport height. The current Height Band remains fixed while an editable control has focus.
+_Avoid_: orientation, mobile breakpoint, desktop breakpoint
+
 **Controller Focus**:
 The app-level navigable UI target used by keyboard and gamepad input, independent of browser DOM focus.
 _Avoid_: hover, cursor
