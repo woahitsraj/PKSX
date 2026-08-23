@@ -212,6 +212,10 @@ _Avoid_: selected Pokemon panel, editor rail
 A movement or command intent that keyboard, gamepad, and pointer input all produce in the same form.
 _Avoid_: key event, button event
 
+**Preference**:
+A choice about how PKSX looks or behaves that belongs to the app rather than to any Save File or Pokemon Entity, and is kept between sessions.
+_Avoid_: setting, option, config
+
 ## Relationships
 
 - A **Save File** contains zero or one **Party** and zero or more **Boxes**.
@@ -226,6 +230,7 @@ _Avoid_: key event, button event
 - A **Slot** contains zero or one **Pokemon Entity**.
 - The **Local Library** stores imported **Save Files**, **Backups**, and **Pokemon Storage**.
 - The **Local Library** may keep the active **Dirty Workspace** without overwriting the imported **Save File**.
+- A **Preference** is owned by the app and never by a **Save File** or a **Pokemon Entity**.
 - A **Backup** belongs to one **Save File**.
 - A **Backup** has one **Backup Reason**.
 - Manual and automatic **Backups** are both restorable **Backups**.
