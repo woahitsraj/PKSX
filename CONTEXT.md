@@ -318,6 +318,13 @@ _Avoid_: key event, button event
 - The visible slot highlight represents **Controller Focus**; PKSX does not track a separate selected slot in the box-first shell.
 - The **Active Slot Detail Rail** reflects the **Slot** under **Controller Focus** and does not define a second selected **Slot**.
 - A **Slot** may be under **Controller Focus** even when it is not a valid destination for a pending **Slot Action**.
+- **Controller Focus** targets a **Slot** or a control, never a **Pokemon Entity**; emptying the focused **Slot** leaves **Controller Focus** on it.
+- A completed **Slot Action** with a destination moves **Controller Focus** to the destination **Slot**; one without a destination leaves it on the source **Slot**.
+- A pending **Slot Action** binds its **Pokemon Entity** to **Controller Focus** until it completes or is cancelled; cancelling returns **Controller Focus** to the source **Slot**.
+- When the **Focus Zone** under **Controller Focus** disappears, **Controller Focus** moves to the active **Box** at the same **Slot** coordinate, clamped to the grid.
+- A command surface returns **Controller Focus** to its launching **Slot** or control by identity, even when that **Slot** is now empty; if the launching **Pokemon Action** no longer exists, its **Slot Action Surface** closes too and **Controller Focus** returns to the **Slot**.
+- **Controller Focus** is never hidden when its target disappears, for any input kind; it always moves to a surviving target.
+- A **Height Band** change or rotation never moves **Controller Focus**, because it binds to **Slot** identity rather than screen position.
 - **Controller Focus** clamps at a **Focus Zone** edge unless that edge defines an explicit transition to another **Focus Zone**.
 - The **Party** and the active **Box** are separate **Focus Zones** with explicit directional transitions between them.
 - A **Slot Action Surface** opens from the current **Controller Focus** and returns to it when dismissed.
