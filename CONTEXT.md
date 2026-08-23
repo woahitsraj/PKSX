@@ -45,8 +45,8 @@ A numbered storage grid that PKSX owns inside Pokemon Storage.
 _Avoid_: save box, PC box
 
 **Box Source**:
-The owner that supplies the numbered box grids shown in the box-first shell, such as a Save File or Pokemon Storage.
-_Avoid_: storage source, container
+The owner that supplies the numbered box grids shown in the box-first shell, a Save File or Pokemon Storage. Glossary-only: the user always sees the concrete Save File or Pokemon Storage name.
+_Avoid_: storage source, container, source in any user-facing text
 
 **Pokemon Origin**:
 A record of where a Pokemon Entity entered PKSX, such as the source Save File, source game, source trainer, entry time, and whether it entered through move, copy, import, or transfer.
@@ -196,12 +196,24 @@ _Avoid_: hover, cursor
 A controller-navigable region whose targets share directional movement rules before movement crosses into another region.
 _Avoid_: panel, section
 
-**Slot Action Surface**:
-A focused command surface opened from the current party or box slot.
-_Avoid_: popup, context menu
+**Menu**:
+A short, fixed list of commands that takes Controller Focus when opened and gives it back when closed.
+_Avoid_: command surface, action surface, popup, context menu, sheet
+
+**Slot Menu**:
+The Menu for the Slot under Controller Focus.
+_Avoid_: Slot Action Surface
+
+**Box Menu**:
+The Menu for the Box Source whose boxes hold Controller Focus.
+_Avoid_: Box Source menu, source menu, pane menu
+
+**Main Menu**:
+The Menu of app destinations.
+_Avoid_: global command surface, navigation menu, tab bar
 
 **Backup Browser**:
-A focused command surface for listing, creating, and restoring Backups for the active Save File.
+A list of the Backups for the active Save File, from which the user can create, restore, and delete Backups.
 _Avoid_: Local Library browser when referring only to the active Save File's backups
 
 **Active Slot Detail Rail**:
@@ -261,6 +273,8 @@ _Avoid_: setting, option, config
 - A **Storage Box** is owned by PKSX, not by any **Save File**.
 - A **Box Source** supplies either **Boxes** from a **Save File** or **Storage Boxes** from **Pokemon Storage**.
 - A **Box Source** is presented to the user only when the collection behind it is available in PKSX.
+- The **Box Source** whose boxes hold **Controller Focus** is the active **Box Source**; there is no separate focused **Box Source**.
+- The active **Save File**'s **Box Source** cannot be switched or closed while that **Save File** is active.
 - A future **Slot Action** may use source and destination **Slots** from different **Box Sources**.
 - A **Pokemon Entity** may have **Pokemon Origin** even when its original **Save File** is no longer in the **Local Library**.
 - **Pokemon Origin** records where a **Pokemon Entity** came from; it does not determine its current owner or location.
@@ -315,7 +329,7 @@ _Avoid_: setting, option, config
 - **Export** names should keep a recognizable connection to the imported **Save File** while keeping the exported file distinct from the source file.
 - **Controller Focus** belongs to exactly one **Focus Zone** at a time.
 - Mouse and pointer input may move **Controller Focus**, but hover alone is not **Controller Focus**.
-- Clicking a **Slot** moves **Controller Focus** to that **Slot** without opening its **Slot Action Surface**.
+- Clicking a **Slot** moves **Controller Focus** to that **Slot** without opening its **Slot Menu**.
 - Browser tab navigation moves between major interactive regions; directional input moves **Controller Focus** inside the active party or box grid.
 - Party and box slot collections present as grids to assistive technology.
 - Keyboard and gamepad input produce the same **Navigation Actions** before changing **Controller Focus**.
@@ -332,9 +346,16 @@ _Avoid_: setting, option, config
 - A **Height Band** change or rotation never moves **Controller Focus**, because it binds to **Slot** identity rather than screen position.
 - **Controller Focus** clamps at a **Focus Zone** edge unless that edge defines an explicit transition to another **Focus Zone**.
 - The **Party** and the active **Box** are separate **Focus Zones** with explicit directional transitions between them.
-- A **Slot Action Surface** opens from the current **Controller Focus** and returns to it when dismissed.
-- A **Pokemon Editor** opened from a **Slot Action Surface** returns **Controller Focus** to its launching **Pokemon Action** when dismissed.
-- Back dismisses an open **Slot Action Surface** before it affects broader app navigation.
+- A **Menu** opens from the current **Controller Focus** and returns to it when dismissed.
+- At most one **Menu** is open at a time; a **Menu** cannot open while another **Menu**, a **Pokemon Editor**, or the **Backup Browser** is open, or while a **Slot Action** is in progress.
+- A **Menu** shows the same entries in the same order every time; an entry that does not apply stays visible, cannot be chosen, and explains why.
+- The **Slot Menu** acts on the **Slot** under **Controller Focus**.
+- The **Box Menu** acts on the active **Box Source**: **Export**, create a **Backup**, switch it, open another, or close it.
+- The **Box Menu** opens from the control that names the active **Box Source**, which is a **Controller Focus** target.
+- **Export** from the **Box Menu** writes the **Workspace** bytes.
+- The **Main Menu** lists every destination, including the **Backup Browser**, in a fixed order and never hides or dims one.
+- A **Pokemon Editor** opened from a **Slot Menu** returns **Controller Focus** to its launching **Pokemon Action** when dismissed.
+- Back dismisses an open **Menu** before it affects broader app navigation.
 - Back dismisses an open **Backup Browser** before it affects broader app navigation.
 - A **Backup Browser** returns **Controller Focus** to its launching control when dismissed.
 - Shoulder navigation changes the active **Box** without changing the current **Focus Zone**.
