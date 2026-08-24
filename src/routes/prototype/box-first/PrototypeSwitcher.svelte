@@ -40,6 +40,7 @@
 		z-index: 3100;
 		left: 50%;
 		bottom: max(6px, env(safe-area-inset-bottom));
+		transform: translateX(-50%);
 		width: min(430px, calc(100vw - 20px));
 		display: grid;
 		grid-template-columns: 34px minmax(0, 1fr) 34px;

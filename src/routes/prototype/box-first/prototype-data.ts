@@ -7,6 +7,14 @@ export interface PrototypePokemon {
 	moves: string[];
 }
 
+export interface PrototypeLocation {
+	key: string;
+	shortLabel: string;
+	name: string;
+	number: number | null;
+	slots: Array<PrototypePokemon | null>;
+}
+
 const pokemon = (
 	name: string,
 	level: number,
@@ -62,4 +70,24 @@ const occupiedSlots = new Map([
 
 export const boxSlots = Array.from({ length: 30 }, (_, index) => occupiedSlots.get(index) ?? null);
 
-export const initialPokemon = boxSlots[14] ?? party[0];
+const shiftedBox = (offset: number) =>
+	Array.from({ length: 30 }, (_, index) => boxSlots[(index + offset) % boxSlots.length]);
+
+export const gameLocations: PrototypeLocation[] = [
+	{
+		key: 'party',
+		shortLabel: 'Party',
+		name: 'Party',
+		number: null,
+		slots: party
+	},
+	{ key: 'box-12', shortLabel: '12', name: 'Route 119', number: 12, slots: shiftedBox(8) },
+	{ key: 'box-13', shortLabel: '13', name: 'Ancient Ruins', number: 13, slots: shiftedBox(4) },
+	{ key: 'box-14', shortLabel: '14', name: 'Sky Pillar', number: 14, slots: boxSlots },
+	{ key: 'box-15', shortLabel: '15', name: 'Day Care', number: 15, slots: shiftedBox(18) },
+	{ key: 'box-16', shortLabel: '16', name: 'League', number: 16, slots: shiftedBox(12) }
+];
+
+export const pksxStorageSlots = shiftedBox(10).map((entry, index) =>
+	index === 3 || index === 17 ? null : entry
+);

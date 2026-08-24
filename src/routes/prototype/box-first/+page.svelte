@@ -10,9 +10,13 @@
 
 	// Three box-first compositions, switchable with ?variant=, on /prototype/box-first.
 	const variants = [
-		{ key: 'A', name: 'Sidecar', note: '6×5 Box, Party shares the detail sidecar' },
-		{ key: 'B', name: 'Bookends', note: '6×5 Box between separate Party and detail rails' },
-		{ key: 'C', name: 'Reflow', note: '10×3 wide and 5×6 narrow Box grid under a shared deck' }
+		{ key: 'A', name: 'Navigator', note: 'One location at a time, with Party in the box switcher' },
+		{ key: 'B', name: 'Transfer', note: 'PKSX storage and game storage side by side' },
+		{
+			key: 'C',
+			name: 'Detail dock',
+			note: 'A dense box with Party as a location and details below'
+		}
 	];
 	const initialVariant = browser
 		? (page.url.searchParams.get('variant')?.toUpperCase() ?? 'A')

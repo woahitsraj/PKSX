@@ -1,59 +1,94 @@
 <script lang="ts">
-	import PrototypeDetail from './PrototypeDetail.svelte';
 	import PrototypeSlot from './PrototypeSlot.svelte';
 	import SourceHeader from './SourceHeader.svelte';
-	import { boxSlots, initialPokemon, party, type PrototypePokemon } from './prototype-data';
+	import { boxSlots, pksxStorageSlots, type PrototypePokemon } from './prototype-data';
 
-	let selected = $state<PrototypePokemon | null>(initialPokemon);
+	type Side = 'pksx' | 'game';
+
+	let pksxSlots = $state<Array<PrototypePokemon | null>>([...pksxStorageSlots]);
+	let gameSlots = $state<Array<PrototypePokemon | null>>([...boxSlots]);
+	let selectedSide = $state<Side>('game');
 	let selectedIndex = $state(14);
-	let selectedPartyIndex = $state<number | null>(null);
+	const selected = $derived(
+		(selectedSide === 'pksx' ? pksxSlots : gameSlots)[selectedIndex] ?? null
+	);
 
-	function selectBox(entry: PrototypePokemon | null, index: number) {
-		selected = entry;
+	function select(side: Side, _entry: PrototypePokemon | null, index: number) {
+		selectedSide = side;
 		selectedIndex = index;
-		selectedPartyIndex = null;
 	}
 
-	function selectParty(entry: PrototypePokemon | null, index: number) {
-		selected = entry;
-		selectedPartyIndex = index;
+	function moveTo(targetSide: Side) {
+		if (!selected || selectedSide === targetSide) return;
+		const source = selectedSide === 'pksx' ? pksxSlots : gameSlots;
+		const target = targetSide === 'pksx' ? pksxSlots : gameSlots;
+		const targetIndex = target.findIndex((entry) => entry === null);
+		if (targetIndex === -1) return;
+
+		target[targetIndex] = source[selectedIndex];
+		source[selectedIndex] = null;
+		selectedSide = targetSide;
+		selectedIndex = targetIndex;
 	}
 </script>
 
-<section class="variant bookends" aria-label="Variant B, Party and details bookend the Box">
-	<section class="party-zone" aria-label="Party">
-		<strong>Party</strong>
-		<div class="party-grid" role="grid">
-			{#each party as entry, index (entry.name)}
+<section class="variant transfer" aria-label="Variant B, side-by-side storage transfer">
+	<section class="storage-pane" aria-label="PKSX storage">
+		<SourceHeader sourceTag="PKSX" sourceName="My Storage" boxNumber={3} boxName="Favorites" />
+		<div class="box-grid" role="grid" aria-label="PKSX storage, Favorites">
+			{#each pksxSlots as entry, index (index)}
 				<PrototypeSlot
 					{entry}
 					{index}
-					party
-					active={selectedPartyIndex === index}
-					onSelect={selectParty}
+					active={selectedSide === 'pksx' && selectedIndex === index}
+					onSelect={(item, slot) => select('pksx', item, slot)}
 				/>
 			{/each}
 		</div>
 	</section>
-	<div class="box-area">
-		<SourceHeader boxName="Ancient Ruins" />
-		<div class="box-grid" role="grid" aria-label="Box 14, Ancient Ruins">
-			{#each boxSlots as entry, index (index)}
+
+	<aside class="transfer-rail" aria-label="Transfer controls">
+		<div class="selection">
+			{#if selected}
+				<img src={selected.sprite} alt="" width="64" height="64" />
+				<strong>{selected.name}</strong>
+				<span>{selectedSide === 'pksx' ? 'PKSX storage' : 'Emerald.sav'}</span>
+			{:else}
+				<strong>Empty slot</strong>
+				<span>Select a Pokémon</span>
+			{/if}
+		</div>
+		<button
+			type="button"
+			class="move-left"
+			disabled={!selected || selectedSide === 'pksx'}
+			onclick={() => moveTo('pksx')}
+		>
+			<span aria-hidden="true">←</span> To PKSX
+		</button>
+		<button
+			type="button"
+			class="move-right"
+			disabled={!selected || selectedSide === 'game'}
+			onclick={() => moveTo('game')}
+		>
+			To game <span aria-hidden="true">→</span>
+		</button>
+	</aside>
+
+	<section class="storage-pane" aria-label="Emerald save storage">
+		<SourceHeader sourceTag="SAVE" sourceName="Emerald.sav" boxNumber={14} boxName="Sky Pillar" />
+		<div class="box-grid" role="grid" aria-label="Emerald save, Box 14, Sky Pillar">
+			{#each gameSlots as entry, index (index)}
 				<PrototypeSlot
 					{entry}
 					{index}
-					active={selectedPartyIndex === null && selectedIndex === index}
-					onSelect={selectBox}
+					active={selectedSide === 'game' && selectedIndex === index}
+					onSelect={(item, slot) => select('game', item, slot)}
 				/>
 			{/each}
 		</div>
-	</div>
-	<PrototypeDetail
-		pokemon={selected}
-		location={selectedPartyIndex === null
-			? `Box 14 · Slot ${selectedIndex + 1}`
-			: `Party ${selectedPartyIndex + 1}`}
-	/>
+	</section>
 </section>
 
 <style>
@@ -63,45 +98,21 @@
 		min-width: 0;
 		min-height: 0;
 		display: grid;
-		grid-template-columns: minmax(54px, 0.38fr) minmax(0, 2.35fr) minmax(154px, 1fr);
-		gap: 4px;
+		grid-template-columns: minmax(0, 1fr) 82px minmax(0, 1fr);
+		gap: 5px;
 	}
 
-	.party-zone,
-	.party-grid,
-	.box-area,
-	.box-grid {
+	.storage-pane,
+	.box-grid,
+	.transfer-rail {
 		min-width: 0;
 		min-height: 0;
 	}
 
-	.party-zone {
-		display: grid;
-		grid-template-rows: 20px minmax(0, 1fr);
-		gap: 2px;
-		padding: 3px;
-		border: 1px solid var(--rule);
-		border-radius: 9px;
-		background: var(--paper-hi);
-	}
-
-	.party-zone > strong {
-		color: var(--ink-soft);
-		font-size: 8px;
-		line-height: 20px;
-		text-align: center;
-	}
-
-	.party-grid {
-		display: grid;
-		grid-template-rows: repeat(6, minmax(0, 1fr));
-		gap: 2px;
-	}
-
-	.box-area {
+	.storage-pane {
 		display: grid;
 		grid-template-rows: 24px minmax(0, 1fr);
-		gap: 2px;
+		gap: 3px;
 	}
 
 	.box-grid {
@@ -111,25 +122,88 @@
 		gap: 2px;
 	}
 
+	.transfer-rail {
+		display: grid;
+		grid-template-rows: minmax(0, 1fr) 34px 34px;
+		align-items: center;
+		gap: 4px;
+		padding: 4px 4px 38px;
+		border: 1px solid var(--rule);
+		border-radius: 10px;
+		background: var(--paper-deep);
+	}
+
+	.selection {
+		min-width: 0;
+		display: grid;
+		place-items: center;
+		align-content: center;
+		gap: 3px;
+		text-align: center;
+	}
+
+	.selection img {
+		width: min(64px, 90%);
+		height: auto;
+		image-rendering: pixelated;
+	}
+
+	.selection strong {
+		max-width: 100%;
+		overflow: hidden;
+		font-size: 9px;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.selection span {
+		color: var(--ink-soft);
+		font-size: 7px;
+	}
+
+	.transfer-rail button {
+		min-width: 0;
+		height: 34px;
+		padding: 3px;
+		border: 1px solid var(--rule-hi);
+		border-radius: 7px;
+		background: var(--paper-hi);
+		color: var(--ink);
+		font: 700 8px var(--pksx-font-sans);
+		cursor: pointer;
+	}
+
+	.transfer-rail button:disabled {
+		opacity: 0.34;
+		cursor: default;
+	}
+
+	.transfer-rail button:not(:disabled):focus-visible {
+		outline: 2px solid var(--rust);
+		outline-offset: 1px;
+	}
+
 	@container stage (max-aspect-ratio: 1 / 1) {
 		.variant {
-			grid-template-columns: 52px minmax(0, 1fr);
-			grid-template-rows: minmax(0, 1.65fr) minmax(0, 1fr);
+			grid-template-columns: 1fr;
+			grid-template-rows: minmax(0, 1fr) 64px minmax(0, 1fr);
 		}
 
-		.party-zone {
-			grid-column: 1;
-			grid-row: 1;
+		.transfer-rail {
+			grid-template-columns: minmax(0, 1fr) 86px 86px;
+			grid-template-rows: 1fr;
+			padding: 4px;
 		}
 
-		.box-area {
-			grid-column: 2;
-			grid-row: 1;
+		.selection {
+			grid-template-columns: 42px auto;
+			justify-content: start;
+			text-align: left;
 		}
 
-		.variant > :global(.detail) {
-			grid-column: 1 / 3;
-			grid-row: 2;
+		.selection img {
+			grid-row: 1 / 3;
+			width: 42px;
 		}
 	}
 </style>
