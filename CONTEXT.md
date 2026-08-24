@@ -349,6 +349,7 @@ _Avoid_: setting, option, config
 - Held directional **Navigation Actions** repeat after an initial delay; confirm, back, and shoulder actions require a fresh press.
 - The visible slot highlight represents **Controller Focus**; PKSX does not track a separate selected slot in the box-first shell.
 - The **Active Slot Detail Rail** reflects the **Slot** under **Controller Focus** and does not define a second selected **Slot**.
+- A display-only **Active Slot Detail Rail** is not a **Focus Zone**.
 - A **Slot** may be under **Controller Focus** even when it is not a valid destination for a pending **Slot Action**.
 - **Controller Focus** targets a **Slot** or a control, never a **Pokemon Entity**; emptying the focused **Slot** leaves **Controller Focus** on it.
 - A completed **Slot Action** with a destination moves **Controller Focus** to the destination **Slot**; one without a destination leaves it on the source **Slot**.
@@ -358,7 +359,9 @@ _Avoid_: setting, option, config
 - **Controller Focus** is never hidden when its target disappears, for any input kind; it always moves to a surviving target.
 - A **Height Band** change or rotation never moves **Controller Focus**, because it binds to **Slot** identity rather than screen position.
 - **Controller Focus** clamps at a **Focus Zone** edge unless that edge defines an explicit transition to another **Focus Zone**.
-- The **Party** and the active **Box** are separate **Focus Zones** with explicit directional transitions between them.
+- Each simultaneously visible **Box Source** has its own **Focus Zone** containing its source control, location controls, and visible **Slots**.
+- A **Party** and an active **Box** are mutually exclusive locations inside the same **Focus Zone**.
+- Switching between a **Party** and a **Box** preserves the focused **Slot** coordinate when possible and clamps it to the destination grid.
 - A **Menu** opens from the current **Controller Focus** and returns to it when dismissed.
 - At most one **Menu** is open at a time; a **Menu** cannot open while another **Menu**, a **Pokemon Editor**, or the **Backup Browser** is open, or while a **Slot Action** is in progress.
 - A **Menu** shows the same entries in the same order every time; an entry that does not apply stays visible, cannot be chosen, and explains why.
