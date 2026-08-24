@@ -48,7 +48,7 @@
   body[data-v="A"] .portrait .menu { left: 0; right: 0; bottom: 0; border-radius: 12px 12px 0 0; padding-bottom: 6px; }
   /* Variant B: bottom sheet everywhere */
   body[data-v="B"] .menu { left: 0; right: 0; bottom: 0; border-radius: 12px 12px 0 0; padding-bottom: 6px; }
-  /* Variant C: anchored popup (no scrim) */
+  /* Variant C: anchored popup (no backdrop) */
   body[data-v="C"] .scrim { display: none; }
   body[data-v="C"] .menu { width: 208px; border-radius: 8px; }
   body[data-v="C"] .landscape .menu { top: 26px; left: 96px; }
@@ -124,7 +124,7 @@
       menu.appendChild(b);
     });
   }
-  const variants = { A: 'A — edge, aspect-resolved (side in landscape, bottom in portrait)', B: 'B — bottom sheet everywhere', C: 'C — anchored popup at the opener (no scrim)' };
+  const variants = { A: 'A — edge, aspect-resolved (side in landscape, bottom in portrait)', B: 'B — bottom sheet everywhere', C: 'C — anchored popup at the opener (no backdrop)' };
   const keys = Object.keys(variants);
   let v = location.hash.replace('#','') || 'A';
   if (!variants[v]) v = 'A';
