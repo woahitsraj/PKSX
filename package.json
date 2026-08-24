@@ -5,6 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "portless run vite dev",
+		"prototype:box-first": "vite dev --host 0.0.0.0 --port 5173",
 		"build": "vite build",
 		"preview": "vite preview",
 		"deploy:preview": "wrangler versions upload --env staging",
