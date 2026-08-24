@@ -65,10 +65,11 @@
 	}
 
 	.box-pane {
+		container-type: inline-size;
 		width: 100%;
 		height: 100%;
 		display: grid;
-		grid-template-rows: 46px minmax(0, 1fr);
+		grid-template-rows: 24px minmax(0, 1fr);
 		gap: 3px;
 	}
 

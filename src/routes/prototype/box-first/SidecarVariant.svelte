@@ -71,7 +71,7 @@
 		display: grid;
 		grid-template-rows: 18px minmax(0, 1fr);
 		gap: 3px;
-		padding-top: 48px;
+		padding-top: 26px;
 	}
 
 	.rail-label {

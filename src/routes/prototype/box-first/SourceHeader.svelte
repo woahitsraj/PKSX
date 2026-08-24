@@ -41,16 +41,12 @@
 	const nextLocations = $derived(
 		[1, 2].map((offset) => locations[(activeIndex + offset) % locations.length])
 	);
-	const activeLocation = $derived(locations[activeIndex]);
 </script>
 
 <header class="source-header">
-	<div class="identity-row">
-		<button type="button" class="source-chip" aria-label={`Open location menu for ${sourceName}`}>
-			<span>{sourceTag}</span><strong>{sourceName}</strong><i aria-hidden="true">▾</i>
-		</button>
-		<strong class="box-name">{boxNumber === null ? boxName : `${boxNumber} · ${boxName}`}</strong>
-	</div>
+	<button type="button" class="source-chip" aria-label={`Open location menu for ${sourceName}`}>
+		<span>{sourceTag}</span><strong>{sourceName}</strong><i aria-hidden="true">▾</i>
+	</button>
 	<nav class="location-strip" aria-label={`Nearby locations in ${sourceName}`}>
 		{#each previousLocations as location (location.key)}
 			<button
@@ -63,7 +59,9 @@
 		<button type="button" class="box-arrow" aria-label="Previous location" onclick={onPrevious}
 			>‹</button
 		>
-		<span class="location-chip active" aria-current="page">{activeLocation.shortLabel}</span>
+		<strong class="box-name" aria-current="page"
+			>{boxNumber === null ? boxName : `${boxNumber} · ${boxName}`}</strong
+		>
 		<button type="button" class="box-arrow" aria-label="Next location" onclick={onNext}>›</button>
 		{#each nextLocations as location (location.key)}
 			<button
@@ -79,19 +77,11 @@
 <style>
 	.source-header {
 		min-width: 0;
-		min-height: 0;
-		display: grid;
-		grid-template-rows: 24px 20px;
+		height: 24px;
+		display: flex;
+		align-items: center;
 		gap: 2px;
 		overflow: hidden;
-	}
-
-	.identity-row {
-		min-width: 0;
-		display: grid;
-		grid-template-columns: minmax(0, auto) minmax(0, 1fr);
-		align-items: center;
-		gap: 4px;
 	}
 
 	.source-header button {
@@ -101,8 +91,10 @@
 	}
 
 	.source-chip {
-		min-width: 0;
+		min-width: 64px;
+		max-width: 88px;
 		height: 100%;
+		flex: 0 1 88px;
 		display: flex;
 		align-items: center;
 		gap: 4px;
@@ -132,8 +124,9 @@
 	}
 
 	.box-arrow {
-		width: 20px;
+		width: 18px;
 		height: 20px;
+		flex: 0 0 18px;
 		border-radius: 5px;
 		background: var(--paper-deep);
 		color: var(--ink-soft);
@@ -142,6 +135,8 @@
 	}
 
 	.box-name {
+		min-width: 28px;
+		flex: 1 1 auto;
 		overflow: hidden;
 		color: var(--ink-soft);
 		font-size: clamp(8px, 1.8cqh, 11px);
@@ -152,39 +147,59 @@
 
 	.location-strip {
 		min-width: 0;
+		flex: 1 1 auto;
 		display: flex;
 		align-items: center;
-		justify-content: center;
 		gap: 2px;
 	}
 
 	.location-chip {
 		box-sizing: border-box;
-		min-width: 22px;
+		min-width: 18px;
 		height: 20px;
 		display: grid;
 		place-items: center;
-		padding: 0 4px;
+		padding: 0 2px;
 		border: 1px solid var(--rule);
 		border-radius: 999px;
 		background: var(--paper-hi);
 		color: var(--ink-soft);
-		font: 700 8px var(--pksx-font-sans);
+		font: 700 7px var(--pksx-font-sans);
 	}
 
 	button.location-chip {
 		cursor: pointer;
 	}
 
-	.location-chip.active {
-		min-width: 28px;
-		border-color: var(--rust);
-		background: var(--rust);
-		color: white;
-	}
-
 	.source-header button:focus-visible {
 		outline: 2px solid var(--rust);
 		outline-offset: -1px;
+	}
+
+	@container (max-width: 300px) {
+		.location-strip {
+			gap: 1px;
+		}
+
+		.source-chip {
+			min-width: 68px;
+			max-width: 70px;
+			flex-basis: 70px;
+			gap: 2px;
+			padding-inline: 3px;
+		}
+
+		.source-chip span {
+			display: none;
+		}
+
+		.source-chip strong,
+		.box-name {
+			font-size: 8px;
+		}
+
+		.source-chip i {
+			font-size: 6px;
+		}
 	}
 </style>
