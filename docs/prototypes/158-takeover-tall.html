@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>PROTOTYPE #158 — Takeover in the Tall band</title>
+<style>
+  /* PROTOTYPE — throwaway. Answers: what does a Takeover look like when the viewport is Tall? */
+  :root {
+    --paper: #f4ecdf; --paper-hi: #fbf6ec; --paper-deep: #ebe2d2;
+    --ink: #2a241c; --ink-soft: #6b5d4a; --ink-mute: #9b8d76;
+    --rust: #b85838; --rust-wash: rgba(184, 88, 56, 0.1);
+  }
+  body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #d9cfbc; color: var(--ink); padding: 18px 18px 90px; }
+  h1 { font-size: 15px; margin: 0 0 2px; }
+  p.note { font-size: 12px; color: var(--ink-soft); margin: 0 0 14px; max-width: 760px; }
+  .frames { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  figure { margin: 0; }
+  figcaption { font-size: 11px; color: var(--ink-soft); margin-bottom: 6px; font-weight: 600; }
+  .canvas { position: relative; overflow: hidden; background: var(--paper); border-radius: 10px; box-shadow: 0 8px 30px rgba(42,36,28,.35); outline: 1px solid rgba(42,36,28,.2); }
+  .canvas.short { width: 616px; height: 336px; }
+  .canvas.tall { width: 1000px; height: 620px; }
+
+  .surface { position: absolute; inset: 0; display: flex; gap: 8px; padding: 6px; box-sizing: border-box; }
+  .pane { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .chip { align-self: flex-start; font-size: 11px; font-weight: 700; background: var(--paper-hi); border: 1px solid rgba(42,36,28,.25); border-radius: 999px; padding: 2px 10px; }
+  .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; flex: 1; }
+  .slot { background: var(--paper-hi); border: 1px solid rgba(42,36,28,.18); border-radius: 6px; display: grid; place-items: center; font-size: 20px; min-height: 0; }
+  .slot.focus { outline: 3px solid var(--rust); outline-offset: -1px; background: var(--rust-wash); }
+  .rail { width: 168px; flex: none; background: var(--paper-deep); border: 1px solid rgba(42,36,28,.15); border-radius: 8px; padding: 8px; box-sizing: border-box; font-size: 11px; color: var(--ink-soft); }
+  .rail b { display: block; color: var(--ink); font-size: 12px; }
+
+  .scrim { position: absolute; inset: 0; background: rgba(42,36,28,.45); }
+  .takeover { position: absolute; background: var(--paper-hi); box-sizing: border-box; display: flex; flex-direction: column; border: 1px solid rgba(42,36,28,.3); }
+  .takeover header { padding: 12px 16px 8px; border-bottom: 1px solid rgba(42,36,28,.15); }
+  .takeover header b { font-size: 14px; }
+  .takeover header small { display: block; color: var(--ink-mute); font-size: 11px; }
+  .takeover .body { flex: 1; overflow-y: auto; padding: 10px 16px; font-size: 12px; color: var(--ink-soft); }
+  .takeover .body h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-mute); margin: 10px 0 4px; }
+  .takeover .body li { margin: 2px 0; }
+  .ok { color: #3d7a45; } .warn { color: var(--rust); }
+  .takeover footer { border-top: 1px solid rgba(42,36,28,.15); padding: 8px 16px; display: flex; gap: 10px; justify-content: flex-end; }
+  .takeover footer button { all: unset; font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 7px; border: 1px solid rgba(42,36,28,.3); }
+  .takeover footer button.primary { background: var(--rust); color: #fff; border-color: var(--rust); }
+  .takeover footer button.focus { outline: 3px solid var(--rust); outline-offset: 1px; }
+
+  /* Short band: full canvas in BOTH variants */
+  .short .scrim { display: none; }
+  .short .takeover { inset: 0; }
+  /* Tall band, variant A: full canvas */
+  body[data-v="A"] .tall .scrim { display: none; }
+  body[data-v="A"] .tall .takeover { inset: 0; }
+  /* Tall band, variant B: bounded panel over scrim */
+  body[data-v="B"] .tall .takeover { top: 50%; left: 50%; transform: translate(-50%,-50%); width: min(760px, 92%); height: min(560px, 88%); border-radius: 12px; box-shadow: 0 14px 40px rgba(42,36,28,.45); }
+
+  .bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; background: #1c1917; color: #f4f5f7; border-radius: 999px; padding: 8px 14px; display: flex; gap: 12px; align-items: center; font-size: 13px; box-shadow: 0 6px 18px rgba(0,0,0,.4); z-index: 10; }
+  .bar button { all: unset; cursor: pointer; padding: 0 6px; font-size: 15px; }
+  .bar span { min-width: 320px; text-align: center; }
+</style>
+</head>
+<body data-v="B">
+<h1>PROTOTYPE — Takeover in the Tall band (#158). Throwaway; not app code.</h1>
+<p class="note">The Legality Report as a <b>Takeover</b>. Left: the Short-band floor (616×336), where a Takeover always owns the whole canvas — identical in both variants. Right: a Tall desktop-ish viewport (1000×620). Flip ← → to compare what Tall does: <b>A</b> fills the window edge to edge; <b>B</b> bounds the same surface into a centered panel over a scrim, box surface still visible behind.</p>
+<div class="frames">
+  <figure>
+    <figcaption>Short band floor — 616×336 (same in A and B)</figcaption>
+    <div class="canvas short"><div class="to-slot"></div></div>
+  </figure>
+  <figure>
+    <figcaption>Tall band — 1000×620 (this is the decision)</figcaption>
+    <div class="canvas tall"><div class="to-slot"></div></div>
+  </figure>
+</div>
+<div class="bar"><button id="prev">←</button><span id="label"></span><button id="next">→</button></div>
+<script>
+  // PROTOTYPE — throwaway
+  const sprites = ['🐭','🔥','🌿','💧','🪨','🐦','🐛','⚡','🧊','🐉','🍄','🦇'];
+  const surface = () => {
+    let slots = '';
+    for (let i = 0; i < 30; i++) slots += `<div class="slot${i===7?' focus':''}">${i%3!==2?sprites[i%sprites.length]:''}</div>`;
+    return `<div class="surface"><div class="pane"><span class="chip">Emerald · Box 3</span><div class="grid">${slots}</div></div><div class="rail"><b>Blaziken</b>🔥 Lv. 52 · Blaze · Adamant<br/>OT RAJAN · Slot B3-08</div></div>`;
+  };
+  const takeover = `<div class="scrim"></div><div class="takeover"><header><b>Legality Report — Blaziken</b><small>Slot B3-08 · Emerald</small></header><div class="body">
+    <h3>Result</h3><li class="warn">2 problems, 1 fixable</li>
+    <h3>Checks</h3>
+    <li class="ok">✓ Encounter: valid (Torchic, Route 101)</li>
+    <li class="ok">✓ Ability: Blaze matches species line</li>
+    <li class="warn">✗ Move: Sky Uppercut learned at Lv. 50, current data says Lv. 48 — fixable</li>
+    <li class="warn">✗ OT gender mismatch for generation — not fixable</li>
+    <li class="ok">✓ IVs/EVs within bounds</li>
+    <li class="ok">✓ Ribbons consistent with origin</li>
+    <h3>Suggested fix</h3><li>Set Sky Uppercut learn level to 50.</li>
+  </div><footer><button>Close</button><button class="primary focus">Apply fix</button></footer></div>`;
+  for (const c of document.querySelectorAll('.canvas')) c.innerHTML = surface() + takeover;
+  const variants = { A: 'A — Tall fills the window edge to edge', B: 'B — Tall bounds it: centered panel over scrim' };
+  const keys = Object.keys(variants);
+  let v = location.hash.replace('#','') || 'B';
+  if (!variants[v]) v = 'B';
+  const apply = () => { document.body.dataset.v = v; document.getElementById('label').textContent = variants[v]; location.hash = v; };
+  const step = (d) => { v = keys[(keys.indexOf(v) + d + keys.length) % keys.length]; apply(); };
+  document.getElementById('prev').onclick = () => step(-1);
+  document.getElementById('next').onclick = () => step(1);
+  addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft') step(-1); if (e.key === 'ArrowRight') step(1); });
+  apply();
+</script>
+</body>
+</html>

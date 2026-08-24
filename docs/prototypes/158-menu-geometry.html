@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>PROTOTYPE #158 — Menu geometry</title>
+<style>
+  /* PROTOTYPE — throwaway. Answers: where does the Menu form attach at the floor viewports? */
+  :root {
+    --paper: #f4ecdf; --paper-hi: #fbf6ec; --paper-deep: #ebe2d2;
+    --ink: #2a241c; --ink-soft: #6b5d4a; --ink-mute: #9b8d76;
+    --rust: #b85838; --rust-wash: rgba(184, 88, 56, 0.1); --rust-ring: rgba(184, 88, 56, 0.35);
+  }
+  body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #d9cfbc; color: var(--ink); padding: 18px 18px 90px; }
+  h1 { font-size: 15px; margin: 0 0 2px; }
+  p.note { font-size: 12px; color: var(--ink-soft); margin: 0 0 14px; max-width: 720px; }
+  .frames { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  figure { margin: 0; }
+  figcaption { font-size: 11px; color: var(--ink-soft); margin-bottom: 6px; font-weight: 600; }
+  .canvas { position: relative; overflow: hidden; background: var(--paper); border-radius: 10px; box-shadow: 0 8px 30px rgba(42,36,28,.35); outline: 1px solid rgba(42,36,28,.2); }
+  .canvas.landscape { width: 616px; height: 336px; }
+  .canvas.portrait { width: 360px; height: 544px; }
+
+  /* mocked box-first surface */
+  .surface { position: absolute; inset: 0; display: flex; gap: 8px; padding: 6px; box-sizing: border-box; }
+  .portrait .surface { flex-direction: column; }
+  .pane { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .chip { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; background: var(--paper-hi); border: 1px solid rgba(42,36,28,.25); border-radius: 999px; padding: 2px 10px; }
+  .chip small { color: var(--ink-mute); font-weight: 500; }
+  .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; flex: 1; }
+  .slot { background: var(--paper-hi); border: 1px solid rgba(42,36,28,.18); border-radius: 6px; display: grid; place-items: center; font-size: 20px; min-height: 0; }
+  .slot.focus { outline: 3px solid var(--rust); outline-offset: -1px; background: var(--rust-wash); }
+  .rail { width: 168px; flex: none; background: var(--paper-deep); border: 1px solid rgba(42,36,28,.15); border-radius: 8px; padding: 8px; box-sizing: border-box; font-size: 11px; color: var(--ink-soft); }
+  .portrait .rail { width: auto; height: 96px; }
+  .rail b { display: block; color: var(--ink); font-size: 12px; margin-bottom: 3px; }
+  .rail .sprite { font-size: 26px; }
+
+  /* menu family */
+  .scrim { position: absolute; inset: 0; background: rgba(42,36,28,.45); }
+  .menu { position: absolute; background: var(--paper-hi); border: 1px solid rgba(42,36,28,.3); box-shadow: 0 10px 28px rgba(42,36,28,.4); display: flex; flex-direction: column; box-sizing: border-box; }
+  .menu header { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-mute); padding: 8px 12px 4px; }
+  .menu button { all: unset; box-sizing: border-box; font-size: 13px; padding: 7px 12px; display: block; width: 100%; }
+  .menu button.focus { background: var(--rust-wash); box-shadow: inset 3px 0 0 var(--rust); font-weight: 600; }
+  .menu button.unavail { color: var(--ink-mute); }
+  .menu button.unavail small { display: block; font-size: 10px; }
+
+  /* Variant A: aspect-resolved edge */
+  body[data-v="A"] .landscape .menu { top: 0; right: 0; bottom: 0; width: 208px; border-radius: 10px 0 0 10px; }
+  body[data-v="A"] .portrait .menu { left: 0; right: 0; bottom: 0; border-radius: 12px 12px 0 0; padding-bottom: 6px; }
+  /* Variant B: bottom sheet everywhere */
+  body[data-v="B"] .menu { left: 0; right: 0; bottom: 0; border-radius: 12px 12px 0 0; padding-bottom: 6px; }
+  /* Variant C: anchored popup (no scrim) */
+  body[data-v="C"] .scrim { display: none; }
+  body[data-v="C"] .menu { width: 208px; border-radius: 8px; }
+  body[data-v="C"] .landscape .menu { top: 26px; left: 96px; }
+  body[data-v="C"] .portrait .menu { top: 30px; left: 12px; }
+
+  /* switcher */
+  .bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; background: #1c1917; color: #f4f5f7; border-radius: 999px; padding: 8px 14px; display: flex; gap: 12px; align-items: center; font-size: 13px; box-shadow: 0 6px 18px rgba(0,0,0,.4); z-index: 10; }
+  .bar button { all: unset; cursor: pointer; padding: 0 6px; font-size: 15px; }
+  .bar span { min-width: 300px; text-align: center; }
+</style>
+</head>
+<body data-v="A">
+<h1>PROTOTYPE — Menu geometry (#158). Throwaway; not app code.</h1>
+<p class="note">Box Menu open on the box-first surface, drawn at the safe-canvas floors: landscape 616×336 and portrait 360×544. Flip variants with ← → or the bar below. The surface behind is a mock; judge only where the menu sits and what it covers.</p>
+<div class="frames">
+  <figure>
+    <figcaption>Landscape floor — 616×336</figcaption>
+    <div class="canvas landscape">
+      <div class="surface">
+        <div class="pane">
+          <span class="chip">Emerald <small>· Box 3</small></span>
+          <div class="grid" id="grid-l"></div>
+        </div>
+        <div class="rail"><b>Blaziken</b><span class="sprite">🔥</span><br/>Lv. 52 · Blaze<br/>Adamant · OT RAJAN<br/>Slot B3-08</div>
+      </div>
+      <div class="scrim"></div>
+      <nav class="menu" aria-label="Box Menu"></nav>
+    </div>
+  </figure>
+  <figure>
+    <figcaption>Portrait floor — 360×544</figcaption>
+    <div class="canvas portrait">
+      <div class="surface">
+        <div class="pane">
+          <span class="chip">Emerald <small>· Box 3</small></span>
+          <div class="grid" id="grid-p"></div>
+        </div>
+        <div class="rail"><b>Blaziken</b> <span class="sprite">🔥</span> Lv. 52 · Blaze · Adamant · OT RAJAN · Slot B3-08</div>
+      </div>
+      <div class="scrim"></div>
+      <nav class="menu" aria-label="Box Menu"></nav>
+    </div>
+  </figure>
+</div>
+<div class="bar">
+  <button id="prev">←</button><span id="label"></span><button id="next">→</button>
+</div>
+<script>
+  // PROTOTYPE — throwaway
+  const sprites = ['🐭','🔥','🌿','💧','🪨','🐦','🐛','⚡','🧊','🐉','🍄','🦇'];
+  for (const id of ['grid-l','grid-p']) {
+    const g = document.getElementById(id);
+    for (let i = 0; i < 30; i++) {
+      const d = document.createElement('div');
+      d.className = 'slot' + (i === 7 ? ' focus' : '');
+      if (i % 3 !== 2) d.textContent = sprites[i % sprites.length];
+      g.appendChild(d);
+    }
+  }
+  const entries = [
+    ['Export', '', true],
+    ['Save a backup', '', false],
+    ['Switch save', '', false],
+    ['Open another save', '', false],
+    ['Close save', 'Unavailable: Pokemon Storage cannot be closed', false],
+  ];
+  for (const menu of document.querySelectorAll('.menu')) {
+    menu.innerHTML = '<header>Emerald — Box Menu</header>';
+    entries.forEach(([label, reason, focus]) => {
+      const b = document.createElement('button');
+      b.className = (focus ? 'focus' : '') + (reason ? ' unavail' : '');
+      b.innerHTML = label + (reason ? `<small>${reason}</small>` : '');
+      menu.appendChild(b);
+    });
+  }
+  const variants = { A: 'A — edge, aspect-resolved (side in landscape, bottom in portrait)', B: 'B — bottom sheet everywhere', C: 'C — anchored popup at the opener (no scrim)' };
+  const keys = Object.keys(variants);
+  let v = location.hash.replace('#','') || 'A';
+  if (!variants[v]) v = 'A';
+  const apply = () => { document.body.dataset.v = v; document.getElementById('label').textContent = variants[v]; location.hash = v; };
+  const step = (d) => { v = keys[(keys.indexOf(v) + d + keys.length) % keys.length]; apply(); };
+  document.getElementById('prev').onclick = () => step(-1);
+  document.getElementById('next').onclick = () => step(1);
+  addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft') step(-1); if (e.key === 'ArrowRight') step(1); });
+  apply();
+</script>
+</body>
+</html>
