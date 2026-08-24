@@ -5,18 +5,12 @@
 	import { page } from '$app/state';
 	import BookendsVariant from './BookendsVariant.svelte';
 	import PrototypeSwitcher from './PrototypeSwitcher.svelte';
-	import ReflowVariant from './ReflowVariant.svelte';
 	import SidecarVariant from './SidecarVariant.svelte';
 
-	// Three box-first compositions, switchable with ?variant=, on /prototype/box-first.
+	// Single-pane and two-pane Box modes, switchable with ?variant=, on /prototype/box-first.
 	const variants = [
-		{ key: 'A', name: 'Navigator', note: 'One location at a time, with Party in the box switcher' },
-		{ key: 'B', name: 'Transfer', note: 'PKSX storage and game storage side by side' },
-		{
-			key: 'C',
-			name: 'Detail dock',
-			note: 'A dense box with Party as a location and details below'
-		}
+		{ key: 'A', name: 'Single pane', note: 'One reusable Box pane with details beside it' },
+		{ key: 'B', name: 'Two panes', note: 'Two reusable Box panes with transfer controls' }
 	];
 	const initialVariant = browser
 		? (page.url.searchParams.get('variant')?.toUpperCase() ?? 'A')
@@ -51,7 +45,7 @@
 	<title>Box-first surface prototype · PKSX</title>
 	<meta
 		name="description"
-		content="Throwaway prototype comparing three controller-first Box surface compositions."
+		content="Throwaway prototype comparing single-pane and two-pane Box modes."
 	/>
 </svelte:head>
 
@@ -63,8 +57,6 @@
 			<SidecarVariant />
 		{:else if current === 'B'}
 			<BookendsVariant />
-		{:else}
-			<ReflowVariant />
 		{/if}
 	</div>
 	<button class="main-menu-summon" type="button" aria-label="Open Main Menu">

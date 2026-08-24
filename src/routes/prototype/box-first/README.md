@@ -1,20 +1,19 @@
 # Box-first surface prototype
 
-This throwaway route answers issue #159's spatial question. It now tests two decisions from review: Party behaves like another storage location, and transfers use a dedicated two-box view.
+This throwaway route records the answer to issue #159's layout question. The Box view is one reusable pane with its save name, box number, box name, navigation, slot grid, and selection state.
 
-Run `pnpm prototype:box-first`, then open `/prototype/box-first?variant=A`. Use the switcher or the left and right arrow keys to compare variants. Add `controls=0` to hide the prototype switcher.
+Run `pnpm prototype:box-first`, then open `/prototype/box-first?variant=A`. Use the switcher or the left and right arrow keys to change modes. Add `controls=0` to hide the prototype switcher.
 
-## Variants
+## Modes
 
-- `A`, Navigator. One location and a detail sidecar. Boxes use 6x5, while Party uses its six real slots in the same main area. The header names the current location and exposes Party plus nearby boxes as one-click choices.
-- `B`, Transfer. PKSX storage and `Emerald.sav` are visible together. Select a Pokémon, then move it into the first free slot on the other side.
-- `C`, Detail dock. One location fills the width with a compact detail dock below it. Party uses the same location switcher as the boxes.
+- `A`, Single pane. One Box pane sits beside the selected Pokémon details. Party and nearby boxes remain available in the quick location switcher.
+- `B`, Two panes. Two instances of the same Box pane sit on either side of the transfer controls. Select a Pokémon, then move it into the first free slot on the other side.
 
-## Current working decisions
+## Validated decisions
 
-- Party does not stay visible while browsing a box.
-- Party is a location in the same navigation model as numbered boxes.
-- Moving Pokémon between PKSX storage and a game save gets a dedicated side-by-side view.
-- The active box number and name remain visible while browsing.
+- Party is a six-slot location, not permanent chrome.
+- The save name, box number, and box name stay at the top of every Box pane.
+- Opening a second box changes the page composition, not the Box pane itself.
+- PKSX storage and game storage use the same Box pane.
 
 The prototype keeps transfer state in memory. Reloading restores the sample data.

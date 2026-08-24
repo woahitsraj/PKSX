@@ -1,14 +1,34 @@
 <script lang="ts">
-	import PrototypeSlot from './PrototypeSlot.svelte';
-	import SourceHeader from './SourceHeader.svelte';
-	import { boxSlots, pksxStorageSlots, type PrototypePokemon } from './prototype-data';
+	import BoxPane from './BoxPane.svelte';
+	import {
+		boxSlots,
+		pksxStorageSlots,
+		type PrototypeLocation,
+		type PrototypePokemon
+	} from './prototype-data';
 
 	type Side = 'pksx' | 'game';
 
+	const pksxSource = { tag: 'PKSX', name: 'My Storage' };
+	const gameSource = { tag: 'SAVE', name: 'Emerald.sav' };
 	let pksxSlots = $state<Array<PrototypePokemon | null>>([...pksxStorageSlots]);
 	let gameSlots = $state<Array<PrototypePokemon | null>>([...boxSlots]);
 	let selectedSide = $state<Side>('game');
 	let selectedIndex = $state(14);
+	const pksxLocation = $derived<PrototypeLocation>({
+		key: 'storage-3',
+		shortLabel: '3',
+		name: 'Favorites',
+		number: 3,
+		slots: pksxSlots
+	});
+	const gameLocation = $derived<PrototypeLocation>({
+		key: 'box-14',
+		shortLabel: '14',
+		name: 'Sky Pillar',
+		number: 14,
+		slots: gameSlots
+	});
 	const selected = $derived(
 		(selectedSide === 'pksx' ? pksxSlots : gameSlots)[selectedIndex] ?? null
 	);
@@ -32,20 +52,13 @@
 	}
 </script>
 
-<section class="variant transfer" aria-label="Variant B, side-by-side storage transfer">
-	<section class="storage-pane" aria-label="PKSX storage">
-		<SourceHeader sourceTag="PKSX" sourceName="My Storage" boxNumber={3} boxName="Favorites" />
-		<div class="box-grid" role="grid" aria-label="PKSX storage, Favorites">
-			{#each pksxSlots as entry, index (index)}
-				<PrototypeSlot
-					{entry}
-					{index}
-					active={selectedSide === 'pksx' && selectedIndex === index}
-					onSelect={(item, slot) => select('pksx', item, slot)}
-				/>
-			{/each}
-		</div>
-	</section>
+<section class="variant two-panes" aria-label="Variant B, two Box panes">
+	<BoxPane
+		source={pksxSource}
+		location={pksxLocation}
+		selectedIndex={selectedSide === 'pksx' ? selectedIndex : null}
+		onSelect={(item, slot) => select('pksx', item, slot)}
+	/>
 
 	<aside class="transfer-rail" aria-label="Transfer controls">
 		<div class="selection">
@@ -60,7 +73,6 @@
 		</div>
 		<button
 			type="button"
-			class="move-left"
 			disabled={!selected || selectedSide === 'pksx'}
 			onclick={() => moveTo('pksx')}
 		>
@@ -68,7 +80,6 @@
 		</button>
 		<button
 			type="button"
-			class="move-right"
 			disabled={!selected || selectedSide === 'game'}
 			onclick={() => moveTo('game')}
 		>
@@ -76,19 +87,12 @@
 		</button>
 	</aside>
 
-	<section class="storage-pane" aria-label="Emerald save storage">
-		<SourceHeader sourceTag="SAVE" sourceName="Emerald.sav" boxNumber={14} boxName="Sky Pillar" />
-		<div class="box-grid" role="grid" aria-label="Emerald save, Box 14, Sky Pillar">
-			{#each gameSlots as entry, index (index)}
-				<PrototypeSlot
-					{entry}
-					{index}
-					active={selectedSide === 'game' && selectedIndex === index}
-					onSelect={(item, slot) => select('game', item, slot)}
-				/>
-			{/each}
-		</div>
-	</section>
+	<BoxPane
+		source={gameSource}
+		location={gameLocation}
+		selectedIndex={selectedSide === 'game' ? selectedIndex : null}
+		onSelect={(item, slot) => select('game', item, slot)}
+	/>
 </section>
 
 <style>
@@ -102,27 +106,9 @@
 		gap: 5px;
 	}
 
-	.storage-pane,
-	.box-grid,
 	.transfer-rail {
 		min-width: 0;
 		min-height: 0;
-	}
-
-	.storage-pane {
-		display: grid;
-		grid-template-rows: 24px minmax(0, 1fr);
-		gap: 3px;
-	}
-
-	.box-grid {
-		display: grid;
-		grid-template-columns: repeat(6, minmax(0, 1fr));
-		grid-template-rows: repeat(5, minmax(0, 1fr));
-		gap: 2px;
-	}
-
-	.transfer-rail {
 		display: grid;
 		grid-template-rows: minmax(0, 1fr) 34px 34px;
 		align-items: center;

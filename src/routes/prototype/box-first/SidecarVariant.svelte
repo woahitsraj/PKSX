@@ -1,19 +1,19 @@
 <script lang="ts">
+	import BoxPane from './BoxPane.svelte';
 	import PrototypeDetail from './PrototypeDetail.svelte';
-	import PrototypeSlot from './PrototypeSlot.svelte';
-	import SourceHeader from './SourceHeader.svelte';
 	import { gameLocations, type PrototypePokemon } from './prototype-data';
 
+	const source = { tag: 'SAVE', name: 'Emerald.sav' };
+	const quickLocations = gameLocations.map((location) => ({
+		key: location.key,
+		label: location.shortLabel
+	}));
 	let activeLocation = $state('box-14');
 	let selectedIndex = $state(14);
 	const currentLocation = $derived(
 		gameLocations.find((location) => location.key === activeLocation) ?? gameLocations[0]
 	);
 	const selected = $derived(currentLocation.slots[selectedIndex] ?? null);
-	const quickLocations = gameLocations.map((location) => ({
-		key: location.key,
-		label: location.shortLabel
-	}));
 
 	function select(_entry: PrototypePokemon | null, index: number) {
 		selectedIndex = index;
@@ -36,38 +36,26 @@
 	}
 </script>
 
-<section class="variant sidecar" aria-label="Variant A, single location with quick switching">
-	<div class="box-area">
-		<div
-			class="box-grid"
-			class:party-view={currentLocation.number === null}
-			role="grid"
-			aria-label={currentLocation.number === null
-				? 'Party'
-				: `Box ${currentLocation.number}, ${currentLocation.name}`}
-		>
-			{#each currentLocation.slots as entry, index (index)}
-				<PrototypeSlot
-					{entry}
-					{index}
-					party={currentLocation.number === null}
-					active={selectedIndex === index}
-					onSelect={select}
-				/>
-			{/each}
-		</div>
-	</div>
+<section class="variant single-pane" aria-label="Variant A, single Box pane">
+	<BoxPane
+		{source}
+		location={currentLocation}
+		{selectedIndex}
+		onSelect={select}
+		onPrevious={() => cycleLocation(-1)}
+		onNext={() => cycleLocation(1)}
+	/>
 	<aside class="sidecar-rail">
-		<SourceHeader
-			boxNumber={currentLocation.number}
-			boxName={currentLocation.name}
-			{quickLocations}
-			{activeLocation}
-			stacked
-			onPrevious={() => cycleLocation(-1)}
-			onNext={() => cycleLocation(1)}
-			onLocationChange={changeLocation}
-		/>
+		<nav class="quick-locations" aria-label="Quick location switcher">
+			{#each quickLocations as location (location.key)}
+				<button
+					type="button"
+					class:active={activeLocation === location.key}
+					aria-pressed={activeLocation === location.key}
+					onclick={() => changeLocation(location.key)}>{location.label}</button
+				>
+			{/each}
+		</nav>
 		<span class="rail-label">Selected Pokémon</span>
 		<PrototypeDetail
 			pokemon={selected}
@@ -89,39 +77,43 @@
 		gap: 4px;
 	}
 
-	.box-area,
-	.sidecar-rail,
-	.box-grid {
+	.sidecar-rail {
 		min-width: 0;
 		min-height: 0;
-	}
-
-	.box-area {
 		display: grid;
-	}
-
-	.box-grid {
-		width: 100%;
-		height: 100%;
-		display: grid;
-		grid-template-columns: repeat(6, minmax(0, 1fr));
-		grid-template-rows: repeat(5, minmax(0, 1fr));
-		gap: 2px;
-	}
-
-	.box-grid.party-view {
-		width: min(100%, 360px);
-		height: min(100%, 240px);
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		grid-template-rows: repeat(2, minmax(0, 1fr));
-		align-self: center;
-		justify-self: center;
-	}
-
-	.sidecar-rail {
-		display: grid;
-		grid-template-rows: 72px 18px minmax(0, 1fr);
+		grid-template-rows: 22px 18px minmax(0, 1fr);
 		gap: 3px;
+		padding-top: 30px;
+	}
+
+	.quick-locations {
+		min-width: 0;
+		display: flex;
+		gap: 2px;
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+
+	.quick-locations button {
+		min-width: 22px;
+		height: 20px;
+		padding: 0 3px;
+		border: 1px solid var(--rule);
+		border-radius: 999px;
+		background: var(--paper-hi);
+		color: var(--ink-soft);
+		font: 700 8px var(--pksx-font-sans);
+		cursor: pointer;
+	}
+
+	.quick-locations button:first-child {
+		min-width: 38px;
+	}
+
+	.quick-locations button.active {
+		border-color: var(--rust);
+		background: var(--rust);
+		color: white;
 	}
 
 	.rail-label {
@@ -136,6 +128,10 @@
 		.variant {
 			grid-template-columns: 1fr;
 			grid-template-rows: minmax(0, 1.55fr) minmax(0, 1fr);
+		}
+
+		.sidecar-rail {
+			padding-top: 0;
 		}
 	}
 </style>
