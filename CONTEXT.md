@@ -212,6 +212,18 @@ _Avoid_: Box Source menu, source menu, pane menu
 The Menu of app destinations.
 _Avoid_: global command surface, navigation menu, tab bar
 
+**Takeover**:
+A summoned surface that presents one focused workflow, such as the Pokemon Editor, Pokemon Creation, a Legality Report, or the Backup Browser.
+_Avoid_: modal, dialog, full-screen overlay
+
+**Backdrop**:
+The dimmed layer behind an open Menu or Takeover; the content behind it stays visible but inert.
+_Avoid_: scrim
+
+**Toast**:
+A brief notice that appears over the current screen and goes away on its own.
+_Avoid_: snackbar, notification banner
+
 **Backup Browser**:
 A list of the Backups for the active Save File, from which the user can create, restore, and delete Backups.
 _Avoid_: Local Library browser when referring only to the active Save File's backups
@@ -341,7 +353,7 @@ _Avoid_: setting, option, config
 - A completed **Slot Action** with a destination moves **Controller Focus** to the destination **Slot**; one without a destination leaves it on the source **Slot**.
 - A pending **Slot Action** binds its **Pokemon Entity** to **Controller Focus** until it completes or is cancelled; cancelling returns **Controller Focus** to the source **Slot**.
 - When the **Focus Zone** under **Controller Focus** disappears, **Controller Focus** moves to the active **Box** at the same **Slot** coordinate, clamped to the grid.
-- A command surface returns **Controller Focus** to its launching **Slot** or control by identity, even when that **Slot** is now empty; if the launching **Pokemon Action** no longer exists, its **Slot Action Surface** closes too and **Controller Focus** returns to the **Slot**.
+- A **Menu** or **Takeover** returns **Controller Focus** to its launching **Slot** or control by identity, even when that **Slot** is now empty; if the launching **Pokemon Action** no longer exists, its **Slot Menu** closes too and **Controller Focus** returns to the **Slot**.
 - **Controller Focus** is never hidden when its target disappears, for any input kind; it always moves to a surviving target.
 - A **Height Band** change or rotation never moves **Controller Focus**, because it binds to **Slot** identity rather than screen position.
 - **Controller Focus** clamps at a **Focus Zone** edge unless that edge defines an explicit transition to another **Focus Zone**.
@@ -358,6 +370,12 @@ _Avoid_: setting, option, config
 - Back dismisses an open **Menu** before it affects broader app navigation.
 - Back dismisses an open **Backup Browser** before it affects broader app navigation.
 - A **Backup Browser** returns **Controller Focus** to its launching control when dismissed.
+- At most one **Menu** or **Takeover** is open at a time; a **Takeover** presents its own confirmations inside itself instead of opening a second surface.
+- A **Takeover** opened from another summoned surface replaces it; dismissing the replacement restores what it replaced, and **Controller Focus** returns along the same chain.
+- Tapping the **Backdrop** acts as exactly one Back press.
+- A **Height Band** change or rotation may change how an open **Menu** or **Takeover** presents, never whether it is open.
+- The **Active Slot Detail Rail** is part of the box-first shell, never a summoned surface.
+- A **Toast** never takes **Controller Focus** and never blocks input.
 - Shoulder navigation changes the active **Box** without changing the current **Focus Zone**.
 - Shoulder navigation preserves the active **Box** slot coordinate when **Controller Focus** is inside a **Box**.
 - Changing the active **Box Source** preserves the active box number and focused **Slot** coordinate when the new **Box Source** has matching coordinates, and clamps to the nearest available box otherwise.
