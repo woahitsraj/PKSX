@@ -3,7 +3,7 @@ import type {
 	SaveFileId,
 	StoredPokemonStorage,
 	StoredPokemonStoragePokemon
-} from '$lib/pksx/local-library';
+} from '$lib/pksx/saves';
 import type { SlotView } from '$lib/components/pksx/types';
 
 export type BoxSourceType = 'save-file' | 'pokemon-storage';

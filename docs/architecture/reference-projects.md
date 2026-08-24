@@ -73,7 +73,7 @@ If no local checkout exists, inspect GitHub directly. Do not vendor these reposi
 - PKSX is offline-first.
 - Browser/PWA comes before Capacitor.
 - Electron is future work.
-- The Svelte app owns UI, routing, controller focus, and Local Library flows.
+- The Svelte app owns UI, routing, controller focus, and Saves flows.
 - The PKHeX Engine owns PKHeX.Core-backed parsing, validation, legality, serialization, and mutation behavior.
 - The first milestone is a tracer bullet, not broad PKHeX feature parity.
 - The first PKHeX Engine spike must prove the C# WebAssembly boundary before major UI work proceeds.

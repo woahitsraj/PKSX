@@ -71,17 +71,17 @@
 		type StoredPokemonStorage,
 		type StoredPokemonStoragePokemon,
 		type StoredSaveFile
-	} from '$lib/pksx/local-library';
+	} from '$lib/pksx/saves';
 	import {
 		getActiveWorkspaceService,
 		getCachedActiveWorkspaceBox,
-		getLocalLibraryStorage,
+		getSavesStorage,
 		getPkhexEngine,
-		invalidateSaveLibraryCache,
-		loadActiveWorkspaceFromLibrary,
-		seedSaveLibrarySnapshotFromActiveWorkspace,
+		invalidateSavesCache,
+		loadActiveWorkspaceFromSaves,
+		seedSavesSnapshotFromActiveWorkspace,
 		setCachedActiveWorkspace
-	} from '$lib/pksx/save-library-cache';
+	} from '$lib/pksx/saves-cache';
 	import BoxSidebar from '$lib/components/pksx/BoxSidebar.svelte';
 	import BoxSourceControls from '$lib/components/pksx/BoxSourceControls.svelte';
 	import ClearSlotConfirm from '$lib/components/pksx/ClearSlotConfirm.svelte';
@@ -182,7 +182,7 @@
 
 	const placeholderBoxCount = 3;
 	const activeSavePaneId = 'pane-active-save';
-	const storage = getLocalLibraryStorage();
+	const storage = getSavesStorage();
 	const workspaceService = getActiveWorkspaceService();
 
 	const slotPalette = [16, 28, 48, 100, 140, 180, 195, 210, 220, 260, 280, 295, 330, 52];
@@ -1555,7 +1555,7 @@
 			workbenchPanes = refreshedSavePanes.panes;
 			savePaneWorkspaces = refreshedSavePanes.workspaces;
 			setCachedActiveWorkspace(nextState, operationBox);
-			invalidateSaveLibraryCache();
+			invalidateSavesCache();
 			pendingSlotOperation = null;
 			carryState = null;
 			navigation = {
@@ -1735,7 +1735,7 @@
 			workbenchPanes = refreshedSavePanes.panes;
 			savePaneWorkspaces = refreshedSavePanes.workspaces;
 			setCachedActiveWorkspace(nextState, operationBox);
-			invalidateSaveLibraryCache();
+			invalidateSavesCache();
 			pendingSlotOperation = null;
 			carryState = null;
 			const focusRef = result.focusRef;
@@ -2527,7 +2527,7 @@
 		if (loadedSave?.file.id === nextState.file.id) {
 			loadedSave = nextState;
 			setCachedActiveWorkspace(nextState, target.activeBox);
-			invalidateSaveLibraryCache();
+			invalidateSavesCache();
 		}
 
 		const refreshed = refreshSaveFilePaneWorkspaces(
@@ -2695,7 +2695,7 @@
 			workbenchPanes = refreshedSavePanes.panes;
 			savePaneWorkspaces = refreshedSavePanes.workspaces;
 			setCachedActiveWorkspace(nextState, activePaneBox);
-			invalidateSaveLibraryCache();
+			invalidateSavesCache();
 
 			const createdSlot = slotViewForRefFromWorkspace(
 				nextState.workspace,
@@ -3035,7 +3035,7 @@
 		workbenchPanes = refreshed.panes;
 		savePaneWorkspaces = refreshed.workspaces;
 		setCachedActiveWorkspace(nextState, activePaneBox);
-		invalidateSaveLibraryCache();
+		invalidateSavesCache();
 	}
 
 	function settlePokemonEditorApply(
@@ -3234,7 +3234,7 @@
 		importError = null;
 
 		try {
-			const restored = await loadActiveWorkspaceFromLibrary();
+			const restored = await loadActiveWorkspaceFromSaves();
 			if (!restored) {
 				statusMessage = 'Open Saves to import a Save File.';
 				return;
@@ -3242,15 +3242,15 @@
 
 			loadedSave = restored;
 			saveFiles = await storage.listSaves();
-			seedSaveLibrarySnapshotFromActiveWorkspace(saveFiles);
+			seedSavesSnapshotFromActiveWorkspace(saveFiles);
 			const restoredBox = Math.min(
 				getCachedActiveWorkspaceBox(),
 				Math.max(0, restored.workspace.summary.boxCount - 1)
 			);
 			installActiveSavePane(restored, restoredBox);
 			statusMessage = restored.dirty
-				? `${restored.file.originalFileName ?? 'Save File'} restored from Local Library with unexported changes.`
-				: `${restored.file.originalFileName ?? 'Save File'} restored from Local Library.`;
+				? `${restored.file.originalFileName ?? 'Save File'} restored from Saves with unexported changes.`
+				: `${restored.file.originalFileName ?? 'Save File'} restored from Saves.`;
 		} catch (error) {
 			importError = getErrorMessage(error);
 			statusMessage = 'Could not restore the most recent Save File.';
@@ -3404,8 +3404,8 @@
 				loadedSave = createCleanWorkspaceState({ file: saveFile, bytes, workspace });
 				saveFiles = await storage.listSaves();
 				setCachedActiveWorkspace(loadedSave, 0);
-				invalidateSaveLibraryCache();
-				seedSaveLibrarySnapshotFromActiveWorkspace(saveFiles);
+				invalidateSavesCache();
+				seedSavesSnapshotFromActiveWorkspace(saveFiles);
 				installActiveSavePane(loadedSave, 0);
 				statusMessage = `${file.name} imported and made active.`;
 			}
@@ -3870,7 +3870,7 @@
 					>
 						<span>{card.treatment === 'app-owned' ? 'APP-OWNED' : 'SAVE FILE'}</span>
 						<strong>{card.label}</strong>
-						<em>{card.metadata || 'Local Library'}</em>
+						<em>{card.metadata || 'Saves'}</em>
 					</button>
 				{/each}
 				<button
@@ -3886,7 +3886,7 @@
 				>
 					<span>IMPORT</span>
 					<strong>Import Save File</strong>
-					<em>Add to Local Library and open it as a pane.</em>
+					<em>Add to Saves and open it as a pane.</em>
 				</button>
 			</div>
 		</div>

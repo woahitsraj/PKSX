@@ -4,7 +4,7 @@ import {
 	type EngineResult,
 	type SaveWorkspace
 } from '$lib/engine';
-import type { LocalLibraryStorage, StoredSaveFile } from '$lib/pksx/local-library';
+import type { SavesStorage, StoredSaveFile } from '$lib/pksx/saves';
 import { describe, expect, it, vi } from 'vitest';
 import { ActiveWorkspaceService, WORKSPACE_SCHEMA_VERSION } from './index';
 import type { WorkspaceStoreContent, WorkspaceStorePersistence } from './persistence';
@@ -29,7 +29,7 @@ describe('ActiveWorkspaceService', () => {
 		expect(service.store.getValue('schemaVersion')).toBe(WORKSPACE_SCHEMA_VERSION);
 	});
 
-	it('hydrates reactive projections through Local Library and Engine boundaries', async () => {
+	it('hydrates reactive projections through Saves and Engine boundaries', async () => {
 		const baseEngine = createMockEngine();
 		const loaded = await baseEngine.loadSaveWorkspace(
 			new Uint8Array([1, 2, 3, 4]),
@@ -92,12 +92,12 @@ function createService(
 	});
 }
 
-function createStorage(): LocalLibraryStorage {
+function createStorage(): SavesStorage {
 	return {
 		getSave: vi.fn(async () => file),
 		getSaveBytes: vi.fn(async () => new Uint8Array([1, 2, 3, 4])),
 		getWorkspace: vi.fn(async () => null)
-	} as unknown as LocalLibraryStorage;
+	} as unknown as SavesStorage;
 }
 
 function createPersistence() {

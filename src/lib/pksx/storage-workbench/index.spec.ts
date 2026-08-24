@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SlotView } from '$lib/components/pksx/types';
-import type { StoredPokemonStorage, StoredPokemonStoragePokemon } from '$lib/pksx/local-library';
+import type { StoredPokemonStorage, StoredPokemonStoragePokemon } from '$lib/pksx/saves';
 import {
 	addBoxPane,
 	applyPokemonStorageSlotOperation,

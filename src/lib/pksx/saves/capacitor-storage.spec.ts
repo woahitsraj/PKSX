@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { bytesEqual } from './bytes';
-import { CapacitorLocalLibraryStorage, type NativeFileStore } from './capacitor-storage';
+import { CapacitorSavesStorage, type NativeFileStore } from './capacitor-storage';
 
-describe('CapacitorLocalLibraryStorage', () => {
+describe('CapacitorSavesStorage', () => {
 	let files: Map<string, string | Uint8Array>;
-	let storage: CapacitorLocalLibraryStorage;
+	let storage: CapacitorSavesStorage;
 
 	beforeEach(() => {
 		files = new Map();
@@ -28,7 +28,7 @@ describe('CapacitorLocalLibraryStorage', () => {
 				files.delete(path);
 			}
 		};
-		storage = new CapacitorLocalLibraryStorage({
+		storage = new CapacitorSavesStorage({
 			fileStore,
 			idFactory: () => {
 				const id = ids.shift();
