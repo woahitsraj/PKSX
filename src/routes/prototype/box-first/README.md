@@ -12,7 +12,7 @@ Run `pnpm prototype:box-first`, then open `/prototype/box-first?variant=A`. Use 
 ## Validated decisions
 
 - Party is a six-slot location, not permanent chrome.
-- The save name, box number, and box name stay at the top of every Box pane.
+- The save name, box number, box name, and nearby box shortcuts stay in every Box pane header.
 - Opening a second box changes the page composition, not the Box pane itself.
 - PKSX storage and game storage use the same Box pane.
 

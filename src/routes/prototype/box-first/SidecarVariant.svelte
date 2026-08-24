@@ -4,10 +4,6 @@
 	import { gameLocations, type PrototypePokemon } from './prototype-data';
 
 	const source = { tag: 'SAVE', name: 'Emerald.sav' };
-	const quickLocations = gameLocations.map((location) => ({
-		key: location.key,
-		label: location.shortLabel
-	}));
 	let activeLocation = $state('box-14');
 	let selectedIndex = $state(14);
 	const currentLocation = $derived(
@@ -40,22 +36,14 @@
 	<BoxPane
 		{source}
 		location={currentLocation}
+		locations={gameLocations}
 		{selectedIndex}
 		onSelect={select}
+		onLocationChange={changeLocation}
 		onPrevious={() => cycleLocation(-1)}
 		onNext={() => cycleLocation(1)}
 	/>
 	<aside class="sidecar-rail">
-		<nav class="quick-locations" aria-label="Quick location switcher">
-			{#each quickLocations as location (location.key)}
-				<button
-					type="button"
-					class:active={activeLocation === location.key}
-					aria-pressed={activeLocation === location.key}
-					onclick={() => changeLocation(location.key)}>{location.label}</button
-				>
-			{/each}
-		</nav>
 		<span class="rail-label">Selected Pokémon</span>
 		<PrototypeDetail
 			pokemon={selected}
@@ -81,39 +69,9 @@
 		min-width: 0;
 		min-height: 0;
 		display: grid;
-		grid-template-rows: 22px 18px minmax(0, 1fr);
+		grid-template-rows: 18px minmax(0, 1fr);
 		gap: 3px;
-		padding-top: 30px;
-	}
-
-	.quick-locations {
-		min-width: 0;
-		display: flex;
-		gap: 2px;
-		overflow-x: auto;
-		scrollbar-width: none;
-	}
-
-	.quick-locations button {
-		min-width: 22px;
-		height: 20px;
-		padding: 0 3px;
-		border: 1px solid var(--rule);
-		border-radius: 999px;
-		background: var(--paper-hi);
-		color: var(--ink-soft);
-		font: 700 8px var(--pksx-font-sans);
-		cursor: pointer;
-	}
-
-	.quick-locations button:first-child {
-		min-width: 38px;
-	}
-
-	.quick-locations button.active {
-		border-color: var(--rust);
-		background: var(--rust);
-		color: white;
+		padding-top: 48px;
 	}
 
 	.rail-label {

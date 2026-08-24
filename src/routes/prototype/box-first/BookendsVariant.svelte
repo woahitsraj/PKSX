@@ -1,36 +1,49 @@
 <script lang="ts">
 	import BoxPane from './BoxPane.svelte';
 	import {
-		boxSlots,
+		gameLocations,
 		pksxStorageSlots,
 		type PrototypeLocation,
 		type PrototypePokemon
 	} from './prototype-data';
 
 	type Side = 'pksx' | 'game';
+	type LocationDefinition = Omit<PrototypeLocation, 'slots'>;
 
 	const pksxSource = { tag: 'PKSX', name: 'My Storage' };
 	const gameSource = { tag: 'SAVE', name: 'Emerald.sav' };
-	let pksxSlots = $state<Array<PrototypePokemon | null>>([...pksxStorageSlots]);
-	let gameSlots = $state<Array<PrototypePokemon | null>>([...boxSlots]);
+	const pksxDefinitions: LocationDefinition[] = [
+		{ key: 'storage-1', shortLabel: '1', name: 'Archive', number: 1 },
+		{ key: 'storage-2', shortLabel: '2', name: 'Training', number: 2 },
+		{ key: 'storage-3', shortLabel: '3', name: 'Favorites', number: 3 },
+		{ key: 'storage-4', shortLabel: '4', name: 'Trades', number: 4 },
+		{ key: 'storage-5', shortLabel: '5', name: 'Legends', number: 5 }
+	];
+	const gameDefinitions = gameLocations.filter((location) => location.number !== null);
+	const rotate = (slots: Array<PrototypePokemon | null>, offset: number) =>
+		slots.map((_, index) => slots[(index + offset) % slots.length]);
+	let pksxLocations = $state<PrototypeLocation[]>(
+		pksxDefinitions.map((location, index) => ({
+			...location,
+			slots: rotate(pksxStorageSlots, index * 3)
+		}))
+	);
+	let mutableGameLocations = $state<PrototypeLocation[]>(
+		gameDefinitions.map((location) => ({ ...location, slots: [...location.slots] }))
+	);
+	let pksxLocationKey = $state('storage-3');
+	let gameLocationKey = $state('box-14');
 	let selectedSide = $state<Side>('game');
 	let selectedIndex = $state(14);
-	const pksxLocation = $derived<PrototypeLocation>({
-		key: 'storage-3',
-		shortLabel: '3',
-		name: 'Favorites',
-		number: 3,
-		slots: pksxSlots
-	});
-	const gameLocation = $derived<PrototypeLocation>({
-		key: 'box-14',
-		shortLabel: '14',
-		name: 'Sky Pillar',
-		number: 14,
-		slots: gameSlots
-	});
+	const pksxLocation = $derived(
+		pksxLocations.find((location) => location.key === pksxLocationKey) ?? pksxLocations[0]
+	);
+	const gameLocation = $derived(
+		mutableGameLocations.find((location) => location.key === gameLocationKey) ??
+			mutableGameLocations[0]
+	);
 	const selected = $derived(
-		(selectedSide === 'pksx' ? pksxSlots : gameSlots)[selectedIndex] ?? null
+		(selectedSide === 'pksx' ? pksxLocation.slots : gameLocation.slots)[selectedIndex] ?? null
 	);
 
 	function select(side: Side, _entry: PrototypePokemon | null, index: number) {
@@ -38,10 +51,27 @@
 		selectedIndex = index;
 	}
 
+	function changeLocation(side: Side, key: string) {
+		if (side === 'pksx') pksxLocationKey = key;
+		else gameLocationKey = key;
+		selectedSide = side;
+		const location = (side === 'pksx' ? pksxLocations : mutableGameLocations).find(
+			(item) => item.key === key
+		);
+		selectedIndex = Math.max(0, location?.slots.findIndex((entry) => entry !== null) ?? 0);
+	}
+
+	function cycleLocation(side: Side, offset: number) {
+		const locations = side === 'pksx' ? pksxLocations : mutableGameLocations;
+		const activeKey = side === 'pksx' ? pksxLocationKey : gameLocationKey;
+		const index = locations.findIndex((location) => location.key === activeKey);
+		changeLocation(side, locations[(index + offset + locations.length) % locations.length].key);
+	}
+
 	function moveTo(targetSide: Side) {
 		if (!selected || selectedSide === targetSide) return;
-		const source = selectedSide === 'pksx' ? pksxSlots : gameSlots;
-		const target = targetSide === 'pksx' ? pksxSlots : gameSlots;
+		const source = selectedSide === 'pksx' ? pksxLocation.slots : gameLocation.slots;
+		const target = targetSide === 'pksx' ? pksxLocation.slots : gameLocation.slots;
 		const targetIndex = target.findIndex((entry) => entry === null);
 		if (targetIndex === -1) return;
 
@@ -56,8 +86,12 @@
 	<BoxPane
 		source={pksxSource}
 		location={pksxLocation}
+		locations={pksxLocations}
 		selectedIndex={selectedSide === 'pksx' ? selectedIndex : null}
 		onSelect={(item, slot) => select('pksx', item, slot)}
+		onLocationChange={(key) => changeLocation('pksx', key)}
+		onPrevious={() => cycleLocation('pksx', -1)}
+		onNext={() => cycleLocation('pksx', 1)}
 	/>
 
 	<aside class="transfer-rail" aria-label="Transfer controls">
@@ -90,8 +124,12 @@
 	<BoxPane
 		source={gameSource}
 		location={gameLocation}
+		locations={mutableGameLocations}
 		selectedIndex={selectedSide === 'game' ? selectedIndex : null}
 		onSelect={(item, slot) => select('game', item, slot)}
+		onLocationChange={(key) => changeLocation('game', key)}
+		onPrevious={() => cycleLocation('game', -1)}
+		onNext={() => cycleLocation('game', 1)}
 	/>
 </section>
 

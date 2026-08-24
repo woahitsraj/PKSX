@@ -11,8 +11,10 @@
 	interface Props {
 		source: Source;
 		location: PrototypeLocation;
+		locations: PrototypeLocation[];
 		selectedIndex: number | null;
 		onSelect: (entry: PrototypePokemon | null, index: number) => void;
+		onLocationChange: (key: string) => void;
 		onPrevious?: () => void;
 		onNext?: () => void;
 	}
@@ -20,8 +22,10 @@
 	let {
 		source,
 		location,
+		locations,
 		selectedIndex,
 		onSelect,
+		onLocationChange,
 		onPrevious = () => {},
 		onNext = () => {}
 	}: Props = $props();
@@ -32,10 +36,13 @@
 	<SourceHeader
 		sourceTag={source.tag}
 		sourceName={source.name}
+		locationKey={location.key}
 		boxNumber={location.number}
 		boxName={location.name}
+		{locations}
 		{onPrevious}
 		{onNext}
+		{onLocationChange}
 	/>
 	<div
 		class={['box-grid', isParty && 'party-view']}
@@ -61,7 +68,7 @@
 		width: 100%;
 		height: 100%;
 		display: grid;
-		grid-template-rows: 24px minmax(0, 1fr);
+		grid-template-rows: 46px minmax(0, 1fr);
 		gap: 3px;
 	}
 
