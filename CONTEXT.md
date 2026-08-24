@@ -303,6 +303,7 @@ _Avoid_: setting, option, config
 - A **Pokemon Editor** stages edits before they become **Risky Changes**.
 - A **Pokemon Editor** may contain zero or more **Staged Pokemon Edits**.
 - A **Staged Pokemon Edit** is not written to its **Pokemon Editor Source** until the user explicitly applies it.
+- Reviewing **Staged Pokemon Edits** is an internal state of the **Pokemon Editor**, never a separate surface.
 - **Pokemon Edit Validation** evaluates **Staged Pokemon Edits** before they are written to a **Pokemon Editor Source**.
 - **Pokemon Edit Validation** is distinct from a **Legality Check**.
 - **Pokemon Edit Validation** does not determine whether a **Pokemon Entity** is legal.
