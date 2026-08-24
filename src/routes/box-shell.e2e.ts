@@ -10,15 +10,14 @@ const scarletFixturePath = path.resolve(
 	'test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-scarlet-2025-03-24-main.sav'
 );
 
-async function openEmptyLibrary(page: Page) {
+async function openEmptySaves(page: Page) {
 	await page.goto('/');
 	await page.evaluate(
 		() =>
 			new Promise<void>((resolve, reject) => {
-				const request = indexedDB.deleteDatabase('pksx-local-library');
+				const request = indexedDB.deleteDatabase('pksx-saves');
 
-				request.onerror = () =>
-					reject(request.error ?? new Error('Could not clear local library.'));
+				request.onerror = () => reject(request.error ?? new Error('Could not clear Saves.'));
 				request.onsuccess = () => resolve();
 			})
 	);
@@ -97,9 +96,9 @@ async function seedPokemonStorageBoxes(page: Page, boxCount: number) {
 	await page.evaluate(
 		(boxes) =>
 			new Promise<void>((resolve, reject) => {
-				const open = indexedDB.open('pksx-local-library');
+				const open = indexedDB.open('pksx-saves');
 
-				open.onerror = () => reject(open.error ?? new Error('Could not open the local library.'));
+				open.onerror = () => reject(open.error ?? new Error('Could not open Saves.'));
 				open.onsuccess = () => {
 					const database = open.result;
 					const transaction = database.transaction('pokemonStorage', 'readwrite');
@@ -152,7 +151,7 @@ async function selectActiveSaveCard(page: Page) {
 }
 
 test('keyboard navigation moves deterministically across the box grid', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
 	await expect(page.locator('#box-0-slot-0 img.slot-sprite')).toHaveCount(0);
 	await expect(page.locator('#box-0-slot-0')).toHaveCSS('--slot-hue', '16');
@@ -190,7 +189,7 @@ test('keyboard navigation moves deterministically across the box grid', async ({
 test('compact box controls and keyboard shortcuts update the active box label', async ({
 	page
 }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await page.locator('#box-grid').focus();
 
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
@@ -215,7 +214,7 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 });
 
 test('switches to durable Pokemon Storage with focusable empty Slot actions', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
 	await page.getByRole('button', { name: 'Add source' }).click();
@@ -260,7 +259,7 @@ test('switches to durable Pokemon Storage with focusable empty Slot actions', as
 });
 
 test('confirm opens slot actions and back restores the grid focus', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('ArrowRight');
 	await page.keyboard.press('Enter');
@@ -294,7 +293,7 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 });
 
 test('occupied slot actions expose Edit and Close dismisses', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -340,7 +339,7 @@ test('occupied slot actions expose Edit and Close dismisses', async ({ page }) =
 test('Pokemon Actions cancel without mutation and explicitly apply an evolution', async ({
 	page
 }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -373,7 +372,7 @@ test('Pokemon Actions cancel without mutation and explicitly apply an evolution'
 test('creates a Pokemon from an empty Slot after explicit apply and preserves cancel', async ({
 	page
 }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
 	const destination = page.locator('#box-0-slot-2');
@@ -410,7 +409,7 @@ test('creates a Pokemon from an empty Slot after explicit apply and preserves ca
 });
 
 test('Edit opens Pokemon Editor and returns focus to the command stack', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -524,7 +523,7 @@ test('Edit opens Pokemon Editor and returns focus to the command stack', async (
 });
 
 test('Pokemon Editor exposes Move Set, IV, and EV projection sections', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-0-slot-0').click();
 	await page.locator('#box-0-slot-0').click();
@@ -546,7 +545,7 @@ test('Pokemon Editor exposes Move Set, IV, and EV projection sections', async ({
 });
 
 test('Pokemon Editor applies nickname changes and refreshes Slot labels', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -572,7 +571,7 @@ test('Pokemon Editor applies nickname changes and refreshes Slot labels', async 
 });
 
 test('Pokemon Editor previews and applies a Species and Form change', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-0-slot-0').click();
 	await page.locator('#box-0-slot-0').click();
@@ -596,7 +595,7 @@ test('Pokemon Editor previews and applies a Species and Form change', async ({ p
 });
 
 test('Pokemon Editor applies Original Trainer name changes and returns focus', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -617,7 +616,7 @@ test('Pokemon Editor applies Original Trainer name changes and returns focus', a
 test('Pokemon Editor changes Held Item and returns focus to the command stack', async ({
 	page
 }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -651,7 +650,7 @@ test('Pokemon Editor changes Held Item and returns focus to the command stack', 
 });
 
 test('Pokemon Editor changes Ability and returns focus to the command stack', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -685,7 +684,7 @@ test('Pokemon Editor changes Ability and returns focus to the command stack', as
 });
 
 test('Pokemon Editor applies Met Data and returns focus to Edit', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -719,7 +718,7 @@ test('Pokemon Editor applies Met Data and returns focus to Edit', async ({ page 
 test('Legality Check opens an engine report from an occupied Slot and dismisses cleanly', async ({
 	page
 }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -744,7 +743,7 @@ test('Legality Check opens an engine report from an occupied Slot and dismisses 
 });
 
 test('keyboard navigation reaches top controls and mobile tabs', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await page.locator('#top-control-0').focus();
 	await expect(page.locator('#top-control-0')).toBeFocused();
 
@@ -807,7 +806,7 @@ test('keyboard navigation reaches top controls and mobile tabs', async ({ page }
 });
 
 test('controller input follows the keyboard navigation path', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await page.locator('#box-grid').focus();
 
 	await pressController(page, 'ArrowRight');
@@ -838,7 +837,7 @@ test('controller input follows the keyboard navigation path', async ({ page }) =
 });
 
 test('controller focus framework covers every interactive surface', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await page.locator('#box-grid').focus();
 	await pressController(page, 'ArrowRight');
 	await expect(page.locator('html')).toHaveAttribute('data-input-modality', 'controller');
@@ -891,7 +890,7 @@ test('controller focus framework covers every interactive surface', async ({ pag
 test('controller shoulder buttons switch boxes and A drives the party toggle and editor', async ({
 	page
 }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 
@@ -930,7 +929,7 @@ test('controller shoulder buttons switch boxes and A drives the party toggle and
 });
 
 test('desktop slot actions render fully visible beside the focused slot', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await page.setViewportSize({ width: 1920, height: 1080 });
 	await page.locator('#box-grid').focus();
 
@@ -970,7 +969,7 @@ test('desktop slot actions render fully visible beside the focused slot', async 
 });
 
 test('small widescreen viewports use the mobile shell', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await page.setViewportSize({ width: 960, height: 540 });
 
 	await expect(page.locator('.mobile-tabbar')).toBeVisible();
@@ -981,7 +980,7 @@ test('small widescreen viewports use the mobile shell', async ({ page }) => {
 test('mobile slot actions stay inside the viewport without adding page overflow', async ({
 	page
 }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await page.setViewportSize({ width: 420, height: 860 });
 	await page.locator('#box-grid').focus();
 
@@ -1026,7 +1025,7 @@ test('mobile slot actions stay inside the viewport without adding page overflow'
 });
 
 test('mouse clicks move controller focus, then selected slots open actions', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#party-slot-4').click();
 
@@ -1061,7 +1060,7 @@ test('mouse clicks move controller focus, then selected slots open actions', asy
 });
 
 test('active slot detail rail follows controller focus', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	const rail = page.getByTestId('active-slot-detail-rail');
 
@@ -1095,7 +1094,7 @@ test('active slot detail rail follows controller focus', async ({ page }) => {
 test('imports the Emerald Save File, renders engine data, and exports serialized bytes', async ({
 	page
 }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
 	await expect(page.getByText('DIXIE', { exact: true })).toBeVisible();
@@ -1123,7 +1122,7 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 });
 
 test('Save File route stages and applies trainer, money, and inventory edits', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.getByRole('button', { name: 'Save File' }).click();
 	await expect(page).toHaveURL(/\/save-file$/);
@@ -1187,7 +1186,7 @@ test('Save File route stages and applies trainer, money, and inventory edits', a
 });
 
 test('Pokemon Editor changes level through Apply and keeps editor focus', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
 	await page.locator('#box-grid').focus();
@@ -1270,7 +1269,7 @@ test('Pokemon Editor changes level through Apply and keeps editor focus', async 
 test('Pokemon Editor stages, cancels, and applies an engine-projected Tera Type', async ({
 	page
 }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importScarletThroughSaves(page);
 
 	await page.locator('#party-slot-0').click();
@@ -1300,7 +1299,7 @@ test('Pokemon Editor stages, cancels, and applies an engine-projected Tera Type'
 });
 
 test('Pokemon Editor changes Nature through Apply and keeps editor focus', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
 	await page.locator('#box-grid').focus();
@@ -1321,7 +1320,7 @@ test('Pokemon Editor changes Nature through Apply and keeps editor focus', async
 });
 
 test('Pokemon Editor stages and applies Friendship while restoring focus', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -1348,7 +1347,7 @@ test('Pokemon Editor stages and applies Friendship while restoring focus', async
 });
 
 test('creates and restores a manual backup for the loaded Save File', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
 	await page.getByRole('button', { name: 'Saves' }).click();
@@ -1369,7 +1368,7 @@ test('creates and restores a manual backup for the loaded Save File', async ({ p
 });
 
 test('deletes backups and save files after confirmation', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.goto('/saves');
 	await selectActiveSaveCard(page);
@@ -1401,7 +1400,7 @@ test('deletes backups and save files after confirmation', async ({ page }) => {
 });
 
 test('moves an occupied box slot into an empty destination slot', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
 	await moveFirstEmeraldBoxSlotToThirdSlot(page);
@@ -1410,7 +1409,7 @@ test('moves an occupied box slot into an empty destination slot', async ({ page 
 });
 
 test('reload preserves unexported slot changes from the active workspace', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
 	await moveFirstEmeraldBoxSlotToThirdSlot(page);
@@ -1427,7 +1426,7 @@ test('reload preserves unexported slot changes from the active workspace', async
 test('can perform another slot mutation after the first move changes workspace bytes', async ({
 	page
 }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
 	await moveFirstEmeraldBoxSlotToThirdSlot(page);
@@ -1441,7 +1440,7 @@ test('can perform another slot mutation after the first move changes workspace b
 });
 
 test('copies an occupied box slot into an empty destination slot', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
 	await page.locator('#box-grid').focus();
@@ -1462,7 +1461,7 @@ test('copies an occupied box slot into an empty destination slot', async ({ page
 test('copy keeps destination selection active and shows an error toast for occupied destinations', async ({
 	page
 }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
 	await page.locator('#box-grid').focus();
@@ -1482,7 +1481,7 @@ test('copy keeps destination selection active and shows an error toast for occup
 test('clear slot cancellation and confirmation use the in-app confirmation surface', async ({
 	page
 }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
 	await page.locator('#box-grid').focus();
@@ -1512,7 +1511,7 @@ test('clear slot cancellation and confirmation use the in-app confirmation surfa
 test('keyboard navigation covers the Saves route controls and desktop overflow scrolls', async ({
 	page
 }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await page.setViewportSize({ width: 1100, height: 520 });
 	await page.goto('/saves');
 
@@ -1572,7 +1571,7 @@ test('keyboard navigation covers the Saves route controls and desktop overflow s
 });
 
 test('mobile Saves route scrolls with the document', async ({ page }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await page.setViewportSize({ width: 390, height: 640 });
 	await page.goto('/saves');
 
@@ -1627,10 +1626,8 @@ test('mobile Saves route scrolls with the document', async ({ page }) => {
 	await expect(page.getByText('Offline - all local')).toHaveCount(0);
 });
 
-test('browses the Local Library route, imports, and switches the active Save File', async ({
-	page
-}) => {
-	await openEmptyLibrary(page);
+test('browses the Saves route, imports, and switches the active Save File', async ({ page }) => {
+	await openEmptySaves(page);
 
 	await page.getByRole('button', { name: 'Saves' }).click();
 	await expect(page).toHaveURL(/\/saves$/);
@@ -1688,7 +1685,7 @@ test('browses the Local Library route, imports, and switches the active Save Fil
 });
 
 test('reloads the most recent imported Save File while offline', async ({ page, context }) => {
-	await openEmptyLibrary(page);
+	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');

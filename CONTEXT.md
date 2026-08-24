@@ -32,12 +32,12 @@ _Avoid_: generated title when referring to a save-owned label
 A position in a party or box that may or may not contain a Pokemon Entity.
 _Avoid_: card, tile
 
-**Local Library**:
-The collection of imported save files, backups, and future bank data that PKSX owns and keeps between sessions.
-_Avoid_: cloud account, server library
+**Saves**:
+The on-device collection of imported Save Files, Backups, and Pokemon Storage, and the app destination that presents it.
+_Avoid_: Local Library, cloud account, server library
 
 **Pokemon Storage**:
-The collection of Pokemon Entities that PKSX keeps between sessions and that no Save File owns. Pokemon Storage lives inside the Local Library and is meant for Bank or HOME style transfers.
+The collection of Pokemon Entities that PKSX keeps between sessions and that no Save File owns. Pokemon Storage belongs to Saves and is meant for Bank or HOME style transfers.
 _Avoid_: temporary storage, bank when referring to the app-level collection
 
 **Storage Box**:
@@ -208,6 +208,10 @@ _Avoid_: Slot Action Surface
 The Menu for the Box Source whose boxes hold Controller Focus.
 _Avoid_: Box Source menu, source menu, pane menu
 
+**Save File Menu**:
+The Menu for the Save File under Controller Focus in Saves.
+_Avoid_: save menu, card menu
+
 **Main Menu**:
 The Menu of app destinations.
 _Avoid_: global command surface, navigation menu, tab bar
@@ -226,7 +230,7 @@ _Avoid_: snackbar, notification banner
 
 **Backup Browser**:
 A list of the Backups for the active Save File, from which the user can create, restore, and delete Backups.
-_Avoid_: Local Library browser when referring only to the active Save File's backups
+_Avoid_: Saves when referring only to the active Save File's backups
 
 **Active Slot Detail Rail**:
 A rail that shows the Slot under Controller Focus, whether that Slot contains a Pokemon Entity or is empty.
@@ -245,15 +249,16 @@ _Avoid_: setting, option, config
 - A **Save File** contains zero or one **Party** and zero or more **Boxes**.
 - A **Supported Save File** is a **Save File** that can be loaded through the **PKHeX Engine** for the current milestone.
 - For the first end-to-end slice, the Pokemon Emerald test save committed to this repository is the only required **Supported Save File**.
-- A **Save File** is accepted into the **Local Library** only after the **PKHeX Engine** recognizes it as a **Supported Save File**.
-- Until PKSX has a **Local Library** browser, the most recently imported **Save File** is the active **Save File** after reload.
-- Importing the same user-controlled file more than once creates separate imported **Save Files** in the **Local Library**.
+- A **Save File** is accepted into **Saves** only after the **PKHeX Engine** recognizes it as a **Supported Save File**.
+- Importing the same user-controlled file more than once creates separate imported **Save Files** in **Saves**.
 - A **Party** contains one or more **Slots**.
 - A **Box** contains zero or more **Slots**.
 - A **Box** always has a number and may also have a **Box Name**.
 - A **Slot** contains zero or one **Pokemon Entity**.
-- The **Local Library** stores imported **Save Files**, **Backups**, and **Pokemon Storage**.
-- The **Local Library** may keep the active **Dirty Workspace** without overwriting the imported **Save File**.
+- **Saves** stores imported **Save Files**, **Backups**, and **Pokemon Storage**.
+- **Saves** may keep the active **Dirty Workspace** without overwriting the imported **Save File**.
+- Deleting a **Save File** from **Saves** also deletes its **Backups**.
+- Deleting the active **Save File** from **Saves** also deletes its **Workspace**, including any **Dirty Workspace**, and requires explicit user confirmation.
 - A **Preference** is owned by the app and never by a **Save File** or a **Pokemon Entity**.
 - A **Backup** belongs to one **Save File**.
 - A **Backup** has one **Backup Reason**.
@@ -288,7 +293,7 @@ _Avoid_: setting, option, config
 - The **Box Source** whose boxes hold **Controller Focus** is the active **Box Source**; there is no separate focused **Box Source**.
 - The active **Save File**'s **Box Source** cannot be switched or closed while that **Save File** is active.
 - A future **Slot Action** may use source and destination **Slots** from different **Box Sources**.
-- A **Pokemon Entity** may have **Pokemon Origin** even when its original **Save File** is no longer in the **Local Library**.
+- A **Pokemon Entity** may have **Pokemon Origin** even when its original **Save File** is no longer in **Saves**.
 - **Pokemon Origin** records where a **Pokemon Entity** came from; it does not determine its current owner or location.
 - A **Legality Check** evaluates one **Pokemon Entity**.
 - A **Legality Report** is produced by a **Legality Check**.
@@ -335,7 +340,7 @@ _Avoid_: setting, option, config
 - A **Peer Transfer** sends **Pokemon Entities** or **Storage Boxes** between two devices running PKSX.
 - A **Pokemon Entity** received through **Peer Transfer** enters **Pokemon Storage** before it can be moved into a **Save File**.
 - The **PKHeX Engine** provides a **Facade** that the Svelte app uses.
-- **Export** writes data from the **Local Library** back to user-controlled storage.
+- **Export** writes data from **Saves** back to user-controlled storage.
 - Moving, copying, or clearing a **Slot** in a **Save File** is a **Risky Change** to the **Workspace**.
 - Moving a **Pokemon Entity** from a **Save File** to **Pokemon Storage** removes it from the source **Slot**.
 - Copying a **Pokemon Entity** from a **Save File** to **Pokemon Storage** leaves the source **Slot** unchanged.
@@ -343,6 +348,12 @@ _Avoid_: setting, option, config
 - **Controller Focus** belongs to exactly one **Focus Zone** at a time.
 - Mouse and pointer input may move **Controller Focus**, but hover alone is not **Controller Focus**.
 - Clicking a **Slot** moves **Controller Focus** to that **Slot** without opening its **Slot Menu**.
+- **Saves** has one **Focus Zone** containing its imported **Save Files** and Import.
+- The **Pokemon Storage** summary in **Saves** is display-only and is not a **Focus Zone**.
+- Confirming a **Save File** under **Controller Focus** makes it active and opens Boxes.
+- A successful import in **Saves** makes the imported **Save File** active and moves **Controller Focus** to it without leaving **Saves**.
+- Cancelling import returns **Controller Focus** to Import.
+- Deleting the **Save File** under **Controller Focus** moves focus to the next **Save File**, then the previous one, then Import.
 - Browser tab navigation moves between major interactive regions; directional input moves **Controller Focus** inside the active party or box grid.
 - Party and box slot collections present as grids to assistive technology.
 - Keyboard and gamepad input produce the same **Navigation Actions** before changing **Controller Focus**.
@@ -368,6 +379,7 @@ _Avoid_: setting, option, config
 - The **Slot Menu** acts on the **Slot** under **Controller Focus**.
 - The **Box Menu** acts on the active **Box Source**: **Export**, create a **Backup**, switch it, open another, or close it.
 - The **Box Menu** opens from the control that names the active **Box Source**, which is a **Controller Focus** target.
+- The **Save File Menu** opens the focused **Save File** in the Save File destination or deletes it from **Saves**.
 - **Export** from the **Box Menu** writes the **Workspace** bytes.
 - The **Main Menu** lists every destination, including the **Backup Browser**, in a fixed order and never hides or dims one.
 - A **Pokemon Editor** opened from a **Slot Menu** returns **Controller Focus** to its launching **Pokemon Action** when dismissed.

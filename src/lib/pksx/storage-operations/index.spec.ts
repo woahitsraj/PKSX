@@ -8,7 +8,7 @@ import type {
 } from '$lib/engine';
 import { createMockEngine } from '$lib/engine/mock-engine';
 import { createCleanWorkspaceState, type WorkspaceState } from '$lib/pksx/backup-workflow';
-import type { StoredSaveFile } from '$lib/pksx/local-library';
+import type { StoredSaveFile } from '$lib/pksx/saves';
 import {
 	applyStorageOperation,
 	destinationStateForStorageOperation,

@@ -6,7 +6,7 @@ import type {
 	BackupMetadata,
 	CreateBackupInput,
 	ImportSaveInput,
-	LocalLibraryStorage,
+	SavesStorage,
 	PutWorkspaceInput,
 	SaveFileId,
 	StoredPokemonStorage,
@@ -37,19 +37,19 @@ export type NativeFileStore = {
 	delete(path: string): Promise<void>;
 };
 
-export type CapacitorLocalLibraryStorageOptions = {
+export type CapacitorSavesStorageOptions = {
 	fileStore?: NativeFileStore;
 	idFactory?: () => string;
 	now?: () => string;
 };
 
-export class CapacitorLocalLibraryStorage implements LocalLibraryStorage {
+export class CapacitorSavesStorage implements SavesStorage {
 	readonly #fileStore: NativeFileStore;
 	readonly #idFactory: () => string;
 	readonly #now: () => string;
 	#pending: Promise<void> = Promise.resolve();
 
-	constructor(options: CapacitorLocalLibraryStorageOptions = {}) {
+	constructor(options: CapacitorSavesStorageOptions = {}) {
 		this.#fileStore = options.fileStore ?? createCapacitorFileStore();
 		this.#idFactory = options.idFactory ?? (() => crypto.randomUUID());
 		this.#now = options.now ?? (() => new Date().toISOString());
@@ -254,7 +254,7 @@ export class CapacitorLocalLibraryStorage implements LocalLibraryStorage {
 
 		const catalog = JSON.parse(value) as NativeCatalog;
 		if (catalog.version !== catalogVersion) {
-			throw new Error(`Unsupported native Local Library catalog version: ${catalog.version}`);
+			throw new Error(`Unsupported native Saves catalog version: ${catalog.version}`);
 		}
 		return catalog;
 	}
@@ -264,7 +264,7 @@ export class CapacitorLocalLibraryStorage implements LocalLibraryStorage {
 	}
 }
 
-function createCapacitorFileStore(rootPath = 'pksx-local-library'): NativeFileStore {
+function createCapacitorFileStore(rootPath = 'pksx-saves'): NativeFileStore {
 	const path = (relativePath: string) => `${rootPath}/${relativePath}`;
 	return {
 		async readText(relativePath) {

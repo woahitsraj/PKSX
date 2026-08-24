@@ -6,11 +6,11 @@ import {
 } from '$lib/engine';
 import type { WorkspaceState } from '$lib/pksx/backup-workflow';
 import {
-	createLocalLibraryStorage,
+	createSavesStorage,
 	type BackupMetadata,
 	type SaveFileId,
 	type StoredSaveFile
-} from '$lib/pksx/local-library';
+} from '$lib/pksx/saves';
 import {
 	ActiveWorkspaceService,
 	LocalStorageWorkspacePersistence
@@ -22,7 +22,7 @@ export type SaveCardDetails = {
 	creatureCount: number;
 };
 
-export type SaveLibrarySnapshot = {
+export type SavesSnapshot = {
 	activeSaveFileId: SaveFileId | null;
 	saveFiles: StoredSaveFile[];
 	backupsBySaveFileId: Record<SaveFileId, BackupMetadata[]>;
@@ -34,17 +34,17 @@ type SaveDetailsCacheEntry = {
 	details: SaveCardDetails | null;
 };
 
-const storage = createLocalLibraryStorage();
+const storage = createSavesStorage();
 const detailsCache = new Map<SaveFileId, SaveDetailsCacheEntry>();
 
 let engine: EngineApi | null = null;
-let librarySnapshot: SaveLibrarySnapshot | null = null;
-let librarySnapshotSeeded = false;
+let savesSnapshot: SavesSnapshot | null = null;
+let savesSnapshotSeeded = false;
 let workspaceService: ActiveWorkspaceService | null = null;
 let workspaceServiceStart: Promise<void> | null = null;
 let activeWorkspaceBox = 0;
 
-export function getLocalLibraryStorage() {
+export function getSavesStorage() {
 	return storage;
 }
 
@@ -72,17 +72,17 @@ async function startActiveWorkspaceService() {
 	return service;
 }
 
-export function getCachedSaveLibrarySnapshot() {
-	return librarySnapshot;
+export function getCachedSavesSnapshot() {
+	return savesSnapshot;
 }
 
-export function isCachedSaveLibrarySnapshotSeeded() {
-	return librarySnapshot !== null && librarySnapshotSeeded;
+export function isCachedSavesSnapshotSeeded() {
+	return savesSnapshot !== null && savesSnapshotSeeded;
 }
 
-export async function getSaveLibrarySnapshot(options: { force?: boolean } = {}) {
-	if (librarySnapshot && !options.force) {
-		return librarySnapshot;
+export async function getSavesSnapshot(options: { force?: boolean } = {}) {
+	if (savesSnapshot && !options.force) {
+		return savesSnapshot;
 	}
 
 	const [activeSaveFileId, saveFiles] = await Promise.all([
@@ -105,20 +105,20 @@ export async function getSaveLibrarySnapshot(options: { force?: boolean } = {}) 
 		}
 	}
 
-	librarySnapshot = {
+	savesSnapshot = {
 		activeSaveFileId,
 		saveFiles,
 		backupsBySaveFileId: Object.fromEntries(backupEntries),
 		detailsBySaveFileId: Object.fromEntries(detailEntries)
 	};
-	librarySnapshotSeeded = false;
+	savesSnapshotSeeded = false;
 
-	return librarySnapshot;
+	return savesSnapshot;
 }
 
-export function invalidateSaveLibraryCache() {
-	librarySnapshot = null;
-	librarySnapshotSeeded = false;
+export function invalidateSavesCache() {
+	savesSnapshot = null;
+	savesSnapshotSeeded = false;
 }
 
 export function getCachedActiveWorkspace() {
@@ -138,8 +138,8 @@ export function setCachedActiveWorkspace(workspace: WorkspaceState | null, box =
 			details: createSaveCardDetailsFromWorkspace(workspace)
 		});
 	}
-	if (workspace && librarySnapshot) {
-		librarySnapshot = mergeWorkspaceIntoSnapshot(librarySnapshot, workspace);
+	if (workspace && savesSnapshot) {
+		savesSnapshot = mergeWorkspaceIntoSnapshot(savesSnapshot, workspace);
 	}
 }
 
@@ -150,7 +150,7 @@ export function invalidateActiveWorkspaceCache(saveFileId?: SaveFileId) {
 	}
 }
 
-export function seedSaveLibrarySnapshotFromActiveWorkspace(
+export function seedSavesSnapshotFromActiveWorkspace(
 	saveFiles: StoredSaveFile[],
 	options: { backupsBySaveFileId?: Record<SaveFileId, BackupMetadata[]> } = {}
 ) {
@@ -162,7 +162,7 @@ export function seedSaveLibrarySnapshotFromActiveWorkspace(
 	const details =
 		detailsCache.get(workspace.file.id)?.details ?? createSaveCardDetailsFromWorkspace(workspace);
 	const nextSaveFiles = ensureSaveFileIncluded(saveFiles, workspace.file);
-	const snapshot: SaveLibrarySnapshot = {
+	const snapshot: SavesSnapshot = {
 		activeSaveFileId: workspace.file.id,
 		saveFiles: nextSaveFiles,
 		backupsBySaveFileId: Object.fromEntries(
@@ -181,8 +181,8 @@ export function seedSaveLibrarySnapshotFromActiveWorkspace(
 		)
 	};
 
-	librarySnapshot = snapshot;
-	librarySnapshotSeeded = true;
+	savesSnapshot = snapshot;
+	savesSnapshotSeeded = true;
 	detailsCache.set(workspace.file.id, {
 		fingerprint: createSaveFileFingerprint(workspace.file),
 		details
@@ -190,7 +190,7 @@ export function seedSaveLibrarySnapshotFromActiveWorkspace(
 	return snapshot;
 }
 
-export async function loadActiveWorkspaceFromLibrary() {
+export async function loadActiveWorkspaceFromSaves() {
 	const activeSaveFileId = await storage.getActiveSaveFileId();
 	const saveFile = activeSaveFileId ? await storage.getSave(activeSaveFileId) : null;
 	const fallbackSaveFile = saveFile ?? (await storage.listSaves())[0] ?? null;
@@ -232,9 +232,9 @@ function createSaveCardDetailsFromWorkspace(workspace: WorkspaceState): SaveCard
 }
 
 function mergeWorkspaceIntoSnapshot(
-	snapshot: SaveLibrarySnapshot,
+	snapshot: SavesSnapshot,
 	workspace: WorkspaceState
-): SaveLibrarySnapshot {
+): SavesSnapshot {
 	const saveFiles = ensureSaveFileIncluded(snapshot.saveFiles, workspace.file);
 
 	return {

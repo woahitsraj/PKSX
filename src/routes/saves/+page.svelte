@@ -9,20 +9,20 @@
 		type SaveFileId,
 		type StoredPokemonStorage,
 		type StoredSaveFile
-	} from '$lib/pksx/local-library';
-	import { appChrome, updateAppChrome } from '$lib/pksx/app-chrome.svelte';
+	} from '$lib/pksx/saves';
+	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 	import {
-		getCachedSaveLibrarySnapshot,
-		getLocalLibraryStorage,
+		getCachedSavesSnapshot,
+		getSavesStorage,
 		getPkhexEngine,
-		getSaveLibrarySnapshot,
+		getSavesSnapshot,
 		invalidateActiveWorkspaceCache,
-		invalidateSaveLibraryCache,
-		isCachedSaveLibrarySnapshotSeeded,
+		invalidateSavesCache,
+		isCachedSavesSnapshotSeeded,
 		type SaveCardDetails,
-		type SaveLibrarySnapshot
-	} from '$lib/pksx/save-library-cache';
+		type SavesSnapshot
+	} from '$lib/pksx/saves-cache';
 
 	type BackupMap = Record<SaveFileId, BackupMetadata[]>;
 	type SaveDetailsMap = Record<SaveFileId, SaveCardDetails | null>;
@@ -35,7 +35,7 @@
 		| { kind: 'save'; saveFile: StoredSaveFile }
 		| { kind: 'backup'; saveFile: StoredSaveFile; backup: BackupMetadata };
 
-	const storage = getLocalLibraryStorage();
+	const storage = getSavesStorage();
 	const backupReasonLabels: Record<BackupMetadata['reason'], string> = {
 		manual: 'Manual',
 		'pokemon-movement': 'Pokemon movement',
@@ -68,12 +68,12 @@
 	let backupsBySaveFileId = $state<BackupMap>({});
 	let detailsBySaveFileId = $state<SaveDetailsMap>({});
 	let pokemonStorageSummary = $state<PokemonStorageSummary | null>(null);
-	let statusMessage = $state('Loading Local Library...');
+	let statusMessage = $state('Loading Saves...');
 	let errorMessage = $state<string | null>(null);
 	let busy = $state(false);
 	let activeControlIndex = $state(0);
 	let pendingDelete = $state<PendingDelete | null>(null);
-	let libraryRefreshRequest = 0;
+	let savesRefreshRequest = 0;
 
 	const selectedSaveFile = $derived(
 		storageSelected
@@ -89,31 +89,30 @@
 	const activeDetails = $derived(
 		activeSaveFile ? (detailsBySaveFileId[activeSaveFile.id] ?? null) : null
 	);
+	const importSave = (file: File) => void importSaveFile(file);
 
 	$effect(() => {
-		updateAppChrome({
-			route: 'saves',
-			saveSummary: activeDetails?.summary ?? null,
-			boxCount: activeDetails?.summary.boxCount ?? 0,
-			activeBox: 0,
-			fileName: activeSaveFile?.originalFileName ?? null,
-			busy,
-			hasLoadedSave: activeSaveFile !== null,
-			controllerInputActive: true,
-			importSave: (file) => void importSaveFile(file),
-			exportSave: exportActiveSave
-		});
+		appChrome.route = 'saves';
+		appChrome.saveSummary = activeDetails?.summary ?? null;
+		appChrome.boxCount = activeDetails?.summary.boxCount ?? 0;
+		appChrome.activeBox = 0;
+		appChrome.fileName = activeSaveFile?.originalFileName ?? null;
+		appChrome.busy = busy;
+		appChrome.hasLoadedSave = activeSaveFile !== null;
+		appChrome.controllerInputActive = true;
+		appChrome.importSave = importSave;
+		appChrome.exportSave = exportActiveSave;
 	});
 
 	onMount(() => {
-		const cachedSnapshot = getCachedSaveLibrarySnapshot();
-		const cachedSnapshotSeeded = isCachedSaveLibrarySnapshotSeeded();
+		const cachedSnapshot = getCachedSavesSnapshot();
+		const cachedSnapshotSeeded = isCachedSavesSnapshotSeeded();
 		if (cachedSnapshot) {
-			applyLibrarySnapshot(cachedSnapshot, selectedSaveFileId);
-			statusMessage = cachedSnapshot.saveFiles.length > 0 ? 'Local Library ready.' : statusMessage;
+			applySavesSnapshot(cachedSnapshot, selectedSaveFileId);
+			statusMessage = cachedSnapshot.saveFiles.length > 0 ? 'Saves ready.' : statusMessage;
 		}
 
-		void refreshLibrary({ force: !cachedSnapshot || cachedSnapshotSeeded });
+		void refreshSaves({ force: !cachedSnapshot || cachedSnapshotSeeded });
 	});
 
 	function handleRouteKeydown(event: KeyboardEvent) {
@@ -204,28 +203,28 @@
 		return control.tabIndex >= 0 || control.getAttribute('role') === 'button';
 	}
 
-	async function refreshLibrary(
+	async function refreshSaves(
 		options: { preferredSelection?: SaveFileId | null; force?: boolean } = {}
 	) {
-		const request = ++libraryRefreshRequest;
+		const request = ++savesRefreshRequest;
 		const [snapshot, appStorage] = await Promise.all([
-			getSaveLibrarySnapshot({ force: options.force }),
+			getSavesSnapshot({ force: options.force }),
 			storage.getPokemonStorage()
 		]);
-		if (request !== libraryRefreshRequest) {
+		if (request !== savesRefreshRequest) {
 			return;
 		}
 
 		pokemonStorageSummary = summarizePokemonStorage(appStorage);
-		applyLibrarySnapshot(snapshot, options.preferredSelection ?? selectedSaveFileId);
+		applySavesSnapshot(snapshot, options.preferredSelection ?? selectedSaveFileId);
 		statusMessage =
 			snapshot.saveFiles.length > 0 || pokemonStorageSummary
-				? 'Local Library ready.'
+				? 'Saves ready.'
 				: 'Import a Save File to begin.';
 	}
 
-	function applyLibrarySnapshot(
-		snapshot: SaveLibrarySnapshot,
+	function applySavesSnapshot(
+		snapshot: SavesSnapshot,
 		preferredSelection: SaveFileId | null = selectedSaveFileId
 	) {
 		saveFiles = snapshot.saveFiles;
@@ -282,7 +281,7 @@
 
 	async function importSaveFile(file: File) {
 		busy = true;
-		libraryRefreshRequest += 1;
+		savesRefreshRequest += 1;
 		errorMessage = null;
 		statusMessage = `Reading ${file.name}...`;
 
@@ -290,14 +289,14 @@
 			const bytes = new Uint8Array(await file.arrayBuffer());
 			await loadWorkspace(bytes, file.name);
 			const stored = await storage.importSave({ bytes, originalFileName: file.name });
-			invalidateSaveLibraryCache();
+			invalidateSavesCache();
 			invalidateActiveWorkspaceCache();
-			await refreshLibrary({ preferredSelection: stored.id, force: true });
+			await refreshSaves({ preferredSelection: stored.id, force: true });
 			statusMessage = `${file.name} imported and made active.`;
 		} catch (error) {
 			errorMessage = getErrorMessage(error);
 			statusMessage = 'Import failed. Current active Save File was not changed.';
-			await refreshLibrary();
+			await refreshSaves();
 			statusMessage = 'Import failed. Current active Save File was not changed.';
 		} finally {
 			busy = false;
@@ -338,9 +337,9 @@
 
 			await loadWorkspace(bytes, saveFile.originalFileName ?? undefined);
 			const active = await storage.setActiveSaveFileId(saveFile.id);
-			invalidateSaveLibraryCache();
+			invalidateSavesCache();
 			invalidateActiveWorkspaceCache();
-			await refreshLibrary({ preferredSelection: active.id, force: true });
+			await refreshSaves({ preferredSelection: active.id, force: true });
 			statusMessage = `${displayName(active)} is active.`;
 			await openBoxesRoute();
 		} catch (error) {
@@ -367,8 +366,8 @@
 				bytes,
 				reason: 'manual'
 			});
-			invalidateSaveLibraryCache();
-			await refreshLibrary({ preferredSelection: saveFile.id, force: true });
+			invalidateSavesCache();
+			await refreshSaves({ preferredSelection: saveFile.id, force: true });
 			statusMessage = 'Backup created.';
 		} catch (error) {
 			errorMessage = getErrorMessage(error);
@@ -412,9 +411,9 @@
 
 		try {
 			await storage.deleteSave(saveFile.id);
-			invalidateSaveLibraryCache();
+			invalidateSavesCache();
 			invalidateActiveWorkspaceCache(saveFile.id);
-			await refreshLibrary({ force: true });
+			await refreshSaves({ force: true });
 			pendingDelete = null;
 			statusMessage = `${displayName(saveFile)} deleted.`;
 		} catch (error) {
@@ -432,8 +431,8 @@
 
 		try {
 			await storage.deleteBackup(backup.id);
-			invalidateSaveLibraryCache();
-			await refreshLibrary({ preferredSelection: saveFile.id, force: true });
+			invalidateSavesCache();
+			await refreshSaves({ preferredSelection: saveFile.id, force: true });
 			pendingDelete = null;
 			statusMessage = 'Backup deleted.';
 		} catch (error) {
@@ -460,9 +459,9 @@
 				bytes,
 				originalFileName: createRestoredSaveFileName(saveFile.originalFileName)
 			});
-			invalidateSaveLibraryCache();
+			invalidateSavesCache();
 			invalidateActiveWorkspaceCache();
-			await refreshLibrary({ preferredSelection: stored.id, force: true });
+			await refreshSaves({ preferredSelection: stored.id, force: true });
 			statusMessage = 'Backup opened as a separate active Save File.';
 			await openBoxesRoute();
 		} catch (error) {
@@ -739,7 +738,7 @@
 			{/if}
 		</section>
 
-		<section class="library-grid" aria-label="Local Save Files">
+		<section class="saves-grid" aria-label="Local Save Files">
 			<article class={['save-card', 'storage-card', storageSelected && 'selected']}>
 				<button
 					data-saves-control
@@ -1095,7 +1094,7 @@
 		color: var(--err);
 	}
 
-	.library-grid {
+	.saves-grid {
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 16px;
@@ -1406,7 +1405,7 @@
 	}
 
 	@media (max-width: 1180px) {
-		.library-grid {
+		.saves-grid {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
 	}
@@ -1425,7 +1424,7 @@
 			overscroll-behavior: auto;
 		}
 
-		.library-grid {
+		.saves-grid {
 			grid-template-columns: 1fr;
 		}
 	}

@@ -4,7 +4,7 @@ import {
 	createPersistedWorkspaceState,
 	type WorkspaceState
 } from '$lib/pksx/backup-workflow';
-import type { LocalLibraryStorage, SaveFileId, StoredSaveFile } from '$lib/pksx/local-library';
+import type { SavesStorage, SaveFileId, StoredSaveFile } from '$lib/pksx/saves';
 import { createStore, type Store } from 'tinybase';
 import type { WorkspaceStorePersistence } from './persistence';
 import {
@@ -21,7 +21,7 @@ type WorkspaceArtifactContext = {
 };
 
 export type ActiveWorkspaceServiceOptions = {
-	storage: LocalLibraryStorage;
+	storage: SavesStorage;
 	engine: EngineApi | (() => EngineApi);
 	persistence?: WorkspaceStorePersistence;
 };

@@ -4,7 +4,7 @@ import {
 	type BackupId,
 	type BackupReason,
 	type StoredSaveFile
-} from '$lib/pksx/local-library';
+} from '$lib/pksx/saves';
 import type { SaveWorkspace } from '$lib/engine';
 
 export type RestoredBackupSource = {

@@ -56,12 +56,12 @@ Important boundary:
 
 ```txt
 Save file bytes = canonical import/export artifact
-Local Library storage = durable platform-specific storage for save artifacts and backups
+Saves storage = durable platform-specific storage for save artifacts and backups
 TinyBase = editable local workspace + parsed projections + UI/editor state
 Parser/serializer = trusted conversion layer between artifacts and editable state
 ```
 
-TinyBase should reference Local Library artifacts by stable IDs or blob references. It should not be the repository for raw save bytes or backup bytes.
+TinyBase should reference Saves artifacts by stable IDs or blob references. It should not be the repository for raw save bytes or backup bytes.
 
 ### Active Workspace foundation
 
@@ -69,8 +69,8 @@ The first integration slice uses a versioned TinyBase store behind `ActiveWorksp
 
 - `workspaces`, `boxes`, `slots`, and `validation` hold active parsed projections and stable Save File artifact references.
 - TinyBase values hold the schema/parser versions, active Save File ID, Dirty Workspace state, and editor/validation state.
-- Save File bytes and Pokemon Entity bytes stay outside TinyBase and remain owned by Local Library and the PKHeX Engine.
-- Workspace projection persistence is injected separately from `LocalLibraryStorage`, so platform storage changes do not affect UI or engine contracts.
+- Save File bytes and Pokemon Entity bytes stay outside TinyBase and remain owned by Saves and the PKHeX Engine.
+- Workspace projection persistence is injected separately from `SavesStorage`, so platform storage changes do not affect UI or engine contracts.
 - Svelte consumers subscribe to the service and use `WorkspaceState`; they do not mutate TinyBase tables directly.
 
 ### Keep RxDB as a later possibility
@@ -618,11 +618,11 @@ The app should support graceful fallback because PWA/browser environments vary.
 
 ### Platform storage split
 
-The Local Library storage boundary should hide platform-specific durability choices:
+The Saves storage boundary should hide platform-specific durability choices:
 
 ```txt
-Web/PWA Local Library adapter: IndexedDB initially, OPFS later where useful
-Capacitor Local Library adapter: native-capable storage, likely SQLite metadata plus filesystem or SQLite-backed bytes
+Web/PWA Saves adapter: IndexedDB initially, OPFS later where useful
+Capacitor Saves adapter: native-capable storage, likely SQLite metadata plus filesystem or SQLite-backed bytes
 TinyBase workspace persister: chosen separately from raw artifact storage
 ```
 

@@ -107,7 +107,7 @@ export type PutWorkspaceInput = {
 	automaticBackupCreated: boolean;
 };
 
-export type LocalLibraryStorage = {
+export type SavesStorage = {
 	importSave(input: ImportSaveInput): Promise<StoredSaveFile>;
 	getSave(saveFileId: SaveFileId): Promise<StoredSaveFile | null>;
 	listSaves(): Promise<StoredSaveFile[]>;

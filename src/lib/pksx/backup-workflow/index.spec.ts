@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SaveWorkspace } from '$lib/engine';
-import type { StoredSaveFile } from '$lib/pksx/local-library';
+import type { StoredSaveFile } from '$lib/pksx/saves';
 import {
 	createCleanWorkspaceState,
 	createRestoredWorkspaceState,

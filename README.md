@@ -16,7 +16,7 @@ The first milestone is a browser/PWA tracer bullet: prove that the Svelte app ca
 - **Frontend**: SvelteKit 2, Svelte 5, Tailwind CSS, static adapter
 - **Engine**: .NET `browser-wasm` project in `engine/Pksx.Pkhex.Engine`
 - **PKHeX source**: pinned `PKHeX.Core` NuGet package by default, optional local PKHeX source checkout for upstream testing
-- **Storage direction**: app-managed Local Library for imported save artifacts, backups, and future bank data
+- **Storage direction**: app-managed Saves for imported save artifacts, backups, and future bank data
 - **Primary UX direction**: box-first, controller-friendly save management
 
 PKSX should stay aligned with upstream PKHeX behavior. Prefer wrapping `PKHeX.Core` over reimplementing Pokemon save logic in TypeScript.
@@ -124,11 +124,11 @@ pnpm engine:sync -- --property UseLocalPKHeX=true --property PKHeXSourcePath=/pa
 
 This uses the `Directory.Build.targets` source override and swaps the NuGet package reference for a local `ProjectReference`.
 
-## Local Library storage
+## Saves storage
 
-PKSX selects its Local Library adapter at runtime. Web and installed PWA builds use IndexedDB. Native Capacitor builds detected by `Capacitor.isNativePlatform()` use the official Filesystem plugin with `Directory.Data`.
+PKSX selects its Saves adapter at runtime. Web and installed PWA builds use IndexedDB. Native Capacitor builds detected by `Capacitor.isNativePlatform()` use the official Filesystem plugin with `Directory.Data`.
 
-The native adapter stores imported saves, active Workspace bytes, and Backups as binary files under `pksx-local-library`. A versioned JSON catalog stores metadata, while Pokemon Storage uses a separate JSON file. Raw Save File and Backup bytes never enter TinyBase, and unchanged Export reads the original imported file.
+The native adapter stores imported saves, active Workspace bytes, and Backups as binary files under `pksx-saves`. A versioned JSON catalog stores metadata, while Pokemon Storage uses a separate JSON file. Raw Save File and Backup bytes never enter TinyBase, and unchanged Export reads the original imported file.
 
 After adding or updating a native platform project, run `pnpm exec cap sync`. The iOS project includes the Filesystem plugin's required privacy manifest entry for App Store submission.
 
@@ -144,7 +144,7 @@ After adding or updating a native platform project, run `pnpm exec cap sync`. Th
 engine/Pksx.Pkhex.Engine/   C# browser-wasm PKHeX Engine
 scripts/                    Node-executed TypeScript maintenance scripts
 src/lib/engine/             Svelte-side engine API, mock engine, and WASM loader
-src/lib/pksx/local-library/ Local Library storage primitives
+src/lib/pksx/saves/ Saves storage primitives
 src/routes/                 SvelteKit app routes
 static/                     Static assets served by SvelteKit
 docs/architecture/          Architecture notes and reference-project findings
@@ -169,6 +169,6 @@ The following are generated and should not be committed:
 - [Reference projects](./docs/architecture/reference-projects.md)
 - [PKHeX Engine spike](./docs/architecture/pkhex-engine-spike.md)
 - [ADR: C# WebAssembly PKHeX Engine](./docs/adr/0001-use-csharp-wasm-pkhex-engine.md)
-- [ADR: App-managed Local Library](./docs/adr/0002-use-app-managed-local-library.md)
+- [ADR: App-managed Saves](./docs/adr/0002-use-app-managed-saves.md)
 - [ADR: Box-first controller UI](./docs/adr/0003-build-box-first-controller-ui.md)
 - [ADR: Keep save artifacts out of TinyBase](./docs/adr/0004-keep-save-artifacts-out-of-tinybase.md)

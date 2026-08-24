@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { BoxSlotSummary, PartySlotSummary, SaveWorkspace } from '$lib/engine';
-import type { StoredSaveFile } from '$lib/pksx/local-library';
+import type { StoredSaveFile } from '$lib/pksx/saves';
 import { createCleanWorkspaceState } from '$lib/pksx/backup-workflow';
 import {
-	getCachedSaveLibrarySnapshot,
+	getCachedSavesSnapshot,
 	invalidateActiveWorkspaceCache,
-	invalidateSaveLibraryCache,
-	isCachedSaveLibrarySnapshotSeeded,
-	seedSaveLibrarySnapshotFromActiveWorkspace,
+	invalidateSavesCache,
+	isCachedSavesSnapshotSeeded,
+	seedSavesSnapshotFromActiveWorkspace,
 	setCachedActiveWorkspace
-} from './save-library-cache';
+} from './saves-cache';
 
 const saveFile: StoredSaveFile = {
 	id: 'save-1',
@@ -143,13 +143,13 @@ const workspace: SaveWorkspace = {
 	boxSlots: [boxSlot, { ...boxSlot, slot: 1, isEmpty: true, nickname: '' }]
 };
 
-describe('save library cache', () => {
+describe('Saves cache', () => {
 	afterEach(() => {
-		invalidateSaveLibraryCache();
+		invalidateSavesCache();
 		invalidateActiveWorkspaceCache();
 	});
 
-	it('seeds a save library snapshot from the already-loaded active workspace', () => {
+	it('seeds a Saves snapshot from the already-loaded active workspace', () => {
 		expect.assertions(8);
 
 		const activeWorkspace = createCleanWorkspaceState({
@@ -159,11 +159,11 @@ describe('save library cache', () => {
 		});
 
 		setCachedActiveWorkspace(activeWorkspace, 0);
-		const seeded = seedSaveLibrarySnapshotFromActiveWorkspace([saveFile]);
+		const seeded = seedSavesSnapshotFromActiveWorkspace([saveFile]);
 
 		expect(seeded).not.toBeNull();
-		expect(isCachedSaveLibrarySnapshotSeeded()).toBe(true);
-		expect(getCachedSaveLibrarySnapshot()).toBe(seeded);
+		expect(isCachedSavesSnapshotSeeded()).toBe(true);
+		expect(getCachedSavesSnapshot()).toBe(seeded);
 		expect(seeded?.activeSaveFileId).toBe(saveFile.id);
 		expect(seeded?.saveFiles).toEqual([saveFile]);
 		expect(seeded?.detailsBySaveFileId[saveFile.id]?.summary).toBe(summary);
@@ -174,7 +174,7 @@ describe('save library cache', () => {
 	it('does not seed when no active workspace is cached', () => {
 		expect.assertions(2);
 
-		expect(seedSaveLibrarySnapshotFromActiveWorkspace([saveFile])).toBeNull();
-		expect(getCachedSaveLibrarySnapshot()).toBeNull();
+		expect(seedSavesSnapshotFromActiveWorkspace([saveFile])).toBeNull();
+		expect(getCachedSavesSnapshot()).toBeNull();
 	});
 });

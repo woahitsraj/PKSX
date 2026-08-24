@@ -5,7 +5,7 @@ import type {
 	BackupMetadata,
 	CreateBackupInput,
 	ImportSaveInput,
-	LocalLibraryStorage,
+	SavesStorage,
 	StoredPokemonStorage,
 	PutWorkspaceInput,
 	SaveFileId,
@@ -42,19 +42,19 @@ type AppStateRecord = {
 	value: string | null;
 };
 
-export type IndexedDbLocalLibraryStorageOptions = {
+export type IndexedDbSavesStorageOptions = {
 	databaseName?: string;
 	idFactory?: () => string;
 	now?: () => string;
 };
 
-export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
+export class IndexedDbSavesStorage implements SavesStorage {
 	readonly #databaseName: string;
 	readonly #idFactory: () => string;
 	readonly #now: () => string;
 
-	constructor(options: IndexedDbLocalLibraryStorageOptions = {}) {
-		this.#databaseName = options.databaseName ?? 'pksx-local-library';
+	constructor(options: IndexedDbSavesStorageOptions = {}) {
+		this.#databaseName = options.databaseName ?? 'pksx-saves';
 		this.#idFactory = options.idFactory ?? (() => crypto.randomUUID());
 		this.#now = options.now ?? (() => new Date().toISOString());
 	}
@@ -69,7 +69,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 			updatedAt: timestamp
 		};
 
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(
 				[saveFilesStore, saveBytesStore, appStateStore],
@@ -93,7 +93,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 	}
 
 	async getSave(saveFileId: SaveFileId): Promise<StoredSaveFile | null> {
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(saveFilesStore, 'readonly');
 			const saveFile = await requestToPromise<StoredSaveFile | undefined>(
@@ -107,7 +107,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 	}
 
 	async listSaves(): Promise<StoredSaveFile[]> {
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(saveFilesStore, 'readonly');
 			const saveFiles = await requestToPromise<StoredSaveFile[]>(
@@ -124,7 +124,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 	}
 
 	async getSaveBytes(saveFileId: SaveFileId): Promise<Uint8Array | null> {
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(saveBytesStore, 'readonly');
 			const record = await requestToPromise<SaveBytesRecord | undefined>(
@@ -151,7 +151,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 			updatedAt: this.#now()
 		};
 
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(workspacesStore, 'readwrite');
 			transaction.objectStore(workspacesStore).put({
@@ -167,7 +167,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 	}
 
 	async getWorkspace(saveFileId: SaveFileId): Promise<StoredWorkspace | null> {
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(workspacesStore, 'readonly');
 			const record = await requestToPromise<WorkspaceRecord | undefined>(
@@ -181,7 +181,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 	}
 
 	async clearWorkspace(saveFileId: SaveFileId): Promise<void> {
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(workspacesStore, 'readwrite');
 			transaction.objectStore(workspacesStore).delete(saveFileId);
@@ -192,7 +192,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 	}
 
 	async getPokemonStorage(): Promise<StoredPokemonStorage | null> {
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(pokemonStorageStore, 'readonly');
 			const record = await requestToPromise<PokemonStorageRecord | undefined>(
@@ -210,7 +210,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 			...clonePokemonStorage(storage),
 			updatedAt: this.#now()
 		};
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(pokemonStorageStore, 'readwrite');
 			transaction.objectStore(pokemonStorageStore).put(record satisfies PokemonStorageRecord);
@@ -223,7 +223,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 	}
 
 	async getActiveSaveFileId(): Promise<SaveFileId | null> {
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(appStateStore, 'readonly');
 			const record = await requestToPromise<AppStateRecord | undefined>(
@@ -247,7 +247,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 			updatedAt: this.#now()
 		};
 
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction([saveFilesStore, appStateStore], 'readwrite');
 			transaction.objectStore(saveFilesStore).put(updated);
@@ -263,7 +263,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 	}
 
 	async deleteSave(saveFileId: SaveFileId): Promise<void> {
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(
 				[
@@ -325,7 +325,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 			createdAt: this.#now()
 		};
 
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction([backupsStore, backupBytesStore], 'readwrite');
 			transaction.objectStore(backupsStore).put(backup);
@@ -342,7 +342,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 	}
 
 	async listBackups(saveFileId: SaveFileId): Promise<BackupMetadata[]> {
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(backupsStore, 'readonly');
 			const backups = await requestToPromise<BackupMetadata[]>(
@@ -358,7 +358,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 	}
 
 	async getBackupBytes(backupId: BackupId): Promise<Uint8Array | null> {
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(backupBytesStore, 'readonly');
 			const record = await requestToPromise<BackupBytesRecord | undefined>(
@@ -372,7 +372,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 	}
 
 	async deleteBackup(backupId: BackupId): Promise<void> {
-		const database = await openLocalLibraryDatabase(this.#databaseName);
+		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction([backupsStore, backupBytesStore], 'readwrite');
 			transaction.objectStore(backupsStore).delete(backupId);
@@ -388,7 +388,7 @@ export class IndexedDbLocalLibraryStorage implements LocalLibraryStorage {
 	}
 }
 
-export function deleteIndexedDbLocalLibrary(databaseName: string): Promise<void> {
+export function deleteIndexedDbSaves(databaseName: string): Promise<void> {
 	const request = indexedDB.deleteDatabase(databaseName);
 
 	return new Promise((resolve, reject) => {
@@ -399,7 +399,7 @@ export function deleteIndexedDbLocalLibrary(databaseName: string): Promise<void>
 	});
 }
 
-function openLocalLibraryDatabase(databaseName: string): Promise<IDBDatabase> {
+function openSavesDatabase(databaseName: string): Promise<IDBDatabase> {
 	const request = indexedDB.open(databaseName, databaseVersion);
 
 	return new Promise((resolve, reject) => {

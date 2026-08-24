@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { bytesEqual } from './bytes';
-import { deleteIndexedDbLocalLibrary, IndexedDbLocalLibraryStorage } from './indexed-db-storage';
+import { deleteIndexedDbSaves, IndexedDbSavesStorage } from './indexed-db-storage';
 import { createEmptyPokemonStorage } from './pokemon-storage';
 
-describe('IndexedDbLocalLibraryStorage', () => {
+describe('IndexedDbSavesStorage', () => {
 	let databaseName: string;
 	let ids: string[];
-	let storage: IndexedDbLocalLibraryStorage;
+	let storage: IndexedDbSavesStorage;
 
 	beforeEach(() => {
-		databaseName = `pksx-local-library-test-${crypto.randomUUID()}`;
+		databaseName = `pksx-saves-test-${crypto.randomUUID()}`;
 		ids = ['save-1', 'backup-1'];
-		storage = new IndexedDbLocalLibraryStorage({
+		storage = new IndexedDbSavesStorage({
 			databaseName,
 			idFactory: () => {
 				const id = ids.shift();
@@ -25,7 +25,7 @@ describe('IndexedDbLocalLibraryStorage', () => {
 	});
 
 	afterEach(async () => {
-		await deleteIndexedDbLocalLibrary(databaseName);
+		await deleteIndexedDbSaves(databaseName);
 	});
 
 	it('imports save bytes and retrieves them unchanged', async () => {
@@ -118,12 +118,12 @@ describe('IndexedDbLocalLibraryStorage', () => {
 		await expect(storage.getWorkspace(saveFile.id)).resolves.toBeNull();
 	});
 
-	it('persists empty Pokemon Storage across Local Library instances', async () => {
+	it('persists empty Pokemon Storage across Saves instances', async () => {
 		const emptyStorage = createEmptyPokemonStorage(2, 4, () => '2026-05-16T11:00:00.000Z');
 		await storage.putPokemonStorage(emptyStorage);
 		emptyStorage.boxes[0]!.name = 'Changed after write';
 
-		const reloaded = await new IndexedDbLocalLibraryStorage({ databaseName }).getPokemonStorage();
+		const reloaded = await new IndexedDbSavesStorage({ databaseName }).getPokemonStorage();
 
 		expect(reloaded).toStrictEqual({
 			...createEmptyPokemonStorage(2, 4, () => '2026-05-16T11:00:00.000Z'),
@@ -144,7 +144,7 @@ describe('IndexedDbLocalLibraryStorage', () => {
 
 	it('lists the most recently imported save first', async () => {
 		ids = ['older-save', 'newer-save'];
-		storage = new IndexedDbLocalLibraryStorage({
+		storage = new IndexedDbSavesStorage({
 			databaseName,
 			idFactory: () => {
 				const id = ids.shift();
@@ -173,7 +173,7 @@ describe('IndexedDbLocalLibraryStorage', () => {
 
 	it('activates an existing save and updates its opened timestamp', async () => {
 		ids = ['older-save', 'newer-save'];
-		storage = new IndexedDbLocalLibraryStorage({
+		storage = new IndexedDbSavesStorage({
 			databaseName,
 			idFactory: () => {
 				const id = ids.shift();
@@ -253,7 +253,7 @@ describe('IndexedDbLocalLibraryStorage', () => {
 
 	it('lists newest backups first', async () => {
 		ids = ['save-1', 'older-backup', 'newer-backup'];
-		storage = new IndexedDbLocalLibraryStorage({
+		storage = new IndexedDbSavesStorage({
 			databaseName,
 			idFactory: () => {
 				const id = ids.shift();
@@ -309,7 +309,7 @@ describe('IndexedDbLocalLibraryStorage', () => {
 
 	it('deletes save metadata, bytes, backups, and moves active save when needed', async () => {
 		ids = ['older-save', 'newer-save', 'backup-1'];
-		storage = new IndexedDbLocalLibraryStorage({
+		storage = new IndexedDbSavesStorage({
 			databaseName,
 			idFactory: () => {
 				const id = ids.shift();

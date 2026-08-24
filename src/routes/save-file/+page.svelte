@@ -17,11 +17,11 @@
 	} from '$lib/pksx/backup-workflow';
 	import {
 		getCachedActiveWorkspaceBox,
-		getLocalLibraryStorage,
+		getSavesStorage,
 		getPkhexEngine,
-		loadActiveWorkspaceFromLibrary,
+		loadActiveWorkspaceFromSaves,
 		setCachedActiveWorkspace
-	} from '$lib/pksx/save-library-cache';
+	} from '$lib/pksx/saves-cache';
 	import {
 		applySaveFileEditorEdits,
 		cancelSaveFileEditor,
@@ -46,7 +46,7 @@
 		{ key: 'money' as const, label: 'Money', detail: 'Wallet balance', icon: '¤' },
 		{ key: 'bag' as const, label: 'Bag', detail: 'Inventory pockets', icon: '▤' }
 	];
-	const storage = getLocalLibraryStorage();
+	const storage = getSavesStorage();
 	let engine: EngineApi | null = null;
 
 	let activeSection = $state<SaveEditorSection>('trainer');
@@ -134,7 +134,7 @@
 		loading = true;
 		loadError = null;
 		try {
-			workspace = await loadActiveWorkspaceFromLibrary();
+			workspace = await loadActiveWorkspaceFromSaves();
 			if (!workspace) return;
 			const opened = createSaveFileEditorState(
 				{
