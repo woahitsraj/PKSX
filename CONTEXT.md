@@ -48,6 +48,14 @@ _Avoid_: save box, PC box
 The owner that supplies the numbered box grids shown in the box-first shell, a Save File or Pokemon Storage. Glossary-only: the user always sees the concrete Save File or Pokemon Storage name.
 _Avoid_: storage source, container, source in any user-facing text
 
+**Box Pane**:
+The box-first region that presents one Box Source's current Location and its header.
+_Avoid_: box panel, source pane
+
+**Location**:
+A Party, Box, or Storage Box that a Box Pane shows one at a time.
+_Avoid_: page, tab
+
 **Pokemon Origin**:
 A record of where a Pokemon Entity entered PKSX, such as the source Save File, source game, source trainer, entry time, and whether it entered through move, copy, import, or transfer.
 _Avoid_: ownership, current location
@@ -99,6 +107,10 @@ _Avoid_: Move editing, Move when referring to editing a Pokemon Entity's moves
 **Slot Action**:
 A user-invoked operation on a Slot, whether or not that Slot contains a Pokemon Entity.
 _Avoid_: Pokemon Action when the Slot may be empty
+
+**Carry**:
+A pending Slot Action whose Pokemon Entity is bound to Controller Focus until the user confirms a destination Slot or cancels.
+_Avoid_: cursor, drag, pick up, lifted
 
 **Batch Slot Action**:
 A user-invoked operation that applies to multiple source Slots as one workflow.
@@ -196,6 +208,10 @@ _Avoid_: hover, cursor
 A controller-navigable region whose targets share directional movement rules before movement crosses into another region.
 _Avoid_: panel, section
 
+**Pointer-only control**:
+A control that performs its action without taking Controller Focus.
+_Avoid_: mouse-only control, unfocusable control
+
 **Menu**:
 A short, fixed list of commands that takes Controller Focus when opened and gives it back when closed.
 _Avoid_: command surface, action surface, popup, context menu, sheet
@@ -290,7 +306,8 @@ _Avoid_: setting, option, config
 - A **Storage Box** is owned by PKSX, not by any **Save File**.
 - A **Box Source** supplies either **Boxes** from a **Save File** or **Storage Boxes** from **Pokemon Storage**.
 - A **Box Source** is presented to the user only when the collection behind it is available in PKSX.
-- The **Box Source** whose boxes hold **Controller Focus** is the active **Box Source**; there is no separate focused **Box Source**.
+- A **Box Pane** belongs to one **Box Source** and shows one **Location** at a time.
+- The **Box Source** whose **Box Pane** holds **Controller Focus** is the active **Box Source**; there is no separate focused **Box Source**.
 - The active **Save File**'s **Box Source** cannot be switched or closed while that **Save File** is active.
 - A future **Slot Action** may use source and destination **Slots** from different **Box Sources**.
 - A **Pokemon Entity** may have **Pokemon Origin** even when its original **Save File** is no longer in **Saves**.
@@ -347,6 +364,7 @@ _Avoid_: setting, option, config
 - **Export** names should keep a recognizable connection to the imported **Save File** while keeping the exported file distinct from the source file.
 - **Controller Focus** belongs to exactly one **Focus Zone** at a time.
 - Mouse and pointer input may move **Controller Focus**, but hover alone is not **Controller Focus**.
+- A **Pointer-only control** performs its action without moving **Controller Focus** from its current target.
 - Clicking a **Slot** moves **Controller Focus** to that **Slot** without opening its **Slot Menu**.
 - **Saves** has one **Focus Zone** containing its imported **Save Files** and Import.
 - The **Pokemon Storage** summary in **Saves** is display-only and is not a **Focus Zone**.
@@ -360,21 +378,22 @@ _Avoid_: setting, option, config
 - Held directional **Navigation Actions** repeat after an initial delay; confirm, back, and shoulder actions require a fresh press.
 - The visible slot highlight represents **Controller Focus**; PKSX does not track a separate selected slot in the box-first shell.
 - The **Active Slot Detail Rail** reflects the **Slot** under **Controller Focus** and does not define a second selected **Slot**.
-- A display-only **Active Slot Detail Rail** is not a **Focus Zone**.
-- A **Slot** may be under **Controller Focus** even when it is not a valid destination for a pending **Slot Action**.
+- The **Active Slot Detail Rail** never takes **Controller Focus** and is not a **Focus Zone**.
+- A **Slot** may be under **Controller Focus** even when it is not a valid destination during a **Carry**.
 - **Controller Focus** targets a **Slot** or a control, never a **Pokemon Entity**; emptying the focused **Slot** leaves **Controller Focus** on it.
 - A completed **Slot Action** with a destination moves **Controller Focus** to the destination **Slot**; one without a destination leaves it on the source **Slot**.
-- A pending **Slot Action** binds its **Pokemon Entity** to **Controller Focus** until it completes or is cancelled; cancelling returns **Controller Focus** to the source **Slot**.
-- When the **Focus Zone** under **Controller Focus** disappears, **Controller Focus** moves to the active **Box** at the same **Slot** coordinate, clamped to the grid.
+- A **Carry** moves **Controller Focus** only among **Slots**; cancelling returns **Controller Focus** to the source **Slot**.
+- When the **Focus Zone** under **Controller Focus** disappears, **Controller Focus** moves to the active **Box Source**'s current **Location** at the same **Slot** coordinate, clamped to its grid.
 - A **Menu** or **Takeover** returns **Controller Focus** to its launching **Slot** or control by identity, even when that **Slot** is now empty; if the launching **Pokemon Action** no longer exists, its **Slot Menu** closes too and **Controller Focus** returns to the **Slot**.
 - **Controller Focus** is never hidden when its target disappears, for any input kind; it always moves to a surviving target.
 - A **Height Band** change or rotation never moves **Controller Focus**, because it binds to **Slot** identity rather than screen position.
 - **Controller Focus** clamps at a **Focus Zone** edge unless that edge defines an explicit transition to another **Focus Zone**.
-- Each simultaneously visible **Box Source** has its own **Focus Zone** containing its source control, location controls, and visible **Slots**.
-- A **Party** and an active **Box** are mutually exclusive locations inside the same **Focus Zone**.
-- Switching between a **Party** and a **Box** preserves the focused **Slot** coordinate when possible and clamps it to the destination grid.
+- Each **Box Pane** is one **Focus Zone** containing its **Box Source** control and the visible **Slots** in its current **Location**.
+- Switching between **Locations** in a **Box Pane** preserves the focused **Slot** coordinate when possible and clamps it to the destination grid.
+- Settings and the **Save File** destination each have one **Focus Zone** containing vertical stops in a scrolling container; Left and Right move within a row, while Up and Down leave it.
+- Each destination remembers its **Controller Focus** target for the current session; this memory does not survive reload.
 - A **Menu** opens from the current **Controller Focus** and returns to it when dismissed.
-- At most one **Menu** is open at a time; a **Menu** cannot open while another **Menu**, a **Pokemon Editor**, or the **Backup Browser** is open, or while a **Slot Action** is in progress.
+- At most one **Menu** is open at a time; a **Menu** cannot open while another **Menu**, a **Pokemon Editor**, or the **Backup Browser** is open, or during a **Carry**.
 - A **Menu** shows the same entries in the same order every time; an entry that does not apply stays visible, cannot be chosen, and explains why.
 - The **Slot Menu** acts on the **Slot** under **Controller Focus**.
 - The **Box Menu** acts on the active **Box Source**: **Export**, create a **Backup**, switch it, open another, or close it.
@@ -382,18 +401,22 @@ _Avoid_: setting, option, config
 - The **Save File Menu** opens the focused **Save File** in the Save File destination or deletes it from **Saves**.
 - **Export** from the **Box Menu** writes the **Workspace** bytes.
 - The **Main Menu** lists every destination, including the **Backup Browser**, in a fixed order and never hides or dims one.
+- Choosing an entry in the **Main Menu** closes it; returning from that destination does not reopen it.
 - A **Pokemon Editor** opened from a **Slot Menu** returns **Controller Focus** to its launching **Pokemon Action** when dismissed.
 - Back dismisses an open **Menu** before it affects broader app navigation.
 - Back dismisses an open **Backup Browser** before it affects broader app navigation.
-- A **Backup Browser** returns **Controller Focus** to its launching control when dismissed.
+- A **Backup Browser** opened from the **Main Menu** returns **Controller Focus** to the target from which the Main Menu was summoned.
+- Platform back follows destination history; with no **Menu** or **Takeover** open, controller B returns to Boxes.
 - At most one **Menu** or **Takeover** is open at a time; a **Takeover** presents its own confirmations inside itself instead of opening a second surface.
-- A **Takeover** opened from another summoned surface replaces it; dismissing the replacement restores what it replaced, and **Controller Focus** returns along the same chain.
+- A **Takeover** opened from a **Slot Menu** or another **Takeover** replaces it; dismissing the replacement restores what it replaced, and **Controller Focus** returns along the same chain.
+- A **Takeover** does not remember **Controller Focus** after it closes and starts from its initial target each time it opens.
 - Tapping the **Backdrop** acts as exactly one Back press.
 - A **Height Band** change or rotation may change how an open **Menu** or **Takeover** presents, never whether it is open.
 - The **Active Slot Detail Rail** is part of the box-first shell, never a summoned surface.
 - A **Toast** never takes **Controller Focus** and never blocks input.
-- Shoulder navigation changes the active **Box** without changing the current **Focus Zone**.
-- Shoulder navigation preserves the active **Box** slot coordinate when **Controller Focus** is inside a **Box**.
+- Shoulder navigation changes the current **Location** without changing the current **Focus Zone**.
+- A **Party** is a stop in the shoulder-navigation cycle for a **Box Source** that owns one.
+- Shoulder navigation preserves the **Slot** coordinate when **Controller Focus** is inside a **Location**.
 - Changing the active **Box Source** preserves the active box number and focused **Slot** coordinate when the new **Box Source** has matching coordinates, and clamps to the nearest available box otherwise.
 - The box-first shell may use placeholder **Slot** contents, but placeholders must remain visibly distinct from parsed save data.
 - The box-first shell can prove navigation with local fixture **Slots** before loading **Save File** data through the **PKHeX Engine**.
