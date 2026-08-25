@@ -33,7 +33,9 @@
 		"test:unit": "vitest --exclude src/lib/engine/pkhex-engine.browser.spec.ts",
 		"test:engine-smoke": "vitest --project client --run src/lib/engine/pkhex-engine.browser.spec.ts",
 		"test": "pnpm test:unit -- --run && pnpm test:e2e",
-		"test:e2e": "playwright install && playwright test --pass-with-no-tests"
+		"test:e2e": "playwright install && playwright test --pass-with-no-tests",
+		"prototype:density": "vite dev --host 0.0.0.0 --port 5174",
+		"prototype:density:measure": "node src/routes/prototype/density/measure.mjs"
 	},
 	"devDependencies": {
 		"@capacitor/assets": "^3.0.5",
