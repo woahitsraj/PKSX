@@ -35,7 +35,8 @@
 		"test": "pnpm test:unit -- --run && pnpm test:e2e",
 		"test:e2e": "playwright install && playwright test --pass-with-no-tests",
 		"prototype:density": "vite dev --host 0.0.0.0 --port 5174",
-		"prototype:density:measure": "node src/routes/prototype/density/measure.mjs"
+		"prototype:density:measure": "node src/routes/prototype/density/measure.mjs",
+		"prototype:desktop": "vite dev --host 0.0.0.0 --port 5175"
 	},
 	"devDependencies": {
 		"@capacitor/assets": "^3.0.5",
