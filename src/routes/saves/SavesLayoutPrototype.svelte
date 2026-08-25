@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 
 	type VariantKey = 'A' | 'B' | 'C';
 	type PrototypeSave = {
@@ -88,9 +88,11 @@
 
 	function setVariant(index: number) {
 		const next = variants[(index + variants.length) % variants.length];
-		const url = new URL(page.url);
-		url.searchParams.set('variant', next.key);
-		void goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+		void goto(resolve(`/saves/prototype?variant=${next.key}`), {
+			replaceState: true,
+			noScroll: true,
+			keepFocus: true
+		});
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
