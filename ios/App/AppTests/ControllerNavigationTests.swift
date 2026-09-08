@@ -90,6 +90,30 @@ final class ControllerNavigationTests: XCTestCase {
         )
     }
 
+    func testSafeAreaFallbackPreservesWebKitInsets() async throws {
+        let webView = try appWebView()
+        try await waitForJavaScript("document.readyState === 'complete'", in: webView)
+        let preservesInsets = try await webView.evaluateJavaScript(
+            """
+            (() => {
+                const raw = document.createElement('div');
+                const fallback = document.createElement('div');
+                raw.style.padding = 'env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px)';
+                fallback.style.padding = 'var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)) var(--safe-area-inset-left, env(safe-area-inset-left, 0px))';
+                document.body.append(raw, fallback);
+                const rawStyle = getComputedStyle(raw);
+                const fallbackStyle = getComputedStyle(fallback);
+                const matches = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft']
+                    .every(property => rawStyle[property] === fallbackStyle[property]);
+                raw.remove();
+                fallback.remove();
+                return matches;
+            })()
+            """
+        ) as? Bool
+        XCTAssertEqual(preservesInsets, true)
+    }
+
     private func controllerSurface() async throws -> WKWebView {
         let webView = try appWebView()
         try await waitForJavaScript(

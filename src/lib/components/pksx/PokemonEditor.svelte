@@ -2264,8 +2264,10 @@
 			max-height: none;
 			border-radius: 0;
 			transform: none;
-			padding: calc(14px + env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right))
-				calc(14px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left));
+			padding: calc(14px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))
+				max(14px, var(--safe-area-inset-right, env(safe-area-inset-right, 0px)))
+				calc(14px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))
+				max(14px, var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
 		}
 
 		.editor-body {
