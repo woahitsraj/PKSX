@@ -6,13 +6,15 @@ import static org.junit.Assume.assumeTrue;
 import android.content.pm.PackageInfo;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.os.Build;
 import android.os.SystemClock;
+import android.util.Base64;
 import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
-import android.util.Base64;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.WebView;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -20,12 +22,12 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONArray;
 import org.junit.Rule;
 import org.junit.Test;
@@ -379,6 +381,164 @@ public class ControllerNavigationTest {
         assertAllFocusableControlsHighlighted(".saves-page");
     }
 
+    @Test
+    public void settingsReportsInstalledAppVersion() throws Exception {
+        String installedVersion = InstrumentationRegistry
+            .getInstrumentation()
+            .getTargetContext()
+            .getPackageManager()
+            .getPackageInfo(
+                InstrumentationRegistry.getInstrumentation().getTargetContext().getPackageName(),
+                0
+            )
+            .versionName;
+        runJavaScript("location.href = 'settings.html'");
+        awaitJavaScript(
+            "location.pathname.endsWith('/settings.html')"
+                + " && document.querySelector('[data-testid=\"app-version\"]')"
+        );
+        awaitJavaScript(
+            "document.querySelector('[data-testid=\"app-version\"]')?.textContent === '"
+                + installedVersion
+                + "' && document.querySelector('[data-testid=\"app-platform\"]')?.textContent === 'Android'"
+        );
+    }
+
+    @Test
+    public void editableFocusKeepsTallHeightBandWhileImeShrinksWebView() throws Exception {
+        assumeTrue("Requires Android 11 display controls", Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
+        awaitImeHidden();
+        awaitJavaScript("document.readyState === 'complete' && document.querySelector('.app-shell')");
+
+        String originalRotationMode = userRotation("");
+        if (!originalRotationMode.matches("free|lock [0-3]")) {
+            fail("Unexpected Android user rotation state: " + originalRotationMode);
+        }
+        int originalAngle = displayRotation();
+        String originalSizeState = shellCommand("wm size");
+        if (!originalSizeState.matches("(?s).*Physical size: [0-9]+x[0-9]+.*")) {
+            fail("Unexpected Android display size state: " + originalSizeState);
+        }
+        java.util.regex.Matcher override = java.util.regex.Pattern
+            .compile("(?m)^Override size: ([0-9]+x[0-9]+)\\s*$")
+            .matcher(originalSizeState);
+        String originalSizeOverride = override.find() ? override.group(1) : null;
+        JSONArray originalViewport = new JSONArray(runJavaScript("[innerWidth, innerHeight]"));
+        int originalWidth = originalViewport.getInt(0);
+        int originalHeight = originalViewport.getInt(1);
+        String fixedRotation = shellCommand("cmd window fixed-to-user-rotation");
+        String densityState = shellCommand("wm density");
+        Log.i(
+            "PKSXAcceptance",
+            String.format(
+                Locale.US,
+                "IME fixture captured mode=%s angle=%d sizeOverride=%s viewport=%dx%d fixed=%s density=%s",
+                originalRotationMode,
+                originalAngle,
+                originalSizeOverride == null ? "reset" : originalSizeOverride,
+                originalWidth,
+                originalHeight,
+                fixedRotation,
+                densityState.replace('\n', ' ')
+            )
+        );
+
+        try {
+            shellCommand("wm size 540x720");
+            userRotation("lock 0");
+            awaitDisplayRotation(0);
+            awaitImeHidden();
+            awaitJavaScript(
+                "innerHeight >= 560 && getComputedStyle(document.querySelector('.app-shell'))"
+                    + ".getPropertyValue('--pksx-height-band').trim() === 'tall'"
+            );
+            String beforeImeHeight = runJavaScript("innerHeight");
+
+            importEmeraldSave();
+            runJavaScript("document.querySelector('#mobile-tab-1').click()");
+            awaitJavaScript(
+                "location.pathname.endsWith('/save-file') && document.querySelector('#save-file-trainer-name')"
+            );
+            runJavaScript(
+                "(() => { const input = document.querySelector('#save-file-trainer-name');"
+                    + " input.focus(); input.click(); return document.activeElement === input; })()"
+            );
+            activityRule
+                .getScenario()
+                .onActivity(
+                    activity -> {
+                        WebView webView = activity.getBridge().getWebView();
+                        webView.requestFocus();
+                        ((InputMethodManager) activity.getSystemService(MainActivity.INPUT_METHOD_SERVICE))
+                            .showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT);
+                    }
+                );
+            awaitImeVisible();
+            awaitJavaScript(
+                "innerHeight < 560"
+                    + " && document.documentElement.dataset.pksxHeightBandLock === 'tall'"
+                    + " && getComputedStyle(document.querySelector('.app-shell'))"
+                    + ".getPropertyValue('--pksx-height-band').trim() === 'tall'"
+                    + " && document.activeElement?.id === 'save-file-trainer-name'"
+            );
+            String withImeHeight = runJavaScript("innerHeight");
+            Log.i(
+                "PKSXAcceptance",
+                "IME fixture measured before=" + beforeImeHeight + " withIme=" + withImeHeight
+            );
+
+            runJavaScript("document.querySelector('button[aria-label=\"Back to boxes\"]').focus()");
+            hideIme();
+            awaitJavaScript(
+                "document.documentElement.dataset.pksxHeightBandLock === undefined"
+                    + " && getComputedStyle(document.querySelector('.app-shell'))"
+                    + ".getPropertyValue('--pksx-height-band').trim() === 'tall'"
+            );
+        } finally {
+            try {
+                runJavaScript("document.activeElement?.blur()");
+                hideIme();
+            } finally {
+                try {
+                    shellCommand(
+                        "wm size " + (originalSizeOverride == null ? "reset" : originalSizeOverride)
+                    );
+                } finally {
+                    try {
+                        userRotation("lock " + originalAngle);
+                        awaitDisplayRotation(originalAngle);
+                        awaitImeHidden();
+                        awaitJavaScript(restoredViewportExpression(originalWidth, originalHeight));
+                    } finally {
+                        userRotation(originalRotationMode);
+                    }
+                    awaitDisplayRotation(originalAngle);
+                    awaitImeHidden();
+                    awaitJavaScript(restoredViewportExpression(originalWidth, originalHeight));
+                    if (!originalRotationMode.equals(userRotation(""))) {
+                        fail("Android rotation mode was not restored");
+                    }
+                    String restoredSizeState = shellCommand("wm size");
+                    boolean sizeRestored = originalSizeOverride == null
+                        ? !restoredSizeState.contains("Override size:")
+                        : restoredSizeState.contains("Override size: " + originalSizeOverride);
+                    if (!sizeRestored) {
+                        fail("Android display size was not restored: " + restoredSizeState);
+                    }
+                    Log.i(
+                        "PKSXAcceptance",
+                        "IME fixture restored mode="
+                            + userRotation("")
+                            + " angle="
+                            + displayRotation()
+                            + " size="
+                            + restoredSizeState.replace('\n', ' ')
+                    );
+                }
+            }
+        }
+    }
+
     private void awaitControllerSurface() throws Exception {
         awaitJavaScript(
             "document.readyState === 'complete'"
@@ -386,6 +546,103 @@ public class ControllerNavigationTest {
         );
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         SystemClock.sleep(500);
+    }
+
+    private void awaitImeVisible() throws Exception {
+        long deadline = SystemClock.uptimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+        while (SystemClock.uptimeMillis() < deadline) {
+            AtomicReference<Boolean> visible = new AtomicReference<>(false);
+            activityRule
+                .getScenario()
+                .onActivity(
+                    activity -> {
+                        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(
+                            activity.getBridge().getWebView()
+                        );
+                        visible.set(
+                            insets != null && insets.isVisible(WindowInsetsCompat.Type.ime())
+                        );
+                    }
+                );
+            if (visible.get()) return;
+            SystemClock.sleep(50);
+        }
+        fail("Timed out waiting for the Android IME to become visible");
+    }
+
+    private void awaitImeHidden() throws Exception {
+        long deadline = SystemClock.uptimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+        while (SystemClock.uptimeMillis() < deadline) {
+            AtomicReference<Boolean> hidden = new AtomicReference<>(false);
+            activityRule
+                .getScenario()
+                .onActivity(
+                    activity -> {
+                        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(
+                            activity.getBridge().getWebView()
+                        );
+                        hidden.set(insets != null && !insets.isVisible(WindowInsetsCompat.Type.ime()));
+                    }
+                );
+            if (hidden.get()) return;
+            SystemClock.sleep(50);
+        }
+        fail("Timed out waiting for the Android IME to become hidden");
+    }
+
+    private void hideIme() {
+        activityRule
+            .getScenario()
+            .onActivity(
+                activity ->
+                    ((InputMethodManager) activity.getSystemService(MainActivity.INPUT_METHOD_SERVICE))
+                        .hideSoftInputFromWindow(activity.getBridge().getWebView().getWindowToken(), 0)
+            );
+    }
+
+    private int displayRotation() {
+        AtomicReference<Integer> rotation = new AtomicReference<>();
+        activityRule
+            .getScenario()
+            .onActivity(
+                activity -> rotation.set(
+                    activity.getBridge().getWebView().getDisplay().getRotation()
+                )
+            );
+        return rotation.get();
+    }
+
+    private void awaitDisplayRotation(int expected) throws Exception {
+        long deadline = SystemClock.uptimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (displayRotation() == expected) return;
+            SystemClock.sleep(50);
+        }
+        fail("Timed out waiting for Android display rotation " + expected);
+    }
+
+    private String restoredViewportExpression(int width, int height) {
+        return "innerWidth === " + width + " && innerHeight === " + height;
+    }
+
+    private String userRotation(String arguments) throws Exception {
+        return shellCommand("cmd window user-rotation " + arguments);
+    }
+
+    private String shellCommand(String command) throws Exception {
+        try (
+            InputStream output = new android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                InstrumentationRegistry
+                    .getInstrumentation()
+                    .getUiAutomation()
+                    .executeShellCommand(command)
+            )
+        ) {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            byte[] buffer = new byte[256];
+            for (int count; (count = output.read(buffer)) != -1; ) bytes.write(buffer, 0, count);
+            return bytes.toString("UTF-8").trim();
+        }
     }
 
     private RectF screenBounds(int[] origin, double scaleX, double scaleY, double[] cssBounds) {
@@ -563,11 +820,16 @@ public class ControllerNavigationTest {
 
         String state =
             runJavaScript(
-                "JSON.stringify({activeId: document.activeElement?.id,"
+                "(() => { const mobile = document.querySelector('.mobile-tabbar');"
+                    + " const sidebar = document.querySelector('.box-sidebar');"
+                    + " return JSON.stringify({activeId: document.activeElement?.id,"
                     + " controllerEvents: window.__pksxTestControllerEvents,"
                     + " innerWidth, innerHeight,"
-                    + " mobileDisplay: getComputedStyle(document.querySelector('.mobile-tabbar')).display,"
-                    + " sidebarDisplay: getComputedStyle(document.querySelector('.box-sidebar')).display})"
+                    + " appVersion: document.querySelector('[data-testid=\"app-version\"]')?.textContent,"
+                    + " appPlatform: document.querySelector('[data-testid=\"app-platform\"]')?.textContent,"
+                    + " path: location.pathname,"
+                    + " mobileDisplay: mobile ? getComputedStyle(mobile).display : null,"
+                    + " sidebarDisplay: sidebar ? getComputedStyle(sidebar).display : null}); })()"
             );
         fail(
             "Timed out waiting for JavaScript: "
