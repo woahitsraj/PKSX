@@ -1050,14 +1050,7 @@
 				}
 				break;
 			case 'back':
-				if (
-					(pokemonAction.status === 'ready' || pokemonAction.status === 'applying') &&
-					pokemonAction.selection
-				) {
-					clearPokemonActionPreview();
-				} else {
-					closePokemonActions();
-				}
+				backPokemonActions();
 				break;
 			case 'previousBox':
 			case 'nextBox':
@@ -1494,9 +1487,17 @@
 		queueMicrotask(focusActiveControl);
 	}
 
-	function openRelatedWorkflow(kind: SummonedWorkflowKind) {
+	function openRelatedWorkflow(kind: SummonedWorkflowKind, launcherId?: string) {
 		const launcherFocus = navigation.focus;
-		summonedWorkflow.openRelated(kind, controlLauncher(getFocusId(launcherFocus, activePaneBox)));
+		summonedWorkflow.openRelated(
+			kind,
+			controlLauncher(launcherId ?? getFocusId(launcherFocus, activePaneBox))
+		);
+	}
+
+	function slotCommandLauncherId(command: SlotMenuCommandKey) {
+		const index = slotMenuCommands.findIndex((candidate) => candidate.key === command);
+		return index >= 0 ? `slot-action-${index}` : getFocusId(navigation.focus, activePaneBox);
 	}
 
 	function dismissActiveWorkflow() {
@@ -2943,16 +2944,14 @@
 		}
 
 		if (!context) {
-			statusMessage = 'Pokemon Actions are unavailable for this source.';
-			showToast('error', statusMessage);
+			showToast('error', 'Pokemon Actions are unavailable for this source.');
 			return;
 		}
 
 		const request = (pokemonActionRequest += 1);
 		pokemonActionContext = context;
 		pokemonAction = createPokemonActionLoadingState(location, focusedSlot.label);
-		openRelatedWorkflow('pokemon-actions');
-		statusMessage = 'Loading Pokemon Actions...';
+		openRelatedWorkflow('pokemon-actions', slotCommandLauncherId('pokemon-actions'));
 
 		const resultPromise = requestPokemonActionPreview(activeEngine, context.target);
 		await tick();
@@ -2969,13 +2968,11 @@
 				pokemonLabel: focusedSlot.label,
 				message: result.error.message
 			};
-			statusMessage = result.error.message;
 			showToast('error', result.error.message);
 			return;
 		}
 
 		pokemonAction = createPokemonActionReadyState(location, focusedSlot.label, result.value);
-		statusMessage = `Pokemon Actions ready for ${focusedSlot.label}.`;
 		await tick();
 		focusPokemonActionControl(0);
 	}
@@ -3012,19 +3009,16 @@
 
 		pokemonAction = { ...pokemonAction, status: 'applying' };
 		busy = true;
-		statusMessage = 'Applying Pokemon Action...';
 		const request = pokemonActionRequest;
 
 		try {
 			const result = await applyPokemonAction(activeEngine, context.target, operation, {
 				createAutomaticBackup: async (state, reason) => {
-					statusMessage = 'Creating Backup...';
 					await storage.createBackup({
 						saveFileId: state.file.id,
 						bytes: state.bytes,
 						reason
 					});
-					statusMessage = 'Applying Pokemon Action...';
 				},
 				persistWorkspace,
 				persistStoredPokemon: (storedResult) => persistStoredPokemonAction(context, storedResult)
@@ -3041,7 +3035,6 @@
 				if (pokemonAction.status === 'applying') {
 					pokemonAction = { ...pokemonAction, status: 'ready' };
 				}
-				statusMessage = result.error.message;
 				showToast('error', result.error.message);
 				return;
 			}
@@ -3052,10 +3045,9 @@
 			}
 
 			const actionLabel = operation.kind === 'legality-fix' ? 'Legality Fix' : 'Evolution';
-			statusMessage = `${actionLabel} applied.`;
-			showToast('success', statusMessage);
+			showToast('success', `${actionLabel} applied.`);
 			if (request === pokemonActionRequest) {
-				resetPokemonActions();
+				completePokemonActions();
 			}
 		} catch (error) {
 			const message = getErrorMessage(error);
@@ -3065,7 +3057,6 @@
 			if (pokemonAction.status === 'applying') {
 				pokemonAction = { ...pokemonAction, status: 'ready' };
 			}
-			statusMessage = message;
 			showToast('error', message);
 		} finally {
 			busy = false;
@@ -3133,12 +3124,43 @@
 		pokemonStorage = await storage.putPokemonStorage(nextStorage);
 	}
 
-	function closePokemonActions() {
+	function backPokemonActions() {
 		if (busy || pokemonAction.status === 'applying') {
 			return;
 		}
 
+		if (pokemonAction.status === 'ready' && pokemonAction.selection) {
+			clearPokemonActionPreview();
+			return;
+		}
+
 		resetPokemonActions();
+	}
+
+	function completePokemonActions() {
+		const launcherFocus = summonedSlotLauncher?.focus ?? null;
+		const commandIndex = slotMenuCommands.findIndex(
+			(command) => command.key === 'pokemon-actions' && command.reason === null
+		);
+		pokemonActionRequest += 1;
+		pokemonAction = { status: 'idle' };
+		pokemonActionContext = null;
+
+		if (commandIndex >= 0) {
+			dismissActiveWorkflow();
+			navigation = {
+				...navigation,
+				focus: { zone: 'actions', index: commandIndex }
+			};
+			queueMicrotask(focusActiveControl);
+			return;
+		}
+
+		summonedWorkflow.closeAll();
+		if (launcherFocus) {
+			navigation = { ...navigation, focus: launcherFocus };
+		}
+		queueMicrotask(focusActiveControl);
 	}
 
 	function resetPokemonActions() {
@@ -3154,7 +3176,6 @@
 		}
 
 		if (!createPokemonAvailability.available) {
-			statusMessage = createPokemonAvailability.reason;
 			showToast('error', createPokemonAvailability.reason);
 			return;
 		}
@@ -3166,7 +3187,7 @@
 			paneId: focusedSlotPane?.id ?? activePaneId
 		};
 		pokemonCreationFeedback = null;
-		openRelatedWorkflow('pokemon-creation');
+		openRelatedWorkflow('pokemon-creation', slotCommandLauncherId('create-pokemon'));
 		void tick().then(() =>
 			requestAnimationFrame(() => document.getElementById('pokemon-creation-close')?.focus())
 		);
@@ -3188,7 +3209,6 @@
 		const operation = createPokemonCreationOperation(view.destination, draft);
 		if (!operation.ok) {
 			pokemonCreationFeedback = operation.reason;
-			statusMessage = operation.reason;
 			return;
 		}
 
@@ -3214,7 +3234,6 @@
 
 		try {
 			if (shouldCreateAutomaticBackup(workingState)) {
-				statusMessage = 'Creating Backup...';
 				await storage.createBackup({
 					saveFileId: workingState.file.id,
 					bytes: workingState.bytes,
@@ -3224,7 +3243,6 @@
 				if (loadedSave?.file.id === workingState.file.id) loadedSave = workingState;
 			}
 
-			statusMessage = 'Creating Pokemon...';
 			const result = await activeEngine.createPokemon(
 				workingState.bytes,
 				workingState.file.originalFileName ?? undefined,
@@ -3276,7 +3294,6 @@
 					focus: destinationFocus,
 					locationFocus: destinationFocus
 				};
-				statusMessage = message;
 				workbenchPanes = setPaneFocus(workbenchPanes, view.paneId, destinationFocus);
 				showToast('success', message);
 				queueMicrotask(focusActiveControl);
@@ -3285,7 +3302,6 @@
 			const message = getErrorMessage(error);
 			if (request === pokemonCreationRequest) {
 				pokemonCreationFeedback = message;
-				statusMessage = 'Create Pokemon failed.';
 				showToast('error', message);
 			}
 		} finally {
@@ -3324,7 +3340,7 @@
 		pokemonEditorSession = createPokemonEditorSession();
 		pokemonEditorDraft = null;
 		pokemonEditorDraftDirty = false;
-		openRelatedWorkflow('pokemon-editor');
+		openRelatedWorkflow('pokemon-editor', slotCommandLauncherId('pokemon-action'));
 		pokemonSpeciesFormProjection = null;
 		pokemonSpeciesFormError = null;
 		void previewPokemonSpeciesFormEdit({
@@ -3452,8 +3468,7 @@
 		const source = slotRefForFocus();
 		const location = activeSlotPositionLabel;
 		legalityReport = createLegalityReportLoadingState(slot, location);
-		openRelatedWorkflow('legality-report');
-		statusMessage = 'Checking Pokemon legality...';
+		openRelatedWorkflow('legality-report', slotCommandLauncherId('legality-check'));
 
 		const result = await requestLegalityReport({
 			workspace: saveWorkspaceForPane(focusedSlotPane)?.state ?? null,
@@ -3469,12 +3484,7 @@
 
 		legalityReport = result.state;
 		if (result.state.status === 'ready') {
-			statusMessage = `Legality Check complete for ${result.state.pokemonLabel}.`;
 			return;
-		}
-
-		if (result.state.status === 'error' || result.state.status === 'unavailable') {
-			statusMessage = result.state.message;
 		}
 
 		if (result.state.status === 'error') {
@@ -4624,13 +4634,15 @@
 {/if}
 
 {#if activeSummonedWorkflow?.kind === 'pokemon-creation' && pokemonCreation}
-	<PokemonCreation
-		location={pokemonCreation.location}
-		feedback={pokemonCreationFeedback}
-		applying={busy}
-		onApply={applyPokemonCreation}
-		onClose={closePokemonCreation}
-	/>
+	<TakeoverFrame labelledby="pokemon-creation-title" {busy} onBack={closePokemonCreation}>
+		<PokemonCreation
+			location={pokemonCreation.location}
+			feedback={pokemonCreationFeedback}
+			applying={busy}
+			onApply={applyPokemonCreation}
+			onClose={closePokemonCreation}
+		/>
+	</TakeoverFrame>
 {/if}
 
 {#if activeSummonedWorkflow?.kind === 'pokemon-editor' && pokemonEditor}
@@ -4670,13 +4682,19 @@
 {/if}
 
 {#if activeSummonedWorkflow?.kind === 'pokemon-actions' && pokemonAction.status !== 'idle'}
-	<PokemonActionDialog
-		state={pokemonAction}
-		onSelect={selectPokemonActionPreview}
-		onClearSelection={clearPokemonActionPreview}
-		onApply={applySelectedPokemonAction}
-		onClose={closePokemonActions}
-	/>
+	<TakeoverFrame
+		labelledby="pokemon-action-title"
+		busy={pokemonAction.status === 'applying'}
+		onBack={backPokemonActions}
+	>
+		<PokemonActionDialog
+			state={pokemonAction}
+			onSelect={selectPokemonActionPreview}
+			onClearSelection={clearPokemonActionPreview}
+			onApply={applySelectedPokemonAction}
+			onClose={backPokemonActions}
+		/>
+	</TakeoverFrame>
 {/if}
 
 {#if activeSummonedWorkflow?.kind === 'clear-slot-confirmation' && clearSlotConfirmation}
@@ -4693,7 +4711,13 @@
 {/if}
 
 {#if activeSummonedWorkflow?.kind === 'legality-report' && legalityReport.status !== 'idle'}
-	<LegalityReportDialog state={legalityReport} onClose={closeLegalityReport} />
+	<TakeoverFrame
+		labelledby="legality-report-title"
+		busy={legalityReport.status === 'loading'}
+		onBack={closeLegalityReport}
+	>
+		<LegalityReportDialog state={legalityReport} onClose={closeLegalityReport} />
+	</TakeoverFrame>
 {/if}
 
 <ToastRegion {toasts} onDismiss={dismissToast} />

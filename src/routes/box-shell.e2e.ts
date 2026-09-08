@@ -525,6 +525,34 @@ async function edgeSurfaceBounds(page: Page) {
 	});
 }
 
+async function takeoverBounds(page: Page) {
+	return page.locator('.takeover-safe-canvas').evaluate((layer) => {
+		const panel = layer.querySelector('.takeover-frame');
+		const layerRect = layer.getBoundingClientRect();
+		const panelRect = panel?.getBoundingClientRect();
+		return {
+			layer: {
+				top: layerRect.top,
+				right: layerRect.right,
+				bottom: layerRect.bottom,
+				left: layerRect.left,
+				width: layerRect.width,
+				height: layerRect.height
+			},
+			panel: panelRect
+				? {
+						top: panelRect.top,
+						right: panelRect.right,
+						bottom: panelRect.bottom,
+						left: panelRect.left,
+						width: panelRect.width,
+						height: panelRect.height
+					}
+				: null
+		};
+	});
+}
+
 function expectSafeCanvas(
 	bounds: Awaited<ReturnType<typeof edgeSurfaceBounds>>,
 	viewport: { width: number; height: number },
@@ -1844,6 +1872,9 @@ test('Pokemon Actions cancel without mutation and explicitly apply an evolution'
 
 	const actions = page.getByRole('dialog', { name: 'Pokemon Actions' });
 	await expect(actions).toBeVisible({ timeout: 15000 });
+	await expect(page.getByRole('dialog')).toHaveCount(1);
+	await expect(page.locator('.boxes-route')).toHaveAttribute('inert', '');
+	await expect(actions.locator('.action-scroll')).toHaveCSS('overflow-y', 'auto');
 	await expect(actions.locator('#pokemon-action-close')).toBeFocused();
 	await expect(actions).toContainText('ARON');
 	const evolve = actions.getByRole('button', { name: /Lairon.*Level 32/i });
@@ -1853,10 +1884,21 @@ test('Pokemon Actions cancel without mutation and explicitly apply an evolution'
 	await expect(actions).toContainText('Aron');
 	await expect(actions).toContainText('Lairon');
 
-	await actions.getByRole('button', { name: 'Cancel' }).click();
+	await page.locator('.takeover-backdrop').click({ position: { x: 20, y: 20 } });
 	await expect(actions).toContainText('Preview Legality Fix');
+	await expect(page.getByRole('dialog')).toHaveCount(1);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	await expect(page.locator('.toolbar-status-strip')).toHaveCount(0);
+	await page.locator('.takeover-backdrop').click({ position: { x: 20, y: 20 } });
+	await expect(actions).toBeHidden();
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
+	await expect(page.locator('#slot-action-6')).toBeFocused();
+	await page.getByRole('button', { name: 'Pokemon Actions' }).click();
+	await expect(actions.locator('#pokemon-action-close')).toBeFocused({ timeout: 15000 });
+
+	await actions.getByRole('button', { name: /Lairon.*Level 32/i }).click();
+	await actions.getByRole('button', { name: 'Cancel' }).click();
+	await expect(actions).toContainText('Preview Legality Fix');
 
 	await actions.getByRole('button', { name: /Lairon.*Level 32/i }).click();
 	await actions.getByRole('button', { name: 'Apply Pokemon Action' }).click();
@@ -1903,6 +1945,72 @@ test('creates a Pokemon from an empty Slot after explicit apply and preserves ca
 
 	const browser = await openBackupBrowser(page);
 	await expect(browser).toContainText('Pokemon creation');
+});
+
+test('Pokemon Creation uses the shared Takeover bounds and preserves its draft through reflow', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	const destination = page.locator('#box-0-slot-2');
+	await destination.click();
+	const landscape = { width: 640, height: 360 };
+	const landscapeInsets = { top: 12, right: 12, bottom: 12, left: 12 };
+	await page.setViewportSize(landscape);
+	await setSafeArea(page, landscapeInsets);
+	const landscapeBaseline = await shellExtents(page);
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'Create Pokemon' }).click();
+
+	const dialog = page.getByRole('dialog', { name: 'New Pokemon' });
+	await expect(dialog).toBeVisible();
+	await expect(page.getByRole('dialog')).toHaveCount(1);
+	await expect(page.locator('.boxes-route')).toHaveAttribute('inert', '');
+	let bounds = await takeoverBounds(page);
+	expectSafeCanvas(bounds, landscape, landscapeInsets);
+	expect(bounds.panel).toEqual(bounds.layer);
+	expect(await shellExtents(page)).toEqual(landscapeBaseline);
+
+	const species = dialog.locator('#pokemon-creation-species');
+	const level = dialog.locator('#pokemon-creation-level');
+	await species.fill('25');
+	await level.fill('12');
+	await level.focus();
+
+	const portrait = { width: 360, height: 640 };
+	const portraitInsets = { top: 24, right: 0, bottom: 72, left: 0 };
+	await page.setViewportSize(portrait);
+	await setSafeArea(page, portraitInsets);
+	await expect(species).toHaveValue('25');
+	await expect(level).toHaveValue('12');
+	await expect(level).toBeFocused();
+	bounds = await takeoverBounds(page);
+	expectSafeCanvas(bounds, portrait, portraitInsets);
+	expect(bounds.panel).toEqual(bounds.layer);
+
+	const close = dialog.locator('#pokemon-creation-close');
+	await close.focus();
+	const large = { width: 920, height: 720 };
+	const largeInsets = { top: 10, right: 10, bottom: 10, left: 10 };
+	await page.setViewportSize(large);
+	await setSafeArea(page, largeInsets);
+	bounds = await takeoverBounds(page);
+	expectSafeCanvas(bounds, large, largeInsets);
+	expect(bounds.panel?.width).toBe(760);
+	expect(bounds.panel?.height).toBe(560);
+	await expect(close).toBeFocused();
+
+	const backupsBefore = await backupCount(page);
+	await page.locator('.takeover-backdrop').click({ position: { x: 20, y: 20 } });
+	await expect(dialog).toBeHidden();
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
+	await expect(page.locator('#slot-action-0')).toBeFocused();
+	await expect(destination).toContainText('Empty');
+	expect(await backupCount(page)).toBe(backupsBefore);
+
+	await page.getByRole('button', { name: 'Create Pokemon' }).click();
+	await expect(page.locator('#pokemon-creation-close')).toBeFocused();
+	await expect(page.locator('#pokemon-creation-species')).toHaveValue('');
 });
 
 test('Edit opens Pokemon Editor and returns focus to the command stack', async ({ page }) => {
@@ -2546,13 +2654,16 @@ test('Legality Check opens an engine report from an occupied Slot and dismisses 
 
 	const report = page.getByRole('dialog', { name: 'Legality Check' });
 	await expect(report).toBeVisible({ timeout: 15000 });
+	await expect(page.getByRole('dialog')).toHaveCount(1);
+	await expect(page.locator('.boxes-route')).toHaveAttribute('inert', '');
+	await expect(report.locator('.report-scroll')).toHaveCSS('overflow-y', 'auto');
 	await expect(report).toContainText('ARON');
 	await expect(report).toContainText(/PKHeX (judged|found)/);
 	await report.getByRole('button', { name: 'Close report' }).focus();
 	await expect(report.getByRole('button', { name: 'Close report' })).toBeFocused();
 	await expect(page.getByText('Dirty Workspace')).toHaveCount(0);
 
-	await page.keyboard.press('Escape');
+	await page.locator('.takeover-backdrop').click({ position: { x: 20, y: 20 } });
 	await expect(report).toBeHidden();
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
 	await expect(page.locator('#slot-action-5')).toBeFocused();

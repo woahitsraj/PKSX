@@ -22,29 +22,24 @@
 	}
 </script>
 
-<div class="creation-backdrop" role="presentation">
-	<div
-		class="pokemon-creation"
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="pokemon-creation-title"
-	>
-		<form onsubmit={submit}>
-			<header>
-				<div>
-					<p>Create Pokemon</p>
-					<h2 id="pokemon-creation-title">New Pokemon</h2>
-					<span>{location}</span>
-				</div>
-				<button
-					id="pokemon-creation-close"
-					type="button"
-					aria-label="Close Create Pokemon"
-					disabled={applying}
-					onclick={onClose}>×</button
-				>
-			</header>
+<div class="pokemon-creation">
+	<form onsubmit={submit}>
+		<header>
+			<div>
+				<p>Create Pokemon</p>
+				<h2 id="pokemon-creation-title">New Pokemon</h2>
+				<span>{location}</span>
+			</div>
+			<button
+				id="pokemon-creation-close"
+				type="button"
+				aria-label="Close Create Pokemon"
+				disabled={applying}
+				onclick={onClose}>×</button
+			>
+		</header>
 
+		<div class="creation-scroll">
 			<p class="creation-copy">Leave Species ID blank to use PKHeX defaults for this Save File.</p>
 
 			<div class="creation-fields">
@@ -78,49 +73,49 @@
 			{#if feedback}
 				<p class="creation-feedback" role="status">{feedback}</p>
 			{/if}
+		</div>
 
-			<footer>
-				<button id="pokemon-creation-cancel" type="button" disabled={applying} onclick={onClose}
-					>Cancel</button
-				>
-				<button id="pokemon-creation-apply" type="submit" disabled={applying}>
-					{applying ? 'Creating...' : 'Apply creation'}
-				</button>
-			</footer>
-		</form>
-	</div>
+		<footer>
+			<button id="pokemon-creation-cancel" type="button" disabled={applying} onclick={onClose}
+				>Cancel</button
+			>
+			<button id="pokemon-creation-apply" type="submit" disabled={applying}>
+				{applying ? 'Creating...' : 'Apply creation'}
+			</button>
+		</footer>
+	</form>
 </div>
 
 <style>
-	.creation-backdrop {
-		position: fixed;
-		z-index: 700;
-		inset: 0;
-		display: grid;
-		place-items: center;
-		padding: 18px;
-		background: color-mix(in srgb, black, transparent 50%);
-	}
-
 	.pokemon-creation {
-		width: min(440px, 100%);
-		padding: 16px;
-		border-radius: var(--pksx-radius-lg);
-		background: var(--paper-hi);
-		box-shadow: var(--shadow-deep);
+		height: 100%;
+		min-height: 0;
 		color: var(--ink);
 	}
 
 	.pokemon-creation form {
+		height: 100%;
+		min-height: 0;
 		display: grid;
-		gap: 14px;
+		grid-template-rows: auto minmax(0, 1fr) auto;
+		gap: var(--pksx-space-2);
+		padding: var(--pksx-space-3);
+	}
+
+	.creation-scroll {
+		min-height: 0;
+		display: grid;
+		align-content: start;
+		gap: var(--pksx-space-2);
+		overflow-y: auto;
+		overscroll-behavior: contain;
 	}
 
 	header,
 	footer,
 	.creation-fields {
 		display: flex;
-		gap: 10px;
+		gap: var(--pksx-space-2);
 	}
 
 	header {
@@ -131,7 +126,7 @@
 	header div,
 	label {
 		display: grid;
-		gap: 4px;
+		gap: var(--pksx-space-1);
 	}
 
 	p,
@@ -144,26 +139,26 @@
 	label span {
 		color: var(--rust);
 		font:
-			750 0.68rem var(--pksx-font-mono),
+			750 var(--pksx-type-caption) var(--pksx-font-mono),
 			monospace;
 		text-transform: uppercase;
 	}
 
 	h2 {
-		font-size: 1.1rem;
+		font-size: var(--pksx-type-title);
 	}
 
 	header span,
 	.creation-copy,
 	.creation-feedback {
 		color: var(--ink-soft);
-		font-size: 0.78rem;
+		font-size: var(--pksx-type-label);
 		font-weight: 650;
 	}
 
 	header button {
-		width: 34px;
-		height: 34px;
+		width: var(--pksx-control-height);
+		height: var(--pksx-control-height);
 		border-radius: 50%;
 	}
 
@@ -173,19 +168,19 @@
 
 	input {
 		min-width: 0;
-		height: 38px;
-		padding: 0 10px;
+		height: var(--pksx-control-height);
+		padding: 0 var(--pksx-space-2);
 		border: 1px solid var(--rule);
 		border-radius: var(--pksx-radius-sm);
 		background: var(--paper-deep);
 		color: var(--ink);
 		font:
-			700 0.82rem var(--pksx-font-mono),
+			700 var(--pksx-type-body) var(--pksx-font-mono),
 			monospace;
 	}
 
 	.creation-feedback {
-		padding: 8px 10px;
+		padding: var(--pksx-space-2);
 		border-radius: var(--pksx-radius-sm);
 		background: color-mix(in srgb, var(--rust), transparent 90%);
 	}
@@ -195,8 +190,8 @@
 	}
 
 	footer button {
-		min-height: 36px;
-		padding: 0 14px;
+		min-height: var(--pksx-control-height);
+		padding: 0 var(--pksx-space-3);
 		border-radius: var(--pksx-radius-sm);
 		font-weight: 800;
 	}
@@ -212,7 +207,7 @@
 		outline-offset: 2px;
 	}
 
-	@media (max-width: 520px) {
+	@container pksx-density (max-width: 520px) {
 		.creation-fields {
 			flex-direction: column;
 		}

@@ -18,48 +18,26 @@
 			document.getElementById('legality-report-close')?.focus();
 		});
 	});
-
-	function handleKeydown(event: KeyboardEvent) {
-		if (
-			event.key === 'Escape' ||
-			event.key === 'Backspace' ||
-			event.key === 'Enter' ||
-			event.key === ' '
-		) {
-			event.preventDefault();
-			event.stopPropagation();
-			onClose();
-		}
-	}
 </script>
 
-<div class="report-backdrop" role="presentation">
-	<div
-		class="legality-report"
-		class:legal={report?.legal}
-		class:illegal={report && !report.legal}
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="legality-report-title"
-		onkeydown={handleKeydown}
-		tabindex="-1"
-	>
-		<header>
-			<div>
-				<p class="kicker">{state.location}</p>
-				<h2 id="legality-report-title">Legality Check</h2>
-			</div>
-			<button
-				id="legality-report-close"
-				type="button"
-				class="icon-close"
-				aria-label="Close report"
-				onclick={onClose}
-			>
-				×
-			</button>
-		</header>
+<div class="legality-report" class:legal={report?.legal} class:illegal={report && !report.legal}>
+	<header>
+		<div>
+			<p class="kicker">{state.location}</p>
+			<h2 id="legality-report-title">Legality Check</h2>
+		</div>
+		<button
+			id="legality-report-close"
+			type="button"
+			class="icon-close"
+			aria-label="Close report"
+			onclick={onClose}
+		>
+			×
+		</button>
+	</header>
 
+	<div class="report-scroll">
 		<div class="summary">
 			<div class="judgement">
 				<span>{report?.judgement ?? (state.status === 'loading' ? 'Checking' : 'Unavailable')}</span
@@ -112,35 +90,31 @@
 				</section>
 			</div>
 		{/if}
-
-		<footer>
-			<button type="button" class="close-report" onclick={onClose}>Close</button>
-		</footer>
 	</div>
+
+	<footer>
+		<button type="button" class="close-report" onclick={onClose}>Close</button>
+	</footer>
 </div>
 
 <style>
-	.report-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 320;
+	.legality-report {
+		height: 100%;
+		min-height: 0;
 		display: grid;
-		place-items: center;
-		padding: 18px;
-		background: color-mix(in oklch, var(--ink) 34%, transparent);
+		grid-template-rows: auto minmax(0, 1fr) auto;
+		gap: var(--pksx-space-2);
+		padding: var(--pksx-space-3);
+		overflow: hidden;
 	}
 
-	.legality-report {
-		width: min(640px, 100%);
-		max-height: min(760px, calc(100vh - 36px));
+	.report-scroll {
+		min-height: 0;
 		display: grid;
-		gap: 12px;
-		overflow: auto;
-		padding: 14px;
-		border: 1px solid var(--rule);
-		border-radius: var(--pksx-radius-md);
-		background: var(--paper-hi);
-		box-shadow: var(--shadow-deep);
+		align-content: start;
+		gap: var(--pksx-space-2);
+		overflow-y: auto;
+		overscroll-behavior: contain;
 	}
 
 	header,
@@ -148,7 +122,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 12px;
+		gap: var(--pksx-space-2);
 	}
 
 	.kicker,
@@ -161,20 +135,20 @@
 	.kicker {
 		color: var(--ink-mute);
 		font:
-			650 0.68rem var(--pksx-font-mono),
+			650 var(--pksx-type-caption) var(--pksx-font-mono),
 			monospace;
 		text-transform: uppercase;
 	}
 
 	h2 {
 		color: var(--ink);
-		font: 750 1.25rem/1.1 var(--pksx-font-display);
+		font: 750 var(--pksx-type-title)/1.1 var(--pksx-font-display);
 	}
 
 	h3 {
 		color: var(--ink);
 		font:
-			720 0.78rem/1.2 var(--pksx-font-mono),
+			720 var(--pksx-type-label)/1.2 var(--pksx-font-mono),
 			monospace;
 		text-transform: uppercase;
 	}
@@ -190,15 +164,15 @@
 	}
 
 	.icon-close {
-		width: 32px;
-		height: 32px;
+		width: var(--pksx-control-height);
+		height: var(--pksx-control-height);
 		font-size: 1.35rem;
 		line-height: 1;
 	}
 
 	.close-report {
-		min-height: 34px;
-		padding: 6px 14px;
+		min-height: var(--pksx-control-height);
+		padding: var(--pksx-space-1) var(--pksx-space-3);
 		background: var(--rust);
 		color: white;
 		font-weight: 720;
@@ -206,8 +180,8 @@
 
 	.summary {
 		display: grid;
-		gap: 8px;
-		padding: 12px;
+		gap: var(--pksx-space-1);
+		padding: var(--pksx-space-2);
 		border: 1px solid var(--rule);
 		border-radius: var(--pksx-radius-sm);
 		background: var(--paper);
@@ -218,13 +192,13 @@
 		flex-wrap: wrap;
 		align-items: baseline;
 		justify-content: space-between;
-		gap: 8px;
+		gap: var(--pksx-space-1);
 	}
 
 	.judgement span {
 		color: var(--rust);
 		font:
-			800 0.8rem var(--pksx-font-mono),
+			800 var(--pksx-type-label) var(--pksx-font-mono),
 			monospace;
 		text-transform: uppercase;
 	}
@@ -241,25 +215,25 @@
 	.empty-copy,
 	li p {
 		color: var(--ink-mute);
-		font-size: 0.86rem;
+		font-size: var(--pksx-type-body);
 		line-height: 1.4;
 	}
 
 	.report-columns {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 10px;
+		gap: var(--pksx-space-2);
 	}
 
 	.report-columns section {
 		display: grid;
 		align-content: start;
-		gap: 8px;
+		gap: var(--pksx-space-1);
 	}
 
 	ul {
 		display: grid;
-		gap: 6px;
+		gap: var(--pksx-space-1);
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -267,8 +241,8 @@
 
 	li {
 		display: grid;
-		gap: 3px;
-		padding: 8px;
+		gap: var(--pksx-space-1);
+		padding: var(--pksx-space-2);
 		border: 1px solid var(--rule);
 		border-radius: var(--pksx-radius-sm);
 		background: var(--paper);
@@ -277,7 +251,7 @@
 	li span {
 		color: var(--ink);
 		font:
-			700 0.68rem var(--pksx-font-mono),
+			700 var(--pksx-type-caption) var(--pksx-font-mono),
 			monospace;
 		text-transform: uppercase;
 	}
@@ -290,7 +264,7 @@
 		outline-offset: 2px;
 	}
 
-	@media (max-width: 640px) {
+	@container pksx-density (max-width: 640px) {
 		.report-columns {
 			grid-template-columns: 1fr;
 		}
