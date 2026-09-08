@@ -27,3 +27,15 @@ Run `pnpm prototype:save-file`, then open `http://localhost:5173/save-file/proto
 - Money and quantity inputs are sized in `ch` from the engine max, never from viewport width.
 
 `node src/routes/save-file/prototype/shots.mjs` captures every variant at the spec viewport matrix plus the 1000px dead band with the dev server running.
+
+## Findings
+
+Captured from the real Emerald fixture: trainer `DIXIE` (max 7), money 49,501 of 999,999, pockets Items 25/30, Key Items 7/30, Balls 3/16, TMs & HMs 9/64, Berries 12/46, PC Items 0/50.
+
+- Overflow. A 7-character name and the 999,999 money value fit in `ch`-sized fields at every viewport, so the `clamp(1.35rem, 3vw, 2rem)` money field is unnecessary. The longest real Items-pocket catalogue names are `Pokémon Box Link (1)`, `Catching Pocket`, and `Power-Up Pocket`, which do not belong to Gen 3 and point at an engine catalogue filter bug. `TMs & HMs` is the widest pocket label. The chip row scrolls at the portrait floor and hides `PC Items`; the rail in B shows all six pockets whenever the container is wider than tall.
+- Unsupported reasons never render because #168 omits the field. `omit=` confirms each layout survives with Trainer, Money, or the whole Bag removed.
+- The 90% gold wash reads on real content only with its caption (`Enter saves · Esc restores`, `Saving...`). On a paper-toned row the 40% border carries most of the signal.
+- Flat list per pocket holds up when the list owns scrolling. At the 616 by 336 floor, A shows one item row because the whole sheet scrolls, B shows six with Money and Add pinned, and C shows nine under a sticky pocket header. Full pockets (30, 64, 50 items) are only a long page in A.
+- B's Trainer view is nearly empty at the landscape floor. C's top block (Trainer, Money, then the Bag) uses that room better.
+- The 980 to 1024px band no longer collides: without a route action bar the shell's 78px bottom padding clears the tabbar.
+- At 1920 by 1080, A centers a 720px sheet and C's 260px lead column leaves a wide ledger. B's 148px rail scales without change.
