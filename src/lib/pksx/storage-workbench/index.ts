@@ -1,4 +1,4 @@
-import { BOX_SLOT_COUNT, type SlotFocus } from '$lib/pksx/box-navigation';
+import { BOX_SLOT_COUNT, PARTY_SLOT_COUNT, type SlotFocus } from '$lib/pksx/box-navigation';
 import type {
 	SaveFileId,
 	StoredPokemonStorage,
@@ -155,6 +155,14 @@ export function closeBoxPane(panes: BoxPaneState[], paneId: string): BoxPaneStat
 	return panes.filter((pane) => pane.id !== paneId);
 }
 
+export function focusSurvivingPaneAfterClose(
+	closingPane: BoxPaneState,
+	survivingPane: BoxPaneState
+): SlotFocus {
+	const maxSlot = survivingPane.focus.zone === 'party' ? PARTY_SLOT_COUNT - 1 : BOX_SLOT_COUNT - 1;
+	return { zone: survivingPane.focus.zone, slot: Math.min(closingPane.focus.slot, maxSlot) };
+}
+
 export function switchPaneSource(
 	panes: BoxPaneState[],
 	paneId: string,
@@ -164,8 +172,9 @@ export function switchPaneSource(
 	return panes.map((pane) =>
 		pane.id === paneId
 			? createBoxPane(pane.id, source, {
+					activeBox: pane.activeBox,
 					boxCount,
-					focus: pane.focus.zone === 'box' ? pane.focus : { zone: 'box', slot: 0 }
+					focus: pane.focus.zone === 'box' ? pane.focus : { zone: 'box', slot: pane.focus.slot }
 				})
 			: pane
 	);
