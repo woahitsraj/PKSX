@@ -1716,6 +1716,98 @@ test('creates and restores a manual backup for the loaded Save File', async ({ p
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 });
 
+test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, and floor geometry', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 640, height: 360 });
+	await openEmptySaves(page);
+	await page.goto('/saves');
+	await setSafeArea(page, { top: 12, right: 12, bottom: 12, left: 12 });
+	await page.getByRole('button', { name: 'Browse active Backups' }).click();
+
+	let browser = page.getByRole('dialog', { name: 'Backup Browser' });
+	await expect(browser).toContainText('No active Save File');
+	await expect(browser.getByRole('button', { name: 'Close Backup Browser' })).toBeFocused();
+	await expect(browser).toHaveCSS('width', '616px');
+	await expect(browser).toHaveCSS('height', '336px');
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('button', { name: 'Browse active Backups' })).toBeFocused();
+
+	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
+	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+		timeout: 15000
+	});
+	await page.getByRole('button', { name: 'Browse active Backups' }).click();
+	browser = page.getByRole('dialog', { name: 'Backup Browser' });
+	await expect(browser).toContainText('No Backups yet');
+	await expect(browser.getByRole('button', { name: 'Create Backup' })).toBeFocused();
+	await browser.getByRole('button', { name: 'Create Backup' }).click();
+	const manualBackup = browser.locator('article').filter({ hasText: 'Manual' }).first();
+	await expect(manualBackup).toBeVisible();
+	await expect(manualBackup.getByRole('button', { name: 'Restore' })).toBeFocused();
+
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('button', { name: 'Browse active Backups' })).toBeFocused();
+	await page.getByRole('button', { name: 'Browse active Backups' }).click();
+	await expect(manualBackup.getByRole('button', { name: 'Restore' })).toBeFocused();
+
+	await manualBackup.getByRole('button', { name: 'Delete' }).click();
+	await expect(browser).toContainText('Delete this Backup?');
+	await expect(page.getByRole('dialog')).toHaveCount(1);
+	await page.keyboard.press('Escape');
+	await expect(manualBackup.getByRole('button', { name: 'Restore' })).toBeFocused();
+	await expect(manualBackup).toBeVisible();
+	await manualBackup.getByRole('button', { name: 'Delete' }).click();
+	await browser.getByRole('button', { name: 'Delete' }).last().click();
+	await expect(browser).toContainText('No Backups yet');
+	await browser.getByRole('button', { name: 'Create Backup' }).click();
+	await expect(browser.locator('article').filter({ hasText: 'Manual' })).toBeVisible();
+	await page.keyboard.press('Escape');
+
+	await page.goto('/');
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
+	await moveFirstEmeraldBoxSlotToThirdSlot(page);
+	await page.goto('/saves');
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });
+	await page.getByRole('button', { name: 'Browse active Backups' }).click();
+	browser = page.getByRole('dialog', { name: 'Backup Browser' });
+	const newestBackup = browser.locator('article').filter({ hasText: 'Pokemon movement' });
+	await expect(newestBackup.getByRole('button', { name: 'Restore' })).toBeFocused();
+	const restorableManual = browser.locator('article').filter({ hasText: 'Manual' });
+	await restorableManual.getByRole('button', { name: 'Restore' }).click();
+	await expect(browser).toContainText('This replaces the Dirty Workspace.');
+	await page.locator('.takeover-backdrop').click({ position: { x: 8, y: 8 } });
+	await expect(restorableManual.getByRole('button', { name: 'Restore' })).toBeFocused();
+	await restorableManual.getByRole('button', { name: 'Restore' }).click();
+	await browser.getByRole('button', { name: 'Restore' }).last().click();
+	await expect(browser).toBeHidden();
+	await expect(page.getByRole('button', { name: 'Browse active Backups' })).toBeFocused();
+	await page.goto('/');
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
+	await expect(page.locator('#box-0-slot-2')).toContainText('Empty');
+
+	await page.goto('/saves');
+	await page.getByRole('button', { name: 'Browse active Backups' }).click();
+	browser = page.getByRole('dialog', { name: 'Backup Browser' });
+
+	await page.setViewportSize({ width: 360, height: 640 });
+	await setSafeArea(page, { top: 0, right: 0, bottom: 96, left: 0 });
+	await expect(browser).toHaveCSS('width', '360px');
+	await expect(browser).toHaveCSS('height', '544px');
+	await page.keyboard.press('Escape');
+
+	await page.goto('/save-file');
+	const saveFileLauncher = page.getByRole('button', { name: 'Browse Backups' });
+	await expect(saveFileLauncher).toBeVisible({ timeout: 15000 });
+	await page.getByRole('button', { name: 'Use dark mode' }).click();
+	await saveFileLauncher.click();
+	await expect(page).toHaveURL(/\/save-file$/);
+	await expect(page.locator('.app-shell.dark').getByRole('dialog', { name: 'Backup Browser' })).toBeVisible();
+	await pressController(page, 'Escape');
+	await expect(saveFileLauncher).toBeFocused();
+});
+
 test('deletes backups and save files after confirmation', async ({ page }) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);

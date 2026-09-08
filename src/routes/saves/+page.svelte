@@ -11,8 +11,15 @@
 		type StoredSaveFile
 	} from '$lib/pksx/saves';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
+	import {
+		createManualBackup as createOwnedManualBackup,
+		deleteOwnedBackup,
+		preserveBackupAsSeparateSave
+	} from '$lib/pksx/backup-workflow';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 	import {
+		getCachedActiveWorkspace,
+		getCachedActiveWorkspaceBox,
 		getCachedSavesSnapshot,
 		getSavesStorage,
 		getPkhexEngine,
@@ -20,9 +27,11 @@
 		invalidateActiveWorkspaceCache,
 		invalidateSavesCache,
 		isCachedSavesSnapshotSeeded,
+		setCachedActiveWorkspace,
 		type SaveCardDetails,
 		type SavesSnapshot
 	} from '$lib/pksx/saves-cache';
+	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 
 	type BackupMap = Record<SaveFileId, BackupMetadata[]>;
 	type SaveDetailsMap = Record<SaveFileId, SaveCardDetails | null>;
@@ -36,6 +45,7 @@
 		| { kind: 'backup'; saveFile: StoredSaveFile; backup: BackupMetadata };
 
 	const storage = getSavesStorage();
+	const summonedWorkflow = getSummonedWorkflowHost();
 	const backupReasonLabels: Record<BackupMetadata['reason'], string> = {
 		manual: 'Manual',
 		'pokemon-movement': 'Pokemon movement',
@@ -116,6 +126,7 @@
 	});
 
 	function handleRouteKeydown(event: KeyboardEvent) {
+		if (summonedWorkflow.active) return;
 		const action = keyboardAction(event);
 		if (!action) {
 			return;
@@ -257,6 +268,13 @@
 		await goto(resolve('/'));
 	}
 
+	function openBackupBrowser() {
+		summonedWorkflow.open('backup-browser', {
+			type: 'control',
+			id: 'browse-active-backups'
+		});
+	}
+
 	function selectSaveFile(saveFileId: SaveFileId) {
 		storageSelected = false;
 		selectedSaveFileId = saveFileId;
@@ -356,16 +374,17 @@
 		statusMessage = `Creating Backup for ${displayName(saveFile)}...`;
 
 		try {
-			const bytes = await storage.getSaveBytes(saveFile.id);
+			const activeWorkspace = getCachedActiveWorkspace();
+			const persistedWorkspace = await storage.getWorkspace(saveFile.id);
+			const bytes =
+				activeWorkspace?.file.id === saveFile.id
+					? activeWorkspace.bytes
+					: (persistedWorkspace?.bytes ?? (await storage.getSaveBytes(saveFile.id)));
 			if (!bytes) {
-				throw new Error('The selected Save File is missing its stored bytes.');
+				throw new Error('The selected Save File is missing its Workspace bytes.');
 			}
 
-			await storage.createBackup({
-				saveFileId: saveFile.id,
-				bytes,
-				reason: 'manual'
-			});
+			await createOwnedManualBackup({ storage, owner: saveFile, workspaceBytes: bytes });
 			invalidateSavesCache();
 			await refreshSaves({ preferredSelection: saveFile.id, force: true });
 			statusMessage = 'Backup created.';
@@ -430,7 +449,7 @@
 		statusMessage = 'Deleting Backup...';
 
 		try {
-			await storage.deleteBackup(backup.id);
+			await deleteOwnedBackup({ storage, owner: saveFile, backup });
 			invalidateSavesCache();
 			await refreshSaves({ preferredSelection: saveFile.id, force: true });
 			pendingDelete = null;
@@ -449,19 +468,17 @@
 		statusMessage = 'Opening Backup as a Save File...';
 
 		try {
-			const bytes = await storage.getBackupBytes(backup.id);
-			if (!bytes) {
-				throw new Error('Backup bytes are missing.');
-			}
-
-			await loadWorkspace(bytes, saveFile.originalFileName ?? undefined);
-			const stored = await storage.importSave({
-				bytes,
-				originalFileName: createRestoredSaveFileName(saveFile.originalFileName)
+			const restored = await preserveBackupAsSeparateSave({
+				storage,
+				engine: getPkhexEngine(),
+				owner: saveFile,
+				backup,
+				fileName: createRestoredSaveFileName(saveFile.originalFileName),
+				box: getCachedActiveWorkspaceBox(),
+				publish: setCachedActiveWorkspace
 			});
 			invalidateSavesCache();
-			invalidateActiveWorkspaceCache();
-			await refreshSaves({ preferredSelection: stored.id, force: true });
+			await refreshSaves({ preferredSelection: restored.file.id, force: true });
 			statusMessage = 'Backup opened as a separate active Save File.';
 			await openBoxesRoute();
 		} catch (error) {
@@ -707,6 +724,7 @@
 	class="saves-page"
 	aria-labelledby="saves-title"
 	data-controller-status={appChrome.controllerStatus ?? 'No controller detected'}
+	inert={summonedWorkflow.active !== null}
 >
 	<section class="save-picker-panel" aria-labelledby="saves-title">
 		<header class="page-bar">
@@ -906,6 +924,17 @@
 					}}
 				>
 					Create backup
+				</button>
+				<button
+					id="browse-active-backups"
+					data-saves-control
+					type="button"
+					aria-disabled={busy}
+					onclick={() => {
+						if (!busy) openBackupBrowser();
+					}}
+				>
+					Browse active Backups
 				</button>
 			</header>
 

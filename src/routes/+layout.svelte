@@ -6,6 +6,7 @@
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import './layout.css';
 	import AppUpdatePrompt from '$lib/components/pksx/AppUpdatePrompt.svelte';
+	import BackupBrowser from '$lib/components/pksx/BackupBrowser.svelte';
 	import MobileTabbar from '$lib/components/pksx/MobileTabbar.svelte';
 	import TopBar from '$lib/components/pksx/TopBar.svelte';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
@@ -18,8 +19,13 @@
 		readGamepadKeys,
 		type ControllerKey
 	} from '$lib/pksx/controller-input';
+	import {
+		createSummonedWorkflowHost,
+		setSummonedWorkflowHost
+	} from '$lib/pksx/summoned-workflow/host.svelte';
 
 	let { children } = $props();
+	const summonedWorkflow = setSummonedWorkflowHost(createSummonedWorkflowHost());
 
 	const sectionPills = ['Boxes', 'Save File', 'Saves'];
 	const topBarControlIndices = [0, 1, 2, 3, 4, 6];
@@ -114,7 +120,7 @@
 	}
 
 	function handleChromeKeydown(event: KeyboardEvent) {
-		if (appChrome.controllerInputActive || isControllerKeyboardEvent(event)) {
+		if (summonedWorkflow.active || appChrome.controllerInputActive || isControllerKeyboardEvent(event)) {
 			return;
 		}
 
@@ -339,7 +345,7 @@
 	{@attach controllerFocusSystem}
 	{@attach heightBandLock}
 >
-	<div class="chrome-inert-owner" inert={appChrome.backgroundInert}>
+	<div class="chrome-inert-owner" inert={summonedWorkflow.active !== null}>
 		<TopBar
 			{sectionPills}
 			{activeSection}
@@ -363,7 +369,7 @@
 
 	{@render children()}
 
-	<div class="chrome-inert-owner" inert={appChrome.backgroundInert}>
+	<div class="chrome-inert-owner" inert={summonedWorkflow.active !== null}>
 		<MobileTabbar
 			tabs={mobileTabs}
 			activeKey={activeRoute}
@@ -372,6 +378,10 @@
 			onSelectTab={selectMobileTab}
 		/>
 	</div>
+
+	{#if summonedWorkflow.active?.kind === 'backup-browser'}
+		<BackupBrowser />
+	{/if}
 </main>
 <AppUpdatePrompt />
 
