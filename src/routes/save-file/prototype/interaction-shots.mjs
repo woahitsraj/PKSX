@@ -11,7 +11,7 @@ const shot = (name) =>
 	page.screenshot({ path: `${out}/state-${name}.png` }).then(() => console.log(name));
 
 await page.goto(
-	`${base}/save-file/prototype?variant=B&controls=0&chrome=0&inset=0,12,24,12&stress=1&view=trainer`
+	`${base}/save-file/prototype?variant=B&controls=0&inset=0,12,24,12&stress=1&view=trainer`
 );
 await page.waitForSelector('[data-proto-ready]');
 await page.fill('#sf-trainer-name', 'MAY');
@@ -25,9 +25,7 @@ await page.keyboard.press('Enter');
 await shot('name-invalid');
 await page.keyboard.press('Escape');
 
-await page.goto(
-	`${base}/save-file/prototype?variant=A&controls=0&chrome=0&inset=0,12,24,12&stress=1`
-);
+await page.goto(`${base}/save-file/prototype?variant=A&controls=0&inset=0,12,24,12&stress=1`);
 await page.waitForSelector('[data-proto-ready]');
 await page.fill('#sf-money', '1000000');
 await page.keyboard.press('Enter');
@@ -40,7 +38,7 @@ await page.waitForTimeout(120);
 await shot('remove-saving');
 await page.waitForTimeout(700);
 
-await page.goto(`${base}/save-file/prototype?variant=A&chrome=0&inset=0,12,24,12`);
+await page.goto(`${base}/save-file/prototype?variant=A&inset=0,12,24,12`);
 await page.waitForSelector('[data-proto-ready]');
 await page.click('button:has-text("Fail next")');
 await page.click('[aria-label="Increase money"]');

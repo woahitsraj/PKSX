@@ -4,11 +4,13 @@
 		variants: { key: string; name: string }[];
 		current: string;
 		stress: boolean;
+		chrome: boolean;
 		omit: string;
 		failNext: boolean;
 		lastEvent: string;
 		onChange: (key: string) => void;
 		onToggleStress: () => void;
+		onToggleChrome: () => void;
 		onCycleOmit: () => void;
 		onToggleFail: () => void;
 	}
@@ -17,11 +19,13 @@
 		variants,
 		current,
 		stress,
+		chrome,
 		omit,
 		failNext,
 		lastEvent,
 		onChange,
 		onToggleStress,
+		onToggleChrome,
 		onCycleOmit,
 		onToggleFail
 	}: Props = $props();
@@ -45,6 +49,7 @@
 	</div>
 	<button type="button" aria-label="Next variant" onclick={() => cycle(1)}>→</button>
 	<button type="button" class:on={stress} onclick={onToggleStress}>Stress</button>
+	<button type="button" class:on={chrome} onclick={onToggleChrome}>Shell</button>
 	<button type="button" class:on={omit !== ''} onclick={onCycleOmit}
 		>Omit{omit ? `: ${omit}` : ''}</button
 	>
@@ -58,9 +63,9 @@
 		left: 50%;
 		bottom: max(6px, env(safe-area-inset-bottom));
 		transform: translateX(-50%);
-		width: min(560px, calc(100vw - 16px));
+		width: min(640px, calc(100vw - 16px));
 		display: grid;
-		grid-template-columns: 30px minmax(0, 1fr) 30px auto auto auto;
+		grid-template-columns: 30px minmax(0, 1fr) 30px auto auto auto auto;
 		align-items: center;
 		gap: 4px;
 		padding: 4px;

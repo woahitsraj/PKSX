@@ -10,6 +10,7 @@ Run `pnpm prototype:save-file`, then open `http://localhost:5173/save-file/proto
 - `stress=1` fills every pocket to capacity with the longest real catalogue names at max quantity, sets Money to the engine max, and sets the trainer name to `W` repeated to `trainerNameMaxLength`. The name is the only synthetic string.
 - `omit=money,inventory,trainer` marks capabilities unsupported with the engine's literal reasons. Per #168 the field is omitted and the reason never renders.
 - `view=trainer|bag` picks the initial local view in variant B.
+- `chrome=1` shows the current TopBar and tabbar. The default hides them and applies `inset=t,r,b,l` as safe-area insets, so the route receives the Safe Canvas the zero-chrome shell will give it.
 - `controls=0` hides the prototype bar for screenshots.
 - The bar's `Fail next` makes the next commit fail so the restore-and-Toast path shows.
 

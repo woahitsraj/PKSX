@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Three variants of the redesigned Save File editor, switchable via ?variant=, on /save-file/prototype (#169).
 	import { dev } from '$app/environment';
-	import { replaceState } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
@@ -41,9 +41,9 @@
 	const omit = $derived(params.get('omit') ?? '');
 	const showControls = $derived(params.get('controls') !== '0');
 	const initialView = $derived(params.get('view') ?? 'bag');
-	// chrome=0 hides the current TopBar and tabbar and applies ?inset=t,r,b,l as safe-area insets, so the route
+	// chrome=1 shows the current TopBar and tabbar; the default hides them and applies ?inset=t,r,b,l as safe-area insets, so the route
 	// receives the Safe Canvas the zero-chrome shell will give it.
-	const chrome = $derived(params.get('chrome') !== '0');
+	const chrome = $derived(params.get('chrome') === '1');
 	const inset = $derived(
 		(params.get('inset') ?? '0,0,0,0').split(',').map((v) => `${Number(v) || 0}px`)
 	);
@@ -92,7 +92,11 @@
 			if (value === null || value === '') url.searchParams.delete(key);
 			else url.searchParams.set(key, value);
 		}
-		replaceState(resolve(`/save-file/prototype?${url.searchParams.toString()}`), page.state);
+		void goto(resolve(`/save-file/prototype?${url.searchParams.toString()}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}
 
 	function onKeydown(event: KeyboardEvent) {
@@ -150,10 +154,12 @@
 			current={variant}
 			{stress}
 			{omit}
+			{chrome}
 			failNext={editor.failNext}
 			lastEvent={editor.lastEvent}
 			onChange={(key) => setParams({ variant: key })}
 			onToggleStress={() => setParams({ stress: stress ? null : '1' })}
+			onToggleChrome={() => setParams({ chrome: chrome ? null : '1' })}
 			onCycleOmit={() =>
 				setParams({ omit: omitCycle[(omitCycle.indexOf(omit) + 1) % omitCycle.length] })}
 			onToggleFail={() => editor && (editor.failNext = !editor.failNext)}

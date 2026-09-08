@@ -47,12 +47,12 @@ for (const [name, width, height, inset] of viewports) {
 	await page.setViewportSize({ width, height });
 	for (const variant of variants) {
 		for (const [mode, query] of modes) {
-			await shoot(name, variant, mode, `&chrome=0&inset=${inset}${query}`);
+			await shoot(name, variant, mode, `&inset=${inset}${query}`);
 		}
 	}
 }
 for (const [name, width, height] of shellViewports) {
 	await page.setViewportSize({ width, height });
-	for (const variant of variants) await shoot(name, variant, 'plain', '');
+	for (const variant of variants) await shoot(name, variant, 'plain', '&chrome=1');
 }
 await browser.close();

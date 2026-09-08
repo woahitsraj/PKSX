@@ -6,7 +6,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 	assetsInclude: ['**/test-fixtures/save-files/**'],
-	server: { fs: { allow: ['test-fixtures'] } },
+	server: { fs: { allow: ['test-fixtures'] }, allowedHosts: ['.ts.net'] },
 	test: {
 		expect: { requireAssertions: true },
 		projects: [
