@@ -197,7 +197,7 @@
 					);
 					if (!slot || destination?.dataset.activeSaveFileId !== preserved.file.id) return false;
 					slot.focus();
-					return true;
+					return document.activeElement === slot;
 				};
 				if (focusDestination()) return resolveFocus();
 				const observer = new MutationObserver(() => {

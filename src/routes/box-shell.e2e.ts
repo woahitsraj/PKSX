@@ -1823,9 +1823,22 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await page.locator('#top-control-0').dispatchEvent('click');
 	await expect(page).toHaveURL(/\/$/);
 	await expect(browser).toBeVisible();
-	const previousOwnerId = await page
-		.locator('.boxes-route')
-		.getAttribute('data-active-save-file-id');
+	const boxesRoute = page.locator('.boxes-route');
+	await expect(boxesRoute).toHaveAttribute('data-initial-state', 'ready');
+	await expect(boxesRoute).toHaveAttribute('data-active-save-file-id', /.+/);
+	const previousOwnerId = await boxesRoute.getAttribute('data-active-save-file-id');
+	expect(previousOwnerId).toBeTruthy();
+	await page.locator('#top-control-2').dispatchEvent('click');
+	await expect(page).toHaveURL(/\/saves$/);
+	await expect(browser).toBeVisible();
+	await page
+		.locator('.storage-card')
+		.getByRole('button', { name: 'Open →' })
+		.dispatchEvent('click');
+	await expect(page).toHaveURL(/\/?source=pokemon-storage$/);
+	await expect(browser).toBeVisible();
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready');
+	await expect(page.getByRole('grid', { name: 'Pokemon Storage Box 01' })).toBeVisible();
 
 	await browser
 		.locator('article')
@@ -1834,10 +1847,11 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 		.getByRole('button', { name: 'Keep as Save File' })
 		.click();
 	await expect(page).toHaveURL(/\/$/);
-	await expect(page.locator('.boxes-route')).not.toHaveAttribute(
-		'data-active-save-file-id',
-		previousOwnerId ?? ''
-	);
+	await expect(boxesRoute).toHaveAttribute('data-active-save-file-id', /.+/);
+	await expect(boxesRoute).not.toHaveAttribute('data-active-save-file-id', previousOwnerId!);
+	await expect(page.locator('.save-chip')).toContainText('011020251345.restored.sav', {
+		timeout: 15_000
+	});
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 
 	await page.setViewportSize({ width: 1280, height: 800 });

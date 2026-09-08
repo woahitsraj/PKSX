@@ -3267,8 +3267,11 @@
 
 	onMount(() => {
 		const unsubscribe = workspaceService.subscribe((state) => {
+			const installedOwner = workbenchPanes.find((pane) => pane.id === activeSavePaneId)?.source;
 			const ownerChanged =
-				initialStateReady && state && loadedSave && state.file.id !== loadedSave.file.id;
+				initialStateReady &&
+				state &&
+				(installedOwner?.type !== 'save-file' || installedOwner.id !== state.file.id);
 			loadedSave = state;
 			if (!state) return;
 			if (ownerChanged) {
