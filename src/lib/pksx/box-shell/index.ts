@@ -63,6 +63,7 @@ export function isNativeEditorActivation(
 			action === 'confirm' &&
 			event.target.closest('.pokemon-editor button, .pokemon-creation button') !== null
 		);
+	if (event.key.length === 1) return true;
 	if (input instanceof HTMLInputElement && input.dataset.controllerEditing === 'false')
 		return false;
 	if (event.key === 'Escape') return false;

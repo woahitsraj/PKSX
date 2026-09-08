@@ -144,6 +144,7 @@
 		pokemonEditSuccessMessage,
 		stagePokemonEditorDraftEdits
 	} from '$lib/pksx/box-shell';
+	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
 	import {
 		dispatchSlotMenuAction,
 		getLaunchingSlot,
@@ -1240,7 +1241,11 @@
 			return;
 		}
 
-		if ((pokemonEditor || pokemonCreation) && isNativeEditorActivation(event, action)) {
+		if (
+			(pokemonEditor || pokemonCreation) &&
+			!isControllerKeyboardEvent(event) &&
+			isNativeEditorActivation(event, action)
+		) {
 			return;
 		}
 
@@ -1408,9 +1413,7 @@
 	}
 
 	function launcherForFocus(focus: ControllerFocus): SummonedWorkflowLauncher {
-		return isSlotFocus(focus)
-			? slotLauncher(focus)
-			: controlLauncher(focusIdForNavigation(focus));
+		return isSlotFocus(focus) ? slotLauncher(focus) : controlLauncher(focusIdForNavigation(focus));
 	}
 
 	function openSlotMenu(focus: SlotFocus) {
@@ -2333,18 +2336,6 @@
 		return pane.id !== activeSavePaneId && workbenchPanes.length > 1 ? 2 : 1;
 	}
 
-	function sourceHasParty(): boolean {
-		return loadedSave !== null;
-	}
-
-	function focusForSource(): typeof navigation.focus {
-		if (sourceHasParty() || navigation.focus.zone !== 'party') {
-			return navigation.focus;
-		}
-
-		return focusBoxSlot(Math.min(navigation.focus.slot, BOX_COLUMNS - 1));
-	}
-
 	function installActiveSavePane(save: WorkspaceState, activeBox = 0) {
 		const clampedBox = Math.min(activeBox, Math.max(0, save.workspace.summary.boxCount - 1));
 		const fixedPane = createBoxPane(activeSavePaneId, saveFileSource(save), {
@@ -2435,6 +2426,7 @@
 			void refreshPaneWorkspace(id, 0);
 		}
 		statusMessage = `${source.label} opened in another pane.`;
+		queueMicrotask(focusActiveControl);
 	}
 
 	function switchPaneToSource(
@@ -2471,6 +2463,7 @@
 			savePaneWorkspaces = remaining;
 		}
 		statusMessage = `Pane switched to ${source.label}.`;
+		queueMicrotask(focusActiveControl);
 	}
 
 	function boxSourceForSelection(type: BoxSourceType, saveFileId: string | null): BoxSourceRef {
@@ -4013,7 +4006,9 @@
 						aria-rowcount="5"
 						aria-colcount={BOX_COLUMNS}
 						onfocus={() => activatePane(pane)}
-						onfocusin={() => activatePane(pane)}
+						onfocusin={() => {
+							if (pane.id !== activePaneId) activatePane(pane);
+						}}
 					>
 						{#if paneControlCount > 0 || workbenchPanes.length > 1}
 							<div class="pane-source-row">
@@ -4023,8 +4018,17 @@
 									type="button"
 									class="source-chip"
 									aria-label={`Open Box Menu for ${pane.source.label}`}
+									aria-disabled={pendingSlotOperation ? 'true' : undefined}
+									tabindex={pendingSlotOperation ? -1 : undefined}
+									onpointerdown={(event) => {
+										if (pendingSlotOperation) event.preventDefault();
+									}}
 									onfocus={() => {
 										activatePane(pane);
+										if (pendingSlotOperation) {
+											queueMicrotask(focusActiveControl);
+											return;
+										}
 										navigation = {
 											...navigation,
 											focus: focusPaneControl(0, paneControlCount)
