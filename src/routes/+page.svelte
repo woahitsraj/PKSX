@@ -4007,7 +4007,7 @@
 						aria-colcount={BOX_COLUMNS}
 						onfocus={() => activatePane(pane)}
 						onfocusin={() => {
-							if (pane.id !== activePaneId) activatePane(pane);
+							if (!pendingSlotOperation && pane.id !== activePaneId) activatePane(pane);
 						}}
 					>
 						{#if paneControlCount > 0 || workbenchPanes.length > 1}
@@ -4024,17 +4024,18 @@
 										if (pendingSlotOperation) event.preventDefault();
 									}}
 									onfocus={() => {
-										activatePane(pane);
 										if (pendingSlotOperation) {
 											queueMicrotask(focusActiveControl);
 											return;
 										}
+										activatePane(pane);
 										navigation = {
 											...navigation,
 											focus: focusPaneControl(0, paneControlCount)
 										};
 									}}
 									onclick={() => {
+										if (pendingSlotOperation) return;
 										activePaneId = pane.id;
 										openBoxMenu(pane);
 									}}

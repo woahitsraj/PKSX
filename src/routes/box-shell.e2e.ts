@@ -688,16 +688,27 @@ test('Box Menu and related picker Cancel restore focus at both viewport floors',
 test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ page }) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
+	await page.getByRole('button', { name: 'Add collection' }).click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	await page.locator('#pane-active-save-box-0-slot-0').click();
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Move' }).click();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 	const collectionControl = page.getByRole('button', {
-		name: /Open Box Menu for emerald-011020251345\.sav/
+		name: 'Open Box Menu for Pokemon Storage'
 	});
 	await expect(collectionControl).toHaveAttribute('aria-disabled', 'true');
 	await expect(collectionControl).toHaveAttribute('tabindex', '-1');
+	await collectionControl.focus();
+	await expect(page.locator('#box-grid #collection-control-pane-active-save')).toHaveCount(1);
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	await collectionControl.click({ force: true });
+	await expect(page.locator('#box-grid #collection-control-pane-active-save')).toHaveCount(1);
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 
@@ -705,8 +716,11 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await expect(page.getByRole('dialog', { name: 'Box Menu' })).toBeHidden();
 	await page.keyboard.press('y');
 	await expect(page.locator('.toolbar-status-strip')).toHaveText('Copy ARON');
-	await page.keyboard.press('Escape');
-	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+	await page.keyboard.press('y');
+	await expect(page.locator('.toolbar-status-strip')).toHaveText('Move ARON');
+	await page.locator('#box-0-slot-2').click();
+	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+	await expect(page.locator('#box-0-slot-2')).toContainText('ARON');
 });
 
 test('confirm opens slot actions and back restores the grid focus', async ({ page }) => {
