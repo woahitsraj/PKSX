@@ -1748,12 +1748,18 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 
 	await page.keyboard.press('Escape');
 	await expect(page.getByRole('button', { name: 'Browse active Backups' })).toBeFocused();
+	await selectActiveSaveCard(page);
+	await expect(page.getByLabel('Save File Backups')).toContainText('Manual');
 	await page.getByRole('button', { name: 'Browse active Backups' }).click();
 	await expect(manualBackup.getByRole('button', { name: 'Restore' })).toBeFocused();
 
 	await manualBackup.getByRole('button', { name: 'Delete' }).click();
 	await expect(browser).toContainText('Delete this Backup?');
 	await expect(page.getByRole('dialog')).toHaveCount(1);
+	await pressController(page, 'ArrowLeft');
+	await expect(browser.getByRole('button', { name: 'Keep', exact: true })).toBeFocused();
+	await pressController(page, 'ArrowLeft');
+	await expect(browser.getByRole('button', { name: 'Delete', exact: true }).last()).toBeFocused();
 	await page.keyboard.press('Escape');
 	await expect(manualBackup.getByRole('button', { name: 'Restore' })).toBeFocused();
 	await expect(manualBackup).toBeVisible();
@@ -1774,6 +1780,8 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	browser = page.getByRole('dialog', { name: 'Backup Browser' });
 	const newestBackup = browser.locator('article').filter({ hasText: 'Pokemon movement' });
 	await expect(newestBackup.getByRole('button', { name: 'Restore' })).toBeFocused();
+	await expect(browser.locator('.takeover-content')).toHaveCSS('--pksx-space-unit', '5.04px');
+	await expect(browser.locator('.takeover-content')).toHaveCSS('--pksx-type-display', '24px');
 	const restorableManual = browser.locator('article').filter({ hasText: 'Manual' });
 	await restorableManual.getByRole('button', { name: 'Restore' }).click();
 	await expect(browser).toContainText('This replaces the Dirty Workspace.');
@@ -1795,17 +1803,57 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await setSafeArea(page, { top: 0, right: 0, bottom: 96, left: 0 });
 	await expect(browser).toHaveCSS('width', '360px');
 	await expect(browser).toHaveCSS('height', '544px');
-	await page.keyboard.press('Escape');
+	const extentsBeforeLongList = await shellExtents(page);
+	for (let count = 3; count <= 9; count += 1) {
+		await browser.getByRole('button', { name: 'Create Backup' }).click();
+		await expect(browser.locator('article')).toHaveCount(count);
+	}
+	await expect
+		.poll(() =>
+			browser.locator('.backup-list').evaluate((list) => list.scrollHeight > list.clientHeight)
+		)
+		.toBe(true);
+	expect(await shellExtents(page)).toMatchObject({
+		bodyHeight: extentsBeforeLongList.bodyHeight,
+		bodyWidth: extentsBeforeLongList.bodyWidth,
+		htmlHeight: extentsBeforeLongList.htmlHeight,
+		htmlWidth: extentsBeforeLongList.htmlWidth
+	});
+	await expect(browser.getByRole('button', { name: 'Create Backup' })).toBeVisible();
 
+	await browser
+		.locator('article')
+		.filter({ hasText: 'Manual' })
+		.first()
+		.getByRole('button', { name: 'Keep as Save File' })
+		.click();
+	await expect(page).toHaveURL(/\/$/);
+	await expect(page.locator('.save-chip')).toContainText('011020251345.restored.sav', {
+		timeout: 15000
+	});
+
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });
 	await page.goto('/save-file');
 	const saveFileLauncher = page.getByRole('button', { name: 'Browse Backups' });
 	await expect(saveFileLauncher).toBeVisible({ timeout: 15000 });
 	await page.getByRole('button', { name: 'Use dark mode' }).click();
 	await saveFileLauncher.click();
 	await expect(page).toHaveURL(/\/save-file$/);
-	await expect(page.locator('.app-shell.dark').getByRole('dialog', { name: 'Backup Browser' })).toBeVisible();
+	await expect(
+		page.locator('.app-shell.dark').getByRole('dialog', { name: 'Backup Browser' })
+	).toBeVisible();
 	await pressController(page, 'Escape');
 	await expect(saveFileLauncher).toBeFocused();
+
+	await page.goto('/');
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
+	await page.goto('/saves');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
+	await page.getByRole('button', { name: 'Browse active Backups' }).click();
+	await expect(page.getByRole('dialog', { name: 'Backup Browser' })).toBeVisible();
 });
 
 test('deletes backups and save files after confirmation', async ({ page }) => {

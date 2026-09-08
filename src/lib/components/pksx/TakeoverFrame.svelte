@@ -17,16 +17,18 @@
 </script>
 
 <div class="takeover-backdrop" role="presentation" onclick={handleBackdrop}>
-	<div class="takeover-safe-canvas pksx-density-container">
+	<div class="takeover-safe-canvas">
 		<div
-			class="takeover-frame pksx-density"
+			class="takeover-frame pksx-density-container"
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby={labelledby}
 			aria-describedby={describedby}
 			aria-busy={busy}
 		>
-			{@render children()}
+			<div class="takeover-content pksx-density">
+				{@render children()}
+			</div>
 		</div>
 	</div>
 </div>
@@ -36,17 +38,23 @@
 		position: fixed;
 		z-index: 700;
 		inset: 0;
-		padding: var(--pksx-safe-area-top) var(--pksx-safe-area-right)
-			var(--pksx-safe-area-bottom) var(--pksx-safe-area-left);
+		contain: strict;
+		overflow: hidden;
+		padding: var(--pksx-safe-area-top) var(--pksx-safe-area-right) var(--pksx-safe-area-bottom)
+			var(--pksx-safe-area-left);
 		background: color-mix(in oklch, var(--pksx-color-text-primary) 48%, transparent);
 	}
 
 	.takeover-safe-canvas {
+		container: pksx-takeover / size;
 		width: 100%;
 		height: 100%;
 		min-width: 0;
 		min-height: 0;
 		display: grid;
+		grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+		place-items: center;
+		overflow: hidden;
 	}
 
 	.takeover-frame {
@@ -54,21 +62,30 @@
 		height: 100%;
 		min-width: 0;
 		min-height: 0;
-		overflow: hidden;
-		border: 1px solid var(--pksx-color-border-strong);
-		background: var(--pksx-color-surface-panel);
-		color: var(--pksx-color-text-primary);
-		box-shadow: var(--pksx-shadow-panel);
+		overflow: visible;
+		contain: layout paint;
 	}
 
-	@container style(--pksx-height-band: tall) {
-		.takeover-safe-canvas {
-			place-items: center;
-		}
+	.takeover-content {
+		width: 100%;
+		height: 100%;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+		background: var(--pksx-color-surface-panel);
+		color: var(--pksx-color-text-primary);
+		box-shadow:
+			inset 0 0 0 1px var(--pksx-color-border-strong),
+			var(--pksx-shadow-panel);
+	}
 
+	@container pksx-takeover style(--pksx-height-band: tall) {
 		.takeover-frame {
 			width: min(760px, 100%);
 			height: min(560px, 100%);
+		}
+
+		.takeover-content {
 			border-radius: var(--pksx-radius-large);
 		}
 	}

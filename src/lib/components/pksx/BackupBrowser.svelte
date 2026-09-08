@@ -1,9 +1,13 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount, tick } from 'svelte';
 	import type { BackupMetadata, StoredSaveFile } from '$lib/pksx/saves';
 	import {
 		createManualBackup,
+		createRestoredSaveFileName,
 		deleteOwnedBackup,
+		preserveBackupAsSeparateSave,
 		restoreBackupToWorkspace,
 		type WorkspaceState
 	} from '$lib/pksx/backup-workflow';
@@ -25,7 +29,11 @@
 		| { kind: 'browsing' }
 		| { kind: 'confirm-restore'; backup: BackupMetadata }
 		| { kind: 'confirm-delete'; backup: BackupMetadata }
-		| { kind: 'working'; action: 'create' | 'restore' | 'delete'; backup: BackupMetadata | null };
+		| {
+				kind: 'working';
+				action: 'create' | 'restore' | 'separate' | 'delete';
+				backup: BackupMetadata | null;
+		  };
 
 	const reasonLabels: Record<BackupMetadata['reason'], string> = {
 		manual: 'Manual',
@@ -47,6 +55,9 @@
 	let selectedBackupId = $state<string | null>(null);
 	let errorMessage = $state<string | null>(null);
 	const busy = $derived(browserState.kind === 'working');
+	const confirming = $derived(
+		browserState.kind === 'confirm-restore' || browserState.kind === 'confirm-delete'
+	);
 
 	onMount(() => {
 		const unsubscribe = getActiveWorkspaceService().subscribe((next) => {
@@ -159,6 +170,31 @@
 		}
 	}
 
+	async function keepBackupAsSaveFile(backup: BackupMetadata) {
+		if (!owner || busy) return;
+		browserState = { kind: 'working', action: 'separate', backup };
+		errorMessage = null;
+		try {
+			await preserveBackupAsSeparateSave({
+				storage,
+				engine: getPkhexEngine(),
+				owner,
+				backup,
+				fileName: createRestoredSaveFileName(owner.originalFileName),
+				box: getCachedActiveWorkspaceBox(),
+				publish: setCachedActiveWorkspace
+			});
+			invalidateSavesCache();
+			host.closeAll();
+			await goto(resolve('/'), { keepFocus: true });
+		} catch (error) {
+			errorMessage = getErrorMessage(error);
+			browserState = { kind: 'browsing' };
+			selectedBackupId = backup.id;
+			await focusSelectedBackupOrCreate();
+		}
+	}
+
 	function requestRestore(backup: BackupMetadata) {
 		selectedBackupId = backup.id;
 		browserState = { kind: 'confirm-restore', backup };
@@ -202,21 +238,26 @@
 			guardedBack();
 			return;
 		}
-		if (busy || !['ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
+		if (
+			busy ||
+			!['ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'Enter', ' '].includes(event.key)
+		) {
 			return;
 		}
 
 		const controls = listControls();
 		if (controls.length === 0) return;
-		const activeIndex = document.activeElement instanceof HTMLButtonElement
-			? controls.indexOf(document.activeElement)
-			: -1;
+		const activeIndex =
+			document.activeElement instanceof HTMLButtonElement
+				? controls.indexOf(document.activeElement)
+				: -1;
 		const index = Math.max(0, activeIndex);
-		const nextIndex = event.key === 'ArrowUp' || event.key === 'ArrowLeft'
-			? (index + controls.length - 1) % controls.length
-			: event.key === 'ArrowDown' || event.key === 'ArrowRight'
-				? (index + 1) % controls.length
-				: index;
+		const nextIndex =
+			event.key === 'ArrowUp' || event.key === 'ArrowLeft'
+				? (index + controls.length - 1) % controls.length
+				: event.key === 'ArrowDown' || event.key === 'ArrowRight'
+					? (index + 1) % controls.length
+					: index;
 		event.preventDefault();
 		event.stopPropagation();
 		controls[nextIndex]?.focus();
@@ -225,8 +266,11 @@
 	}
 
 	function listControls() {
+		const scope = confirming ? '.confirmation ' : '';
 		return Array.from(
-			document.querySelectorAll<HTMLButtonElement>('[data-backup-browser-control]:not([disabled])')
+			document.querySelectorAll<HTMLButtonElement>(
+				`${scope}[data-backup-browser-control]:not([disabled])`
+			)
 		);
 	}
 
@@ -244,7 +288,9 @@
 	}
 
 	function getErrorMessage(error: unknown) {
-		return error instanceof Error && error.message ? error.message : 'PKSX could not complete the operation.';
+		return error instanceof Error && error.message
+			? error.message
+			: 'PKSX could not complete the operation.';
 	}
 
 	function formatTimestamp(value: string) {
@@ -252,7 +298,10 @@
 		return Number.isNaN(date.getTime())
 			? value
 			: new Intl.DateTimeFormat(undefined, {
-					month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+					month: 'short',
+					day: 'numeric',
+					hour: 'numeric',
+					minute: '2-digit'
 				}).format(date);
 	}
 </script>
@@ -301,7 +350,7 @@
 					id="backup-browser-create"
 					data-backup-browser-control
 					type="button"
-					disabled={busy || !workspace}
+					disabled={busy || confirming || !workspace}
 					onclick={() => void createBackup()}
 				>
 					{browserState.kind === 'working' && browserState.action === 'create'
@@ -323,16 +372,24 @@
 							id={`backup-browser-restore-${backup.id}`}
 							data-backup-browser-control
 							type="button"
-							disabled={busy}
+							disabled={busy || confirming}
 							onfocus={() => (selectedBackupId = backup.id)}
 							onclick={() => requestRestore(backup)}>Restore</button
+						>
+						<button
+							id={`backup-browser-separate-${backup.id}`}
+							data-backup-browser-control
+							type="button"
+							disabled={busy || confirming}
+							onfocus={() => (selectedBackupId = backup.id)}
+							onclick={() => void keepBackupAsSaveFile(backup)}>Keep as Save File</button
 						>
 						<button
 							id={`backup-browser-delete-${backup.id}`}
 							data-backup-browser-control
 							type="button"
 							class="danger"
-							disabled={busy}
+							disabled={busy || confirming}
 							onfocus={() => (selectedBackupId = backup.id)}
 							onclick={() => requestDelete(backup)}>Delete</button
 						>
@@ -355,7 +412,9 @@
 								: 'This replaces the current Workspace. The original imported Save File remains unchanged.'}
 						</p>
 					</div>
-					<button data-backup-browser-control type="button" onclick={guardedBack}>Keep current</button>
+					<button data-backup-browser-control type="button" onclick={guardedBack}
+						>Keep current</button
+					>
 					<button
 						id="backup-browser-confirm-restore"
 						data-backup-browser-control
@@ -391,6 +450,28 @@
 		grid-template-rows: auto auto auto minmax(0, 1fr) auto;
 		gap: var(--pksx-space-2);
 		padding: var(--pksx-space-3);
+		overflow: hidden;
+	}
+
+	header {
+		grid-row: 1;
+	}
+
+	.backup-toolbar {
+		grid-row: 2;
+	}
+
+	.error {
+		grid-row: 3;
+	}
+
+	.backup-list,
+	.empty-state {
+		grid-row: 4;
+	}
+
+	.confirmation {
+		grid-row: 5;
 	}
 
 	header,
@@ -481,6 +562,8 @@
 
 	article {
 		min-width: 0;
+		max-width: 100%;
+		overflow: hidden;
 		padding: var(--pksx-space-2);
 		border-bottom: 1px solid var(--pksx-color-border-subtle);
 	}

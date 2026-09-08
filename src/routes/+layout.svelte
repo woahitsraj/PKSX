@@ -120,7 +120,11 @@
 	}
 
 	function handleChromeKeydown(event: KeyboardEvent) {
-		if (summonedWorkflow.active || appChrome.controllerInputActive || isControllerKeyboardEvent(event)) {
+		if (
+			summonedWorkflow.active ||
+			appChrome.controllerInputActive ||
+			isControllerKeyboardEvent(event)
+		) {
 			return;
 		}
 
@@ -338,13 +342,17 @@
 <svelte:window onkeydown={handleChromeKeydown} />
 
 <main
-	class={['app-shell', 'pksx-density', theme.dark && 'dark']}
+	class={['app-shell', 'pksx-density', theme.dark && 'dark', summonedWorkflow.active && 'takeover-active']}
 	aria-labelledby="screen-title"
 	onfocusin={handleShellFocusIn}
 	{@attach controllerNavigation}
 	{@attach controllerFocusSystem}
 	{@attach heightBandLock}
 >
+	{#if summonedWorkflow.active?.kind === 'backup-browser'}
+		<BackupBrowser />
+	{/if}
+
 	<div class="chrome-inert-owner" inert={summonedWorkflow.active !== null}>
 		<TopBar
 			{sectionPills}
@@ -378,10 +386,6 @@
 			onSelectTab={selectMobileTab}
 		/>
 	</div>
-
-	{#if summonedWorkflow.active?.kind === 'backup-browser'}
-		<BackupBrowser />
-	{/if}
 </main>
 <AppUpdatePrompt />
 

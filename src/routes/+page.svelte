@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { asset } from '$app/paths';
 	import { page } from '$app/state';
-	import { onMount, tick } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import {
 		type EngineApi,
 		type EngineError,
@@ -1344,10 +1344,7 @@
 
 	function openRelatedWorkflow(kind: SummonedWorkflowKind) {
 		const launcherFocus = navigation.focus;
-		summonedWorkflow.openRelated(
-			kind,
-			controlLauncher(getFocusId(launcherFocus, activePaneBox))
-		);
+		summonedWorkflow.openRelated(kind, controlLauncher(getFocusId(launcherFocus, activePaneBox)));
 	}
 
 	function dismissActiveWorkflow() {
@@ -3278,6 +3275,10 @@
 		return unsubscribe;
 	});
 
+	onDestroy(() => {
+		if (summonedWorkflow.active?.kind !== 'backup-browser') summonedWorkflow.closeAll();
+	});
+
 	async function refreshPublishedSavePanes(state: WorkspaceState) {
 		const request = ++workspacePublicationRequest;
 		const publishedBox = getCachedActiveWorkspaceBox();
@@ -3304,7 +3305,10 @@
 			workbenchPanes,
 			savePaneWorkspaces,
 			state,
-			(pane) => projections[pane.id] ?? null
+			(pane) => {
+				const projection = projections[pane.id];
+				return projection?.loadedBox === pane.activeBox ? projection : null;
+			}
 		);
 		workbenchPanes = refreshed.panes;
 		savePaneWorkspaces = refreshed.workspaces;

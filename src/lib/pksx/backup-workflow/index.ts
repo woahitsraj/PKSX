@@ -97,6 +97,14 @@ export function shouldCreateAutomaticBackup(state: WorkspaceState): boolean {
 	return !state.automaticBackupCreated;
 }
 
+export function createRestoredSaveFileName(fileName: string | null) {
+	if (!fileName) return 'pksx-restored.sav';
+	const lastDot = fileName.lastIndexOf('.');
+	return lastDot <= 0
+		? `${fileName}.restored`
+		: `${fileName.slice(0, lastDot)}.restored${fileName.slice(lastDot)}`;
+}
+
 export async function createManualBackup(input: {
 	storage: SavesStorage;
 	owner: StoredSaveFile;

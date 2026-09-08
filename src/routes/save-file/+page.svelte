@@ -456,9 +456,9 @@
 </svelte:head>
 
 {#if loading}
-	<section class="empty-editor" aria-live="polite" inert={summonedWorkflow.active !== null}
-		>Loading Save File editor…</section
-	>
+	<section class="empty-editor" aria-live="polite" inert={summonedWorkflow.active !== null}>
+		Loading Save File editor…
+	</section>
 {:else if !workspace || !editor || !projection}
 	<section class="empty-editor" inert={summonedWorkflow.active !== null}>
 		<strong>No active Save File</strong>
@@ -508,7 +508,11 @@
 			>
 				<span>♢</span>
 				<strong>Browse Backups</strong>
-				<small>{workspace.automaticBackupCreated ? 'automatic Backup created' : 'manual and automatic'}</small>
+				<small
+					>{workspace.automaticBackupCreated
+						? 'automatic Backup created'
+						: 'manual and automatic'}</small
+				>
 			</button>
 		</aside>
 

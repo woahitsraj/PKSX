@@ -12,6 +12,7 @@
 	} from '$lib/pksx/saves';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import {
+		createRestoredSaveFileName,
 		createManualBackup as createOwnedManualBackup,
 		deleteOwnedBackup,
 		preserveBackupAsSeparateSave
@@ -84,6 +85,7 @@
 	let activeControlIndex = $state(0);
 	let pendingDelete = $state<PendingDelete | null>(null);
 	let savesRefreshRequest = 0;
+	let backupBrowserWasActive = false;
 
 	const selectedSaveFile = $derived(
 		storageSelected
@@ -123,6 +125,15 @@
 		}
 
 		void refreshSaves({ force: !cachedSnapshot || cachedSnapshotSeeded });
+		return summonedWorkflow.subscribe((active) => {
+			if (active?.kind === 'backup-browser') {
+				backupBrowserWasActive = true;
+				return;
+			}
+			if (!backupBrowserWasActive) return;
+			backupBrowserWasActive = false;
+			void refreshSaves({ force: true });
+		});
 	});
 
 	function handleRouteKeydown(event: KeyboardEvent) {
@@ -632,19 +643,6 @@
 			}
 		);
 		return entry ? asset(entry.path) : null;
-	}
-
-	function createRestoredSaveFileName(fileName: string | null) {
-		if (!fileName) {
-			return 'pksx-restored.sav';
-		}
-
-		const lastDot = fileName.lastIndexOf('.');
-		if (lastDot <= 0) {
-			return `${fileName}.restored`;
-		}
-
-		return `${fileName.slice(0, lastDot)}.restored${fileName.slice(lastDot)}`;
 	}
 
 	function createExportFileName(fileName: string | null) {
