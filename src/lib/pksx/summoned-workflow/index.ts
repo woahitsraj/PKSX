@@ -8,6 +8,7 @@ import {
 export type SummonedWorkflowKind =
 	| 'slot-menu'
 	| 'box-menu'
+	| 'main-menu'
 	| 'source-picker'
 	| 'clear-slot-confirmation'
 	| 'pokemon-creation'

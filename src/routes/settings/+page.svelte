@@ -85,6 +85,7 @@
 
 	$effect(() => {
 		appChrome.controllerInputActive = true;
+		appChrome.carryActive = false;
 		return () => {
 			appChrome.controllerInputActive = false;
 		};
@@ -181,6 +182,7 @@
 <section
 	class="settings-route pksx-density-container"
 	aria-labelledby="screen-title"
+	data-destination-root="settings"
 	inert={summonedWorkflow.active !== null}
 	onfocusin={handleFocusIn}
 	{@attach settingsZone}
@@ -214,6 +216,8 @@
 							data-settings-control
 							data-settings-stop
 							data-controller-autofocus
+							data-destination-initial
+							data-destination-focus="theme-light"
 							onclick={() => theme.setDark(false)}>Light</button
 						>
 						<button
@@ -221,6 +225,7 @@
 							aria-label="Use dark theme"
 							aria-pressed={theme.dark}
 							data-settings-control
+							data-destination-focus="theme-dark"
 							onclick={() => theme.setDark(true)}>Dark</button
 						>
 					</div>

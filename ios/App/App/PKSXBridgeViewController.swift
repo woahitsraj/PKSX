@@ -65,6 +65,7 @@ final class PKSXBridgeViewController: CAPBridgeViewController {
         bind(gamepad.buttonY, to: "y", controller: controller)
         bind(gamepad.leftShoulder, to: "PageUp", controller: controller)
         bind(gamepad.rightShoulder, to: "PageDown", controller: controller)
+        bind(gamepad.buttonMenu, to: "Menu", controller: controller)
     }
 
     private func bind(
@@ -112,6 +113,7 @@ final class PKSXBridgeViewController: CAPBridgeViewController {
             gamepad.buttonY,
             gamepad.leftShoulder,
             gamepad.rightShoulder,
+            gamepad.buttonMenu,
         ].forEach { $0.pressedChangedHandler = nil }
 
         let controllerID = ObjectIdentifier(controller).hashValue

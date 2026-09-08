@@ -101,19 +101,10 @@
 	const activeDetails = $derived(
 		activeSaveFile ? (detailsBySaveFileId[activeSaveFile.id] ?? null) : null
 	);
-	const importSave = (file: File) => void importSaveFile(file);
-
 	$effect(() => {
-		appChrome.route = 'saves';
-		appChrome.saveSummary = activeDetails?.summary ?? null;
-		appChrome.boxCount = activeDetails?.summary.boxCount ?? 0;
-		appChrome.activeBox = 0;
-		appChrome.fileName = activeSaveFile?.originalFileName ?? null;
-		appChrome.busy = busy;
 		appChrome.hasLoadedSave = activeSaveFile !== null;
+		appChrome.carryActive = false;
 		appChrome.controllerInputActive = true;
-		appChrome.importSave = importSave;
-		appChrome.exportSave = exportActiveSave;
 	});
 
 	onMount(() => {
@@ -196,17 +187,7 @@
 			).filter((control) => isFocusableControl(control));
 		}
 
-		const selectors = [
-			'#top-control-0',
-			'#top-control-1',
-			'#top-control-2',
-			'#top-control-3',
-			'#top-control-4',
-			'[data-saves-control]',
-			'#mobile-tab-0',
-			'#mobile-tab-1',
-			'#mobile-tab-2'
-		];
+		const selectors = ['[data-saves-control]'];
 
 		return selectors
 			.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
@@ -721,6 +702,7 @@
 <section
 	class="saves-page"
 	aria-labelledby="saves-title"
+	data-destination-root="saves"
 	data-controller-status={appChrome.controllerStatus ?? 'No controller detected'}
 	inert={summonedWorkflow.active !== null}
 >
@@ -758,6 +740,7 @@
 			<article class={['save-card', 'storage-card', storageSelected && 'selected']}>
 				<button
 					data-saves-control
+					data-destination-focus="pokemon-storage-select"
 					type="button"
 					class="save-card-main"
 					onclick={selectPokemonStorage}
@@ -794,6 +777,7 @@
 					<div class="card-actions">
 						<button
 							data-saves-control
+							data-destination-focus="pokemon-storage-open"
 							type="button"
 							aria-disabled={busy}
 							onclick={() => {
@@ -819,6 +803,7 @@
 				>
 					<button
 						data-saves-control
+						data-destination-focus={`save-${saveFile.id}-select`}
 						type="button"
 						class="save-card-main"
 						onclick={() => selectSaveFile(saveFile.id)}
@@ -862,6 +847,7 @@
 						<div class="card-actions">
 							<button
 								data-saves-control
+								data-destination-focus={`save-${saveFile.id}-delete`}
 								type="button"
 								class="danger-action"
 								aria-disabled={busy}
@@ -873,6 +859,7 @@
 							</button>
 							<button
 								data-saves-control
+								data-destination-focus={`save-${saveFile.id}-open`}
 								type="button"
 								aria-disabled={busy}
 								onclick={() => {
@@ -888,6 +875,8 @@
 
 			<button
 				data-saves-control
+				data-destination-initial
+				data-destination-focus="import"
 				type="button"
 				class="import-card"
 				aria-disabled={busy}
@@ -915,6 +904,7 @@
 				</div>
 				<button
 					data-saves-control
+					data-destination-focus="backup-create"
 					type="button"
 					aria-disabled={busy || !selectedSaveFile}
 					onclick={() => {
@@ -946,6 +936,7 @@
 							</div>
 							<button
 								data-saves-control
+								data-destination-focus={`backup-${backup.id}-open`}
 								type="button"
 								aria-disabled={busy}
 								onclick={() => {
@@ -956,6 +947,7 @@
 							</button>
 							<button
 								data-saves-control
+								data-destination-focus={`backup-${backup.id}-delete`}
 								type="button"
 								class="danger-action"
 								aria-disabled={busy}

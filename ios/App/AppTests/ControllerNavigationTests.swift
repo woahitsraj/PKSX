@@ -114,16 +114,53 @@ final class ControllerNavigationTests: XCTestCase {
         )
     }
 
-    func testPhoneWidthUsesMobileShell() async throws {
-        let webView = try appWebView()
+    func testStartAndXDispatchFreshDiscretePresses() async throws {
+        let webView = try await controllerSurface()
+
+        controller.extendedGamepad?.buttonMenu.setValue(1)
         try await waitForJavaScript(
-            "innerWidth <= 1024 && getComputedStyle(document.querySelector('.mobile-tabbar')).display !== 'none' && getComputedStyle(document.querySelector('.box-sidebar')).display === 'none'",
+            "document.querySelector('[role=dialog][aria-label=\"Main Menu\"]') !== null && window.__pksxControllerDetails?.filter(value => value === 'Menu:true:true').length === 1",
+            in: webView
+        )
+        controller.extendedGamepad?.buttonMenu.setValue(1)
+        try await waitForJavaScript(
+            "window.__pksxControllerDetails?.filter(value => value === 'Menu:true:true').length === 1",
+            in: webView
+        )
+        controller.extendedGamepad?.buttonMenu.setValue(0)
+        try await waitForJavaScript(
+            "window.__pksxControllerDetails?.includes('Menu:false:true')",
+            in: webView
+        )
+        controller.extendedGamepad?.buttonMenu.setValue(1)
+        try await waitForJavaScript(
+            "document.querySelector('[role=dialog][aria-label=\"Main Menu\"]') === null",
+            in: webView
+        )
+        controller.extendedGamepad?.buttonMenu.setValue(0)
+
+        controller.extendedGamepad?.buttonX.setValue(1)
+        try await waitForJavaScript(
+            "document.querySelector('[role=dialog][aria-label=\"Box Menu\"]') !== null && window.__pksxControllerDetails?.includes('x:true:true')",
+            in: webView
+        )
+        controller.extendedGamepad?.buttonX.setValue(0)
+        try await waitForJavaScript(
+            "window.__pksxControllerDetails?.includes('x:false:true')",
+            in: webView
+        )
+    }
+
+    func testPhoneWidthUsesDestinationLayoutWithoutPersistentChrome() async throws {
+        let webView = try await controllerSurface()
+        try await waitForJavaScript(
+            "innerWidth <= 1024 && document.querySelector('.top-bar,.mobile-tabbar') === null && document.querySelector('.main-menu-opener') !== null && getComputedStyle(document.querySelector('.box-sidebar')).display === 'none'",
             in: webView
         )
     }
 
     func testSafeAreaFallbackPreservesWebKitInsets() async throws {
-        let webView = try appWebView()
+        let webView = try await controllerSurface()
         try await waitForJavaScript("document.readyState === 'complete'", in: webView)
         let preservesInsets = try await webView.evaluateJavaScript(
             """
@@ -147,13 +184,14 @@ final class ControllerNavigationTests: XCTestCase {
     }
 
     func testSettingsReportsInstalledAppVersion() async throws {
-        let webView = try appWebView()
+        let webView = try await controllerSurface()
         let installedVersion = try XCTUnwrap(
             Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         )
-        _ = try await webView.evaluateJavaScript("location.href = 'settings.html'")
+        _ = try await webView.evaluateJavaScript("window.__pksxSettingsDocument = 'alive'")
+        try await chooseMainMenu("Settings", in: webView)
         try await waitForJavaScript(
-            "document.querySelector('[data-testid=\"app-version\"]')?.textContent === '\(installedVersion)' && document.querySelector('[data-testid=\"app-platform\"]')?.textContent === 'iOS'",
+            "window.__pksxSettingsDocument === 'alive' && document.querySelector('[data-testid=\"app-version\"]')?.textContent === '\(installedVersion)' && document.querySelector('[data-testid=\"app-platform\"]')?.textContent === 'iOS'",
             in: webView
         )
     }
@@ -161,16 +199,37 @@ final class ControllerNavigationTests: XCTestCase {
     private func controllerSurface() async throws -> WKWebView {
         let webView = try appWebView()
         try await waitForJavaScript(
+            "document.readyState === 'complete' && document.querySelector('.main-menu-opener') !== null",
+            in: webView
+        )
+        let hasBoxGrid = try await webView.evaluateJavaScript(
+            "document.querySelector('#box-grid') !== null"
+        ) as? Bool
+        if hasBoxGrid != true {
+            try await chooseMainMenu("Boxes", in: webView)
+        }
+        try await waitForJavaScript(
             "document.readyState === 'complete' && document.querySelector('.boxes-route')?.dataset.initialState === 'ready' && document.querySelector('#box-grid')?.getClientRects().length > 0",
             in: webView
         )
         _ = try await webView.evaluateJavaScript("document.querySelector('#box-grid').focus()")
         _ = try await webView.evaluateJavaScript(
-            "window.__pksxControllerConnected = false; window.__pksxControllerEvents = []; window.addEventListener('pksxcontroller', event => window.__pksxControllerEvents.push(event.detail.key + ':' + event.detail.pressed)); window.addEventListener('pksxcontrollerconnection', () => window.__pksxControllerConnected = true, { once: true })"
+            "window.__pksxControllerConnected = false; window.__pksxControllerEvents = []; window.__pksxControllerDetails = []; window.addEventListener('pksxcontroller', event => { window.__pksxControllerEvents.push(event.detail.key + ':' + event.detail.pressed); window.__pksxControllerDetails.push(event.detail.key + ':' + event.detail.pressed + ':' + event.detail.discrete); }); window.addEventListener('pksxcontrollerconnection', () => window.__pksxControllerConnected = true, { once: true })"
         )
         NotificationCenter.default.post(name: .GCControllerDidConnect, object: controller)
         try await waitForJavaScript("window.__pksxControllerConnected === true", in: webView)
         return webView
+    }
+
+    private func chooseMainMenu(_ label: String, in webView: WKWebView) async throws {
+        _ = try await webView.evaluateJavaScript("document.querySelector('.main-menu-opener').click()")
+        try await waitForJavaScript(
+            "document.querySelector('[role=dialog][aria-label=\"Main Menu\"]') !== null",
+            in: webView
+        )
+        _ = try await webView.evaluateJavaScript(
+            "[...document.querySelectorAll('.main-menu-row button')].find(button => button.querySelector('strong')?.textContent === '\(label)').click()"
+        )
     }
 
     private func appWebView() throws -> WKWebView {

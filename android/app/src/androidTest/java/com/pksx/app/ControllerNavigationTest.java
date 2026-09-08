@@ -132,11 +132,74 @@ public class ControllerNavigationTest {
     }
 
     @Test
-    public void smallWidescreenUsesMobileShell() throws Exception {
+    public void startAndXDispatchFreshDiscretePresses() throws Exception {
+        awaitControllerSurface();
+        runJavaScript(
+            "window.__pksxDiscreteEvents = [];"
+                + " window.addEventListener('pksxcontroller', event =>"
+                + " window.__pksxDiscreteEvents.push("
+                + "event.detail.key + ':' + event.detail.pressed + ':' + event.detail.discrete));"
+                + " document.querySelector('#box-grid').focus()"
+        );
+
+        long downTime = SystemClock.uptimeMillis();
+        dispatchGamepadKey(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BUTTON_START, 0, downTime);
+        awaitJavaScript(
+            "document.querySelector('[role=dialog][aria-label=\"Main Menu\"]')"
+                + " && window.__pksxDiscreteEvents.filter(value => value === 'Menu:true:true').length === 1"
+        );
+        dispatchGamepadKey(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BUTTON_START, 1, downTime);
+        SystemClock.sleep(250);
+        awaitJavaScript(
+            "document.querySelector('[role=dialog][aria-label=\"Main Menu\"]')"
+                + " && window.__pksxDiscreteEvents.filter(value => value === 'Menu:true:true').length === 1"
+        );
+        dispatchGamepadKey(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BUTTON_START, 0, downTime);
+        awaitJavaScript("window.__pksxDiscreteEvents.includes('Menu:false:true')");
+
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_START,
+            "document.querySelector('[role=dialog][aria-label=\"Main Menu\"]') === null"
+        );
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_X,
+            "document.querySelector('[role=dialog][aria-label=\"Box Menu\"]')"
+                + " && window.__pksxDiscreteEvents.includes('x:true:true')"
+        );
+        awaitJavaScript("window.__pksxDiscreteEvents.includes('x:false:true')");
+    }
+
+    @Test
+    public void controllerBackGoesHomeWhilePlatformBackFollowsHistory() throws Exception {
+        awaitControllerSurface();
+        chooseMainMenu("Saves");
+        awaitJavaScript("location.pathname.endsWith('/saves')");
+        chooseMainMenu("Settings");
+        awaitJavaScript("location.pathname.endsWith('/settings')");
+
+        chooseMainMenu("Backup Browser");
+        awaitJavaScript("document.querySelector('[role=dialog][aria-label=\"Backup Browser\"]')");
+        pressPlatformBack();
+        awaitJavaScript(
+            "location.pathname.endsWith('/settings')"
+                + " && document.querySelector('[role=dialog][aria-label=\"Backup Browser\"]') === null"
+        );
+
+        pressPlatformBack();
+        awaitJavaScript("location.pathname.endsWith('/saves')");
+        chooseMainMenu("Settings");
+        awaitJavaScript("location.pathname.endsWith('/settings')");
+        pressGamepadKey(KeyEvent.KEYCODE_BUTTON_B, "location.pathname === '/'");
+    }
+
+    @Test
+    public void smallWidescreenUsesDestinationLayoutWithoutPersistentChrome() throws Exception {
+        awaitControllerSurface();
         awaitJavaScript(
             "innerWidth <= 1024"
                 + " && innerWidth > innerHeight"
-                + " && getComputedStyle(document.querySelector('.mobile-tabbar')).display !== 'none'"
+                + " && document.querySelector('.top-bar,.mobile-tabbar') === null"
+                + " && document.querySelector('.main-menu-opener') !== null"
                 + " && getComputedStyle(document.querySelector('.box-sidebar')).display === 'none'"
         );
     }
@@ -152,10 +215,8 @@ public class ControllerNavigationTest {
                 + " ['20px', '21px', '22px', '23px'].forEach((value, index) =>"
                 + " root.style.setProperty('--safe-area-inset-' + sides[index], value));"
                 + " const shell = getComputedStyle(document.querySelector('.app-shell'));"
-                + " const tabbar = getComputedStyle(document.querySelector('.mobile-tabbar'));"
                 + " const matches = shell.paddingTop === '20px' && shell.paddingRight === '21px'"
-                + " && shell.paddingBottom === '100px' && shell.paddingLeft === '23px'"
-                + " && tabbar.paddingBottom === '28px';"
+                + " && shell.paddingBottom === '22px' && shell.paddingLeft === '23px';"
                 + " sides.forEach((side, index) => previous[index]"
                 + " ? root.style.setProperty('--safe-area-inset-' + side, previous[index])"
                 + " : root.style.removeProperty('--safe-area-inset-' + side));"
@@ -166,6 +227,7 @@ public class ControllerNavigationTest {
 
     @Test
     public void pre140WebViewKeepsShellContentInsideSystemBars() throws Exception {
+        awaitControllerSurface();
         PackageInfo webViewPackage = WebView.getCurrentWebViewPackage();
         String provider = webViewPackage == null ? "unknown" : webViewPackage.packageName;
         String version = webViewPackage == null ? "unknown" : webViewPackage.versionName;
@@ -176,18 +238,18 @@ public class ControllerNavigationTest {
         awaitJavaScript(
             "document.readyState === 'complete'"
                 + " && document.querySelector('.app-shell') !== null"
-                + " && document.querySelector('.top-bar') !== null"
-                + " && document.querySelector('#mobile-tab-0') !== null"
+                + " && document.querySelector('.boxes-route') !== null"
+                + " && document.querySelector('.main-menu-opener') !== null"
         );
 
         JSONArray geometry = new JSONArray(
             runJavaScript(
                 "(() => {"
-                    + " const topBar = document.querySelector('.top-bar').getBoundingClientRect();"
-                    + " const firstTab = document.querySelector('#mobile-tab-0').getBoundingClientRect();"
+                    + " const route = document.querySelector('.boxes-route').getBoundingClientRect();"
+                    + " const opener = document.querySelector('.main-menu-opener').getBoundingClientRect();"
                     + " const root = getComputedStyle(document.documentElement);"
-                    + " return [innerWidth, innerHeight, topBar.left, topBar.top, topBar.right, topBar.bottom,"
-                    + " firstTab.left, firstTab.top, firstTab.right, firstTab.bottom,"
+                    + " return [innerWidth, innerHeight, route.left, route.top, route.right, route.bottom,"
+                    + " opener.left, opener.top, opener.right, opener.bottom,"
                     + " root.getPropertyValue('--safe-area-inset-top'),"
                     + " root.getPropertyValue('--safe-area-inset-right'),"
                     + " root.getPropertyValue('--safe-area-inset-bottom'),"
@@ -197,13 +259,13 @@ public class ControllerNavigationTest {
         );
         double innerWidth = geometry.getDouble(0);
         double innerHeight = geometry.getDouble(1);
-        double[] topBarCss = {
+        double[] routeCss = {
             geometry.getDouble(2),
             geometry.getDouble(3),
             geometry.getDouble(4),
             geometry.getDouble(5)
         };
-        double[] firstTabCss = {
+        double[] openerCss = {
             geometry.getDouble(6),
             geometry.getDouble(7),
             geometry.getDouble(8),
@@ -250,19 +312,19 @@ public class ControllerNavigationTest {
                     );
                     double scaleX = webView.getWidth() / innerWidth;
                     double scaleY = webView.getHeight() / innerHeight;
-                    RectF topBarBounds = screenBounds(webViewOrigin, scaleX, scaleY, topBarCss);
-                    RectF firstTabBounds = screenBounds(webViewOrigin, scaleX, scaleY, firstTabCss);
+                    RectF routeBounds = screenBounds(webViewOrigin, scaleX, scaleY, routeCss);
+                    RectF openerBounds = screenBounds(webViewOrigin, scaleX, scaleY, openerCss);
                     barsAvailable.set(systemBars.top > 0 && systemBars.bottom > 0);
                     contentContained.set(
                         scaleX > 0 &&
                         scaleY > 0 &&
-                        contains(safeBounds, topBarBounds) &&
-                        contains(safeBounds, firstTabBounds)
+                        contains(safeBounds, routeBounds) &&
+                        contains(safeBounds, openerBounds)
                     );
                     evidence.set(
                         String.format(
                             Locale.US,
-                            "provider=%s %s decor=%s webView=%s bars=%s safe=%s scale=%.3fx%.3f topBar=%s firstTab=%s cssVars=%s",
+                            "provider=%s %s decor=%s webView=%s bars=%s safe=%s scale=%.3fx%.3f route=%s opener=%s cssVars=%s",
                             provider,
                             version,
                             decorBounds,
@@ -271,8 +333,8 @@ public class ControllerNavigationTest {
                             safeBounds,
                             scaleX,
                             scaleY,
-                            topBarBounds,
-                            firstTabBounds,
+                            routeBounds,
+                            openerBounds,
                             geometry.toString()
                         )
                     );
@@ -287,65 +349,31 @@ public class ControllerNavigationTest {
     }
 
     @Test
-    public void controllerHighlightSurvivesRepeatedTopAndBottomNavigation() throws Exception {
+    public void controllerHighlightSurvivesRepeatedMainMenuNavigation() throws Exception {
         awaitControllerSurface();
         runJavaScript("document.querySelector('#box-grid').focus()");
 
-        for (int row = 0; row < 5; row++) {
-            pressGamepadKey(KeyEvent.KEYCODE_DPAD_DOWN, null);
-        }
-        awaitControllerHighlight("mobile-tab-1");
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_START,
+            controllerHighlightExpression("main-menu-entry-0")
+        );
 
         for (int interaction = 0; interaction < 20; interaction++) {
             int keyCode = interaction % 2 == 0
-                ? KeyEvent.KEYCODE_DPAD_LEFT
-                : KeyEvent.KEYCODE_DPAD_RIGHT;
-            String expectedId = interaction % 2 == 0 ? "mobile-tab-0" : "mobile-tab-1";
+                ? KeyEvent.KEYCODE_DPAD_DOWN
+                : KeyEvent.KEYCODE_DPAD_UP;
+            String expectedId = interaction % 2 == 0 ? "main-menu-entry-1" : "main-menu-entry-0";
             pressGamepadKey(keyCode, controllerHighlightExpression(expectedId));
         }
 
         pressGamepadKey(
-            KeyEvent.KEYCODE_BUTTON_A,
-            "location.pathname.endsWith('/save-file') && "
-                + controllerHighlightExpression("mobile-tab-1")
-        );
-        SystemClock.sleep(1000);
-        awaitControllerHighlight("mobile-tab-1");
-        pressGamepadKey(
-            KeyEvent.KEYCODE_DPAD_RIGHT,
-            controllerHighlightExpression("mobile-tab-2")
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            controllerHighlightExpression("main-menu-entry-1")
         );
         pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_A,
-            "location.pathname.endsWith('/saves') && "
-                + controllerHighlightExpression("mobile-tab-2")
+            "location.pathname.endsWith('/save-file')"
         );
-        pressGamepadKey(
-            KeyEvent.KEYCODE_DPAD_LEFT,
-            controllerHighlightExpression("mobile-tab-1")
-        );
-        pressGamepadKey(
-            KeyEvent.KEYCODE_DPAD_LEFT,
-            controllerHighlightExpression("mobile-tab-0")
-        );
-        pressGamepadKey(
-            KeyEvent.KEYCODE_BUTTON_A,
-            "location.pathname === '/' && " + controllerHighlightExpression("mobile-tab-0")
-        );
-
-        runJavaScript("document.querySelector('#top-control-4').focus()");
-        awaitControllerHighlight("top-control-4");
-
-        for (int interaction = 0; interaction < 20; interaction++) {
-            int keyCode = interaction % 2 == 0
-                ? KeyEvent.KEYCODE_DPAD_RIGHT
-                : KeyEvent.KEYCODE_DPAD_LEFT;
-            String expectedId = interaction % 2 == 0 ? "top-control-6" : "top-control-4";
-            pressGamepadKey(keyCode, controllerHighlightExpression(expectedId));
-        }
-
-        SystemClock.sleep(1000);
-        awaitControllerHighlight("top-control-4");
     }
 
     @Test
@@ -353,7 +381,7 @@ public class ControllerNavigationTest {
         throws Exception {
         awaitControllerSurface();
         importEmeraldSave();
-        runJavaScript("document.querySelector('#mobile-tab-0').click()");
+        chooseMainMenu("Boxes");
         awaitControllerSurface();
         awaitJavaScript("document.querySelector('#box-0-slot-0')?.textContent.includes('ARON')");
         runJavaScript("document.querySelector('#box-grid').focus()");
@@ -380,7 +408,7 @@ public class ControllerNavigationTest {
     public void controllerFrameworkNavigatesAndHighlightsSaveScreens() throws Exception {
         awaitControllerSurface();
         importEmeraldSave();
-        runJavaScript("document.querySelector('#mobile-tab-1').click()");
+        chooseMainMenu("Save File");
         awaitJavaScript("location.pathname.endsWith('/save-file')");
 
         awaitJavaScript("document.querySelector('.field-sidebar nav button') !== null");
@@ -393,7 +421,7 @@ public class ControllerNavigationTest {
         );
         assertAllFocusableControlsHighlighted(".save-file-route");
 
-        runJavaScript("document.querySelector('#mobile-tab-2').click()");
+        chooseMainMenu("Saves");
         awaitJavaScript("location.pathname.endsWith('/saves')");
         runJavaScript("document.querySelector('[data-saves-control]').focus()");
         pressGamepadKey(
@@ -415,21 +443,9 @@ public class ControllerNavigationTest {
                 0
             )
             .versionName;
-        awaitJavaScript(
-            "document.readyState === 'complete'"
-                + " && document.querySelector('.boxes-route')?.dataset.initialState === 'ready'",
-            ENGINE_TIMEOUT_SECONDS
-        );
-        runJavaScript(
-            "window.__pksxSettingsDocument = 'alive';"
-                + " (() => {"
-                + " const link = document.createElement('a');"
-                + " link.href = '/settings';"
-                + " document.body.append(link);"
-                + " link.click();"
-                + " link.remove();"
-                + " })()"
-        );
+        awaitControllerSurface();
+        runJavaScript("window.__pksxSettingsDocument = 'alive'");
+        chooseMainMenu("Settings");
         awaitJavaScript(
             "window.__pksxSettingsDocument === 'alive'"
                 + " && location.pathname === '/settings'"
@@ -494,7 +510,7 @@ public class ControllerNavigationTest {
             String beforeImeHeight = runJavaScript("innerHeight");
 
             importEmeraldSave();
-            runJavaScript("document.querySelector('#mobile-tab-1').click()");
+            chooseMainMenu("Save File");
             awaitJavaScript(
                 "location.pathname.endsWith('/save-file') && document.querySelector('#save-file-trainer-name')"
             );
@@ -772,12 +788,29 @@ public class ControllerNavigationTest {
 
     private void awaitControllerSurface() throws Exception {
         awaitJavaScript(
+            "document.readyState === 'complete' && document.querySelector('.main-menu-opener')"
+        );
+        if (!"true".equals(runJavaScript("Boolean(document.querySelector('#box-grid'))"))) {
+            chooseMainMenu("Boxes");
+        }
+        awaitJavaScript(
             "document.readyState === 'complete'"
                 + " && document.querySelector('.boxes-route')?.dataset.initialState === 'ready'"
                 + " && document.querySelector('#box-grid')?.getClientRects().length > 0"
         );
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         SystemClock.sleep(500);
+    }
+
+    private void chooseMainMenu(String label) throws Exception {
+        runJavaScript("document.querySelector('.main-menu-opener').click()");
+        awaitJavaScript("document.querySelector('[role=dialog][aria-label=\"Main Menu\"]')");
+        runJavaScript(
+            "[...document.querySelectorAll('.main-menu-row button')]"
+                + ".find(button => button.querySelector('strong')?.textContent === '"
+                + label
+                + "').click()"
+        );
     }
 
     private void awaitImeVisible() throws Exception {
@@ -891,28 +924,20 @@ public class ControllerNavigationTest {
 
     private void pressGamepadKey(int keyCode, String expectedState) throws Exception {
         long downTime = SystemClock.uptimeMillis();
-        dispatchKeyEvent(
-            new KeyEvent(
-                downTime,
-                downTime,
-                KeyEvent.ACTION_DOWN,
-                keyCode,
-                0,
-                0,
-                KeyCharacterMap.VIRTUAL_KEYBOARD,
-                0,
-                0,
-                InputDevice.SOURCE_GAMEPAD
-            )
-        );
+        dispatchGamepadKey(KeyEvent.ACTION_DOWN, keyCode, 0, downTime);
         if (expectedState != null) awaitJavaScript(expectedState);
+        dispatchGamepadKey(KeyEvent.ACTION_UP, keyCode, 0, downTime);
+        runJavaScript("true");
+    }
+
+    private void dispatchGamepadKey(int action, int keyCode, int repeatCount, long downTime) {
         dispatchKeyEvent(
             new KeyEvent(
                 downTime,
                 SystemClock.uptimeMillis(),
-                KeyEvent.ACTION_UP,
+                action,
                 keyCode,
-                0,
+                repeatCount,
                 0,
                 KeyCharacterMap.VIRTUAL_KEYBOARD,
                 0,
@@ -920,7 +945,12 @@ public class ControllerNavigationTest {
                 InputDevice.SOURCE_GAMEPAD
             )
         );
-        runJavaScript("true");
+    }
+
+    private void pressPlatformBack() {
+        activityRule
+            .getScenario()
+            .onActivity(activity -> activity.getOnBackPressedDispatcher().onBackPressed());
     }
 
     private void awaitControllerHighlight(String id) throws Exception {
@@ -953,7 +983,7 @@ public class ControllerNavigationTest {
     }
 
     private void importEmeraldSave() throws Exception {
-        runJavaScript("document.querySelector('#mobile-tab-2').click()");
+        chooseMainMenu("Saves");
         awaitJavaScript(
             "location.pathname.endsWith('/saves') && document.querySelector('#save-file-input')"
         );

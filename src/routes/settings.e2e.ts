@@ -62,6 +62,14 @@ async function pressController(page: Page, key: string) {
 	}, key);
 }
 
+async function chooseMainMenu(page: Page, label: 'Saves') {
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	await page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: new RegExp(`^${label}`) })
+		.click();
+}
+
 async function densityValues(page: Page, width: number, height: number) {
 	const container = page.locator('.settings-route');
 	await container.evaluate(
@@ -175,8 +183,8 @@ test('Settings uses one clamped vertical Focus Zone and reveals its focused stop
 	}
 
 	await openSettings(page, 1280, 800);
-	const saves = page.getByRole('button', { name: 'Saves', exact: true });
-	await saves.focus();
+	await pressController(page, 'Menu');
+	await pressController(page, 'ArrowUp');
 	await pressController(page, 'Enter');
 	await expect(page).toHaveURL(/\/saves$/);
 });
@@ -234,7 +242,7 @@ test('Settings owns floor overflow and uses shared theme state', async ({ page }
 	await expect
 		.poll(() => shell.evaluate((element) => getComputedStyle(element).backgroundColor))
 		.not.toBe(lightBackground);
-	await page.getByRole('button', { name: 'Saves' }).click();
+	await chooseMainMenu(page, 'Saves');
 	await expect(page).toHaveURL(/\/saves$/);
 	await expect(shell).toHaveClass(/dark/);
 	await page.goBack();

@@ -119,16 +119,9 @@
 	function syncAppChrome() {
 		const current = workspace;
 		updateAppChrome({
-			route: 'save-file',
-			saveSummary: current?.workspace.summary ?? null,
-			boxCount: current?.workspace.summary.boxCount ?? 0,
-			activeBox: getCachedActiveWorkspaceBox(),
-			fileName: current?.file.originalFileName ?? null,
-			busy,
 			hasLoadedSave: current !== null,
-			controllerInputActive: true,
-			importSave: null,
-			exportSave: current ? exportCurrentSave : null
+			carryActive: false,
+			controllerInputActive: true
 		});
 	}
 
@@ -456,19 +449,29 @@
 </svelte:head>
 
 {#if loading}
-	<section class="empty-editor" aria-live="polite" inert={summonedWorkflow.active !== null}>
+	<section
+		class="empty-editor"
+		data-destination-root="save-file"
+		aria-live="polite"
+		inert={summonedWorkflow.active !== null}
+	>
 		Loading Save File editor…
 	</section>
 {:else if !workspace || !editor || !projection}
-	<section class="empty-editor" inert={summonedWorkflow.active !== null}>
+	<section
+		class="empty-editor"
+		data-destination-root="save-file"
+		inert={summonedWorkflow.active !== null}
+	>
 		<strong>No active Save File</strong>
 		<p>{loadError ?? 'Import or select a Save File before editing trainer data.'}</p>
-		<button type="button" onclick={openBoxes}>Back to Boxes</button>
+		<button type="button" data-destination-initial onclick={openBoxes}>Back to Boxes</button>
 	</section>
 {:else}
 	<section
 		class="save-file-route"
 		aria-label="Save File Editor"
+		data-destination-root="save-file"
 		inert={summonedWorkflow.active !== null}
 	>
 		<div class="mobile-heading">

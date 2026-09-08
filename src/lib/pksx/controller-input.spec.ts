@@ -2,21 +2,22 @@ import { describe, expect, test } from 'vitest';
 import { readGamepadKeys } from './controller-input';
 
 describe('readGamepadKeys', () => {
-	test('maps standard buttons and axes to keyboard navigation', () => {
-		const gamepad = createGamepad({
-			axes: [0.8, -0.8],
-			pressedButtons: [0, 1, 2, 3, 4]
-		});
+		test('maps standard buttons and axes to keyboard navigation', () => {
+			const gamepad = createGamepad({
+				axes: [0.8, -0.8],
+				pressedButtons: [0, 1, 2, 3, 4, 9]
+			});
 
 		expect(readGamepadKeys(gamepad)).toEqual([
 			'ArrowUp',
 			'ArrowRight',
 			'Enter',
 			'Escape',
-			'x',
-			'y',
-			'PageUp'
-		]);
+				'x',
+				'y',
+				'PageUp',
+				'Menu'
+			]);
 	});
 
 	test('maps a non-standard hat axis', () => {
