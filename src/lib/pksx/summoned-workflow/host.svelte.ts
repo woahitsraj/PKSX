@@ -38,6 +38,7 @@ export function createSummonedWorkflowHost(): SummonedWorkflowHost {
 		},
 		subscribe(listener) {
 			listeners.add(listener);
+			listener(owner.active);
 			return () => listeners.delete(listener);
 		},
 		open(kind, launcher) {

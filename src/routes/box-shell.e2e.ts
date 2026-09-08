@@ -1820,6 +1820,12 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 		htmlWidth: extentsBeforeLongList.htmlWidth
 	});
 	await expect(browser.getByRole('button', { name: 'Create Backup' })).toBeVisible();
+	await page.locator('#top-control-0').dispatchEvent('click');
+	await expect(page).toHaveURL(/\/$/);
+	await expect(browser).toBeVisible();
+	const previousOwnerId = await page
+		.locator('.boxes-route')
+		.getAttribute('data-active-save-file-id');
 
 	await browser
 		.locator('article')
@@ -1828,9 +1834,11 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 		.getByRole('button', { name: 'Keep as Save File' })
 		.click();
 	await expect(page).toHaveURL(/\/$/);
-	await expect(page.locator('.save-chip')).toContainText('011020251345.restored.sav', {
-		timeout: 15000
-	});
+	await expect(page.locator('.boxes-route')).not.toHaveAttribute(
+		'data-active-save-file-id',
+		previousOwnerId ?? ''
+	);
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });

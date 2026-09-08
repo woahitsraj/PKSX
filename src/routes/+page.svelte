@@ -3267,8 +3267,16 @@
 
 	onMount(() => {
 		const unsubscribe = workspaceService.subscribe((state) => {
+			const ownerChanged =
+				initialStateReady && state && loadedSave && state.file.id !== loadedSave.file.id;
 			loadedSave = state;
-			if (state) void refreshPublishedSavePanes(state);
+			if (!state) return;
+			if (ownerChanged) {
+				installActiveSavePane(state, getCachedActiveWorkspaceBox());
+				queueMicrotask(focusActiveControl);
+				return;
+			}
+			void refreshPublishedSavePanes(state);
 		});
 		engine = getPkhexEngine();
 		void restoreInitialState();
@@ -3665,6 +3673,7 @@
 	class="boxes-route"
 	aria-label="Boxes workspace"
 	data-initial-state={initialStateReady ? 'ready' : 'loading'}
+	data-active-save-file-id={loadedSave?.file.id ?? ''}
 	inert={destinationInputSuspended}
 >
 	{#if importError}

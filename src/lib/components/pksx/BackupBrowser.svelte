@@ -175,18 +175,46 @@
 		browserState = { kind: 'working', action: 'separate', backup };
 		errorMessage = null;
 		try {
-			await preserveBackupAsSeparateSave({
+			const preserved = await preserveBackupAsSeparateSave({
 				storage,
 				engine: getPkhexEngine(),
 				owner,
 				backup,
 				fileName: createRestoredSaveFileName(owner.originalFileName),
 				box: getCachedActiveWorkspaceBox(),
-				publish: setCachedActiveWorkspace
+				publish: (state) => {
+					host.closeAll();
+					setCachedActiveWorkspace(state, getCachedActiveWorkspaceBox());
+				}
 			});
 			invalidateSavesCache();
-			host.closeAll();
 			await goto(resolve('/'), { keepFocus: true });
+			await new Promise<void>((resolveFocus) => {
+				const focusDestination = () => {
+					const slot = document.getElementById(`box-${getCachedActiveWorkspaceBox()}-slot-0`);
+					const destination = document.querySelector<HTMLElement>(
+						'.boxes-route[data-initial-state="ready"]'
+					);
+					if (!slot || destination?.dataset.activeSaveFileId !== preserved.file.id) return false;
+					slot.focus();
+					return true;
+				};
+				if (focusDestination()) return resolveFocus();
+				const observer = new MutationObserver(() => {
+					if (!focusDestination()) return;
+					observer.disconnect();
+					resolveFocus();
+				});
+				observer.observe(document.documentElement, {
+					childList: true,
+					subtree: true,
+					attributes: true
+				});
+				setTimeout(() => {
+					observer.disconnect();
+					resolveFocus();
+				}, 15_000);
+			});
 		} catch (error) {
 			errorMessage = getErrorMessage(error);
 			browserState = { kind: 'browsing' };
