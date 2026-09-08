@@ -435,9 +435,12 @@ public class ControllerNavigationTest {
             .compile("(?m)^Override size: ([0-9]+x[0-9]+)\\s*$")
             .matcher(originalSizeState);
         String originalSizeOverride = override.find() ? override.group(1) : null;
-        JSONArray originalViewport = awaitSettledViewport(originalAngle);
+        Rect originalWindowBounds = windowBounds();
+        JSONArray originalViewport = awaitSettledViewport(originalAngle, originalWindowBounds);
         int originalWidth = originalViewport.getInt(0);
         int originalHeight = originalViewport.getInt(1);
+        String originalGeometry = nativeWindowGeometry();
+        Log.i("PKSXAcceptance", "IME fixture captured geometry " + originalGeometry);
         String fixedRotation = shellCommand("cmd window fixed-to-user-rotation");
         String densityState = shellCommand("wm density");
         Log.i(
@@ -525,13 +528,13 @@ public class ControllerNavigationTest {
                             userRotation("lock " + originalAngle);
                             awaitDisplayRotation(originalAngle);
                             awaitImeHidden();
-                            awaitJavaScript(restoredViewportExpression(originalWidth, originalHeight));
+                            awaitSettledViewport(originalAngle, originalWindowBounds);
                         } finally {
                             userRotation(originalRotationMode);
                         }
                         awaitDisplayRotation(originalAngle);
                         awaitImeHidden();
-                        awaitJavaScript(restoredViewportExpression(originalWidth, originalHeight));
+                        JSONArray restoredViewport = awaitSettledViewport(originalAngle, originalWindowBounds);
                         if (!originalRotationMode.equals(userRotation(""))) {
                             fail("Android rotation mode was not restored");
                         }
@@ -550,27 +553,35 @@ public class ControllerNavigationTest {
                                 + displayRotation()
                                 + " size="
                                 + restoredSizeState.replace('\n', ' ')
+                                + " geometry="
+                                + nativeWindowGeometry()
+                                + " css="
+                                + restoredViewport
                         );
                     }
                 }
             } catch (Throwable cleanupFailure) {
-                if (primaryFailure == null) throw cleanupFailure;
-                primaryFailure.addSuppressed(cleanupFailure);
+                AssertionError restorationFailure = new AssertionError(
+                    "IME fixture cleanup failed; captured=" + originalGeometry
+                        + "; current=" + nativeWindowGeometry(), cleanupFailure
+                );
+                if (primaryFailure == null) throw restorationFailure;
+                primaryFailure.addSuppressed(restorationFailure);
             }
         }
     }
 
-    private JSONArray awaitSettledViewport(int expectedRotation) throws Exception {
+    private JSONArray awaitSettledViewport(int expectedRotation, Rect expectedWindowBounds) throws Exception {
         long deadline = SystemClock.uptimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
         String lastState = "no observation";
         while (SystemClock.uptimeMillis() < deadline) {
-            int[] firstNative = readyNativeViewport();
+            int[] firstNative = readyNativeViewport(expectedWindowBounds);
             JSONArray firstCss = firstNative == null ? null : viewportMetrics();
-            int[] firstAfter = readyNativeViewport();
+            int[] firstAfter = readyNativeViewport(expectedWindowBounds);
             if (!awaitNextVisualState(deadline)) break;
-            int[] secondNative = readyNativeViewport();
+            int[] secondNative = readyNativeViewport(expectedWindowBounds);
             JSONArray secondCss = secondNative == null ? null : viewportMetrics();
-            int[] secondAfter = readyNativeViewport();
+            int[] secondAfter = readyNativeViewport(expectedWindowBounds);
 
             lastState =
                 "native="
@@ -595,11 +606,60 @@ public class ControllerNavigationTest {
                     && matchesNativeViewport(secondCss, firstNative)
             ) return secondCss;
         }
-        fail("Timed out waiting for a settled Android viewport: " + lastState);
+        fail("Timed out waiting for Android window " + expectedWindowBounds + ": "
+            + lastState + ", " + nativeWindowGeometry());
         return null;
     }
 
-    private int[] readyNativeViewport() {
+    private String nativeWindowGeometry() {
+        AtomicReference<String> state = new AtomicReference<>();
+        try {
+            activityRule.getScenario().onActivity(activity -> {
+                try {
+                    com.getcapacitor.Bridge bridge = activity.getBridge();
+                    WebView webView = bridge == null ? null : bridge.getWebView();
+                    android.view.Display display = webView == null ? null : webView.getDisplay();
+                    if (webView == null || display == null || !(webView.getParent() instanceof android.view.View)) {
+                        state.set("unavailable(detached WebView)");
+                        return;
+                    }
+                    android.view.View parent = (android.view.View) webView.getParent();
+                    android.view.View decor = activity.getWindow().getDecorView();
+                    WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(decor);
+                    int[] position = new int[2];
+                    webView.getLocationOnScreen(position);
+                    state.set("rotation=" + display.getRotation()
+                        + " density=" + activity.getResources().getDisplayMetrics().densityDpi
+                        + " decor=" + decor.getWidth() + "x" + decor.getHeight()
+                        + " parent=" + parent.getWidth() + "x" + parent.getHeight()
+                        + " padding=" + parent.getPaddingLeft() + "," + parent.getPaddingTop()
+                        + "," + parent.getPaddingRight() + "," + parent.getPaddingBottom()
+                        + " webView=" + webView.getWidth() + "x" + webView.getHeight()
+                        + "@" + position[0] + "," + position[1]
+                        + " status=" + (insets == null ? null : insets.getInsets(WindowInsetsCompat.Type.statusBars()))
+                        + " navigation=" + (insets == null ? null : insets.getInsets(WindowInsetsCompat.Type.navigationBars()))
+                        + " cutout=" + (insets == null ? null : insets.getInsets(WindowInsetsCompat.Type.displayCutout()))
+                        + " ime=" + (insets == null ? null : insets.getInsets(WindowInsetsCompat.Type.ime()))
+                        + " imeVisible=" + (insets == null ? null : insets.isVisible(WindowInsetsCompat.Type.ime())));
+                } catch (RuntimeException failure) {
+                    state.set("unavailable(" + failure.getClass().getSimpleName() + ")");
+                }
+            });
+        } catch (RuntimeException failure) {
+            return "unavailable(" + failure.getClass().getSimpleName() + ")";
+        }
+        return state.get();
+    }
+
+    private Rect windowBounds() {
+        AtomicReference<Rect> bounds = new AtomicReference<>();
+        activityRule.getScenario().onActivity(activity -> bounds.set(
+            new Rect(activity.getWindowManager().getCurrentWindowMetrics().getBounds())
+        ));
+        return bounds.get();
+    }
+
+    private int[] readyNativeViewport(Rect expectedWindowBounds) {
         AtomicReference<int[]> viewport = new AtomicReference<>();
         activityRule
             .getScenario()
@@ -607,7 +667,8 @@ public class ControllerNavigationTest {
                 activity -> {
                     WebView webView = activity.getBridge().getWebView();
                     android.view.View parent = (android.view.View) webView.getParent();
-                    WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(webView);
+                    android.view.View decor = activity.getWindow().getDecorView();
+                    WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(decor);
                     if (
                         webView.getDisplay() != null
                             && parent != null
@@ -620,11 +681,27 @@ public class ControllerNavigationTest {
                             && insets != null
                             && !insets.isVisible(WindowInsetsCompat.Type.ime())
                     ) {
+                        int[] origin = new int[2];
+                        decor.getLocationOnScreen(origin);
+                        Rect decorBounds = new Rect(origin[0], origin[1],
+                            origin[0] + decor.getWidth(), origin[1] + decor.getHeight());
+                        if (!expectedWindowBounds.equals(decorBounds)) return;
+                        webView.getLocationOnScreen(origin);
+                        Rect webViewBounds = new Rect(origin[0], origin[1],
+                            origin[0] + webView.getWidth(), origin[1] + webView.getHeight());
+                        Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()
+                            | WindowInsetsCompat.Type.displayCutout());
+                        Rect safeBounds = new Rect(decorBounds.left + bars.left,
+                            decorBounds.top + bars.top, decorBounds.right - bars.right,
+                            decorBounds.bottom - bars.bottom);
+                        if (!decorBounds.contains(webViewBounds) || !webViewBounds.contains(safeBounds)) return;
                         viewport.set(
                             new int[] {
                                 webView.getDisplay().getRotation(),
                                 webView.getWidth(),
                                 webView.getHeight(),
+                                webViewBounds.left,
+                                webViewBounds.top,
                             }
                         );
                     }
@@ -750,10 +827,6 @@ public class ControllerNavigationTest {
             SystemClock.sleep(50);
         }
         fail("Timed out waiting for Android display rotation " + expected);
-    }
-
-    private String restoredViewportExpression(int width, int height) {
-        return "innerWidth === " + width + " && innerHeight === " + height;
     }
 
     private String userRotation(String arguments) throws Exception {
