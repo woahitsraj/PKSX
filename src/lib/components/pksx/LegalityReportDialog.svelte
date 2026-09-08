@@ -156,7 +156,7 @@
 	.icon-close,
 	.close-report {
 		border: 0;
-		border-radius: var(--pksx-radius-sm);
+		border-radius: var(--pksx-radius-medium);
 		background: var(--paper);
 		color: var(--ink);
 		font: inherit;
@@ -166,7 +166,7 @@
 	.icon-close {
 		width: var(--pksx-control-height);
 		height: var(--pksx-control-height);
-		font-size: 1.35rem;
+		font-size: var(--pksx-icon-size);
 		line-height: 1;
 	}
 
@@ -183,7 +183,7 @@
 		gap: var(--pksx-space-1);
 		padding: var(--pksx-space-2);
 		border: 1px solid var(--rule);
-		border-radius: var(--pksx-radius-sm);
+		border-radius: var(--pksx-radius-medium);
 		background: var(--paper);
 	}
 
@@ -216,7 +216,7 @@
 	li p {
 		color: var(--ink-mute);
 		font-size: var(--pksx-type-body);
-		line-height: 1.4;
+		line-height: calc(var(--pksx-type-body) + var(--pksx-space-1));
 	}
 
 	.report-columns {
@@ -244,7 +244,7 @@
 		gap: var(--pksx-space-1);
 		padding: var(--pksx-space-2);
 		border: 1px solid var(--rule);
-		border-radius: var(--pksx-radius-sm);
+		border-radius: var(--pksx-radius-medium);
 		background: var(--paper);
 	}
 

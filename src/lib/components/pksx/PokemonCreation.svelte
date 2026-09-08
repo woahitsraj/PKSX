@@ -160,6 +160,7 @@
 		width: var(--pksx-control-height);
 		height: var(--pksx-control-height);
 		border-radius: 50%;
+		font-size: var(--pksx-icon-size);
 	}
 
 	.creation-fields label {
@@ -171,7 +172,7 @@
 		height: var(--pksx-control-height);
 		padding: 0 var(--pksx-space-2);
 		border: 1px solid var(--rule);
-		border-radius: var(--pksx-radius-sm);
+		border-radius: var(--pksx-radius-medium);
 		background: var(--paper-deep);
 		color: var(--ink);
 		font:
@@ -181,7 +182,7 @@
 
 	.creation-feedback {
 		padding: var(--pksx-space-2);
-		border-radius: var(--pksx-radius-sm);
+		border-radius: var(--pksx-radius-medium);
 		background: color-mix(in srgb, var(--rust), transparent 90%);
 	}
 
@@ -192,7 +193,7 @@
 	footer button {
 		min-height: var(--pksx-control-height);
 		padding: 0 var(--pksx-space-3);
-		border-radius: var(--pksx-radius-sm);
+		border-radius: var(--pksx-radius-medium);
 		font-weight: 800;
 	}
 
