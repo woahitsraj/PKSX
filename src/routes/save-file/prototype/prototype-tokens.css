@@ -1,0 +1,253 @@
+/* Throwaway: DENSITY-1 and LARGE-1 tokens for the Save File prototype (#169). Variants consume --sf-* only. */
+
+.sf-canvas {
+	flex: 1 1 auto;
+	min-height: 0;
+	min-width: 0;
+	container-type: size;
+	container-name: sf;
+}
+
+.sf-proto {
+	--sf-caption: 10px;
+	--sf-label: 12px;
+	--sf-body: 13px;
+	--sf-title: 16px;
+	--sf-display: 24px;
+	--sf-lh-tight: 1.05;
+	--sf-lh: 1.25;
+	--sf-unit: clamp(2px, 0.9cqh, 6px);
+	--sf-s1: var(--sf-unit);
+	--sf-s2: calc(var(--sf-unit) * 2);
+	--sf-s3: calc(var(--sf-unit) * 3);
+	--sf-s4: calc(var(--sf-unit) * 4);
+	--sf-control: clamp(32px, 9.4cqh, 44px);
+	--sf-control-sm: calc(var(--sf-control) * 0.75);
+	--sf-ring: clamp(2px, 0.6cqh, 3px);
+	--sf-r-sm: 4px;
+	--sf-r-md: calc(4px + var(--sf-unit));
+	--sf-r-lg: calc(6px + var(--sf-unit) * 1.5);
+	--sf-mono: var(--pksx-font-mono);
+	--sf-pending: color-mix(in srgb, var(--gold), transparent 90%);
+	--sf-pending-edge: color-mix(in srgb, var(--gold), transparent 40%);
+	height: 100%;
+	min-height: 0;
+	box-sizing: border-box;
+	color: var(--ink);
+	font-family: var(--pksx-font-sans);
+	font-size: var(--sf-body);
+	line-height: var(--sf-lh);
+}
+
+@container sf (min-width: 900px) and (min-height: 700px) {
+	.sf-proto {
+		--sf-caption: 11px;
+		--sf-label: 13px;
+		--sf-body: 15px;
+		--sf-title: 18px;
+		--sf-display: 28px;
+	}
+}
+
+.sf-proto *,
+.sf-proto *::before,
+.sf-proto *::after {
+	box-sizing: border-box;
+}
+
+.sf-proto button,
+.sf-proto input {
+	font: inherit;
+	color: inherit;
+}
+
+.sf-proto :focus-visible {
+	outline: var(--sf-ring) solid var(--rust);
+	outline-offset: calc(var(--sf-ring) * -1);
+}
+
+.sf-caption {
+	margin: 0;
+	color: var(--ink-soft);
+	font: 700 var(--sf-caption) / var(--sf-lh-tight) var(--sf-mono);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.sf-filename {
+	margin: 0;
+	min-width: 0;
+	overflow: hidden;
+	color: var(--ink-soft);
+	font: 600 var(--sf-label) / var(--sf-lh-tight) var(--sf-mono);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sf-title {
+	margin: 0;
+	font-size: var(--sf-title);
+	font-weight: 800;
+	line-height: var(--sf-lh-tight);
+}
+
+.sf-ctrl {
+	height: var(--sf-control);
+	padding: 0 var(--sf-s3);
+	border: 1px solid var(--rule-hi);
+	border-radius: var(--sf-r-sm);
+	background: var(--paper-hi);
+	font-weight: 650;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.sf-ctrl.sm {
+	height: var(--sf-control-sm);
+	padding: 0 var(--sf-s2);
+	font-size: var(--sf-label);
+}
+
+.sf-ctrl.primary {
+	border-color: var(--rust);
+	background: var(--rust);
+	color: #fff;
+}
+
+.sf-ctrl.danger {
+	color: var(--err);
+}
+
+.sf-ctrl:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.sf-ctrl.icon {
+	width: var(--sf-control);
+	padding: 0;
+	font-family: var(--sf-mono);
+	font-size: var(--sf-title);
+	font-weight: 700;
+}
+
+.sf-ctrl.icon.sm {
+	width: var(--sf-control-sm);
+	font-size: var(--sf-body);
+}
+
+.sf-input {
+	height: var(--sf-control);
+	min-width: 0;
+	padding: 0 var(--sf-s2);
+	border: 1px solid var(--rule-hi);
+	border-radius: var(--sf-r-sm);
+	background: var(--paper-hi);
+	font-weight: 650;
+}
+
+.sf-input.num {
+	font-family: var(--sf-mono);
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+	appearance: textfield;
+}
+
+.sf-input.num::-webkit-inner-spin-button,
+.sf-input.num::-webkit-outer-spin-button {
+	margin: 0;
+	appearance: none;
+}
+
+/* Field state: draft (uncommitted), pending (Saving...), invalid. Drawn on the owning control. */
+.sf-field[data-state='draft'] .sf-input,
+.sf-field[data-state='pending'] .sf-input,
+.sf-row[data-state='pending'] {
+	border-color: var(--sf-pending-edge);
+	background: var(--sf-pending);
+}
+
+.sf-field[data-state='invalid'] .sf-input {
+	border-color: var(--err);
+	background: color-mix(in srgb, var(--err), transparent 93%);
+}
+
+.sf-status {
+	margin: 0;
+	min-width: 0;
+	color: var(--ink-soft);
+	font-size: var(--sf-caption);
+	line-height: var(--sf-lh-tight);
+}
+
+.sf-status.invalid {
+	color: var(--err);
+}
+
+.sf-status.pending {
+	color: color-mix(in srgb, var(--gold), var(--ink) 30%);
+}
+
+.sf-segment {
+	display: inline-grid;
+	grid-auto-flow: column;
+	grid-auto-columns: 1fr;
+	border: 1px solid var(--rule-hi);
+	border-radius: var(--sf-r-sm);
+	background: var(--paper-hi);
+	overflow: hidden;
+}
+
+.sf-segment button {
+	height: calc(var(--sf-control) - 2px);
+	padding: 0 var(--sf-s3);
+	border: 0;
+	background: transparent;
+	font-weight: 650;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.sf-segment button[aria-pressed='true'],
+.sf-segment button[aria-checked='true'] {
+	background: var(--rust);
+	color: #fff;
+}
+
+.sf-segment.sm button {
+	height: calc(var(--sf-control-sm) - 2px);
+	padding: 0 var(--sf-s2);
+	font-size: var(--sf-label);
+}
+
+.sf-count {
+	color: var(--ink-mute);
+	font: 700 var(--sf-caption) / 1 var(--sf-mono);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.sf-name {
+	min-width: 0;
+	font-weight: 650;
+}
+
+.sf-name.clip {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sf-name.wrap {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+	line-height: var(--sf-lh-tight);
+}
+
+.sf-empty {
+	margin: 0;
+	color: var(--ink-mute);
+	font-size: var(--sf-label);
+}
