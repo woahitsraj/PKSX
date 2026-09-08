@@ -482,6 +482,7 @@
 	let engine: EngineApi | null = null;
 	let workspaceLoadRequest = 0;
 	let workspacePublicationRequest = 0;
+	let paneSwitchRequest = 0;
 
 	const controllerConnected = $derived(appChrome.controllerStatus !== null);
 	const activeSummonedWorkflow = $derived(summonedWorkflow.active);
@@ -848,11 +849,13 @@
 			return;
 		}
 
-		if (
-			navigation.focus.zone === 'box' ||
-			navigation.focus.zone === 'party' ||
-			navigation.focus.zone === 'paneControls'
-		) {
+		if (navigation.focus.zone === 'party') {
+			const savePane = workbenchPanes.find(({ id }) => id === activeSavePaneId);
+			if (savePane) openBoxMenu(savePane);
+			return;
+		}
+
+		if (navigation.focus.zone === 'box' || navigation.focus.zone === 'paneControls') {
 			openBoxMenu(activePane);
 		}
 	}
@@ -1395,15 +1398,18 @@
 		queueMicrotask(focusActiveControl);
 	}
 
-	function slotLauncher(focus: SlotFocus): SummonedWorkflowLauncher {
+	function slotLauncher(
+		focus: SlotFocus,
+		pane: BoxPaneState | undefined = activePane
+	): SummonedWorkflowLauncher {
 		return {
 			type: 'slot',
 			id:
 				focus.zone === 'party'
 					? `party-slot-${focus.slot}`
-					: `box-${activePaneBox}-slot-${focus.slot}`,
-			paneId: activePaneId,
-			box: focus.zone === 'box' ? activePaneBox : null,
+					: `box-${pane?.activeBox ?? activePaneBox}-slot-${focus.slot}`,
+			paneId: pane?.id ?? activePaneId,
+			box: focus.zone === 'box' ? (pane?.activeBox ?? activePaneBox) : null,
 			focus
 		};
 	}
@@ -1468,7 +1474,9 @@
 	function openBoxMenu(pane: BoxPaneState) {
 		if (pendingSlotOperation || activeSummonedWorkflow) return;
 
-		const launcher = launcherForFocus(navigation.focus);
+		const launcher = isSlotFocus(navigation.focus)
+			? slotLauncher(navigation.focus, pane)
+			: launcherForFocus(navigation.focus);
 		if (!summonedWorkflow.open('box-menu', launcher)) return;
 		boxMenuTarget = { paneId: pane.id, source: { ...pane.source } };
 		navigation = { ...navigation, focus: { zone: 'actions', index: 0 } };
@@ -2364,7 +2372,7 @@
 	}
 
 	function openSourcePicker(targetPaneId: string | null = null) {
-		if (targetPaneId === activeSavePaneId || activeSummonedWorkflow) {
+		if (pendingSlotOperation || targetPaneId === activeSavePaneId || activeSummonedWorkflow) {
 			return;
 		}
 
@@ -2401,7 +2409,7 @@
 
 	function openSourceAsPane(type: BoxSourceType, saveFileId: string | null = null) {
 		if (sourcePickerTargetPaneId) {
-			switchPaneToSource(sourcePickerTargetPaneId, type, saveFileId);
+			void switchPaneToSource(sourcePickerTargetPaneId, type, saveFileId);
 			return;
 		}
 
@@ -2429,7 +2437,7 @@
 		queueMicrotask(focusActiveControl);
 	}
 
-	function switchPaneToSource(
+	async function switchPaneToSource(
 		paneId: string,
 		type: BoxSourceType,
 		saveFileId: string | null = null
@@ -2439,24 +2447,60 @@
 		}
 
 		const source = boxSourceForSelection(type, saveFileId);
-		workbenchPanes = switchPaneSource(
-			workbenchPanes,
-			paneId,
-			source,
-			type === 'pokemon-storage' ? pokemonStorageBoxCount : boxCount
-		);
+		const pane = workbenchPanes.find((candidate) => candidate.id === paneId);
+		if (!pane) return;
+		const request = ++paneSwitchRequest;
+		const pickerOwner = activeSummonedWorkflow;
+		const paneSource = { ...pane.source };
+		const selectionIsCurrent = () =>
+			request === paneSwitchRequest &&
+			activeSummonedWorkflow === pickerOwner &&
+			sourcePickerOpen &&
+			sourcePickerTargetPaneId === paneId &&
+			workbenchPanes.some(
+				(candidate) =>
+					candidate.id === paneId &&
+					candidate.source.type === paneSource.type &&
+					candidate.source.id === paneSource.id
+			);
+
+		let targetBoxCount = pokemonStorageBoxCount;
+		let targetWorkspace: SavePaneWorkspace | null = null;
+		if (source.type === 'save-file' && source.id) {
+			try {
+				const firstBoxState = await loadWorkspaceStateForSaveFile(source.id, 0);
+				if (!firstBoxState || !selectionIsCurrent()) return;
+				targetBoxCount = firstBoxState.workspace.summary.boxCount;
+				const targetBox = Math.min(pane.activeBox, Math.max(0, targetBoxCount - 1));
+				const state =
+					targetBox === 0
+						? firstBoxState
+						: await loadWorkspaceStateForSaveFile(source.id, targetBox);
+				if (!state) return;
+				targetWorkspace = { state, loadedBox: targetBox };
+			} catch (error) {
+				if (!selectionIsCurrent()) return;
+				showToast('error', getErrorMessage(error));
+				statusMessage = 'Could not load that Save File pane.';
+				return;
+			}
+		}
+		if (!selectionIsCurrent()) return;
+
+		workbenchPanes = switchPaneSource(workbenchPanes, paneId, source, targetBoxCount);
+		const switchedPane = workbenchPanes.find((candidate) => candidate.id === paneId);
 		activePaneId = paneId;
 		navigation = {
 			...navigation,
-			boxCount: Math.max(1, type === 'pokemon-storage' ? pokemonStorageBoxCount : boxCount),
-			activeBox: workbenchPanes.find((pane) => pane.id === paneId)?.activeBox ?? 0,
-			focus: workbenchPanes.find((pane) => pane.id === paneId)?.focus ?? focusBoxSlot(0)
+			boxCount: Math.max(1, switchedPane?.boxCount ?? targetBoxCount),
+			activeBox: switchedPane?.activeBox ?? 0,
+			focus: switchedPane?.focus ?? focusBoxSlot(0)
 		};
 		sourcePickerTargetPaneId = null;
 		boxMenuTarget = null;
 		summonedWorkflow.closeAll();
-		if (source.type === 'save-file') {
-			void refreshPaneWorkspace(paneId, navigation.activeBox);
+		if (targetWorkspace) {
+			savePaneWorkspaces = { ...savePaneWorkspaces, [paneId]: targetWorkspace };
 		} else {
 			const remaining = { ...savePaneWorkspaces };
 			delete remaining[paneId];
@@ -2493,7 +2537,10 @@
 		if (closingActivePane || !workbenchPanes.some((pane) => pane.id === activePaneId)) {
 			const nextPane = workbenchPanes[0];
 			const nextFocus: SlotFocus = nextPane
-				? focusSurvivingPaneAfterClose(closingPane, nextPane)
+				? focusSurvivingPaneAfterClose(closingPane, nextPane, {
+						partyAvailable,
+						partyCollapsed
+					})
 				: { zone: 'box', slot: 0 };
 			activePaneId = nextPane?.id ?? 'pane-pokemon-storage';
 			navigation = {

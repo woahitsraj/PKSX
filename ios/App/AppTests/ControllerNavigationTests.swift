@@ -54,16 +54,43 @@ final class ControllerNavigationTests: XCTestCase {
         try await waitForJavaScript("document.activeElement?.id === 'box-0-slot-1'", in: webView)
         controller.extendedGamepad?.leftThumbstick.setValueForXAxis(0, yAxis: 0)
 
-        controller.extendedGamepad?.buttonY.setValue(1)
+        controller.extendedGamepad?.buttonX.setValue(1)
         try await waitForJavaScript(
-            "document.querySelector('[role=\"dialog\"][aria-label=\"Add Box Source\"]') !== null && document.activeElement?.classList.contains('source-card') && getComputedStyle(document.activeElement).outlineStyle === 'solid'",
+            "document.querySelector('[role=\"dialog\"][aria-label=\"Box Menu\"]') !== null && document.activeElement?.id === 'box-menu-command-0' && getComputedStyle(document.activeElement).outlineStyle === 'solid'",
             in: webView
         )
-        controller.extendedGamepad?.buttonY.setValue(0)
+        controller.extendedGamepad?.buttonX.setValue(0)
+
+        for index in 1...3 {
+            controller.extendedGamepad?.dpad.setValueForXAxis(0, yAxis: -1)
+            try await waitForJavaScript(
+                "document.activeElement?.id === 'box-menu-command-\(index)'",
+                in: webView
+            )
+            controller.extendedGamepad?.dpad.setValueForXAxis(0, yAxis: 0)
+            try await waitForJavaScript(
+                "window.__pksxControllerEvents?.includes('ArrowDown:false')",
+                in: webView
+            )
+        }
+
+        controller.extendedGamepad?.buttonA.setValue(1)
+        try await waitForJavaScript(
+            "document.querySelector('[role=\"dialog\"][aria-label=\"Open another collection\"]') !== null && document.activeElement?.classList.contains('source-card')",
+            in: webView
+        )
+        controller.extendedGamepad?.buttonA.setValue(0)
 
         controller.extendedGamepad?.buttonB.setValue(1)
         try await waitForJavaScript(
-            "document.querySelector('[role=\"dialog\"][aria-label=\"Add Box Source\"]') === null",
+            "document.querySelector('[role=\"dialog\"][aria-label=\"Open another collection\"]') === null && document.activeElement?.id === 'box-menu-command-3'",
+            in: webView
+        )
+        controller.extendedGamepad?.buttonB.setValue(0)
+
+        controller.extendedGamepad?.buttonB.setValue(1)
+        try await waitForJavaScript(
+            "document.querySelector('[role=\"dialog\"][aria-label=\"Box Menu\"]') === null && document.activeElement?.id === 'box-0-slot-1'",
             in: webView
         )
         controller.extendedGamepad?.buttonB.setValue(0)

@@ -164,6 +164,13 @@ describe('storage workbench panes', () => {
 			zone: 'party',
 			slot: 5
 		});
+		expect(focusSurvivingPaneAfterClose(closing, partySurvivor, { partyCollapsed: true })).toEqual({
+			zone: 'box',
+			slot: 29
+		});
+		expect(focusSurvivingPaneAfterClose(closing, partySurvivor, { partyAvailable: false })).toEqual(
+			{ zone: 'box', slot: 29 }
+		);
 	});
 
 	it('derives visible pane state tags from source ownership', () => {

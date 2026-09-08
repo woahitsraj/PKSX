@@ -602,23 +602,71 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 
 	await page.keyboard.press('x');
 	await menu.getByRole('button', { name: 'Switch', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Switch collection' })
+		.getByRole('button', { name: /pokemon-scarlet-2025-03-24-main\.sav/ })
+		.click();
 	await page.keyboard.press('Escape');
 	await expect(menu).toBeVisible();
+	await expect(menu).toContainText('emerald-011020251345.sav');
 	await expect(page.locator('#box-menu-command-2')).toBeFocused();
+	await menu.getByRole('button', { name: 'Switch', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Switch collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	await expect(
+		page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' })
+	).toBeVisible();
+	await page.keyboard.press('x');
+	menu = page.getByRole('dialog', { name: 'Box Menu' });
+	await menu.getByRole('button', { name: 'Switch', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Switch collection' })
+		.getByRole('button', { name: /pokemon-scarlet-2025-03-24-main\.sav/ })
+		.click();
+	await expect(page.locator('#box-grid')).toHaveAttribute(
+		'aria-label',
+		/pokemon-scarlet-2025-03-24-main\.sav Box 01/
+	);
+	await page.getByRole('button', { name: /Box 32 BOX 32/ }).click();
+	await expect(page.locator('.toolbar-status-strip')).not.toHaveText('Working');
+	await page.locator('#box-31-slot-29').click();
+	await page.keyboard.press('x');
+	menu = page.getByRole('dialog', { name: 'Box Menu' });
+	await menu.getByRole('button', { name: 'Switch', exact: true }).click();
+	await page.getByRole('button', { name: /011020251345\.sav/ }).click();
+	await expect(page.locator('#box-grid')).toHaveAttribute(
+		'aria-label',
+		/emerald-011020251345\.sav Box 14/
+	);
+	await expect(page.locator('#box-13-slot-29')).toBeFocused();
+
+	await page.keyboard.press('x');
+	menu = page.getByRole('dialog', { name: 'Box Menu' });
 	await menu.getByRole('button', { name: 'Switch', exact: true }).click();
 	await page.getByRole('button', { name: /Pokemon Storage/ }).click();
 	await expect(
 		page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' })
 	).toBeVisible();
-	await expect(page.locator('#box-0-slot-29')).toBeFocused();
+	await expect(page.locator('#box-2-slot-29')).toBeFocused();
 
+	await page.locator('#party-slot-5').click();
 	await page.keyboard.press('x');
+	menu = page.getByRole('dialog', { name: 'Box Menu' });
+	await expect(menu).toContainText('pokemon-scarlet-2025-03-24-main.sav');
+	await expect(menu.locator('#box-menu-command-2-reason')).toHaveText(activeFileReason);
+	await expect(menu.locator('#box-menu-command-4-reason')).toHaveText(activeFileReason);
+	await page.keyboard.press('x');
+	await expect(page.locator('#party-slot-5')).toBeFocused();
+	await page.getByRole('button', { name: 'Party' }).click();
+	await page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' }).click();
 	await page
 		.getByRole('dialog', { name: 'Box Menu' })
 		.getByRole('button', { name: 'Close' })
 		.click();
 	await expect(page.locator('.box-zone')).toHaveCount(1);
-	await expect(page.locator('#party-slot-5')).toBeFocused();
+	await expect(page.locator('#box-0-slot-5')).toBeFocused();
 });
 
 test('Box Menu allows duplicate Save File panes and keeps Open another disabled at two panes', async ({
@@ -711,6 +759,8 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await expect(page.locator('#box-grid #collection-control-pane-active-save')).toHaveCount(1);
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Add collection' }).click();
+	await expect(page.getByRole('dialog', { name: 'Open another collection' })).toBeHidden();
 
 	await page.keyboard.press('x');
 	await expect(page.getByRole('dialog', { name: 'Box Menu' })).toBeHidden();

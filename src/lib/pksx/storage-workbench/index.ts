@@ -157,10 +157,17 @@ export function closeBoxPane(panes: BoxPaneState[], paneId: string): BoxPaneStat
 
 export function focusSurvivingPaneAfterClose(
 	closingPane: BoxPaneState,
-	survivingPane: BoxPaneState
+	survivingPane: BoxPaneState,
+	options: { partyAvailable?: boolean; partyCollapsed?: boolean } = {}
 ): SlotFocus {
-	const maxSlot = survivingPane.focus.zone === 'party' ? PARTY_SLOT_COUNT - 1 : BOX_SLOT_COUNT - 1;
-	return { zone: survivingPane.focus.zone, slot: Math.min(closingPane.focus.slot, maxSlot) };
+	const zone =
+		survivingPane.focus.zone === 'party' &&
+		(options.partyAvailable ?? true) &&
+		!(options.partyCollapsed ?? false)
+			? 'party'
+			: 'box';
+	const maxSlot = zone === 'party' ? PARTY_SLOT_COUNT - 1 : BOX_SLOT_COUNT - 1;
+	return { zone, slot: Math.min(closingPane.focus.slot, maxSlot) };
 }
 
 export function switchPaneSource(
