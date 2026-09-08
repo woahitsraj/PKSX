@@ -1,0 +1,142 @@
+import {
+	focusActionCommand,
+	type ControllerFocus,
+	type NavigationAction,
+	type SlotFocus
+} from '../box-navigation';
+
+export type SummonedWorkflowKind =
+	| 'slot-menu'
+	| 'source-picker'
+	| 'clear-slot-confirmation'
+	| 'pokemon-creation'
+	| 'pokemon-editor'
+	| 'pokemon-actions'
+	| 'legality-report';
+
+export type SummonedWorkflowLauncher =
+	| {
+			type: 'slot';
+			paneId: string;
+			box: number | null;
+			focus: SlotFocus;
+	  }
+	| {
+			type: 'control';
+			id: string;
+			focus: ControllerFocus;
+	  };
+
+export type SummonedWorkflow = {
+	kind: SummonedWorkflowKind;
+	launcher: SummonedWorkflowLauncher;
+	returnTo: SummonedWorkflow | null;
+};
+
+export type SummonedWorkflowOwner = {
+	active: SummonedWorkflow | null;
+};
+
+export type SlotMenuDispatch = {
+	focus: ControllerFocus;
+	effect: 'none' | 'activate' | 'dismiss';
+};
+
+export function createSummonedWorkflowOwner(): SummonedWorkflowOwner {
+	return { active: null };
+}
+
+export function openSummonedWorkflow(
+	owner: SummonedWorkflowOwner,
+	kind: SummonedWorkflowKind,
+	launcher: SummonedWorkflowLauncher
+): SummonedWorkflowOwner {
+	return owner.active ? owner : { active: { kind, launcher, returnTo: null } };
+}
+
+export function openRelatedSummonedWorkflow(
+	owner: SummonedWorkflowOwner,
+	kind: SummonedWorkflowKind,
+	launcher: SummonedWorkflowLauncher
+): SummonedWorkflowOwner {
+	return { active: { kind, launcher, returnTo: owner.active } };
+}
+
+export function dismissSummonedWorkflow(owner: SummonedWorkflowOwner): {
+	owner: SummonedWorkflowOwner;
+	returnFocus: ControllerFocus | null;
+} {
+	if (!owner.active) {
+		return { owner, returnFocus: null };
+	}
+
+	return {
+		owner: { active: owner.active.returnTo },
+		returnFocus: owner.active.launcher.focus
+	};
+}
+
+export function closeSummonedWorkflows(): SummonedWorkflowOwner {
+	return createSummonedWorkflowOwner();
+}
+
+export function dispatchSlotMenuAction(
+	focus: ControllerFocus,
+	action: NavigationAction,
+	commandCount: number
+): SlotMenuDispatch {
+	const count = Math.max(1, commandCount);
+	const index = focus.zone === 'actions' ? focus.index : 0;
+
+	switch (action) {
+		case 'left':
+		case 'up':
+			return { focus: focusActionCommand(index - 1, count), effect: 'none' };
+		case 'right':
+		case 'down':
+			return { focus: focusActionCommand(index + 1, count), effect: 'none' };
+		case 'confirm':
+			return {
+				focus: focusActionCommand(index, count),
+				effect: index === count - 1 ? 'dismiss' : 'activate'
+			};
+		case 'back':
+			return { focus: focusActionCommand(index, count), effect: 'dismiss' };
+		case 'previousBox':
+		case 'nextBox':
+		case 'sourceAction':
+			return { focus: focusActionCommand(index, count), effect: 'none' };
+	}
+}
+
+export function isDestinationInputSuspended(owner: SummonedWorkflowOwner): boolean {
+	return owner.active !== null;
+}
+
+export function isSummonedWorkflowPresented(
+	owner: SummonedWorkflowOwner,
+	kind: SummonedWorkflowKind
+): boolean {
+	return findWorkflow(owner.active, (workflow) => workflow.kind === kind) !== null;
+}
+
+export function getLaunchingSlot(
+	owner: SummonedWorkflowOwner
+): Extract<SummonedWorkflowLauncher, { type: 'slot' }> | null {
+	for (let current = owner.active; current; current = current.returnTo) {
+		if (current.launcher.type === 'slot') return current.launcher;
+	}
+
+	return null;
+}
+
+function findWorkflow(
+	workflow: SummonedWorkflow | null,
+	predicate: (workflow: SummonedWorkflow) => boolean
+): SummonedWorkflow | null {
+	for (let current = workflow; current; current = current.returnTo) {
+		if (predicate(current)) return current;
+	}
+
+	return null;
+}

@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
 	applyNavigationAction,
 	createInitialNavigationState,
-	focusActionCommand,
 	focusBoxSlot,
 	focusMobileTab,
 	focusPaneBoundarySlot,
@@ -22,10 +21,8 @@ describe('box navigation', () => {
 
 		expect(createInitialNavigationState(3)).toEqual({
 			focus: { zone: 'box', slot: 0 },
-			actionOrigin: null,
 			activeBox: 0,
-			boxCount: 3,
-			actionSurfaceOpen: false
+			boxCount: 3
 		});
 	});
 
@@ -234,46 +231,6 @@ describe('box navigation', () => {
 		expect(state).toMatchObject({ activeBox: 29, focus: focusBoxSlot(17) });
 		expect(selectActiveBox(state, -1)).toMatchObject({ activeBox: 0 });
 		expect(selectActiveBox(state, 40)).toMatchObject({ activeBox: 29 });
-	});
-
-	it('opens the slot action surface, moves through commands, and dismisses to the source slot', () => {
-		expect.assertions(4);
-
-		const opened = move({ focus: focusBoxSlot(8) }, 'confirm');
-		expect(opened).toMatchObject({
-			actionSurfaceOpen: true,
-			actionOrigin: focusBoxSlot(8),
-			focus: focusActionCommand(0)
-		});
-		expect(applyNavigationAction(opened, 'down', { actionCount: 3 })).toMatchObject({
-			focus: focusActionCommand(1, 3)
-		});
-		expect(applyNavigationAction(opened, 'right', { actionCount: 3 })).toMatchObject({
-			focus: focusActionCommand(1, 3)
-		});
-		expect(applyNavigationAction(opened, 'back')).toMatchObject({
-			actionSurfaceOpen: false,
-			actionOrigin: null,
-			focus: focusBoxSlot(8)
-		});
-	});
-
-	it('keeps slot actions modal until back or the final command dismisses them', () => {
-		expect.assertions(5);
-
-		const opened = move({ focus: focusBoxSlot(8) }, 'confirm', { actionCount: 3 });
-		for (const action of ['previousBox', 'nextBox', 'sourceAction'] as const) {
-			expect(applyNavigationAction(opened, action, { actionCount: 3 })).toEqual(opened);
-		}
-
-		const onFinalCommand = { ...opened, focus: focusActionCommand(2, 3) };
-		expect(applyNavigationAction(onFinalCommand, 'confirm', { actionCount: 3 })).toMatchObject({
-			actionSurfaceOpen: false,
-			focus: focusBoxSlot(8)
-		});
-		expect(
-			applyNavigationAction({ ...opened, focus: focusBoxSlot(8) }, 'back', { actionCount: 3 })
-		).toMatchObject({ actionSurfaceOpen: false, focus: focusBoxSlot(8) });
 	});
 
 	it('exposes stable active descendant ids', () => {

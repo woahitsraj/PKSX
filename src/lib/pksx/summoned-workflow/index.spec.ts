@@ -1,0 +1,84 @@
+import { describe, expect, it } from 'vitest';
+
+import { focusActionCommand, focusBoxSlot, focusTopControl } from '../box-navigation';
+import {
+	createSummonedWorkflowOwner,
+	dismissSummonedWorkflow,
+	dispatchSlotMenuAction,
+	getLaunchingSlot,
+	isDestinationInputSuspended,
+	isSummonedWorkflowPresented,
+	openRelatedSummonedWorkflow,
+	openSummonedWorkflow
+} from './index';
+
+describe('summoned workflow ownership', () => {
+	it('owns a related workflow, its launch chain, input suspension, and focus return', () => {
+		expect.assertions(10);
+
+		const slotMenu = openSummonedWorkflow(createSummonedWorkflowOwner(), 'slot-menu', {
+			type: 'slot',
+			paneId: 'pane-active-save',
+			box: 2,
+			focus: { zone: 'box', slot: 8 }
+		});
+		expect(slotMenu.active?.kind).toBe('slot-menu');
+		expect(isDestinationInputSuspended(slotMenu)).toBe(true);
+		expect(getLaunchingSlot(slotMenu)).toMatchObject({
+			paneId: 'pane-active-save',
+			box: 2,
+			focus: focusBoxSlot(8)
+		});
+
+		const editor = openRelatedSummonedWorkflow(slotMenu, 'pokemon-editor', {
+			type: 'control',
+			id: 'slot-action-0',
+			focus: focusActionCommand(0)
+		});
+		expect(editor.active?.kind).toBe('pokemon-editor');
+		expect(editor.active?.launcher).toEqual({
+			type: 'control',
+			id: 'slot-action-0',
+			focus: focusActionCommand(0)
+		});
+		expect(isSummonedWorkflowPresented(editor, 'slot-menu')).toBe(true);
+		expect(getLaunchingSlot(editor)?.focus).toEqual(focusBoxSlot(8));
+
+		const dismissed = dismissSummonedWorkflow(editor);
+		expect(dismissed.owner.active?.kind).toBe('slot-menu');
+		expect(dismissed.returnFocus).toEqual(focusActionCommand(0));
+		expect(isDestinationInputSuspended(dismissed.owner)).toBe(true);
+	});
+
+	it('dispatches Slot Menu navigation without moving destination focus', () => {
+		expect(dispatchSlotMenuAction(focusActionCommand(0), 'down', 3)).toEqual({
+			focus: focusActionCommand(1, 3),
+			effect: 'none'
+		});
+		expect(dispatchSlotMenuAction(focusActionCommand(2, 3), 'confirm', 3)).toEqual({
+			focus: focusActionCommand(2, 3),
+			effect: 'dismiss'
+		});
+		expect(dispatchSlotMenuAction(focusActionCommand(1, 3), 'nextBox', 3)).toEqual({
+			focus: focusActionCommand(1, 3),
+			effect: 'none'
+		});
+	});
+
+	it('keeps an existing workflow when another root workflow tries to open', () => {
+		const sourcePicker = openSummonedWorkflow(createSummonedWorkflowOwner(), 'source-picker', {
+			type: 'control',
+			id: 'top-control-5',
+			focus: focusTopControl(5, 7)
+		});
+
+		expect(
+			openSummonedWorkflow(sourcePicker, 'slot-menu', {
+				type: 'slot',
+				paneId: 'pane-pokemon-storage',
+				box: 0,
+				focus: { zone: 'box', slot: 0 }
+			})
+		).toBe(sourcePicker);
+	});
+});
