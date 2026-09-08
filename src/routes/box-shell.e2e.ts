@@ -460,7 +460,10 @@ test('switches to durable Pokemon Storage with focusable empty Slot actions', as
 
 	await page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: 'Switch', exact: true }).click();
-	await page.getByRole('button', { name: /011020251345.sav/ }).click();
+	await page
+		.getByRole('dialog', { name: 'Switch collection' })
+		.getByRole('button', { name: /011020251345.sav/ })
+		.click();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 
 	await seedPokemonStorageBoxes(page, 5);
@@ -1435,6 +1438,8 @@ test('controller shoulder buttons switch boxes and A drives the party toggle and
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 
 	await pressController(page, 'ArrowUp');
+	await expect(page.locator('#collection-control-pane-active-save')).toBeFocused();
+	await pressController(page, 'ArrowUp');
 	await expect(page.locator('#party-slot-0')).toBeFocused();
 	await pressController(page, 'ArrowUp');
 	await expect(page.locator('#party-toggle')).toBeFocused();
@@ -1442,7 +1447,11 @@ test('controller shoulder buttons switch boxes and A drives the party toggle and
 	await pressController(page, 'Enter');
 	await expect(page.locator('#party-list')).toBeHidden();
 	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#collection-control-pane-active-save')).toBeFocused();
+	await pressController(page, 'ArrowDown');
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+	await pressController(page, 'ArrowUp');
+	await expect(page.locator('#collection-control-pane-active-save')).toBeFocused();
 	await pressController(page, 'ArrowUp');
 	await expect(page.locator('#party-toggle')).toBeFocused();
 	await pressController(page, 'Enter');
@@ -1450,6 +1459,8 @@ test('controller shoulder buttons switch boxes and A drives the party toggle and
 
 	await pressController(page, 'ArrowDown');
 	await expect(page.locator('#party-slot-0')).toBeFocused();
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#collection-control-pane-active-save')).toBeFocused();
 	await pressController(page, 'ArrowDown');
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	await pressController(page, 'Enter');
