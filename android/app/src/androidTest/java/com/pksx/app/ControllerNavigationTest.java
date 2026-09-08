@@ -392,20 +392,32 @@ public class ControllerNavigationTest {
                 0
             )
             .versionName;
-        runJavaScript("location.href = 'settings.html'");
         awaitJavaScript(
-            "location.pathname.endsWith('/settings.html')"
-                + " && document.querySelector('[data-testid=\"app-version\"]')"
+            "document.readyState === 'complete'"
+                + " && document.querySelector('.boxes-route')?.dataset.initialState === 'ready'",
+            ENGINE_TIMEOUT_SECONDS
+        );
+        runJavaScript(
+            "window.__pksxSettingsDocument = 'alive';"
+                + " (() => {"
+                + " const link = document.createElement('a');"
+                + " link.href = '/settings';"
+                + " document.body.append(link);"
+                + " link.click();"
+                + " link.remove();"
+                + " })()"
         );
         awaitJavaScript(
-            "document.querySelector('[data-testid=\"app-version\"]')?.textContent === '"
+            "window.__pksxSettingsDocument === 'alive'"
+                + " && location.pathname === '/settings'"
+                + " && document.querySelector('[data-testid=\"app-version\"]')?.textContent === '"
                 + installedVersion
                 + "' && document.querySelector('[data-testid=\"app-platform\"]')?.textContent === 'Android'"
         );
     }
 
     @Test
-    public void editableFocusKeepsTallHeightBandWhileImeShrinksWebView() throws Exception {
+    public void editableFocusKeepsTallHeightBandWhileImeShrinksWebView() throws Throwable {
         assumeTrue("Requires Android 11 display controls", Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
         awaitImeHidden();
         awaitJavaScript("document.readyState === 'complete' && document.querySelector('.app-shell')");
@@ -423,7 +435,7 @@ public class ControllerNavigationTest {
             .compile("(?m)^Override size: ([0-9]+x[0-9]+)\\s*$")
             .matcher(originalSizeState);
         String originalSizeOverride = override.find() ? override.group(1) : null;
-        JSONArray originalViewport = new JSONArray(runJavaScript("[innerWidth, innerHeight]"));
+        JSONArray originalViewport = awaitSettledViewport(originalAngle);
         int originalWidth = originalViewport.getInt(0);
         int originalHeight = originalViewport.getInt(1);
         String fixedRotation = shellCommand("cmd window fixed-to-user-rotation");
@@ -443,6 +455,7 @@ public class ControllerNavigationTest {
             )
         );
 
+        Throwable primaryFailure = null;
         try {
             shellCommand("wm size 540x720");
             userRotation("lock 0");
@@ -494,49 +507,167 @@ public class ControllerNavigationTest {
                     + " && getComputedStyle(document.querySelector('.app-shell'))"
                     + ".getPropertyValue('--pksx-height-band').trim() === 'tall'"
             );
+        } catch (Throwable failure) {
+            primaryFailure = failure;
+            throw failure;
         } finally {
             try {
-                runJavaScript("document.activeElement?.blur()");
-                hideIme();
-            } finally {
                 try {
-                    shellCommand(
-                        "wm size " + (originalSizeOverride == null ? "reset" : originalSizeOverride)
-                    );
+                    runJavaScript("document.activeElement?.blur()");
+                    hideIme();
                 } finally {
                     try {
-                        userRotation("lock " + originalAngle);
+                        shellCommand(
+                            "wm size " + (originalSizeOverride == null ? "reset" : originalSizeOverride)
+                        );
+                    } finally {
+                        try {
+                            userRotation("lock " + originalAngle);
+                            awaitDisplayRotation(originalAngle);
+                            awaitImeHidden();
+                            awaitJavaScript(restoredViewportExpression(originalWidth, originalHeight));
+                        } finally {
+                            userRotation(originalRotationMode);
+                        }
                         awaitDisplayRotation(originalAngle);
                         awaitImeHidden();
                         awaitJavaScript(restoredViewportExpression(originalWidth, originalHeight));
-                    } finally {
-                        userRotation(originalRotationMode);
+                        if (!originalRotationMode.equals(userRotation(""))) {
+                            fail("Android rotation mode was not restored");
+                        }
+                        String restoredSizeState = shellCommand("wm size");
+                        boolean sizeRestored = originalSizeOverride == null
+                            ? !restoredSizeState.contains("Override size:")
+                            : restoredSizeState.contains("Override size: " + originalSizeOverride);
+                        if (!sizeRestored) {
+                            fail("Android display size was not restored: " + restoredSizeState);
+                        }
+                        Log.i(
+                            "PKSXAcceptance",
+                            "IME fixture restored mode="
+                                + userRotation("")
+                                + " angle="
+                                + displayRotation()
+                                + " size="
+                                + restoredSizeState.replace('\n', ' ')
+                        );
                     }
-                    awaitDisplayRotation(originalAngle);
-                    awaitImeHidden();
-                    awaitJavaScript(restoredViewportExpression(originalWidth, originalHeight));
-                    if (!originalRotationMode.equals(userRotation(""))) {
-                        fail("Android rotation mode was not restored");
-                    }
-                    String restoredSizeState = shellCommand("wm size");
-                    boolean sizeRestored = originalSizeOverride == null
-                        ? !restoredSizeState.contains("Override size:")
-                        : restoredSizeState.contains("Override size: " + originalSizeOverride);
-                    if (!sizeRestored) {
-                        fail("Android display size was not restored: " + restoredSizeState);
-                    }
-                    Log.i(
-                        "PKSXAcceptance",
-                        "IME fixture restored mode="
-                            + userRotation("")
-                            + " angle="
-                            + displayRotation()
-                            + " size="
-                            + restoredSizeState.replace('\n', ' ')
-                    );
                 }
+            } catch (Throwable cleanupFailure) {
+                if (primaryFailure == null) throw cleanupFailure;
+                primaryFailure.addSuppressed(cleanupFailure);
             }
         }
+    }
+
+    private JSONArray awaitSettledViewport(int expectedRotation) throws Exception {
+        long deadline = SystemClock.uptimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+        String lastState = "no observation";
+        while (SystemClock.uptimeMillis() < deadline) {
+            int[] firstNative = readyNativeViewport();
+            JSONArray firstCss = firstNative == null ? null : viewportMetrics();
+            int[] firstAfter = readyNativeViewport();
+            if (!awaitNextVisualState(deadline)) break;
+            int[] secondNative = readyNativeViewport();
+            JSONArray secondCss = secondNative == null ? null : viewportMetrics();
+            int[] secondAfter = readyNativeViewport();
+
+            lastState =
+                "native="
+                    + java.util.Arrays.toString(firstNative)
+                    + "/"
+                    + java.util.Arrays.toString(firstAfter)
+                    + "/"
+                    + java.util.Arrays.toString(secondNative)
+                    + "/"
+                    + java.util.Arrays.toString(secondAfter)
+                    + ", css="
+                    + firstCss
+                    + "/"
+                    + secondCss;
+            if (
+                firstNative != null
+                    && firstNative[0] == expectedRotation
+                    && java.util.Arrays.equals(firstNative, firstAfter)
+                    && java.util.Arrays.equals(firstNative, secondNative)
+                    && java.util.Arrays.equals(firstNative, secondAfter)
+                    && matchesNativeViewport(firstCss, firstNative)
+                    && matchesNativeViewport(secondCss, firstNative)
+            ) return secondCss;
+        }
+        fail("Timed out waiting for a settled Android viewport: " + lastState);
+        return null;
+    }
+
+    private int[] readyNativeViewport() {
+        AtomicReference<int[]> viewport = new AtomicReference<>();
+        activityRule
+            .getScenario()
+            .onActivity(
+                activity -> {
+                    WebView webView = activity.getBridge().getWebView();
+                    android.view.View parent = (android.view.View) webView.getParent();
+                    WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(webView);
+                    if (
+                        webView.getDisplay() != null
+                            && parent != null
+                            && webView.isAttachedToWindow()
+                            && webView.isLaidOut()
+                            && webView.getWidth() > 0
+                            && webView.getHeight() > 0
+                            && !webView.isLayoutRequested()
+                            && !parent.isLayoutRequested()
+                            && insets != null
+                            && !insets.isVisible(WindowInsetsCompat.Type.ime())
+                    ) {
+                        viewport.set(
+                            new int[] {
+                                webView.getDisplay().getRotation(),
+                                webView.getWidth(),
+                                webView.getHeight(),
+                            }
+                        );
+                    }
+                }
+            );
+        return viewport.get();
+    }
+
+    private JSONArray viewportMetrics() throws Exception {
+        return new JSONArray(
+            runJavaScript("[innerWidth,innerHeight,devicePixelRatio,visualViewport?.scale]")
+        );
+    }
+
+    private boolean matchesNativeViewport(JSONArray css, int[] nativeViewport) throws Exception {
+        return css != null
+            && css.getInt(0) == nativeViewport[1]
+            && css.getInt(1) == nativeViewport[2]
+            && css.getDouble(2) == 1d
+            && css.getDouble(3) == 1d;
+    }
+
+    private boolean awaitNextVisualState(long deadline) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        activityRule
+            .getScenario()
+            .onActivity(
+                activity ->
+                    activity
+                        .getBridge()
+                        .getWebView()
+                        .postVisualStateCallback(
+                            SystemClock.uptimeMillis(),
+                            new WebView.VisualStateCallback() {
+                                @Override
+                                public void onComplete(long requestId) {
+                                    latch.countDown();
+                                }
+                            }
+                        )
+            );
+        long remaining = deadline - SystemClock.uptimeMillis();
+        return remaining > 0 && latch.await(remaining, TimeUnit.MILLISECONDS);
     }
 
     private void awaitControllerSurface() throws Exception {
@@ -827,6 +958,7 @@ public class ControllerNavigationTest {
                     + " innerWidth, innerHeight,"
                     + " appVersion: document.querySelector('[data-testid=\"app-version\"]')?.textContent,"
                     + " appPlatform: document.querySelector('[data-testid=\"app-platform\"]')?.textContent,"
+                    + " settingsDocument: window.__pksxSettingsDocument ?? null,"
                     + " path: location.pathname,"
                     + " mobileDisplay: mobile ? getComputedStyle(mobile).display : null,"
                     + " sidebarDisplay: sidebar ? getComputedStyle(sidebar).display : null}); })()"
