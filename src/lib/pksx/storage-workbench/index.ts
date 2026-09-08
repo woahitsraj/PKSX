@@ -193,9 +193,7 @@ export function refreshSaveFilePaneWorkspaces<TState extends SavePaneWorkspaceSt
 	panes: BoxPaneState[],
 	workspaces: SavePaneWorkspaceCache<TState>,
 	state: TState,
-	loadedBox:
-		| number
-		| ((pane: BoxPaneState) => { state: TState; loadedBox: number } | null)
+	loadedBox: number | ((pane: BoxPaneState) => { state: TState; loadedBox: number } | null)
 ): { panes: BoxPaneState[]; workspaces: SavePaneWorkspaceCache<TState> } {
 	const matchingPanes = panes.filter(
 		(pane) => pane.source.type === 'save-file' && pane.source.id === state.file.id
@@ -215,15 +213,15 @@ export function refreshSaveFilePaneWorkspaces<TState extends SavePaneWorkspaceSt
 					}
 				: pane
 		),
-		workspaces: matchingPanes.reduce((next, pane) => {
-			const projection =
-				typeof loadedBox === 'function' ? loadedBox(pane) : { state, loadedBox };
-			if (!projection) return next;
-			return {
-				...next,
-				[pane.id]: projection
-			};
-		},
+		workspaces: matchingPanes.reduce(
+			(next, pane) => {
+				const projection = typeof loadedBox === 'function' ? loadedBox(pane) : { state, loadedBox };
+				if (!projection) return next;
+				return {
+					...next,
+					[pane.id]: projection
+				};
+			},
 			{ ...workspaces }
 		)
 	};

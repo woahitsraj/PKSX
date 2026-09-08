@@ -58,7 +58,11 @@ function storageStub(overrides: Partial<SavesStorage> = {}): SavesStorage {
 		listBackups: async () => [backup],
 		createBackup: async () => backup,
 		putWorkspace: async (input) => ({ ...input, updatedAt: '2026-05-28T11:00:00.000Z' }),
-		importSave: async () => ({ ...saveFile, id: 'save-2', originalFileName: 'emerald.restored.sav' }),
+		importSave: async () => ({
+			...saveFile,
+			id: 'save-2',
+			originalFileName: 'emerald.restored.sav'
+		}),
 		...overrides
 	} as SavesStorage;
 }

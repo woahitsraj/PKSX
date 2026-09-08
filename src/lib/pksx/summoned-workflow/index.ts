@@ -1,4 +1,9 @@
-import { focusActionCommand, type ControllerFocus, type NavigationAction, type SlotFocus } from '../box-navigation';
+import {
+	focusActionCommand,
+	type ControllerFocus,
+	type NavigationAction,
+	type SlotFocus
+} from '../box-navigation';
 
 export type SummonedWorkflowKind =
 	| 'slot-menu'
