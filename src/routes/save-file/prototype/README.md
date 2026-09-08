@@ -14,6 +14,10 @@ Run `pnpm prototype:save-file`, then open `http://localhost:5173/save-file/proto
 - `controls=0` hides the prototype bar for screenshots.
 - The bar's `Fail next` makes the next commit fail so the restore-and-Toast path shows.
 
+## Verdict
+
+Variant C, Ledger, is the selected direction (issue #169, 8 September 2026). A and B are discarded alternatives kept for comparison. The issue resolution and `CONTEXT.md` are authoritative when the prototype differs from the final behavior.
+
 ## Variants
 
 - `A`, Sheet. One scrolling column: filename, Trainer, then Bag with Money first, a horizontal pocket chip row, and one flat list for the selected pocket. Centered at 720px in large containers.
