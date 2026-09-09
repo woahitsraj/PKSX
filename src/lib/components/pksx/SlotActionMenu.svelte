@@ -310,7 +310,10 @@
 			width: auto;
 			max-height: max(
 				80px,
-				calc(100dvh - var(--mobile-surface-top, 76px) - 88px - env(safe-area-inset-bottom, 0px))
+				calc(
+					100dvh - var(--mobile-surface-top, 76px) - 88px -
+						var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
+				)
 			);
 			overflow-y: auto;
 			opacity: 1;

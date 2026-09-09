@@ -39,7 +39,7 @@
 		position: fixed;
 		z-index: 3100;
 		left: 50%;
-		bottom: max(6px, env(safe-area-inset-bottom));
+		bottom: max(6px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
 		transform: translateX(-50%);
 		width: min(430px, calc(100vw - 20px));
 		display: grid;

@@ -78,8 +78,10 @@
 		z-index: 3000;
 		inset: 0;
 		box-sizing: border-box;
-		padding: max(4px, env(safe-area-inset-top)) max(4px, env(safe-area-inset-right))
-			max(4px, env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left));
+		padding: max(4px, var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))
+			max(4px, var(--safe-area-inset-right, env(safe-area-inset-right, 0px)))
+			max(4px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))
+			max(4px, var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
 		overflow: hidden;
 		background:
 			radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.6), transparent 38%),
@@ -101,8 +103,8 @@
 	.main-menu-summon {
 		position: fixed;
 		z-index: 3050;
-		top: max(7px, env(safe-area-inset-top));
-		right: max(7px, env(safe-area-inset-right));
+		top: max(7px, var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+		right: max(7px, var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
 		width: 26px;
 		height: 26px;
 		display: grid;
@@ -130,8 +132,10 @@
 
 	@media (min-height: 560px) {
 		.prototype-canvas {
-			padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
-				max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+			padding: max(8px, var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))
+				max(8px, var(--safe-area-inset-right, env(safe-area-inset-right, 0px)))
+				max(8px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))
+				max(8px, var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
 		}
 	}
 </style>

@@ -1,13 +1,22 @@
 package com.pksx.app;
 
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
+import android.content.pm.PackageInfo;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.os.SystemClock;
+import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.util.Base64;
+import android.webkit.WebView;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -16,6 +25,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.Locale;
+import org.json.JSONArray;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -103,6 +114,151 @@ public class ControllerNavigationTest {
                 + " && getComputedStyle(document.querySelector('.mobile-tabbar')).display !== 'none'"
                 + " && getComputedStyle(document.querySelector('.box-sidebar')).display === 'none'"
         );
+    }
+
+    @Test
+    public void syntheticSafeAreaInsetsControlShellPadding() throws Exception {
+        awaitJavaScript("document.readyState === 'complete' && document.querySelector('.app-shell')");
+        awaitJavaScript(
+            "(() => {"
+                + " const root = document.documentElement;"
+                + " const sides = ['top', 'right', 'bottom', 'left'];"
+                + " const previous = sides.map(side => root.style.getPropertyValue('--safe-area-inset-' + side));"
+                + " ['20px', '21px', '22px', '23px'].forEach((value, index) =>"
+                + " root.style.setProperty('--safe-area-inset-' + sides[index], value));"
+                + " const shell = getComputedStyle(document.querySelector('.app-shell'));"
+                + " const tabbar = getComputedStyle(document.querySelector('.mobile-tabbar'));"
+                + " const matches = shell.paddingTop === '20px' && shell.paddingRight === '21px'"
+                + " && shell.paddingBottom === '100px' && shell.paddingLeft === '23px'"
+                + " && tabbar.paddingBottom === '28px';"
+                + " sides.forEach((side, index) => previous[index]"
+                + " ? root.style.setProperty('--safe-area-inset-' + side, previous[index])"
+                + " : root.style.removeProperty('--safe-area-inset-' + side));"
+                + " return matches;"
+                + " })()"
+        );
+    }
+
+    @Test
+    public void pre140WebViewKeepsShellContentInsideSystemBars() throws Exception {
+        PackageInfo webViewPackage = WebView.getCurrentWebViewPackage();
+        String provider = webViewPackage == null ? "unknown" : webViewPackage.packageName;
+        String version = webViewPackage == null ? "unknown" : webViewPackage.versionName;
+        assumeTrue(
+            "Requires Android WebView below 140, actual provider: " + provider + " " + version,
+            webViewPackage != null && Integer.parseInt(version.split("\\.")[0]) < 140
+        );
+        awaitJavaScript(
+            "document.readyState === 'complete'"
+                + " && document.querySelector('.app-shell') !== null"
+                + " && document.querySelector('.top-bar') !== null"
+                + " && document.querySelector('#mobile-tab-0') !== null"
+        );
+
+        JSONArray geometry = new JSONArray(
+            runJavaScript(
+                "(() => {"
+                    + " const topBar = document.querySelector('.top-bar').getBoundingClientRect();"
+                    + " const firstTab = document.querySelector('#mobile-tab-0').getBoundingClientRect();"
+                    + " const root = getComputedStyle(document.documentElement);"
+                    + " return [innerWidth, innerHeight, topBar.left, topBar.top, topBar.right, topBar.bottom,"
+                    + " firstTab.left, firstTab.top, firstTab.right, firstTab.bottom,"
+                    + " root.getPropertyValue('--safe-area-inset-top'),"
+                    + " root.getPropertyValue('--safe-area-inset-right'),"
+                    + " root.getPropertyValue('--safe-area-inset-bottom'),"
+                    + " root.getPropertyValue('--safe-area-inset-left')];"
+                    + " })()"
+            )
+        );
+        double innerWidth = geometry.getDouble(0);
+        double innerHeight = geometry.getDouble(1);
+        double[] topBarCss = {
+            geometry.getDouble(2),
+            geometry.getDouble(3),
+            geometry.getDouble(4),
+            geometry.getDouble(5)
+        };
+        double[] firstTabCss = {
+            geometry.getDouble(6),
+            geometry.getDouble(7),
+            geometry.getDouble(8),
+            geometry.getDouble(9)
+        };
+        AtomicReference<Boolean> barsAvailable = new AtomicReference<>(false);
+        AtomicReference<Boolean> contentContained = new AtomicReference<>(false);
+        AtomicReference<String> evidence = new AtomicReference<>();
+        activityRule
+            .getScenario()
+            .onActivity(
+                activity -> {
+                    WebView webView = activity.getBridge().getWebView();
+                    int[] webViewOrigin = new int[2];
+                    int[] decorOrigin = new int[2];
+                    webView.getLocationOnScreen(webViewOrigin);
+                    activity.getWindow().getDecorView().getLocationOnScreen(decorOrigin);
+                    Rect decorBounds = new Rect(
+                        decorOrigin[0],
+                        decorOrigin[1],
+                        decorOrigin[0] + activity.getWindow().getDecorView().getWidth(),
+                        decorOrigin[1] + activity.getWindow().getDecorView().getHeight()
+                    );
+                    Rect webViewBounds = new Rect(
+                        webViewOrigin[0],
+                        webViewOrigin[1],
+                        webViewOrigin[0] + webView.getWidth(),
+                        webViewOrigin[1] + webView.getHeight()
+                    );
+                    WindowInsetsCompat windowInsets = ViewCompat.getRootWindowInsets(
+                        activity.getWindow().getDecorView()
+                    );
+                    Insets systemBars = windowInsets == null
+                        ? Insets.NONE
+                        : windowInsets.getInsets(
+                            WindowInsetsCompat.Type.systemBars() |
+                            WindowInsetsCompat.Type.displayCutout()
+                        );
+                    Rect safeBounds = new Rect(
+                        decorBounds.left + systemBars.left,
+                        decorBounds.top + systemBars.top,
+                        decorBounds.right - systemBars.right,
+                        decorBounds.bottom - systemBars.bottom
+                    );
+                    double scaleX = webView.getWidth() / innerWidth;
+                    double scaleY = webView.getHeight() / innerHeight;
+                    RectF topBarBounds = screenBounds(webViewOrigin, scaleX, scaleY, topBarCss);
+                    RectF firstTabBounds = screenBounds(webViewOrigin, scaleX, scaleY, firstTabCss);
+                    barsAvailable.set(systemBars.top > 0 && systemBars.bottom > 0);
+                    contentContained.set(
+                        scaleX > 0 &&
+                        scaleY > 0 &&
+                        contains(safeBounds, topBarBounds) &&
+                        contains(safeBounds, firstTabBounds)
+                    );
+                    evidence.set(
+                        String.format(
+                            Locale.US,
+                            "provider=%s %s decor=%s webView=%s bars=%s safe=%s scale=%.3fx%.3f topBar=%s firstTab=%s cssVars=%s",
+                            provider,
+                            version,
+                            decorBounds,
+                            webViewBounds,
+                            systemBars,
+                            safeBounds,
+                            scaleX,
+                            scaleY,
+                            topBarBounds,
+                            firstTabBounds,
+                            geometry.toString()
+                        )
+                    );
+                }
+            );
+        assumeTrue(
+            "Requires visible top and bottom system bars. " + evidence.get(),
+            barsAvailable.get()
+        );
+        Log.i("PKSXAcceptance", evidence.get());
+        if (!contentContained.get()) fail("Safe-area containment failed. " + evidence.get());
     }
 
     @Test
@@ -230,6 +386,22 @@ public class ControllerNavigationTest {
         );
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         SystemClock.sleep(500);
+    }
+
+    private RectF screenBounds(int[] origin, double scaleX, double scaleY, double[] cssBounds) {
+        return new RectF(
+            (float) (origin[0] + cssBounds[0] * scaleX),
+            (float) (origin[1] + cssBounds[1] * scaleY),
+            (float) (origin[0] + cssBounds[2] * scaleX),
+            (float) (origin[1] + cssBounds[3] * scaleY)
+        );
+    }
+
+    private boolean contains(Rect outer, RectF inner) {
+        return inner.left >= outer.left - 1 &&
+        inner.top >= outer.top - 1 &&
+        inner.right <= outer.right + 1 &&
+        inner.bottom <= outer.bottom + 1;
     }
 
     private void pressGamepadKey(int keyCode, String expectedState) throws Exception {

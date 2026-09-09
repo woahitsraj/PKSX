@@ -1633,8 +1633,9 @@
 			border-bottom: 0;
 			border-left: 0;
 			border-radius: 0;
-			padding: 12px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom))
-				max(16px, env(safe-area-inset-left));
+			padding: 12px max(16px, var(--safe-area-inset-right, env(safe-area-inset-right, 0px)))
+				max(12px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))
+				max(16px, var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
 		}
 
 		.apply-bar button:not(.apply) {

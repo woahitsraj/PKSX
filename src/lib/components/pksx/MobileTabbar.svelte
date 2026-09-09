@@ -48,7 +48,7 @@
 			display: grid;
 			grid-template-columns: repeat(var(--tab-count), minmax(0, 1fr));
 			gap: 0;
-			padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
+			padding: 6px 10px calc(6px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
 			background: var(--paper-hi);
 			border-top: 1px solid var(--rule);
 			box-shadow: 0 -8px 24px -12px rgba(70, 50, 30, 0.18);

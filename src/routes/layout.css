@@ -112,8 +112,10 @@ html[data-input-modality='controller'] body :focus {
 	--shadow-deep: var(--pksx-shadow-panel);
 	height: 100dvh;
 	min-height: 100dvh;
-	padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right))
-		max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+	padding: max(18px, var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))
+		max(18px, var(--safe-area-inset-right, env(safe-area-inset-right, 0px)))
+		max(18px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))
+		max(18px, var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
@@ -136,8 +138,10 @@ html[data-input-modality='controller'] body :focus {
 	.app-shell {
 		height: auto;
 		min-height: 100dvh;
-		padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
-			calc(78px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left));
+		padding: max(10px, var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))
+			max(10px, var(--safe-area-inset-right, env(safe-area-inset-right, 0px)))
+			calc(78px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))
+			max(10px, var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
 		gap: 10px;
 		overflow: visible;
 	}
