@@ -1479,11 +1479,11 @@ public static partial class PkhexEngineExports
     private static string LegalityEditFailurePrefix(bool hasMetData, bool hasOriginalTrainer)
     {
         if (hasMetData && hasOriginalTrainer)
-            return "Pokemon edit is not valid for this Pokemon Entity.";
+            return "Pokemon edit is not valid for this Pokemon.";
 
         return hasMetData
             ? "Met Data edit is not valid for this Pokemon encounter."
-            : "Original Trainer data is not valid for this Pokemon Entity.";
+            : "Original Trainer data is not valid for this Pokemon.";
     }
 
     private static SlotMutationResult ApplyOriginalTrainerEdit(PKM pokemon, PokemonOriginalTrainerEdit edit)
