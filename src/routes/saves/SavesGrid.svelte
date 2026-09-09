@@ -9,6 +9,10 @@
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
 	import ToastRegion from '$lib/components/pksx/ToastRegion.svelte';
 	import type { EngineError } from '$lib/engine';
+	import {
+		createCleanWorkspaceState,
+		createPersistedWorkspaceState
+	} from '$lib/pksx/backup-workflow';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
 	import {
@@ -22,6 +26,7 @@
 	import type { SaveFileId, StoredPokemonStorage, StoredSaveFile } from '$lib/pksx/saves';
 	import {
 		getCachedActiveWorkspace,
+		getCachedActiveWorkspaceBox,
 		getCachedSavesSnapshot,
 		getPkhexEngine,
 		getSavesSnapshot,
@@ -29,6 +34,7 @@
 		invalidateActiveWorkspaceCache,
 		invalidateSavesCache,
 		isCachedSavesSnapshotSeeded,
+		setCachedActiveWorkspace,
 		subscribeSavesSnapshot,
 		type SaveCardDetailsState,
 		type SavesSnapshot
@@ -410,7 +416,10 @@
 		}
 	}
 
-	async function activateSaveFile(saveFile: StoredSaveFile, destination: 'boxes' | 'save-file') {
+	async function activateSaveFile(
+		saveFile: StoredSaveFile,
+		destination: 'boxes' | 'save-file' | 'backup-browser'
+	) {
 		if (busyTarget) return;
 		busyTarget = saveFile.id;
 		try {
@@ -436,6 +445,31 @@
 				invalidateSavesCache();
 			}
 			chooseTarget({ kind: 'save-file', id: current.id }, false);
+			if (destination === 'backup-browser') {
+				const cachedWorkspace = getCachedActiveWorkspace();
+				const box = cachedWorkspace?.file.id === current.id ? getCachedActiveWorkspaceBox() : 0;
+				setCachedActiveWorkspace(
+					cachedWorkspace?.file.id === current.id
+						? cachedWorkspace
+						: persistedWorkspace
+							? createPersistedWorkspaceState({
+									file: current,
+									bytes,
+									workspace: validation.value,
+									dirty: persistedWorkspace.dirty,
+									automaticBackupCreated: persistedWorkspace.automaticBackupCreated
+								})
+							: createCleanWorkspaceState({ file: current, bytes, workspace: validation.value }),
+					box
+				);
+				activeSaveFileId = current.id;
+				menuIndex = 1;
+				summonedWorkflow.openRelated('backup-browser', {
+					type: 'control',
+					id: 'save-file-menu-command-1'
+				});
+				return;
+			}
 			summonedWorkflow.closeAll();
 			menuSaveFileId = null;
 			menuReturnTarget = null;
@@ -489,7 +523,7 @@
 			);
 			summonedWorkflow.openRelated('save-file-delete', {
 				type: 'control',
-				id: 'save-file-menu-command-1'
+				id: 'save-file-menu-command-2'
 			});
 			menuIndex = 0;
 			void focusMenuCommand(0);
@@ -558,12 +592,14 @@
 				else void confirmDelete();
 			} else if (menuOpen) {
 				if (menuIndex === 0 && menuSaveFile) void activateSaveFile(menuSaveFile, 'save-file');
+				else if (menuIndex === 1 && menuSaveFile)
+					void activateSaveFile(menuSaveFile, 'backup-browser');
 				else void requestDelete();
 			}
 			return;
 		}
 		const offset = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
-		menuIndex = Math.max(0, Math.min(1, menuIndex + offset));
+		menuIndex = Math.max(0, Math.min(deleteOpen ? 1 : 2, menuIndex + offset));
 		void focusMenuCommand(menuIndex);
 	}
 
@@ -586,8 +622,8 @@
 		if (busyTarget || !deleteOpen) return;
 		summonedWorkflow.dismiss();
 		deleteDescription = null;
-		menuIndex = 1;
-		void focusMenuCommand(1);
+		menuIndex = 2;
+		void focusMenuCommand(2);
 	}
 
 	async function focusMenuCommand(index: number) {
@@ -792,6 +828,7 @@
 		busy={busyTarget === menuSaveFile.id}
 		onFocusCommand={(index) => (menuIndex = index)}
 		onOpen={() => void activateSaveFile(menuSaveFile, 'save-file')}
+		onBrowseBackups={() => void activateSaveFile(menuSaveFile, 'backup-browser')}
 		onDelete={() => (deleteOpen ? void confirmDelete() : void requestDelete())}
 		onCancelDelete={cancelDelete}
 		onClose={dismissSaveFileWorkflow}

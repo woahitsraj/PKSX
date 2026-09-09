@@ -9,6 +9,7 @@
 		busy?: boolean;
 		onFocusCommand: (index: number) => void;
 		onOpen: () => void;
+		onBrowseBackups: () => void;
 		onDelete: () => void;
 		onCancelDelete: () => void;
 		onClose: () => void;
@@ -22,6 +23,7 @@
 		busy = false,
 		onFocusCommand,
 		onOpen,
+		onBrowseBackups,
 		onDelete,
 		onCancelDelete,
 		onClose
@@ -57,9 +59,18 @@
 				<button
 					id="save-file-menu-command-1"
 					type="button"
-					class="danger"
 					class:controller-focused={activeIndex === 1}
 					onfocus={() => onFocusCommand(1)}
+					onclick={onBrowseBackups}
+				>
+					<strong>Backup Browser</strong>
+				</button>
+				<button
+					id="save-file-menu-command-2"
+					type="button"
+					class="danger"
+					class:controller-focused={activeIndex === 2}
+					onfocus={() => onFocusCommand(2)}
 					onclick={onDelete}
 				>
 					<strong>Delete from Saves</strong>

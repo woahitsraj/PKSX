@@ -2953,6 +2953,81 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	});
 });
 
+test('Saves opens the focused Save File Backup Browser and restores menu focus', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	await chooseMainMenu(page, 'Saves');
+	const fixture = await readFile(emeraldFixturePath);
+	await page.getByLabel('Import Save File').setInputFiles({
+		name: 'alpha.sav',
+		mimeType: 'application/octet-stream',
+		buffer: fixture
+	});
+	await expect(page.getByText('alpha.sav imported and made active.')).toBeVisible({
+		timeout: 15_000
+	});
+
+	let browser = await openBackupBrowser(page);
+	await browser.getByRole('button', { name: 'Create Backup' }).click();
+	await expect(browser.locator('article').filter({ hasText: 'Manual' })).toBeVisible();
+	await pressController(page, 'Escape');
+
+	await page.getByLabel('Import Save File').setInputFiles({
+		name: 'beta.sav',
+		mimeType: 'application/octet-stream',
+		buffer: fixture
+	});
+	await expect(page.getByText('beta.sav imported and made active.')).toBeVisible({
+		timeout: 15_000
+	});
+
+	const grid = page.getByRole('grid', { name: 'Save Files' });
+	const alphaCard = page.locator('.save-card').filter({ hasText: 'alpha.sav' });
+	const alphaTarget = await alphaCard.getAttribute('id');
+	await grid.focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(grid).toHaveAttribute('aria-activedescendant', alphaTarget!);
+	await page.keyboard.press('x');
+	const menu = page.getByRole('dialog', { name: 'Save File Menu' });
+	await expect(menu.getByRole('button', { name: 'Open Save File' })).toBeFocused();
+	await pressController(page, 'ArrowDown');
+	await expect(menu.getByRole('button', { name: 'Backup Browser' })).toBeFocused();
+	await pressController(page, 'Enter');
+
+	browser = page.getByRole('dialog', { name: 'Backup Browser' });
+	await expect(browser).toContainText('alpha.sav');
+	await expect(browser.locator('article').filter({ hasText: 'Manual' })).toBeVisible();
+	await expect(alphaCard).toHaveClass(/active/);
+	await pressController(page, 'Escape');
+	await expect(menu.getByRole('button', { name: 'Backup Browser' })).toBeFocused();
+	await pressController(page, 'Escape');
+	await expect(grid).toBeFocused();
+	await expect(grid).toHaveAttribute('aria-activedescendant', alphaTarget!);
+
+	await page.keyboard.press('Enter');
+	await expect(page).toHaveURL(/\/$/);
+	await moveFirstEmeraldBoxSlotToThirdSlot(page);
+	await chooseMainMenu(page, 'Saves');
+	await expect(alphaCard).toHaveClass(/active/);
+	await grid.focus();
+	await page.keyboard.press('x');
+	await menu.getByRole('button', { name: 'Backup Browser' }).click();
+	await browser
+		.locator('article')
+		.filter({ hasText: 'Manual' })
+		.getByRole('button', {
+			name: 'Restore'
+		})
+		.click();
+	await expect(browser).toContainText('This replaces the Dirty Workspace.');
+	await pressController(page, 'Escape');
+	await pressController(page, 'Escape');
+	await expect(menu.getByRole('button', { name: 'Backup Browser' })).toBeFocused();
+	await pressController(page, 'Escape');
+	await expect(grid).toBeFocused();
+});
+
 test('Saves keeps unavailable cards actionable and restores semantic focus after navigation', async ({
 	page
 }) => {
