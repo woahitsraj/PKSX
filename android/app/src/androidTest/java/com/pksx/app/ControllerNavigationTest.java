@@ -773,6 +773,7 @@ public class ControllerNavigationTest {
     private void awaitControllerSurface() throws Exception {
         awaitJavaScript(
             "document.readyState === 'complete'"
+                + " && document.querySelector('.boxes-route')?.dataset.initialState === 'ready'"
                 + " && document.querySelector('#box-grid')?.getClientRects().length > 0"
         );
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
