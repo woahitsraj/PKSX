@@ -142,7 +142,7 @@
 
 	h2 {
 		color: var(--ink);
-		font: 750 var(--pksx-type-title)/1.1 var(--pksx-font-display);
+		font: 750 var(--pksx-type-title)/1.1 var(--pksx-font-sans);
 	}
 
 	h3 {
@@ -216,7 +216,7 @@
 	li p {
 		color: var(--ink-mute);
 		font-size: var(--pksx-type-body);
-		line-height: calc(var(--pksx-type-body) + var(--pksx-space-1));
+		line-height: 1.25;
 	}
 
 	.report-columns {

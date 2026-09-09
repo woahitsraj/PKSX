@@ -210,12 +210,12 @@
 
 	h2 {
 		color: var(--ink);
-		font: 760 var(--pksx-type-title)/1.1 var(--pksx-font-display);
+		font: 760 var(--pksx-type-title)/1.1 var(--pksx-font-sans);
 	}
 
 	h3 {
 		color: var(--ink);
-		font: 740 var(--pksx-type-title)/1.2 var(--pksx-font-display);
+		font: 740 var(--pksx-type-title)/1.2 var(--pksx-font-sans);
 	}
 
 	button {
@@ -267,11 +267,11 @@
 	.warning {
 		color: var(--ink-mute);
 		font-size: var(--pksx-type-body);
-		line-height: calc(var(--pksx-type-body) + var(--pksx-space-1));
+		line-height: 1.25;
 	}
 
 	.message.error {
-		color: var(--pksx-color-status-error);
+		color: var(--pksx-color-feedback-danger);
 	}
 
 	.action-list {
