@@ -10,6 +10,7 @@
 	import ToastRegion from '$lib/components/pksx/ToastRegion.svelte';
 	import type { EngineError } from '$lib/engine';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
+	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
 	import {
 		deleteSavesTarget,
 		moveSavesTarget,
@@ -35,6 +36,9 @@
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 
 	type PokemonStorageSummary = { boxCount: number; pokemonCount: number };
+	type SavesGridEntry =
+		| { kind: 'save-file'; saveFile: StoredSaveFile; index: number }
+		| { kind: 'import'; index: number };
 	type ToastView = {
 		id: string;
 		tone: 'info' | 'success' | 'error';
@@ -69,6 +73,7 @@
 	let catalogLoading = $state(true);
 	let busyTarget = $state<SaveFileId | 'import' | null>(null);
 	let menuSaveFileId = $state<SaveFileId | null>(null);
+	let menuReturnTarget = $state<SavesTarget | null>(null);
 	let menuIndex = $state(0);
 	let deleteDescription = $state<string | null>(null);
 	let toasts = $state<ToastView[]>([]);
@@ -86,6 +91,17 @@
 	const deleteOpen = $derived(summonedWorkflow.active?.kind === 'save-file-delete');
 	const activeTargetId = $derived(targetDomId(target));
 	const rowCount = $derived(Math.max(1, Math.ceil(targets.length / columnCount)));
+	const gridEntries = $derived<SavesGridEntry[]>([
+		...saveFiles.map((saveFile, index) => ({ kind: 'save-file' as const, saveFile, index })),
+		{ kind: 'import', index: saveFiles.length }
+	]);
+	const gridRows = $derived.by(() => {
+		const rows: SavesGridEntry[][] = [];
+		for (let index = 0; index < gridEntries.length; index += columnCount) {
+			rows.push(gridEntries.slice(index, index + columnCount));
+		}
+		return rows;
+	});
 
 	$effect(() => {
 		appChrome.hasLoadedSave = activeSaveFileId !== null;
@@ -132,6 +148,12 @@
 
 	function targetKey(value: SavesTarget) {
 		return value.kind === 'import' ? 'import' : 'save-file:' + value.id;
+	}
+
+	function gridRowKey(row: SavesGridEntry[]) {
+		return row
+			.map((entry) => (entry.kind === 'import' ? 'import' : 'save-file:' + entry.saveFile.id))
+			.join('|');
 	}
 
 	function rememberedTarget(): SavesTarget | null {
@@ -235,6 +257,15 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
+		if (
+			event.altKey ||
+			event.ctrlKey ||
+			event.metaKey ||
+			event.shiftKey ||
+			isTextEntryTarget(event.target)
+		) {
+			return;
+		}
 		if (menuOpen || deleteOpen) {
 			handleMenuKeydown(event);
 			return;
@@ -257,6 +288,12 @@
 		}
 
 		if (event.key !== 'Enter' && event.key !== ' ') return;
+		if (
+			!isControllerKeyboardEvent(event) &&
+			(!gridElement || !event.composedPath().includes(gridElement))
+		) {
+			return;
+		}
 		event.preventDefault();
 		const focusedMenuButton =
 			document.activeElement instanceof HTMLElement
@@ -267,6 +304,15 @@
 			return;
 		}
 		activateTarget();
+	}
+
+	function isTextEntryTarget(value: EventTarget | null) {
+		return (
+			value instanceof HTMLInputElement ||
+			value instanceof HTMLTextAreaElement ||
+			value instanceof HTMLSelectElement ||
+			(value instanceof HTMLElement && value.isContentEditable)
+		);
 	}
 
 	function directionForKey(key: string): SavesDirection | null {
@@ -371,6 +417,7 @@
 			chooseTarget({ kind: 'save-file', id: current.id }, false);
 			summonedWorkflow.closeAll();
 			menuSaveFileId = null;
+			menuReturnTarget = null;
 			await goto(destination === 'boxes' ? resolve('/') : resolve('/save-file'), {
 				keepFocus: true
 			});
@@ -394,6 +441,7 @@
 			return;
 		}
 		menuSaveFileId = saveFileId;
+		menuReturnTarget = target;
 		menuIndex = 0;
 		deleteDescription = null;
 		void focusMenuCommand(0);
@@ -454,6 +502,7 @@
 			invalidateActiveWorkspaceCache(saveFile.id);
 			summonedWorkflow.closeAll();
 			menuSaveFileId = null;
+			menuReturnTarget = null;
 			deleteDescription = null;
 			await refreshSaves({ force: true, preferredTarget: fallback, focus: true });
 			showToast('success', displayName(saveFile) + ' deleted.');
@@ -500,15 +549,12 @@
 			return;
 		}
 		if (!menuOpen) return;
-		const saveFileId = menuSaveFileId;
+		const returnTarget = menuReturnTarget;
 		summonedWorkflow.dismiss();
 		menuSaveFileId = null;
+		menuReturnTarget = null;
 		deleteDescription = null;
-		if (saveFileId && saveFiles.some((saveFile) => saveFile.id === saveFileId)) {
-			chooseTarget({ kind: 'save-file', id: saveFileId });
-		} else {
-			void focusGrid();
-		}
+		chooseTarget(resolveSavesTarget(targets, returnTarget, activeSaveFileId));
 	}
 
 	function cancelDelete() {
@@ -612,89 +658,100 @@
 			onfocus={() => void scrollTargetIntoView()}
 		>
 			<div class="saves-grid" {@attach savesGridContent}>
-				{#each saveFiles as saveFile, index (saveFile.id)}
-					{@const details = detailsBySaveFileId[saveFile.id] ?? { status: 'loading' }}
-					{@const selected = sameSavesTarget(target, { kind: 'save-file', id: saveFile.id })}
-					<div
-						id={targetDomId({ kind: 'save-file', id: saveFile.id })}
-						class={[
-							'save-card',
-							selected && 'controller-focused',
-							saveFile.id === activeSaveFileId && 'active'
-						]}
-						role="gridcell"
-						aria-rowindex={Math.floor(index / columnCount) + 1}
-						aria-colindex={(index % columnCount) + 1}
-						aria-current={saveFile.id === activeSaveFileId ? 'true' : undefined}
-						aria-busy={busyTarget === saveFile.id}
-					>
-						<button
-							type="button"
-							class="card-main"
-							tabindex="-1"
-							aria-label={'Open ' + displayName(saveFile) + ' in Boxes'}
-							onclick={() => {
-								chooseTarget({ kind: 'save-file', id: saveFile.id }, false);
-								void activateSaveFile(saveFile, 'boxes');
-							}}
-						>
-							<span class="cartridge-spine" aria-hidden="true"></span>
-							<span class="card-heading">
-								<strong>{gameTitle(details, saveFile)}</strong>
-								{#if saveFile.id === activeSaveFileId}<em>Active</em>{/if}
-							</span>
-							{#if details.status === 'ready'}
-								<span class="trainer"
-									>{details.details.summary.trainerName ?? 'Unknown Trainer'}</span
+				{#each gridRows as row, rowIndex (gridRowKey(row))}
+					<div class="saves-grid-row" role="row" aria-rowindex={rowIndex + 1}>
+						{#each row as entry (entry.kind === 'import' ? 'import' : entry.saveFile.id)}
+							{#if entry.kind === 'save-file'}
+								{@const saveFile = entry.saveFile}
+								{@const index = entry.index}
+								{@const details = detailsBySaveFileId[saveFile.id] ?? { status: 'loading' }}
+								{@const selected = sameSavesTarget(target, { kind: 'save-file', id: saveFile.id })}
+								<div
+									id={targetDomId({ kind: 'save-file', id: saveFile.id })}
+									class={[
+										'save-card',
+										(index + 1) % 2 === 0 && 'spine-even',
+										(index + 1) % 3 === 0 && 'spine-third',
+										selected && 'controller-focused',
+										saveFile.id === activeSaveFileId && 'active'
+									]}
+									role="gridcell"
+									aria-colindex={(index % columnCount) + 1}
+									aria-current={saveFile.id === activeSaveFileId ? 'true' : undefined}
+									aria-busy={busyTarget === saveFile.id}
 								>
-								<span class="file-name">{displayName(saveFile)}</span>
-								<span class="card-stats">
-									<b>{details.details.summary.boxCount}</b> boxes
-									<i aria-hidden="true"></i>
-									<b>{details.details.creatureCount}</b> Pokemon
-								</span>
+									<button
+										type="button"
+										class="card-main"
+										tabindex="-1"
+										aria-label={'Open ' + displayName(saveFile) + ' in Boxes'}
+										onclick={() => {
+											chooseTarget({ kind: 'save-file', id: saveFile.id }, false);
+											void activateSaveFile(saveFile, 'boxes');
+										}}
+									>
+										<span class="cartridge-spine" aria-hidden="true"></span>
+										<span class="card-heading">
+											<strong>{gameTitle(details, saveFile)}</strong>
+											{#if saveFile.id === activeSaveFileId}<em>Active</em>{/if}
+										</span>
+										{#if details.status === 'ready'}
+											<span class="trainer"
+												>{details.details.summary.trainerName ?? 'Unknown Trainer'}</span
+											>
+											<span class="file-name">{displayName(saveFile)}</span>
+											<span class="card-stats">
+												<b>{details.details.summary.boxCount}</b> boxes
+												<i aria-hidden="true"></i>
+												<b>{details.details.creatureCount}</b> Pokemon
+											</span>
+										{:else}
+											<span class="file-name">{displayName(saveFile)}</span>
+											<span class="detail-state">
+												{details.status === 'loading' ? 'Reading save...' : 'Details unavailable'}
+											</span>
+										{/if}
+									</button>
+									<button
+										type="button"
+										class="save-menu-control"
+										aria-label={'Open Save File Menu for ' + displayName(saveFile)}
+										data-save-menu-id={saveFile.id}
+										data-destination-focus={'saves-menu-' + saveFile.id}
+										onpointerdown={(event) => event.preventDefault()}
+										onclick={() => openSaveFileMenu(saveFile.id)}
+									>
+										•••
+									</button>
+									{#if busyTarget === saveFile.id}<span class="busy-label">Opening...</span>{/if}
+								</div>
 							{:else}
-								<span class="detail-state">
-									{details.status === 'loading' ? 'Reading save...' : 'Details unavailable'}
-								</span>
+								<div
+									id="saves-target-import"
+									class={['import-cell', target.kind === 'import' && 'controller-focused']}
+									role="gridcell"
+									aria-colindex={(entry.index % columnCount) + 1}
+									aria-busy={busyTarget === 'import'}
+								>
+									<button
+										type="button"
+										tabindex="-1"
+										aria-label="Import a Save File"
+										onclick={openImportPicker}
+									>
+										<span>+</span>
+										<strong
+											>{busyTarget === 'import'
+												? 'Importing Save File...'
+												: 'Import a Save File'}</strong
+										>
+										<small>Choose a compatible file from this device.</small>
+									</button>
+								</div>
 							{/if}
-						</button>
-						<button
-							type="button"
-							class="save-menu-control"
-							aria-label={'Open Save File Menu for ' + displayName(saveFile)}
-							data-save-menu-id={saveFile.id}
-							data-destination-focus={'saves-menu-' + saveFile.id}
-							onpointerdown={(event) => event.preventDefault()}
-							onclick={() => openSaveFileMenu(saveFile.id)}
-						>
-							•••
-						</button>
-						{#if busyTarget === saveFile.id}<span class="busy-label">Opening...</span>{/if}
+						{/each}
 					</div>
 				{/each}
-
-				<div
-					id="saves-target-import"
-					class={['import-cell', target.kind === 'import' && 'controller-focused']}
-					role="gridcell"
-					aria-rowindex={Math.floor(saveFiles.length / columnCount) + 1}
-					aria-colindex={(saveFiles.length % columnCount) + 1}
-					aria-busy={busyTarget === 'import'}
-				>
-					<button
-						type="button"
-						tabindex="-1"
-						aria-label="Import a Save File"
-						onclick={openImportPicker}
-					>
-						<span>+</span>
-						<strong
-							>{busyTarget === 'import' ? 'Importing Save File...' : 'Import a Save File'}</strong
-						>
-						<small>Choose a compatible file from this device.</small>
-					</button>
-				</div>
 			</div>
 		</div>
 	</div>
@@ -837,6 +894,10 @@
 		align-content: start;
 	}
 
+	.saves-grid-row {
+		display: contents;
+	}
+
 	.save-card,
 	.import-cell {
 		position: relative;
@@ -896,11 +957,11 @@
 		background: color-mix(in srgb, var(--ok), var(--ink) 28%);
 	}
 
-	.save-card:nth-child(2n) .cartridge-spine {
+	.save-card.spine-even .cartridge-spine {
 		background: color-mix(in srgb, var(--rust), #7563a8 52%);
 	}
 
-	.save-card:nth-child(3n) .cartridge-spine {
+	.save-card.spine-third .cartridge-spine {
 		background: color-mix(in srgb, var(--gold), var(--rust) 25%);
 	}
 

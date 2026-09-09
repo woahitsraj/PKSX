@@ -2299,6 +2299,10 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await browser.getByRole('button', { name: 'Restore' }).last().click();
 	await expect(browser).toBeHidden();
 	await expect(page.locator('#saves-grid')).toBeFocused();
+	const restoredCard = page.locator('.save-card.active');
+	await expect(restoredCard).toContainText('Pokemon Emerald', { timeout: 15_000 });
+	await expect(restoredCard.locator('.trainer')).toHaveText(/\S+/);
+	await expect(restoredCard).toContainText('7 Pokemon');
 	await page.goto('/');
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 	await expect(page.locator('#box-0-slot-2')).toContainText('Empty');
@@ -2340,9 +2344,16 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	const previousOwnerId = await boxesRoute.getAttribute('data-active-save-file-id');
 	expect(previousOwnerId).toBeTruthy();
 
-	await chooseMainMenu(page, 'Saves');
-	await page.locator('.storage-card').getByRole('button', { name: 'Open →' }).click();
-	await expect(page).toHaveURL(/\/\?source=pokemon-storage$/);
+	await page.getByRole('button', { name: /Open Box Menu for/ }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	await expect(page).toHaveURL(/\/$/);
 	await expect(boxesRoute).toHaveAttribute('data-initial-state', 'ready');
 	const storageGrid = page.getByRole('grid', { name: 'Pokemon Storage Box 01' });
 	await expect(storageGrid).toBeVisible();
@@ -2359,7 +2370,7 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await browser.locator('article').first().getByRole('button', { name: 'Restore' }).click();
 	await browser.getByRole('button', { name: 'Restore' }).last().click();
 	await expect(browser).toBeHidden();
-	await expect(page).toHaveURL(/\/\?source=pokemon-storage$/);
+	await expect(page).toHaveURL(/\/$/);
 	await expect(storageGrid).toBeVisible();
 	await expect(preMenuSlot).toBeFocused();
 	await chooseMainMenu(page, 'Backup Browser');
@@ -2747,6 +2758,11 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await expect(page.getByText('alpha.sav imported and made active.')).toBeVisible({
 		timeout: 15000
 	});
+	let dismissNotification = page.getByRole('button', { name: 'Dismiss notification' });
+	await dismissNotification.focus();
+	await page.keyboard.press('Enter');
+	await expect(dismissNotification).toBeHidden();
+	await expect(page).toHaveURL(/\/saves$/);
 	const alphaCard = page.locator('.save-card').filter({ hasText: 'alpha.sav' });
 	await expect(alphaCard).toContainText('Pokemon Emerald');
 	await expect(alphaCard.locator('.trainer')).toHaveText(/\S+/);
@@ -2763,10 +2779,44 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await expect(page.getByText('beta.sav imported and made active.')).toBeVisible({
 		timeout: 15000
 	});
+	dismissNotification = page.getByRole('button', { name: 'Dismiss notification' });
+	await dismissNotification.focus();
+	await page.keyboard.press('Space');
+	await expect(dismissNotification).toBeHidden();
+	await expect(page).toHaveURL(/\/saves$/);
 	await expect(page.locator('.save-card')).toHaveCount(2);
 	await expect(page.locator('.save-card.active')).toContainText('beta.sav');
+	expect(
+		await grid
+			.getByRole('gridcell')
+			.evaluateAll((cells) =>
+				cells.every((cell) => cell.parentElement?.getAttribute('role') === 'row')
+			)
+	).toBe(true);
 
 	const betaTarget = await grid.getAttribute('aria-activedescendant');
+	const modifiedShortcutsPrevented = await page.evaluate(() => {
+		const altLeft = new KeyboardEvent('keydown', {
+			key: 'ArrowLeft',
+			altKey: true,
+			bubbles: true,
+			cancelable: true
+		});
+		const commandX = new KeyboardEvent('keydown', {
+			key: 'x',
+			metaKey: true,
+			bubbles: true,
+			cancelable: true
+		});
+		window.dispatchEvent(altLeft);
+		window.dispatchEvent(commandX);
+		return [altLeft.defaultPrevented, commandX.defaultPrevented];
+	});
+	expect(modifiedShortcutsPrevented).toEqual([false, false]);
+	await page.locator('#save-file-input').focus();
+	await page.keyboard.press('x');
+	await expect(page.getByRole('dialog', { name: 'Save File Menu' })).toBeHidden();
+	await grid.focus();
 	await pressController(page, 'x');
 	let menu = page.getByRole('dialog', { name: 'Save File Menu' });
 	await expect(menu).toBeVisible();
@@ -2780,9 +2830,18 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await expect(menu.getByRole('button', { name: 'Open Save File' })).toBeFocused();
 	await page.locator('.edge-menu-backdrop').click({ position: { x: 8, y: 8 } });
 	await expect(grid).toBeFocused();
-	const alphaTarget = await alphaCard.getAttribute('id');
-	expect(alphaTarget).toBeTruthy();
-	await expect(grid).toHaveAttribute('aria-activedescendant', alphaTarget!);
+	await expect(grid).toHaveAttribute('aria-activedescendant', betaTarget!);
+
+	await alphaCard.getByRole('button', { name: /Open Save File Menu/ }).click();
+	menu = page.getByRole('dialog', { name: 'Save File Menu' });
+	await menu.getByRole('button', { name: 'Delete' }).click();
+	await page
+		.getByRole('dialog', { name: 'Delete alpha.sav?' })
+		.getByRole('button', { name: 'Keep Save File' })
+		.click();
+	await page.locator('.edge-menu-backdrop').click({ position: { x: 8, y: 8 } });
+	await expect(grid).toHaveAttribute('aria-activedescendant', betaTarget!);
+	await expect(grid).toBeFocused();
 
 	await alphaCard.getByRole('button', { name: /Open Save File Menu/ }).click();
 	menu = page.getByRole('dialog', { name: 'Save File Menu' });
@@ -2835,6 +2894,7 @@ test('Saves keeps unavailable cards actionable and restores semantic focus after
 	const grid = page.getByRole('grid', { name: 'Save Files' });
 	const card = page.locator('.save-card').filter({ hasText: 'unavailable.sav' });
 	await expect(card).toContainText('Details unavailable', { timeout: 15_000 });
+	await expect(card.locator('.file-name')).toHaveText('unavailable.sav');
 	await card.getByRole('button', { name: /Open Save File Menu/ }).click();
 	await expect(page.getByRole('dialog', { name: 'Save File Menu' })).toBeVisible();
 	await page.keyboard.press('Escape');

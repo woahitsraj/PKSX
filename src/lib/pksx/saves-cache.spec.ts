@@ -195,7 +195,7 @@ describe('Saves cache', () => {
 	});
 
 	it('counts Party and occupied slots across every Box', async () => {
-		expect.assertions(2);
+		expect.assertions(1);
 
 		const count = await countSavePokemon(
 			{ ...summary, partyCount: 2, boxCount: 3 },
@@ -214,7 +214,6 @@ describe('Saves cache', () => {
 		);
 
 		expect(count).toBe(6);
-		expect(summary.partyCount + workspace.boxSlots.filter((slot) => !slot.isEmpty).length).toBe(2);
 	});
 
 	it('does not seed when no active workspace is cached', () => {

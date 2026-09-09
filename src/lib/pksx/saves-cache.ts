@@ -42,10 +42,13 @@ type SavesSnapshotOptions = {
 const storage = createSavesStorage();
 const detailsCache = new Map<SaveFileId, SaveDetailsCacheEntry>();
 const snapshotListeners = new Set<(snapshot: SavesSnapshot) => void>();
+const catalogRequests = new Map<number, Promise<SavesSnapshot>>();
+const detailGenerations = new Map<SaveFileId, number>();
 
 let engine: EngineApi | null = null;
 let savesSnapshot: SavesSnapshot | null = null;
 let savesSnapshotSeeded = false;
+let savesSnapshotValid = false;
 let snapshotGeneration = 0;
 let workspaceService: ActiveWorkspaceService | null = null;
 let workspaceServiceStart: Promise<void> | null = null;
@@ -91,15 +94,30 @@ export function isCachedSavesSnapshotSeeded() {
 export function subscribeSavesSnapshot(listener: (snapshot: SavesSnapshot) => void) {
 	snapshotListeners.add(listener);
 	if (savesSnapshot) listener(savesSnapshot);
-	return () => snapshotListeners.delete(listener);
+	return () => {
+		snapshotListeners.delete(listener);
+		if (snapshotListeners.size === 0 && !savesSnapshotValid) {
+			savesSnapshot = null;
+		}
+	};
 }
 
-export async function getSavesSnapshot(options: SavesSnapshotOptions = {}) {
-	if (savesSnapshot && !options.force) {
-		return savesSnapshot;
+export function getSavesSnapshot(options: SavesSnapshotOptions = {}): Promise<SavesSnapshot> {
+	if (savesSnapshot && savesSnapshotValid && !options.force) {
+		return Promise.resolve(savesSnapshot);
 	}
 
 	const generation = ++snapshotGeneration;
+	const request = loadSavesSnapshot(generation);
+	catalogRequests.set(generation, request);
+	void request.then(
+		() => catalogRequests.delete(generation),
+		() => catalogRequests.delete(generation)
+	);
+	return request;
+}
+
+async function loadSavesSnapshot(generation: number): Promise<SavesSnapshot> {
 	const [activeSaveFileId, saveFiles] = await Promise.all([
 		storage.getActiveSaveFileId(),
 		storage.listSaves()
@@ -123,14 +141,23 @@ export async function getSavesSnapshot(options: SavesSnapshotOptions = {}) {
 		)
 	};
 
-	if (generation !== snapshotGeneration) return snapshot;
+	if (generation !== snapshotGeneration) {
+		return (
+			catalogRequests.get(snapshotGeneration) ??
+			(savesSnapshotValid ? savesSnapshot : null) ??
+			getSavesSnapshot({ force: true })
+		);
+	}
 	savesSnapshot = snapshot;
 	savesSnapshotSeeded = false;
+	savesSnapshotValid = true;
 	publishSavesSnapshot();
 
 	for (const saveFile of saveFiles) {
 		if (snapshot.detailsBySaveFileId[saveFile.id].status === 'loading') {
-			void settleSaveCardDetails(saveFile, generation);
+			scheduleSaveCardDetails(saveFile);
+		} else {
+			supersedeSaveCardDetails(saveFile.id);
 		}
 	}
 
@@ -139,8 +166,11 @@ export async function getSavesSnapshot(options: SavesSnapshotOptions = {}) {
 
 export function invalidateSavesCache() {
 	snapshotGeneration += 1;
-	savesSnapshot = null;
 	savesSnapshotSeeded = false;
+	savesSnapshotValid = false;
+	if (snapshotListeners.size === 0) {
+		savesSnapshot = null;
+	}
 }
 
 export function getCachedActiveWorkspace() {
@@ -163,6 +193,11 @@ export function setCachedActiveWorkspace(
 	if (workspace && savesSnapshot) {
 		savesSnapshot = mergeWorkspaceIntoSnapshot(savesSnapshot, workspace);
 		publishSavesSnapshot();
+		const saveFile = savesSnapshot.saveFiles.find(
+			(candidate) => candidate.id === workspace.file.id
+		);
+		if (saveFile && snapshotListeners.size > 0) queueSaveCardDetails(saveFile);
+		else savesSnapshotValid = false;
 	}
 }
 
@@ -195,6 +230,8 @@ export function seedSavesSnapshotFromActiveWorkspace(saveFiles: StoredSaveFile[]
 	snapshotGeneration += 1;
 	savesSnapshot = snapshot;
 	savesSnapshotSeeded = true;
+	savesSnapshotValid = true;
+	for (const saveFile of nextSaveFiles) supersedeSaveCardDetails(saveFile.id);
 	detailsCache.delete(workspace.file.id);
 	publishSavesSnapshot();
 	return snapshot;
@@ -216,7 +253,30 @@ export async function loadActiveWorkspaceFromSaves() {
 	return workspace;
 }
 
-async function settleSaveCardDetails(saveFile: StoredSaveFile, generation: number) {
+function supersedeSaveCardDetails(saveFileId: SaveFileId) {
+	const detailGeneration = (detailGenerations.get(saveFileId) ?? 0) + 1;
+	detailGenerations.set(saveFileId, detailGeneration);
+	return detailGeneration;
+}
+
+function scheduleSaveCardDetails(saveFile: StoredSaveFile) {
+	void settleSaveCardDetails(saveFile, supersedeSaveCardDetails(saveFile.id));
+}
+
+function queueSaveCardDetails(saveFile: StoredSaveFile) {
+	const detailGeneration = supersedeSaveCardDetails(saveFile.id);
+	queueMicrotask(() => {
+		if (
+			detailGeneration !== detailGenerations.get(saveFile.id) ||
+			!savesSnapshot?.saveFiles.some((candidate) => candidate.id === saveFile.id)
+		) {
+			return;
+		}
+		void settleSaveCardDetails(saveFile, detailGeneration);
+	});
+}
+
+async function settleSaveCardDetails(saveFile: StoredSaveFile, detailGeneration: number) {
 	let details: SaveCardDetails | null;
 	try {
 		details = await loadSaveCardDetails(saveFile);
@@ -228,7 +288,7 @@ async function settleSaveCardDetails(saveFile: StoredSaveFile, generation: numbe
 		: { status: 'unavailable' };
 
 	if (
-		generation !== snapshotGeneration ||
+		detailGeneration !== detailGenerations.get(saveFile.id) ||
 		!savesSnapshot?.saveFiles.some((candidate) => candidate.id === saveFile.id)
 	) {
 		return;
