@@ -137,10 +137,15 @@ test('Settings is available without a Save File and reports live build metadata'
 
 test('fresh Settings reload reports the active Save File in the Main Menu', async ({ page }) => {
 	await page.goto('/saves');
+	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
 	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+	await expect(page.locator('.save-card.active')).toContainText('011020251345.sav', {
 		timeout: 30_000
 	});
+	await expect(page.locator('.save-card.active').getByText('Active')).toBeVisible();
 	await page.goto('/settings');
 	await page.reload();
 

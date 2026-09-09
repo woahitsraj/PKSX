@@ -596,6 +596,7 @@ public class ControllerNavigationTest {
             primaryFailure = failure;
             throw failure;
         } finally {
+            Throwable cleanupFailure = null;
             try {
                 try {
                     runJavaScript("document.activeElement?.blur()");
@@ -642,15 +643,25 @@ public class ControllerNavigationTest {
                         );
                     }
                 }
-            } catch (Throwable cleanupFailure) {
-                AssertionError restorationFailure = new AssertionError(
+            } catch (Throwable failure) {
+                cleanupFailure = new AssertionError(
                     "IME fixture cleanup failed; captured=" + originalGeometry
-                        + "; current=" + nativeWindowGeometry(), cleanupFailure
+                        + "; current=" + nativeWindowGeometry(), failure
                 );
-                if (primaryFailure == null) throw restorationFailure;
-                primaryFailure.addSuppressed(restorationFailure);
-            } finally {
+            }
+            try {
                 restoreSecureSetting("stylus_handwriting_enabled", originalStylusHandwriting);
+            } catch (Throwable failure) {
+                AssertionError settingFailure = new AssertionError(
+                    "IME fixture secure setting cleanup failed",
+                    failure
+                );
+                if (cleanupFailure == null) cleanupFailure = settingFailure;
+                else cleanupFailure.addSuppressed(settingFailure);
+            }
+            if (cleanupFailure != null) {
+                if (primaryFailure == null) throw cleanupFailure;
+                primaryFailure.addSuppressed(cleanupFailure);
             }
         }
     }
