@@ -302,7 +302,7 @@ describe('createPkhexEngineWorkerRuntime', () => {
 					value: null,
 					error: {
 						code: 'engine-unavailable',
-						message: 'The PKHeX Engine worker is not ready.'
+						message: 'Pokemon data is still loading. Try again.'
 					}
 				}
 			}
@@ -385,7 +385,7 @@ describe('createPkhexEngineWorkerRuntime', () => {
 				value: null,
 				error: {
 					code: 'engine-unavailable',
-					message: 'The PKHeX Engine worker is not ready.'
+					message: 'Pokemon data is still loading. Try again.'
 				}
 			}
 		});
