@@ -38,8 +38,7 @@
 	const accessibleDetails = $derived(
 		[
 			slot.label,
-			slot.kind === 'pokemon' && slot.level !== null ? `Level ${slot.level}` : null,
-			slot.detail || null
+			slot.detail || (slot.kind === 'pokemon' && slot.level !== null ? `Level ${slot.level}` : null)
 		]
 			.filter(Boolean)
 			.join(', ')

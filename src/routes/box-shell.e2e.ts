@@ -966,8 +966,9 @@ test('Box Menu allows duplicate Save File panes and keeps Open another collectio
 	).toHaveCount(2);
 	await page.locator('#pane-active-save-box-0-slot-0').click();
 	const duplicatePane = page.locator('.box-pane:not(.active-pane)');
+	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true');
 	await duplicatePane.evaluate((pane) => {
-		pane.setAttribute('data-observed-busy', String(pane.getAttribute('aria-busy') === 'true'));
+		pane.setAttribute('data-observed-busy', 'false');
 		const observer = new MutationObserver(() => {
 			if (pane.getAttribute('aria-busy') === 'true') {
 				pane.setAttribute('data-observed-busy', 'true');
@@ -1057,7 +1058,7 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await page.getByRole('button', { name: 'Move' }).click();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await expect(page.locator('#box-0-slot-0')).toHaveAccessibleName(
-		'Box Slot 1, row 1, column 1: ARON, Level 11, Lv. 11. Carry Move ARON'
+		'Box Slot 1, row 1, column 1: ARON, Lv. 11. Carry Move ARON'
 	);
 	const collectionControl = page.getByRole('button', {
 		name: 'Open Box Menu for Pokemon Storage'
@@ -1083,7 +1084,7 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await page.keyboard.press('y');
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
 	await expect(page.locator('#box-0-slot-0')).toHaveAccessibleName(
-		'Box Slot 1, row 1, column 1: ARON, Level 11, Lv. 11. Carry Copy ARON'
+		'Box Slot 1, row 1, column 1: ARON, Lv. 11. Carry Copy ARON'
 	);
 	await page.keyboard.press('y');
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
@@ -1919,7 +1920,7 @@ test('Box and Party grids expose rows and size real sprites against the Slot', a
 	await setSafeArea(page, { top: 24, right: 12, bottom: 72, left: 12 });
 	await expect(page.locator('#box-0-slot-0 .slot-number')).toHaveCSS('display', 'none');
 	await expect(page.locator('#box-0-slot-0')).toHaveAccessibleName(
-		'Box Slot 1, row 1, column 1: ARON, Level 11, Lv. 11'
+		'Box Slot 1, row 1, column 1: ARON, Lv. 11'
 	);
 	await expect(page.locator('#box-0-slot-2')).toHaveAccessibleName(
 		'Box Slot 3, row 1, column 3: Empty'
@@ -1952,7 +1953,7 @@ test('Box and Party grids expose rows and size real sprites against the Slot', a
 
 	await showPartyFromFirstBox(page);
 	await expect(page.locator('#party-slot-0')).toHaveAccessibleName(
-		'Party Slot 1, row 1, column 1: 1-UP, Level 25, Lv. 25'
+		'Party Slot 1, row 1, column 1: 1-UP, Lv. 25'
 	);
 	const partyRows = page.getByRole('grid').getByRole('row');
 	await expect(partyRows).toHaveCount(2);
