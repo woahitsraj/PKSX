@@ -172,6 +172,7 @@ public class ControllerNavigationTest {
     @Test
     public void controllerBackGoesHomeWhilePlatformBackFollowsHistory() throws Exception {
         awaitControllerSurface();
+        runJavaScript("window.__pksxNativeHistoryStart = history.length");
         importEmeraldSave();
         runJavaScript("document.querySelector('.save-card.active .danger-action').click()");
         awaitJavaScript("document.querySelector('[role=alertdialog]') !== null");
@@ -198,6 +199,10 @@ public class ControllerNavigationTest {
                 + " && document.querySelector('[role=dialog][aria-labelledby=\"backup-browser-title\"]') === null"
         );
 
+        runJavaScript("window.__pksxSettingsHistoryLength = history.length");
+        awaitJavaScript(
+            "window.__pksxSettingsHistoryLength > window.__pksxNativeHistoryStart"
+        );
         pressPlatformBack();
         awaitJavaScript("location.pathname.endsWith('/saves')");
         chooseMainMenu("Settings");
@@ -821,7 +826,8 @@ public class ControllerNavigationTest {
                 + " && document.querySelector('.main-menu-opener')"
                 + " && ((document.querySelector('.boxes-route')?.dataset.initialState === 'ready'"
                 + " && document.querySelector('#box-grid')?.getClientRects().length > 0)"
-                + " || document.querySelector('[data-destination-root]')?.dataset.destinationRoot === 'saves')"
+                + " || (document.querySelector('[data-destination-root]')?.dataset.destinationRoot !== 'boxes'"
+                + " && document.querySelector('[data-destination-root]')?.dataset.initialState === 'ready'))"
         );
         if (!"true".equals(runJavaScript("Boolean(document.querySelector('#box-grid'))"))) {
             chooseMainMenu("Boxes");

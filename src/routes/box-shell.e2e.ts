@@ -1992,13 +1992,17 @@ test('Save File route stages and applies trainer, money, and inventory edits', a
 	await expect(trainerName).toHaveValue('RAJ');
 
 	await chooseMainMenu(page, 'Boxes');
-	await page.locator('#box-grid').focus();
-	await pressController(page, 'x');
-	const downloadPromise = page.waitForEvent('download');
-	await page
+	const activeSaveMenu = page.getByRole('button', {
+		name: 'Open Box Menu for emerald-011020251345.sav'
+	});
+	await expect(activeSaveMenu).toBeVisible({ timeout: 15000 });
+	await activeSaveMenu.click();
+	const exportButton = page
 		.getByRole('dialog', { name: 'Box Menu' })
-		.getByRole('button', { name: 'Export' })
-		.click();
+		.getByRole('button', { name: 'Export' });
+	await expect(exportButton).not.toHaveAttribute('aria-disabled', 'true');
+	const downloadPromise = page.waitForEvent('download');
+	await exportButton.click();
 	const download = await downloadPromise;
 	const exported = await readFile(await download.path());
 	const fixture = await readFile(emeraldFixturePath);

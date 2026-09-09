@@ -35,6 +35,10 @@
 	let mainMenuIndex = $state(0);
 	let firstRunChecked = false;
 	let skipNextFocusCapture = false;
+	let focusRestoreRequest = 0;
+	let cancelPendingFocusWait: (() => void) | null = null;
+	let platformHistoryDepth = 0;
+	let replaceNextRouteHistory = false;
 	const activeRoute = $derived<Destination>(
 		page.url.pathname.startsWith('/saves')
 			? 'saves'
@@ -79,7 +83,18 @@
 		if (skipNextFocusCapture) skipNextFocusCapture = false;
 		else rememberDestinationFocus();
 	});
-	afterNavigate(() => queueMicrotask(() => void restoreDestinationFocus(activeRoute)));
+	afterNavigate((navigation) => {
+		if (navigation.type === 'enter') {
+			platformHistoryDepth = 0;
+		} else if (navigation.type === 'popstate') {
+			platformHistoryDepth = Math.max(0, platformHistoryDepth + navigation.delta);
+		} else if (replaceNextRouteHistory) {
+			replaceNextRouteHistory = false;
+		} else {
+			platformHistoryDepth += 1;
+		}
+		queueMicrotask(() => void restoreDestinationFocus(activeRoute));
+	});
 
 	onMount(() => {
 		window.addEventListener('keydown', handleRootKeydown, true);
@@ -105,7 +120,12 @@
 				pokemonStorage?.boxes.some((box) => box.slots.some((slot) => slot.pokemon !== null)) ??
 				false;
 			if (activeRoute === 'boxes' && saveFiles.length === 0 && !hasStoredPokemon) {
-				await goto(resolve('/saves'), { replaceState: true, keepFocus: true });
+				replaceNextRouteHistory = true;
+				try {
+					await goto(resolve('/saves'), { replaceState: true, keepFocus: true });
+				} finally {
+					replaceNextRouteHistory = false;
+				}
 			}
 		} catch {
 			// The destination owns its normal storage failure state.
@@ -114,8 +134,8 @@
 
 	function openMainMenu() {
 		if (summonedWorkflow.active || appChrome.carryActive || hasRouteOwnedConfirmation()) return;
-		const launcherId = rememberDestinationFocus() ?? ensureDestinationFocus(activeRoute);
-		if (!launcherId) return;
+		const launcherId =
+			rememberDestinationFocus() ?? ensureDestinationFocus(activeRoute) ?? 'main-menu-opener';
 		if (!summonedWorkflow.open('main-menu', { type: 'control', id: launcherId })) return;
 		mainMenuIndex = Math.max(
 			0,
@@ -129,7 +149,8 @@
 		const launcher = summonedWorkflow.dismiss();
 		queueMicrotask(() => {
 			const target = launcher ? document.getElementById(launcher.id) : null;
-			if (isFocusableTarget(target)) target.focus();
+			const route = destinationRoute(activeRoute);
+			if (isFocusableTarget(target) && route?.contains(target)) target.focus();
 			else void restoreDestinationFocus(activeRoute);
 		});
 	}
@@ -247,7 +268,7 @@
 			dispatchControllerKey('Escape');
 			return;
 		}
-		if (canGoBack) history.back();
+		if (canGoBack || platformHistoryDepth > 0) history.back();
 		else void CapacitorApp.exitApp();
 	}
 
@@ -265,15 +286,19 @@
 	}
 
 	function rememberDestinationFocus() {
-		const route = document.querySelector<HTMLElement>('[data-destination-root]');
+		const route = destinationRoute(activeRoute);
 		if (!route) return null;
 		prepareControlIds(route, activeRoute);
 		const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+		const controllerTarget = route.querySelector<HTMLElement>('.controller-focused');
 		const target =
-			active && route.contains(active)
+			active && route.contains(active) && isFocusableTarget(active)
 				? active
-				: (route.querySelector<HTMLElement>('.controller-focused') ??
-					fallbackControl(route, activeRoute));
+				: isFocusableTarget(controllerTarget)
+					? controllerTarget
+					: isDestinationReady(route)
+						? fallbackControl(route, activeRoute)
+						: null;
 		if (!target) return null;
 		const id = ensureControlId(target, activeRoute);
 		if (id) destinationFocus.set(activeRoute, id);
@@ -281,8 +306,8 @@
 	}
 
 	function ensureDestinationFocus(destination: Destination) {
-		const route = document.querySelector<HTMLElement>('[data-destination-root]');
-		if (!route) return null;
+		const route = destinationRoute(destination);
+		if (!route || !isDestinationReady(route)) return null;
 		prepareControlIds(route, destination);
 		const target = fallbackControl(route, destination);
 		if (!target) return null;
@@ -292,10 +317,13 @@
 	}
 
 	async function restoreDestinationFocus(destination: Destination) {
+		const request = ++focusRestoreRequest;
+		cancelPendingFocusWait?.();
+		cancelPendingFocusWait = null;
 		await tick();
 		await new Promise<void>((resolveFrame) => requestAnimationFrame(() => resolveFrame()));
-		const route = document.querySelector<HTMLElement>('[data-destination-root]');
-		if (!route || route.dataset.destinationRoot !== destination) return;
+		const route = await waitForDestinationReady(destination, request);
+		if (!route || request !== focusRestoreRequest || summonedWorkflow.active) return;
 		prepareControlIds(route, destination);
 		const remembered = destinationFocus.get(destination);
 		const rememberedTarget = remembered ? document.getElementById(remembered) : null;
@@ -308,6 +336,49 @@
 		if (id) destinationFocus.set(destination, id);
 		target.focus();
 		target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+	}
+
+	function waitForDestinationReady(destination: Destination, request: number) {
+		const current = destinationRoute(destination);
+		if (current && isDestinationReady(current)) return Promise.resolve(current);
+
+		const shell = document.querySelector<HTMLElement>('.app-shell');
+		if (!shell) return Promise.resolve(null);
+		return new Promise<HTMLElement | null>((resolveReady) => {
+			let observer: MutationObserver;
+			const finish = (route: HTMLElement | null) => {
+				observer.disconnect();
+				if (cancelPendingFocusWait === cancel) cancelPendingFocusWait = null;
+				resolveReady(route);
+			};
+			const cancel = () => finish(null);
+			const settle = () => {
+				if (request !== focusRestoreRequest || activeRoute !== destination) {
+					finish(null);
+					return;
+				}
+				const route = destinationRoute(destination);
+				if (!route || !isDestinationReady(route)) return;
+				finish(route);
+			};
+			observer = new MutationObserver(settle);
+			cancelPendingFocusWait = cancel;
+			observer.observe(shell, {
+				subtree: true,
+				childList: true,
+				attributes: true,
+				attributeFilter: ['data-initial-state']
+			});
+			settle();
+		});
+	}
+
+	function destinationRoute(destination: Destination) {
+		return document.querySelector<HTMLElement>(`[data-destination-root="${destination}"]`);
+	}
+
+	function isDestinationReady(route: HTMLElement) {
+		return route.dataset.initialState === 'ready';
 	}
 
 	function prepareControlIds(route: HTMLElement, destination: Destination) {
@@ -350,6 +421,7 @@
 			target &&
 			!target.hidden &&
 			!target.closest('[inert]') &&
+			target.getClientRects().length > 0 &&
 			getComputedStyle(target).display !== 'none' &&
 			getComputedStyle(target).visibility !== 'hidden'
 		);
@@ -519,6 +591,7 @@
 
 	{#if !summonedWorkflow.active && !appChrome.carryActive}
 		<button
+			id="main-menu-opener"
 			class="main-menu-opener"
 			type="button"
 			tabindex="-1"

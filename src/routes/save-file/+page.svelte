@@ -412,6 +412,7 @@
 	<section
 		class="empty-editor"
 		data-destination-root="save-file"
+		data-initial-state="loading"
 		aria-live="polite"
 		inert={summonedWorkflow.active !== null}
 	>
@@ -421,6 +422,7 @@
 	<section
 		class="empty-editor"
 		data-destination-root="save-file"
+		data-initial-state="ready"
 		inert={summonedWorkflow.active !== null}
 	>
 		<strong>No active Save File</strong>
@@ -437,6 +439,7 @@
 		class="save-file-route"
 		aria-label="Save File Editor"
 		data-destination-root="save-file"
+		data-initial-state="ready"
 		inert={summonedWorkflow.active !== null}
 	>
 		<div class="mobile-heading">

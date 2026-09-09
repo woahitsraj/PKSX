@@ -86,6 +86,7 @@
 	let pendingDelete = $state<PendingDelete | null>(null);
 	let savesRefreshRequest = 0;
 	let backupBrowserWasActive = false;
+	let initialStateReady = $state(false);
 
 	const selectedSaveFile = $derived(
 		storageSelected
@@ -98,6 +99,7 @@
 	const activeSaveFile = $derived(
 		saveFiles.find((saveFile) => saveFile.id === activeSaveFileId) ?? null
 	);
+	const initialSaveFileId = $derived(activeSaveFile?.id ?? saveFiles[0]?.id ?? null);
 	const activeDetails = $derived(
 		activeSaveFile ? (detailsBySaveFileId[activeSaveFile.id] ?? null) : null
 	);
@@ -112,6 +114,7 @@
 		const cachedSnapshotSeeded = isCachedSavesSnapshotSeeded();
 		if (cachedSnapshot) {
 			applySavesSnapshot(cachedSnapshot, selectedSaveFileId);
+			initialStateReady = true;
 			statusMessage = cachedSnapshot.saveFiles.length > 0 ? 'Saves ready.' : statusMessage;
 		}
 
@@ -220,6 +223,7 @@
 
 		pokemonStorageSummary = summarizePokemonStorage(appStorage);
 		applySavesSnapshot(snapshot, options.preferredSelection ?? selectedSaveFileId);
+		initialStateReady = true;
 		statusMessage =
 			snapshot.saveFiles.length > 0 || pokemonStorageSummary
 				? 'Saves ready.'
@@ -641,6 +645,7 @@
 	class="saves-page"
 	aria-labelledby="saves-title"
 	data-destination-root="saves"
+	data-initial-state={initialStateReady ? 'ready' : 'loading'}
 	data-controller-status={appChrome.controllerStatus ?? 'No controller detected'}
 	inert={summonedWorkflow.active !== null}
 >
@@ -741,6 +746,7 @@
 				>
 					<button
 						data-saves-control
+						data-destination-initial={saveFile.id === initialSaveFileId ? '' : undefined}
 						data-destination-focus={`save-${saveFile.id}-select`}
 						type="button"
 						class="save-card-main"
@@ -813,7 +819,7 @@
 
 			<button
 				data-saves-control
-				data-destination-initial
+				data-destination-initial={saveFiles.length === 0 ? '' : undefined}
 				data-destination-focus="import"
 				type="button"
 				class="import-card"

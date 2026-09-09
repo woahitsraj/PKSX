@@ -109,6 +109,33 @@ test('empty first run lands on Saves and exposes five selectable destinations', 
 	await expect(page.locator('.top-bar, .mobile-tabbar')).toHaveCount(0);
 });
 
+test('Main Menu opens before destination controls are ready and restores the ready control', async ({
+	page
+}) => {
+	await resetEmptyStorage(page);
+	await page.evaluate(() => {
+		const route = document.querySelector<HTMLElement>('[data-destination-root="saves"]')!;
+		route.dataset.initialState = 'loading';
+		route.replaceChildren(document.createTextNode('Loading Saves…'));
+	});
+
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	const menu = page.getByRole('dialog', { name: 'Main Menu' });
+	await expect(menu).toBeVisible();
+	await page.evaluate(() => {
+		const route = document.querySelector<HTMLElement>('[data-destination-root="saves"]')!;
+		const readyControl = document.createElement('button');
+		readyControl.type = 'button';
+		readyControl.textContent = 'Ready Save';
+		readyControl.dataset.destinationInitial = '';
+		readyControl.dataset.destinationFocus = 'ready-save';
+		route.append(readyControl);
+		route.dataset.initialState = 'ready';
+	});
+	await menu.getByRole('button', { name: /^Saves/ }).click();
+	await expect(page.getByRole('button', { name: 'Ready Save' })).toBeFocused();
+});
+
 test('Start is fresh-press only and restores destination focus by identity', async ({ page }) => {
 	await resetEmptyStorage(page);
 	const importCard = page.getByRole('button', { name: /Import a Save File/ });
@@ -209,6 +236,8 @@ test('Saves restores an asynchronously loaded control by stable identity', async
 	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
 		timeout: 15000
 	});
+	await page.reload();
+	await expect(page.locator('.save-card.active .save-card-main')).toBeFocused();
 	const deleteSave = page.locator('.save-card.active .danger-action');
 	await deleteSave.focus();
 	const rememberedId = await deleteSave.getAttribute('id');
@@ -227,6 +256,10 @@ test('Save File restores dynamic controls by semantic identity', async ({ page }
 	await choose(page, 'Save File');
 
 	const trainerName = page.locator('#save-file-trainer-name');
+	await expect(trainerName).toHaveValue('DIXIE', { timeout: 15000 });
+	await expect(
+		page.getByLabel('Save File fields').getByRole('button', { name: /Trainer profile/ })
+	).toBeFocused();
 	await trainerName.fill('RAJ');
 	const cancelAll = page.getByRole('button', { name: 'Cancel all' });
 	await cancelAll.focus();

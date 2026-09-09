@@ -45,6 +45,11 @@ final class ControllerNavigationTests: XCTestCase {
             "document.querySelector('[role=\"dialog\"][aria-label=\"Slot actions\"]') === null && document.activeElement?.id === 'box-0-slot-1'",
             in: webView
         )
+        controller.extendedGamepad?.buttonB.setValue(0)
+        try await waitForJavaScript(
+            "window.__pksxControllerEvents?.includes('Escape:false')",
+            in: webView
+        )
     }
 
     func testJoystickAndShortcutButtonsFollowKeyboardNavigation() async throws {
@@ -199,7 +204,7 @@ final class ControllerNavigationTests: XCTestCase {
     private func controllerSurface() async throws -> WKWebView {
         let webView = try appWebView()
         try await waitForJavaScript(
-            "document.readyState === 'complete' && document.querySelector('.main-menu-opener') !== null && ((document.querySelector('.boxes-route')?.dataset.initialState === 'ready' && document.querySelector('#box-grid')?.getClientRects().length > 0) || document.querySelector('[data-destination-root]')?.dataset.destinationRoot === 'saves')",
+            "document.readyState === 'complete' && document.querySelector('.main-menu-opener') !== null && ((document.querySelector('.boxes-route')?.dataset.initialState === 'ready' && document.querySelector('#box-grid')?.getClientRects().length > 0) || (document.querySelector('[data-destination-root]')?.dataset.destinationRoot !== 'boxes' && document.querySelector('[data-destination-root]')?.dataset.initialState === 'ready'))",
             in: webView
         )
         let hasBoxGrid = try await webView.evaluateJavaScript(

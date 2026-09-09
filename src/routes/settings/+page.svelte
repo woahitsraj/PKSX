@@ -183,6 +183,7 @@
 	class="settings-route pksx-density-container"
 	aria-labelledby="screen-title"
 	data-destination-root="settings"
+	data-initial-state="ready"
 	inert={summonedWorkflow.active !== null}
 	onfocusin={handleFocusIn}
 	{@attach settingsZone}
