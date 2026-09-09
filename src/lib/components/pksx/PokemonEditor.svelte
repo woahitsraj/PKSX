@@ -3067,9 +3067,19 @@
 		gap: var(--pksx-space-2);
 	}
 
+	.editor-identity {
+		flex: 1 1 auto;
+	}
+
+	.editor-identity > div {
+		min-width: 0;
+		flex: 1 1 auto;
+	}
+
 	.editor-identity img {
 		width: var(--pksx-control-height);
 		height: var(--pksx-control-height);
+		flex: 0 0 auto;
 		object-fit: contain;
 		image-rendering: pixelated;
 	}
@@ -3359,6 +3369,19 @@
 	}
 
 	@container pksx-density (width <= 640px) {
+		.identity-line {
+			flex-wrap: wrap;
+			row-gap: 0;
+			white-space: normal;
+			overflow: visible;
+		}
+
+		.identity-line span,
+		.identity-line strong {
+			overflow: visible;
+			text-overflow: clip;
+		}
+
 		.editor-actions {
 			gap: 2px;
 		}

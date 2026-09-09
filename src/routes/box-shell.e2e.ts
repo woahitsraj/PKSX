@@ -2100,6 +2100,24 @@ test('Pokemon Editor keeps staged state through review, Legality, guarded Back, 
 	await page.setViewportSize({ width: 360, height: 640 });
 	await setSafeArea(page, { top: 24, right: 0, bottom: 72, left: 0 });
 	await expect(page.locator('.editor-rail')).toHaveCSS('overflow-x', 'auto');
+	const headerBounds = await editor.evaluate((dialog) => {
+		const editorElement = dialog.querySelector<HTMLElement>('.pokemon-editor')!;
+		const identity = dialog.querySelector<HTMLElement>('.editor-identity')!;
+		const close = dialog.querySelector<HTMLElement>('#pokemon-editor-close')!;
+		return {
+			editorClientWidth: editorElement.clientWidth,
+			editorScrollWidth: editorElement.scrollWidth,
+			identityRight: identity.getBoundingClientRect().right,
+			closeLeft: close.getBoundingClientRect().left,
+			textRights: Array.from(
+				identity.querySelectorAll<HTMLElement>('p, h2, .identity-line span, .identity-line strong'),
+				(element) => element.getBoundingClientRect().right
+			)
+		};
+	});
+	expect(headerBounds.editorScrollWidth).toBeLessThanOrEqual(headerBounds.editorClientWidth);
+	expect(headerBounds.identityRight).toBeLessThan(headerBounds.closeLeft);
+	for (const right of headerBounds.textRights) expect(right).toBeLessThan(headerBounds.closeLeft);
 	await pressController(page, 'PageDown');
 	await expect(page.locator('#pokemon-editor-section-nature')).toHaveAttribute(
 		'aria-current',
