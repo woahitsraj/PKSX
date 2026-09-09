@@ -28,6 +28,7 @@
 		invalidateActiveWorkspaceCache,
 		invalidateSavesCache,
 		isCachedSavesSnapshotSeeded,
+		subscribeSavesSnapshot,
 		type SaveCardDetailsState,
 		type SavesSnapshot
 	} from '$lib/pksx/saves-cache';
@@ -98,9 +99,14 @@
 	onMount(() => {
 		const cached = getCachedSavesSnapshot();
 		const seeded = isCachedSavesSnapshotSeeded();
-		if (cached) applySnapshot(cached, rememberedTarget());
+		let hasReceivedSnapshot = false;
+		const unsubscribe = subscribeSavesSnapshot((snapshot) => {
+			applySnapshot(snapshot, hasReceivedSnapshot ? target : rememberedTarget());
+			hasReceivedSnapshot = true;
+		});
 
 		void refreshSaves({ force: !cached || seeded }).then(() => focusGrid());
+		return unsubscribe;
 	});
 
 	function savesGridOwner(node: HTMLElement) {
@@ -177,14 +183,7 @@
 		const request = ++refreshRequest;
 		try {
 			const storageSummary = storage.getPokemonStorage().catch(() => null);
-			const snapshot = await getSavesSnapshot({
-				force: options.force,
-				onUpdate: (updated) => {
-					if (request === refreshRequest) {
-						applySnapshot(updated, options.preferredTarget ?? target, false);
-					}
-				}
-			});
+			const snapshot = await getSavesSnapshot({ force: options.force });
 			if (request !== refreshRequest) return;
 			applySnapshot(snapshot, options.preferredTarget ?? rememberedTarget(), options.focus);
 			pokemonStorage = summarizePokemonStorage(await storageSummary);

@@ -74,13 +74,19 @@ async function pressController(page: Page, key: string) {
 	await controllerButton(page, key, false);
 }
 
+async function expectSavesFocus(page: Page, target: string | RegExp = 'saves-target-import') {
+	const grid = page.getByRole('grid', { name: 'Save Files' });
+	await expect(grid).toBeFocused();
+	await expect(grid).toHaveAttribute('aria-activedescendant', target);
+	return grid;
+}
+
 test('empty first run lands on Saves and exposes the amended selectable destinations', async ({
 	page
 }) => {
 	await resetEmptyStorage(page);
 
-	const importCard = page.getByRole('button', { name: /Import a Save File/ });
-	await expect(importCard).toBeFocused();
+	await expectSavesFocus(page);
 	const opener = page.getByRole('button', { name: 'Open Main Menu' });
 	await expect(opener).toHaveAttribute('tabindex', '-1');
 
@@ -106,13 +112,7 @@ test('empty first run lands on Saves and exposes the amended selectable destinat
 
 	await menu.getByRole('button', { name: /^Saves/ }).click();
 	await expect(menu).toBeHidden();
-	await expect(importCard).toBeFocused();
-	const storageControl = page.getByRole('button', { name: /Pokemon Storage App-owned/ });
-	await storageControl.focus();
-	menu = await openMainMenu(page);
-	await storageControl.evaluate((control) => control.remove());
-	await menu.getByRole('button', { name: /^Saves/ }).click();
-	await expect(importCard).toBeFocused();
+	await expectSavesFocus(page);
 
 	await choose(page, 'Boxes');
 	await expect(page).toHaveURL(/\/$/);
@@ -231,8 +231,7 @@ test('Trainer and Bag report the persisted active Save File while Pokemon Storag
 
 test('Start is fresh-press only and restores destination focus by identity', async ({ page }) => {
 	await resetEmptyStorage(page);
-	const importCard = page.getByRole('button', { name: /Import a Save File/ });
-	await importCard.focus();
+	const savesGrid = await expectSavesFocus(page);
 
 	await controllerButton(page, 'Menu', true);
 	await controllerButton(page, 'Menu', true);
@@ -240,7 +239,7 @@ test('Start is fresh-press only and restores destination focus by identity', asy
 	await controllerButton(page, 'Menu', false);
 	await controllerButton(page, 'Menu', true);
 	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeHidden();
-	await expect(importCard).toBeFocused();
+	await expectSavesFocus(page);
 	await controllerButton(page, 'Menu', false);
 	await controllerButton(page, 'Menu', true);
 	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeVisible();
@@ -278,12 +277,13 @@ test('Start is fresh-press only and restores destination focus by identity', asy
 	await expect(darkTheme).toBeFocused();
 
 	await choose(page, 'Saves');
-	await expect(importCard).toBeFocused();
+	await expectSavesFocus(page);
 	await choose(page, 'Settings');
 	await expect(page).toHaveURL(/\/settings$/);
 	await page.goBack();
 	await expect(page).toHaveURL(/\/saves$/);
-	await expect(importCard).toBeFocused();
+	await expect(savesGrid).toBeFocused();
+	await expect(savesGrid).toHaveAttribute('aria-activedescendant', 'saves-target-import');
 
 	await choose(page, 'Settings');
 	await pressController(page, 'Escape');
@@ -368,14 +368,14 @@ test('Saves restores an asynchronously loaded control by stable identity', async
 	});
 	await page.reload();
 	await expectDestinationReady(page, 'saves');
-	await expect(page.locator('.save-card.active .save-card-main')).toBeFocused();
-	const deleteSave = page.locator('.save-card.active .danger-action');
-	await deleteSave.focus();
-	const rememberedId = await deleteSave.getAttribute('id');
+	const grid = await expectSavesFocus(page, /saves-target-.+/);
+	const rememberedTarget = await grid.getAttribute('aria-activedescendant');
+	expect(rememberedTarget).toBeTruthy();
 
 	await choose(page, 'Settings');
 	await choose(page, 'Saves');
-	await expect(page.locator(`#${rememberedId}`)).toBeFocused();
+	await expect(grid).toBeFocused();
+	await expect(grid).toHaveAttribute('aria-activedescendant', rememberedTarget!);
 });
 
 test('Trainer and Bag keep independent semantic focus within their separate destinations', async ({

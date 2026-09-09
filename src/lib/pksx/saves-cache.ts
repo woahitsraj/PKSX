@@ -37,11 +37,11 @@ type SaveDetailsCacheEntry = {
 
 type SavesSnapshotOptions = {
 	force?: boolean;
-	onUpdate?: (snapshot: SavesSnapshot) => void;
 };
 
 const storage = createSavesStorage();
 const detailsCache = new Map<SaveFileId, SaveDetailsCacheEntry>();
+const snapshotListeners = new Set<(snapshot: SavesSnapshot) => void>();
 
 let engine: EngineApi | null = null;
 let savesSnapshot: SavesSnapshot | null = null;
@@ -88,9 +88,14 @@ export function isCachedSavesSnapshotSeeded() {
 	return savesSnapshot !== null && savesSnapshotSeeded;
 }
 
+export function subscribeSavesSnapshot(listener: (snapshot: SavesSnapshot) => void) {
+	snapshotListeners.add(listener);
+	if (savesSnapshot) listener(savesSnapshot);
+	return () => snapshotListeners.delete(listener);
+}
+
 export async function getSavesSnapshot(options: SavesSnapshotOptions = {}) {
 	if (savesSnapshot && !options.force) {
-		options.onUpdate?.(savesSnapshot);
 		return savesSnapshot;
 	}
 
@@ -121,11 +126,11 @@ export async function getSavesSnapshot(options: SavesSnapshotOptions = {}) {
 	if (generation !== snapshotGeneration) return snapshot;
 	savesSnapshot = snapshot;
 	savesSnapshotSeeded = false;
-	options.onUpdate?.(snapshot);
+	publishSavesSnapshot();
 
 	for (const saveFile of saveFiles) {
 		if (snapshot.detailsBySaveFileId[saveFile.id].status === 'loading') {
-			void settleSaveCardDetails(saveFile, generation, options.onUpdate);
+			void settleSaveCardDetails(saveFile, generation);
 		}
 	}
 
@@ -155,8 +160,10 @@ export function setCachedActiveWorkspace(
 	getActiveWorkspaceService().set(workspace, box);
 	activeWorkspaceBox = box;
 	if (workspace) detailsCache.delete(workspace.file.id);
-	if (workspace && savesSnapshot)
+	if (workspace && savesSnapshot) {
 		savesSnapshot = mergeWorkspaceIntoSnapshot(savesSnapshot, workspace);
+		publishSavesSnapshot();
+	}
 }
 
 export function consumeActiveSaveAdoption(saveFileId: SaveFileId) {
@@ -189,6 +196,7 @@ export function seedSavesSnapshotFromActiveWorkspace(saveFiles: StoredSaveFile[]
 	savesSnapshot = snapshot;
 	savesSnapshotSeeded = true;
 	detailsCache.delete(workspace.file.id);
+	publishSavesSnapshot();
 	return snapshot;
 }
 
@@ -208,11 +216,7 @@ export async function loadActiveWorkspaceFromSaves() {
 	return workspace;
 }
 
-async function settleSaveCardDetails(
-	saveFile: StoredSaveFile,
-	generation: number,
-	onUpdate: SavesSnapshotOptions['onUpdate']
-) {
+async function settleSaveCardDetails(saveFile: StoredSaveFile, generation: number) {
 	let details: SaveCardDetails | null;
 	try {
 		details = await loadSaveCardDetails(saveFile);
@@ -238,7 +242,12 @@ async function settleSaveCardDetails(
 			[saveFile.id]: state
 		}
 	};
-	onUpdate?.(savesSnapshot);
+	publishSavesSnapshot();
+}
+
+function publishSavesSnapshot() {
+	if (!savesSnapshot) return;
+	for (const listener of snapshotListeners) listener(savesSnapshot);
 }
 
 function mergeWorkspaceIntoSnapshot(snapshot: SavesSnapshot, workspace: WorkspaceState) {

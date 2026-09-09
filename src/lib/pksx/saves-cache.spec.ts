@@ -9,7 +9,8 @@ import {
 	invalidateSavesCache,
 	isCachedSavesSnapshotSeeded,
 	seedSavesSnapshotFromActiveWorkspace,
-	setCachedActiveWorkspace
+	setCachedActiveWorkspace,
+	subscribeSavesSnapshot
 } from './saves-cache';
 
 const saveFile: StoredSaveFile = {
@@ -168,6 +169,29 @@ describe('Saves cache', () => {
 		expect(seeded?.activeSaveFileId).toBe(saveFile.id);
 		expect(seeded?.saveFiles).toEqual([saveFile]);
 		expect(seeded?.detailsBySaveFileId[saveFile.id]).toEqual({ status: 'loading' });
+	});
+
+	it('replays loading state and later updates to a remounted Saves subscriber', () => {
+		const activeWorkspace = createCleanWorkspaceState({
+			file: saveFile,
+			bytes: new Uint8Array([1, 2, 3, 4]),
+			workspace
+		});
+		setCachedActiveWorkspace(activeWorkspace, 0);
+		seedSavesSnapshotFromActiveWorkspace([saveFile]);
+
+		const firstUpdates: unknown[] = [];
+		const secondUpdates: unknown[] = [];
+		const unsubscribeFirst = subscribeSavesSnapshot((snapshot) => firstUpdates.push(snapshot));
+		unsubscribeFirst();
+		const unsubscribeSecond = subscribeSavesSnapshot((snapshot) => secondUpdates.push(snapshot));
+
+		setCachedActiveWorkspace(activeWorkspace, 0);
+		unsubscribeSecond();
+
+		expect(firstUpdates).toHaveLength(1);
+		expect(secondUpdates).toHaveLength(2);
+		expect(secondUpdates.at(-1)).toBe(getCachedSavesSnapshot());
 	});
 
 	it('counts Party and occupied slots across every Box', async () => {
