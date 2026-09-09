@@ -4,6 +4,7 @@ import type { StoredSaveFile } from '$lib/pksx/saves';
 import { createCleanWorkspaceState } from '$lib/pksx/backup-workflow';
 import {
 	getCachedSavesSnapshot,
+	countSavePokemon,
 	invalidateActiveWorkspaceCache,
 	invalidateSavesCache,
 	isCachedSavesSnapshotSeeded,
@@ -150,7 +151,7 @@ describe('Saves cache', () => {
 	});
 
 	it('seeds a Saves snapshot from the already-loaded active workspace', () => {
-		expect.assertions(8);
+		expect.assertions(6);
 
 		const activeWorkspace = createCleanWorkspaceState({
 			file: saveFile,
@@ -166,9 +167,30 @@ describe('Saves cache', () => {
 		expect(getCachedSavesSnapshot()).toBe(seeded);
 		expect(seeded?.activeSaveFileId).toBe(saveFile.id);
 		expect(seeded?.saveFiles).toEqual([saveFile]);
-		expect(seeded?.detailsBySaveFileId[saveFile.id]?.summary).toBe(summary);
-		expect(seeded?.detailsBySaveFileId[saveFile.id]?.partySlots).toEqual([partySlot]);
-		expect(seeded?.detailsBySaveFileId[saveFile.id]?.creatureCount).toBe(1);
+		expect(seeded?.detailsBySaveFileId[saveFile.id]).toEqual({ status: 'loading' });
+	});
+
+	it('counts Party and occupied slots across every Box', async () => {
+		expect.assertions(2);
+
+		const count = await countSavePokemon(
+			{ ...summary, partyCount: 2, boxCount: 3 },
+			[boxSlot, { ...boxSlot, slot: 1, isEmpty: true }],
+			async (box) =>
+				box === 1
+					? { ok: true, value: [{ ...boxSlot, box: 1 }], error: null }
+					: {
+							ok: true,
+							error: null,
+							value: [
+								{ ...boxSlot, box: 2 },
+								{ ...boxSlot, box: 2, slot: 1 }
+							]
+						}
+		);
+
+		expect(count).toBe(6);
+		expect(summary.partyCount + workspace.boxSlots.filter((slot) => !slot.isEmpty).length).toBe(2);
 	});
 
 	it('does not seed when no active workspace is cached', () => {
