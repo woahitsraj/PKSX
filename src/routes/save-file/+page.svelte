@@ -425,7 +425,12 @@
 	>
 		<strong>No active Save File</strong>
 		<p>{loadError ?? 'Import or select a Save File before editing trainer data.'}</p>
-		<button type="button" data-destination-initial onclick={openBoxes}>Back to Boxes</button>
+		<button
+			type="button"
+			data-destination-initial
+			data-destination-focus="back-boxes"
+			onclick={openBoxes}>Back to Boxes</button
+		>
 	</section>
 {:else}
 	<section
@@ -435,8 +440,12 @@
 		inert={summonedWorkflow.active !== null}
 	>
 		<div class="mobile-heading">
-			<button type="button" aria-label="Back to boxes" data-controller-back onclick={openBoxes}
-				>‹</button
+			<button
+				type="button"
+				aria-label="Back to boxes"
+				data-controller-back
+				data-destination-focus="back-boxes-mobile"
+				onclick={openBoxes}>‹</button
 			>
 			<div>
 				<h1>Save File editor</h1>
@@ -453,6 +462,7 @@
 				{#each sections as section (section.key)}
 					<button
 						type="button"
+						data-destination-focus={`section-${section.key}-desktop`}
 						class:active={activeSection === section.key}
 						onclick={() => selectSection(section.key)}
 					>
@@ -484,6 +494,7 @@
 				{#each sections as section (section.key)}
 					<button
 						type="button"
+						data-destination-focus={`section-${section.key}-mobile`}
 						class:active={activeSection === section.key}
 						onclick={() => selectSection(section.key)}
 					>
@@ -544,12 +555,14 @@
 							<div class="segmented">
 								<button
 									type="button"
+									data-destination-focus="gender-male"
 									class:chosen={displayedGender === 'male'}
 									disabled={!projection.trainerProfile.genderSupported || busy}
 									onclick={() => chooseGender('male')}>Male</button
 								>
 								<button
 									type="button"
+									data-destination-focus="gender-female"
 									class:chosen={displayedGender === 'female'}
 									disabled={!projection.trainerProfile.genderSupported || busy}
 									onclick={() => chooseGender('female')}>Female</button
@@ -585,6 +598,7 @@
 								<div class="currency-control">
 									<button
 										type="button"
+										data-destination-focus="money-decrement"
 										disabled={busy}
 										onclick={() => setMoney(Math.max(projection.money.min, Number(moneyDraft) - 1))}
 										>−</button
@@ -601,12 +615,14 @@
 									/>
 									<button
 										type="button"
+										data-destination-focus="money-increment"
 										disabled={busy}
 										onclick={() => setMoney(Math.min(projection.money.max, Number(moneyDraft) + 1))}
 										>+</button
 									>
 									<button
 										type="button"
+										data-destination-focus="money-max"
 										disabled={busy}
 										onclick={() => setMoney(projection.money.max)}>MAX</button
 									>
@@ -637,6 +653,7 @@
 							{#each pockets as pocket (pocket.key)}
 								<button
 									type="button"
+									data-destination-focus={`pocket-${pocket.key}`}
 									class:active={activePocketProjection?.key === pocket.key}
 									class:staged={editor.stagedEdits.some(
 										(edit) =>
@@ -677,8 +694,11 @@
 											? 'Loading items…'
 											: availableToAdd.length + ' available')}</small
 								>
-								<button type="button" disabled={!selectedItemId || busy} onclick={addSelectedItem}
-									>+ Add</button
+								<button
+									type="button"
+									data-destination-focus={`inventory-${activePocketProjection.key}-add`}
+									disabled={!selectedItemId || busy}
+									onclick={addSelectedItem}>+ Add</button
 								>
 							</div>
 
@@ -696,6 +716,7 @@
 										<div class="quantity">
 											<button
 												type="button"
+												data-destination-focus={`item-${activePocketProjection.key}-${item.id}-decrement`}
 												disabled={busy ||
 													staged?.kind === 'remove' ||
 													itemQuantity(activePocketProjection.key, item) <= 1}
@@ -708,6 +729,7 @@
 											>
 											<input
 												aria-label={item.name + ' quantity'}
+												data-destination-focus={`item-${activePocketProjection.key}-${item.id}-quantity`}
 												type="number"
 												min="1"
 												max={item.maxQuantity}
@@ -722,6 +744,7 @@
 											/>
 											<button
 												type="button"
+												data-destination-focus={`item-${activePocketProjection.key}-${item.id}-increment`}
 												disabled={busy ||
 													staged?.kind === 'remove' ||
 													itemQuantity(activePocketProjection.key, item) >= item.maxQuantity}
@@ -734,6 +757,7 @@
 											>
 											<button
 												type="button"
+												data-destination-focus={`item-${activePocketProjection.key}-${item.id}-remove`}
 												class="remove"
 												disabled={busy}
 												onclick={() => toggleItemRemoval(activePocketProjection.key, item)}
@@ -754,6 +778,7 @@
 										<div class="quantity">
 											<button
 												type="button"
+												data-destination-focus={`staged-item-${activePocketProjection.key}-${item.id}-decrement`}
 												disabled={busy || item.quantity <= 1}
 												onclick={() =>
 													updateAddedItem(activePocketProjection.key, item, item.quantity - 1)}
@@ -761,6 +786,7 @@
 											>
 											<input
 												aria-label={item.name + ' quantity'}
+												data-destination-focus={`staged-item-${activePocketProjection.key}-${item.id}-quantity`}
 												type="number"
 												min="1"
 												max={item.maxQuantity}
@@ -775,6 +801,7 @@
 											/>
 											<button
 												type="button"
+												data-destination-focus={`staged-item-${activePocketProjection.key}-${item.id}-increment`}
 												disabled={busy || item.quantity >= item.maxQuantity}
 												onclick={() =>
 													updateAddedItem(activePocketProjection.key, item, item.quantity + 1)}
@@ -782,6 +809,7 @@
 											>
 											<button
 												type="button"
+												data-destination-focus={`staged-item-${activePocketProjection.key}-${item.id}-remove`}
 												class="remove"
 												disabled={busy}
 												onclick={() => discardAddedItem(activePocketProjection.key, item.id)}
@@ -828,9 +856,19 @@
 							: 'No staged changes.'}</span
 				>
 			</div>
-			<button type="button" disabled={!editor.staged || busy} onclick={cancelAll}>Cancel all</button
+			<button
+				type="button"
+				data-destination-focus="cancel-all"
+				disabled={!editor.staged || busy}
+				onclick={cancelAll}>Cancel all</button
 			>
-			<button type="button" class="apply" disabled={!editor.staged || busy} onclick={applyEdits}>
+			<button
+				type="button"
+				class="apply"
+				data-destination-focus="apply-edits"
+				disabled={!editor.staged || busy}
+				onclick={applyEdits}
+			>
 				<span class="apply-icon" aria-hidden="true">✓</span>
 				{busy ? 'Applying…' : 'Apply edits'}
 			</button>

@@ -67,6 +67,15 @@ async function chooseMainMenu(
 		.click();
 }
 
+async function expectActiveSaveOwner(page: Page, fileName: string, timeout = 15000) {
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-active-save-file-id', /.+/, {
+		timeout
+	});
+	await expect(page.getByRole('button', { name: `Open Box Menu for ${fileName}` })).toBeVisible({
+		timeout
+	});
+}
+
 async function expectControllerHighlights(page: Page, scope: Locator) {
 	const controls = scope.locator(
 		'button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"]):not([type="file"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -878,7 +887,11 @@ test('Box Menu and related picker Cancel restore focus at both viewport floors',
 test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ page }) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
-	await page.getByRole('button', { name: 'Add collection' }).click();
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another' })
+		.click();
 	await page
 		.getByRole('dialog', { name: 'Open another collection' })
 		.getByRole('button', { name: /Pokemon Storage/ })
@@ -901,7 +914,6 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await expect(page.locator('#box-grid #collection-control-pane-active-save')).toHaveCount(1);
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
-	await page.getByRole('button', { name: 'Add collection' }).click();
 	await expect(page.getByRole('dialog', { name: 'Open another collection' })).toBeHidden();
 
 	await page.keyboard.press('x');
@@ -2169,9 +2181,7 @@ test('creates and restores a manual backup for the loaded Save File', async ({ p
 	await expect(backups).toContainText('Manual');
 
 	await backups.getByRole('button', { name: 'Open' }).click();
-	await expect(page.locator('.save-chip')).toContainText('011020251345.restored.sav', {
-		timeout: 15000
-	});
+	await expectActiveSaveOwner(page, 'emerald-011020251345.restored.sav');
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 });
 
@@ -2405,7 +2415,7 @@ test('reload preserves unexported slot changes from the active workspace', async
 	await expect(page.locator('.toolbar-status-strip')).toHaveText('Unsaved edits');
 
 	await page.reload();
-	await expect(page.locator('.save-chip')).toContainText('011020251345.sav', { timeout: 15000 });
+	await expectActiveSaveOwner(page, 'emerald-011020251345.sav');
 	await expect(page.locator('.toolbar-status-strip')).toHaveText('Unsaved edits');
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
 	await expect(page.locator('#box-0-slot-2')).toContainText('ARON');
@@ -2606,6 +2616,8 @@ test('mobile Saves route scrolls with the document', async ({ page }) => {
 	}
 
 	await expect(page.locator('.save-card')).toHaveCount(4);
+	await page.evaluate(() => window.scrollTo(0, 0));
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 	const mobileGutters = await page.evaluate(() => {
 		const shell = document.querySelector('.app-shell')?.getBoundingClientRect();
 		const panel = document.querySelector('.save-picker-panel')?.getBoundingClientRect();
@@ -2686,9 +2698,9 @@ test('browses the Saves route, imports, and switches the active Save File', asyn
 		.getByRole('button', { name: /^Switch/ })
 		.click();
 
-	await expect(page.locator('.save-chip')).toContainText('alpha.sav', { timeout: 15000 });
+	await expectActiveSaveOwner(page, 'alpha.sav');
 	await page.goto('/');
-	await expect(page.locator('.save-chip')).toContainText('alpha.sav');
+	await expectActiveSaveOwner(page, 'alpha.sav');
 
 	await page.goto('/saves');
 	await page.getByLabel('Import Save File').setInputFiles({
@@ -2720,7 +2732,7 @@ test('reloads the most recent imported Save File while offline', async ({ page, 
 	await context.setOffline(true);
 	await page.reload();
 
-	await expect(page.locator('.save-chip')).toContainText('011020251345.sav', { timeout: 15000 });
+	await expectActiveSaveOwner(page, 'emerald-011020251345.sav');
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 
 	await context.setOffline(false);

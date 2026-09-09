@@ -3773,7 +3773,6 @@
 		}
 	}
 
-
 	function downloadBytes(bytes: Uint8Array, fileName: string) {
 		const downloadBytes = new Uint8Array(bytes.byteLength);
 		downloadBytes.set(bytes);
@@ -3859,6 +3858,19 @@
 <svelte:window onkeydown={handleAppKeydown} />
 
 <div class="status-announcer" role="status" aria-live="polite">{toolbarStatus}</div>
+<input
+	id="quick-save-import"
+	class="source-picker-import"
+	type="file"
+	aria-label="Quick save import"
+	disabled={busy}
+	onchange={(event) => {
+		const input = event.currentTarget;
+		const file = input.files?.[0];
+		input.value = '';
+		if (file) void importSaveFile(file);
+	}}
+/>
 
 <section
 	class="boxes-route"
@@ -4274,6 +4286,14 @@
 <ToastRegion {toasts} onDismiss={dismissToast} />
 
 <style>
+	.source-picker-import {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+	}
+
 	:global(html),
 	:global(body) {
 		margin: 0;

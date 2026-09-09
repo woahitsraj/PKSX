@@ -217,3 +217,98 @@ test('Saves restores an asynchronously loaded control by stable identity', async
 	await choose(page, 'Saves');
 	await expect(page.locator(`#${rememberedId}`)).toBeFocused();
 });
+
+test('Save File restores dynamic controls by semantic identity', async ({ page }) => {
+	await resetEmptyStorage(page);
+	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
+	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+		timeout: 15000
+	});
+	await choose(page, 'Save File');
+
+	const trainerName = page.locator('#save-file-trainer-name');
+	await trainerName.fill('RAJ');
+	const cancelAll = page.getByRole('button', { name: 'Cancel all' });
+	await cancelAll.focus();
+	await expect(cancelAll).toHaveAttribute('id', 'pksx-save-file-cancel-all');
+	await page.keyboard.press('Control+k');
+	await page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: /^Save File/ })
+		.click();
+	await expect(cancelAll).toBeFocused();
+
+	await page.getByLabel('Save File fields').getByRole('button', { name: /Bag/ }).click();
+	const pockets = page.getByLabel('Bag pockets').getByRole('button');
+	const addItem = page.getByRole('button', { name: '+ Add', exact: true });
+	await page.getByRole('combobox', { name: /Add an item to/ }).click();
+	await page.getByRole('option').first().click();
+	await addItem.focus();
+	const firstPocketAddId = await addItem.getAttribute('id');
+	await pockets.nth(1).click();
+	await page.getByRole('combobox', { name: /Add an item to/ }).click();
+	await page.getByRole('option').first().click();
+	await addItem.focus();
+	const secondPocketAddId = await addItem.getAttribute('id');
+	expect(firstPocketAddId).toMatch(/^pksx-save-file-inventory-/);
+	expect(secondPocketAddId).toMatch(/^pksx-save-file-inventory-/);
+	expect(secondPocketAddId).not.toBe(firstPocketAddId);
+
+	const quantity = page.locator('.item-list article:not(.new-item) input[type="number"]').first();
+	await quantity.focus();
+	const quantityId = await quantity.getAttribute('id');
+	expect(quantityId).toMatch(/^pksx-save-file-item-/);
+	await page.keyboard.press('Control+k');
+	await page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: /^Save File/ })
+		.click();
+	await expect(page.locator(`#${quantityId}`)).toBeFocused();
+	await expect(page.locator('[id^="pksx-save-file-focus-"]')).toHaveCount(0);
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const ids = [...document.querySelectorAll<HTMLElement>('[id]')].map(({ id }) => id);
+				return ids.length - new Set(ids).size;
+			})
+		)
+		.toBe(0);
+});
+
+test('Saves confirmation owns shortcuts, controller Back, and browser history', async ({
+	page
+}) => {
+	await resetEmptyStorage(page);
+	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
+	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+		timeout: 15000
+	});
+
+	const deleteSave = page.locator('.save-card.active .danger-action');
+	await deleteSave.click();
+	let confirmation = page.getByRole('alertdialog', {
+		name: /Delete .*011020251345\.sav\?/
+	});
+	await expect(confirmation).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Open Main Menu' })).toBeHidden();
+	await page.keyboard.press('Control+k');
+	await pressController(page, 'Menu');
+	await page
+		.locator('.main-menu-opener')
+		.evaluate((opener) => (opener as HTMLButtonElement).click());
+	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeHidden();
+	await expect(confirmation).toBeVisible();
+
+	await pressController(page, 'Escape');
+	await expect(confirmation).toBeHidden();
+	await expect(page).toHaveURL(/\/saves$/);
+
+	await choose(page, 'Settings');
+	await choose(page, 'Saves');
+	await deleteSave.click();
+	confirmation = page.getByRole('alertdialog', { name: /Delete .*011020251345\.sav\?/ });
+	await expect(confirmation).toBeVisible();
+	await page.evaluate(() => history.back());
+	await expect(confirmation).toBeHidden();
+	await expect(page).toHaveURL(/\/saves$/);
+});

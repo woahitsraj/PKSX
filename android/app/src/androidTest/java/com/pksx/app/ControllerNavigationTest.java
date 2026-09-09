@@ -172,17 +172,30 @@ public class ControllerNavigationTest {
     @Test
     public void controllerBackGoesHomeWhilePlatformBackFollowsHistory() throws Exception {
         awaitControllerSurface();
-        chooseMainMenu("Saves");
-        awaitJavaScript("location.pathname.endsWith('/saves')");
+        importEmeraldSave();
+        runJavaScript("document.querySelector('.save-card.active .danger-action').click()");
+        awaitJavaScript("document.querySelector('[role=alertdialog]') !== null");
+        pressPlatformBack();
+        awaitJavaScript(
+            "location.pathname.endsWith('/saves')"
+                + " && document.querySelector('[role=alertdialog]') === null"
+        );
+        runJavaScript("document.querySelector('.save-card.active .danger-action').click()");
+        awaitJavaScript("document.querySelector('[role=alertdialog]') !== null");
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_B,
+            "location.pathname.endsWith('/saves')"
+                + " && document.querySelector('[role=alertdialog]') === null"
+        );
         chooseMainMenu("Settings");
         awaitJavaScript("location.pathname.endsWith('/settings')");
 
         chooseMainMenu("Backup Browser");
-        awaitJavaScript("document.querySelector('[role=dialog][aria-label=\"Backup Browser\"]')");
+        awaitJavaScript("document.querySelector('[role=dialog][aria-labelledby=\"backup-browser-title\"]')");
         pressPlatformBack();
         awaitJavaScript(
             "location.pathname.endsWith('/settings')"
-                + " && document.querySelector('[role=dialog][aria-label=\"Backup Browser\"]') === null"
+                + " && document.querySelector('[role=dialog][aria-labelledby=\"backup-browser-title\"]') === null"
         );
 
         pressPlatformBack();
@@ -245,11 +258,18 @@ public class ControllerNavigationTest {
         JSONArray geometry = new JSONArray(
             runJavaScript(
                 "(() => {"
-                    + " const route = document.querySelector('.boxes-route').getBoundingClientRect();"
+                    + " const first = document.querySelector('#box-grid [id$=\"-slot-0\"]');"
+                    + " const last = document.querySelector('#box-grid [id$=\"-slot-29\"]');"
+                    + " first.scrollIntoView({ block: 'center' });"
+                    + " const firstSlot = first.getBoundingClientRect();"
+                    + " last.scrollIntoView({ block: 'center' });"
+                    + " const lastSlot = last.getBoundingClientRect();"
                     + " const opener = document.querySelector('.main-menu-opener').getBoundingClientRect();"
                     + " const root = getComputedStyle(document.documentElement);"
-                    + " return [innerWidth, innerHeight, route.left, route.top, route.right, route.bottom,"
-                    + " opener.left, opener.top, opener.right, opener.bottom,"
+                    + " return [innerWidth, innerHeight, firstSlot.left, firstSlot.top,"
+                    + " firstSlot.right, firstSlot.bottom, lastSlot.left, lastSlot.top,"
+                    + " lastSlot.right, lastSlot.bottom, opener.left, opener.top,"
+                    + " opener.right, opener.bottom,"
                     + " root.getPropertyValue('--safe-area-inset-top'),"
                     + " root.getPropertyValue('--safe-area-inset-right'),"
                     + " root.getPropertyValue('--safe-area-inset-bottom'),"
@@ -259,17 +279,23 @@ public class ControllerNavigationTest {
         );
         double innerWidth = geometry.getDouble(0);
         double innerHeight = geometry.getDouble(1);
-        double[] routeCss = {
+        double[] firstSlotCss = {
             geometry.getDouble(2),
             geometry.getDouble(3),
             geometry.getDouble(4),
             geometry.getDouble(5)
         };
-        double[] openerCss = {
+        double[] lastSlotCss = {
             geometry.getDouble(6),
             geometry.getDouble(7),
             geometry.getDouble(8),
             geometry.getDouble(9)
+        };
+        double[] openerCss = {
+            geometry.getDouble(10),
+            geometry.getDouble(11),
+            geometry.getDouble(12),
+            geometry.getDouble(13)
         };
         AtomicReference<Boolean> barsAvailable = new AtomicReference<>(false);
         AtomicReference<Boolean> contentContained = new AtomicReference<>(false);
@@ -312,19 +338,21 @@ public class ControllerNavigationTest {
                     );
                     double scaleX = webView.getWidth() / innerWidth;
                     double scaleY = webView.getHeight() / innerHeight;
-                    RectF routeBounds = screenBounds(webViewOrigin, scaleX, scaleY, routeCss);
+                    RectF firstSlotBounds = screenBounds(webViewOrigin, scaleX, scaleY, firstSlotCss);
+                    RectF lastSlotBounds = screenBounds(webViewOrigin, scaleX, scaleY, lastSlotCss);
                     RectF openerBounds = screenBounds(webViewOrigin, scaleX, scaleY, openerCss);
                     barsAvailable.set(systemBars.top > 0 && systemBars.bottom > 0);
                     contentContained.set(
                         scaleX > 0 &&
                         scaleY > 0 &&
-                        contains(safeBounds, routeBounds) &&
+                        contains(safeBounds, firstSlotBounds) &&
+                        contains(safeBounds, lastSlotBounds) &&
                         contains(safeBounds, openerBounds)
                     );
                     evidence.set(
                         String.format(
                             Locale.US,
-                            "provider=%s %s decor=%s webView=%s bars=%s safe=%s scale=%.3fx%.3f route=%s opener=%s cssVars=%s",
+                            "provider=%s %s decor=%s webView=%s bars=%s safe=%s scale=%.3fx%.3f firstSlot=%s lastSlot=%s opener=%s cssVars=%s",
                             provider,
                             version,
                             decorBounds,
@@ -333,7 +361,8 @@ public class ControllerNavigationTest {
                             safeBounds,
                             scaleX,
                             scaleY,
-                            routeBounds,
+                            firstSlotBounds,
+                            lastSlotBounds,
                             openerBounds,
                             geometry.toString()
                         )

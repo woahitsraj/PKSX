@@ -912,17 +912,19 @@
 </section>
 
 {#if pendingDelete}
-	<ConfirmDialog
-		open={true}
-		title={deleteDialogTitle(pendingDelete)}
-		description={deleteDialogDescription(pendingDelete)}
-		confirmLabel="Delete"
-		cancelLabel="Keep"
-		tone="danger"
-		{busy}
-		onCancel={closeDeleteDialog}
-		onConfirm={() => void confirmPendingDelete()}
-	/>
+	<div data-saves-confirmation>
+		<ConfirmDialog
+			open={true}
+			title={deleteDialogTitle(pendingDelete)}
+			description={deleteDialogDescription(pendingDelete)}
+			confirmLabel="Delete"
+			cancelLabel="Keep"
+			tone="danger"
+			{busy}
+			onCancel={closeDeleteDialog}
+			onConfirm={() => void confirmPendingDelete()}
+		/>
+	</div>
 {/if}
 
 <style>

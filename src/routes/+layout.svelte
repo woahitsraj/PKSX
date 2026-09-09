@@ -66,6 +66,11 @@
 	]);
 
 	beforeNavigate((navigation) => {
+		if (hasRouteOwnedConfirmation()) {
+			navigation.cancel();
+			dispatchControllerKey('Escape');
+			return;
+		}
 		if (summonedWorkflow.active) {
 			navigation.cancel();
 			dispatchControllerKey('Escape');
@@ -108,7 +113,7 @@
 	}
 
 	function openMainMenu() {
-		if (summonedWorkflow.active || appChrome.carryActive) return;
+		if (summonedWorkflow.active || appChrome.carryActive || hasRouteOwnedConfirmation()) return;
 		const launcherId = rememberDestinationFocus() ?? ensureDestinationFocus(activeRoute);
 		if (!launcherId) return;
 		if (!summonedWorkflow.open('main-menu', { type: 'control', id: launcherId })) return;
@@ -212,6 +217,10 @@
 			return;
 		}
 
+		if (fromController && event.key === 'Escape' && hasRouteOwnedConfirmation()) {
+			return;
+		}
+
 		if (
 			fromController &&
 			event.key === 'Escape' &&
@@ -230,6 +239,10 @@
 	}
 
 	function handlePlatformBack(canGoBack: boolean) {
+		if (hasRouteOwnedConfirmation()) {
+			dispatchControllerKey('Escape');
+			return;
+		}
 		if (summonedWorkflow.active) {
 			dispatchControllerKey('Escape');
 			return;
@@ -247,7 +260,7 @@
 		if (summonedWorkflow.active || !(event.target instanceof HTMLElement)) return;
 		const route = event.target.closest<HTMLElement>('[data-destination-root]');
 		if (!route) return;
-		const id = ensureControlId(event.target, activeRoute, route);
+		const id = ensureControlId(event.target, activeRoute);
 		if (id) destinationFocus.set(activeRoute, id);
 	}
 
@@ -262,7 +275,7 @@
 				: (route.querySelector<HTMLElement>('.controller-focused') ??
 					fallbackControl(route, activeRoute));
 		if (!target) return null;
-		const id = ensureControlId(target, activeRoute, route);
+		const id = ensureControlId(target, activeRoute);
 		if (id) destinationFocus.set(activeRoute, id);
 		return id;
 	}
@@ -273,7 +286,7 @@
 		prepareControlIds(route, destination);
 		const target = fallbackControl(route, destination);
 		if (!target) return null;
-		const id = ensureControlId(target, destination, route);
+		const id = ensureControlId(target, destination);
 		if (id) destinationFocus.set(destination, id);
 		return id;
 	}
@@ -291,34 +304,34 @@
 				? rememberedTarget
 				: fallbackControl(route, destination);
 		if (!target) return;
-		const id = ensureControlId(target, destination, route);
+		const id = ensureControlId(target, destination);
 		if (id) destinationFocus.set(destination, id);
 		target.focus();
 		target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 
 	function prepareControlIds(route: HTMLElement, destination: Destination) {
-		focusableControls(route).forEach((control) => ensureControlId(control, destination, route));
+		focusableControls(route).forEach((control) => ensureControlId(control, destination));
 	}
 
-	function ensureControlId(control: HTMLElement, destination: Destination, route: HTMLElement) {
-		if (control.id) return control.id;
+	function ensureControlId(control: HTMLElement, destination: Destination) {
 		const identity = control.dataset.destinationFocus;
 		if (identity) {
 			control.id = `pksx-${destination}-${identity}`;
 			return control.id;
 		}
-		const index = focusableControls(route).indexOf(control);
-		if (index < 0) return null;
-		control.id = `pksx-${destination}-focus-${index}`;
-		return control.id;
+		if (control.id) return control.id;
+		return null;
 	}
 
 	function fallbackControl(route: HTMLElement, destination: Destination) {
 		const requested = route.querySelector<HTMLElement>('[data-destination-initial]');
 		if (isFocusableTarget(requested)) return requested;
 		if (destination === 'boxes') {
-			const firstSlot = route.querySelector<HTMLElement>('[id^="box-"][id$="-slot-0"]');
+			const firstSlot =
+				route
+					.querySelector<HTMLElement>('#box-grid')
+					?.querySelector<HTMLElement>('[id$="-slot-0"]') ?? null;
 			if (isFocusableTarget(firstSlot)) return firstSlot;
 		}
 		return focusableControls(route).find(isFocusableTarget) ?? null;
@@ -339,6 +352,13 @@
 			!target.closest('[inert]') &&
 			getComputedStyle(target).display !== 'none' &&
 			getComputedStyle(target).visibility !== 'hidden'
+		);
+	}
+
+	function hasRouteOwnedConfirmation() {
+		return (
+			activeRoute === 'saves' &&
+			document.querySelector('[data-saves-confirmation] [role="alertdialog"]') !== null
 		);
 	}
 
@@ -542,6 +562,10 @@
 		box-shadow: var(--pksx-shadow-raised);
 		color: var(--pksx-color-accent-primary);
 		cursor: pointer;
+	}
+
+	:global(.app-shell:has([data-saves-confirmation] [role='alertdialog'])) .main-menu-opener {
+		display: none;
 	}
 
 	.main-menu-opener:hover,
