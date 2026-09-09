@@ -965,7 +965,8 @@ test('Box Menu allows duplicate Save File panes and keeps Open another collectio
 		page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' })
 	).toHaveCount(2);
 	await page.locator('#pane-active-save-box-0-slot-0').click();
-	const duplicatePane = page.locator('.box-pane:not(.active-pane)');
+	const fixedPane = page.locator('.box-pane').first();
+	const duplicatePane = page.locator('.box-pane').nth(1);
 	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true');
 	await duplicatePane.evaluate((pane) => {
 		pane.setAttribute('data-observed-busy', 'false');
@@ -981,12 +982,26 @@ test('Box Menu allows duplicate Save File panes and keeps Open another collectio
 	await expect(duplicatePane).toHaveAttribute('data-observed-busy', 'true');
 	await expect(duplicatePane.getByRole('heading', { name: 'Box 02' })).toBeVisible();
 	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
-	await duplicatePane.getByRole('button', { name: 'Previous Location' }).click();
+	await fixedPane.getByRole('button', { name: 'Next Location' }).click();
+	await expect(fixedPane.getByRole('heading', { name: 'Box 02' })).toBeVisible();
+	await expect(fixedPane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
+	await page.evaluate(() => {
+		const [fixed, duplicate] = Array.from(document.querySelectorAll<HTMLElement>('.box-pane'));
+		duplicate.querySelector<HTMLButtonElement>('[aria-label="Previous Location"]')?.click();
+		duplicate.querySelector<HTMLButtonElement>('[role="gridcell"]')?.click();
+		fixed.querySelector<HTMLButtonElement>('[aria-label="Previous Location"]')?.click();
+	});
+	await expect(fixedPane.getByRole('gridcell').first()).toContainText('ARON', { timeout: 15000 });
+	await expect(duplicatePane.getByRole('gridcell').first()).toContainText('ARON', {
+		timeout: 15000
+	});
+	await expect(fixedPane).not.toHaveAttribute('aria-busy', 'true');
+	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true');
 	await duplicatePane.getByRole('button', { name: 'Previous Location' }).click();
 	await expect(duplicatePane.getByRole('heading', { name: 'Party' })).toBeVisible({
 		timeout: 15000
 	});
-	await page.locator('[id$="-party-slot-5"]').click();
+	await duplicatePane.getByRole('gridcell').nth(5).click();
 	await page.keyboard.press('x');
 	await page.getByRole('button', { name: 'Switch', exact: true }).click();
 	await page

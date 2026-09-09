@@ -479,7 +479,7 @@
 	let workspacePublicationRequest = 0;
 	let paneSwitchRequest = 0;
 	let destroyed = false;
-	let paneWorkspaceLoadRequest = 0;
+	const paneWorkspaceRequests: Record<string, number> = {};
 	let paneWorkspaceLoadingRequests = $state<Record<string, number>>({});
 
 	const activeSummonedWorkflow = $derived(summonedWorkflow.active);
@@ -3698,7 +3698,8 @@
 			return;
 		}
 
-		const request = ++paneWorkspaceLoadRequest;
+		const request = (paneWorkspaceRequests[paneId] ?? 0) + 1;
+		paneWorkspaceRequests[paneId] = request;
 		const sourceId = pane.source.id;
 		paneWorkspaceLoadingRequests = { ...paneWorkspaceLoadingRequests, [paneId]: request };
 
@@ -3709,7 +3710,7 @@
 			}
 			const currentPane = workbenchPanes.find((candidate) => candidate.id === paneId);
 			if (
-				paneWorkspaceLoadRequest !== request ||
+				paneWorkspaceRequests[paneId] !== request ||
 				currentPane?.source.type !== 'save-file' ||
 				currentPane.source.id !== sourceId ||
 				currentPane.activeBox !== box
@@ -3737,7 +3738,7 @@
 		} catch (error) {
 			const currentPane = workbenchPanes.find((candidate) => candidate.id === paneId);
 			if (
-				paneWorkspaceLoadRequest === request &&
+				paneWorkspaceRequests[paneId] === request &&
 				currentPane?.source.type === 'save-file' &&
 				currentPane.source.id === sourceId &&
 				currentPane.activeBox === box
