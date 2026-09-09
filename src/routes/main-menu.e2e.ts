@@ -6,6 +6,21 @@ const emeraldFixturePath = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
 );
 
+const destinations: Record<string, { path: string; root: string }> = {
+	Boxes: { path: '/', root: 'boxes' },
+	'Save File': { path: '/save-file', root: 'save-file' },
+	Saves: { path: '/saves', root: 'saves' },
+	Settings: { path: '/settings', root: 'settings' }
+};
+
+async function expectDestinationReady(page: Page, destination: string) {
+	await expect(page.locator(`[data-destination-root="${destination}"]`)).toHaveAttribute(
+		'data-initial-state',
+		'ready',
+		{ timeout: 15000 }
+	);
+}
+
 async function resetEmptyStorage(page: Page) {
 	await page.goto('/');
 	await page.evaluate(
@@ -18,6 +33,7 @@ async function resetEmptyStorage(page: Page) {
 	);
 	await page.reload();
 	await expect(page).toHaveURL(/\/saves$/);
+	await expectDestinationReady(page, 'saves');
 }
 
 async function openMainMenu(page: Page) {
@@ -28,6 +44,10 @@ async function openMainMenu(page: Page) {
 async function choose(page: Page, label: string) {
 	const menu = await openMainMenu(page);
 	await menu.getByRole('button', { name: new RegExp(`^${label}`) }).click();
+	const destination = destinations[label];
+	if (!destination) return;
+	await expect(page).toHaveURL((url) => url.pathname === destination.path);
+	await expectDestinationReady(page, destination.root);
 }
 
 async function controllerButton(page: Page, key: string, pressed: boolean) {
@@ -274,9 +294,7 @@ test('Saves restores an asynchronously loaded control by stable identity', async
 		timeout: 15000
 	});
 	await page.reload();
-	await expect(page.locator('.saves-page')).toHaveAttribute('data-initial-state', 'ready', {
-		timeout: 15000
-	});
+	await expectDestinationReady(page, 'saves');
 	await expect(page.locator('.save-card.active .save-card-main')).toBeFocused();
 	const deleteSave = page.locator('.save-card.active .danger-action');
 	await deleteSave.focus();
@@ -302,6 +320,7 @@ test('Save File restores dynamic controls by semantic identity', async ({ page }
 	).toBeFocused();
 	await page.setViewportSize({ width: 390, height: 700 });
 	await page.reload();
+	await expectDestinationReady(page, 'save-file');
 	const mobileSections = page.getByLabel('Save File sections');
 	await expect(mobileSections.getByRole('button', { name: 'Trainer' })).toBeFocused();
 	await mobileSections.getByRole('button', { name: 'Money' }).focus();
