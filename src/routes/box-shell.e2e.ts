@@ -1103,6 +1103,7 @@ test('Box Menu allows duplicate Save File panes and keeps Open another collectio
 });
 
 test('duplicate Save panes order workspace loads with mutation publication', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
 	await installWorkspaceResponseHold(page);
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
