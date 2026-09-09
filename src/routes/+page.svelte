@@ -17,9 +17,9 @@
 		BOX_COLUMNS,
 		BOX_ROWS,
 		BOX_SLOT_COUNT,
+		crossPaneSharedEdge,
 		createInitialNavigationState,
 		focusBoxSlot,
-		focusPaneBoundarySlot,
 		focusPaneControl,
 		focusPartySlot,
 		getBoxSlotPosition,
@@ -823,44 +823,65 @@
 	}
 
 	function tryNavigateBetweenPanes(action: NavigationAction): boolean {
-		if ((action !== 'left' && action !== 'right') || navigation.focus.zone !== 'box') {
+		if (
+			(action !== 'left' && action !== 'right' && action !== 'up' && action !== 'down') ||
+			!isSlotFocus(navigation.focus) ||
+			workbenchPanes.length !== 2
+		) {
 			return false;
 		}
 
-		const position = getBoxSlotPosition(navigation.focus.slot);
-		const atPaneEdge =
-			(action === 'left' && position.column === 0) ||
-			(action === 'right' && position.column === BOX_COLUMNS - 1);
-		if (!atPaneEdge || workbenchPanes.length <= 1) {
-			return false;
-		}
-
-		const currentIndex = workbenchPanes.findIndex((pane) => pane.id === activePaneId);
-		const nextIndex =
-			action === 'left'
-				? Math.max(0, currentIndex - 1)
-				: Math.min(workbenchPanes.length - 1, currentIndex + 1);
-		const nextPane = workbenchPanes[nextIndex];
-		if (!nextPane || nextPane.id === activePaneId) {
-			return false;
-		}
+		const paneElements = Array.from(document.querySelectorAll<HTMLElement>('.box-pane'));
+		if (paneElements.length !== 2) return false;
+		const paneGeometry = workbenchPanes.map((pane, index) => {
+			const bounds = paneElements[index]?.getBoundingClientRect();
+			return bounds
+				? {
+						id: pane.id,
+						location: pane.focus.zone,
+						bounds: {
+							top: bounds.top,
+							right: bounds.right,
+							bottom: bounds.bottom,
+							left: bounds.left
+						}
+					}
+				: null;
+		});
+		if (!paneGeometry[0] || !paneGeometry[1]) return false;
+		const crossing = crossPaneSharedEdge({
+			panes: [paneGeometry[0], paneGeometry[1]],
+			activePaneId,
+			direction: action,
+			focus: navigation.focus
+		});
+		if (!crossing) return false;
+		const nextPane = workbenchPanes.find((pane) => pane.id === crossing.paneId);
+		if (!nextPane) return false;
 
 		activatePane(nextPane);
-		const boundaryFocus = focusPaneBoundarySlot(navigation.focus.slot, action);
 		navigation = {
 			...navigation,
 			activeBox: nextPane.activeBox,
 			boxCount: Math.max(1, nextPane.boxCount),
-			focus: boundaryFocus,
-			locationFocus: boundaryFocus
+			focus: crossing.focus,
+			locationFocus: crossing.focus
 		};
-		workbenchPanes = setPaneFocus(workbenchPanes, nextPane.id, boundaryFocus);
+		workbenchPanes = setPaneFocus(workbenchPanes, nextPane.id, crossing.focus);
 		return true;
 	}
 
 	async function focusActiveControl() {
 		await tick();
 		document.getElementById(focusIdForNavigation(navigation.focus))?.focus();
+	}
+
+	async function keepFocusedSlotVisible() {
+		if (destinationInputSuspended || !isSlotFocus(navigation.focus)) return;
+		await tick();
+		document
+			.getElementById(focusIdForNavigation(navigation.focus))
+			?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 
 	function focusIdForNavigation(focus: ControllerFocus) {
@@ -1759,14 +1780,7 @@
 			}
 
 			if (loadedSave?.file.id === nextState.file.id) loadedSave = nextState;
-			const refreshedSavePanes = refreshSaveFilePaneWorkspaces(
-				workbenchPanes,
-				savePaneWorkspaces,
-				nextState,
-				operationBox
-			);
-			workbenchPanes = refreshedSavePanes.panes;
-			savePaneWorkspaces = refreshedSavePanes.workspaces;
+			installMutatedSaveProjection(nextState, operationBox);
 			if (loadedSave?.file.id === nextState.file.id) {
 				setCachedActiveWorkspace(nextState, operationBox);
 			}
@@ -1968,14 +1982,7 @@
 				loadedSave = nextState;
 				setCachedActiveWorkspace(nextState, operationBox);
 			}
-			const refreshedSavePanes = refreshSaveFilePaneWorkspaces(
-				workbenchPanes,
-				savePaneWorkspaces,
-				nextState,
-				operationBox
-			);
-			workbenchPanes = refreshedSavePanes.panes;
-			savePaneWorkspaces = refreshedSavePanes.workspaces;
+			installMutatedSaveProjection(nextState, operationBox);
 			invalidateSavesCache();
 			pendingSlotOperation = null;
 			carryState = null;
@@ -2312,11 +2319,7 @@
 		});
 		const hadActiveSavePane = workbenchPanes.some((pane) => pane.id === activeSavePaneId);
 		const rightPanes = hadActiveSavePane
-			? workbenchPanes.filter(
-					(pane) =>
-						pane.id !== activeSavePaneId &&
-						!(pane.source.type === 'save-file' && pane.source.id === save.file.id)
-				)
+			? workbenchPanes.filter((pane) => pane.id !== activeSavePaneId).slice(0, 1)
 			: [];
 
 		workbenchPanes = [fixedPane, ...rightPanes];
@@ -2921,14 +2924,7 @@
 			invalidateSavesCache();
 		}
 
-		const refreshed = refreshSaveFilePaneWorkspaces(
-			workbenchPanes,
-			savePaneWorkspaces,
-			nextState,
-			target.activeBox
-		);
-		workbenchPanes = refreshed.panes;
-		savePaneWorkspaces = refreshed.workspaces;
+		installMutatedSaveProjection(nextState, target.activeBox);
 	}
 
 	async function persistStoredPokemonAction(
@@ -3079,14 +3075,7 @@
 
 			if (loadedSave?.file.id === nextState.file.id) loadedSave = nextState;
 			const destinationBox = destinationPane?.activeBox ?? activePaneBox;
-			const refreshedSavePanes = refreshSaveFilePaneWorkspaces(
-				workbenchPanes,
-				savePaneWorkspaces,
-				nextState,
-				destinationBox
-			);
-			workbenchPanes = refreshedSavePanes.panes;
-			savePaneWorkspaces = refreshedSavePanes.workspaces;
+			installMutatedSaveProjection(nextState, destinationBox);
 			if (loadedSave?.file.id === nextState.file.id) {
 				setCachedActiveWorkspace(nextState, destinationBox);
 			}
@@ -3445,14 +3434,7 @@
 		const editorPane = workbenchPanes.find((pane) => pane.id === pokemonEditorPaneId);
 		const editorBox = editorPane?.activeBox ?? activePaneBox;
 		if (loadedSave?.file.id === nextState.file.id) loadedSave = nextState;
-		const refreshed = refreshSaveFilePaneWorkspaces(
-			workbenchPanes,
-			savePaneWorkspaces,
-			nextState,
-			editorBox
-		);
-		workbenchPanes = refreshed.panes;
-		savePaneWorkspaces = refreshed.workspaces;
+		installMutatedSaveProjection(nextState, editorBox);
 		if (loadedSave?.file.id === nextState.file.id) {
 			setCachedActiveWorkspace(nextState, editorBox);
 		}
@@ -3530,9 +3512,17 @@
 			}
 			void refreshPublishedSavePanes(state);
 		});
+		const boxesRoute = document.querySelector('.boxes-route');
+		const resizeObserver = boxesRoute
+			? new ResizeObserver(() => queueMicrotask(keepFocusedSlotVisible))
+			: null;
+		if (boxesRoute) resizeObserver?.observe(boxesRoute);
 		engine = getPkhexEngine();
 		void restoreInitialState();
-		return unsubscribe;
+		return () => {
+			resizeObserver?.disconnect();
+			unsubscribe();
+		};
 	});
 
 	onDestroy(() => {
@@ -3540,9 +3530,23 @@
 		if (summonedWorkflow.active?.kind !== 'backup-browser') summonedWorkflow.closeAll();
 	});
 
-	async function refreshPublishedSavePanes(state: WorkspaceState) {
+	function installMutatedSaveProjection(state: WorkspaceState, publishedBox: number) {
+		const refreshed = refreshSaveFilePaneWorkspaces(
+			workbenchPanes,
+			savePaneWorkspaces,
+			state,
+			(pane) => (pane.activeBox === publishedBox ? { state, loadedBox: publishedBox } : null)
+		);
+		workbenchPanes = refreshed.panes;
+		savePaneWorkspaces = refreshed.workspaces;
+		void refreshPublishedSavePanes(state, publishedBox);
+	}
+
+	async function refreshPublishedSavePanes(
+		state: WorkspaceState,
+		publishedBox = getCachedActiveWorkspaceBox()
+	) {
 		const request = ++workspacePublicationRequest;
-		const publishedBox = getCachedActiveWorkspaceBox();
 		const panes = workbenchPanes.filter(
 			(pane) => pane.source.type === 'save-file' && pane.source.id === state.file.id
 		);
@@ -3692,19 +3696,17 @@
 		if (!pane || pane.source.type !== 'save-file' || !pane.source.id) {
 			return;
 		}
+		const request = (paneWorkspaceRequests[paneId] ?? 0) + 1;
+		paneWorkspaceRequests[paneId] = request;
+		const sourceId = pane.source.id;
 
 		if (loadedSave && pane.source.id === loadedSave.file.id && pane.id === activePaneId) {
 			await loadWorkspaceForSave(loadedSave, box, paneId);
 			return;
 		}
-
-		const request = (paneWorkspaceRequests[paneId] ?? 0) + 1;
-		paneWorkspaceRequests[paneId] = request;
-		const sourceId = pane.source.id;
 		paneWorkspaceLoadingRequests = { ...paneWorkspaceLoadingRequests, [paneId]: request };
-
 		try {
-			const state = await loadWorkspaceStateForSaveFile(pane.source.id, box);
+			const state = await loadWorkspaceStateForSaveFile(sourceId, box);
 			if (!state) {
 				return;
 			}
@@ -3954,7 +3956,11 @@
 	data-active-save-file-id={loadedSave?.file.id ?? ''}
 	inert={destinationInputSuspended}
 >
-	<section class="storage-workspace pksx-density" aria-label="Party and box storage">
+	<section
+		class="storage-workspace pksx-density"
+		class:two-pane={workbenchPanes.length === 2}
+		aria-label="Party and box storage"
+	>
 		<div
 			class="box-pane-strip"
 			class:single-pane={workbenchPanes.length === 1}
@@ -3973,6 +3979,9 @@
 				{@const paneRows = paneParty ? PARTY_ROWS : BOX_ROWS}
 				<section
 					class={['box-pane', paneActive && 'active-pane']}
+					data-pane-id={pane.id}
+					data-source-id={pane.source.id}
+					data-location={paneParty ? 'party' : `box-${paneBox}`}
 					aria-label={`${pane.source.label}, ${paneParty ? 'Party' : boxNameFor(paneBox)}`}
 					aria-busy={paneBusy ? 'true' : undefined}
 				>
@@ -4139,18 +4148,38 @@
 			{/each}
 		</div>
 
-		<DetailRail
-			{focusedSlot}
-			focusZone={activeSlotFocus?.zone ?? null}
-			focusSlot={activeSlotFocus?.slot ?? null}
-			slotHueStyle={slotStyle(focusedSlot, activePaneBox)}
-			spriteUrl={spriteUrlFor(focusedSlot)}
-			{saveSummary}
-			activeBoxName={boxNameFor(summonedSlotBox ?? focusedSlotPane?.activeBox ?? activePaneBox)}
-			positionLabel={carryState
-				? `${activeSlotPositionLabel} · ${carryState.mode === 'move' ? 'Drop' : 'Copy'} target`
-				: activeSlotPositionLabel}
-		/>
+		<div class="shared-detail" aria-label="Shared Slot summary">
+			{#if workbenchPanes.length === 2}
+				<div class="transfer-controls" aria-label="Transfer controls">
+					<button
+						type="button"
+						tabindex="-1"
+						disabled={focusedSlot.kind !== 'pokemon' || pendingSlotOperation !== null}
+						onpointerdown={(event) => event.preventDefault()}
+						onclick={() => beginPendingSlotOperation('move')}>Move</button
+					>
+					<button
+						type="button"
+						tabindex="-1"
+						disabled={focusedSlot.kind !== 'pokemon' || pendingSlotOperation !== null}
+						onpointerdown={(event) => event.preventDefault()}
+						onclick={() => beginPendingSlotOperation('copy')}>Copy</button
+					>
+				</div>
+			{/if}
+			<DetailRail
+				{focusedSlot}
+				focusZone={activeSlotFocus?.zone ?? null}
+				focusSlot={activeSlotFocus?.slot ?? null}
+				slotHueStyle={slotStyle(focusedSlot, activePaneBox)}
+				spriteUrl={spriteUrlFor(focusedSlot)}
+				{saveSummary}
+				activeBoxName={boxNameFor(summonedSlotBox ?? focusedSlotPane?.activeBox ?? activePaneBox)}
+				positionLabel={carryState
+					? `${activeSlotPositionLabel} · ${carryState.mode === 'move' ? 'Drop' : 'Copy'} target`
+					: activeSlotPositionLabel}
+			/>
+		</div>
 	</section>
 </section>
 
@@ -4361,6 +4390,9 @@
 		min-width: 0;
 		min-height: 0;
 		display: grid;
+		grid-template-areas:
+			'panes'
+			'rail';
 		grid-template-columns: minmax(0, 1fr);
 		grid-template-rows: minmax(334px, 1fr) minmax(150px, 260px);
 		align-items: stretch;
@@ -4369,7 +4401,16 @@
 		overflow: auto;
 	}
 
+	.storage-workspace.two-pane {
+		grid-template-areas:
+			'leading'
+			'rail'
+			'trailing';
+		grid-template-rows: minmax(0, 1fr) minmax(96px, 160px) minmax(0, 1fr);
+	}
+
 	.box-pane-strip {
+		grid-area: panes;
 		min-width: 0;
 		min-height: 0;
 		display: flex;
@@ -4377,6 +4418,18 @@
 		gap: var(--pksx-space-1);
 		overflow: auto hidden;
 		scroll-snap-type: x proximity;
+	}
+
+	.two-pane .box-pane-strip {
+		display: contents;
+	}
+
+	.two-pane .box-pane:first-child {
+		grid-area: leading;
+	}
+
+	.two-pane .box-pane:last-child {
+		grid-area: trailing;
 	}
 
 	.box-pane-strip.single-pane {
@@ -4405,6 +4458,15 @@
 	.single-pane .box-pane {
 		flex-basis: min(800px, 100%);
 		max-width: 800px;
+	}
+
+	.two-pane .box-pane {
+		max-width: 640px;
+		justify-self: center;
+	}
+
+	.two-pane .location-grid {
+		align-content: start;
 	}
 
 	.box-pane:not(.active-pane) {
@@ -4509,8 +4571,8 @@
 		display: grid;
 		grid-template-columns: repeat(6, var(--slot-size));
 		grid-template-rows: repeat(5, var(--slot-size));
-		align-content: center;
-		justify-content: center;
+		align-content: safe center;
+		justify-content: safe center;
 		gap: var(--pksx-border-width);
 		padding: 0;
 		overflow: auto;
@@ -4552,21 +4614,66 @@
 		z-index: 2;
 	}
 
-	.storage-workspace :global(.detail-rail) {
+	.shared-detail {
+		grid-area: rail;
 		width: 100%;
 		max-width: 260px;
 		height: 100%;
+		min-width: 0;
+		min-height: 0;
+		display: grid;
+		grid-template-rows: auto minmax(0, 1fr);
+		gap: var(--pksx-space-1);
 		justify-self: center;
+		overflow: hidden;
+	}
+
+	.transfer-controls {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--pksx-space-1);
+	}
+
+	.transfer-controls button {
+		min-width: 0;
+		height: var(--pksx-control-height);
+		padding: 0 var(--pksx-space-2);
+		border-radius: var(--pksx-radius-medium);
+		background: var(--rust);
+		color: var(--paper-hi);
+		font: 800 var(--pksx-type-label) / 1 var(--pksx-font-sans);
+	}
+
+	.transfer-controls button:disabled {
+		opacity: 0.45;
+	}
+
+	.shared-detail :global(.detail-rail) {
+		width: 100%;
+		height: 100%;
 		overflow: auto;
 	}
 
 	@container boxes-route (orientation: landscape) {
 		.storage-workspace {
+			grid-template-areas: 'panes rail';
 			grid-template-columns: minmax(360px, 800px) minmax(150px, 260px);
 			grid-template-rows: minmax(0, 1fr);
 		}
 
-		.storage-workspace :global(.detail-rail) {
+		.storage-workspace.two-pane {
+			width: 100%;
+			max-width: calc(1280px + 260px + var(--pksx-space-1) * 2);
+			grid-template-areas: 'leading rail trailing';
+			grid-template-columns: minmax(0, 640px) minmax(96px, 260px) minmax(0, 640px);
+			grid-template-rows: minmax(0, 1fr);
+		}
+
+		.two-pane .location-grid {
+			align-content: safe center;
+		}
+
+		.shared-detail {
 			max-width: 260px;
 		}
 	}
