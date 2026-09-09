@@ -1296,11 +1296,15 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 			page.locator('.shared-detail').evaluate((rail) => rail.getBoundingClientRect().width)
 		)
 		.toBeLessThanOrEqual(260);
-	await page.setViewportSize({ width: 640, height: 360 });
-	await setSafeArea(page, { top: 12, right: 12, bottom: 12, left: 12 });
 	const compactName = page.locator('.shared-detail .detail-heading h2');
-	await expect(compactName).toHaveText('ARON');
-	expect(await compactName.evaluate((name) => name.scrollWidth <= name.clientWidth)).toBe(true);
+	for (const height of [360, 480]) {
+		await page.setViewportSize({ width: 640, height });
+		const sideInset = height === 360 ? 12 : 0;
+		await setSafeArea(page, { top: 12, right: sideInset, bottom: 12, left: sideInset });
+		await expect(compactName).toHaveText('ARON');
+		await expect(compactName).toHaveCSS('font-size', '16px');
+		expect(await compactName.evaluate((name) => name.scrollWidth <= name.clientWidth)).toBe(true);
+	}
 	await page.setViewportSize({ width: 1280, height: 720 });
 	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });
 

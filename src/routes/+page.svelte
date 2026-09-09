@@ -4767,7 +4767,7 @@
 
 		.two-pane .shared-detail :global(.detail-rail) {
 			justify-content: center;
-			padding: var(--pksx-space-1);
+			padding: var(--pksx-space-1) 2px;
 			overflow: hidden;
 		}
 
