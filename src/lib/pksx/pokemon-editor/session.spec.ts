@@ -101,6 +101,11 @@ describe('Pokemon Editor session', () => {
 		const review = showPokemonEditorReview(editing);
 		expect(review).toMatchObject({ view: 'review', focus: { zone: 'review' } });
 		expect(returnFromPokemonEditorInternalState(review)).toEqual(editing);
+		const reviewGuard = requestPokemonEditorDismiss(review, true);
+		expect(reviewGuard.session).toMatchObject({
+			view: 'discard',
+			returnFocus: editing.focus
+		});
 
 		expect(requestPokemonEditorDismiss(editing, false)).toEqual({
 			session: editing,

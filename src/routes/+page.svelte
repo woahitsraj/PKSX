@@ -919,7 +919,7 @@
 		}
 
 		if (pokemonEditorSession.view === 'review') {
-			if (action === 'back') keepEditingPokemonEditor();
+			if (action === 'back') requestClosePokemonEditor();
 			else if (action === 'confirm') {
 				const focus = pokemonEditorSession.focus;
 				if (focus.zone === 'review') document.getElementById(focus.control)?.click();
@@ -989,7 +989,9 @@
 		}
 		if ((sideRail && action === 'left') || (!sideRail && action === 'up')) {
 			focusPokemonEditorRail();
+			return;
 		}
+		if (action === 'down') focusPokemonEditorActions();
 	}
 
 	function dispatchPokemonEditorActions(action: NavigationAction) {
@@ -1155,7 +1157,7 @@
 			).filter((control) => control.getClientRects().length > 0);
 		}
 
-		return Array.from(
+		const controls = Array.from(
 			document.querySelectorAll<HTMLElement>(
 				'.pokemon-editor .editor-content button:not([disabled]), .pokemon-editor .editor-content input:not([disabled]), .pokemon-editor .editor-content select:not([disabled]), .pokemon-editor .editor-content [tabindex="0"]'
 			)
@@ -1164,6 +1166,14 @@
 				control.getClientRects().length > 0 && !control.closest('[data-editor-active="false"]')
 			);
 		});
+		if (controls.length > 0) return controls;
+
+		const fallback = document.getElementById(
+			`pokemon-editor-content-${pokemonEditorSession.section}`
+		);
+		return fallback instanceof HTMLElement && fallback.getClientRects().length > 0
+			? [fallback]
+			: [];
 	}
 
 	function pokemonEditorActionControls() {
@@ -1172,6 +1182,13 @@
 				'.pokemon-editor .editor-actions button:not([disabled])'
 			)
 		).filter((control) => control.getClientRects().length > 0);
+	}
+
+	function focusPokemonEditorActions() {
+		const target = pokemonEditorActionControls()[0];
+		if (!target) return;
+		target.focus();
+		target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 
 	function pokemonEditorUsesSideRail() {
@@ -3346,13 +3363,13 @@
 	}
 
 	function focusPokemonEditorContent(preferLast = false) {
+		const controls = pokemonEditorContentControls();
 		const preferred = pokemonEditorSectionControls[pokemonEditorSession.section]
 			.map((id) => document.getElementById(id))
 			.find(
 				(element): element is HTMLElement =>
-					element instanceof HTMLElement && element.getClientRects().length > 0
+					element instanceof HTMLElement && controls.includes(element)
 			);
-		const controls = pokemonEditorContentControls();
 		const control = preferLast ? controls.at(-1) : (preferred ?? controls[0]);
 		const fallback = document.getElementById(
 			`pokemon-editor-content-${pokemonEditorSession.section}`

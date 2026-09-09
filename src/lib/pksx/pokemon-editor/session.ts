@@ -205,7 +205,7 @@ export function requestPokemonEditorDismiss(
 			...session,
 			focus: { zone: 'discard', control: 'pokemon-editor-keep-editing' },
 			view: 'discard',
-			returnFocus: editingFocus(session.focus, session.section)
+			returnFocus: session.returnFocus ?? editingFocus(session.focus, session.section)
 		},
 		effect: 'none'
 	};

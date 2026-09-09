@@ -1938,6 +1938,16 @@ test('Edit opens Pokemon Editor and returns focus to the command stack', async (
 	await pressController(page, 'ArrowLeft');
 	await expect(page.locator('#pokemon-editor-section-species-form')).toBeFocused();
 
+	await choosePokemonEditorSection(page, 'nature');
+	await page.locator('#pokemon-editor-section-nature').focus();
+	await editor.locator('#pokemon-editor-nature').evaluate((control) => {
+		(control as HTMLSelectElement).disabled = true;
+	});
+	await pressController(page, 'ArrowRight');
+	await expect(page.locator('#pokemon-editor-content-nature')).toBeFocused();
+	await pressController(page, 'ArrowLeft');
+	await expect(page.locator('#pokemon-editor-section-nature')).toBeFocused();
+
 	await page.keyboard.press('Escape');
 	await expect(editor).toBeHidden();
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
@@ -1986,19 +1996,96 @@ test('Pokemon Editor keeps staged state through review, Legality, guarded Back, 
 	const nickname = editor.locator('#pokemon-editor-nickname');
 	await fillEditorInput(nickname, 'STAGED');
 	await expect(page.locator('#pokemon-editor-section-nickname i')).toBeVisible();
-	const stagedCount = editor.getByRole('button', { name: '1 staged' });
+
+	await choosePokemonEditorSection(page, 'stats');
+	const hpIv = editor.locator('#pokemon-editor-hp-iv');
+	const originalIv = Number(await hpIv.inputValue());
+	const nextIv = originalIv === 31 ? 30 : originalIv + 1;
+	await fillEditorInput(hpIv, String(nextIv));
+	const evInputs = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'].map((stat) =>
+		editor.locator(`#pokemon-editor-${stat}-ev`)
+	);
+	const evValues = await Promise.all(evInputs.map((input) => input.inputValue()));
+	const evIndex = evValues.findIndex((value) => Number(value) > 0);
+	const changedEvIndex = evIndex >= 0 ? evIndex : 0;
+	const originalEv = Number(evValues[changedEvIndex]);
+	const nextEv = originalEv > 0 ? originalEv - 1 : 1;
+	await fillEditorInput(evInputs[changedEvIndex], String(nextEv));
+
+	await choosePokemonEditorSection(page, 'move-set');
+	const movePpInputs = [0, 1, 2, 3].map((index) =>
+		editor.locator(`#pokemon-editor-move-${index}-pp`)
+	);
+	const movePpValues = await Promise.all(movePpInputs.map((input) => input.inputValue()));
+	const moveIndex = movePpValues.findIndex((value) => Number(value) > 0);
+	if (moveIndex < 0) throw new Error('Expected an occupied Move Set slot.');
+	const originalPp = Number(movePpValues[moveIndex]);
+	await fillEditorInput(movePpInputs[moveIndex], String(originalPp - 1));
+
+	await choosePokemonEditorSection(page, 'met-data');
+	const ball = editor.locator('#pokemon-editor-ball');
+	const originalBallId = await ball.inputValue();
+	const ballOptions = await ball.locator('option').evaluateAll((options) =>
+		options.map((option) => ({
+			value: (option as HTMLOptionElement).value,
+			label: option.textContent ?? ''
+		}))
+	);
+	const originalBall = ballOptions.find(({ value }) => value === originalBallId);
+	const nextBall = ballOptions.find(({ value }) => value !== originalBallId);
+	if (!originalBall || !nextBall) throw new Error('Expected two engine-provided Ball choices.');
+	await ball.selectOption(nextBall.value);
+
+	await choosePokemonEditorSection(page, 'original-trainer');
+	const trainerId = editor.locator('#pokemon-editor-trainer-id');
+	const originalTrainerId = Number(await trainerId.inputValue());
+	const nextTrainerId =
+		originalTrainerId === 65_535 ? originalTrainerId - 1 : originalTrainerId + 1;
+	await fillEditorInput(trainerId, String(nextTrainerId));
+
+	await choosePokemonEditorSection(page, 'nickname');
+	const stagedCount = editor.getByRole('button', { name: '6 staged' });
 	await stagedCount.click();
 	await expect(editor.getByRole('heading', { name: 'Staged edit review' })).toBeVisible();
 	await expect(editor.locator('.delta-list')).toContainText('ARON');
 	await expect(editor.locator('.delta-list')).toContainText('STAGED');
+	const ivDelta = editor.locator('.delta-list article').filter({ hasText: 'Set IVs' });
+	await expect(ivDelta).toContainText(`HP ${originalIv}`);
+	await expect(ivDelta).toContainText(`HP ${nextIv}`);
+	const evDelta = editor.locator('.delta-list article').filter({ hasText: 'Set EVs' });
+	await expect(evDelta).toContainText(String(originalEv));
+	await expect(evDelta).toContainText(String(nextEv));
+	const moveDelta = editor.locator('.delta-list article').filter({ hasText: 'Set Move Set' });
+	await expect(moveDelta).toContainText(`Move ${moveIndex + 1} PP: ${originalPp}`);
+	await expect(moveDelta).toContainText(`Move ${moveIndex + 1} PP: ${originalPp - 1}`);
+	const metDelta = editor.locator('.delta-list article').filter({ hasText: 'Set Met Data' });
+	await expect(metDelta).toContainText(`Ball: ${originalBall.label}`);
+	await expect(metDelta).toContainText(`Ball: ${nextBall.label}`);
+	const trainerDelta = editor
+		.locator('.delta-list article')
+		.filter({ hasText: 'Set Original Trainer data' });
+	await expect(trainerDelta).toContainText(`Trainer ID: ${originalTrainerId}`);
+	await expect(trainerDelta).toContainText(`Trainer ID: ${nextTrainerId}`);
 	await pressController(page, 'PageDown');
 	await expect(editor.getByRole('heading', { name: 'Staged edit review' })).toBeVisible();
 	await expect(page.locator('#pokemon-editor-section-nature')).toHaveAttribute(
 		'aria-current',
 		'page'
 	);
-	await editor.getByRole('button', { name: 'Done' }).click();
+	await pressController(page, 'Escape');
+	await expect(
+		editor.getByRole('heading', { name: 'Keep this Pokemon Editor session?' })
+	).toBeVisible();
+	await expect(editor).toHaveAttribute('aria-describedby', 'pokemon-editor-status');
+	await expect(editor.locator('#pokemon-editor-status')).toContainText(
+		'6 staged changes will be lost.'
+	);
+	await pressController(page, 'Escape');
 	await expect(page.locator('#pokemon-editor-content-nature')).toBeFocused();
+
+	await stagedCount.click();
+	await editor.getByRole('button', { name: 'Done' }).click();
+	await expect(stagedCount).toBeFocused();
 	await choosePokemonEditorSection(page, 'nickname');
 
 	await editor.getByRole('button', { name: 'Legality' }).click();
@@ -2044,7 +2131,7 @@ test('Pokemon Editor keeps staged state through review, Legality, guarded Back, 
 	await expect(page.locator('#slot-action-0')).toBeFocused();
 });
 
-test('Pokemon Editor identifies invalid staged controls before Apply', async ({ page }) => {
+test('Pokemon Editor identifies the invalid staged control before Apply', async ({ page }) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
@@ -2052,15 +2139,19 @@ test('Pokemon Editor identifies invalid staged controls before Apply', async ({ 
 	await page.keyboard.press('Enter');
 
 	const editor = page.getByRole('dialog', { name: 'ARON' });
-	await choosePokemonEditorSection(page, 'level-experience');
-	const level = editor.locator('#pokemon-editor-level');
+	await choosePokemonEditorSection(page, 'stats');
+	const hpIv = editor.locator('#pokemon-editor-hp-iv');
+	const atkIv = editor.locator('#pokemon-editor-atk-iv');
 	const backupsBefore = await backupCount(page);
-	await fillEditorInput(level, '101');
-	await expect(level).toHaveAttribute('aria-invalid', 'true');
-	await expect(editor.locator('#pokemon-editor-status')).toContainText('Level / Exp, Level:');
+	const originalHpIv = Number(await hpIv.inputValue());
+	await fillEditorInput(hpIv, String(originalHpIv === 31 ? 30 : originalHpIv + 1));
+	await fillEditorInput(atkIv, '99');
+	await expect(hpIv).not.toHaveAttribute('aria-invalid', 'true');
+	await expect(atkIv).toHaveAttribute('aria-invalid', 'true');
+	await expect(editor.locator('#pokemon-editor-status')).toContainText('IV / EV, ATK IV:');
 	const apply = editor.getByRole('button', { name: 'Apply edits' });
 	await expect(apply).toBeDisabled();
-	await expect(apply).toHaveAttribute('title', /Level \/ Exp, Level:/);
+	await expect(apply).toHaveAttribute('title', /IV \/ EV, ATK IV:/);
 	expect(await backupCount(page)).toBe(backupsBefore);
 });
 
@@ -3036,7 +3127,7 @@ test('Pokemon Editor stages, cancels, and applies an engine-projected Tera Type'
 	await expect(page.locator('.toolbar-status-strip')).toHaveCount(0);
 });
 
-test('Pokemon Editor changes Nature through Apply and keeps editor focus', async ({ page }) => {
+test('controller reaches and applies a Pokemon Editor change', async ({ page }) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
@@ -3045,14 +3136,26 @@ test('Pokemon Editor changes Nature through Apply and keeps editor focus', async
 	await page.getByRole('button', { name: 'Edit' }).click();
 
 	const editor = page.getByRole('dialog', { name: 'ARON' });
-	await choosePokemonEditorSection(page, 'nature');
+	await expect(page.locator('#pokemon-editor-section-species-form')).toBeFocused();
+	await pressController(page, 'PageDown');
+	await pressController(page, 'PageDown');
+	await expect(page.locator('#pokemon-editor-section-nature')).toBeFocused();
+	await pressController(page, 'ArrowRight');
 	const nature = editor.locator('#pokemon-editor-nature');
-	await expect(nature).toBeEnabled();
-	const nextNature = (await nature.inputValue()) === '3' ? '15' : '3';
-	await nature.selectOption(nextNature);
+	await expect(nature).toBeFocused();
+	const originalNature = await nature.inputValue();
+	await pressController(page, 'Enter');
+	await expect(nature).not.toHaveValue(originalNature);
+	const nextNature = await nature.inputValue();
 	await expect(editor).toContainText('1 Pokemon edit drafted.');
 
-	await editor.getByRole('button', { name: 'Apply edits' }).click();
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#pokemon-editor-staged-count')).toBeFocused();
+	await pressController(page, 'ArrowRight');
+	await expect(page.locator('#pokemon-editor-legality')).toBeFocused();
+	await pressController(page, 'ArrowRight');
+	await expect(page.locator('#pokemon-editor-apply')).toBeFocused();
+	await pressController(page, 'Enter');
 	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
 	await expect(nature).toHaveValue(nextNature);
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();

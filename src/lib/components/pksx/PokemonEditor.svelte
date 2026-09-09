@@ -633,59 +633,28 @@
 			return editMode === 'level' ? 'pokemon-editor-level' : 'pokemon-editor-experience';
 		}
 		if (editId === 'move-set') {
-			const index = draftMoves.findIndex((move, slotIndex) => {
-				const base = baseMoveSet.moves[slotIndex];
-				return (
-					move.move !== base?.move ||
-					move.pp !== String(base?.pp ?? 0) ||
-					move.ppUps !== String(base?.ppUps ?? 0)
-				);
-			});
-			if (index >= 0) {
-				const move = draftMoves[index];
-				const base = baseMoveSet.moves[index];
-				if (move.pp !== String(base?.pp ?? 0)) return `pokemon-editor-move-${index}-pp`;
-				if (move.ppUps !== String(base?.ppUps ?? 0)) return `pokemon-editor-move-${index}-pp-ups`;
-				return `pokemon-editor-move-${index}`;
-			}
+			return invalidMoveControl() ?? fallback ?? `pokemon-editor-content-${session.section}`;
 		}
 		if (editId === 'ivs') {
-			const key = statKeys.find((candidate) => draftIvs[candidate] !== String(baseIvs[candidate]));
-			if (key) return `pokemon-editor-${key.toLowerCase()}-iv`;
+			return invalidStatControl('iv') ?? fallback ?? `pokemon-editor-content-${session.section}`;
 		}
 		if (editId === 'evs') {
-			const key = statKeys.find((candidate) => draftEvs[candidate] !== String(baseEvs[candidate]));
-			if (key) return `pokemon-editor-${key.toLowerCase()}-ev`;
+			return invalidStatControl('ev') ?? fallback ?? `pokemon-editor-content-${session.section}`;
 		}
 		if (editId === 'friendship') {
-			const field = (friendshipEditConstraints?.fields ?? []).find(
-				(candidate) => draftFriendship[candidate.key] !== String(candidate.value)
-			);
+			const field = (friendshipEditConstraints?.fields ?? []).find((candidate) => {
+				const value = parseDraftNumber(draftFriendship[candidate.key]);
+				return !Number.isInteger(value) || value < candidate.min || value > candidate.max;
+			});
 			if (field) return `pokemon-editor-${field.key}`;
 		}
 		if (editId === 'met-data') {
-			if (draftMetLocationId !== metDataEditConstraints?.currentLocationId)
-				return 'pokemon-editor-met-location';
-			if (draftMetLevel !== String(metDataEditConstraints?.currentMetLevel ?? 0))
-				return 'pokemon-editor-met-level';
-			if (draftOriginGameId !== metDataEditConstraints?.currentOriginGameId)
-				return 'pokemon-editor-origin-game';
-			if (draftBallId !== metDataEditConstraints?.currentBallId) return 'pokemon-editor-ball';
-			if (draftMetDate !== (metDataEditConstraints?.currentMetDate ?? ''))
-				return 'pokemon-editor-met-date';
+			return invalidMetDataControl() ?? fallback ?? `pokemon-editor-content-${session.section}`;
 		}
 		if (editId === 'original-trainer') {
-			const constraints = originalTrainerEditConstraints;
-			if (draftOriginalTrainerName !== constraints?.currentName)
-				return 'pokemon-editor-original-trainer-name';
-			if (draftTrainerId !== String(constraints?.currentTrainerId ?? 0))
-				return 'pokemon-editor-trainer-id';
-			if (constraints?.supportsSecretId && draftSecretId !== String(constraints.currentSecretId))
-				return 'pokemon-editor-secret-id';
-			if (constraints?.supportsGender && draftTrainerGenderId !== constraints.currentGenderId)
-				return 'pokemon-editor-trainer-gender';
-			if (constraints?.supportsLanguage && draftLanguageId !== constraints.currentLanguageId)
-				return 'pokemon-editor-pokemon-language';
+			return (
+				invalidOriginalTrainerControl() ?? fallback ?? `pokemon-editor-content-${session.section}`
+			);
 		}
 		if (editId === 'battle-fields') {
 			const field = battleFields.find(
@@ -696,33 +665,162 @@
 		return fallback ?? `pokemon-editor-content-${session.section}`;
 	}
 
+	function invalidMoveControl() {
+		const constraints = moveSetEditConstraints;
+		if (!constraints) return null;
+		const options = new Map(constraints.availableMoves.map((option) => [option.id, option]));
+		for (const [index, move] of draftMoves.entries()) {
+			const option = options.get(move.move);
+			if (!option) return `pokemon-editor-move-${index}`;
+			const ppUps = parseDraftNumber(move.ppUps);
+			if (!Number.isInteger(ppUps) || ppUps < 0 || ppUps > 3) {
+				return `pokemon-editor-move-${index}-pp-ups`;
+			}
+			const pp = parseDraftNumber(move.pp);
+			const maxPp = maxPpForPpUps(option.maxPp, ppUps);
+			if (!Number.isInteger(pp) || pp < 0 || pp > maxPp) {
+				return `pokemon-editor-move-${index}-pp`;
+			}
+		}
+		return null;
+	}
+
+	function invalidStatControl(kind: 'iv' | 'ev') {
+		const constraints = statEditConstraints;
+		if (!constraints) return null;
+		const values = kind === 'iv' ? draftIvs : draftEvs;
+		const min = kind === 'iv' ? constraints.minIv : constraints.minEv;
+		const max = kind === 'iv' ? constraints.maxIv : constraints.maxEv;
+		const invalid = statKeys.find((key) => {
+			const value = parseDraftNumber(values[key]);
+			return !Number.isInteger(value) || value < min || value > max;
+		});
+		if (invalid) return `pokemon-editor-${invalid.toLowerCase()}-${kind}`;
+		if (kind === 'ev' && totalEvs > constraints.maxTotalEv) {
+			const changed = statKeys.find((key) => values[key] !== String(baseEvs[key]));
+			if (changed) return `pokemon-editor-${changed.toLowerCase()}-ev`;
+		}
+		return null;
+	}
+
+	function invalidMetDataControl() {
+		const constraints = metDataEditConstraints;
+		if (!constraints) return null;
+		const level = parseDraftNumber(draftMetLevel);
+		if (
+			!Number.isInteger(level) ||
+			level < constraints.minMetLevel ||
+			level > constraints.maxMetLevel
+		) {
+			return 'pokemon-editor-met-level';
+		}
+		if (
+			constraints.supportsOriginGame &&
+			!constraints.originGames.some(({ id }) => id === draftOriginGameId)
+		) {
+			return 'pokemon-editor-origin-game';
+		}
+		const locations = constraints.locationGroups.find(
+			({ originGameId }) => originGameId === draftOriginGameId
+		)?.options;
+		if (
+			!Number.isInteger(draftMetLocationId) ||
+			!locations?.some(({ id }) => id === draftMetLocationId)
+		) {
+			return 'pokemon-editor-met-location';
+		}
+		if (constraints.supportsBall && !constraints.balls.some(({ id }) => id === draftBallId)) {
+			return 'pokemon-editor-ball';
+		}
+		if (constraints.supportsMetDate && draftMetDate.length > 0 && !validMetDate(draftMetDate)) {
+			return 'pokemon-editor-met-date';
+		}
+		return null;
+	}
+
+	function invalidOriginalTrainerControl() {
+		const constraints = originalTrainerEditConstraints;
+		if (!constraints) return null;
+		if (
+			draftOriginalTrainerName.trim().length === 0 ||
+			draftOriginalTrainerName.length > constraints.maxNameLength
+		) {
+			return 'pokemon-editor-original-trainer-name';
+		}
+		const trainerId = parseDraftNumber(draftTrainerId);
+		if (
+			!Number.isInteger(trainerId) ||
+			trainerId < constraints.minTrainerId ||
+			trainerId > constraints.maxTrainerId
+		) {
+			return 'pokemon-editor-trainer-id';
+		}
+		const secretId = parseDraftNumber(draftSecretId);
+		if (
+			constraints.supportsSecretId &&
+			(!Number.isInteger(secretId) ||
+				secretId < constraints.minTrainerId ||
+				secretId > constraints.maxTrainerId)
+		) {
+			return 'pokemon-editor-secret-id';
+		}
+		if (
+			constraints.supportsGender &&
+			!constraints.genders.some(({ id }) => id === draftTrainerGenderId)
+		) {
+			return 'pokemon-editor-trainer-gender';
+		}
+		if (
+			constraints.supportsLanguage &&
+			!constraints.languages.some(({ id }) => id === draftLanguageId)
+		) {
+			return 'pokemon-editor-pokemon-language';
+		}
+		return null;
+	}
+
 	function controlLabel(control: string) {
 		const stat = control.match(/pokemon-editor-(hp|atk|def|spa|spd|spe)-(iv|ev)$/i);
 		if (stat) return `${stat[1].toUpperCase()} ${stat[2].toUpperCase()}`;
+		const move = control.match(/pokemon-editor-move-(\d+)(?:-(pp|pp-ups))?$/);
+		if (move) {
+			const field = move[2] === 'pp-ups' ? ' PP Ups' : move[2] === 'pp' ? ' PP' : '';
+			return `Move ${Number(move[1]) + 1}${field}`;
+		}
+		const friendship = friendshipEditConstraints?.fields.find(
+			({ key }) => control === `pokemon-editor-${key}`
+		);
+		if (friendship) return friendship.label;
 		return (
 			{
 				'pokemon-editor-species': 'Species',
+				'pokemon-editor-form': 'Form',
 				'pokemon-editor-nickname': 'Nickname',
 				'pokemon-editor-nature': 'Nature',
 				'pokemon-editor-held-item': 'Held Item',
 				'pokemon-editor-ability': 'Ability',
 				'pokemon-editor-met-location': 'Met location',
+				'pokemon-editor-met-level': 'Met level',
+				'pokemon-editor-origin-game': 'Origin game',
+				'pokemon-editor-ball': 'Ball',
+				'pokemon-editor-met-date': 'Met date',
 				'pokemon-editor-original-trainer-name': 'Name',
+				'pokemon-editor-trainer-id': 'Trainer ID',
+				'pokemon-editor-secret-id': 'Secret ID',
+				'pokemon-editor-trainer-gender': 'Gender',
+				'pokemon-editor-pokemon-language': 'Pokemon language',
 				'pokemon-editor-level': 'Level',
 				'pokemon-editor-experience': 'Experience',
-				'pokemon-editor-friendship': 'Friendship',
-				'pokemon-editor-move-0': 'Move 1',
 				'pokemon-editor-battle-field-tera-type': 'Tera Type'
 			}[control] ?? 'Field'
 		);
 	}
 
 	function deltaForEdit(edit: PokemonEditorState['stagedEdits'][number]) {
-		const target = pokemonEditorEditTarget(edit.id);
 		const values = deltaValues(edit.id);
 		return {
 			id: edit.id,
-			label: pokemonEditorSections.find(({ id }) => id === target?.section)?.label ?? edit.label,
+			label: edit.label,
 			before: values.before,
 			after: values.after
 		};
@@ -763,18 +861,108 @@
 							?.name ?? String(draftAbilityIndex)
 				};
 			case 'met-data':
-				return { before: slot.metLabel ?? 'Unknown', after: 'Updated Met Data' };
+				return changedValueSummary([
+					[
+						'Met location',
+						metLocationName(
+							metDataEditConstraints?.currentOriginGameId ?? 0,
+							metDataEditConstraints?.currentLocationId ?? 0
+						),
+						metLocationName(draftOriginGameId, draftMetLocationId)
+					],
+					['Met level', String(metDataEditConstraints?.currentMetLevel ?? 0), draftMetLevel],
+					...(metDataEditConstraints?.supportsMetDate
+						? ([
+								[
+									'Met date',
+									metDataEditConstraints.currentMetDate ?? 'None',
+									draftMetDate || 'None'
+								]
+							] as [string, string, string][])
+						: []),
+					...(metDataEditConstraints?.supportsOriginGame
+						? ([
+								[
+									'Origin game',
+									optionName(
+										metDataEditConstraints.originGames,
+										metDataEditConstraints.currentOriginGameId
+									),
+									optionName(metDataEditConstraints.originGames, draftOriginGameId)
+								]
+							] as [string, string, string][])
+						: []),
+					...(metDataEditConstraints?.supportsBall
+						? ([
+								[
+									'Ball',
+									optionName(metDataEditConstraints.balls, metDataEditConstraints.currentBallId),
+									optionName(metDataEditConstraints.balls, draftBallId)
+								]
+							] as [string, string, string][])
+						: [])
+				]);
 			case 'original-trainer':
-				return {
-					before: originalTrainerEditConstraints?.currentName ?? 'Unknown',
-					after: draftOriginalTrainerName
-				};
+				return changedValueSummary([
+					[
+						'Name',
+						originalTrainerEditConstraints?.currentName ?? 'Unknown',
+						draftOriginalTrainerName
+					],
+					[
+						'Trainer ID',
+						String(originalTrainerEditConstraints?.currentTrainerId ?? 0),
+						draftTrainerId
+					],
+					...(originalTrainerEditConstraints?.supportsSecretId
+						? ([
+								['Secret ID', String(originalTrainerEditConstraints.currentSecretId), draftSecretId]
+							] as [string, string, string][])
+						: []),
+					...(originalTrainerEditConstraints?.supportsGender
+						? ([
+								[
+									'Gender',
+									optionName(
+										originalTrainerEditConstraints.genders,
+										originalTrainerEditConstraints.currentGenderId
+									),
+									optionName(originalTrainerEditConstraints.genders, draftTrainerGenderId)
+								]
+							] as [string, string, string][])
+						: []),
+					...(originalTrainerEditConstraints?.supportsLanguage
+						? ([
+								[
+									'Language',
+									optionName(
+										originalTrainerEditConstraints.languages,
+										originalTrainerEditConstraints.currentLanguageId
+									),
+									optionName(originalTrainerEditConstraints.languages, draftLanguageId)
+								]
+							] as [string, string, string][])
+						: [])
+				]);
 			case 'ivs':
 				return { before: statSummary(baseIvs), after: statSummary(draftIvs) };
 			case 'evs':
 				return { before: statSummary(baseEvs), after: statSummary(draftEvs) };
 			case 'move-set':
-				return { before: 'Current Move Set', after: 'Updated Move Set' };
+				return changedValueSummary(
+					draftMoves.flatMap((move, index) => {
+						const base = baseMoveSet.moves[index];
+						return [
+							[
+								`Move ${index + 1}`,
+								optionForMove(base?.move ?? 0)?.name ?? String(base?.move ?? 0),
+								optionForMove(move.move)?.name ?? String(move.move)
+							],
+							[`Move ${index + 1} PP`, String(base?.pp ?? 0), move.pp],
+							[`Move ${index + 1} PP Ups`, String(base?.ppUps ?? 0), move.ppUps]
+						] satisfies [string, string, string][];
+					})
+				);
 			case 'friendship':
 				return { before: valueSummary(baseFriendship), after: valueSummary(draftFriendship) };
 			case 'battle-fields':
@@ -795,6 +983,37 @@
 
 	function valueSummary(values: Record<string, string>) {
 		return Object.values(values).join(' · ');
+	}
+
+	function changedValueSummary(values: [string, string, string][]) {
+		const changed = values.filter(([, before, after]) => before !== after);
+		return {
+			before: changed.map(([label, before]) => `${label}: ${before}`).join(' · '),
+			after: changed.map(([label, , after]) => `${label}: ${after}`).join(' · ')
+		};
+	}
+
+	function optionName(options: { id: number; name: string }[], id: number) {
+		return options.find((option) => option.id === id)?.name ?? String(id);
+	}
+
+	function metLocationName(originGameId: number, locationId: number) {
+		const options = metDataEditConstraints?.locationGroups.find(
+			(group) => group.originGameId === originGameId
+		)?.options;
+		return optionName(options ?? [], locationId);
+	}
+
+	function validMetDate(value: string) {
+		if (!/^2\d{3}-\d{2}-\d{2}$/.test(value)) return false;
+		const parsed = new Date(`${value}T00:00:00Z`);
+		const year = Number(value.slice(0, 4));
+		return (
+			year >= 2000 &&
+			year <= 2255 &&
+			!Number.isNaN(parsed.valueOf()) &&
+			parsed.toISOString().slice(0, 10) === value
+		);
 	}
 
 	function isEditDirty(id: string) {
@@ -1102,7 +1321,7 @@
 		<section class="editor-internal-state" aria-labelledby="pokemon-editor-discard-title">
 			<p>Discard staged edits?</p>
 			<h3 id="pokemon-editor-discard-title">Keep this Pokemon Editor session?</h3>
-			<span
+			<span id="pokemon-editor-status"
 				>{draftEditCount} staged {draftEditCount === 1 ? 'change' : 'changes'} will be lost.</span
 			>
 			<div class="internal-actions">
