@@ -161,6 +161,16 @@ final class ControllerNavigationTests: XCTestCase {
             "window.__pksxControllerDetails?.includes('x:false:true')",
             in: webView
         )
+        controller.extendedGamepad?.buttonB.setValue(1)
+        try await waitForJavaScript(
+            "document.querySelector('[role=dialog][aria-label=\"Box Menu\"]') === null",
+            in: webView
+        )
+        controller.extendedGamepad?.buttonB.setValue(0)
+        try await waitForJavaScript(
+            "window.__pksxControllerEvents?.includes('Escape:false')",
+            in: webView
+        )
     }
 
     func testPhoneWidthUsesDestinationLayoutWithoutPersistentChrome() async throws {

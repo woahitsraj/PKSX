@@ -993,26 +993,30 @@ public class ControllerNavigationTest {
 
     private void pressGamepadKey(int keyCode, String expectedState) throws Exception {
         long downTime = SystemClock.uptimeMillis();
-        dispatchGamepadKey(KeyEvent.ACTION_DOWN, keyCode, 0, downTime);
-        dispatchGamepadKey(KeyEvent.ACTION_UP, keyCode, 0, downTime);
+        activityRule.getScenario().onActivity(activity -> {
+            activity.dispatchKeyEvent(gamepadKeyEvent(KeyEvent.ACTION_DOWN, keyCode, 0, downTime));
+            activity.dispatchKeyEvent(gamepadKeyEvent(KeyEvent.ACTION_UP, keyCode, 0, downTime));
+        });
         if (expectedState != null) awaitJavaScript(expectedState);
         runJavaScript("true");
     }
 
     private void dispatchGamepadKey(int action, int keyCode, int repeatCount, long downTime) {
-        dispatchKeyEvent(
-            new KeyEvent(
-                downTime,
-                SystemClock.uptimeMillis(),
-                action,
-                keyCode,
-                repeatCount,
-                0,
-                KeyCharacterMap.VIRTUAL_KEYBOARD,
-                0,
-                0,
-                InputDevice.SOURCE_GAMEPAD
-            )
+        dispatchKeyEvent(gamepadKeyEvent(action, keyCode, repeatCount, downTime));
+    }
+
+    private KeyEvent gamepadKeyEvent(int action, int keyCode, int repeatCount, long downTime) {
+        return new KeyEvent(
+            downTime,
+            SystemClock.uptimeMillis(),
+            action,
+            keyCode,
+            repeatCount,
+            0,
+            KeyCharacterMap.VIRTUAL_KEYBOARD,
+            0,
+            0,
+            InputDevice.SOURCE_GAMEPAD
         );
     }
 
