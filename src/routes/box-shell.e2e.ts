@@ -575,8 +575,8 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
 
 	await page.getByRole('button', { name: 'Previous Location' }).click();
-	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
-	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
+	await expect(page.getByRole('heading', { name: 'Box 03' })).toBeVisible();
+	await expect(page.locator('#box-2-slot-0')).toHaveAttribute('aria-selected', 'true');
 });
 
 test('switches to durable Pokemon Storage with focusable empty Slot actions', async ({ page }) => {
@@ -778,6 +778,7 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 	await importEmeraldThroughSaves(page);
 	await moveFirstEmeraldBoxSlotToThirdSlot(page);
 	await importScarletThroughSaves(page);
+	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
 	await showPartyFromFirstBox(page);
 	await page.locator('#party-slot-5').click();
 	await page.keyboard.press('x');
@@ -808,6 +809,25 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
 	await expect(page.locator('#box-0-slot-2')).toContainText('ARON');
+	await page.keyboard.press('Enter');
+	const secondarySlotMenu = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(secondarySlotMenu.getByRole('button', { name: 'Create Pokemon' })).toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
+	await expect(secondarySlotMenu).toContainText('Load a Save File before creating Pokemon.');
+	await page.keyboard.press('Escape');
+	await page.locator('#box-0-slot-2').click();
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'Move' }).click();
+	await page.locator('#box-0-slot-3').click();
+	await expect(page.getByRole('alert')).toContainText(
+		'Moving Pokemon between Save Files needs engine transfer support.'
+	);
+	await expect(page.locator('#box-0-slot-2')).toContainText('ARON');
+	await expect(page.locator('#box-0-slot-3')).toContainText('Empty');
+	await page.keyboard.press('Escape');
+	await expect(page.locator('#box-0-slot-2')).toBeFocused();
 	await page.locator('#box-0-slot-29').click();
 	await page.keyboard.press('x');
 	menu = page.getByRole('dialog', { name: 'Box Menu' });
@@ -998,6 +1018,8 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 		.click();
 	await page.locator('#pane-active-save-box-0-slot-0').click();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+	const sourceSpriteUrl = await page.locator('#box-0-slot-0 img.slot-sprite').getAttribute('src');
+	expect(sourceSpriteUrl).not.toBeNull();
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Move' }).click();
@@ -1027,23 +1049,47 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
 	await page.keyboard.press('y');
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
-	await pressController(page, 'PageUp');
-	await expect(page.getByRole('heading', { name: 'Party' })).toBeVisible();
-	await expect(page.locator('#party-slot-0')).toBeFocused();
+	await expect(page.locator('.carry-at-focus img')).toHaveAttribute('src', sourceSpriteUrl!);
+	expect(
+		await page
+			.locator('.carry-at-focus strong')
+			.evaluate((element) => parseFloat(getComputedStyle(element).fontSize))
+	).toBeGreaterThanOrEqual(10);
+	const closeControl = page.getByRole('button', { name: 'Close Pokemon Storage pane' });
+	await expect(closeControl).toHaveAttribute('aria-disabled', 'true');
+	await expect(closeControl).toHaveAttribute('tabindex', '-1');
+	await closeControl.focus();
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+	await closeControl.click({ force: true });
+	await expect(page.locator('.box-pane')).toHaveCount(2);
+
+	await pressController(page, 'PageDown');
+	await expect(
+		page.locator('.box-pane.active-pane').getByRole('heading', { name: 'Box 02' })
+	).toBeVisible();
+	await expect(page.locator('#box-1-slot-0')).toBeFocused();
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
-	await pressController(page, 'ArrowUp');
-	await expect(page.locator('#party-slot-0')).toBeFocused();
+	await expect(page.locator('.carry-at-focus img')).toHaveAttribute('src', sourceSpriteUrl!);
 	await page.setViewportSize({ width: 360, height: 640 });
-	await expect(page.locator('#party-slot-0')).toBeFocused();
+	await expect(page.locator('#box-1-slot-0')).toBeFocused();
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
+	await expect(page.locator('.carry-at-focus img')).toHaveAttribute('src', sourceSpriteUrl!);
 	await page.keyboard.press('Escape');
 	await expect(
 		page.locator('.box-pane.active-pane').getByRole('heading', { name: 'Box 01' })
 	).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 	await expect(page.locator('.carry-at-focus')).toHaveCount(0);
 	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Move' }).click();
+	await pressController(page, 'PageUp');
+	await expect(page.getByRole('heading', { name: 'Party' })).toBeVisible();
+	await expect(page.locator('#party-slot-0')).toBeFocused();
+	await pressController(page, 'ArrowUp');
+	await expect(page.locator('#party-slot-0')).toBeFocused();
+	await pressController(page, 'PageDown');
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	await page.locator('#box-0-slot-2').click();
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
 	await expect(page.locator('#box-0-slot-2')).toContainText('ARON');
@@ -1441,7 +1487,7 @@ test('Pokemon Editor previews and applies a Species and Form change', async ({ p
 	const updatedEditor = page.getByRole('dialog', { name: 'LAIRON' });
 	await expect(updatedEditor).toContainText('Pokemon edits applied.');
 	await expect(updatedEditor).toContainText('Species #0305');
-	await expect(page.getByRole('status').filter({ hasText: 'Unsaved edits' })).toBeVisible();
+	await expect(page.locator('.toolbar-status-strip')).toHaveCount(0);
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 });
 

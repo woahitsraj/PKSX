@@ -282,11 +282,13 @@ describe('storage workbench carry contract', () => {
 			slot: aron,
 			source: slotRef('pane-save', 0),
 			now: () => '2026-06-05T10:00:00.000Z',
-			originGame: 'Pokemon Emerald'
+			originGame: 'Pokemon Emerald',
+			spriteUrl: '/sprites/304.png'
 		});
 
 		expect(carry?.mode).toBe('move');
 		expect(carry?.pokemonLabel).toBe('ARON');
+		expect(carry?.spriteUrl).toBe('/sprites/304.png');
 		expect(carry?.origin).toMatchObject({
 			entryMode: 'moved-in',
 			originSaveFileName: 'emerald.sav',
@@ -294,8 +296,11 @@ describe('storage workbench carry contract', () => {
 			originalTrainer: 'RAJ'
 		});
 
-		expect(toggleCarryMode(carry!).mode).toBe('copy');
-		expect(toggleCarryMode(carry!).origin.entryMode).toBe('copied-in');
+		expect(toggleCarryMode(carry!)).toMatchObject({
+			mode: 'copy',
+			spriteUrl: '/sprites/304.png',
+			origin: { entryMode: 'copied-in' }
+		});
 	});
 
 	it('returns null when lifting an empty source slot', () => {

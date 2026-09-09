@@ -476,6 +476,7 @@
 	let workspacePublicationRequest = 0;
 	let paneSwitchRequest = 0;
 	let destroyed = false;
+	let paneWorkspaceLoadRequest = 0;
 
 	const activeSummonedWorkflow = $derived(summonedWorkflow.active);
 	const sourcePickerOpen = $derived(activeSummonedWorkflow?.kind === 'source-picker');
@@ -540,20 +541,17 @@
 	);
 	const focusedSlot = $derived(summonedSlot ?? navigationFocusedSlot);
 	const focusedSlotPane = $derived(summonedSlotLauncher ? summonedSlotPane : activePane);
-	const carriedSlot = $derived.by(() => {
-		if (!carryState) return null;
-		const sourcePane = workbenchPanes.find((pane) => pane.id === carryState?.source.paneId);
-		const sourceRef: SaveSlotRef =
-			carryState.source.zone === 'party'
-				? { zone: 'party', slot: carryState.source.slot }
-				: { zone: 'box', box: carryState.source.box ?? 0, slot: carryState.source.slot };
-		return slotForRef(sourceRef, sourcePane);
-	});
-	const carriedSpriteUrl = $derived(carriedSlot ? spriteUrlFor(carriedSlot) : null);
+	const carriedSpriteUrl = $derived(carryState?.spriteUrl ?? null);
 	const focusedSlotOwner = $derived(focusedSlotPane?.source ?? pokemonStorageSource());
 	const focusedPaneWorkspace = $derived(saveWorkspaceForPane(focusedSlotPane));
 	const createPokemonAvailability = $derived(
-		pokemonCreationAvailability(focusedSlotOwner.type, focusedSlot, focusedPaneWorkspace !== null)
+		pokemonCreationAvailability(
+			focusedSlotOwner.type,
+			focusedSlot,
+			focusedPaneWorkspace !== null &&
+				focusedSlotOwner.type === 'save-file' &&
+				focusedSlotOwner.id === loadedSave?.file.id
+		)
 	);
 	const slotMenuCommands = $derived(
 		createSlotMenuCommands(focusedSlot, createPokemonAvailability.reason)
@@ -670,7 +668,7 @@
 		}
 
 		if (pendingSlotOperation && action === 'back') {
-			cancelPendingSlotOperation();
+			void cancelPendingSlotOperation();
 			return true;
 		}
 
@@ -1625,6 +1623,17 @@
 			return;
 		}
 
+		const activeSaveId = loadedSave?.file.id;
+		const unsupportedSaveOwner =
+			(carryState?.sourceOwner.type === 'save-file' &&
+				carryState.sourceOwner.id !== activeSaveId) ||
+			(ownerPane?.source.type === 'save-file' && ownerPane.source.id !== activeSaveId);
+		if (unsupportedSaveOwner) {
+			showToast('error', 'Moving Pokemon between Save Files needs engine transfer support.');
+			statusMessage = 'Cross-save movement is not available yet.';
+			return;
+		}
+
 		if (ownerPane?.source.type === 'pokemon-storage') {
 			await applySaveToStorageOperation(pending, destination, ownerPane);
 			return;
@@ -2026,6 +2035,7 @@
 			source: workbenchSlotRefForSaveRef(sourcePaneId, source),
 			sourceOwner,
 			pokemonLabel: slot.label,
+			spriteUrl: spriteUrlFor(slot),
 			sourceLabel: locationForSlotRef(source),
 			origin: {
 				entryMode: kind === 'copy' ? 'copied-in' : 'moved-in',
@@ -2051,7 +2061,7 @@
 		queueMicrotask(focusActiveControl);
 	}
 
-	function cancelPendingSlotOperation() {
+	async function cancelPendingSlotOperation() {
 		if (!pendingSlotOperation) {
 			return;
 		}
@@ -2088,6 +2098,13 @@
 				focus: sourceFocus,
 				locationFocus: sourceFocus
 			};
+			if (fallbackPane.source.type === 'save-file' && source?.zone === 'box') {
+				if (loadedSave?.file.id === fallbackPane.source.id) {
+					await loadWorkspaceForSave(loadedSave, sourceBox, fallbackPane.id);
+				} else {
+					await refreshPaneWorkspace(fallbackPane.id, sourceBox);
+				}
+			}
 		}
 		statusMessage = 'Slot action cancelled.';
 		queueMicrotask(focusActiveControl);
@@ -2274,7 +2291,11 @@
 
 	function installActiveSavePane(save: WorkspaceState, activeBox = 0) {
 		const clampedBox = Math.min(activeBox, Math.max(0, save.workspace.summary.boxCount - 1));
-		const preservedFocus = activePane?.focus ?? focusBoxSlot(0);
+		const existingPane = workbenchPanes.find((pane) => pane.id === activeSavePaneId);
+		const preservedFocus =
+			existingPane?.source.type === 'save-file' && existingPane.source.id === save.file.id
+				? existingPane.focus
+				: focusBoxSlot(0);
 		const fixedPane = createBoxPane(activeSavePaneId, saveFileSource(save), {
 			boxCount: save.workspace.summary.boxCount,
 			activeBox: clampedBox,
@@ -2453,7 +2474,7 @@
 	}
 
 	function closePane(paneId: string) {
-		if (paneId === activeSavePaneId) {
+		if (pendingSlotOperation || paneId === activeSavePaneId) {
 			return;
 		}
 
@@ -3615,7 +3636,7 @@
 		}
 	}
 
-	async function loadWorkspaceForSave(save: WorkspaceState, box: number) {
+	async function loadWorkspaceForSave(save: WorkspaceState, box: number, paneId = activePaneId) {
 		const request = (workspaceLoadRequest += 1);
 		busy = true;
 		importError = null;
@@ -3628,13 +3649,20 @@
 			);
 			if (
 				request === workspaceLoadRequest &&
-				activePaneBox === box &&
+				activePaneId === paneId &&
+				workbenchPanes.some(
+					(pane) =>
+						pane.id === paneId &&
+						pane.source.type === 'save-file' &&
+						pane.source.id === save.file.id &&
+						pane.activeBox === box
+				) &&
 				loadedSave?.file.id === save.file.id
 			) {
 				loadedSave = { ...save, workspace };
 				savePaneWorkspaces = {
 					...savePaneWorkspaces,
-					[activePaneId]: { state: loadedSave, loadedBox: box }
+					[paneId]: { state: loadedSave, loadedBox: box }
 				};
 				setCachedActiveWorkspace(loadedSave, box);
 			}
@@ -3657,16 +3685,25 @@
 		}
 
 		if (loadedSave && pane.source.id === loadedSave.file.id && pane.id === activePaneId) {
-			savePaneWorkspaces = {
-				...savePaneWorkspaces,
-				[paneId]: { state: loadedSave, loadedBox: box }
-			};
+			await loadWorkspaceForSave(loadedSave, box, paneId);
 			return;
 		}
+
+		const request = ++paneWorkspaceLoadRequest;
+		const sourceId = pane.source.id;
 
 		try {
 			const state = await loadWorkspaceStateForSaveFile(pane.source.id, box);
 			if (!state) {
+				return;
+			}
+			const currentPane = workbenchPanes.find((candidate) => candidate.id === paneId);
+			if (
+				paneWorkspaceLoadRequest !== request ||
+				currentPane?.source.type !== 'save-file' ||
+				currentPane.source.id !== sourceId ||
+				currentPane.activeBox !== box
+			) {
 				return;
 			}
 
@@ -3688,8 +3725,16 @@
 					: candidate
 			);
 		} catch (error) {
-			showToast('error', getErrorMessage(error));
-			statusMessage = 'Could not load that Save File pane.';
+			const currentPane = workbenchPanes.find((candidate) => candidate.id === paneId);
+			if (
+				paneWorkspaceLoadRequest === request &&
+				currentPane?.source.type === 'save-file' &&
+				currentPane.source.id === sourceId &&
+				currentPane.activeBox === box
+			) {
+				showToast('error', getErrorMessage(error));
+				statusMessage = 'Could not load that Save File pane.';
+			}
 		}
 	}
 
@@ -3953,7 +3998,16 @@
 									type="button"
 									class="pane-close"
 									aria-label={`Close ${pane.source.label} pane`}
+									aria-disabled={pendingSlotOperation ? 'true' : undefined}
+									tabindex={pendingSlotOperation ? -1 : undefined}
+									onpointerdown={(event) => {
+										if (pendingSlotOperation) event.preventDefault();
+									}}
 									onfocus={() => {
+										if (pendingSlotOperation) {
+											queueMicrotask(focusActiveControl);
+											return;
+										}
 										activatePane(pane);
 										navigation = {
 											...navigation,
@@ -3961,7 +4015,10 @@
 											locationFocus: pane.focus
 										};
 									}}
-									onclick={() => closePane(pane.id)}
+									onclick={() => {
+										if (pendingSlotOperation) return;
+										closePane(pane.id);
+									}}
 								>
 									×
 								</button>

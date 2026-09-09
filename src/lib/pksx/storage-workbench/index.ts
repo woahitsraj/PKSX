@@ -64,6 +64,7 @@ export type CarryState = {
 	source: WorkbenchSlotRef;
 	sourceOwner: BoxSourceRef;
 	pokemonLabel: string;
+	spriteUrl: string | null;
 	sourceLabel: string;
 	origin: PokemonOrigin;
 };
@@ -352,6 +353,7 @@ export function createCarryState(input: {
 	now?: () => string;
 	originGame?: string | null;
 	trainerId?: string | null;
+	spriteUrl?: string | null;
 }): CarryState | null {
 	if (input.slot.kind !== 'pokemon') {
 		return null;
@@ -362,6 +364,7 @@ export function createCarryState(input: {
 		source: input.source,
 		sourceOwner: input.pane.source,
 		pokemonLabel: input.slot.label,
+		spriteUrl: input.spriteUrl ?? null,
 		sourceLabel: describeSlotRef(input.source, input.pane.source.label),
 		origin: {
 			entryMode: input.mode === 'copy' ? 'copied-in' : 'moved-in',

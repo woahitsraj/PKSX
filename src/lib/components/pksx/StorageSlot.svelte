@@ -381,13 +381,13 @@
 
 	.carry-at-focus strong {
 		position: absolute;
-		right: 2px;
-		bottom: 2px;
-		padding: 1px 2px;
-		border-radius: 2px;
+		right: var(--pksx-space-1);
+		bottom: var(--pksx-space-1);
+		padding: var(--pksx-border-width) var(--pksx-space-1);
+		border-radius: var(--pksx-radius-small);
 		background: var(--rust);
 		color: var(--paper-hi);
-		font: 800 8px/1 var(--pksx-font-mono);
+		font: 800 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
 	}
 
 	@container (min-width: 46px) and (min-height: 46px) {
