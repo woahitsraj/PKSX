@@ -574,15 +574,40 @@
 		if (event.target instanceof HTMLSelectElement) deactivateDraftInput(event.target.id);
 	}
 
+	function handleEditorFieldKeyup(event: KeyboardEvent) {
+		if (
+			event.key === 'Escape' &&
+			event.target instanceof HTMLSelectElement &&
+			isInputEditing(event.target.id)
+		) {
+			deactivateDraftInput(event.target.id);
+		}
+	}
+
 	function attachEditorFields(node: HTMLDivElement) {
 		node.addEventListener('pointerdown', handleEditorFieldActivation);
 		node.addEventListener('click', handleEditorFieldActivation);
 		node.addEventListener('focusout', handleEditorFocusOut);
+		node.addEventListener('keyup', handleEditorFieldKeyup);
 		return () => {
 			node.removeEventListener('pointerdown', handleEditorFieldActivation);
 			node.removeEventListener('click', handleEditorFieldActivation);
 			node.removeEventListener('focusout', handleEditorFocusOut);
+			node.removeEventListener('keyup', handleEditorFieldKeyup);
 		};
+	}
+
+	function attachEditorRail(node: HTMLElement) {
+		const revealActiveSection = () =>
+			node
+				.querySelector<HTMLElement>('[data-editor-rail-section][aria-current="page"]')
+				?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+		const observer = new ResizeObserver(revealActiveSection);
+		observer.observe(node);
+		for (const section of node.querySelectorAll('[data-editor-rail-section]')) {
+			observer.observe(section);
+		}
+		return () => observer.disconnect();
 	}
 
 	function draftInputEditingValue(id: string) {
@@ -1359,7 +1384,7 @@
 		</section>
 	{:else}
 		<div class="editor-body">
-			<nav class="editor-rail" aria-label="Pokemon Editor sections">
+			<nav {@attach attachEditorRail} class="editor-rail" aria-label="Pokemon Editor sections">
 				{#each pokemonEditorSections as section (section.id)}
 					<button
 						id={`pokemon-editor-section-${section.id}`}

@@ -3423,8 +3423,9 @@
 
 	function focusPokemonEditorSession() {
 		const focus = pokemonEditorSession.focus;
+		keepPokemonEditorRailSectionVisible(pokemonEditorSession.section);
 		if (focus.zone === 'rail') {
-			revealPokemonEditorRailSection(focus.section);
+			document.getElementById(`pokemon-editor-section-${focus.section}`)?.focus();
 			return;
 		}
 		document.getElementById(focus.control)?.focus();
@@ -3433,6 +3434,11 @@
 	function revealPokemonEditorRailSection(section: PokemonEditorSectionId) {
 		const target = document.getElementById(`pokemon-editor-section-${section}`);
 		target?.focus();
+		keepPokemonEditorRailSectionVisible(section);
+	}
+
+	function keepPokemonEditorRailSectionVisible(section: PokemonEditorSectionId) {
+		const target = document.getElementById(`pokemon-editor-section-${section}`);
 		target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 

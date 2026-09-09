@@ -2031,9 +2031,12 @@ test('Pokemon Editor preserves arrow navigation until an editable field is enter
 	await page.setViewportSize({ width: 360, height: 640 });
 	await setSafeArea(page, { top: 24, right: 0, bottom: 72, left: 0 });
 	await choosePokemonEditorSection(page, 'species-form');
+	await species.focus();
+	await expect(species).toBeFocused();
 	await pressController(page, 'PageUp');
 	const activeTab = page.locator('#pokemon-editor-section-stats');
 	await expect(activeTab).toHaveAttribute('aria-current', 'page');
+	await expect(page.locator('#pokemon-editor-content-stats')).toBeFocused();
 	const tabBounds = await activeTab.boundingBox();
 	const railBounds = await page.locator('.editor-rail').boundingBox();
 	expect(tabBounds).not.toBeNull();
@@ -2043,6 +2046,8 @@ test('Pokemon Editor preserves arrow navigation until an editable field is enter
 		railBounds!.x + railBounds!.width + 1
 	);
 
+	await activeTab.focus();
+	await expect(activeTab).toBeFocused();
 	await page.keyboard.press('ArrowLeft');
 	const previousTab = page.locator('#pokemon-editor-section-move-set');
 	await expect(previousTab).toHaveAttribute('aria-current', 'page');
@@ -2052,6 +2057,46 @@ test('Pokemon Editor preserves arrow navigation until an editable field is enter
 	expect(previousTabBounds!.x + previousTabBounds!.width).toBeLessThanOrEqual(
 		railBounds!.x + railBounds!.width + 1
 	);
+
+	await page.setViewportSize({ width: 640, height: 360 });
+	await setSafeArea(page, { top: 12, right: 12, bottom: 12, left: 12 });
+	await choosePokemonEditorSection(page, 'stats');
+	const hpIv = editor.locator('#pokemon-editor-hp-iv');
+	await hpIv.focus();
+	await expect(hpIv).toBeFocused();
+	await page.setViewportSize({ width: 360, height: 640 });
+	await setSafeArea(page, { top: 24, right: 0, bottom: 72, left: 0 });
+	await expect(hpIv).toBeFocused();
+	await expect
+		.poll(async () => {
+			const resizedTab = await activeTab.boundingBox();
+			const resizedRail = await page.locator('.editor-rail').boundingBox();
+			return (
+				resizedTab !== null &&
+				resizedRail !== null &&
+				resizedTab.x >= resizedRail.x - 1 &&
+				resizedTab.x + resizedTab.width <= resizedRail.x + resizedRail.width + 1
+			);
+		})
+		.toBe(true);
+
+	const originalHpIv = Number(await hpIv.inputValue());
+	await page.keyboard.press(' ');
+	await hpIv.fill(String(originalHpIv + 1));
+	await expect(activeTab.getByLabel('Staged edits')).toBeVisible();
+	await expect(hpIv).toBeFocused();
+	await expect
+		.poll(async () => {
+			const stagedTab = await activeTab.boundingBox();
+			const stagedRail = await page.locator('.editor-rail').boundingBox();
+			return (
+				stagedTab !== null &&
+				stagedRail !== null &&
+				stagedTab.x >= stagedRail.x - 1 &&
+				stagedTab.x + stagedTab.width <= stagedRail.x + stagedRail.width + 1
+			);
+		})
+		.toBe(true);
 });
 
 test('Pokemon Editor keeps staged state through review, Legality, guarded Back, and rotation', async ({
