@@ -93,7 +93,7 @@ export function isCachedSavesSnapshotSeeded() {
 
 export function subscribeSavesSnapshot(listener: (snapshot: SavesSnapshot) => void) {
 	snapshotListeners.add(listener);
-	if (savesSnapshot) listener(savesSnapshot);
+	if (savesSnapshot && savesSnapshotValid) listener(savesSnapshot);
 	return () => {
 		snapshotListeners.delete(listener);
 		if (snapshotListeners.size === 0 && !savesSnapshotValid) {
@@ -189,16 +189,17 @@ export function setCachedActiveWorkspace(
 	pendingActiveSaveAdoption = workspace && options.adoptAsActiveSave ? workspace.file.id : null;
 	getActiveWorkspaceService().set(workspace, box);
 	activeWorkspaceBox = box;
-	if (workspace) detailsCache.delete(workspace.file.id);
-	if (workspace && savesSnapshot) {
-		savesSnapshot = mergeWorkspaceIntoSnapshot(savesSnapshot, workspace);
-		publishSavesSnapshot();
-		const saveFile = savesSnapshot.saveFiles.find(
-			(candidate) => candidate.id === workspace.file.id
-		);
-		if (saveFile && snapshotListeners.size > 0) queueSaveCardDetails(saveFile);
-		else savesSnapshotValid = false;
+	if (!workspace) return;
+	detailsCache.delete(workspace.file.id);
+	const detailGeneration = supersedeSaveCardDetails(workspace.file.id);
+	if (!savesSnapshot) return;
+	if (snapshotListeners.size === 0) {
+		invalidateSavesCache();
+		return;
 	}
+	savesSnapshot = mergeWorkspaceIntoSnapshot(savesSnapshot, workspace);
+	publishSavesSnapshot();
+	queueSaveCardDetails(workspace.file, detailGeneration);
 }
 
 export function consumeActiveSaveAdoption(saveFileId: SaveFileId) {
@@ -263,8 +264,7 @@ function scheduleSaveCardDetails(saveFile: StoredSaveFile) {
 	void settleSaveCardDetails(saveFile, supersedeSaveCardDetails(saveFile.id));
 }
 
-function queueSaveCardDetails(saveFile: StoredSaveFile) {
-	const detailGeneration = supersedeSaveCardDetails(saveFile.id);
+function queueSaveCardDetails(saveFile: StoredSaveFile, detailGeneration: number) {
 	queueMicrotask(() => {
 		if (
 			detailGeneration !== detailGenerations.get(saveFile.id) ||
@@ -286,6 +286,9 @@ async function settleSaveCardDetails(saveFile: StoredSaveFile, detailGeneration:
 	const state: Exclude<SaveCardDetailsState, { status: 'loading' }> = details
 		? { status: 'ready', details }
 		: { status: 'unavailable' };
+
+	const catalogRequest = catalogRequests.get(snapshotGeneration);
+	if (catalogRequest) await catalogRequest.catch(() => undefined);
 
 	if (
 		detailGeneration !== detailGenerations.get(saveFile.id) ||

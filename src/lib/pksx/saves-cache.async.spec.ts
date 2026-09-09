@@ -66,8 +66,12 @@ const workspace = (trainerName: string): SaveWorkspace =>
 
 function deferred<T>() {
 	let resolve!: (value: T) => void;
-	const promise = new Promise<T>((done) => (resolve = done));
-	return { promise, resolve };
+	let reject!: (error: Error) => void;
+	const promise = new Promise<T>((done, fail) => {
+		resolve = done;
+		reject = fail;
+	});
+	return { promise, resolve, reject };
 }
 
 describe('Saves cache async settlement', () => {
@@ -121,6 +125,108 @@ describe('Saves cache async settlement', () => {
 		expect(getCachedSavesSnapshot()).toBeNull();
 	});
 
+	it('discards an old detail result after an unmounted Workspace publication', async () => {
+		const file = saveFile('unmounted-workspace');
+		const older = deferred<ReturnType<typeof success>>();
+		fakes.storage.getActiveSaveFileId.mockResolvedValue(file.id);
+		fakes.storage.listSaves.mockResolvedValue([file]);
+		fakes.storage.getSaveBytes.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
+		fakes.storage.getWorkspace.mockResolvedValue(null);
+		fakes.engine.loadSaveWorkspace.mockImplementation((bytes: Uint8Array) =>
+			bytes[0] === 1 ? older.promise : Promise.resolve(success('NEW'))
+		);
+
+		const unsubscribe = subscribeSavesSnapshot(() => undefined);
+		await getSavesSnapshot({ force: true });
+		await vi.waitFor(() => expect(fakes.engine.loadSaveWorkspace).toHaveBeenCalledTimes(1));
+		unsubscribe();
+		setCachedActiveWorkspace(
+			createCleanWorkspaceState({
+				file,
+				bytes: new Uint8Array([5, 6, 7, 8]),
+				workspace: workspace('NEW')
+			})
+		);
+		older.resolve(success('OLD'));
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(getCachedSavesSnapshot()).toBeNull();
+		const replay = vi.fn();
+		const resubscribe = subscribeSavesSnapshot(replay);
+		expect(replay).not.toHaveBeenCalled();
+		await getSavesSnapshot();
+		await vi.waitFor(() =>
+			expect(getCachedSavesSnapshot()?.detailsBySaveFileId[file.id]).toMatchObject({
+				status: 'ready',
+				details: { summary: { trainerName: 'NEW' } }
+			})
+		);
+		resubscribe();
+	});
+
+	it('does not republish a removed file while its replacement catalog is pending', async () => {
+		const file = saveFile('removed-during-detail');
+		const details = deferred<ReturnType<typeof success>>();
+		const nextCatalog = deferred<StoredSaveFile[]>();
+		fakes.storage.getActiveSaveFileId.mockResolvedValue(file.id);
+		fakes.storage.listSaves.mockResolvedValue([file]);
+		fakes.storage.getSaveBytes.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
+		fakes.storage.getWorkspace.mockResolvedValue(null);
+		fakes.engine.loadSaveWorkspace.mockReturnValue(details.promise);
+		await getSavesSnapshot({ force: true });
+		await vi.waitFor(() => expect(fakes.engine.loadSaveWorkspace).toHaveBeenCalledTimes(1));
+		const updates = vi.fn();
+		const unsubscribe = subscribeSavesSnapshot(updates);
+		updates.mockClear();
+
+		invalidateSavesCache();
+		fakes.storage.getActiveSaveFileId.mockResolvedValue(null);
+		fakes.storage.listSaves.mockReturnValue(nextCatalog.promise);
+		const refresh = getSavesSnapshot({ force: true });
+		details.resolve(success('REMOVED'));
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(updates).not.toHaveBeenCalled();
+		nextCatalog.resolve([]);
+		await refresh;
+		expect(updates).toHaveBeenLastCalledWith({
+			activeSaveFileId: null,
+			saveFiles: [],
+			detailsBySaveFileId: {}
+		});
+		unsubscribe();
+	});
+
+	it('settles current details if a replacement catalog fails', async () => {
+		const file = saveFile('failed-catalog');
+		const details = deferred<ReturnType<typeof success>>();
+		const nextCatalog = deferred<StoredSaveFile[]>();
+		fakes.storage.getActiveSaveFileId.mockResolvedValue(file.id);
+		fakes.storage.listSaves.mockResolvedValue([file]);
+		fakes.storage.getSaveBytes.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
+		fakes.storage.getWorkspace.mockResolvedValue(null);
+		fakes.engine.loadSaveWorkspace.mockReturnValue(details.promise);
+		await getSavesSnapshot({ force: true });
+		await vi.waitFor(() => expect(fakes.engine.loadSaveWorkspace).toHaveBeenCalledTimes(1));
+		const updates = vi.fn();
+		const unsubscribe = subscribeSavesSnapshot(updates);
+		fakes.storage.listSaves.mockReturnValue(nextCatalog.promise);
+		const refresh = getSavesSnapshot({ force: true });
+		details.resolve(success('CURRENT'));
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		nextCatalog.reject(new Error('Catalog unavailable'));
+		await expect(refresh).rejects.toThrow('Catalog unavailable');
+		await vi.waitFor(() =>
+			expect(updates).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					detailsBySaveFileId: {
+						[file.id]: expect.objectContaining({ status: 'ready' })
+					}
+				})
+			)
+		);
+		unsubscribe();
+	});
+
 	it('returns the newest snapshot to an overlapping stale catalog request', async () => {
 		const firstList = deferred<StoredSaveFile[]>();
 		const secondList = deferred<StoredSaveFile[]>();
@@ -153,10 +259,13 @@ describe('Saves cache async settlement', () => {
 		fakes.storage.listSaves.mockResolvedValue([active, other]);
 		fakes.storage.getSaveBytes.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
 		fakes.storage.getWorkspace.mockResolvedValue(null);
-		fakes.engine.loadSaveWorkspace
-			.mockReturnValueOnce(olderActive.promise)
-			.mockReturnValueOnce(otherDetails.promise)
-			.mockReturnValueOnce(newerActive.promise);
+		fakes.engine.loadSaveWorkspace.mockImplementation((bytes: Uint8Array, fileName: string) =>
+			fileName === other.originalFileName
+				? otherDetails.promise
+				: bytes[0] === 1
+					? olderActive.promise
+					: newerActive.promise
+		);
 
 		await getSavesSnapshot({ force: true });
 		await vi.waitFor(() => expect(fakes.engine.loadSaveWorkspace).toHaveBeenCalledTimes(2));

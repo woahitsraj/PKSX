@@ -185,6 +185,15 @@
 		preferredTarget: SavesTarget | null,
 		shouldFocus = false
 	) {
+		if (menuSaveFileId && !snapshot.saveFiles.some((file) => file.id === menuSaveFileId)) {
+			if (menuOpen || deleteOpen) {
+				summonedWorkflow.closeAll();
+				shouldFocus = true;
+			}
+			menuSaveFileId = null;
+			menuReturnTarget = null;
+			deleteDescription = null;
+		}
 		saveFiles = snapshot.saveFiles;
 		activeSaveFileId = snapshot.activeSaveFileId;
 		detailsBySaveFileId = snapshot.detailsBySaveFileId;
@@ -275,7 +284,17 @@
 		if (summonedWorkflow.active) return;
 		if (
 			!isControllerKeyboardEvent(event) &&
-			(!gridElement || !event.composedPath().includes(gridElement))
+			(!gridElement || !event.composedPath().includes(gridElement)) &&
+			event
+				.composedPath()
+				.some(
+					(node) =>
+						node instanceof HTMLElement &&
+						(node.tabIndex >= 0 ||
+							node.matches(
+								'button, a[href], input, select, textarea, summary, [role="button"], [role="link"]'
+							))
+				)
 		) {
 			return;
 		}

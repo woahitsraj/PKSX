@@ -2776,6 +2776,23 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await expect(alphaCard).toContainText('7 Pokemon');
 	await expect(page.locator('.save-card.active').getByText('Active')).toBeVisible();
 
+	await expect(page.locator('body')).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(grid).toHaveAttribute('aria-activedescendant', 'saves-target-import');
+	await page.keyboard.press('ArrowLeft');
+	await expect(grid).toHaveAttribute('aria-activedescendant', alphaTarget!);
+	await page.getByRole('heading', { name: 'Saves', exact: true }).click();
+	await expect(page.locator('body')).toBeFocused();
+	await page.keyboard.press('x');
+	await expect(page.getByRole('dialog', { name: 'Save File Menu' })).toBeVisible();
+	await page.keyboard.press('Escape');
+	await page.getByRole('heading', { name: 'Saves', exact: true }).click();
+	await expect(page.locator('body')).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(page).toHaveURL(/\/$/);
+	await chooseMainMenu(page, 'Saves');
+	await expect(grid).toHaveAttribute('aria-activedescendant', alphaTarget!);
+
 	await page.getByLabel('Import Save File').setInputFiles({
 		name: 'beta.sav',
 		mimeType: 'application/octet-stream',
