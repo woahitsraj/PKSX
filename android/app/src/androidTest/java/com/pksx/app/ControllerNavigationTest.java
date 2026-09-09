@@ -176,7 +176,7 @@ public class ControllerNavigationTest {
         importEmeraldSave();
         runJavaScript("document.querySelector('.save-card.active .save-menu-control').click()");
         awaitJavaScript("document.querySelector('[role=dialog][aria-label=\"Save File Menu\"]') !== null");
-        runJavaScript("document.querySelector('#save-file-menu-command-1').click()");
+        runJavaScript("document.querySelector('#save-file-menu-command-2').click()");
         awaitJavaScript("document.querySelector('[role=dialog][aria-label^=\"Delete \"]') !== null");
         pressPlatformBack();
         awaitJavaScript(
@@ -184,7 +184,7 @@ public class ControllerNavigationTest {
                 + " && document.querySelector('[role=dialog][aria-label^=\"Delete \"]') === null"
                 + " && document.querySelector('[role=dialog][aria-label=\"Save File Menu\"]') !== null"
         );
-        runJavaScript("document.querySelector('#save-file-menu-command-1').click()");
+        runJavaScript("document.querySelector('#save-file-menu-command-2').click()");
         awaitJavaScript("document.querySelector('[role=dialog][aria-label^=\"Delete \"]') !== null");
         pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_B,
