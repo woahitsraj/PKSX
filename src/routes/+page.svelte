@@ -3885,14 +3885,14 @@
 />
 
 <section
-	class="boxes-route"
+	class="boxes-route pksx-density-container"
 	aria-label="Boxes workspace"
 	data-destination-root="boxes"
 	data-initial-state={initialStateReady ? 'ready' : 'loading'}
 	data-active-save-file-id={loadedSave?.file.id ?? ''}
 	inert={destinationInputSuspended}
 >
-	<section class="storage-workspace" aria-label="Party and box storage">
+	<section class="storage-workspace pksx-density" aria-label="Party and box storage">
 		<div
 			class="box-pane-strip"
 			class:single-pane={workbenchPanes.length === 1}
@@ -4228,6 +4228,11 @@
 		font-weight: 500;
 	}
 
+	:global(.app-shell:has(.boxes-route)) {
+		height: 100dvh;
+		overflow: hidden;
+	}
+
 	@media (min-width: 1025px) {
 		:global(html),
 		:global(body) {
@@ -4263,17 +4268,19 @@
 		min-width: 0;
 		min-height: 0;
 		display: flex;
-		container: boxes-route / size;
+		container: boxes-route pksx-density / size;
 		overflow: hidden;
 	}
 
 	.storage-workspace {
-		width: 100%;
-		height: 100%;
+		flex: 1 1 auto;
+		width: auto;
+		height: auto;
 		min-width: 0;
 		min-height: 0;
 		display: grid;
-		grid-template-columns: minmax(360px, 800px) minmax(150px, 260px);
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: minmax(334px, 1fr) minmax(150px, 260px);
 		align-items: stretch;
 		justify-content: center;
 		gap: var(--pksx-space-1);
@@ -4401,8 +4408,14 @@
 		--slot-size: max(
 			var(--pksx-slot-minimum),
 			min(
-				calc((100cqw - var(--pksx-space-unit) * 7) / 6),
-				calc((100cqh - var(--pksx-control-height) - var(--pksx-space-unit) * 7) / 5)
+				calc((100cqw - var(--pksx-border-width) * 5) / 6),
+				calc(
+					(
+							100cqh - var(--pksx-control-height) - var(--pksx-space-unit) -
+								var(--pksx-border-width) * 4
+						) /
+						5
+				)
 			)
 		);
 		min-width: 0;
@@ -4412,7 +4425,7 @@
 		grid-template-rows: repeat(5, var(--slot-size));
 		align-content: center;
 		justify-content: center;
-		gap: var(--pksx-space-1);
+		gap: var(--pksx-border-width);
 		padding: 0;
 		overflow: auto;
 		outline: none;
@@ -4423,8 +4436,14 @@
 			var(--pksx-slot-minimum),
 			min(
 				112px,
-				calc((100cqw - var(--pksx-space-unit) * 4) / 3),
-				calc((100cqh - var(--pksx-control-height) - var(--pksx-space-unit) * 4) / 2)
+				calc((100cqw - var(--pksx-border-width) * 2) / 3),
+				calc(
+					(
+							100cqh - var(--pksx-control-height) - var(--pksx-space-unit) -
+								var(--pksx-border-width)
+						) /
+						2
+				)
 			)
 		);
 		grid-template-columns: repeat(3, var(--slot-size));
@@ -4445,20 +4464,20 @@
 
 	.storage-workspace :global(.detail-rail) {
 		width: 100%;
-		max-width: 260px;
+		max-width: 800px;
 		height: 100%;
 		justify-self: center;
 		overflow: auto;
 	}
 
-	@container boxes-route (max-aspect-ratio: 1 / 1) {
+	@container boxes-route (orientation: landscape) {
 		.storage-workspace {
-			grid-template-columns: minmax(0, 1fr);
-			grid-template-rows: minmax(334px, 1fr) minmax(150px, 260px);
+			grid-template-columns: minmax(360px, 800px) minmax(150px, 260px);
+			grid-template-rows: minmax(0, 1fr);
 		}
 
 		.storage-workspace :global(.detail-rail) {
-			max-width: 800px;
+			max-width: 260px;
 		}
 	}
 
