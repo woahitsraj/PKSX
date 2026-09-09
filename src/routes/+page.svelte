@@ -2407,6 +2407,13 @@
 		}
 	}
 
+	function openImportFromSourcePicker() {
+		const returnsToBoxMenu = activeSummonedWorkflow?.returnTo?.kind === 'box-menu';
+		closeSourcePicker();
+		if (returnsToBoxMenu) closeBoxMenu();
+		document.getElementById('quick-save-import')?.click();
+	}
+
 	function openSourceAsPane(type: BoxSourceType, saveFileId: string | null = null) {
 		if (sourcePickerTargetPaneId) {
 			void switchPaneToSource(sourcePickerTargetPaneId, type, saveFileId);
@@ -4278,10 +4285,7 @@
 					type="button"
 					class="source-card import-row"
 					onfocus={() => (sourcePickerFocusIndex = sourcePickerCards.length)}
-					onclick={() => {
-						closeSourcePicker();
-						document.getElementById('quick-save-import')?.click();
-					}}
+					onclick={openImportFromSourcePicker}
 				>
 					<span>IMPORT</span>
 					<strong>Import Save File</strong>

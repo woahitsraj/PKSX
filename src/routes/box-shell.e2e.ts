@@ -548,6 +548,45 @@ test('Box Menu keeps fixed unavailable commands and X and Y preserve their conte
 	await expect(collectionControl).toBeFocused();
 });
 
+test('Box Menu import dismisses its workflow chain and installs the imported Save File', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	const collectionControl = page.getByRole('button', {
+		name: 'Open Box Menu for Pokemon Storage'
+	});
+	const menu = page.getByRole('dialog', { name: 'Box Menu' });
+
+	await collectionControl.click();
+	await menu.getByRole('button', { name: 'Switch', exact: true }).click();
+	let fileChooserPromise = page.waitForEvent('filechooser');
+	await page
+		.getByRole('dialog', { name: 'Switch collection' })
+		.getByRole('button', { name: 'Import Save File' })
+		.click();
+	let fileChooser = await fileChooserPromise;
+	await fileChooser.setFiles([]);
+	await expect(menu).toBeHidden();
+	await expect(collectionControl).toBeFocused();
+
+	await collectionControl.click();
+	await menu.getByRole('button', { name: 'Switch', exact: true }).click();
+	fileChooserPromise = page.waitForEvent('filechooser');
+	await page
+		.getByRole('dialog', { name: 'Switch collection' })
+		.getByRole('button', { name: 'Import Save File' })
+		.click();
+	fileChooser = await fileChooserPromise;
+	await fileChooser.setFiles(emeraldFixturePath);
+
+	await expect(page.locator('.save-chip')).toContainText('011020251345.sav', { timeout: 15000 });
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
+	await expect(menu).toBeHidden();
+	await expect(
+		page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' })
+	).toBeVisible();
+});
+
 test('Box Menu exports and backs up the captured secondary Save File Workspace', async ({
 	page
 }) => {
