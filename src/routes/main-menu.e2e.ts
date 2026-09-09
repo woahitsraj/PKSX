@@ -238,7 +238,7 @@ test('reloading with the Main Menu open does not prompt and resets session focus
 	});
 	await page.reload();
 
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready');
+	await expectDestinationReady(page, 'boxes');
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	expect(unloadDialogs).toBe(0);
 });
