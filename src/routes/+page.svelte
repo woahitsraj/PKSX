@@ -100,6 +100,7 @@
 	import PokemonEditor from '$lib/components/pksx/PokemonEditor.svelte';
 	import SlotActionMenu from '$lib/components/pksx/SlotActionMenu.svelte';
 	import StorageSlot from '$lib/components/pksx/StorageSlot.svelte';
+	import TakeoverFrame from '$lib/components/pksx/TakeoverFrame.svelte';
 	import ToastRegion from '$lib/components/pksx/ToastRegion.svelte';
 	import type { SlotView } from '$lib/components/pksx/types';
 	import {
