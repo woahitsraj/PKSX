@@ -581,6 +581,7 @@ test('Box Menu import dismisses its workflow chain and installs the imported Sav
 
 	await expect(page.locator('.save-chip')).toContainText('011020251345.sav', { timeout: 15000 });
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	await expect(menu).toBeHidden();
 	await expect(
 		page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' })

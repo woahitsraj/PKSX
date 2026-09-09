@@ -3805,6 +3805,17 @@
 				seedSavesSnapshotFromActiveWorkspace(saveFiles);
 				installActiveSavePane(loadedSave, 0);
 				statusMessage = `${file.name} imported and made active.`;
+				queueMicrotask(() => {
+					if (
+						request === workspaceLoadRequest &&
+						loadedSave?.file.id === saveFile.id &&
+						activePaneId === activeSavePaneId &&
+						navigation.focus.zone === 'box' &&
+						navigation.focus.slot === 0
+					) {
+						void focusActiveControl();
+					}
+				});
 			}
 		} catch (error) {
 			if (request === workspaceLoadRequest) {
