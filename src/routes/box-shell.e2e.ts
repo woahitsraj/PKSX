@@ -1277,11 +1277,13 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 	await expect(panes.nth(0)).toHaveAttribute('data-location', 'box-0');
 	await expect(panes.nth(0).locator('[id$="box-0-slot-0"]')).toContainText('ARON');
 	await expect(page.locator('.shared-detail .detail-rail')).toHaveCount(1);
-	await expect(page.getByLabel('Transfer controls').getByRole('button')).toHaveCount(2);
-	await expect(page.getByLabel('Transfer controls').getByRole('button').first()).toHaveAttribute(
-		'tabindex',
-		'-1'
-	);
+	const transferControls = page.getByLabel('Transfer controls');
+	await expect(page.locator('.shared-detail')).toBeHidden();
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await expect(transferControls.getByRole('button')).toHaveCount(2);
+	await expect(transferControls).toBeVisible();
+	await expect(page.locator('.shared-detail .detail-heading h2')).toHaveText('ARON');
+	await expect(transferControls.getByRole('button').first()).toHaveAttribute('tabindex', '-1');
 	const sideBySide = await panes.evaluateAll((elements) =>
 		elements.map((pane) => {
 			const rect = pane.getBoundingClientRect();
@@ -1296,16 +1298,14 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 			page.locator('.shared-detail').evaluate((rail) => rail.getBoundingClientRect().width)
 		)
 		.toBeLessThanOrEqual(260);
-	const compactName = page.locator('.shared-detail .detail-heading h2');
 	for (const height of [360, 480]) {
 		await page.setViewportSize({ width: 640, height });
 		const sideInset = height === 360 ? 12 : 0;
 		await setSafeArea(page, { top: 12, right: sideInset, bottom: 12, left: sideInset });
-		await expect(compactName).toHaveText('ARON');
-		await expect(compactName).toHaveCSS('font-size', '16px');
-		expect(await compactName.evaluate((name) => name.scrollWidth <= name.clientWidth)).toBe(true);
+		await expect(page.locator('.shared-detail')).toBeHidden();
+		await expect(transferControls).toBeHidden();
 	}
-	await page.setViewportSize({ width: 1280, height: 720 });
+	await page.setViewportSize({ width: 1800, height: 900 });
 	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });
 
 	await panes.nth(1).getByRole('button', { name: 'Previous Location' }).click();
@@ -1383,25 +1383,16 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 						(pane) => pane.getBoundingClientRect().width
 					),
 					railWidth: bounds('.shared-detail').width,
-					buttonHeights: Array.from(
-						document.querySelectorAll<HTMLElement>('.transfer-controls button')
-					).map((button) => button.getBoundingClientRect().height),
 					gridWidths: Array.from(document.querySelectorAll<HTMLElement>('.location-grid')).map(
 						(grid) => ({ client: grid.clientWidth, scroll: grid.scrollWidth })
 					)
 				};
 			});
-			expect(compact.railWidth).toBeLessThanOrEqual(64);
+			expect(compact.railWidth).toBe(0);
 			expect(Math.min(...compact.paneWidths)).toBeGreaterThanOrEqual(275);
-			expect(Math.min(...compact.buttonHeights)).toBeGreaterThanOrEqual(24);
-			expect(Math.max(...compact.buttonHeights)).toBeLessThanOrEqual(33);
 			expect(compact.gridWidths.every(({ client, scroll }) => client >= scroll)).toBe(true);
-			await expect(page.locator('.shared-detail .detail-heading h2')).toBeVisible();
-			await expect(page.locator('.shared-detail .portrait-card')).toBeHidden();
-			await expect(page.locator('.shared-detail .identity-strip')).toBeHidden();
-			await expect(page.locator('.shared-detail .stat-panel')).toBeHidden();
-			await expect(page.locator('.shared-detail .move-panel')).toBeHidden();
-			await expect(page.locator('.shared-detail .detail-footer')).toBeHidden();
+			await expect(page.locator('.shared-detail')).toBeHidden();
+			await expect(transferControls).toBeHidden();
 		}
 
 		if (viewport.width === 1800) {
@@ -1431,11 +1422,12 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 		}
 
 		if (viewport.width === viewport.height) {
-			await expect
-				.poll(() =>
-					page.locator('.shared-detail').evaluate((rail) => rail.getBoundingClientRect().width)
-				)
-				.toBeLessThanOrEqual(260);
+			await expect(page.locator('.shared-detail')).toBeHidden();
+		}
+
+		if (viewport.width < viewport.height) {
+			await expect(page.locator('.shared-detail')).toBeHidden();
+			await expect(transferControls).toBeHidden();
 		}
 	}
 
@@ -1454,9 +1446,13 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 	await page.keyboard.press('Escape');
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	await expect(page.locator('.carry-at-focus')).toHaveCount(0);
-	await expect(page.locator('.shared-detail .detail-heading h2')).toHaveText('ARON');
+	await expect(page.locator('.shared-detail')).toBeHidden();
 
-	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	await page.keyboard.press('Enter');
+	await page
+		.getByRole('dialog', { name: 'Slot actions' })
+		.getByRole('button', { name: 'Copy' })
+		.click();
 	await panes.nth(0).locator('[id$="box-0-slot-2"]').click();
 	await expect(panes.nth(0).locator('[id$="box-0-slot-2"]')).toContainText('ARON', {
 		timeout: 15000

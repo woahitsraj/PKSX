@@ -4476,9 +4476,8 @@
 		--two-pane-detail-size: clamp(56px, calc(20cqw - 68px), 260px);
 		grid-template-areas:
 			'leading'
-			'rail'
 			'trailing';
-		grid-template-rows: minmax(0, 1fr) clamp(72px, 18cqh, 120px) minmax(0, 1fr);
+		grid-template-rows: repeat(2, minmax(0, 1fr));
 		margin-inline: auto;
 	}
 
@@ -4702,6 +4701,7 @@
 	}
 
 	.two-pane .shared-detail {
+		display: none;
 		max-width: 260px;
 	}
 
@@ -4757,46 +4757,20 @@
 		.shared-detail {
 			max-width: 260px;
 		}
-	}
 
-	@container boxes-route (max-width: 1250px) {
-		.two-pane .transfer-controls button {
-			height: var(--pksx-small-control-height);
-			padding: 0 var(--pksx-space-1);
-		}
-
-		.two-pane .shared-detail :global(.detail-rail) {
-			justify-content: center;
-			padding: var(--pksx-space-1) 2px;
-			overflow: hidden;
-		}
-
-		.two-pane .shared-detail :global(.portrait-card),
-		.two-pane .shared-detail :global(.detail-heading span),
-		.two-pane .shared-detail :global(.detail-level),
-		.two-pane .shared-detail :global(.identity-strip),
-		.two-pane .shared-detail :global(.stat-panel),
-		.two-pane .shared-detail :global(.move-panel),
-		.two-pane .shared-detail :global(.detail-footer),
-		.two-pane .shared-detail :global(.empty-copy) {
-			display: none;
-		}
-
-		.two-pane .shared-detail :global(.detail-heading),
-		.two-pane .shared-detail :global(.detail-heading > div) {
-			min-width: 0;
-		}
-
-		.two-pane .shared-detail :global(.detail-heading h2) {
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
+		.two-pane .shared-detail {
+			display: grid;
 		}
 	}
 
 	@container boxes-route (orientation: landscape) and (max-width: 1250px) {
-		.two-pane .transfer-controls {
-			grid-template-columns: minmax(0, 1fr);
+		.storage-workspace.two-pane {
+			grid-template-areas: 'leading trailing';
+			grid-template-columns: repeat(2, minmax(0, 640px));
+		}
+
+		.two-pane .shared-detail {
+			display: none;
 		}
 	}
 
