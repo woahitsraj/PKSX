@@ -1130,6 +1130,7 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
 	await pressController(page, 'PageDown');
 	await expect(firstPane.getByRole('heading', { name: 'Box 02' })).toBeVisible({ timeout: 15000 });
+	await expect(firstPane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
 	await firstPane.locator('[id$="box-1-slot-0"]').click();
 	await expect(firstPane.locator('[id$="box-1-slot-0"]')).toContainText('ARON', {
 		timeout: 15000
@@ -1154,11 +1155,12 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 
 	await firstPane.getByRole('button', { name: 'Previous Location' }).click();
 	await expect(firstPane.getByRole('heading', { name: 'Box 01' })).toBeVisible({ timeout: 15000 });
+	await expect(firstPane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
 	await firstPane.locator('[id$="box-0-slot-0"]').click();
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
 	await holdWorkspaceResponses(page);
 	await firstPane.locator('[id$="box-0-slot-2"]').click();
-	await waitForHeldWorkspaceResponses(page, 2);
+	await waitForHeldWorkspaceResponses(page, 3);
 	await expect(duplicatePane).toHaveAttribute('aria-busy', 'true');
 	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('Empty');
 	await duplicatePane.locator('[id$="box-1-slot-0"]').click();
