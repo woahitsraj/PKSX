@@ -588,6 +588,51 @@ test('Box Menu import dismisses its workflow chain and installs the imported Sav
 	).toBeVisible();
 });
 
+test('a completed import does not move focus in a newer Boxes instance', async ({ page }) => {
+	await openEmptySaves(page);
+	await page.evaluate(() => {
+		const arrayBuffer = File.prototype.arrayBuffer;
+		File.prototype.arrayBuffer = function () {
+			return new Promise<ArrayBuffer>((resolve, reject) => {
+				(window as typeof window & { releaseImport?: () => void }).releaseImport = () => {
+					void arrayBuffer.call(this).then(resolve, reject);
+				};
+			});
+		};
+	});
+
+	await page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Switch', exact: true })
+		.click();
+	const fileChooserPromise = page.waitForEvent('filechooser');
+	await page
+		.getByRole('dialog', { name: 'Switch collection' })
+		.getByRole('button', { name: 'Import Save File' })
+		.click();
+	await (await fileChooserPromise).setFiles(emeraldFixturePath);
+	await page.waitForFunction(
+		() =>
+			typeof (window as typeof window & { releaseImport?: () => void }).releaseImport === 'function'
+	);
+
+	await page.locator('#top-control-1').click();
+	await expect(page).toHaveURL(/\/save-file$/);
+	await page.locator('#top-control-0').click();
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
+		timeout: 15000
+	});
+	await page.locator('#box-0-slot-17').click();
+	await expect(page.locator('#box-0-slot-17')).toBeFocused();
+	await page.evaluate(() =>
+		(window as typeof window & { releaseImport?: () => void }).releaseImport?.()
+	);
+
+	await expect(page.locator('.save-chip')).toContainText('011020251345.sav', { timeout: 15000 });
+	await expect(page.locator('#box-0-slot-17')).toBeFocused();
+});
+
 test('Box Menu exports and backs up the captured secondary Save File Workspace', async ({
 	page
 }) => {

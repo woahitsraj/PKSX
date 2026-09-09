@@ -483,6 +483,7 @@
 	let workspaceLoadRequest = 0;
 	let workspacePublicationRequest = 0;
 	let paneSwitchRequest = 0;
+	let destroyed = false;
 
 	const controllerConnected = $derived(appChrome.controllerStatus !== null);
 	const activeSummonedWorkflow = $derived(summonedWorkflow.active);
@@ -3549,6 +3550,7 @@
 	});
 
 	onDestroy(() => {
+		destroyed = true;
 		if (summonedWorkflow.active?.kind !== 'backup-browser') summonedWorkflow.closeAll();
 	});
 
@@ -3807,6 +3809,7 @@
 				statusMessage = `${file.name} imported and made active.`;
 				queueMicrotask(() => {
 					if (
+						!destroyed &&
 						request === workspaceLoadRequest &&
 						loadedSave?.file.id === saveFile.id &&
 						activePaneId === activeSavePaneId &&
