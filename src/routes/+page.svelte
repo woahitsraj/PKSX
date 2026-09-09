@@ -2332,18 +2332,6 @@
 		);
 	}
 
-	function openSourcePicker(targetPaneId: string | null = null) {
-		if (pendingSlotOperation || targetPaneId === activeSavePaneId || activeSummonedWorkflow) {
-			return;
-		}
-
-		const launcherFocus = navigation.focus;
-		sourcePickerTargetPaneId = targetPaneId;
-		sourcePickerFocusIndex = 0;
-		summonedWorkflow.open('source-picker', launcherForFocus(launcherFocus));
-		queueMicrotask(() => focusSourcePickerControl(0));
-	}
-
 	function openRelatedSourcePicker(targetPaneId: string | null) {
 		if (!boxMenuOpen) return;
 		const commandIndex = navigation.focus.zone === 'actions' ? navigation.focus.index : 0;
@@ -3785,31 +3773,6 @@
 		}
 	}
 
-	async function exportLoadedSave() {
-		if (!loadedSave) {
-			return;
-		}
-
-		busy = true;
-		importError = null;
-		statusMessage = 'Serializing Save File...';
-
-		try {
-			const activeEngine = engine;
-			if (!activeEngine) {
-				throw new Error('The PKHeX Engine is not ready.');
-			}
-
-			const bytes = await workspaceService.exportBytes(loadedSave);
-			downloadBytes(bytes, createExportFileName(loadedSave.file.originalFileName));
-			statusMessage = 'Export ready.';
-		} catch (error) {
-			importError = getErrorMessage(error);
-			statusMessage = 'Export failed.';
-		} finally {
-			busy = false;
-		}
-	}
 
 	function downloadBytes(bytes: Uint8Array, fileName: string) {
 		const downloadBytes = new Uint8Array(bytes.byteLength);

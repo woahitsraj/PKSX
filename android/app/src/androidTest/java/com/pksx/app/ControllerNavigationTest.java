@@ -788,7 +788,11 @@ public class ControllerNavigationTest {
 
     private void awaitControllerSurface() throws Exception {
         awaitJavaScript(
-            "document.readyState === 'complete' && document.querySelector('.main-menu-opener')"
+            "document.readyState === 'complete'"
+                + " && document.querySelector('.main-menu-opener')"
+                + " && ((document.querySelector('.boxes-route')?.dataset.initialState === 'ready'"
+                + " && document.querySelector('#box-grid')?.getClientRects().length > 0)"
+                + " || document.querySelector('[data-destination-root]')?.dataset.destinationRoot === 'saves')"
         );
         if (!"true".equals(runJavaScript("Boolean(document.querySelector('#box-grid'))"))) {
             chooseMainMenu("Boxes");

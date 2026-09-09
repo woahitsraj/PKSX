@@ -3,7 +3,7 @@
 	import { asset, resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import ConfirmDialog from '$lib/components/pksx/ConfirmDialog.svelte';
-	import { base64ToBytes, type EngineError, type PartySlotSummary } from '$lib/engine';
+	import { type EngineError, type PartySlotSummary } from '$lib/engine';
 	import {
 		type BackupMetadata,
 		type SaveFileId,
@@ -481,40 +481,6 @@
 		}
 	}
 
-	async function exportActiveSave() {
-		if (!activeSaveFile) {
-			return;
-		}
-
-		busy = true;
-		errorMessage = null;
-		statusMessage = 'Serializing Save File...';
-
-		try {
-			const bytes = await storage.getSaveBytes(activeSaveFile.id);
-			if (!bytes) {
-				throw new Error('The active Save File is missing its stored bytes.');
-			}
-
-			const result = await getPkhexEngine().serializeSave(
-				bytes,
-				activeSaveFile.originalFileName ?? undefined
-			);
-			if (!result.ok) {
-				throw result.error;
-			}
-
-			const serialized = base64ToBytes(result.value.bytesBase64, result.value.byteLength);
-			downloadBytes(serialized, createExportFileName(activeSaveFile.originalFileName));
-			statusMessage = 'Export ready.';
-		} catch (error) {
-			errorMessage = getErrorMessage(error);
-			statusMessage = 'Export failed.';
-		} finally {
-			busy = false;
-		}
-	}
-
 	async function loadWorkspace(bytes: Uint8Array, fileName: string | undefined) {
 		const result = await getPkhexEngine().loadSaveWorkspace(bytes, fileName, 0);
 		if (!result.ok) {
@@ -626,19 +592,6 @@
 		return entry ? asset(entry.path) : null;
 	}
 
-	function createExportFileName(fileName: string | null) {
-		if (!fileName) {
-			return 'pksx-export.sav';
-		}
-
-		const lastDot = fileName.lastIndexOf('.');
-		if (lastDot <= 0) {
-			return `${fileName}.pksx`;
-		}
-
-		return `${fileName.slice(0, lastDot)}.pksx${fileName.slice(lastDot)}`;
-	}
-
 	function deleteDialogTitle(deletion: PendingDelete) {
 		if (deletion.kind === 'save') {
 			return `Delete ${displayName(deletion.saveFile)}?`;
@@ -653,21 +606,6 @@
 		}
 
 		return `This removes the Backup for ${displayName(deletion.saveFile)} from this device. This cannot be undone.`;
-	}
-
-	function downloadBytes(bytes: Uint8Array, fileName: string) {
-		const downloadBytes = new Uint8Array(bytes.byteLength);
-		downloadBytes.set(bytes);
-		const url = URL.createObjectURL(
-			new Blob([downloadBytes.buffer], { type: 'application/octet-stream' })
-		);
-		const link = document.createElement('a');
-		link.href = url;
-		link.download = fileName;
-		document.body.append(link);
-		link.click();
-		link.remove();
-		URL.revokeObjectURL(url);
 	}
 
 	function getErrorMessage(error: unknown) {

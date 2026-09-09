@@ -3,7 +3,6 @@
 	import { resolve } from '$app/paths';
 	import Combobox, { type ComboboxOption } from '$lib/components/pksx/Combobox.svelte';
 	import {
-		base64ToBytes,
 		type EngineApi,
 		type InventoryItemOption,
 		type InventoryItemProjection
@@ -383,45 +382,6 @@
 			busy = false;
 			syncAppChrome();
 		}
-	}
-
-	async function exportCurrentSave() {
-		const activeEngine = engine;
-		if (!workspace || !activeEngine || busy) return;
-		busy = true;
-		syncAppChrome();
-		try {
-			const result = await activeEngine.serializeSave(
-				workspace.bytes,
-				workspace.file.originalFileName ?? undefined
-			);
-			if (!result.ok) throw result.error;
-			downloadBytes(
-				base64ToBytes(result.value.bytesBase64, result.value.byteLength),
-				exportFileName(workspace.file.originalFileName)
-			);
-		} catch (error) {
-			loadError = errorMessage(error);
-		} finally {
-			busy = false;
-			syncAppChrome();
-		}
-	}
-
-	function downloadBytes(bytes: Uint8Array, fileName: string) {
-		const copy = new Uint8Array(bytes);
-		const url = URL.createObjectURL(new Blob([copy.buffer], { type: 'application/octet-stream' }));
-		const link = document.createElement('a');
-		link.href = url;
-		link.download = fileName;
-		link.click();
-		URL.revokeObjectURL(url);
-	}
-
-	function exportFileName(fileName: string | null) {
-		if (!fileName) return 'pksx-export.sav';
-		const dot = fileName.lastIndexOf('.');
-		return dot > 0 ? fileName.slice(0, dot) + '.pksx' + fileName.slice(dot) : fileName + '.pksx';
 	}
 
 	function errorMessage(error: unknown) {
