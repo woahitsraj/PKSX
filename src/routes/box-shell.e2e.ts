@@ -961,6 +961,23 @@ test('Box Menu allows duplicate Save File panes and keeps Open another collectio
 	await expect(
 		page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' })
 	).toHaveCount(2);
+	await page.locator('#pane-active-save-box-0-slot-0').click();
+	const duplicatePane = page.locator('.box-pane:not(.active-pane)');
+	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
+	await expect(duplicatePane.getByRole('heading', { name: 'Box 02' })).toBeVisible();
+	await duplicatePane.getByRole('button', { name: 'Previous Location' }).click();
+	await duplicatePane.getByRole('button', { name: 'Previous Location' }).click();
+	await expect(duplicatePane.getByRole('heading', { name: 'Party' })).toBeVisible({
+		timeout: 15000
+	});
+	await page.locator('[id$="-party-slot-5"]').click();
+	await page.keyboard.press('x');
+	await page.getByRole('button', { name: 'Switch', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Switch collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	await expect(page.locator('#box-0-slot-8')).toBeFocused();
 	await page.keyboard.press('x');
 	const menu = page.getByRole('dialog', { name: 'Box Menu' });
 	await expect(menu.getByRole('button', { name: 'Open another collection' })).toHaveAttribute(
@@ -1836,6 +1853,16 @@ test('Box Pane owns the viewport budget at floors, target, and large thresholds'
 	expect(metrics.route.scrollHeight).toBe(metrics.route.clientHeight);
 	expect(metrics.route.scrollWidth).toBe(metrics.route.clientWidth);
 	expect(metrics.grid.overflowY).toBe('auto');
+	expect(metrics.rail.width).toBeLessThanOrEqual(260);
+
+	await page.setViewportSize({ width: 360, height: 400 });
+	await setSafeArea(page, { top: 10, right: 10, bottom: 10, left: 10 });
+	metrics = await boxLayoutMetrics(page);
+	expect(metrics.workspace.scrollHeight).toBeGreaterThan(metrics.workspace.clientHeight);
+	await page.locator('.storage-workspace').evaluate((workspace) => {
+		workspace.scrollTop = workspace.scrollHeight;
+	});
+	await expect(page.getByTestId('active-slot-detail-rail')).toBeInViewport();
 
 	await page.setViewportSize({ width: 640, height: 480 });
 	await setSafeArea(page, { top: 12, right: 0, bottom: 12, left: 0 });
@@ -1856,6 +1883,29 @@ test('Box Pane owns the viewport budget at floors, target, and large thresholds'
 		expect(metrics.rail.width).toBeLessThanOrEqual(260);
 	}
 	await expect(page.locator('#box-0-slot-0 .slot-label')).toHaveCSS('display', 'flex');
+});
+
+test('Box and Party grids expose rows and size real sprites against the Slot', async ({ page }) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+
+	for (const viewport of [
+		{ width: 640, height: 360 },
+		{ width: 920, height: 720 }
+	]) {
+		await page.setViewportSize(viewport);
+		await expect(page.locator('#box-grid > [role="row"]')).toHaveCount(5);
+		const ratio = await page.locator('#box-0-slot-0').evaluate((slot) => {
+			const sprite = slot.querySelector<HTMLElement>('img.slot-sprite');
+			if (!sprite) throw new Error('Expected a fixture sprite.');
+			return sprite.getBoundingClientRect().width / slot.getBoundingClientRect().width;
+		});
+		expect(ratio).toBeGreaterThanOrEqual(0.78);
+		expect(ratio).toBeLessThanOrEqual(0.92);
+	}
+
+	await showPartyFromFirstBox(page);
+	await expect(page.locator('#box-grid > [role="row"]')).toHaveCount(2);
 });
 
 test('landscape-floor Slot Menu uses the trailing Safe Canvas edge without shell growth', async ({

@@ -155,7 +155,7 @@ describe('storage workbench panes', () => {
 			focus: { zone: 'box', slot: 29 }
 		});
 		const partySurvivor = createBoxPane('pane-save', saveSource, {
-			focus: { zone: 'party', slot: 2 }
+			focus: { zone: 'party', slot: 5 }
 		});
 
 		expect(focusSurvivingPaneAfterClose(closing, partySurvivor)).toEqual({
@@ -167,7 +167,7 @@ describe('storage workbench panes', () => {
 		);
 
 		const switched = switchPaneSource([partySurvivor], 'pane-save', storageSource, 8);
-		expect(switched[0].focus).toEqual({ zone: 'box', slot: 2 });
+		expect(switched[0].focus).toEqual({ zone: 'box', slot: 8 });
 	});
 
 	it('refreshes save pane workspace caches after a slot mutation', () => {

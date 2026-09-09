@@ -222,7 +222,7 @@
 
 	.sprite-stage {
 		position: absolute;
-		inset: 3px;
+		inset: 0;
 		display: grid;
 		place-items: center;
 		border-radius: calc(var(--pksx-radius-md) - 2px);
@@ -409,15 +409,11 @@
 			display: flex;
 		}
 
-		.sprite-stage {
-			inset: 5px 5px 19px;
-		}
-
 		img.slot-sprite {
-			width: 78%;
-			height: 78%;
-			max-width: 78%;
-			max-height: 78%;
+			width: 79%;
+			height: 79%;
+			max-width: 79%;
+			max-height: 79%;
 		}
 	}
 </style>

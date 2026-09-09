@@ -15,6 +15,7 @@
 	import {
 		applyNavigationAction,
 		BOX_COLUMNS,
+		BOX_ROWS,
 		BOX_SLOT_COUNT,
 		createInitialNavigationState,
 		focusBoxSlot,
@@ -25,6 +26,8 @@
 		getPartySlotPosition,
 		getFocusId,
 		PARTY_SLOT_COUNT,
+		PARTY_COLUMNS,
+		PARTY_ROWS,
 		projectSlotCoordinate,
 		selectActiveBox,
 		setLocationFocus,
@@ -1270,8 +1273,13 @@
 		if (pane.id === activePaneId) navigation = state;
 
 		if (state.locationFocus.zone === 'box' && state.activeBox !== previousBox) {
-			if (loadedSave && pane.source.type === 'save-file' && pane.source.id === loadedSave.file.id) {
-				void loadWorkspaceForSave(loadedSave, state.activeBox);
+			if (
+				loadedSave &&
+				pane.id === activePaneId &&
+				pane.source.type === 'save-file' &&
+				pane.source.id === loadedSave.file.id
+			) {
+				void loadWorkspaceForSave(loadedSave, state.activeBox, pane.id);
 			} else if (pane.source.type === 'save-file') {
 				void refreshPaneWorkspace(pane.id, state.activeBox);
 			}
@@ -3950,6 +3958,8 @@
 				{@const paneBox = pane.activeBox}
 				{@const paneParty = pane.focus.zone === 'party' && paneHasParty(pane)}
 				{@const paneSlots = paneParty ? panePartySlots(pane) : paneBoxSlots(pane, paneBox)}
+				{@const paneColumns = paneParty ? PARTY_COLUMNS : BOX_COLUMNS}
+				{@const paneRows = paneParty ? PARTY_ROWS : BOX_ROWS}
 				<section
 					class={['box-pane', paneActive && 'active-pane']}
 					aria-label={`${pane.source.label}, ${paneParty ? 'Party' : boxNameFor(paneBox)}`}
@@ -4051,62 +4061,66 @@
 						aria-activedescendant={paneActive && isSlotFocus(navigation.focus)
 							? activeFocusId
 							: undefined}
-						aria-rowcount={paneParty ? 2 : 5}
-						aria-colcount={paneParty ? 3 : BOX_COLUMNS}
+						aria-rowcount={paneRows}
+						aria-colcount={paneColumns}
 						onfocus={() => activatePane(pane)}
 						onfocusin={() => {
 							if (!pendingSlotOperation && pane.id !== activePaneId) activatePane(pane);
 						}}
 					>
-						{#each paneSlots as slot (slot.slot)}
-							{@const position = paneParty
-								? getPartySlotPosition(slot.slot)
-								: getBoxSlotPosition(slot.slot)}
-							{@const slotRef = paneParty
-								? { zone: 'party' as const, slot: slot.slot }
-								: { zone: 'box' as const, box: paneBox, slot: slot.slot }}
-							<div
-								class={[
-									'slot-cell',
-									paneActive && isFocused(slotRef.zone, slot.slot) && 'selected'
-								]}
-							>
-								<StorageSlot
-									id={paneActive
-										? paneParty
-											? `party-slot-${slot.slot}`
-											: `box-${paneBox}-slot-${slot.slot}`
-										: `${pane.id}-${paneParty ? 'party' : `box-${paneBox}`}-slot-${slot.slot}`}
-									{slot}
-									zone={slotRef.zone}
-									focused={paneActive && isFocused(slotRef.zone, slot.slot)}
-									dualType={slotHasDualType(slot, paneParty ? -1 : paneBox)}
-									style={slotStyle(slot, paneParty ? -1 : paneBox)}
-									rowIndex={position.row + 1}
-									colIndex={position.column + 1}
-									spriteUrl={spriteUrlFor(slot)}
-									carried={paneActive && isFocused(slotRef.zone, slot.slot) && carryState
-										? {
-												label: carryState.pokemonLabel,
-												mode: carryState.mode,
-												spriteUrl: carriedSpriteUrl
-											}
-										: null}
-									destinationState={pendingSlotOperation
-										? destinationStateFor(slotRef, slot, pane)
-										: null}
-									onFocusSlot={() => {
-										activatePane(pane);
-										if (paneParty) focusParty(slot.slot);
-										else focusBox(slot.slot);
-									}}
-									onChooseSlot={pendingSlotOperation
-										? () => {
+						{#each Array.from(Array(paneRows).keys()) as row (row)}
+							<div class="slot-row" role="row">
+								{#each paneSlots.slice(row * paneColumns, (row + 1) * paneColumns) as slot (slot.slot)}
+									{@const position = paneParty
+										? getPartySlotPosition(slot.slot)
+										: getBoxSlotPosition(slot.slot)}
+									{@const slotRef = paneParty
+										? { zone: 'party' as const, slot: slot.slot }
+										: { zone: 'box' as const, box: paneBox, slot: slot.slot }}
+									<div
+										class={[
+											'slot-cell',
+											paneActive && isFocused(slotRef.zone, slot.slot) && 'selected'
+										]}
+									>
+										<StorageSlot
+											id={paneActive
+												? paneParty
+													? `party-slot-${slot.slot}`
+													: `box-${paneBox}-slot-${slot.slot}`
+												: `${pane.id}-${paneParty ? 'party' : `box-${paneBox}`}-slot-${slot.slot}`}
+											{slot}
+											zone={slotRef.zone}
+											focused={paneActive && isFocused(slotRef.zone, slot.slot)}
+											dualType={slotHasDualType(slot, paneParty ? -1 : paneBox)}
+											style={slotStyle(slot, paneParty ? -1 : paneBox)}
+											rowIndex={position.row + 1}
+											colIndex={position.column + 1}
+											spriteUrl={spriteUrlFor(slot)}
+											carried={paneActive && isFocused(slotRef.zone, slot.slot) && carryState
+												? {
+														label: carryState.pokemonLabel,
+														mode: carryState.mode,
+														spriteUrl: carriedSpriteUrl
+													}
+												: null}
+											destinationState={pendingSlotOperation
+												? destinationStateFor(slotRef, slot, pane)
+												: null}
+											onFocusSlot={() => {
 												activatePane(pane);
-												void completePendingSlotOperation(slotRef, pane);
-											}
-										: undefined}
-								/>
+												if (paneParty) focusParty(slot.slot);
+												else focusBox(slot.slot);
+											}}
+											onChooseSlot={pendingSlotOperation
+												? () => {
+														activatePane(pane);
+														void completePendingSlotOperation(slotRef, pane);
+													}
+												: undefined}
+										/>
+									</div>
+								{/each}
 							</div>
 						{/each}
 					</div>
@@ -4341,7 +4355,7 @@
 		align-items: stretch;
 		justify-content: center;
 		gap: var(--pksx-space-1);
-		overflow: hidden;
+		overflow: auto;
 	}
 
 	.box-pane-strip {
@@ -4507,6 +4521,10 @@
 		grid-template-rows: repeat(2, var(--slot-size));
 	}
 
+	.slot-row {
+		display: contents;
+	}
+
 	.slot-cell {
 		position: relative;
 		width: var(--slot-size);
@@ -4521,7 +4539,7 @@
 
 	.storage-workspace :global(.detail-rail) {
 		width: 100%;
-		max-width: 800px;
+		max-width: 260px;
 		height: 100%;
 		justify-self: center;
 		overflow: auto;
