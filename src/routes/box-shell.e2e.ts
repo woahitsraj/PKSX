@@ -1086,6 +1086,7 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 	await expect(page.locator('#box-0-slot-5')).toBeFocused();
 
 	for (const viewport of [
+		{ width: 1800, height: 900 },
 		{ width: 640, height: 360 },
 		{ width: 640, height: 640 },
 		{ width: 393, height: 852 }
@@ -1095,6 +1096,12 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 		expect(
 			await panes.evaluateAll((elements) => elements.map((pane) => pane.dataset.paneId))
 		).toEqual(paneIds);
+		expect(
+			await panes.evaluateAll((elements) => elements.map((pane) => pane.dataset.sourceId))
+		).toEqual([sourceId, sourceId]);
+		expect(
+			await panes.evaluateAll((elements) => elements.map((pane) => pane.dataset.location))
+		).toEqual(['box-0', 'box-0']);
 		await expect(page.locator('#box-0-slot-5')).toBeFocused();
 		await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
 		await expect
@@ -1117,6 +1124,40 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 			.first()
 			.evaluate((slot) => slot.getBoundingClientRect().width);
 		expect(minimumSlot).toBeGreaterThanOrEqual(44);
+
+		if (viewport.width === 1800) {
+			const large = await page.evaluate(() => {
+				const route = document.querySelector<HTMLElement>('.boxes-route')!.getBoundingClientRect();
+				const workspace = document
+					.querySelector<HTMLElement>('.storage-workspace')!
+					.getBoundingClientRect();
+				const paneWidths = Array.from(document.querySelectorAll<HTMLElement>('.box-pane')).map(
+					(pane) => pane.getBoundingClientRect().width
+				);
+				const railWidth = document
+					.querySelector<HTMLElement>('.shared-detail')!
+					.getBoundingClientRect().width;
+				return {
+					workspaceWidth: workspace.width,
+					leftGap: workspace.left - route.left,
+					rightGap: route.right - workspace.right,
+					paneWidths,
+					railWidth
+				};
+			});
+			expect(large.workspaceWidth).toBeLessThanOrEqual(1552);
+			expect(Math.abs(large.leftGap - large.rightGap)).toBeLessThan(2);
+			expect(Math.max(...large.paneWidths)).toBeLessThanOrEqual(640);
+			expect(large.railWidth).toBeLessThanOrEqual(260);
+		}
+
+		if (viewport.width === viewport.height) {
+			await expect
+				.poll(() =>
+					page.locator('.shared-detail').evaluate((rail) => rail.getBoundingClientRect().width)
+				)
+				.toBeLessThanOrEqual(260);
+		}
 	}
 
 	const stacked = await panes.evaluateAll((elements) =>

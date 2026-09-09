@@ -4407,6 +4407,7 @@
 			'rail'
 			'trailing';
 		grid-template-rows: minmax(0, 1fr) minmax(96px, 160px) minmax(0, 1fr);
+		margin-inline: auto;
 	}
 
 	.box-pane-strip {
@@ -4626,6 +4627,10 @@
 		gap: var(--pksx-space-1);
 		justify-self: center;
 		overflow: hidden;
+	}
+
+	.two-pane .shared-detail {
+		max-width: 260px;
 	}
 
 	.transfer-controls {
