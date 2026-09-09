@@ -2243,7 +2243,7 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await expect(browser).toHaveCSS('width', '616px');
 	await expect(browser).toHaveCSS('height', '336px');
 	await page.keyboard.press('Escape');
-	await expect(page.locator('#saves-grid')).toBeFocused();
+	await expect(page.locator('[data-destination-focus="saves-grid"]')).toBeFocused();
 
 	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
 	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
@@ -2258,7 +2258,7 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await expect(manualBackup.getByRole('button', { name: 'Restore' })).toBeFocused();
 
 	await page.keyboard.press('Escape');
-	await expect(page.locator('#saves-grid')).toBeFocused();
+	await expect(page.locator('[data-destination-focus="saves-grid"]')).toBeFocused();
 	browser = await openBackupBrowser(page);
 	await expect(manualBackup.getByRole('button', { name: 'Restore' })).toBeFocused();
 
@@ -2298,7 +2298,7 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await restorableManual.getByRole('button', { name: 'Restore' }).click();
 	await browser.getByRole('button', { name: 'Restore' }).last().click();
 	await expect(browser).toBeHidden();
-	await expect(page.locator('#saves-grid')).toBeFocused();
+	await expect(page.locator('[data-destination-focus="saves-grid"]')).toBeFocused();
 	const restoredCard = page.locator('.save-card.active');
 	await expect(restoredCard).toContainText('Pokemon Emerald', { timeout: 15_000 });
 	await expect(restoredCard.locator('.trainer')).toHaveText(/\S+/);
@@ -2332,7 +2332,7 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	});
 	await expect(browser.getByRole('button', { name: 'Create Backup' })).toBeVisible();
 	await page.keyboard.press('Escape');
-	await expect(page.locator('#saves-grid')).toBeFocused();
+	await expect(page.locator('[data-destination-focus="saves-grid"]')).toBeFocused();
 
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });
@@ -2445,11 +2445,11 @@ test('deletes an active Dirty Save File and all Backups after confirmation', asy
 	await expect(page.getByText('emerald-011020251345.sav deleted.')).toBeVisible();
 	await expect(page.locator('.save-card')).toHaveCount(0);
 	await expect(page.getByLabel('Pokemon Storage summary')).toContainText('Pokemon Storage');
-	await expect(page.locator('#saves-grid')).toHaveAttribute(
+	await expect(page.locator('[data-destination-focus="saves-grid"]')).toHaveAttribute(
 		'aria-activedescendant',
 		'saves-target-import'
 	);
-	await expect(page.locator('#saves-grid')).toBeFocused();
+	await expect(page.locator('[data-destination-focus="saves-grid"]')).toBeFocused();
 });
 
 test('moves an occupied box slot into an empty destination slot', async ({ page }) => {

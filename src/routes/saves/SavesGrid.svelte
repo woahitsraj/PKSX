@@ -435,7 +435,7 @@
 		if (
 			!summonedWorkflow.open('save-file-menu', {
 				type: 'control',
-				id: 'saves-grid'
+				id: gridElement?.id ?? 'saves-grid'
 			})
 		) {
 			return;
@@ -616,6 +616,7 @@
 	class="saves-route pksx-density-container"
 	aria-labelledby="saves-title"
 	data-destination-root="saves"
+	data-initial-state={catalogLoading ? 'loading' : 'ready'}
 	inert={summonedWorkflow.active !== null}
 >
 	<div class="saves-density pksx-density">
