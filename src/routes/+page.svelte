@@ -480,6 +480,7 @@
 	let paneSwitchRequest = 0;
 	let destroyed = false;
 	let paneWorkspaceLoadRequest = 0;
+	let paneWorkspaceLoadingRequests = $state<Record<string, number>>({});
 
 	const activeSummonedWorkflow = $derived(summonedWorkflow.active);
 	const sourcePickerOpen = $derived(activeSummonedWorkflow?.kind === 'source-picker');
@@ -3699,6 +3700,7 @@
 
 		const request = ++paneWorkspaceLoadRequest;
 		const sourceId = pane.source.id;
+		paneWorkspaceLoadingRequests = { ...paneWorkspaceLoadingRequests, [paneId]: request };
 
 		try {
 			const state = await loadWorkspaceStateForSaveFile(pane.source.id, box);
@@ -3742,6 +3744,12 @@
 			) {
 				showToast('error', getErrorMessage(error));
 				statusMessage = 'Could not load that Save File pane.';
+			}
+		} finally {
+			if (paneWorkspaceLoadingRequests[paneId] === request) {
+				const remaining = { ...paneWorkspaceLoadingRequests };
+				delete remaining[paneId];
+				paneWorkspaceLoadingRequests = remaining;
 			}
 		}
 	}
@@ -3953,6 +3961,8 @@
 		>
 			{#each workbenchPanes as pane (pane.id)}
 				{@const paneActive = pane.id === activePaneId}
+				{@const paneBusy =
+					(busy && paneActive) || paneWorkspaceLoadingRequests[pane.id] !== undefined}
 				{@const paneFixed = pane.id === activeSavePaneId}
 				{@const paneControlCount = paneControlCountFor(pane)}
 				{@const paneBox = pane.activeBox}
@@ -3963,7 +3973,7 @@
 				<section
 					class={['box-pane', paneActive && 'active-pane']}
 					aria-label={`${pane.source.label}, ${paneParty ? 'Party' : boxNameFor(paneBox)}`}
-					aria-busy={busy && paneActive}
+					aria-busy={paneBusy ? 'true' : undefined}
 				>
 					<div class="pane-header">
 						<div class="pane-source-row">
@@ -4000,7 +4010,7 @@
 								<strong>{pane.source.label}</strong>
 								<em>▾</em>
 							</button>
-							{#if busy && paneActive}<span class="pane-busy">Working</span>{/if}
+							{#if paneBusy}<span class="pane-busy">Working</span>{/if}
 							{#if !paneFixed && workbenchPanes.length > 1}
 								<button
 									id={`close-pane-${pane.id}`}

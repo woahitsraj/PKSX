@@ -967,7 +967,9 @@ test('Box Menu allows duplicate Save File panes and keeps Open another collectio
 	await page.locator('#pane-active-save-box-0-slot-0').click();
 	const duplicatePane = page.locator('.box-pane:not(.active-pane)');
 	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
+	await expect(duplicatePane).toHaveAttribute('aria-busy', 'true');
 	await expect(duplicatePane.getByRole('heading', { name: 'Box 02' })).toBeVisible();
+	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
 	await duplicatePane.getByRole('button', { name: 'Previous Location' }).click();
 	await duplicatePane.getByRole('button', { name: 'Previous Location' }).click();
 	await expect(duplicatePane.getByRole('heading', { name: 'Party' })).toBeVisible({
@@ -1044,6 +1046,9 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Move' }).click();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
+	await expect(page.locator('#box-0-slot-0')).toHaveAccessibleName(
+		'Box Slot 1, row 1, column 1: ARON. Carry Move ARON'
+	);
 	const collectionControl = page.getByRole('button', {
 		name: 'Open Box Menu for Pokemon Storage'
 	});
@@ -1067,6 +1072,9 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await expect(page.getByRole('button', { name: 'Open Main Menu' })).toHaveCount(0);
 	await page.keyboard.press('y');
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
+	await expect(page.locator('#box-0-slot-0')).toHaveAccessibleName(
+		'Box Slot 1, row 1, column 1: ARON. Carry Copy ARON'
+	);
 	await page.keyboard.press('y');
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
 	await expect(page.locator('.carry-at-focus img')).toHaveAttribute('src', sourceSpriteUrl!);
@@ -1897,12 +1905,27 @@ test('Box Pane owns the viewport budget at floors, target, and large thresholds'
 test('Box and Party grids expose rows and size real sprites against the Slot', async ({ page }) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
+	await page.setViewportSize({ width: 640, height: 360 });
+	await setSafeArea(page, { top: 24, right: 12, bottom: 72, left: 12 });
+	await expect(page.locator('#box-0-slot-0 .slot-number')).toHaveCSS('display', 'none');
+	await expect(page.locator('#box-0-slot-0')).toHaveAccessibleName(
+		'Box Slot 1, row 1, column 1: ARON'
+	);
+	await expect(page.locator('#box-0-slot-2')).toHaveAccessibleName(
+		'Box Slot 3, row 1, column 3: Empty'
+	);
 
 	for (const viewport of [
 		{ width: 640, height: 360 },
 		{ width: 920, height: 720 }
 	]) {
 		await page.setViewportSize(viewport);
+		await setSafeArea(
+			page,
+			viewport.width === 640
+				? { top: 12, right: 12, bottom: 12, left: 12 }
+				: { top: 10, right: 10, bottom: 10, left: 10 }
+		);
 		const rows = page.getByRole('grid').getByRole('row');
 		await expect(rows).toHaveCount(5);
 		for (let row = 0; row < 5; row += 1) {
@@ -1918,6 +1941,9 @@ test('Box and Party grids expose rows and size real sprites against the Slot', a
 	}
 
 	await showPartyFromFirstBox(page);
+	await expect(page.locator('#party-slot-0')).toHaveAccessibleName(
+		'Party Slot 1, row 1, column 1: 1-UP'
+	);
 	const partyRows = page.getByRole('grid').getByRole('row');
 	await expect(partyRows).toHaveCount(2);
 	for (let row = 0; row < 2; row += 1) {

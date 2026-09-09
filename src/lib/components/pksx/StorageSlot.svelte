@@ -35,6 +35,9 @@
 
 	const zoneClass = $derived(zone === 'party' ? 'party-slot' : 'box-slot');
 	const slotNumber = $derived(zone === 'party' ? `P${slot.slot + 1}` : String(slot.slot + 1));
+	const accessibleLabel = $derived(
+		`${zone === 'party' ? 'Party' : 'Box'} Slot ${slot.slot + 1}, row ${rowIndex}, column ${colIndex}: ${slot.label}${carried ? `. Carry ${carried.mode === 'move' ? 'Move' : 'Copy'} ${carried.label}` : ''}`
+	);
 	function handleClick() {
 		onFocusSlot();
 
@@ -59,6 +62,7 @@
 	tabindex="-1"
 	{style}
 	aria-selected={focused}
+	aria-label={accessibleLabel}
 	aria-rowindex={rowIndex}
 	aria-colindex={colIndex}
 	data-destination-state={destinationState ?? undefined}
