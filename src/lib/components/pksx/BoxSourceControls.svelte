@@ -53,7 +53,7 @@
 	.box-title {
 		min-width: 0;
 		display: grid;
-		gap: var(--pksx-space-1);
+		gap: var(--pksx-border-width);
 		justify-items: center;
 		text-align: center;
 	}
@@ -68,7 +68,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: center;
-		gap: var(--pksx-space-2);
+		gap: var(--pksx-space-1);
 		color: var(--ink-mute);
 		font: 650 var(--pksx-type-caption) / 1.05 var(--pksx-font-mono);
 		letter-spacing: 0.04em;
@@ -76,10 +76,12 @@
 
 	.box-title em {
 		font-style: normal;
+		white-space: nowrap;
 	}
 
 	.box-title b {
 		font-weight: 700;
+		white-space: nowrap;
 	}
 
 	.box-arrow {

@@ -4409,6 +4409,8 @@
 	}
 
 	.pane-source-row {
+		flex: 1 1 33%;
+		max-width: 33%;
 		min-width: 0;
 		display: flex;
 		align-items: center;
@@ -4416,6 +4418,7 @@
 	}
 
 	.source-chip {
+		width: 100%;
 		min-width: 0;
 		height: var(--pksx-control-height);
 		display: inline-flex;
@@ -4440,6 +4443,7 @@
 	}
 
 	.source-chip strong {
+		min-width: 0;
 		max-width: 18ch;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -4471,7 +4475,7 @@
 
 	.location-header {
 		min-width: 0;
-		flex: 1 1 auto;
+		flex: 1 1 67%;
 		display: flex;
 	}
 

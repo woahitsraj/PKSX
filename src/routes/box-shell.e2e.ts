@@ -383,6 +383,9 @@ async function boxLayoutMetrics(page: Page) {
 			route: bounds('.boxes-route'),
 			workspace: bounds('.storage-workspace'),
 			pane: bounds('.box-pane'),
+			header: bounds('.pane-header'),
+			title: bounds('.box-title h2'),
+			occupancy: bounds('.box-title b'),
 			control: bounds('.source-chip'),
 			grid: bounds('.location-grid'),
 			rail: bounds('.detail-rail'),
@@ -1835,6 +1838,9 @@ test('Box Pane owns the viewport budget at floors, target, and large thresholds'
 	expect(metrics.lastSlotBottom).toBeLessThanOrEqual(metrics.grid.bottom + 0.5);
 	expect(metrics.control.height).toBeGreaterThan(0);
 	expect(metrics.rail.right).toBeLessThanOrEqual(metrics.route.right);
+	expect(metrics.title.top).toBeGreaterThanOrEqual(metrics.header.top);
+	expect(metrics.occupancy.bottom).toBeLessThanOrEqual(metrics.header.bottom);
+	expect(metrics.header.bottom).toBeLessThanOrEqual(metrics.grid.top);
 	await expect(page.locator('#box-0-slot-0 .slot-number')).toHaveCSS('display', 'block');
 	await expect(page.locator('#box-0-slot-0 .slot-label')).toHaveCSS('display', 'none');
 	expect(await shellExtents(page)).toMatchObject({
@@ -1854,6 +1860,9 @@ test('Box Pane owns the viewport budget at floors, target, and large thresholds'
 	expect(metrics.route.scrollWidth).toBe(metrics.route.clientWidth);
 	expect(metrics.grid.overflowY).toBe('auto');
 	expect(metrics.rail.width).toBeLessThanOrEqual(260);
+	expect(metrics.title.top).toBeGreaterThanOrEqual(metrics.header.top);
+	expect(metrics.occupancy.bottom).toBeLessThanOrEqual(metrics.header.bottom);
+	expect(metrics.header.bottom).toBeLessThanOrEqual(metrics.grid.top);
 
 	await page.setViewportSize({ width: 360, height: 400 });
 	await setSafeArea(page, { top: 10, right: 10, bottom: 10, left: 10 });
@@ -1894,7 +1903,11 @@ test('Box and Party grids expose rows and size real sprites against the Slot', a
 		{ width: 920, height: 720 }
 	]) {
 		await page.setViewportSize(viewport);
-		await expect(page.locator('#box-grid > [role="row"]')).toHaveCount(5);
+		const rows = page.getByRole('grid').getByRole('row');
+		await expect(rows).toHaveCount(5);
+		for (let row = 0; row < 5; row += 1) {
+			await expect(rows.nth(row).getByRole('gridcell')).toHaveCount(6);
+		}
 		const ratio = await page.locator('#box-0-slot-0').evaluate((slot) => {
 			const sprite = slot.querySelector<HTMLElement>('img.slot-sprite');
 			if (!sprite) throw new Error('Expected a fixture sprite.');
@@ -1905,7 +1918,11 @@ test('Box and Party grids expose rows and size real sprites against the Slot', a
 	}
 
 	await showPartyFromFirstBox(page);
-	await expect(page.locator('#box-grid > [role="row"]')).toHaveCount(2);
+	const partyRows = page.getByRole('grid').getByRole('row');
+	await expect(partyRows).toHaveCount(2);
+	for (let row = 0; row < 2; row += 1) {
+		await expect(partyRows.nth(row).getByRole('gridcell')).toHaveCount(3);
+	}
 });
 
 test('landscape-floor Slot Menu uses the trailing Safe Canvas edge without shell growth', async ({
