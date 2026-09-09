@@ -111,11 +111,21 @@
 		outline: none;
 	}
 
+	.main-menu-row button[aria-current='page'] {
+		box-shadow: inset var(--pksx-space-1) 0 0 var(--rust);
+	}
+
 	.main-menu-row button[aria-current='page'] strong::after {
-		content: ' · Here';
+		content: '';
+		display: inline-block;
+		width: 0.55em;
+		height: 0.55em;
+		margin-left: var(--pksx-space-1);
+		border: var(--pksx-border-width) solid currentColor;
+		border-radius: 50%;
+		background: var(--rust);
 		color: var(--rust);
-		font: 700 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
-		text-transform: uppercase;
+		vertical-align: 0.08em;
 	}
 
 	.main-menu-row strong {

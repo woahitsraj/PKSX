@@ -632,7 +632,9 @@
 			onpointerdown={(event) => event.preventDefault()}
 			onclick={openMainMenu}
 		>
-			<span aria-hidden="true">◆</span>
+			<svg class="main-menu-icon" aria-hidden="true" viewBox="3 3 18 18">
+				<path d="M4 6h16M4 12h16M4 18h16" />
+			</svg>
 		</button>
 	{/if}
 
@@ -679,9 +681,12 @@
 		background: var(--pksx-color-accent-wash);
 	}
 
-	.main-menu-opener span {
-		font-size: var(--pksx-icon-size, 16px);
-		line-height: 1;
-		transform: rotate(45deg);
+	.main-menu-icon {
+		width: var(--pksx-icon-size, 16px);
+		height: var(--pksx-icon-size, 16px);
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
 	}
 </style>
