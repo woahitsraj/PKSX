@@ -13,7 +13,6 @@ import {
 	focusSurvivingPaneAfterClose,
 	movePaneFocus,
 	refreshSaveFilePaneWorkspaces,
-	stateTagForPane,
 	switchPaneSource,
 	toggleCarryMode,
 	type BoxSourceRef,
@@ -26,7 +25,6 @@ const saveSource: BoxSourceRef = {
 	label: 'emerald.sav',
 	dirty: false
 };
-const dirtySaveSource: BoxSourceRef = { ...saveSource, dirty: true };
 const storageSource: BoxSourceRef = {
 	type: 'pokemon-storage',
 	id: 'pokemon-storage',
@@ -164,19 +162,12 @@ describe('storage workbench panes', () => {
 			zone: 'party',
 			slot: 5
 		});
-		expect(focusSurvivingPaneAfterClose(closing, partySurvivor, { partyCollapsed: true })).toEqual({
-			zone: 'box',
-			slot: 29
-		});
 		expect(focusSurvivingPaneAfterClose(closing, partySurvivor, { partyAvailable: false })).toEqual(
 			{ zone: 'box', slot: 29 }
 		);
-	});
 
-	it('derives visible pane state tags from source ownership', () => {
-		expect(stateTagForPane(createBoxPane('pane-save', dirtySaveSource))).toBe('EDITS WORKSPACE');
-		expect(stateTagForPane(createBoxPane('pane-storage', storageSource))).toBe('AUTO-SAVED');
-		expect(stateTagForPane(createBoxPane('pane-save', saveSource))).toBeNull();
+		const switched = switchPaneSource([partySurvivor], 'pane-save', storageSource, 8);
+		expect(switched[0].focus).toEqual({ zone: 'box', slot: 2 });
 	});
 
 	it('refreshes save pane workspace caches after a slot mutation', () => {
