@@ -161,6 +161,7 @@ final class ControllerNavigationTests: XCTestCase {
             "window.__pksxControllerDetails?.includes('x:false:true')",
             in: webView
         )
+        _ = try await webView.evaluateJavaScript("window.__pksxControllerEvents = []")
         controller.extendedGamepad?.buttonB.setValue(1)
         try await waitForJavaScript(
             "document.querySelector('[role=dialog][aria-label=\"Box Menu\"]') === null",
