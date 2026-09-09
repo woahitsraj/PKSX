@@ -208,7 +208,9 @@
 			const snapshot = await getSavesSnapshot({ force: options.force });
 			if (request !== refreshRequest) return;
 			applySnapshot(snapshot, options.preferredTarget ?? rememberedTarget(), options.focus);
-			pokemonStorage = summarizePokemonStorage(await storageSummary);
+			const resolvedStorageSummary = await storageSummary;
+			if (request !== refreshRequest) return;
+			pokemonStorage = summarizePokemonStorage(resolvedStorageSummary);
 		} catch (error) {
 			if (request !== refreshRequest) return;
 			catalogLoading = false;
@@ -271,6 +273,12 @@
 			return;
 		}
 		if (summonedWorkflow.active) return;
+		if (
+			!isControllerKeyboardEvent(event) &&
+			(!gridElement || !event.composedPath().includes(gridElement))
+		) {
+			return;
+		}
 
 		const direction = directionForKey(event.key);
 		if (direction) {
@@ -288,12 +296,6 @@
 		}
 
 		if (event.key !== 'Enter' && event.key !== ' ') return;
-		if (
-			!isControllerKeyboardEvent(event) &&
-			(!gridElement || !event.composedPath().includes(gridElement))
-		) {
-			return;
-		}
 		event.preventDefault();
 		const focusedMenuButton =
 			document.activeElement instanceof HTMLElement
@@ -449,15 +451,18 @@
 
 	async function requestDelete() {
 		const saveFile = menuSaveFile;
-		if (!saveFile || busyTarget) return;
+		const launchingWorkflow = summonedWorkflow.active;
+		if (!saveFile || busyTarget || launchingWorkflow?.kind !== 'save-file-menu') return;
 		try {
 			const current = await storage.getSave(saveFile.id);
+			if (summonedWorkflow.active !== launchingWorkflow || menuSaveFileId !== saveFile.id) return;
 			if (!current) throw new Error('The selected Save File is no longer available.');
 			const cachedWorkspace = getCachedActiveWorkspace();
 			const persistedWorkspace =
 				cachedWorkspace?.file.id === current.id
 					? cachedWorkspace
 					: await storage.getWorkspace(current.id);
+			if (summonedWorkflow.active !== launchingWorkflow || menuSaveFileId !== saveFile.id) return;
 			deleteDescription = deletionWarning(
 				current,
 				current.id === activeSaveFileId,
@@ -470,6 +475,7 @@
 			menuIndex = 0;
 			void focusMenuCommand(0);
 		} catch (error) {
+			if (summonedWorkflow.active !== launchingWorkflow || menuSaveFileId !== saveFile.id) return;
 			showToast('error', getErrorMessage(error));
 		}
 	}

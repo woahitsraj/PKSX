@@ -2760,6 +2760,12 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	});
 	let dismissNotification = page.getByRole('button', { name: 'Dismiss notification' });
 	await dismissNotification.focus();
+	const alphaTarget = await grid.getAttribute('aria-activedescendant');
+	await page.keyboard.press('ArrowLeft');
+	await page.keyboard.press('x');
+	await expect(dismissNotification).toBeFocused();
+	await expect(grid).toHaveAttribute('aria-activedescendant', alphaTarget!);
+	await expect(page.getByRole('dialog', { name: 'Save File Menu' })).toBeHidden();
 	await page.keyboard.press('Enter');
 	await expect(dismissNotification).toBeHidden();
 	await expect(page).toHaveURL(/\/saves$/);
@@ -2842,6 +2848,62 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await page.locator('.edge-menu-backdrop').click({ position: { x: 8, y: 8 } });
 	await expect(grid).toHaveAttribute('aria-activedescendant', betaTarget!);
 	await expect(grid).toBeFocused();
+
+	await alphaCard.getByRole('button', { name: /Open Save File Menu/ }).click();
+	menu = page.getByRole('dialog', { name: 'Save File Menu' });
+	await page.evaluate(() => {
+		const descriptor = Object.getOwnPropertyDescriptor(IDBTransaction.prototype, 'oncomplete');
+		if (!descriptor?.get || !descriptor.set) throw new Error('Missing IDB completion accessors.');
+		let armed = true;
+		Object.defineProperty(IDBTransaction.prototype, 'oncomplete', {
+			...descriptor,
+			set: function (this: IDBTransaction, handler: IDBTransaction['oncomplete']) {
+				if (!armed || !this.objectStoreNames.contains('saveFiles')) {
+					descriptor.set!.call(this, handler);
+					return;
+				}
+				armed = false;
+				descriptor.set!.call(this, (event: Event) => {
+					const testWindow = window as typeof window & {
+						__pksxSaveReadHeld?: boolean;
+						__pksxReleaseSaveRead?: () => void;
+						__pksxSaveReadSettled?: boolean;
+					};
+					testWindow.__pksxSaveReadHeld = true;
+					testWindow.__pksxReleaseSaveRead = () => {
+						Object.defineProperty(IDBTransaction.prototype, 'oncomplete', descriptor);
+						handler?.call(this, event);
+						setTimeout(() => (testWindow.__pksxSaveReadSettled = true), 0);
+					};
+				});
+			}
+		});
+	});
+	await menu.getByRole('button', { name: 'Delete from Saves' }).click();
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() =>
+					(window as typeof window & { __pksxSaveReadHeld?: boolean }).__pksxSaveReadHeld === true
+			)
+		)
+		.toBe(true);
+	await page.keyboard.press('Escape');
+	await expect(menu).toBeHidden();
+	await page.evaluate(() =>
+		(window as typeof window & { __pksxReleaseSaveRead?: () => void }).__pksxReleaseSaveRead?.()
+	);
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() =>
+					(window as typeof window & { __pksxSaveReadSettled?: boolean }).__pksxSaveReadSettled ===
+					true
+			)
+		)
+		.toBe(true);
+	await expect(page.getByRole('dialog', { name: 'Delete alpha.sav?' })).toBeHidden();
+	await expect(page.getByRole('button', { name: 'Open Main Menu' })).toBeVisible();
 
 	await alphaCard.getByRole('button', { name: /Open Save File Menu/ }).click();
 	menu = page.getByRole('dialog', { name: 'Save File Menu' });
