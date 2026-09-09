@@ -199,7 +199,7 @@ final class ControllerNavigationTests: XCTestCase {
     private func controllerSurface() async throws -> WKWebView {
         let webView = try appWebView()
         try await waitForJavaScript(
-            "document.readyState === 'complete' && document.querySelector('.main-menu-opener') !== null",
+            "document.readyState === 'complete' && document.querySelector('.main-menu-opener') !== null && ((document.querySelector('.boxes-route')?.dataset.initialState === 'ready' && document.querySelector('#box-grid')?.getClientRects().length > 0) || document.querySelector('[data-destination-root]')?.dataset.destinationRoot === 'saves')",
             in: webView
         )
         let hasBoxGrid = try await webView.evaluateJavaScript(
