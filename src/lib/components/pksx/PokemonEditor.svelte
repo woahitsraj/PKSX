@@ -535,9 +535,9 @@
 		editingInputId = id;
 		void tick().then(() => {
 			const input = document.getElementById(id);
-			if (input instanceof HTMLInputElement) {
+			if (input instanceof HTMLElement) {
 				input.focus();
-				if (selectValue) input.select();
+				if (selectValue && input instanceof HTMLInputElement) input.select();
 			}
 		});
 	}
@@ -561,6 +561,28 @@
 			event.stopPropagation();
 			deactivateDraftInput(id);
 		}
+	}
+
+	function handleEditorFieldActivation(event: PointerEvent | MouseEvent) {
+		const target = event.target;
+		if (target instanceof HTMLSelectElement && target.id && target.closest('.editor-content')) {
+			activateDraftInput(target.id, false);
+		}
+	}
+
+	function handleEditorFocusOut(event: FocusEvent) {
+		if (event.target instanceof HTMLSelectElement) deactivateDraftInput(event.target.id);
+	}
+
+	function attachEditorFields(node: HTMLDivElement) {
+		node.addEventListener('pointerdown', handleEditorFieldActivation);
+		node.addEventListener('click', handleEditorFieldActivation);
+		node.addEventListener('focusout', handleEditorFocusOut);
+		return () => {
+			node.removeEventListener('pointerdown', handleEditorFieldActivation);
+			node.removeEventListener('click', handleEditorFieldActivation);
+			node.removeEventListener('focusout', handleEditorFocusOut);
+		};
 	}
 
 	function draftInputEditingValue(id: string) {
@@ -1284,9 +1306,11 @@
 </script>
 
 <div
+	{@attach attachEditorFields}
 	class="pokemon-editor pksx-density"
 	style={slotHueStyle}
 	data-editor-section={session.section}
+	data-editor-entered-field={editingInputId ?? undefined}
 	onfocusin={handleEditorFocus}
 >
 	<header class="editor-header">
@@ -2152,7 +2176,12 @@
 													searchLabel={`Search moves for Move ${index + 1}`}
 													searchPlaceholder="Search moves"
 													disabled={applying}
+													requireExplicitEntry
 													onSelect={(value) => setMove(index, value)}
+													onOpenChange={(open) =>
+														open
+															? activateDraftInput(`pokemon-editor-move-${index}`, false)
+															: deactivateDraftInput(`pokemon-editor-move-${index}`)}
 												/>
 											</div>
 											<label>

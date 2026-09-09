@@ -910,6 +910,7 @@
 
 	function dispatchPokemonEditor(action: NavigationAction) {
 		if (action === 'previousBox' || action === 'nextBox') {
+			exitPokemonEditorEnteredField();
 			pageActivePokemonEditorSection(action === 'previousBox' ? -1 : 1);
 			return;
 		}
@@ -928,7 +929,7 @@
 			return;
 		}
 
-		if (changeFocusedPokemonEditorSelect(action)) {
+		if (dispatchPokemonEditorEnteredField(action)) {
 			return;
 		}
 
@@ -1222,33 +1223,71 @@
 		return best?.control ?? null;
 	}
 
-	function changeFocusedPokemonEditorSelect(action: NavigationAction) {
-		const select = document.activeElement;
-		if (
-			!(select instanceof HTMLSelectElement) ||
-			!select.closest('.pokemon-editor') ||
-			action !== 'confirm'
-		) {
-			return false;
-		}
+	function dispatchPokemonEditorEnteredField(action: NavigationAction) {
+		const editor = document.querySelector<HTMLElement>('.pokemon-editor');
+		const enteredId = editor?.dataset.editorEnteredField;
+		if (!editor || !enteredId) return false;
 
-		const options = Array.from(select.options).filter((option) => !option.disabled);
-		if (options.length === 0) {
+		const field = document.getElementById(enteredId);
+		if (!(field instanceof HTMLElement) || !editor.contains(field)) return false;
+
+		if (action === 'back') {
+			exitPokemonEditorEnteredField();
 			return true;
 		}
 
+		if (
+			field instanceof HTMLSelectElement &&
+			(action === 'left' || action === 'right' || action === 'up' || action === 'down')
+		) {
+			changeEnteredPokemonEditorSelect(field, action === 'left' || action === 'up' ? -1 : 1);
+			return true;
+		}
+
+		if (
+			field instanceof HTMLInputElement &&
+			field.type === 'number' &&
+			(action === 'up' || action === 'down')
+		) {
+			if (action === 'up') field.stepUp();
+			else field.stepDown();
+			field.dispatchEvent(new Event('input', { bubbles: true }));
+			return true;
+		}
+
+		return (
+			field instanceof HTMLInputElement &&
+			(action === 'left' || action === 'right' || action === 'up' || action === 'down')
+		);
+	}
+
+	function changeEnteredPokemonEditorSelect(select: HTMLSelectElement, offset: -1 | 1) {
+		const options = Array.from(select.options).filter((option) => !option.disabled);
+		if (options.length === 0) return;
 		const current = Math.max(
 			0,
 			options.findIndex((option) => option.value === select.value)
 		);
-		const next = options[(current + 1) % options.length];
-		if (!next) {
-			return true;
-		}
-
+		const next = options[(current + offset + options.length) % options.length];
+		if (!next) return;
 		select.value = next.value;
 		select.dispatchEvent(new Event('change', { bubbles: true }));
-		return true;
+	}
+
+	function exitPokemonEditorEnteredField() {
+		const editor = document.querySelector<HTMLElement>('.pokemon-editor');
+		const enteredId = editor?.dataset.editorEnteredField;
+		const field = enteredId ? document.getElementById(enteredId) : null;
+		if (!(field instanceof HTMLElement) || !editor?.contains(field)) return;
+
+		if (field.closest('[data-combobox-open="true"]')) {
+			field.click();
+			return;
+		}
+
+		const active = document.activeElement;
+		if (active instanceof HTMLElement && editor.contains(active)) active.blur();
+		field.focus();
 	}
 
 	function activatePokemonEditorControl() {
@@ -3360,7 +3399,7 @@
 			...pokemonEditorSession,
 			focus: { zone: 'rail', section: pokemonEditorSession.section }
 		};
-		document.getElementById(`pokemon-editor-section-${pokemonEditorSession.section}`)?.focus();
+		revealPokemonEditorRailSection(pokemonEditorSession.section);
 	}
 
 	function focusPokemonEditorContent(preferLast = false) {
@@ -3385,10 +3424,16 @@
 	function focusPokemonEditorSession() {
 		const focus = pokemonEditorSession.focus;
 		if (focus.zone === 'rail') {
-			document.getElementById(`pokemon-editor-section-${focus.section}`)?.focus();
+			revealPokemonEditorRailSection(focus.section);
 			return;
 		}
 		document.getElementById(focus.control)?.focus();
+	}
+
+	function revealPokemonEditorRailSection(section: PokemonEditorSectionId) {
+		const target = document.getElementById(`pokemon-editor-section-${section}`);
+		target?.focus();
+		target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 
 	async function openLegalityReport() {
