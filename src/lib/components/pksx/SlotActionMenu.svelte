@@ -25,6 +25,7 @@
 		viewportTop?: number | null;
 		viewportLeft?: number | null;
 		activeIndex: number;
+		suspended?: boolean;
 		createPokemonAvailable?: boolean;
 		onFocusCommand: (index: number) => void;
 		onSelectCommand: (command: SlotActionCommandKey) => void;
@@ -38,6 +39,7 @@
 		viewportTop = null,
 		viewportLeft = null,
 		activeIndex,
+		suspended = false,
 		createPokemonAvailable = false,
 		onFocusCommand,
 		onSelectCommand,
@@ -125,9 +127,12 @@
 
 <div
 	class={['slot-context', viewportTop !== null && viewportLeft !== null && 'viewport-anchored']}
+	class:suspended
 	role="dialog"
 	aria-label="Slot actions"
 	tabindex="0"
+	inert={suspended}
+	aria-hidden={suspended ? 'true' : undefined}
 	style:--mobile-surface-top={mobileTop === null ? undefined : `${mobileTop}px`}
 	style:--viewport-surface-top={viewportTop === null ? undefined : `${viewportTop}px`}
 	style:--viewport-surface-left={viewportLeft === null ? undefined : `${viewportLeft}px`}
@@ -192,6 +197,11 @@
 	.slot-context.viewport-anchored {
 		opacity: 1;
 		pointer-events: auto;
+	}
+
+	.slot-context.suspended {
+		z-index: 60;
+		pointer-events: none;
 	}
 
 	.slot-context-header {

@@ -59,14 +59,11 @@ export type NavigationAction =
 
 export type BoxNavigationState = {
 	focus: ControllerFocus;
-	actionOrigin: SlotFocus | null;
 	activeBox: number;
 	boxCount: number;
-	actionSurfaceOpen: boolean;
 };
 
 export type NavigationOptions = {
-	actionCount?: number;
 	topControlCount?: number;
 	paneControlCount?: number;
 	mobileTabCount?: number;
@@ -76,18 +73,11 @@ export type NavigationOptions = {
 };
 
 type ResolvedNavigationOptions = Required<NavigationOptions>;
-type NavigationCommand = Exclude<NavigationAction, 'up' | 'down' | 'left' | 'right'>;
+type NavigationCommand = Exclude<NavigationAction, 'up' | 'down' | 'left' | 'right' | 'confirm'>;
 type FocusMovement = (
 	focus: ControllerFocus,
 	options: ResolvedNavigationOptions
 ) => ControllerFocus;
-
-const actionCommandOffsets: Partial<Record<NavigationAction, -1 | 1>> = {
-	up: -1,
-	left: -1,
-	down: 1,
-	right: 1
-};
 
 const focusMovements: Partial<Record<NavigationAction, FocusMovement>> = {
 	up: moveUp,
@@ -99,10 +89,8 @@ const focusMovements: Partial<Record<NavigationAction, FocusMovement>> = {
 export function createInitialNavigationState(boxCount: number): BoxNavigationState {
 	return {
 		focus: { zone: 'box', slot: 0 },
-		actionOrigin: null,
 		activeBox: 0,
-		boxCount: Math.max(1, boxCount),
-		actionSurfaceOpen: false
+		boxCount: Math.max(1, boxCount)
 	};
 }
 
@@ -113,19 +101,16 @@ export function applyNavigationAction(
 ): BoxNavigationState {
 	const resolvedOptions = resolveNavigationOptions(options);
 
-	if (state.actionSurfaceOpen || state.focus.zone === 'actions') {
-		return applyActionSurfaceAction(state, action, resolvedOptions.actionCount);
-	}
-
 	const moveFocus = focusMovements[action];
 	return moveFocus
 		? { ...state, focus: moveFocus(state.focus, resolvedOptions) }
-		: applyNavigationCommand(state, action as NavigationCommand, resolvedOptions.actionCount);
+		: action === 'confirm'
+			? state
+			: applyNavigationCommand(state, action as NavigationCommand);
 }
 
 function resolveNavigationOptions(options: NavigationOptions): ResolvedNavigationOptions {
 	return {
-		actionCount: Math.max(1, options.actionCount ?? 1),
 		topControlCount: Math.max(1, options.topControlCount ?? TOP_CONTROL_COUNT),
 		paneControlCount: Math.max(0, options.paneControlCount ?? 0),
 		mobileTabCount: Math.max(1, options.mobileTabCount ?? MOBILE_TAB_COUNT),
@@ -135,33 +120,11 @@ function resolveNavigationOptions(options: NavigationOptions): ResolvedNavigatio
 	};
 }
 
-function applyActionSurfaceAction(
-	state: BoxNavigationState,
-	action: NavigationAction,
-	actionCount: number
-): BoxNavigationState {
-	if (state.focus.zone !== 'actions') {
-		return action === 'back' ? closeActionSurface(state) : state;
-	}
-
-	const offset = actionCommandOffsets[action];
-	if (offset) {
-		return { ...state, focus: focusActionCommand(state.focus.index + offset, actionCount) };
-	}
-
-	return action === 'back' || (action === 'confirm' && state.focus.index === actionCount - 1)
-		? closeActionSurface(state)
-		: state;
-}
-
 function applyNavigationCommand(
 	state: BoxNavigationState,
-	action: NavigationCommand,
-	actionCount: number
+	action: NavigationCommand
 ): BoxNavigationState {
 	switch (action) {
-		case 'confirm':
-			return openActionSurface(state, actionCount);
 		case 'previousBox':
 			return changeActiveBox(state, -1);
 		case 'nextBox':
@@ -170,17 +133,6 @@ function applyNavigationCommand(
 		case 'sourceAction':
 			return state;
 	}
-}
-
-function openActionSurface(state: BoxNavigationState, actionCount: number): BoxNavigationState {
-	return isSlotFocus(state.focus)
-		? {
-				...state,
-				actionOrigin: state.focus,
-				actionSurfaceOpen: true,
-				focus: focusActionCommand(0, actionCount)
-			}
-		: state;
 }
 
 function changeActiveBox(state: BoxNavigationState, offset: -1 | 1): BoxNavigationState {
@@ -257,19 +209,6 @@ export function getBoxSlotPosition(slot: number): { row: number; column: number 
 		row: Math.floor(clampedSlot / BOX_COLUMNS),
 		column: clampedSlot % BOX_COLUMNS
 	};
-}
-
-function closeActionSurface(state: BoxNavigationState): BoxNavigationState {
-	return {
-		...state,
-		focus: state.actionOrigin ?? state.focus,
-		actionOrigin: null,
-		actionSurfaceOpen: false
-	};
-}
-
-function isSlotFocus(focus: ControllerFocus): focus is SlotFocus {
-	return focus.zone === 'party' || focus.zone === 'box';
 }
 
 function focusFirstRowForBoxChange(focus: ControllerFocus): ControllerFocus {

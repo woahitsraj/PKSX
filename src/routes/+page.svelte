@@ -27,6 +27,7 @@
 		PARTY_SLOT_COUNT,
 		selectActiveBox,
 		type BoxNavigationState,
+		type ControllerFocus,
 		type NavigationAction,
 		type SlotFocus
 	} from '$lib/pksx/box-navigation';
@@ -138,6 +139,20 @@
 		pokemonEditSuccessMessage,
 		stagePokemonEditorDraftEdits
 	} from '$lib/pksx/box-shell';
+	import {
+		closeSummonedWorkflows,
+		createSummonedWorkflowOwner,
+		dispatchSlotMenuAction,
+		dismissSummonedWorkflow,
+		getLaunchingSlot,
+		isDestinationInputSuspended,
+		isSummonedWorkflowPresented,
+		openRelatedSummonedWorkflow,
+		openSummonedWorkflow,
+		type SummonedWorkflowKind,
+		type SummonedWorkflowLauncher,
+		type SummonedWorkflowOwner
+	} from '$lib/pksx/summoned-workflow';
 
 	type ToastView = {
 		id: string;
@@ -444,12 +459,12 @@
 	let carryState = $state<CarryState | null>(null);
 	let clearSlotConfirmation = $state<ClearSlotConfirmation | null>(null);
 	let clearSlotConfirmFocusIndex = $state(0);
+	let summonedWorkflow = $state<SummonedWorkflowOwner>(createSummonedWorkflowOwner());
 	let toasts = $state<ToastView[]>([]);
 	let workbenchPanes = $state<BoxPaneState[]>([
 		createBoxPane('pane-pokemon-storage', pokemonStorageSource(), { boxCount: placeholderBoxCount })
 	]);
 	let activePaneId = $state('pane-pokemon-storage');
-	let sourcePickerOpen = $state(false);
 	let sourcePickerTargetPaneId = $state<string | null>(null);
 	let sourcePickerFocusIndex = $state(0);
 	let saveFiles = $state<StoredSaveFile[]>([]);
@@ -460,6 +475,11 @@
 	let workspaceLoadRequest = 0;
 
 	const controllerConnected = $derived(appChrome.controllerStatus !== null);
+	const activeSummonedWorkflow = $derived(summonedWorkflow.active);
+	const sourcePickerOpen = $derived(activeSummonedWorkflow?.kind === 'source-picker');
+	const slotMenuPresented = $derived(isSummonedWorkflowPresented(summonedWorkflow, 'slot-menu'));
+	const destinationInputSuspended = $derived(isDestinationInputSuspended(summonedWorkflow));
+	const summonedSlotLauncher = $derived(getLaunchingSlot(summonedWorkflow));
 	const mobileTabsAvailable = $derived(viewportWidth <= 1024);
 	const activePane = $derived(
 		workbenchPanes.find((pane) => pane.id === activePaneId) ?? workbenchPanes[0]
@@ -478,9 +498,8 @@
 			? null
 			: (navigation.focus.zone === 'party' && partyAvailable) || navigation.focus.zone === 'box'
 				? navigation.focus
-				: navigation.actionSurfaceOpen &&
-					  (navigation.actionOrigin?.zone !== 'party' || partyAvailable)
-					? navigation.actionOrigin
+				: summonedSlotLauncher && (summonedSlotLauncher.focus.zone !== 'party' || partyAvailable)
+					? summonedSlotLauncher.focus
 					: null
 	);
 	const focusedSlot = $derived(
@@ -616,34 +635,28 @@
 			return true;
 		}
 
-		if (sourcePickerOpen) {
-			dispatchSourcePicker(action);
-			return true;
-		}
-
-		if (clearSlotConfirmation) {
-			dispatchClearSlotConfirmation(action);
-			return true;
-		}
-
-		if (pokemonCreation) {
-			dispatchPokemonCreation(action);
-			return true;
-		}
-
-		if (pokemonAction.status !== 'idle') {
-			dispatchPokemonAction(action);
-			return true;
-		}
-
-		if (pokemonEditor) {
-			dispatchPokemonEditor(action);
-			return true;
-		}
-
-		if (legalityReport.status !== 'idle') {
-			if (action === 'back' || action === 'confirm') closeLegalityReport();
-			return true;
+		switch (activeSummonedWorkflow?.kind) {
+			case 'slot-menu':
+				dispatchSlotMenu(action);
+				return true;
+			case 'source-picker':
+				dispatchSourcePicker(action);
+				return true;
+			case 'clear-slot-confirmation':
+				dispatchClearSlotConfirmation(action);
+				return true;
+			case 'pokemon-creation':
+				dispatchPokemonCreation(action);
+				return true;
+			case 'pokemon-actions':
+				dispatchPokemonAction(action);
+				return true;
+			case 'pokemon-editor':
+				dispatchPokemonEditor(action);
+				return true;
+			case 'legality-report':
+				if (action === 'back' || action === 'confirm') closeLegalityReport();
+				return true;
 		}
 
 		if (pendingSlotOperation && action === 'back') {
@@ -661,10 +674,14 @@
 
 	function dispatchNavigation(action: NavigationAction) {
 		const previousFocus = navigation.focus;
+		if (action === 'confirm' && isSlotFocus(previousFocus)) {
+			openSlotMenu(previousFocus);
+			return;
+		}
+
 		const pane = activePane;
 		const previousBox = activePaneBox;
 		navigation = applyNavigationAction(navigation, action, {
-			actionCount: getActionCountForFocusedSlot(),
 			topControlCount,
 			paneControlCount: activePaneControlCount,
 			mobileTabCount,
@@ -699,6 +716,19 @@
 		void updateActionSurfaceAnchor();
 	}
 
+	function dispatchSlotMenu(action: NavigationAction) {
+		const result = dispatchSlotMenuAction(navigation.focus, action, getActionCountForFocusedSlot());
+		navigation = { ...navigation, focus: result.focus };
+
+		if (result.effect === 'dismiss') {
+			closeActionSurface();
+		} else if (result.effect === 'activate') {
+			activateFocusedControl();
+		} else {
+			queueMicrotask(focusActiveControl);
+		}
+	}
+
 	function dispatchSourcePicker(action: NavigationAction) {
 		const controls = sourcePickerControls();
 
@@ -730,13 +760,7 @@
 			return;
 		}
 
-		if (
-			pokemonCreation ||
-			pokemonEditor ||
-			clearSlotConfirmation ||
-			pokemonAction.status !== 'idle' ||
-			legalityReport.status !== 'idle'
-		) {
+		if (activeSummonedWorkflow) {
 			return;
 		}
 
@@ -1270,6 +1294,53 @@
 		dispatch('confirm');
 	}
 
+	function slotLauncher(focus: SlotFocus): SummonedWorkflowLauncher {
+		return {
+			type: 'slot',
+			paneId: activePaneId,
+			box: focus.zone === 'box' ? activePaneBox : null,
+			focus
+		};
+	}
+
+	function controlLauncher(id: string, focus: ControllerFocus): SummonedWorkflowLauncher {
+		return { type: 'control', id, focus };
+	}
+
+	function launcherForFocus(focus: ControllerFocus): SummonedWorkflowLauncher {
+		return isSlotFocus(focus)
+			? slotLauncher(focus)
+			: controlLauncher(getFocusId(focus, activePaneBox), focus);
+	}
+
+	function openSlotMenu(focus: SlotFocus) {
+		const nextOwner = openSummonedWorkflow(summonedWorkflow, 'slot-menu', slotLauncher(focus));
+		if (nextOwner === summonedWorkflow) return;
+
+		summonedWorkflow = nextOwner;
+		navigation = { ...navigation, focus: { zone: 'actions', index: 0 } };
+		queueMicrotask(focusActiveControl);
+		void updateActionSurfaceAnchor();
+	}
+
+	function openRelatedWorkflow(kind: SummonedWorkflowKind) {
+		const launcherFocus = navigation.focus;
+		summonedWorkflow = openRelatedSummonedWorkflow(
+			summonedWorkflow,
+			kind,
+			controlLauncher(getFocusId(launcherFocus, activePaneBox), launcherFocus)
+		);
+	}
+
+	function dismissActiveWorkflow() {
+		const dismissed = dismissSummonedWorkflow(summonedWorkflow);
+		summonedWorkflow = dismissed.owner;
+		if (dismissed.returnFocus) {
+			navigation = { ...navigation, focus: dismissed.returnFocus };
+		}
+		queueMicrotask(focusActiveControl);
+	}
+
 	function closeActionSurface() {
 		pokemonCreationRequest += 1;
 		pokemonCreation = null;
@@ -1282,7 +1353,7 @@
 		pokemonActionContext = null;
 		legalityReportRequest += 1;
 		legalityReport = { status: 'idle' };
-		dispatch('back');
+		dismissActiveWorkflow();
 	}
 
 	function slotRefForFocus(
@@ -1565,9 +1636,7 @@
 				focus:
 					destination.zone === 'party'
 						? focusPartySlot(destination.slot)
-						: focusBoxSlot(destination.slot),
-				actionSurfaceOpen: false,
-				actionOrigin: null
+						: focusBoxSlot(destination.slot)
 			};
 			statusMessage =
 				pending.kind === 'move'
@@ -1638,9 +1707,7 @@
 				focus:
 					destination.zone === 'party'
 						? focusPartySlot(destination.slot)
-						: focusBoxSlot(destination.slot),
-				actionSurfaceOpen: false,
-				actionOrigin: null
+						: focusBoxSlot(destination.slot)
 			};
 			statusMessage =
 				pending.kind === 'move'
@@ -1753,9 +1820,7 @@
 				activeBox: focusRef.zone === 'box' ? focusRef.box : operationBox,
 				boxCount: Math.max(1, result.state.workspace.summary.boxCount),
 				focus:
-					focusRef.zone === 'party' ? focusPartySlot(focusRef.slot) : focusBoxSlot(focusRef.slot),
-				actionSurfaceOpen: false,
-				actionOrigin: null
+					focusRef.zone === 'party' ? focusPartySlot(focusRef.slot) : focusBoxSlot(focusRef.slot)
 			};
 			statusMessage = result.message;
 			queueMicrotask(focusActiveControl);
@@ -1807,11 +1872,11 @@
 		pokemonEditorApplyRequest += 1;
 		pokemonEditor = null;
 		pokemonEditorFeedback = null;
+		const sourceFocus = summonedSlotLauncher?.focus ?? activeSlotFocus ?? focusBoxSlot(0);
+		summonedWorkflow = closeSummonedWorkflows();
 		navigation = {
 			...navigation,
-			actionSurfaceOpen: false,
-			actionOrigin: null,
-			focus: activeSlotFocus ?? navigation.actionOrigin ?? focusBoxSlot(0)
+			focus: sourceFocus
 		};
 		queueMicrotask(focusActiveControl);
 	}
@@ -1865,11 +1930,16 @@
 		pokemonEditorApplyRequest += 1;
 		pokemonEditor = null;
 		pokemonEditorFeedback = null;
+		const launcher =
+			summonedSlotLauncher ?? slotLauncher(activeSlotFocus ?? { zone: 'box', slot: 0 });
+		summonedWorkflow = openSummonedWorkflow(
+			closeSummonedWorkflows(),
+			'clear-slot-confirmation',
+			launcher
+		);
 		navigation = {
 			...navigation,
-			actionSurfaceOpen: false,
-			actionOrigin: null,
-			focus: activeSlotFocus ?? navigation.actionOrigin ?? focusBoxSlot(0)
+			focus: launcher.focus
 		};
 		queueMicrotask(focusClearSlotConfirmation);
 	}
@@ -1891,7 +1961,7 @@
 	function cancelClearSlot() {
 		clearSlotConfirmation = null;
 		clearSlotConfirmFocusIndex = 0;
-		queueMicrotask(focusActiveControl);
+		dismissActiveWorkflow();
 	}
 
 	function confirmClearSlot() {
@@ -1902,6 +1972,7 @@
 		void applySlotOperation({ kind: 'clear', source: clearSlotConfirmation.source });
 		clearSlotConfirmation = null;
 		clearSlotConfirmFocusIndex = 0;
+		dismissActiveWorkflow();
 	}
 
 	function showToast(tone: ToastView['tone'], message: string) {
@@ -2024,21 +2095,25 @@
 	}
 
 	function openSourcePicker(targetPaneId: string | null = null) {
-		if (targetPaneId === activeSavePaneId) {
+		if (targetPaneId === activeSavePaneId || activeSummonedWorkflow) {
 			return;
 		}
 
+		const launcherFocus = navigation.focus;
 		sourcePickerTargetPaneId = targetPaneId;
 		sourcePickerFocusIndex = 0;
-		sourcePickerOpen = true;
+		summonedWorkflow = openSummonedWorkflow(
+			summonedWorkflow,
+			'source-picker',
+			launcherForFocus(launcherFocus)
+		);
 		queueMicrotask(() => focusSourcePickerControl(0));
 	}
 
 	function closeSourcePicker() {
 		sourcePickerTargetPaneId = null;
-		sourcePickerOpen = false;
 		sourcePickerFocusIndex = 0;
-		queueMicrotask(focusActiveControl);
+		dismissActiveWorkflow();
 	}
 
 	function closeSourcePickerFromBackdrop(event: MouseEvent) {
@@ -2067,7 +2142,7 @@
 			focus: focusForSource()
 		};
 		sourcePickerTargetPaneId = null;
-		sourcePickerOpen = false;
+		summonedWorkflow = closeSummonedWorkflows();
 		if (source.type === 'save-file') {
 			void refreshPaneWorkspace(id, 0);
 		}
@@ -2098,7 +2173,7 @@
 			focus: focusForSource()
 		};
 		sourcePickerTargetPaneId = null;
-		sourcePickerOpen = false;
+		summonedWorkflow = closeSummonedWorkflows();
 		if (source.type === 'save-file') {
 			void refreshPaneWorkspace(paneId, 0);
 		} else {
@@ -2334,7 +2409,11 @@
 
 	async function openPokemonActions() {
 		const activeEngine = engine;
-		if (!navigation.actionSurfaceOpen || focusedSlot.kind !== 'pokemon' || !activeEngine) {
+		if (
+			activeSummonedWorkflow?.kind !== 'slot-menu' ||
+			focusedSlot.kind !== 'pokemon' ||
+			!activeEngine
+		) {
 			return;
 		}
 
@@ -2388,9 +2467,13 @@
 		const request = (pokemonActionRequest += 1);
 		pokemonActionContext = context;
 		pokemonAction = createPokemonActionLoadingState(location, focusedSlot.label);
+		openRelatedWorkflow('pokemon-actions');
 		statusMessage = 'Loading Pokemon Actions...';
 
-		const result = await requestPokemonActionPreview(activeEngine, context.target);
+		const resultPromise = requestPokemonActionPreview(activeEngine, context.target);
+		await tick();
+		focusPokemonActionControl(0);
+		const result = await resultPromise;
 		if (request !== pokemonActionRequest) {
 			return;
 		}
@@ -2585,12 +2668,11 @@
 		pokemonActionRequest += 1;
 		pokemonAction = { status: 'idle' };
 		pokemonActionContext = null;
-		navigation = { ...navigation, focus: { zone: 'actions', index: 6 } };
-		queueMicrotask(focusActiveControl);
+		dismissActiveWorkflow();
 	}
 
 	function openPokemonCreation() {
-		if (!navigation.actionSurfaceOpen || focusedSlot.kind !== 'empty') {
+		if (activeSummonedWorkflow?.kind !== 'slot-menu' || focusedSlot.kind !== 'empty') {
 			return;
 		}
 
@@ -2606,6 +2688,7 @@
 			location: activeSlotPositionLabel
 		};
 		pokemonCreationFeedback = null;
+		openRelatedWorkflow('pokemon-creation');
 		void tick().then(() =>
 			requestAnimationFrame(() => document.getElementById('pokemon-creation-close')?.focus())
 		);
@@ -2617,8 +2700,7 @@
 		pokemonCreationRequest += 1;
 		pokemonCreation = null;
 		pokemonCreationFeedback = null;
-		navigation = { ...navigation, focus: { zone: 'actions', index: 0 } };
-		queueMicrotask(focusActiveControl);
+		dismissActiveWorkflow();
 	}
 
 	async function applyPokemonCreation(draft: PokemonCreationDraft) {
@@ -2707,14 +2789,13 @@
 			if (request === pokemonCreationRequest) {
 				pokemonCreation = null;
 				pokemonCreationFeedback = null;
+				summonedWorkflow = closeSummonedWorkflows();
 				navigation = {
 					...navigation,
 					focus:
 						view.destination.zone === 'party'
 							? focusPartySlot(view.destination.slot)
-							: focusBoxSlot(view.destination.slot),
-					actionSurfaceOpen: false,
-					actionOrigin: null
+							: focusBoxSlot(view.destination.slot)
 				};
 				statusMessage = message;
 				showToast('success', message);
@@ -2736,7 +2817,7 @@
 	}
 
 	function openPokemonEditor() {
-		if (!navigation.actionSurfaceOpen || focusedSlot.kind !== 'pokemon') {
+		if (activeSummonedWorkflow?.kind !== 'slot-menu' || focusedSlot.kind !== 'pokemon') {
 			return;
 		}
 
@@ -2758,6 +2839,7 @@
 		pokemonEditorApplyRequest += 1;
 		pokemonEditor = result.state;
 		pokemonEditorFeedback = null;
+		openRelatedWorkflow('pokemon-editor');
 		pokemonSpeciesFormProjection = null;
 		pokemonSpeciesFormError = null;
 		void previewPokemonSpeciesFormEdit({
@@ -2775,12 +2857,11 @@
 		pokemonSpeciesFormProjection = null;
 		pokemonSpeciesFormError = null;
 		pokemonSpeciesFormLoading = false;
-		navigation = { ...navigation, focus: { zone: 'actions', index: 0 } };
-		queueMicrotask(focusActiveControl);
+		dismissActiveWorkflow();
 	}
 
 	async function openLegalityReport() {
-		if (!navigation.actionSurfaceOpen) {
+		if (activeSummonedWorkflow?.kind !== 'slot-menu') {
 			return;
 		}
 
@@ -2789,6 +2870,7 @@
 		const source = slotRefForFocus();
 		const location = activeSlotPositionLabel;
 		legalityReport = createLegalityReportLoadingState(slot, location);
+		openRelatedWorkflow('legality-report');
 		statusMessage = 'Checking Pokemon legality...';
 
 		const result = await requestLegalityReport({
@@ -2821,7 +2903,7 @@
 	function closeLegalityReport() {
 		legalityReportRequest += 1;
 		legalityReport = { status: 'idle' };
-		queueMicrotask(focusActiveControl);
+		dismissActiveWorkflow();
 	}
 
 	function focusPokemonEditorClose() {
@@ -3092,7 +3174,7 @@
 	}
 
 	async function updateActionSurfaceAnchor() {
-		if (!navigation.actionSurfaceOpen) {
+		if (!slotMenuPresented) {
 			actionSurfaceTop = null;
 			actionSurfaceAnchor = null;
 			return;
@@ -3150,11 +3232,7 @@
 	}
 
 	function closeActionSurfaceFromOutside(event: PointerEvent) {
-		if (!navigation.actionSurfaceOpen) {
-			return;
-		}
-
-		if (pokemonCreation || pokemonEditor || pokemonAction.status !== 'idle') {
+		if (activeSummonedWorkflow?.kind !== 'slot-menu') {
 			return;
 		}
 
@@ -3164,15 +3242,12 @@
 			return;
 		}
 
-		if (
-			target.closest(
-				'.slot-cell, .slot-context, .box-arrow, .party-toggle, .pokemon-creation, .pokemon-editor, .pokemon-action-dialog, .legality-report'
-			)
-		) {
+		if (target.closest('.slot-context')) {
 			return;
 		}
 
 		closeActionSurface();
+		requestAnimationFrame(focusActiveControl);
 	}
 
 	function isFocused(zone: 'party' | 'box', slot: number) {
@@ -3536,10 +3611,13 @@
 	onresize={handleWindowResize}
 />
 
+<div class="status-announcer" role="status" aria-live="polite">{toolbarStatus}</div>
+
 <section
 	class="boxes-route"
 	aria-label="Boxes workspace"
 	data-initial-state={initialStateReady ? 'ready' : 'loading'}
+	inert={destinationInputSuspended}
 >
 	{#if importError}
 		<StatusStrip variant="error" label="Import error" message={importError} />
@@ -3563,11 +3641,7 @@
 							: (activePane?.source.label ?? 'Save File')}</strong
 					>
 				</div>
-				<div
-					class={['toolbar-status-strip', carryState && 'carry-status']}
-					role="status"
-					aria-live="polite"
-				>
+				<div class={['toolbar-status-strip', carryState && 'carry-status']}>
 					{toolbarStatus}
 				</div>
 				<button
@@ -3802,23 +3876,6 @@
 					</div>
 				{/each}
 			</div>
-
-			{#if navigation.actionSurfaceOpen && activeSlotFocus !== null}
-				<SlotActionMenu
-					slot={focusedSlot}
-					location={activeSlotFocus.zone === 'party'
-						? `Party slot ${activeSlotFocus.slot + 1}`
-						: `${activePane?.source.label ?? 'Box Source'}, Box ${activePaneBox + 1}, slot ${activeSlotFocus.slot + 1}`}
-					mobileTop={actionSurfaceTop}
-					viewportTop={actionSurfaceAnchor?.top ?? null}
-					viewportLeft={actionSurfaceAnchor?.left ?? null}
-					activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
-					createPokemonAvailable={createPokemonAvailability.available}
-					onFocusCommand={focusActionCommand}
-					onSelectCommand={selectSlotActionCommand}
-					onClose={closeActionSurface}
-				/>
-			{/if}
 		</div>
 
 		<DetailRail
@@ -3835,6 +3892,24 @@
 		/>
 	</section>
 </section>
+
+{#if slotMenuPresented && activeSlotFocus !== null}
+	<SlotActionMenu
+		slot={focusedSlot}
+		location={activeSlotFocus.zone === 'party'
+			? `Party slot ${activeSlotFocus.slot + 1}`
+			: `${activePane?.source.label ?? 'Box Source'}, Box ${activePaneBox + 1}, slot ${activeSlotFocus.slot + 1}`}
+		mobileTop={actionSurfaceTop}
+		viewportTop={actionSurfaceAnchor?.top ?? null}
+		viewportLeft={actionSurfaceAnchor?.left ?? null}
+		activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
+		suspended={activeSummonedWorkflow?.kind !== 'slot-menu'}
+		createPokemonAvailable={createPokemonAvailability.available}
+		onFocusCommand={focusActionCommand}
+		onSelectCommand={selectSlotActionCommand}
+		onClose={closeActionSurface}
+	/>
+{/if}
 
 {#if sourcePickerOpen}
 	<div class="source-picker-backdrop" role="presentation" onclick={closeSourcePickerFromBackdrop}>
@@ -3893,7 +3968,7 @@
 	</div>
 {/if}
 
-{#if pokemonCreation}
+{#if activeSummonedWorkflow?.kind === 'pokemon-creation' && pokemonCreation}
 	<PokemonCreation
 		location={pokemonCreation.location}
 		feedback={pokemonCreationFeedback}
@@ -3903,7 +3978,7 @@
 	/>
 {/if}
 
-{#if pokemonEditor}
+{#if activeSummonedWorkflow?.kind === 'pokemon-editor' && pokemonEditor}
 	{#key pokemonEditorDraftResetKey(pokemonEditor)}
 		<PokemonEditor
 			editor={pokemonEditor}
@@ -3923,7 +3998,7 @@
 	{/key}
 {/if}
 
-{#if pokemonAction.status !== 'idle'}
+{#if activeSummonedWorkflow?.kind === 'pokemon-actions' && pokemonAction.status !== 'idle'}
 	<PokemonActionDialog
 		state={pokemonAction}
 		onSelect={selectPokemonActionPreview}
@@ -3933,7 +4008,7 @@
 	/>
 {/if}
 
-{#if clearSlotConfirmation}
+{#if activeSummonedWorkflow?.kind === 'clear-slot-confirmation' && clearSlotConfirmation}
 	<ClearSlotConfirm
 		location={clearSlotConfirmation.location}
 		pokemonLabel={clearSlotConfirmation.pokemonLabel}
@@ -3944,7 +4019,7 @@
 	/>
 {/if}
 
-{#if legalityReport.status !== 'idle'}
+{#if activeSummonedWorkflow?.kind === 'legality-report' && legalityReport.status !== 'idle'}
 	<LegalityReportDialog state={legalityReport} onClose={closeLegalityReport} />
 {/if}
 
@@ -3976,6 +4051,18 @@
 		border: 0;
 		font: inherit;
 		cursor: pointer;
+	}
+
+	.status-announcer {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+		border: 0;
 	}
 
 	.boxes-route {
