@@ -56,6 +56,89 @@ async function pressController(page: Page, key: string) {
 	}, key);
 }
 
+async function installWorkspaceResponseHold(page: Page) {
+	await page.addInitScript(() => {
+		type TestWindow = typeof window & {
+			__pksxWorkspaceResponsesToHold?: number;
+			__pksxHeldWorkspaceResponses?: number;
+			__pksxReleaseWorkspaceResponses?: () => void;
+		};
+		const testWindow = window as TestWindow;
+		const NativeWorker = window.Worker;
+		const releases: Array<() => void> = [];
+		testWindow.__pksxWorkspaceResponsesToHold = 0;
+		testWindow.__pksxHeldWorkspaceResponses = 0;
+		testWindow.__pksxReleaseWorkspaceResponses = () => {
+			for (const release of releases.splice(0)) release();
+		};
+
+		window.Worker = new Proxy(NativeWorker, {
+			construct(Target, args: ConstructorParameters<typeof Worker>) {
+				const worker = new Target(...args);
+				const addEventListener = worker.addEventListener.bind(worker);
+				worker.addEventListener = ((type: string, listener: EventListenerOrEventListenerObject) => {
+					if (type !== 'message') {
+						addEventListener(type, listener);
+						return;
+					}
+					addEventListener(type, (event: Event) => {
+						const message = (event as MessageEvent).data as { method?: string } | null;
+						const remaining = testWindow.__pksxWorkspaceResponsesToHold ?? 0;
+						const invoke = () => {
+							if (typeof listener === 'function') listener.call(worker, event);
+							else listener.handleEvent(event);
+						};
+						if (message?.method !== 'loadSaveWorkspace' || remaining === 0) {
+							invoke();
+							return;
+						}
+						if (remaining > 0) testWindow.__pksxWorkspaceResponsesToHold = remaining - 1;
+						testWindow.__pksxHeldWorkspaceResponses =
+							(testWindow.__pksxHeldWorkspaceResponses ?? 0) + 1;
+						releases.push(invoke);
+					});
+				}) as typeof worker.addEventListener;
+				return worker;
+			}
+		}) as typeof Worker;
+	});
+}
+
+async function holdWorkspaceResponses(page: Page, count = -1) {
+	await page.evaluate((responses) => {
+		(
+			window as typeof window & { __pksxWorkspaceResponsesToHold?: number }
+		).__pksxWorkspaceResponsesToHold = responses;
+	}, count);
+}
+
+async function waitForHeldWorkspaceResponses(page: Page, count = 1) {
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() =>
+					(window as typeof window & { __pksxHeldWorkspaceResponses?: number })
+						.__pksxHeldWorkspaceResponses ?? 0
+			)
+		)
+		.toBeGreaterThanOrEqual(count);
+}
+
+async function releaseWorkspaceResponses(page: Page) {
+	await page.evaluate(() => {
+		const testWindow = window as typeof window & {
+			__pksxWorkspaceResponsesToHold?: number;
+			__pksxReleaseWorkspaceResponses?: () => void;
+		};
+		testWindow.__pksxWorkspaceResponsesToHold = 0;
+		testWindow.__pksxReleaseWorkspaceResponses?.();
+	});
+}
+
+test.afterEach(async ({ page }) => {
+	if (!page.isClosed()) await releaseWorkspaceResponses(page);
+});
+
 async function chooseMainMenu(
 	page: Page,
 	label: 'Boxes' | 'Trainer' | 'Bag' | 'Saves' | 'Settings' | 'Backup Browser'
@@ -1017,6 +1100,115 @@ test('Box Menu allows duplicate Save File panes and keeps Open another collectio
 	);
 	await menu.getByRole('button', { name: 'Open another collection' }).click({ force: true });
 	await expect(page.locator('.box-pane')).toHaveCount(2);
+});
+
+test('duplicate Save panes order workspace loads with mutation publication', async ({ page }) => {
+	await installWorkspaceResponseHold(page);
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('x');
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /011020251345\.sav/ })
+		.click();
+
+	const panes = page.locator('.box-pane');
+	const firstPane = panes.nth(0);
+	const duplicatePane = panes.nth(1);
+	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true');
+	await holdWorkspaceResponses(page, 1);
+	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
+	await waitForHeldWorkspaceResponses(page);
+	await expect(duplicatePane).toHaveAttribute('aria-busy', 'true');
+
+	await firstPane.locator('[id$="box-0-slot-0"]').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	await pressController(page, 'PageDown');
+	await expect(firstPane.getByRole('heading', { name: 'Box 02' })).toBeVisible({ timeout: 15000 });
+	await firstPane.locator('[id$="box-1-slot-0"]').click();
+	await expect(firstPane.locator('[id$="box-1-slot-0"]')).toContainText('ARON', {
+		timeout: 15000
+	});
+	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON');
+
+	await releaseWorkspaceResponses(page);
+	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
+	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON');
+	await duplicatePane.getByRole('button', { name: 'Previous Location' }).click();
+	await expect(duplicatePane.getByRole('heading', { name: 'Box 01' })).toBeVisible({
+		timeout: 15000
+	});
+	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
+	await holdWorkspaceResponses(page, 1);
+	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
+	await waitForHeldWorkspaceResponses(page, 2);
+	await firstPane.locator('[id$="box-1-slot-0"]').click();
+	await releaseWorkspaceResponses(page);
+	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
+	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON');
+
+	await firstPane.getByRole('button', { name: 'Previous Location' }).click();
+	await expect(firstPane.getByRole('heading', { name: 'Box 01' })).toBeVisible({ timeout: 15000 });
+	await firstPane.locator('[id$="box-0-slot-0"]').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	await holdWorkspaceResponses(page);
+	await firstPane.locator('[id$="box-0-slot-2"]').click();
+	await waitForHeldWorkspaceResponses(page, 2);
+	await expect(duplicatePane).toHaveAttribute('aria-busy', 'true');
+	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('Empty');
+	await duplicatePane.locator('[id$="box-1-slot-0"]').click();
+	await expect(
+		page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' })
+	).toBeDisabled();
+
+	await releaseWorkspaceResponses(page);
+	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
+	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON');
+});
+
+test('an unopened Save source cannot page beyond its unknown Box range', async ({ page }) => {
+	await installWorkspaceResponseHold(page);
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await importScarletThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('x');
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another' })
+		.click();
+	await holdWorkspaceResponses(page);
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /011020251345\.sav/ })
+		.click();
+
+	const openedPane = page.locator('.box-pane.active-pane');
+	await waitForHeldWorkspaceResponses(page);
+	await expect(openedPane).toHaveAttribute('aria-busy', 'true');
+	for (let index = 0; index < 15; index += 1) {
+		await openedPane.getByRole('button', { name: 'Next Location' }).click();
+	}
+	await expect(openedPane).toHaveAttribute('data-location', 'box-0');
+	await expect(openedPane.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+
+	await releaseWorkspaceResponses(page);
+	await expect(openedPane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
+	await openedPane.getByRole('button', { name: 'Previous Location' }).click();
+	await expect(openedPane).toHaveAttribute('data-location', 'party');
+	await openedPane.getByRole('button', { name: 'Next Location' }).click();
+	for (let index = 0; index < 13; index += 1) {
+		await openedPane.getByRole('button', { name: 'Next Location' }).click();
+	}
+	await expect(openedPane.getByRole('heading', { name: 'Box 14' })).toBeVisible({ timeout: 15000 });
+	await expect(openedPane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
+	await openedPane.getByRole('button', { name: 'Next Location' }).click();
+	await expect(openedPane).toHaveAttribute('data-location', 'party');
 });
 
 test('two Box Panes keep physical focus and Carry through rotation, mutation, and close', async ({

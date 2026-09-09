@@ -57,7 +57,6 @@
 		createSourcePickerCards,
 		destinationStateForEvaluation,
 		evaluateDestination,
-		refreshSaveFilePaneWorkspaces,
 		focusSurvivingPaneAfterClose,
 		getStoragePokemon,
 		putStoragePokemon,
@@ -476,7 +475,6 @@
 	let nextToastId = 1;
 	let engine: EngineApi | null = null;
 	let workspaceLoadRequest = 0;
-	let workspacePublicationRequest = 0;
 	let paneSwitchRequest = 0;
 	let destroyed = false;
 	const paneWorkspaceRequests: Record<string, number> = {};
@@ -2373,15 +2371,21 @@
 
 		const id = `pane-${type}-${Date.now()}-${workbenchPanes.length}`;
 		const source = boxSourceForSelection(type, saveFileId);
+		const sourceBoxCount =
+			type === 'pokemon-storage'
+				? pokemonStorageBoxCount
+				: loadedSave?.file.id === source.id
+					? loadedSave.workspace.summary.boxCount
+					: 1;
 		workbenchPanes = addBoxPane(workbenchPanes, source, {
 			id,
-			boxCount: type === 'pokemon-storage' ? pokemonStorageBoxCount : boxCount
+			boxCount: sourceBoxCount
 		});
 		const openedPane = workbenchPanes.find((pane) => pane.id === id);
 		activePaneId = id;
 		navigation = {
 			...navigation,
-			boxCount: Math.max(1, type === 'pokemon-storage' ? pokemonStorageBoxCount : boxCount),
+			boxCount: Math.max(1, openedPane?.boxCount ?? sourceBoxCount),
 			activeBox: openedPane?.activeBox ?? 0,
 			focus: openedPane?.focus ?? focusBoxSlot(0),
 			locationFocus: openedPane?.focus ?? focusBoxSlot(0)
@@ -2568,7 +2572,11 @@
 	}
 
 	function paneHasParty(pane: BoxPaneState | undefined): boolean {
-		return pane?.source.type === 'save-file' && saveWorkspaceForPane(pane) !== null;
+		if (pane?.source.type !== 'save-file') return false;
+		return (
+			savePaneWorkspaces[pane.id]?.state.file.id === pane.source.id ||
+			saveWorkspaceForPane(pane) !== null
+		);
 	}
 
 	function panePartySlots(pane: BoxPaneState | undefined): SlotView[] {
@@ -2582,13 +2590,21 @@
 		if (!pane || pane.source.type !== 'save-file') {
 			return null;
 		}
+		if (paneWorkspaceLoadingRequests[pane.id] !== undefined) {
+			return null;
+		}
 
 		const cached = savePaneWorkspaces[pane.id];
 		if (cached?.state.file.id === pane.source.id) {
 			return cached;
 		}
 
-		if (loadedSave && pane.source.id === loadedSave.file.id && pane.id === activePaneId) {
+		if (
+			loadedSave &&
+			pane.source.id === loadedSave.file.id &&
+			pane.id === activePaneId &&
+			getCachedActiveWorkspaceBox() === pane.activeBox
+		) {
 			return { state: loadedSave, loadedBox: activePaneBox };
 		}
 
@@ -3531,14 +3547,6 @@
 	});
 
 	function installMutatedSaveProjection(state: WorkspaceState, publishedBox: number) {
-		const refreshed = refreshSaveFilePaneWorkspaces(
-			workbenchPanes,
-			savePaneWorkspaces,
-			state,
-			(pane) => (pane.activeBox === publishedBox ? { state, loadedBox: publishedBox } : null)
-		);
-		workbenchPanes = refreshed.panes;
-		savePaneWorkspaces = refreshed.workspaces;
 		void refreshPublishedSavePanes(state, publishedBox);
 	}
 
@@ -3546,37 +3554,43 @@
 		state: WorkspaceState,
 		publishedBox = getCachedActiveWorkspaceBox()
 	) {
-		const request = ++workspacePublicationRequest;
 		const panes = workbenchPanes.filter(
 			(pane) => pane.source.type === 'save-file' && pane.source.id === state.file.id
 		);
-		const projections: Record<string, SavePaneWorkspace> = {};
 
 		await Promise.all(
 			panes.map(async (pane) => {
+				const needsLoad = pane.activeBox !== publishedBox;
+				const request = beginPaneWorkspaceRequest(pane.id, needsLoad);
 				if (pane.activeBox === publishedBox) {
-					projections[pane.id] = { state, loadedBox: publishedBox };
+					installPaneWorkspace(pane.id, state.file.id, publishedBox, state, request);
 					return;
 				}
-				const paneState = await loadWorkspaceStateForSaveFile(state.file.id, pane.activeBox);
-				if (paneState) {
-					projections[pane.id] = { state: paneState, loadedBox: pane.activeBox };
+
+				try {
+					const paneState = await loadWorkspaceStateForSaveFile(state.file.id, pane.activeBox);
+					if (paneState) {
+						installPaneWorkspace(pane.id, state.file.id, pane.activeBox, paneState, request);
+					}
+				} catch (error) {
+					const currentPane = workbenchPanes.find((candidate) => candidate.id === pane.id);
+					if (
+						paneWorkspaceRequests[pane.id] === request &&
+						currentPane?.source.type === 'save-file' &&
+						currentPane.source.id === state.file.id &&
+						currentPane.activeBox === pane.activeBox
+					) {
+						const remaining = { ...savePaneWorkspaces };
+						delete remaining[pane.id];
+						savePaneWorkspaces = remaining;
+						showToast('error', getErrorMessage(error));
+						statusMessage = 'Could not refresh that Save File pane.';
+					}
+				} finally {
+					finishPaneWorkspaceRequest(pane.id, request);
 				}
 			})
 		);
-		if (request !== workspacePublicationRequest) return;
-
-		const refreshed = refreshSaveFilePaneWorkspaces(
-			workbenchPanes,
-			savePaneWorkspaces,
-			state,
-			(pane) => {
-				const projection = projections[pane.id];
-				return projection?.loadedBox === pane.activeBox ? projection : null;
-			}
-		);
-		workbenchPanes = refreshed.panes;
-		savePaneWorkspaces = refreshed.workspaces;
 	}
 
 	async function restoreInitialState() {
@@ -3651,6 +3665,7 @@
 
 	async function loadWorkspaceForSave(save: WorkspaceState, box: number, paneId = activePaneId) {
 		const request = (workspaceLoadRequest += 1);
+		const paneRequest = beginPaneWorkspaceRequest(paneId, true);
 		busy = true;
 		importError = null;
 
@@ -3661,30 +3676,33 @@
 				box
 			);
 			if (
-				request === workspaceLoadRequest &&
-				activePaneId === paneId &&
+				paneWorkspaceRequests[paneId] === paneRequest &&
 				workbenchPanes.some(
 					(pane) =>
 						pane.id === paneId &&
 						pane.source.type === 'save-file' &&
 						pane.source.id === save.file.id &&
 						pane.activeBox === box
-				) &&
-				loadedSave?.file.id === save.file.id
+				)
 			) {
-				loadedSave = { ...save, workspace };
-				savePaneWorkspaces = {
-					...savePaneWorkspaces,
-					[paneId]: { state: loadedSave, loadedBox: box }
-				};
-				setCachedActiveWorkspace(loadedSave, box);
+				const state = { ...save, workspace };
+				installPaneWorkspace(paneId, save.file.id, box, state, paneRequest);
+				if (
+					request === workspaceLoadRequest &&
+					activePaneId === paneId &&
+					loadedSave?.file.id === save.file.id
+				) {
+					loadedSave = state;
+					setCachedActiveWorkspace(state, box);
+				}
 			}
 		} catch (error) {
-			if (request === workspaceLoadRequest) {
+			if (request === workspaceLoadRequest && paneWorkspaceRequests[paneId] === paneRequest) {
 				importError = getErrorMessage(error);
 				showToast('error', importError);
 			}
 		} finally {
+			finishPaneWorkspaceRequest(paneId, paneRequest);
 			if (request === workspaceLoadRequest) {
 				busy = false;
 			}
@@ -3696,15 +3714,13 @@
 		if (!pane || pane.source.type !== 'save-file' || !pane.source.id) {
 			return;
 		}
-		const request = (paneWorkspaceRequests[paneId] ?? 0) + 1;
-		paneWorkspaceRequests[paneId] = request;
 		const sourceId = pane.source.id;
 
 		if (loadedSave && pane.source.id === loadedSave.file.id && pane.id === activePaneId) {
 			await loadWorkspaceForSave(loadedSave, box, paneId);
 			return;
 		}
-		paneWorkspaceLoadingRequests = { ...paneWorkspaceLoadingRequests, [paneId]: request };
+		const request = beginPaneWorkspaceRequest(paneId, true);
 		try {
 			const state = await loadWorkspaceStateForSaveFile(sourceId, box);
 			if (!state) {
@@ -3720,23 +3736,7 @@
 				return;
 			}
 
-			savePaneWorkspaces = {
-				...savePaneWorkspaces,
-				[paneId]: { state, loadedBox: box }
-			};
-			workbenchPanes = workbenchPanes.map((candidate) =>
-				candidate.id === paneId && candidate.source.type === 'save-file'
-					? {
-							...candidate,
-							boxCount: state.workspace.summary.boxCount,
-							source: {
-								...candidate.source,
-								label: state.file.originalFileName ?? candidate.source.label,
-								dirty: state.dirty
-							}
-						}
-					: candidate
-			);
+			installPaneWorkspace(paneId, sourceId, box, state, request);
 		} catch (error) {
 			const currentPane = workbenchPanes.find((candidate) => candidate.id === paneId);
 			if (
@@ -3749,12 +3749,72 @@
 				statusMessage = 'Could not load that Save File pane.';
 			}
 		} finally {
-			if (paneWorkspaceLoadingRequests[paneId] === request) {
-				const remaining = { ...paneWorkspaceLoadingRequests };
-				delete remaining[paneId];
-				paneWorkspaceLoadingRequests = remaining;
-			}
+			finishPaneWorkspaceRequest(paneId, request);
 		}
+	}
+
+	function beginPaneWorkspaceRequest(paneId: string, loading: boolean) {
+		const request = (paneWorkspaceRequests[paneId] ?? 0) + 1;
+		paneWorkspaceRequests[paneId] = request;
+		if (loading) {
+			paneWorkspaceLoadingRequests = { ...paneWorkspaceLoadingRequests, [paneId]: request };
+		} else if (paneWorkspaceLoadingRequests[paneId] !== undefined) {
+			const remainingRequests = { ...paneWorkspaceLoadingRequests };
+			delete remainingRequests[paneId];
+			paneWorkspaceLoadingRequests = remainingRequests;
+		}
+		return request;
+	}
+
+	function finishPaneWorkspaceRequest(paneId: string, request: number) {
+		if (paneWorkspaceLoadingRequests[paneId] !== request) return;
+		const remaining = { ...paneWorkspaceLoadingRequests };
+		delete remaining[paneId];
+		paneWorkspaceLoadingRequests = remaining;
+	}
+
+	function installPaneWorkspace(
+		paneId: string,
+		sourceId: string,
+		box: number,
+		state: WorkspaceState,
+		request: number
+	) {
+		const pane = workbenchPanes.find((candidate) => candidate.id === paneId);
+		if (
+			destroyed ||
+			paneWorkspaceRequests[paneId] !== request ||
+			pane?.source.type !== 'save-file' ||
+			pane.source.id !== sourceId ||
+			pane.activeBox !== box
+		) {
+			return false;
+		}
+
+		const boxCount = Math.max(1, state.workspace.summary.boxCount);
+		const activeBox = Math.min(box, boxCount - 1);
+		savePaneWorkspaces = {
+			...savePaneWorkspaces,
+			[paneId]: { state, loadedBox: activeBox }
+		};
+		workbenchPanes = workbenchPanes.map((candidate) =>
+			candidate.id === paneId && candidate.source.type === 'save-file'
+				? {
+						...candidate,
+						activeBox,
+						boxCount,
+						source: {
+							...candidate.source,
+							label: state.file.originalFileName ?? candidate.source.label,
+							dirty: state.dirty
+						}
+					}
+				: candidate
+		);
+		if (activePaneId === paneId) {
+			navigation = { ...navigation, activeBox, boxCount };
+		}
+		return true;
 	}
 
 	async function loadWorkspaceStateForSaveFile(
