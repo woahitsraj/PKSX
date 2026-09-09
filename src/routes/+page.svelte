@@ -3782,6 +3782,7 @@
 			if (request === workspaceLoadRequest) {
 				importError = getErrorMessage(error);
 				statusMessage = 'Import failed. Current active Save File was not changed.';
+				showToast('error', importError);
 			}
 		} finally {
 			if (request === workspaceLoadRequest) {
