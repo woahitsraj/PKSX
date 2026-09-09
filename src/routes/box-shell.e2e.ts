@@ -2624,7 +2624,9 @@ test('Saves uses one identity grid with internal scrolling at the landscape floo
 		const cards = Array.from(scrollport.querySelectorAll('.save-card'));
 		const importCard = scrollport.querySelector('.import-cell')?.getBoundingClientRect();
 		return {
-			fourCardsVisible: cards.every((card) => card.getBoundingClientRect().bottom <= viewport.bottom),
+			fourCardsVisible: cards.every(
+				(card) => card.getBoundingClientRect().bottom <= viewport.bottom
+			),
 			importNeedsScroll: Boolean(importCard && importCard.bottom > viewport.bottom + 1)
 		};
 	});
