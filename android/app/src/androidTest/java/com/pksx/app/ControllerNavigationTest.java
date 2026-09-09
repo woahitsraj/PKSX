@@ -129,6 +129,16 @@ public class ControllerNavigationTest {
             KeyEvent.KEYCODE_BUTTON_L1,
             "document.querySelector('.box-title h2')?.textContent?.includes('Box 01')"
         );
+
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_R2,
+            "document.querySelector('.box-title h2')?.textContent?.includes('Box 02')"
+        );
+
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_L2,
+            "document.querySelector('.box-title h2')?.textContent?.includes('Box 01')"
+        );
     }
 
     @Test
