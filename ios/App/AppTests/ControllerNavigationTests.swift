@@ -49,9 +49,14 @@ final class ControllerNavigationTests: XCTestCase {
 
     func testJoystickAndShortcutButtonsFollowKeyboardNavigation() async throws {
         let webView = try await controllerSurface()
+        _ = try await webView.evaluateJavaScript("document.querySelector('#box-0-slot-0').focus()")
+        try await waitForJavaScript("document.activeElement?.id === 'box-0-slot-0'", in: webView)
 
         controller.extendedGamepad?.leftThumbstick.setValueForXAxis(1, yAxis: 0)
-        try await waitForJavaScript("document.activeElement?.id === 'box-0-slot-1'", in: webView)
+        try await waitForJavaScript(
+            "window.__pksxControllerEvents?.includes('ArrowRight:true') && document.activeElement?.id === 'box-0-slot-1'",
+            in: webView
+        )
         controller.extendedGamepad?.leftThumbstick.setValueForXAxis(0, yAxis: 0)
 
         controller.extendedGamepad?.buttonX.setValue(1)
@@ -197,6 +202,9 @@ final class ControllerNavigationTests: XCTestCase {
             }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
-        XCTFail("Timed out waiting for JavaScript: \(script)")
+        let state = try? await webView.evaluateJavaScript(
+            "JSON.stringify({activeId: document.activeElement?.id, dialogs: [...document.querySelectorAll('[role=dialog]')].map(dialog => dialog.getAttribute('aria-label')), controllerEvents: window.__pksxControllerEvents})"
+        )
+        XCTFail("Timed out waiting for JavaScript: \(script), state: \(state ?? "unavailable")")
     }
 }
