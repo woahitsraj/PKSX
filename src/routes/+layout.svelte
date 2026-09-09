@@ -27,11 +27,12 @@
 	} from '$lib/pksx/controller-input';
 
 	type Destination = 'boxes' | 'save-file' | 'saves' | 'settings';
+	type DestinationFocus = { id: string; identity: string | null };
 
 	let { children } = $props();
 	const summonedWorkflow = setSummonedWorkflowHost(createSummonedWorkflowHost());
 	const storage = getSavesStorage();
-	const destinationFocus = new SvelteMap<Destination, string>();
+	const destinationFocus = new SvelteMap<Destination, DestinationFocus>();
 	let mainMenuIndex = $state(0);
 	let firstRunChecked = false;
 	let skipNextFocusCapture = false;
@@ -70,6 +71,7 @@
 	]);
 
 	beforeNavigate((navigation) => {
+		if (navigation.willUnload) return;
 		if (hasRouteOwnedConfirmation()) {
 			navigation.cancel();
 			dispatchControllerKey('Escape');
@@ -112,10 +114,12 @@
 		if (firstRunChecked) return;
 		firstRunChecked = true;
 		try {
-			const [saveFiles, pokemonStorage] = await Promise.all([
+			const [saveFiles, activeSaveFileId, pokemonStorage] = await Promise.all([
 				storage.listSaves(),
+				storage.getActiveSaveFileId(),
 				storage.getPokemonStorage()
 			]);
+			appChrome.hasLoadedSave = saveFiles.some(({ id }) => id === activeSaveFileId);
 			const hasStoredPokemon =
 				pokemonStorage?.boxes.some((box) => box.slots.some((slot) => slot.pokemon !== null)) ??
 				false;
@@ -282,7 +286,7 @@
 		const route = event.target.closest<HTMLElement>('[data-destination-root]');
 		if (!route) return;
 		const id = ensureControlId(event.target, activeRoute);
-		if (id) destinationFocus.set(activeRoute, id);
+		if (id) rememberControl(activeRoute, event.target, id);
 	}
 
 	function rememberDestinationFocus() {
@@ -296,12 +300,11 @@
 				? active
 				: isFocusableTarget(controllerTarget)
 					? controllerTarget
-					: isDestinationReady(route)
-						? fallbackControl(route, activeRoute)
-						: null;
+					: (resolveRememberedControl(route, activeRoute) ??
+						(isDestinationReady(route) ? fallbackControl(route, activeRoute) : null));
 		if (!target) return null;
 		const id = ensureControlId(target, activeRoute);
-		if (id) destinationFocus.set(activeRoute, id);
+		if (id) rememberControl(activeRoute, target, id);
 		return id;
 	}
 
@@ -312,7 +315,7 @@
 		const target = fallbackControl(route, destination);
 		if (!target) return null;
 		const id = ensureControlId(target, destination);
-		if (id) destinationFocus.set(destination, id);
+		if (id) rememberControl(destination, target, id);
 		return id;
 	}
 
@@ -325,15 +328,14 @@
 		const route = await waitForDestinationReady(destination, request);
 		if (!route || request !== focusRestoreRequest || summonedWorkflow.active) return;
 		prepareControlIds(route, destination);
-		const remembered = destinationFocus.get(destination);
-		const rememberedTarget = remembered ? document.getElementById(remembered) : null;
+		const rememberedTarget = resolveRememberedControl(route, destination);
 		const target =
 			rememberedTarget && route.contains(rememberedTarget) && isFocusableTarget(rememberedTarget)
 				? rememberedTarget
 				: fallbackControl(route, destination);
 		if (!target) return;
 		const id = ensureControlId(target, destination);
-		if (id) destinationFocus.set(destination, id);
+		if (id) rememberControl(destination, target, id);
 		target.focus();
 		target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
@@ -388,15 +390,42 @@
 	function ensureControlId(control: HTMLElement, destination: Destination) {
 		const identity = control.dataset.destinationFocus;
 		if (identity) {
-			control.id = `pksx-${destination}-${identity}`;
+			const variant = control.dataset.destinationVariant;
+			control.id = `pksx-${destination}-${identity}${variant ? `-${variant}` : ''}`;
 			return control.id;
 		}
 		if (control.id) return control.id;
 		return null;
 	}
 
+	function rememberControl(destination: Destination, control: HTMLElement, id: string) {
+		destinationFocus.set(destination, {
+			id,
+			identity: control.dataset.destinationFocus ?? null
+		});
+	}
+
+	function resolveRememberedControl(route: HTMLElement, destination: Destination) {
+		const remembered = destinationFocus.get(destination);
+		if (!remembered) return null;
+		if (!remembered.identity) {
+			const target = document.getElementById(remembered.id);
+			return target && route.contains(target) && isFocusableTarget(target) ? target : null;
+		}
+		return (
+			Array.from(
+				route.querySelectorAll<HTMLElement>(
+					`[data-destination-focus="${CSS.escape(remembered.identity)}"]`
+				)
+			).find(isFocusableTarget) ?? null
+		);
+	}
+
 	function fallbackControl(route: HTMLElement, destination: Destination) {
-		const requested = route.querySelector<HTMLElement>('[data-destination-initial]');
+		const requested =
+			Array.from(route.querySelectorAll<HTMLElement>('[data-destination-initial]')).find(
+				isFocusableTarget
+			) ?? null;
 		if (isFocusableTarget(requested)) return requested;
 		if (destination === 'boxes') {
 			const firstSlot =
@@ -411,7 +440,7 @@
 	function focusableControls(route: HTMLElement) {
 		return Array.from(
 			route.querySelectorAll<HTMLElement>(
-				'button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"]):not([type="file"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+				'button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"]):not([type="file"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), [data-destination-focus]'
 			)
 		);
 	}
@@ -483,6 +512,10 @@
 
 		const handleNativeConnection = (event: Event) => {
 			const detail = (event as CustomEvent<NativeControllerConnection>).detail;
+			nativeHeld.clear();
+			nativeDiscretePressed.clear();
+			previousPressed.clear();
+			repeatAt.clear();
 			nativeControllerId = detail?.id || 'Controller';
 			appChrome.controllerStatus = nativeControllerId;
 		};

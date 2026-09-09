@@ -465,7 +465,9 @@
 				{#each sections as section (section.key)}
 					<button
 						type="button"
-						data-destination-focus={`section-${section.key}-desktop`}
+						data-destination-initial={section.key === 'trainer' ? '' : undefined}
+						data-destination-focus={`section-${section.key}`}
+						data-destination-variant="desktop"
 						class:active={activeSection === section.key}
 						onclick={() => selectSection(section.key)}
 					>
@@ -497,7 +499,9 @@
 				{#each sections as section (section.key)}
 					<button
 						type="button"
-						data-destination-focus={`section-${section.key}-mobile`}
+						data-destination-initial={section.key === 'trainer' ? '' : undefined}
+						data-destination-focus={`section-${section.key}`}
+						data-destination-variant="mobile"
 						class:active={activeSection === section.key}
 						onclick={() => selectSection(section.key)}
 					>

@@ -149,6 +149,18 @@ test('Start is fresh-press only and restores destination focus by identity', asy
 	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeHidden();
 	await expect(importCard).toBeFocused();
 	await controllerButton(page, 'Menu', false);
+	await controllerButton(page, 'Menu', true);
+	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeVisible();
+	await page.evaluate(() => {
+		window.dispatchEvent(
+			new CustomEvent('pksxcontrollerconnection', {
+				detail: { id: 'Reconnected acceptance controller' }
+			})
+		);
+	});
+	await controllerButton(page, 'Menu', true);
+	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeHidden();
+	await controllerButton(page, 'Menu', false);
 
 	await choose(page, 'Settings');
 	const darkTheme = page.getByRole('button', { name: 'Use dark theme' });
@@ -184,6 +196,31 @@ test('Start is fresh-press only and restores destination focus by identity', asy
 	await pressController(page, 'Escape');
 	await expect(page).toHaveURL(/\/$/);
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+});
+
+test('reloading with the Main Menu open does not prompt and resets session focus', async ({
+	page
+}) => {
+	await resetEmptyStorage(page);
+	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
+	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+		timeout: 15000
+	});
+	await choose(page, 'Boxes');
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
+	await page.locator('#box-0-slot-17').focus();
+	await openMainMenu(page);
+
+	let unloadDialogs = 0;
+	page.on('dialog', (dialog) => {
+		unloadDialogs += 1;
+		void dialog.dismiss();
+	});
+	await page.reload();
+
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready');
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+	expect(unloadDialogs).toBe(0);
 });
 
 test('stored Pokemon in any box makes Boxes the first-run destination', async ({ page }) => {
@@ -237,6 +274,9 @@ test('Saves restores an asynchronously loaded control by stable identity', async
 		timeout: 15000
 	});
 	await page.reload();
+	await expect(page.locator('.saves-page')).toHaveAttribute('data-initial-state', 'ready', {
+		timeout: 15000
+	});
 	await expect(page.locator('.save-card.active .save-card-main')).toBeFocused();
 	const deleteSave = page.locator('.save-card.active .danger-action');
 	await deleteSave.focus();
@@ -259,6 +299,20 @@ test('Save File restores dynamic controls by semantic identity', async ({ page }
 	await expect(trainerName).toHaveValue('DIXIE', { timeout: 15000 });
 	await expect(
 		page.getByLabel('Save File fields').getByRole('button', { name: /Trainer profile/ })
+	).toBeFocused();
+	await page.setViewportSize({ width: 390, height: 700 });
+	await page.reload();
+	const mobileSections = page.getByLabel('Save File sections');
+	await expect(mobileSections.getByRole('button', { name: 'Trainer' })).toBeFocused();
+	await mobileSections.getByRole('button', { name: 'Money' }).focus();
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await page.keyboard.press('Control+k');
+	await page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: /^Save File/ })
+		.click();
+	await expect(
+		page.getByLabel('Save File fields').getByRole('button', { name: /Money/ })
 	).toBeFocused();
 	await trainerName.fill('RAJ');
 	const cancelAll = page.getByRole('button', { name: 'Cancel all' });

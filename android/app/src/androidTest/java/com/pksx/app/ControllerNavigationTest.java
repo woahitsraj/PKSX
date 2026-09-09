@@ -516,6 +516,9 @@ public class ControllerNavigationTest {
         Log.i("PKSXAcceptance", "IME fixture captured geometry " + originalGeometry);
         String fixedRotation = shellCommand("cmd window fixed-to-user-rotation");
         String densityState = shellCommand("wm density");
+        String originalStylusHandwriting = shellCommand(
+            "settings get secure stylus_handwriting_enabled"
+        );
         Log.i(
             "PKSXAcceptance",
             String.format(
@@ -533,6 +536,7 @@ public class ControllerNavigationTest {
 
         Throwable primaryFailure = null;
         try {
+            shellCommand("settings put secure stylus_handwriting_enabled 0");
             shellCommand("wm size 540x720");
             userRotation("lock 0");
             awaitDisplayRotation(0);
@@ -546,8 +550,14 @@ public class ControllerNavigationTest {
             importEmeraldSave();
             chooseMainMenu("Save File");
             awaitJavaScript(
-                "location.pathname.endsWith('/save-file') && document.querySelector('#save-file-trainer-name')"
+                "location.pathname.endsWith('/save-file')"
+                    + " && document.querySelector('[data-destination-root=\"save-file\"]')"
+                    + "?.dataset.initialState === 'ready'"
+                    + " && document.querySelector('#save-file-trainer-name')"
             );
+            activityRule
+                .getScenario()
+                .onActivity(activity -> activity.getBridge().getWebView().requestFocus());
             runJavaScript(
                 "(() => { const input = document.querySelector('#save-file-trainer-name');"
                     + " input.focus(); input.click(); return document.activeElement === input; })()"
@@ -557,7 +567,6 @@ public class ControllerNavigationTest {
                 .onActivity(
                     activity -> {
                         WebView webView = activity.getBridge().getWebView();
-                        webView.requestFocus();
                         ((InputMethodManager) activity.getSystemService(MainActivity.INPUT_METHOD_SERVICE))
                             .showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT);
                     }
@@ -640,6 +649,8 @@ public class ControllerNavigationTest {
                 );
                 if (primaryFailure == null) throw restorationFailure;
                 primaryFailure.addSuppressed(restorationFailure);
+            } finally {
+                restoreSecureSetting("stylus_handwriting_enabled", originalStylusHandwriting);
             }
         }
     }
@@ -874,6 +885,14 @@ public class ControllerNavigationTest {
         fail("Timed out waiting for the Android IME to become visible");
     }
 
+    private void restoreSecureSetting(String key, String value) throws Exception {
+        if ("null".equals(value)) shellCommand("settings delete secure " + key);
+        else shellCommand("settings put secure " + key + " " + value);
+        if (!value.equals(shellCommand("settings get secure " + key))) {
+            fail("Android secure setting was not restored: " + key);
+        }
+    }
+
     private void awaitImeHidden() throws Exception {
         long deadline = SystemClock.uptimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
         while (SystemClock.uptimeMillis() < deadline) {
@@ -964,8 +983,8 @@ public class ControllerNavigationTest {
     private void pressGamepadKey(int keyCode, String expectedState) throws Exception {
         long downTime = SystemClock.uptimeMillis();
         dispatchGamepadKey(KeyEvent.ACTION_DOWN, keyCode, 0, downTime);
-        if (expectedState != null) awaitJavaScript(expectedState);
         dispatchGamepadKey(KeyEvent.ACTION_UP, keyCode, 0, downTime);
+        if (expectedState != null) awaitJavaScript(expectedState);
         runJavaScript("true");
     }
 
