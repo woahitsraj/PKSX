@@ -620,7 +620,7 @@ test('Box Menu import dismisses its workflow chain and installs the imported Sav
 	fileChooser = await fileChooserPromise;
 	await fileChooser.setFiles(emeraldFixturePath);
 
-	await expect(page.locator('.save-chip')).toContainText('011020251345.sav', { timeout: 15000 });
+	await expectActiveSaveOwner(page, 'emerald-011020251345.sav');
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	await expect(menu).toBeHidden();
@@ -658,9 +658,9 @@ test('a completed import does not move focus in a newer Boxes instance', async (
 			typeof (window as typeof window & { releaseImport?: () => void }).releaseImport === 'function'
 	);
 
-	await page.locator('#top-control-1').click();
+	await chooseMainMenu(page, 'Save File');
 	await expect(page).toHaveURL(/\/save-file$/);
-	await page.locator('#top-control-0').click();
+	await chooseMainMenu(page, 'Boxes');
 	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
 		timeout: 15000
 	});
@@ -670,7 +670,9 @@ test('a completed import does not move focus in a newer Boxes instance', async (
 		(window as typeof window & { releaseImport?: () => void }).releaseImport?.()
 	);
 
-	await expect(page.locator('.save-chip')).toContainText('011020251345.sav', { timeout: 15000 });
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-active-save-file-id', /.+/, {
+		timeout: 15000
+	});
 	await expect(page.locator('#box-0-slot-17')).toBeFocused();
 });
 
