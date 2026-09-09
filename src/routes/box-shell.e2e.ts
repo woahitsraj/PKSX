@@ -432,6 +432,7 @@ async function expectSmallSlotCommandControls(page: Page) {
 }
 
 async function moveFirstEmeraldBoxSlotToThirdSlot(page: Page) {
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
 	await page.keyboard.press('ArrowDown');
