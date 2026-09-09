@@ -56,7 +56,10 @@ async function pressController(page: Page, key: string) {
 	}, key);
 }
 
-async function chooseMainMenu(page: Page, label: 'Boxes' | 'Save File' | 'Saves' | 'Settings') {
+async function chooseMainMenu(
+	page: Page,
+	label: 'Boxes' | 'Save File' | 'Saves' | 'Settings' | 'Backup Browser'
+) {
 	await page.getByRole('button', { name: 'Open Main Menu' }).click();
 	await page
 		.getByRole('dialog', { name: 'Main Menu' })
@@ -2276,48 +2279,43 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 		htmlWidth: extentsBeforeLongList.htmlWidth
 	});
 	await expect(browser.getByRole('button', { name: 'Create Backup' })).toBeVisible();
-	await page.locator('#top-control-0').dispatchEvent('click');
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('button', { name: 'Browse active Backups' })).toBeFocused();
+
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });
+	await chooseMainMenu(page, 'Boxes');
 	await expect(page).toHaveURL(/\/$/);
-	await expect(browser).toBeVisible();
 	const boxesRoute = page.locator('.boxes-route');
 	await expect(boxesRoute).toHaveAttribute('data-initial-state', 'ready');
 	await expect(boxesRoute).toHaveAttribute('data-active-save-file-id', /.+/);
 	const previousOwnerId = await boxesRoute.getAttribute('data-active-save-file-id');
 	expect(previousOwnerId).toBeTruthy();
-	await page.locator('#top-control-2').dispatchEvent('click');
-	await expect(page).toHaveURL(/\/saves$/);
-	await expect(browser).toBeVisible();
-	await page
-		.locator('.storage-card')
-		.getByRole('button', { name: 'Open →' })
-		.dispatchEvent('click');
+
+	await chooseMainMenu(page, 'Saves');
+	await page.locator('.storage-card').getByRole('button', { name: 'Open →' }).click();
 	await expect(page).toHaveURL(/\/\?source=pokemon-storage$/);
+	await expect(boxesRoute).toHaveAttribute('data-initial-state', 'ready');
+	const storageGrid = page.getByRole('grid', { name: 'Pokemon Storage Box 01' });
+	await expect(storageGrid).toBeVisible();
+	const preMenuSlot = storageGrid.getByRole('gridcell').first();
+	await preMenuSlot.focus();
+	await chooseMainMenu(page, 'Backup Browser');
+	browser = page.getByRole('dialog', { name: 'Backup Browser' });
 	await expect(browser).toBeVisible();
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready');
-	await expect(page.getByRole('grid', { name: 'Pokemon Storage Box 01' })).toBeVisible();
+	await expect(storageGrid).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(preMenuSlot).toBeFocused();
+	await chooseMainMenu(page, 'Backup Browser');
+	await expect(browser).toBeVisible();
 	await browser.locator('article').first().getByRole('button', { name: 'Restore' }).click();
 	await browser.getByRole('button', { name: 'Restore' }).last().click();
 	await expect(browser).toBeHidden();
 	await expect(page).toHaveURL(/\/\?source=pokemon-storage$/);
-	await expect(page.getByRole('grid', { name: 'Pokemon Storage Box 01' })).toBeVisible();
-
-	await page.locator('#top-control-2').dispatchEvent('click');
-	await expect(page).toHaveURL(/\/saves$/);
-	await page.getByRole('button', { name: 'Browse active Backups' }).click();
-	await page.locator('#top-control-0').dispatchEvent('click');
-	await expect(page).toHaveURL(/\/$/);
+	await expect(storageGrid).toBeVisible();
+	await expect(preMenuSlot).toBeFocused();
+	await chooseMainMenu(page, 'Backup Browser');
 	await expect(browser).toBeVisible();
-	await expect(boxesRoute).toHaveAttribute('data-initial-state', 'ready');
-	await expect(boxesRoute).toHaveAttribute('data-active-save-file-id', previousOwnerId!);
-	await page.locator('#top-control-2').dispatchEvent('click');
-	await expect(page).toHaveURL(/\/saves$/);
-	await page
-		.locator('.storage-card')
-		.getByRole('button', { name: 'Open →' })
-		.dispatchEvent('click');
-	await expect(page).toHaveURL(/\/\?source=pokemon-storage$/);
-	await expect(browser).toBeVisible();
-	await expect(page.getByRole('grid', { name: 'Pokemon Storage Box 01' })).toBeVisible();
 
 	await browser
 		.locator('article')
@@ -2328,17 +2326,18 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await expect(page).toHaveURL(/\/$/);
 	await expect(boxesRoute).toHaveAttribute('data-active-save-file-id', /.+/);
 	await expect(boxesRoute).not.toHaveAttribute('data-active-save-file-id', previousOwnerId!);
-	await expect(page.locator('.save-chip')).toContainText('011020251345.restored.sav', {
+	await expect(page.getByRole('button', { name: /011020251345\.restored\.sav/ })).toBeVisible({
 		timeout: 15_000
 	});
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });
-	await page.goto('/save-file');
+	await chooseMainMenu(page, 'Settings');
+	await page.getByRole('button', { name: 'Use dark theme' }).click();
+	await chooseMainMenu(page, 'Save File');
 	const saveFileLauncher = page.getByRole('button', { name: 'Browse Backups' });
 	await expect(saveFileLauncher).toBeVisible({ timeout: 15000 });
-	await page.getByRole('button', { name: 'Use dark mode' }).click();
 	await saveFileLauncher.click();
 	await expect(page).toHaveURL(/\/save-file$/);
 	await expect(
