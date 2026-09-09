@@ -476,6 +476,7 @@
 	let engine: EngineApi | null = null;
 	let workspaceLoadRequest = 0;
 	let paneSwitchRequest = 0;
+	let installingActiveBoxProjection = false;
 	let destroyed = false;
 	const paneWorkspaceRequests: Record<string, number> = {};
 	let paneWorkspaceLoadingRequests = $state<Record<string, number>>({});
@@ -3521,6 +3522,7 @@
 			const adoptAsActiveSave = state ? consumeActiveSaveAdoption(state.file.id) : false;
 			loadedSave = state;
 			if (!state) return;
+			if (installingActiveBoxProjection) return;
 			if (initialStateReady && adoptAsActiveSave) {
 				installActiveSavePane(state, getCachedActiveWorkspaceBox());
 				queueMicrotask(focusActiveControl);
@@ -3548,6 +3550,15 @@
 
 	function installMutatedSaveProjection(state: WorkspaceState, publishedBox: number) {
 		void refreshPublishedSavePanes(state, publishedBox);
+	}
+
+	function installActiveBoxProjection(state: WorkspaceState, box: number) {
+		installingActiveBoxProjection = true;
+		try {
+			setCachedActiveWorkspace(state, box);
+		} finally {
+			installingActiveBoxProjection = false;
+		}
 	}
 
 	async function refreshPublishedSavePanes(
@@ -3693,7 +3704,7 @@
 					loadedSave?.file.id === save.file.id
 				) {
 					loadedSave = state;
-					setCachedActiveWorkspace(state, box);
+					installActiveBoxProjection(state, box);
 				}
 			}
 		} catch (error) {
@@ -4462,11 +4473,12 @@
 	}
 
 	.storage-workspace.two-pane {
+		--two-pane-detail-size: clamp(56px, calc(20cqw - 68px), 260px);
 		grid-template-areas:
 			'leading'
 			'rail'
 			'trailing';
-		grid-template-rows: minmax(0, 1fr) minmax(96px, 160px) minmax(0, 1fr);
+		grid-template-rows: minmax(0, 1fr) clamp(72px, 18cqh, 120px) minmax(0, 1fr);
 		margin-inline: auto;
 	}
 
@@ -4693,6 +4705,10 @@
 		max-width: 260px;
 	}
 
+	.two-pane .shared-detail :global(.detail-heading h2) {
+		font-size: var(--pksx-type-title);
+	}
+
 	.transfer-controls {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4730,7 +4746,7 @@
 			width: 100%;
 			max-width: calc(1280px + 260px + var(--pksx-space-1) * 2);
 			grid-template-areas: 'leading rail trailing';
-			grid-template-columns: minmax(0, 640px) minmax(96px, 260px) minmax(0, 640px);
+			grid-template-columns: minmax(0, 640px) var(--two-pane-detail-size) minmax(0, 640px);
 			grid-template-rows: minmax(0, 1fr);
 		}
 
@@ -4740,6 +4756,47 @@
 
 		.shared-detail {
 			max-width: 260px;
+		}
+	}
+
+	@container boxes-route (max-width: 1250px) {
+		.two-pane .transfer-controls button {
+			height: var(--pksx-small-control-height);
+			padding: 0 var(--pksx-space-1);
+		}
+
+		.two-pane .shared-detail :global(.detail-rail) {
+			justify-content: center;
+			padding: var(--pksx-space-1);
+			overflow: hidden;
+		}
+
+		.two-pane .shared-detail :global(.portrait-card),
+		.two-pane .shared-detail :global(.detail-heading span),
+		.two-pane .shared-detail :global(.detail-level),
+		.two-pane .shared-detail :global(.identity-strip),
+		.two-pane .shared-detail :global(.stat-panel),
+		.two-pane .shared-detail :global(.move-panel),
+		.two-pane .shared-detail :global(.detail-footer),
+		.two-pane .shared-detail :global(.empty-copy) {
+			display: none;
+		}
+
+		.two-pane .shared-detail :global(.detail-heading),
+		.two-pane .shared-detail :global(.detail-heading > div) {
+			min-width: 0;
+		}
+
+		.two-pane .shared-detail :global(.detail-heading h2) {
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+	}
+
+	@container boxes-route (orientation: landscape) and (max-width: 1250px) {
+		.two-pane .transfer-controls {
+			grid-template-columns: minmax(0, 1fr);
 		}
 	}
 

@@ -1171,6 +1171,16 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 	await releaseWorkspaceResponses(page);
 	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
 	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON');
+
+	await duplicatePane.locator('[id$="box-1-slot-0"]').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	await firstPane.locator('[id$="box-0-slot-3"]').click();
+	await expect(firstPane.locator('[id$="box-0-slot-3"]')).toContainText('ARON', {
+		timeout: 15000
+	});
+	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('Empty', {
+		timeout: 15000
+	});
 });
 
 test('an unopened Save source cannot page beyond its unknown Box range', async ({ page }) => {
@@ -1241,6 +1251,31 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 	expect(
 		await panes.evaluateAll((elements) => elements.map((pane) => pane.dataset.sourceId))
 	).toEqual([sourceId, sourceId]);
+	await panes.nth(1).getByRole('button', { name: 'Next Location' }).click();
+	await expect(panes.nth(1)).toHaveAttribute('data-location', 'box-1');
+	await expect(panes.nth(1).getByRole('heading', { name: 'Box 02' })).toBeVisible();
+	await expect(panes.nth(1)).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
+	await expect(panes.nth(0)).toHaveAttribute('data-location', 'box-0');
+	await expect(panes.nth(0).getByRole('heading', { name: 'Box 01' })).toBeVisible();
+	await expect(panes.nth(0).locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+
+	await panes.nth(0).locator('[id$="box-0-slot-0"]').click();
+	await expect(panes.nth(0)).toHaveClass(/active-pane/);
+	await panes.nth(0).getByRole('button', { name: 'Previous Location' }).click();
+	await expect(panes.nth(0)).toHaveAttribute('data-location', 'party');
+	await expect(panes.nth(0).locator('[id$="party-slot-0"]')).toContainText('1-UP');
+	await expect(panes.nth(1)).toHaveAttribute('data-location', 'box-1');
+	await expect(panes.nth(1).locator('[id$="box-1-slot-0"]')).toHaveAccessibleName(/Empty/);
+
+	await panes.nth(0).getByRole('button', { name: 'Next Location' }).click();
+	await expect(panes.nth(0)).toHaveAttribute('data-location', 'box-0');
+	await panes.nth(1).locator('[id$="box-1-slot-0"]').click();
+	await expect(panes.nth(1)).toHaveClass(/active-pane/);
+	await panes.nth(1).getByRole('button', { name: 'Previous Location' }).click();
+	await expect(panes.nth(1)).toHaveAttribute('data-location', 'box-0');
+	await expect(panes.nth(1).locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await expect(panes.nth(0)).toHaveAttribute('data-location', 'box-0');
+	await expect(panes.nth(0).locator('[id$="box-0-slot-0"]')).toContainText('ARON');
 	await expect(page.locator('.shared-detail .detail-rail')).toHaveCount(1);
 	await expect(page.getByLabel('Transfer controls').getByRole('button')).toHaveCount(2);
 	await expect(page.getByLabel('Transfer controls').getByRole('button').first()).toHaveAttribute(
@@ -1261,6 +1296,13 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 			page.locator('.shared-detail').evaluate((rail) => rail.getBoundingClientRect().width)
 		)
 		.toBeLessThanOrEqual(260);
+	await page.setViewportSize({ width: 640, height: 360 });
+	await setSafeArea(page, { top: 12, right: 12, bottom: 12, left: 12 });
+	const compactName = page.locator('.shared-detail .detail-heading h2');
+	await expect(compactName).toHaveText('ARON');
+	expect(await compactName.evaluate((name) => name.scrollWidth <= name.clientWidth)).toBe(true);
+	await page.setViewportSize({ width: 1280, height: 720 });
+	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });
 
 	await panes.nth(1).getByRole('button', { name: 'Previous Location' }).click();
 	await expect(panes.nth(1)).toHaveAttribute('data-location', 'party');
@@ -1282,10 +1324,19 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 	for (const viewport of [
 		{ width: 1800, height: 900 },
 		{ width: 640, height: 360 },
+		{ width: 640, height: 480 },
 		{ width: 640, height: 640 },
 		{ width: 393, height: 852 }
 	]) {
 		await page.setViewportSize(viewport);
+		await setSafeArea(
+			page,
+			viewport.width === 640 && viewport.height === 360
+				? { top: 12, right: 12, bottom: 12, left: 12 }
+				: viewport.width === 640 && viewport.height === 480
+					? { top: 12, right: 0, bottom: 12, left: 0 }
+					: { top: 0, right: 0, bottom: 0, left: 0 }
+		);
 		await expect(panes).toHaveCount(2);
 		expect(
 			await panes.evaluateAll((elements) => elements.map((pane) => pane.dataset.paneId))
@@ -1318,6 +1369,36 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 			.first()
 			.evaluate((slot) => slot.getBoundingClientRect().width);
 		expect(minimumSlot).toBeGreaterThanOrEqual(44);
+
+		if (viewport.width === 640 && viewport.height <= 480) {
+			const compact = await page.evaluate(() => {
+				const bounds = (selector: string) =>
+					document.querySelector<HTMLElement>(selector)!.getBoundingClientRect();
+				return {
+					paneWidths: Array.from(document.querySelectorAll<HTMLElement>('.box-pane')).map(
+						(pane) => pane.getBoundingClientRect().width
+					),
+					railWidth: bounds('.shared-detail').width,
+					buttonHeights: Array.from(
+						document.querySelectorAll<HTMLElement>('.transfer-controls button')
+					).map((button) => button.getBoundingClientRect().height),
+					gridWidths: Array.from(document.querySelectorAll<HTMLElement>('.location-grid')).map(
+						(grid) => ({ client: grid.clientWidth, scroll: grid.scrollWidth })
+					)
+				};
+			});
+			expect(compact.railWidth).toBeLessThanOrEqual(64);
+			expect(Math.min(...compact.paneWidths)).toBeGreaterThanOrEqual(275);
+			expect(Math.min(...compact.buttonHeights)).toBeGreaterThanOrEqual(24);
+			expect(Math.max(...compact.buttonHeights)).toBeLessThanOrEqual(33);
+			expect(compact.gridWidths.every(({ client, scroll }) => client >= scroll)).toBe(true);
+			await expect(page.locator('.shared-detail .detail-heading h2')).toBeVisible();
+			await expect(page.locator('.shared-detail .portrait-card')).toBeHidden();
+			await expect(page.locator('.shared-detail .identity-strip')).toBeHidden();
+			await expect(page.locator('.shared-detail .stat-panel')).toBeHidden();
+			await expect(page.locator('.shared-detail .move-panel')).toBeHidden();
+			await expect(page.locator('.shared-detail .detail-footer')).toBeHidden();
+		}
 
 		if (viewport.width === 1800) {
 			const large = await page.evaluate(() => {
@@ -1369,6 +1450,7 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 	await page.keyboard.press('Escape');
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	await expect(page.locator('.carry-at-focus')).toHaveCount(0);
+	await expect(page.locator('.shared-detail .detail-heading h2')).toHaveText('ARON');
 
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
 	await panes.nth(0).locator('[id$="box-0-slot-2"]').click();
