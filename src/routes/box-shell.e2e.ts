@@ -822,7 +822,7 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 	await page.keyboard.press('Escape');
 	await page.locator('#box-0-slot-2').click();
 	await page.keyboard.press('Enter');
-	await page.getByRole('button', { name: 'Move' }).click();
+	await secondarySlotMenu.getByRole('button', { name: 'Move' }).click();
 	await page.locator('#box-0-slot-3').click();
 	await expect(page.getByRole('alert')).toContainText(
 		'Moving Pokemon between Save Files needs engine transfer support.'
@@ -1251,7 +1251,8 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	expect(sourceSpriteUrl).not.toBeNull();
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
-	await page.getByRole('button', { name: 'Move' }).click();
+	const slotMenu = page.getByRole('dialog', { name: 'Slot actions' });
+	await slotMenu.getByRole('button', { name: 'Move' }).click();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await expect(page.locator('#box-0-slot-0')).toHaveAccessibleName(
 		'Box Slot 1, row 1, column 1: ARON, Lv. 11. Carry Move ARON'
@@ -1317,7 +1318,7 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 	await expect(page.locator('.carry-at-focus')).toHaveCount(0);
 	await page.keyboard.press('Enter');
-	await page.getByRole('button', { name: 'Move' }).click();
+	await slotMenu.getByRole('button', { name: 'Move' }).click();
 	await pressController(page, 'PageUp');
 	await expect(page.getByRole('heading', { name: 'Party' })).toBeVisible();
 	await expect(page.locator('#party-slot-0')).toBeFocused();
