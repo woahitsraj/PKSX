@@ -35,8 +35,17 @@
 
 	const zoneClass = $derived(zone === 'party' ? 'party-slot' : 'box-slot');
 	const slotNumber = $derived(zone === 'party' ? `P${slot.slot + 1}` : String(slot.slot + 1));
+	const accessibleDetails = $derived(
+		[
+			slot.label,
+			slot.kind === 'pokemon' && slot.level !== null ? `Level ${slot.level}` : null,
+			slot.detail || null
+		]
+			.filter(Boolean)
+			.join(', ')
+	);
 	const accessibleLabel = $derived(
-		`${zone === 'party' ? 'Party' : 'Box'} Slot ${slot.slot + 1}, row ${rowIndex}, column ${colIndex}: ${slot.label}${carried ? `. Carry ${carried.mode === 'move' ? 'Move' : 'Copy'} ${carried.label}` : ''}`
+		`${zone === 'party' ? 'Party' : 'Box'} Slot ${slot.slot + 1}, row ${rowIndex}, column ${colIndex}: ${accessibleDetails}${carried ? `. Carry ${carried.mode === 'move' ? 'Move' : 'Copy'} ${carried.label}` : ''}`
 	);
 	function handleClick() {
 		onFocusSlot();

@@ -966,8 +966,18 @@ test('Box Menu allows duplicate Save File panes and keeps Open another collectio
 	).toHaveCount(2);
 	await page.locator('#pane-active-save-box-0-slot-0').click();
 	const duplicatePane = page.locator('.box-pane:not(.active-pane)');
+	await duplicatePane.evaluate((pane) => {
+		pane.setAttribute('data-observed-busy', String(pane.getAttribute('aria-busy') === 'true'));
+		const observer = new MutationObserver(() => {
+			if (pane.getAttribute('aria-busy') === 'true') {
+				pane.setAttribute('data-observed-busy', 'true');
+				observer.disconnect();
+			}
+		});
+		observer.observe(pane, { attributes: true, attributeFilter: ['aria-busy'] });
+	});
 	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
-	await expect(duplicatePane).toHaveAttribute('aria-busy', 'true');
+	await expect(duplicatePane).toHaveAttribute('data-observed-busy', 'true');
 	await expect(duplicatePane.getByRole('heading', { name: 'Box 02' })).toBeVisible();
 	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
 	await duplicatePane.getByRole('button', { name: 'Previous Location' }).click();
@@ -1047,7 +1057,7 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await page.getByRole('button', { name: 'Move' }).click();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await expect(page.locator('#box-0-slot-0')).toHaveAccessibleName(
-		'Box Slot 1, row 1, column 1: ARON. Carry Move ARON'
+		'Box Slot 1, row 1, column 1: ARON, Level 11, Lv. 11. Carry Move ARON'
 	);
 	const collectionControl = page.getByRole('button', {
 		name: 'Open Box Menu for Pokemon Storage'
@@ -1073,7 +1083,7 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await page.keyboard.press('y');
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
 	await expect(page.locator('#box-0-slot-0')).toHaveAccessibleName(
-		'Box Slot 1, row 1, column 1: ARON. Carry Copy ARON'
+		'Box Slot 1, row 1, column 1: ARON, Level 11, Lv. 11. Carry Copy ARON'
 	);
 	await page.keyboard.press('y');
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
@@ -1271,7 +1281,7 @@ test('Pokemon Actions cancel without mutation and explicitly apply an evolution'
 	await actions.getByRole('button', { name: 'Cancel' }).click();
 	await expect(actions).toContainText('Preview Legality Fix');
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
-	await expect(page.locator('.toolbar-status-strip')).not.toHaveText('Unsaved edits');
+	await expect(page.locator('.toolbar-status-strip')).toHaveCount(0);
 
 	await actions.getByRole('button', { name: /Lairon.*Level 32/i }).click();
 	await actions.getByRole('button', { name: 'Apply Pokemon Action' }).click();
@@ -1909,7 +1919,7 @@ test('Box and Party grids expose rows and size real sprites against the Slot', a
 	await setSafeArea(page, { top: 24, right: 12, bottom: 72, left: 12 });
 	await expect(page.locator('#box-0-slot-0 .slot-number')).toHaveCSS('display', 'none');
 	await expect(page.locator('#box-0-slot-0')).toHaveAccessibleName(
-		'Box Slot 1, row 1, column 1: ARON'
+		'Box Slot 1, row 1, column 1: ARON, Level 11, Lv. 11'
 	);
 	await expect(page.locator('#box-0-slot-2')).toHaveAccessibleName(
 		'Box Slot 3, row 1, column 3: Empty'
@@ -1942,7 +1952,7 @@ test('Box and Party grids expose rows and size real sprites against the Slot', a
 
 	await showPartyFromFirstBox(page);
 	await expect(page.locator('#party-slot-0')).toHaveAccessibleName(
-		'Party Slot 1, row 1, column 1: 1-UP'
+		'Party Slot 1, row 1, column 1: 1-UP, Level 25, Lv. 25'
 	);
 	const partyRows = page.getByRole('grid').getByRole('row');
 	await expect(partyRows).toHaveCount(2);
