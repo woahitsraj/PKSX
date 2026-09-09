@@ -184,7 +184,9 @@
 				box: getCachedActiveWorkspaceBox(),
 				publish: (state) => {
 					host.closeAll();
-					setCachedActiveWorkspace(state, getCachedActiveWorkspaceBox());
+					setCachedActiveWorkspace(state, getCachedActiveWorkspaceBox(), {
+						adoptAsActiveSave: true
+					});
 				}
 			});
 			invalidateSavesCache();

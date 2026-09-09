@@ -75,6 +75,7 @@
 	} from '$lib/pksx/saves';
 	import {
 		getActiveWorkspaceService,
+		consumeActiveSaveAdoption,
 		getCachedActiveWorkspaceBox,
 		getSavesStorage,
 		getPkhexEngine,
@@ -3267,14 +3268,10 @@
 
 	onMount(() => {
 		const unsubscribe = workspaceService.subscribe((state) => {
-			const installedOwner = workbenchPanes.find((pane) => pane.id === activeSavePaneId)?.source;
-			const ownerChanged =
-				initialStateReady &&
-				state &&
-				(installedOwner?.type !== 'save-file' || installedOwner.id !== state.file.id);
+			const adoptAsActiveSave = state ? consumeActiveSaveAdoption(state.file.id) : false;
 			loadedSave = state;
 			if (!state) return;
-			if (ownerChanged) {
+			if (initialStateReady && adoptAsActiveSave) {
 				installActiveSavePane(state, getCachedActiveWorkspaceBox());
 				queueMicrotask(focusActiveControl);
 				return;
