@@ -238,7 +238,10 @@ function editingFocus(focus: PokemonEditorFocus, section: PokemonEditorSectionId
 }
 
 function pageEditingFocus(focus: EditingFocus, section: PokemonEditorSectionId): EditingFocus;
-function pageEditingFocus(focus: PokemonEditorFocus, section: PokemonEditorSectionId): PokemonEditorFocus;
+function pageEditingFocus(
+	focus: PokemonEditorFocus,
+	section: PokemonEditorSectionId
+): PokemonEditorFocus;
 function pageEditingFocus(
 	focus: PokemonEditorFocus,
 	section: PokemonEditorSectionId
