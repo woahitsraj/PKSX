@@ -9,6 +9,8 @@
     <SupportedPlatform>browser</SupportedPlatform>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Copyright>Copyright (C) 2026 Rajan Singh and PKSX contributors</Copyright>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

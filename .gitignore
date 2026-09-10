@@ -10,6 +10,7 @@ node_modules
 /.svelte-kit
 /build
 /static/pkhex-engine
+/static/legal
 /ios/App/App/public
 /ios/App/App/capacitor.config.json
 /ios/App/App/config.xml
