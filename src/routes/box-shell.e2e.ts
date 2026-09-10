@@ -1477,6 +1477,100 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 	await expect(panes).toHaveCount(1);
 });
 
+test('Pokemon Storage opens as an independent second pane and persists copied Pokemon', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('x');
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: /^Open another(?: collection)?$/ })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+
+	const panes = page.locator('.box-pane');
+	const savePane = panes.nth(0);
+	const storagePane = panes.nth(1);
+	await expect(panes).toHaveCount(2);
+	const paneIds = await panes.evaluateAll((elements) =>
+		elements.map((pane) => pane.dataset.paneId)
+	);
+	expect(new Set(paneIds).size).toBe(2);
+	expect(
+		await panes.evaluateAll((elements) => elements.map((pane) => pane.dataset.sourceId))
+	).toEqual([expect.not.stringMatching(/^pokemon-storage$/), 'pokemon-storage']);
+
+	await storagePane.getByRole('button', { name: 'Next Location' }).click();
+	await expect(storagePane).toHaveAttribute('data-location', 'box-1');
+	await storagePane.locator('[id$="box-1-slot-8"]').click();
+	await expect(page.locator('#box-1-slot-8')).toBeFocused();
+
+	await savePane.locator('[id$="box-0-slot-0"]').click();
+	await expect(savePane).toHaveClass(/active-pane/);
+	await expect(storagePane).toHaveAttribute('data-location', 'box-1');
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowRight');
+	await expect(storagePane).toHaveClass(/active-pane/);
+	await expect(page.locator('#box-1-slot-0')).toBeFocused();
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
+
+	for (const viewport of [
+		{ width: 640, height: 640 },
+		{ width: 393, height: 852 }
+	]) {
+		await page.setViewportSize(viewport);
+		await expect(panes).toHaveCount(2);
+		expect(
+			await panes.evaluateAll((elements) => elements.map((pane) => pane.dataset.paneId))
+		).toEqual(paneIds);
+		expect(
+			await panes.evaluateAll((elements) => elements.map((pane) => pane.dataset.sourceId))
+		).toEqual([expect.not.stringMatching(/^pokemon-storage$/), 'pokemon-storage']);
+		expect(
+			await panes.evaluateAll((elements) => elements.map((pane) => pane.dataset.location))
+		).toEqual(['box-0', 'box-1']);
+		await expect(page.locator('#box-1-slot-0')).toBeFocused();
+		await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
+		const stacked = await panes.evaluateAll((elements) =>
+			elements.map((pane) => pane.getBoundingClientRect().top)
+		);
+		expect(stacked[0]).toBeLessThan(stacked[1]);
+	}
+
+	await page.keyboard.press('Enter');
+	await expect(storagePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON', {
+		timeout: 15000
+	});
+	await savePane.getByRole('button', { name: 'Previous Location' }).click();
+	await expect(savePane).toHaveAttribute('data-location', 'party');
+	await storagePane.locator('[id$="box-1-slot-0"]').click();
+	await expect(storagePane).toHaveAttribute('data-location', 'box-1');
+	await expect(page.locator('#box-1-slot-0')).toBeFocused();
+	await page.keyboard.press('x');
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Close' })
+		.click();
+	await expect(panes).toHaveCount(1);
+	await expect(panes.first()).toHaveAttribute('data-location', 'party');
+	await expect(page.locator('#party-slot-0')).toBeFocused();
+
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await page.goto('/?source=pokemon-storage');
+	await expect(
+		page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' })
+	).toBeVisible();
+	await page.getByRole('button', { name: 'Next Location' }).click();
+	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
+	await expect(page.locator('#box-1-slot-0')).toContainText('ARON');
+});
+
 test('Box Menu and related picker Cancel restore focus at both viewport floors', async ({
 	page
 }) => {
