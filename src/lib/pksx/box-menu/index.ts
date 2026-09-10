@@ -46,8 +46,8 @@ export function createBoxMenuCommands(input: {
 			? unavailable('switch', 'Switch', activeFileReason)
 			: available('switch', 'Switch'),
 		input.paneCount >= 2
-			? unavailable('open-another', 'Open another', 'Two collections are already open.')
-			: available('open-another', 'Open another'),
+			? unavailable('open-another', 'Open another collection', 'Two collections are already open.')
+			: available('open-another', 'Open another collection'),
 		input.activeSavePane
 			? unavailable('close', 'Close', activeFileReason)
 			: input.paneCount <= 1

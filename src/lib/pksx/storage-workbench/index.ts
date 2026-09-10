@@ -504,7 +504,7 @@ export function createSourcePickerCards(input: {
 					id: 'pokemon-storage',
 					type: 'pokemon-storage',
 					label: 'Pokemon Storage',
-					metadata: 'APP-OWNED · auto-saved',
+					metadata: 'Automatically saved by PKSX',
 					active: false,
 					treatment: 'app-owned'
 				},

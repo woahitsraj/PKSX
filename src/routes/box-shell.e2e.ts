@@ -513,7 +513,7 @@ test('Box Menu keeps fixed unavailable commands and X and Y preserve their conte
 		'Export',
 		'Save a backup',
 		'Switch',
-		'Open another',
+		'Open another collection',
 		'Close'
 	]);
 	await expect(menu.getByRole('button', { name: 'Export' })).toHaveAttribute(
@@ -650,8 +650,20 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 	);
 	await expect(menu.locator('#box-menu-command-2-reason')).toHaveText(activeFileReason);
 	await expect(menu.locator('#box-menu-command-4-reason')).toHaveText(activeFileReason);
-	await menu.getByRole('button', { name: 'Open another' }).click();
-	await page.getByRole('button', { name: /011020251345\.sav/ }).click();
+	await menu.getByRole('button', { name: 'Open another collection' }).click();
+	const openAnotherPicker = page.getByRole('dialog', { name: 'Open another collection' });
+	await expect(
+		openAnotherPicker.getByRole('button', {
+			name: /Pokemon Storage.*Automatically saved by PKSX/i
+		})
+	).toBeVisible();
+	await expect(openAnotherPicker.getByRole('button', { name: /011020251345\.sav/ })).toBeVisible();
+	await expect(
+		openAnotherPicker.getByRole('button', {
+			name: /pokemon-scarlet-2025-03-24-main\.sav/
+		})
+	).toBeVisible();
+	await openAnotherPicker.getByRole('button', { name: /011020251345\.sav/ }).click();
 
 	await expect(page.locator('.box-zone')).toHaveCount(2);
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
@@ -687,24 +699,37 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 
 	await page.keyboard.press('x');
 	await menu.getByRole('button', { name: 'Switch', exact: true }).click();
-	await page
-		.getByRole('dialog', { name: 'Switch collection' })
-		.getByRole('button', { name: /pokemon-scarlet-2025-03-24-main\.sav/ })
-		.click();
+	let switchPicker = page.getByRole('dialog', { name: 'Switch collection' });
+	await expect(
+		switchPicker.getByRole('button', {
+			name: /Pokemon Storage.*Automatically saved by PKSX/i
+		})
+	).toBeVisible();
+	await expect(switchPicker.getByRole('button', { name: /011020251345\.sav/ })).toBeVisible();
+	await expect(
+		switchPicker.getByRole('button', { name: /pokemon-scarlet-2025-03-24-main\.sav/ })
+	).toBeVisible();
+	await switchPicker.getByRole('button', { name: /pokemon-scarlet-2025-03-24-main\.sav/ }).click();
 	await page.keyboard.press('Escape');
 	await expect(menu).toBeVisible();
 	await expect(menu).toContainText('emerald-011020251345.sav');
 	await expect(page.locator('#box-menu-command-2')).toBeFocused();
 	await menu.getByRole('button', { name: 'Switch', exact: true }).click();
-	await page
-		.getByRole('dialog', { name: 'Switch collection' })
-		.getByRole('button', { name: /Pokemon Storage/ })
-		.click();
+	switchPicker = page.getByRole('dialog', { name: 'Switch collection' });
+	await switchPicker.getByRole('button', { name: /Pokemon Storage/ }).click();
 	await expect(
 		page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' })
 	).toBeVisible();
 	await page.keyboard.press('x');
 	menu = page.getByRole('dialog', { name: 'Box Menu' });
+	await expect(menu.getByRole('button', { name: 'Export' })).toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
+	await expect(menu.getByRole('button', { name: 'Save a backup' })).toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
 	await menu.getByRole('button', { name: 'Switch', exact: true }).click();
 	await page
 		.getByRole('dialog', { name: 'Switch collection' })
@@ -754,7 +779,7 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 	await expect(page.locator('#box-0-slot-5')).toBeFocused();
 });
 
-test('Box Menu allows duplicate Save File panes and keeps Open another disabled at two panes', async ({
+test('Box Menu allows duplicate Save File panes and keeps Open another collection disabled at two panes', async ({
 	page
 }) => {
 	await openEmptySaves(page);
@@ -764,7 +789,7 @@ test('Box Menu allows duplicate Save File panes and keeps Open another disabled 
 	await page
 		.getByRole('dialog', { name: 'Box Menu' })
 		.getByRole('button', {
-			name: 'Open another'
+			name: 'Open another collection'
 		})
 		.click();
 	await page
@@ -777,11 +802,11 @@ test('Box Menu allows duplicate Save File panes and keeps Open another disabled 
 	).toHaveCount(2);
 	await page.keyboard.press('x');
 	const menu = page.getByRole('dialog', { name: 'Box Menu' });
-	await expect(menu.getByRole('button', { name: 'Open another' })).toHaveAttribute(
+	await expect(menu.getByRole('button', { name: 'Open another collection' })).toHaveAttribute(
 		'aria-disabled',
 		'true'
 	);
-	await menu.getByRole('button', { name: 'Open another' }).click({ force: true });
+	await menu.getByRole('button', { name: 'Open another collection' }).click({ force: true });
 	await expect(page.locator('.box-zone')).toHaveCount(2);
 });
 

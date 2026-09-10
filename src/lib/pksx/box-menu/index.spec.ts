@@ -11,7 +11,7 @@ describe('Box Menu commands', () => {
 				activeSavePane: false,
 				paneCount: 1
 			}).map((command) => command.label)
-		).toEqual(['Export', 'Save a backup', 'Switch', 'Open another', 'Close']);
+		).toEqual(['Export', 'Save a backup', 'Switch', 'Open another collection', 'Close']);
 	});
 
 	it('explains every unavailable Pokemon Storage command', () => {

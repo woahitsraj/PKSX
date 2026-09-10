@@ -419,7 +419,7 @@ describe('source picker cards', () => {
 		expect(cards[0]).toMatchObject({
 			id: 'pokemon-storage',
 			label: 'Pokemon Storage',
-			metadata: 'APP-OWNED · auto-saved',
+			metadata: 'Automatically saved by PKSX',
 			treatment: 'app-owned'
 		});
 		expect(cards[1]).toMatchObject({
