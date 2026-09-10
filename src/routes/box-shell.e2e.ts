@@ -2926,7 +2926,7 @@ test('Saves opens Pokemon Storage as the focused single Boxes collection', async
 	await expect(
 		page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' })
 	).toBeVisible();
-	await expect(page.locator('.box-zone')).toHaveCount(1);
+	await expect(page.locator('.box-pane')).toHaveCount(1);
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	const persistedActiveSaveFileId = await page.evaluate(
 		() =>
