@@ -151,8 +151,11 @@ test('fresh Settings reload reports the active Save File in the Main Menu', asyn
 
 	await page.getByRole('button', { name: 'Open Main Menu' }).click();
 	const menu = page.getByRole('dialog', { name: 'Main Menu' });
-	await expect(menu.getByRole('button', { name: /^Save File/ })).toContainText(
-		'Edit the active Save File.'
+	await expect(menu.getByRole('button', { name: /^Trainer/ })).toContainText(
+		'Edit Trainer details and money.'
+	);
+	await expect(menu.getByRole('button', { name: /^Bag/ })).toContainText(
+		'Edit the active Save File Bag.'
 	);
 	await expect(menu.getByRole('button', { name: /^Backup Browser/ })).toContainText(
 		'Create, restore, and delete Backups.'
@@ -234,7 +237,11 @@ test('Settings uses one clamped vertical Focus Zone and reveals its focused stop
 
 	await openSettings(page, 1280, 800);
 	await pressController(page, 'Menu');
+	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeVisible();
 	await pressController(page, 'ArrowUp');
+	await expect(
+		page.getByRole('dialog', { name: 'Main Menu' }).getByRole('button', { name: /^Saves/ })
+	).toBeFocused();
 	await pressController(page, 'Enter');
 	await expect(page).toHaveURL(/\/saves$/);
 });
@@ -320,7 +327,7 @@ test('editable focus locks Height Band across pointer transfer and releases afte
 	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
 		timeout: 30_000
 	});
-	await page.goto('/save-file');
+	await page.goto('/trainer');
 	const trainerName = page.locator('#save-file-trainer-name');
 	await expect(trainerName).toBeVisible({ timeout: 30_000 });
 	expect(
@@ -332,7 +339,7 @@ test('editable focus locks Height Band across pointer transfer and releases afte
 	expect(
 		await money.evaluate((element) => parseFloat(getComputedStyle(element).fontSize))
 	).toBeGreaterThan(16);
-	await page.getByRole('button', { name: 'Bag' }).first().click();
+	await page.goto('/bag');
 	const quantities = page.locator('[aria-label="Bag inventory"] input[type="number"]');
 	await expect(quantities.first()).toBeVisible({ timeout: 30_000 });
 	expect(await quantities.count()).toBeGreaterThan(1);

@@ -1,11 +1,15 @@
-<script lang="ts">
-	import EdgeMenu from './EdgeMenu.svelte';
+<script module lang="ts">
+	export const MAIN_MENU_SEARCH_INSERTION_INDEX = 1;
 
 	export type MainMenuEntry = {
-		key: 'boxes' | 'save-file' | 'saves' | 'settings' | 'backup-browser';
+		key: 'boxes' | 'trainer' | 'bag' | 'saves' | 'settings' | 'backup-browser';
 		label: string;
 		description: string;
 	};
+</script>
+
+<script lang="ts">
+	import EdgeMenu from './EdgeMenu.svelte';
 
 	interface Props {
 		entries: MainMenuEntry[];

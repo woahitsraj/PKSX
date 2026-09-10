@@ -109,6 +109,7 @@ export function dispatchSlotMenuAction(
 		case 'nextBox':
 		case 'sourceAction':
 		case 'carryMode':
+		case 'search':
 			return { focus: focusActionCommand(index, count), effect: 'none' };
 	}
 }

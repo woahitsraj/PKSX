@@ -8,7 +8,8 @@ const emeraldFixturePath = path.resolve(
 
 const destinations: Record<string, { path: string; root: string }> = {
 	Boxes: { path: '/', root: 'boxes' },
-	'Save File': { path: '/save-file', root: 'save-file' },
+	Trainer: { path: '/trainer', root: 'trainer' },
+	Bag: { path: '/bag', root: 'bag' },
 	Saves: { path: '/saves', root: 'saves' },
 	Settings: { path: '/settings', root: 'settings' }
 };
@@ -73,7 +74,7 @@ async function pressController(page: Page, key: string) {
 	await controllerButton(page, key, false);
 }
 
-test('empty first run lands on Saves and exposes five selectable destinations', async ({
+test('empty first run lands on Saves and exposes the amended selectable destinations', async ({
 	page
 }) => {
 	await resetEmptyStorage(page);
@@ -86,18 +87,19 @@ test('empty first run lands on Saves and exposes five selectable destinations', 
 	let menu = await openMainMenu(page);
 	await expect(menu.locator('.main-menu-row strong')).toHaveText([
 		'Boxes',
-		'Save File',
+		'Trainer',
+		'Bag',
 		'Saves',
 		'Settings',
 		'Backup Browser'
 	]);
+	await expect(menu.getByRole('button', { name: /^Search/ })).toHaveCount(0);
 	await expect(menu.getByRole('button', { name: /^Saves/ })).toHaveAttribute(
 		'aria-current',
 		'page'
 	);
-	await expect(menu.getByRole('button', { name: /^Save File/ })).toContainText(
-		'No active Save File'
-	);
+	await expect(menu.getByRole('button', { name: /^Trainer/ })).toContainText('No active Save File');
+	await expect(menu.getByRole('button', { name: /^Bag/ })).toContainText('No active Save File');
 	await expect(menu.getByRole('button', { name: /^Backup Browser/ })).toContainText(
 		'No active Save File'
 	);
@@ -114,8 +116,11 @@ test('empty first run lands on Saves and exposes five selectable destinations', 
 
 	await choose(page, 'Boxes');
 	await expect(page).toHaveURL(/\/$/);
-	await choose(page, 'Save File');
-	await expect(page).toHaveURL(/\/save-file$/);
+	await choose(page, 'Trainer');
+	await expect(page).toHaveURL(/\/trainer$/);
+	await expect(page.getByText('No active Save File')).toBeVisible();
+	await choose(page, 'Bag');
+	await expect(page).toHaveURL(/\/bag$/);
 	await expect(page.getByText('No active Save File')).toBeVisible();
 	await choose(page, 'Settings');
 	await expect(page).toHaveURL(/\/settings$/);
@@ -154,6 +159,74 @@ test('Main Menu opens before destination controls are ready and restores the rea
 	});
 	await menu.getByRole('button', { name: /^Saves/ }).click();
 	await expect(page.getByRole('button', { name: 'Ready Save' })).toBeFocused();
+});
+
+test('a second fresh Start closes Main Menu while Save File availability is still loading', async ({
+	page
+}) => {
+	await resetEmptyStorage(page);
+	await page.evaluate(async () => {
+		const database = await new Promise<IDBDatabase>((resolve, reject) => {
+			const request = indexedDB.open('pksx-saves', 4);
+			request.onerror = () => reject(request.error);
+			request.onsuccess = () => resolve(request.result);
+		});
+		const transaction = database.transaction('appState', 'readwrite');
+		const store = transaction.objectStore('appState');
+		let released = false;
+		const keepAlive = () => {
+			const request = store.get('activeSaveFileId');
+			request.onsuccess = () => {
+				if (!released) keepAlive();
+			};
+		};
+		keepAlive();
+		(
+			window as typeof window & { releaseMainMenuStorageLock?: () => void }
+		).releaseMainMenuStorageLock = () => {
+			released = true;
+			transaction.oncomplete = () => database.close();
+		};
+	});
+
+	await pressController(page, 'Menu');
+	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeVisible();
+	await pressController(page, 'Menu');
+	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeHidden();
+	await page.evaluate(() => {
+		(
+			window as typeof window & { releaseMainMenuStorageLock?: () => void }
+		).releaseMainMenuStorageLock?.();
+	});
+});
+
+test('Trainer and Bag report the persisted active Save File while Pokemon Storage has focus', async ({
+	page
+}) => {
+	await resetEmptyStorage(page);
+	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
+	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+		timeout: 15000
+	});
+	await choose(page, 'Boxes');
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	await page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' }).focus();
+
+	const menu = await openMainMenu(page);
+	await expect(menu.getByRole('button', { name: /^Trainer/ })).toContainText(
+		'Edit Trainer details and money.'
+	);
+	await expect(menu.getByRole('button', { name: /^Bag/ })).toContainText(
+		'Edit the active Save File Bag.'
+	);
 });
 
 test('Start is fresh-press only and restores destination focus by identity', async ({ page }) => {
@@ -305,46 +378,58 @@ test('Saves restores an asynchronously loaded control by stable identity', async
 	await expect(page.locator(`#${rememberedId}`)).toBeFocused();
 });
 
-test('Save File restores dynamic controls by semantic identity', async ({ page }) => {
+test('Trainer and Bag keep independent semantic focus within their separate destinations', async ({
+	page
+}) => {
 	await resetEmptyStorage(page);
 	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
 	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
 		timeout: 15000
 	});
-	await choose(page, 'Save File');
+	await choose(page, 'Trainer');
 
 	const trainerName = page.locator('#save-file-trainer-name');
 	await expect(trainerName).toHaveValue('DIXIE', { timeout: 15000 });
 	await expect(
-		page.getByLabel('Save File fields').getByRole('button', { name: /Trainer profile/ })
+		page.getByLabel('Trainer fields').getByRole('button', { name: /Trainer profile/ })
 	).toBeFocused();
+	await expect(page.getByLabel('Trainer fields').getByRole('button', { name: /Bag/ })).toHaveCount(
+		0
+	);
 	await page.setViewportSize({ width: 390, height: 700 });
 	await page.reload();
-	await expectDestinationReady(page, 'save-file');
-	const mobileSections = page.getByLabel('Save File sections');
+	await expectDestinationReady(page, 'trainer');
+	const mobileSections = page.getByLabel('Trainer sections');
 	await expect(mobileSections.getByRole('button', { name: 'Trainer' })).toBeFocused();
 	await mobileSections.getByRole('button', { name: 'Money' }).focus();
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await page.keyboard.press('Control+k');
 	await page
 		.getByRole('dialog', { name: 'Main Menu' })
-		.getByRole('button', { name: /^Save File/ })
+		.getByRole('button', { name: /^Trainer/ })
 		.click();
 	await expect(
-		page.getByLabel('Save File fields').getByRole('button', { name: /Money/ })
+		page.getByLabel('Trainer fields').getByRole('button', { name: /Money/ })
 	).toBeFocused();
 	await trainerName.fill('RAJ');
 	const cancelAll = page.getByRole('button', { name: 'Cancel all' });
 	await cancelAll.focus();
-	await expect(cancelAll).toHaveAttribute('id', 'pksx-save-file-cancel-all');
+	await expect(cancelAll).toHaveAttribute('id', 'pksx-trainer-cancel-all');
 	await page.keyboard.press('Control+k');
 	await page
 		.getByRole('dialog', { name: 'Main Menu' })
-		.getByRole('button', { name: /^Save File/ })
+		.getByRole('button', { name: /^Trainer/ })
 		.click();
 	await expect(cancelAll).toBeFocused();
+	await page.getByLabel('Trainer fields').getByRole('button', { name: /Money/ }).focus();
 
-	await page.getByLabel('Save File fields').getByRole('button', { name: /Bag/ }).click();
+	await choose(page, 'Bag');
+	await expect(
+		page.getByLabel('Bag fields').getByRole('button', { name: /Trainer|Money/ })
+	).toHaveCount(0);
+	await expect(
+		page.getByLabel('Bag fields').getByRole('button', { name: /Bag Inventory pockets/ })
+	).toBeFocused();
 	const pockets = page.getByLabel('Bag pockets').getByRole('button');
 	const addItem = page.getByRole('button', { name: '+ Add', exact: true });
 	await page.getByRole('combobox', { name: /Add an item to/ }).click();
@@ -356,21 +441,28 @@ test('Save File restores dynamic controls by semantic identity', async ({ page }
 	await page.getByRole('option').first().click();
 	await addItem.focus();
 	const secondPocketAddId = await addItem.getAttribute('id');
-	expect(firstPocketAddId).toMatch(/^pksx-save-file-inventory-/);
-	expect(secondPocketAddId).toMatch(/^pksx-save-file-inventory-/);
+	expect(firstPocketAddId).toMatch(/^pksx-bag-inventory-/);
+	expect(secondPocketAddId).toMatch(/^pksx-bag-inventory-/);
 	expect(secondPocketAddId).not.toBe(firstPocketAddId);
 
 	const quantity = page.locator('.item-list article:not(.new-item) input[type="number"]').first();
 	await quantity.focus();
 	const quantityId = await quantity.getAttribute('id');
-	expect(quantityId).toMatch(/^pksx-save-file-item-/);
+	expect(quantityId).toMatch(/^pksx-bag-item-/);
 	await page.keyboard.press('Control+k');
 	await page
 		.getByRole('dialog', { name: 'Main Menu' })
-		.getByRole('button', { name: /^Save File/ })
+		.getByRole('button', { name: /^Bag/ })
 		.click();
 	await expect(page.locator(`#${quantityId}`)).toBeFocused();
-	await expect(page.locator('[id^="pksx-save-file-focus-"]')).toHaveCount(0);
+	await pockets.nth(1).focus();
+	await choose(page, 'Trainer');
+	await expect(
+		page.getByLabel('Trainer fields').getByRole('button', { name: /Money/ })
+	).toBeFocused();
+	await choose(page, 'Bag');
+	await expect(pockets.nth(1)).toBeFocused();
+	await expect(page.locator('[id^="pksx-bag-focus-"]')).toHaveCount(0);
 	await expect
 		.poll(() =>
 			page.evaluate(() => {
@@ -379,6 +471,15 @@ test('Save File restores dynamic controls by semantic identity', async ({ page }
 			})
 		)
 		.toBe(0);
+
+	const combobox = page.getByRole('combobox', { name: /Add an item to/ });
+	await combobox.click();
+	await expect(page.getByRole('searchbox', { name: /Search items/ })).toBeVisible();
+	await pressController(page, 'Escape');
+	await expect(page.getByRole('searchbox', { name: /Search items/ })).toBeHidden();
+	await expect(page).toHaveURL(/\/bag$/);
+	await pressController(page, 'Escape');
+	await expect(page).toHaveURL(/\/$/);
 });
 
 test('Saves confirmation owns shortcuts, controller Back, and browser history', async ({

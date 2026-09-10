@@ -406,7 +406,7 @@ public class ControllerNavigationTest {
         );
         pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_A,
-            "location.pathname.endsWith('/save-file')"
+            "location.pathname.endsWith('/trainer')"
         );
     }
 
@@ -442,8 +442,8 @@ public class ControllerNavigationTest {
     public void controllerFrameworkNavigatesAndHighlightsSaveScreens() throws Exception {
         awaitControllerSurface();
         importEmeraldSave();
-        chooseMainMenu("Save File");
-        awaitJavaScript("location.pathname.endsWith('/save-file')");
+        chooseMainMenu("Trainer");
+        awaitJavaScript("location.pathname.endsWith('/trainer')");
 
         awaitJavaScript("document.querySelector('.field-sidebar nav button') !== null");
         runJavaScript("document.querySelector('.field-sidebar nav button').focus()");
@@ -548,10 +548,10 @@ public class ControllerNavigationTest {
             String beforeImeHeight = runJavaScript("innerHeight");
 
             importEmeraldSave();
-            chooseMainMenu("Save File");
+            chooseMainMenu("Trainer");
             awaitJavaScript(
-                "location.pathname.endsWith('/save-file')"
-                    + " && document.querySelector('[data-destination-root=\"save-file\"]')"
+                "location.pathname.endsWith('/trainer')"
+                    + " && document.querySelector('[data-destination-root=\"trainer\"]')"
                     + "?.dataset.initialState === 'ready'"
                     + " && document.querySelector('#save-file-trainer-name')"
             );

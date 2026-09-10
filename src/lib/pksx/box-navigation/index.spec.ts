@@ -131,6 +131,12 @@ describe('box navigation', () => {
 		expect(state.focus).toEqual(focusBoxSlot(28));
 	});
 
+	it('reserves Search as a Navigation Action without changing Boxes', () => {
+		const state = { ...createInitialNavigationState(3), focus: focusBoxSlot(12) };
+
+		expect(applyNavigationAction(state, 'search')).toEqual(state);
+	});
+
 	it('moves focus to the first row when changing boxes and wraps at edges', () => {
 		expect.assertions(5);
 

@@ -9,7 +9,10 @@
 	import './layout.css';
 	import AppUpdatePrompt from '$lib/components/pksx/AppUpdatePrompt.svelte';
 	import BackupBrowser from '$lib/components/pksx/BackupBrowser.svelte';
-	import MainMenu, { type MainMenuEntry } from '$lib/components/pksx/MainMenu.svelte';
+	import MainMenu, {
+		MAIN_MENU_SEARCH_INSERTION_INDEX,
+		type MainMenuEntry
+	} from '$lib/components/pksx/MainMenu.svelte';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import { heightBandLock } from '$lib/pksx/height-band-lock';
 	import { getSavesStorage } from '$lib/pksx/saves-cache';
@@ -26,7 +29,7 @@
 		type ControllerKey
 	} from '$lib/pksx/controller-input';
 
-	type Destination = 'boxes' | 'save-file' | 'saves' | 'settings';
+	type Destination = 'boxes' | 'trainer' | 'bag' | 'saves' | 'settings';
 	type DestinationFocus = { id: string; identity: string | null };
 
 	let { children } = $props();
@@ -40,35 +43,53 @@
 	let cancelPendingFocusWait: (() => void) | null = null;
 	let platformHistoryDepth = 0;
 	let replaceNextRouteHistory = false;
+	let hasActiveSaveFile = $state(false);
+	let activeSaveAvailabilityRequest = 0;
 	const activeRoute = $derived<Destination>(
 		page.url.pathname.startsWith('/saves')
 			? 'saves'
-			: page.url.pathname.startsWith('/save-file')
-				? 'save-file'
-				: page.url.pathname.startsWith('/settings')
-					? 'settings'
-					: 'boxes'
+			: page.url.pathname.startsWith('/trainer') || page.url.pathname.startsWith('/save-file')
+				? 'trainer'
+				: page.url.pathname.startsWith('/bag')
+					? 'bag'
+					: page.url.pathname.startsWith('/settings')
+						? 'settings'
+						: 'boxes'
 	);
 	const mainMenuOpen = $derived(summonedWorkflow.active?.kind === 'main-menu');
-	const mainMenuEntries = $derived<MainMenuEntry[]>([
-		{ key: 'boxes', label: 'Boxes', description: 'Browse the active collections.' },
-		{
-			key: 'save-file',
-			label: 'Save File',
-			description: appChrome.hasLoadedSave
-				? 'Edit the active Save File.'
-				: 'No active Save File. Open the empty editor for next steps.'
-		},
-		{ key: 'saves', label: 'Saves', description: 'Import and choose Save Files.' },
-		{ key: 'settings', label: 'Settings', description: 'Theme, controls, and build details.' },
-		{
-			key: 'backup-browser',
-			label: 'Backup Browser',
-			description: appChrome.hasLoadedSave
-				? 'Create, restore, and delete Backups.'
-				: 'No active Save File. Open the empty Backup Browser for next steps.'
-		}
-	]);
+	const mainMenuEntries = $derived.by<MainMenuEntry[]>(() => {
+		const entriesAfterReservedSearch: MainMenuEntry[] = [
+			{
+				key: 'trainer',
+				label: 'Trainer',
+				description: hasActiveSaveFile
+					? 'Edit Trainer details and money.'
+					: 'No active Save File. Open Trainer to see how to continue.'
+			},
+			{
+				key: 'bag',
+				label: 'Bag',
+				description: hasActiveSaveFile
+					? 'Edit the active Save File Bag.'
+					: 'No active Save File. Open Bag to see how to continue.'
+			},
+			{ key: 'saves', label: 'Saves', description: 'Import and choose Save Files.' },
+			{ key: 'settings', label: 'Settings', description: 'Theme, controls, and build details.' },
+			{
+				key: 'backup-browser',
+				label: 'Backup Browser',
+				description: hasActiveSaveFile
+					? 'Create, restore, and delete Backups.'
+					: 'No active Save File. Open the empty Backup Browser for next steps.'
+			}
+		];
+
+		const entries: MainMenuEntry[] = [
+			{ key: 'boxes', label: 'Boxes', description: 'Browse the active collections.' }
+		];
+		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX, 0, ...entriesAfterReservedSearch);
+		return entries;
+	});
 
 	beforeNavigate((navigation) => {
 		if (navigation.willUnload) return;
@@ -119,7 +140,8 @@
 				storage.getActiveSaveFileId(),
 				storage.getPokemonStorage()
 			]);
-			appChrome.hasLoadedSave = saveFiles.some(({ id }) => id === activeSaveFileId);
+			hasActiveSaveFile = saveFiles.some(({ id }) => id === activeSaveFileId);
+			appChrome.hasLoadedSave = hasActiveSaveFile;
 			const hasStoredPokemon =
 				pokemonStorage?.boxes.some((box) => box.slots.some((slot) => slot.pokemon !== null)) ??
 				false;
@@ -146,6 +168,19 @@
 			mainMenuEntries.findIndex((entry) => entry.key === activeRoute)
 		);
 		void focusMainMenuEntry(mainMenuIndex);
+		void refreshActiveSaveFileAvailability(++activeSaveAvailabilityRequest);
+	}
+
+	async function refreshActiveSaveFileAvailability(request: number) {
+		try {
+			const activeSaveFileId = await storage.getActiveSaveFileId();
+			const available = Boolean(activeSaveFileId && (await storage.getSave(activeSaveFileId)));
+			if (request === activeSaveAvailabilityRequest) hasActiveSaveFile = available;
+		} catch {
+			if (request === activeSaveAvailabilityRequest) {
+				hasActiveSaveFile = appChrome.hasLoadedSave;
+			}
+		}
 	}
 
 	function closeMainMenu() {
@@ -182,8 +217,10 @@
 		switch (destination) {
 			case 'boxes':
 				return resolve('/');
-			case 'save-file':
-				return resolve('/save-file');
+			case 'trainer':
+				return resolve('/trainer');
+			case 'bag':
+				return resolve('/bag');
 			case 'saves':
 				return resolve('/saves');
 			case 'settings':
@@ -201,14 +238,14 @@
 
 		if (shortcut) {
 			consumeRootEvent(event);
-			if (!summonedWorkflow.active && !appChrome.carryActive) openMainMenu();
+			if (!summonedWorkflow.active && !appChrome.carryActive) void openMainMenu();
 			return;
 		}
 
 		if (fromController && event.key === 'Menu') {
 			consumeRootEvent(event);
 			if (mainMenuOpen) closeMainMenu();
-			else if (!summonedWorkflow.active && !appChrome.carryActive) openMainMenu();
+			else if (!summonedWorkflow.active && !appChrome.carryActive) void openMainMenu();
 			return;
 		}
 
@@ -243,6 +280,13 @@
 		}
 
 		if (fromController && event.key === 'Escape' && hasRouteOwnedConfirmation()) {
+			return;
+		}
+		if (
+			fromController &&
+			event.key === 'Escape' &&
+			document.querySelector('[data-combobox-open="true"]')
+		) {
 			return;
 		}
 
@@ -630,7 +674,7 @@
 			tabindex="-1"
 			aria-label="Open Main Menu"
 			onpointerdown={(event) => event.preventDefault()}
-			onclick={openMainMenu}
+			onclick={() => void openMainMenu()}
 		>
 			<svg class="main-menu-icon" aria-hidden="true" viewBox="3 3 18 18">
 				<path d="M4 6h16M4 12h16M4 18h16" />

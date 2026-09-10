@@ -58,7 +58,7 @@ async function pressController(page: Page, key: string) {
 
 async function chooseMainMenu(
 	page: Page,
-	label: 'Boxes' | 'Save File' | 'Saves' | 'Settings' | 'Backup Browser'
+	label: 'Boxes' | 'Trainer' | 'Bag' | 'Saves' | 'Settings' | 'Backup Browser'
 ) {
 	await page.getByRole('button', { name: 'Open Main Menu' }).click();
 	await page
@@ -658,8 +658,8 @@ test('a completed import does not move focus in a newer Boxes instance', async (
 			typeof (window as typeof window & { releaseImport?: () => void }).releaseImport === 'function'
 	);
 
-	await chooseMainMenu(page, 'Save File');
-	await expect(page).toHaveURL(/\/save-file$/);
+	await chooseMainMenu(page, 'Trainer');
+	await expect(page).toHaveURL(/\/trainer$/);
 	await chooseMainMenu(page, 'Boxes');
 	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
 		timeout: 15000
@@ -1573,8 +1573,8 @@ test('controller focus framework covers every interactive surface', async ({ pag
 	await pressController(page, 'Escape');
 	await pressController(page, 'Escape');
 
-	await chooseMainMenu(page, 'Save File');
-	await expect(page).toHaveURL(/\/save-file$/);
+	await chooseMainMenu(page, 'Trainer');
+	await expect(page).toHaveURL(/\/trainer$/);
 	await expect(page.locator('.field-sidebar nav button').first()).toBeVisible();
 	await pressController(page, 'ArrowDown');
 	await expect(page.locator('.save-file-route').locator(':focus')).toHaveCount(1);
@@ -1582,7 +1582,8 @@ test('controller focus framework covers every interactive surface', async ({ pag
 	await page.getByRole('button', { name: /Money/ }).first().click();
 	await pressController(page, 'ArrowDown');
 	await expectControllerHighlights(page, page.locator('.save-file-route'));
-	await page.getByRole('button', { name: /Bag Inventory pockets/ }).click();
+	await chooseMainMenu(page, 'Bag');
+	await expect(page).toHaveURL(/\/bag$/);
 	await pressController(page, 'ArrowDown');
 	await expectControllerHighlights(page, page.locator('.save-file-route'));
 
@@ -1932,12 +1933,12 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 	expect(exported.byteLength).toBe(fixture.byteLength);
 });
 
-test('Save File route stages and applies trainer, money, and inventory edits', async ({ page }) => {
+test('Trainer and Bag destinations apply their Save File edits', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
-	await chooseMainMenu(page, 'Save File');
-	await expect(page).toHaveURL(/\/save-file$/);
+	await chooseMainMenu(page, 'Trainer');
+	await expect(page).toHaveURL(/\/trainer$/);
 
 	await expect(page.getByRole('heading', { name: 'Trainer profile' })).toBeVisible();
 	const applyButton = page.getByRole('button', { name: /Apply edits/ });
@@ -1955,7 +1956,7 @@ test('Save File route stages and applies trainer, money, and inventory edits', a
 	await trainerName.fill('RAJ');
 	await expect(page.getByText('1 staged edit')).toBeVisible();
 
-	const fields = page.getByLabel('Save File fields');
+	const fields = page.getByLabel('Trainer fields');
 	const trainerSection = fields.getByRole('button', { name: /Trainer profile/ });
 	const moneySection = fields.getByRole('button', { name: /Money/ });
 	await trainerSection.focus();
@@ -1965,10 +1966,11 @@ test('Save File route stages and applies trainer, money, and inventory edits', a
 	await expect(page.getByRole('heading', { name: 'Money', exact: true })).toBeVisible();
 	await page.locator('#save-file-money').fill('12345');
 
-	await fields.getByRole('button', { name: /Bag/ }).click();
+	await chooseMainMenu(page, 'Bag');
 	await expect(page.getByRole('heading', { name: 'Inventory' })).toBeVisible();
 	const quantity = page.locator('.item-list article:not(.new-item) input[type="number"]').first();
 	const originalQuantity = Number(await quantity.inputValue());
+	const quantityLabel = await quantity.getAttribute('aria-label');
 	await quantity.fill(String(originalQuantity + 1));
 	await quantity.press('Tab');
 
@@ -1982,12 +1984,19 @@ test('Save File route stages and applies trainer, money, and inventory edits', a
 	await page.locator('.item-list article:not(.new-item) button.remove').nth(1).click();
 	await expect(page.getByText('Save File bytes remain untouched until Apply.')).toBeVisible();
 
+	await chooseMainMenu(page, 'Trainer');
+	await expect(trainerName).toHaveValue('RAJ');
+	await page.getByLabel('Trainer fields').getByRole('button', { name: /Money/ }).click();
+	await expect(page.locator('#save-file-money')).toHaveValue('12345');
+	await expect(page.getByText('5 staged edits')).toBeVisible();
 	await page.getByRole('button', { name: /Apply edits/ }).click();
 	await expect(page.getByText('Save File edits applied.')).toBeVisible({ timeout: 15000 });
 	await expect(page.getByText('Backup created')).toBeVisible();
 	await expect(page.getByText('Workspace has unapplied export changes.')).toBeVisible();
 
-	await fields.getByRole('button', { name: /Trainer profile/ }).click();
+	await chooseMainMenu(page, 'Bag');
+	await expect(page.getByLabel(quantityLabel!)).toHaveValue(String(originalQuantity + 1));
+	await chooseMainMenu(page, 'Trainer');
 	await expect(trainerName).toHaveValue('RAJ');
 	await trainerName.fill('TEMP');
 	await page.getByRole('button', { name: 'Cancel all' }).click();
@@ -2351,11 +2360,11 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });
 	await chooseMainMenu(page, 'Settings');
 	await page.getByRole('button', { name: 'Use dark theme' }).click();
-	await chooseMainMenu(page, 'Save File');
+	await chooseMainMenu(page, 'Trainer');
 	const saveFileLauncher = page.getByRole('button', { name: 'Browse Backups' });
 	await expect(saveFileLauncher).toBeVisible({ timeout: 15000 });
 	await saveFileLauncher.click();
-	await expect(page).toHaveURL(/\/save-file$/);
+	await expect(page).toHaveURL(/\/trainer$/);
 	await expect(
 		page.locator('.app-shell.dark').getByRole('dialog', { name: 'Backup Browser' })
 	).toBeVisible();
