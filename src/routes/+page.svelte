@@ -4750,6 +4750,10 @@
 			grid-template-rows: minmax(0, 1fr);
 		}
 
+		.two-pane .box-pane:last-child .pane-header {
+			padding-right: calc(var(--pksx-control-height) + var(--pksx-space-2));
+		}
+
 		.two-pane .location-grid {
 			align-content: safe center;
 		}
