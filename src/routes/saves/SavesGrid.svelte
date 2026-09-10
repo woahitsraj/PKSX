@@ -449,8 +449,13 @@
 			summonedWorkflow.closeAll();
 			menuSaveFileId = null;
 			menuReturnTarget = null;
-			const path = destination === 'boxes' ? '/' : '/' + destination;
-			await goto(resolve(path as Parameters<typeof resolve>[0]), {
+			const path =
+				destination === 'boxes'
+					? resolve('/')
+					: destination === 'trainer'
+						? resolve('/trainer')
+						: resolve('/bag');
+			await goto(path, {
 				keepFocus: true
 			});
 		} catch (error) {
