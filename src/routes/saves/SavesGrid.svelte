@@ -713,7 +713,7 @@
 									role="gridcell"
 									aria-colindex={(index % columnCount) + 1}
 									aria-current={saveFile.id === activeSaveFileId ? 'true' : undefined}
-									aria-busy={busyTarget === saveFile.id}
+									aria-busy={busyTarget === saveFile.id || details.status === 'loading'}
 								>
 									<button
 										type="button"

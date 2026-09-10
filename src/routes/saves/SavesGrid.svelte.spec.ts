@@ -1,13 +1,17 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { mount, tick, unmount } from 'svelte';
+import type { EngineApi } from '$lib/engine';
 import SavesGrid from './SavesGrid.svelte';
 import { createSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 import { createEmptyPokemonStorage, deleteIndexedDbSaves } from '$lib/pksx/saves';
 import { getSavesSnapshot, getSavesStorage, invalidateSavesCache } from '$lib/pksx/saves-cache';
 
+type LoadSaveResult = Awaited<ReturnType<EngineApi['loadSaveWorkspace']>>;
+
 const fakes = vi.hoisted(() => ({
 	databaseName: 'pksx-grid-test-' + crypto.randomUUID(),
-	host: null as ReturnType<typeof createSummonedWorkflowHost> | null
+	host: null as ReturnType<typeof createSummonedWorkflowHost> | null,
+	detailsRequest: null as Promise<LoadSaveResult> | null
 }));
 
 vi.mock('$lib/pksx/saves', async (importOriginal) => {
@@ -24,7 +28,11 @@ vi.mock('$lib/pksx/summoned-workflow/host.svelte', async (importOriginal) => ({
 }));
 vi.mock('$lib/engine', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/engine')>()),
-	createPkhexWorkerEngine: () => ({ loadSaveWorkspace: async () => ({ ok: false }) })
+	createPkhexWorkerEngine: () => ({
+		loadSaveWorkspace: () =>
+			fakes.detailsRequest ?? Promise.resolve({ ok: false } as LoadSaveResult),
+		listBoxSlots: async () => ({ ok: true, value: [], error: null })
+	})
 }));
 
 let component: ReturnType<typeof mount> | null = null;
@@ -34,6 +42,7 @@ afterEach(async () => {
 	if (component) await unmount(component);
 	component = null;
 	container?.remove();
+	fakes.detailsRequest = null;
 	await deleteIndexedDbSaves(fakes.databaseName);
 	invalidateSavesCache();
 });
@@ -107,4 +116,42 @@ it('includes Pokemon Storage in grid navigation', async () => {
 	grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 	await tick();
 	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-import');
+});
+
+it('marks a Save File card busy only while its details are loading', async () => {
+	let resolveDetails!: (result: LoadSaveResult) => void;
+	fakes.detailsRequest = new Promise((resolve) => (resolveDetails = resolve));
+	fakes.host = createSummonedWorkflowHost();
+	await getSavesStorage().importSave({
+		bytes: new Uint8Array([1]),
+		originalFileName: 'loading.sav'
+	});
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(SavesGrid, { target: container });
+
+	await expect
+		.poll(() => container.querySelector<HTMLElement>('.save-card')?.getAttribute('aria-busy'))
+		.toBe('true');
+	const card = container.querySelector<HTMLElement>('.save-card')!;
+	expect(card.textContent).toContain('Reading save...');
+
+	resolveDetails({
+		ok: true,
+		error: null,
+		value: {
+			summary: {
+				gameVersion: 'E',
+				trainerName: 'CASS',
+				partyCount: 0,
+				boxCount: 1
+			},
+			partySlots: [],
+			boxSlots: []
+		}
+	} as unknown as LoadSaveResult);
+
+	await expect.poll(() => card.getAttribute('aria-busy')).toBe('false');
+	expect(card.textContent).not.toContain('Reading save...');
+	expect(card.textContent).toContain('CASS');
 });
