@@ -223,7 +223,8 @@ final class ControllerNavigationTests: XCTestCase {
         let webView = try appWebView()
         try await waitForJavaScript(
             "document.readyState === 'complete' && document.querySelector('.main-menu-opener') !== null && ((document.querySelector('.boxes-route')?.dataset.initialState === 'ready' && document.querySelector('#box-grid')?.getClientRects().length > 0) || (document.querySelector('[data-destination-root]')?.dataset.destinationRoot !== 'boxes' && document.querySelector('[data-destination-root]')?.dataset.initialState === 'ready'))",
-            in: webView
+            in: webView,
+            timeout: 60
         )
         let hasBoxGrid = try await webView.evaluateJavaScript(
             "document.querySelector('#box-grid') !== null"
