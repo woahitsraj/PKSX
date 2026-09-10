@@ -87,6 +87,7 @@
 		getActiveWorkspaceService,
 		consumeActiveSaveAdoption,
 		getCachedActiveWorkspaceBox,
+		getSaveFileEditCoordinator,
 		getSavesStorage,
 		getPkhexEngine,
 		invalidateSavesCache,
@@ -1643,7 +1644,12 @@
 		busy = true;
 		importError = null;
 		try {
-			const bytes = await workspaceService.exportBytes(resolved.workspace.state);
+			const editCoordinator = getSaveFileEditCoordinator();
+			const origin = editCoordinator.openWorkspace(
+				resolved.workspace.state,
+				resolved.pane.activeBox
+			);
+			const bytes = await editCoordinator.export(origin);
 			if (!resolveBoxMenuSaveTarget(target)) return;
 			downloadBytes(bytes, createExportFileName(resolved.workspace.state.file.originalFileName));
 			statusMessage = `Export ready for ${resolved.workspace.state.file.originalFileName ?? 'Save File'}.`;
