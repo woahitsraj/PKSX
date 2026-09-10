@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import path from 'node:path';
 
 const emeraldFixturePath = path.resolve(
@@ -10,6 +10,37 @@ async function openSettings(page: Page, width = 1280, height = 800) {
 	await page.setViewportSize({ width, height });
 	await page.goto('/settings');
 	await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+}
+
+async function openPokemonEditor(page: Page) {
+	await page.goto('/saves');
+	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
+	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+		timeout: 30_000
+	});
+	await page.goto('/');
+	const slot = page.locator('#box-0-slot-0');
+	await expect(slot).toContainText('ARON', { timeout: 15_000 });
+	await slot.click();
+	await page.getByRole('button', { name: 'Edit' }).click();
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	await expect(editor.locator('#pokemon-editor-species')).toBeEnabled({ timeout: 15_000 });
+	return editor;
+}
+
+async function expectEditableFontFloor(scope: Locator) {
+	const controls = scope.locator(
+		'input:not([type="button"]):not([type="checkbox"]):not([type="file"]):not([type="hidden"]):not([type="radio"]):not([type="reset"]):not([type="submit"]), select, textarea, [contenteditable]:not([contenteditable="false" i])'
+	);
+	const sizes = await controls.evaluateAll((elements) =>
+		elements.map((element) => ({
+			control: element.getAttribute('id') ?? element.getAttribute('aria-label') ?? element.tagName,
+			fontSize: parseFloat(getComputedStyle(element).fontSize)
+		}))
+	);
+
+	expect(sizes.length).toBeGreaterThan(0);
+	expect(sizes.filter(({ fontSize }) => fontSize < 16)).toEqual([]);
 }
 
 async function pressController(page: Page, key: string) {
@@ -231,6 +262,17 @@ test('editable focus locks Height Band across pointer transfer and releases afte
 		timeout: 30_000
 	});
 	await page.goto('/save-file');
+	const trainerName = page.locator('#save-file-trainer-name');
+	await expect(trainerName).toBeVisible({ timeout: 30_000 });
+	expect(
+		await trainerName.evaluate((element) => parseFloat(getComputedStyle(element).fontSize))
+	).toBeGreaterThan(16);
+	await page.getByRole('button', { name: 'Money' }).first().click();
+	const money = page.locator('#save-file-money');
+	await expect(money).toBeVisible({ timeout: 30_000 });
+	expect(
+		await money.evaluate((element) => parseFloat(getComputedStyle(element).fontSize))
+	).toBeGreaterThan(16);
 	await page.getByRole('button', { name: 'Bag' }).first().click();
 	const quantities = page.locator('[aria-label="Bag inventory"] input[type="number"]');
 	await expect(quantities.first()).toBeVisible({ timeout: 30_000 });
@@ -282,5 +324,49 @@ test('semantic density steps type only at an allocated 900 by 700 container', as
 		expect(values.space).toBeLessThanOrEqual(6);
 		expect(values.focusRing).toBeGreaterThanOrEqual(2);
 		expect(values.focusRing).toBeLessThanOrEqual(3);
+	}
+});
+
+test('shared density keeps focused Pokemon Editor controls at 16px across budget canvases', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 360, height: 640 });
+	const editor = await openPokemonEditor(page);
+	const shell = page.locator('.app-shell');
+	const label = editor.locator('.nickname-field > span');
+
+	for (const size of [
+		{ width: 640, height: 360 },
+		{ width: 640, height: 480 },
+		{ width: 360, height: 640 },
+		{ width: 393, height: 852 }
+	]) {
+		await page.setViewportSize(size);
+		await expect(shell).toHaveCSS('--pksx-type-label', '12px');
+		await expect(label).toHaveCSS('font-size', '9.92px');
+
+		const input = editor.locator('#pokemon-editor-nickname');
+		const select = editor.locator('#pokemon-editor-nature');
+		for (const control of [input, select]) {
+			await control.focus();
+			expect(
+				await control.evaluate((element) => parseFloat(getComputedStyle(element).fontSize))
+			).toBeGreaterThanOrEqual(16);
+		}
+		await expectEditableFontFloor(editor);
+		const statInput = editor.locator('#pokemon-editor-hp-iv');
+		await statInput.focus();
+		const statInputBounds = await statInput.boundingBox();
+		expect(statInputBounds?.width).toBeGreaterThanOrEqual(44);
+		expect(statInputBounds?.height).toBeGreaterThanOrEqual(38);
+
+		await editor.getByRole('combobox', { name: 'Move 1' }).click();
+		const comboboxInput = editor.getByRole('searchbox', { name: 'Search moves for Move 1' });
+		await expect(comboboxInput).toBeFocused();
+		expect(
+			await comboboxInput.evaluate((element) => parseFloat(getComputedStyle(element).fontSize))
+		).toBeGreaterThanOrEqual(16);
+		await expectEditableFontFloor(editor);
+		await comboboxInput.press('Escape');
 	}
 });

@@ -32,6 +32,12 @@
 	initial-value: 24px;
 }
 
+@property --pksx-type-editable {
+	syntax: '<length>';
+	inherits: true;
+	initial-value: 16px;
+}
+
 @property --pksx-control-height {
 	syntax: '<length>';
 	inherits: true;
@@ -154,6 +160,7 @@
 	--pksx-type-body: 13px;
 	--pksx-type-title: 16px;
 	--pksx-type-display: 24px;
+	--pksx-type-editable: 16px;
 	--pksx-control-height: clamp(32px, 9.4cqh, 44px);
 	--pksx-small-control-height: clamp(24px, calc(var(--pksx-control-height) * 0.75), 33px);
 	--pksx-icon-size: 16px;
@@ -169,6 +176,18 @@
 	--pksx-space-2: calc(var(--pksx-space-unit) * 2);
 	--pksx-space-3: calc(var(--pksx-space-unit) * 3);
 	--pksx-space-4: calc(var(--pksx-space-unit) * 4);
+}
+
+.pksx-density
+	:where(
+		input:not([type='button']):not([type='checkbox']):not([type='file']):not([type='hidden']):not(
+				[type='radio']
+			):not([type='reset']):not([type='submit']),
+		select,
+		textarea,
+		[contenteditable]:not([contenteditable='false' i])
+	) {
+	font-size: max(16px, var(--pksx-type-editable)) !important;
 }
 
 @container pksx-density (min-width: 900px) and (min-height: 700px) {

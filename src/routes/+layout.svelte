@@ -332,7 +332,7 @@
 <svelte:window onkeydown={handleChromeKeydown} />
 
 <main
-	class={['app-shell', theme.dark && 'dark']}
+	class={['app-shell', 'pksx-density', theme.dark && 'dark']}
 	aria-labelledby="screen-title"
 	onfocusin={handleShellFocusIn}
 	{@attach controllerNavigation}
