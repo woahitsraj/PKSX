@@ -688,7 +688,11 @@ public sealed record StoredPokemonImportResult(
     bool Mutated,
     SaveWorkspace Workspace);
 
-public sealed record LegalityReportLine(string Severity, string Identifier, string Message);
+public sealed record LegalityReportLine(
+    string Severity,
+    string Identifier,
+    string Message,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? FixId = null);
 
 public sealed record LegalityReport(
     bool Legal,
@@ -709,12 +713,19 @@ public sealed record PokemonEvolutionChoice(
     string Requirement,
     List<PokemonActionChange> Changes);
 
+public sealed record PokemonLegalityFixChoice(
+    string Id,
+    string Token,
+    string Label,
+    List<PokemonActionChange> Changes);
+
 public sealed record PokemonActionAvailability(
     string Kind,
     bool Available,
     string? UnavailableReason,
     List<PokemonActionChange> Changes,
-    List<PokemonEvolutionChoice> Choices);
+    List<PokemonEvolutionChoice> Choices,
+    List<PokemonLegalityFixChoice> Fixes);
 
 public sealed record PokemonActionPreview(
     LegalityReport LegalityReport,

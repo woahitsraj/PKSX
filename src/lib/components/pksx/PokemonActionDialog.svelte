@@ -15,9 +15,6 @@
 	const preview = $derived(
 		state.status === 'ready' || state.status === 'applying' ? state.preview : null
 	);
-	const legalityFix = $derived(
-		preview?.actions.find((action) => action.kind === 'legality-fix') ?? null
-	);
 	const evolve = $derived(preview?.actions.find((action) => action.kind === 'evolve') ?? null);
 </script>
 
@@ -25,42 +22,40 @@
 	<header>
 		<div>
 			<p>{state.location}</p>
-			<h2 id="pokemon-action-title">Quick Actions</h2>
+			<h2 id="pokemon-action-title">Evolve</h2>
 		</div>
 		<button
 			id="pokemon-action-close"
 			data-pokemon-action-control
 			type="button"
-			aria-label="Close Quick Actions"
+			aria-label="Close Evolve"
 			disabled={state.status === 'applying'}
 			onclick={onClose}>×</button
 		>
 	</header>
 
 	<div class="action-scroll">
-		<section class="subject" aria-label="Quick Actions source">
+		<section class="subject" aria-label="Evolution source">
 			<strong>{state.pokemonLabel}</strong>
 			<span>
 				{state.status === 'loading'
-					? 'Loading engine-backed actions...'
+					? 'Loading engine-backed evolutions...'
 					: state.status === 'error'
-						? 'Quick Actions unavailable'
-						: state.preview.legalityReport.summary}
+						? 'Evolution unavailable'
+						: 'Choose a direct evolution to preview.'}
 			</span>
 		</section>
 
 		{#if state.status === 'loading'}
-			<p class="message">Asking the PKHeX Engine for available actions and previews...</p>
+			<p class="message">Asking the PKHeX Engine for direct evolutions...</p>
 		{:else if state.status === 'error'}
 			<p class="message error" role="alert">{state.message}</p>
 		{:else if state.selection}
-			<section class="preview" aria-label="Quick Actions preview">
+			<section class="preview" aria-label="Evolution preview">
 				<div>
 					<p>Preview</p>
 					<h3>
-						{state.selection.kind === 'legality-fix'
-							? 'Legality Fix'
-							: `Evolve to ${state.selection.choice?.speciesName ?? 'selected evolution'}`}
+						Evolve to {state.selection.choice?.speciesName ?? 'selected evolution'}
 					</h3>
 				</div>
 				{#if state.selection.changes.length > 0}
@@ -83,24 +78,6 @@
 			</section>
 		{:else}
 			<div class="action-list">
-				<section>
-					<div>
-						<p>Repair</p>
-						<h3>Legality Fix</h3>
-					</div>
-					<p>
-						{legalityFix?.available
-							? `Fix ${state.preview.legalityReport.fixableProblems.join(', ')}.`
-							: (legalityFix?.unavailableReason ?? 'No supported fix is available.')}
-					</p>
-					<button
-						data-pokemon-action-control
-						type="button"
-						disabled={!legalityFix?.available || state.status === 'applying'}
-						onclick={() => onSelect('legality-fix')}>Preview Legality Fix</button
-					>
-				</section>
-
 				<section>
 					<div>
 						<p>Evolution</p>
@@ -144,7 +121,7 @@
 				disabled={state.status === 'applying'}
 				onclick={onApply}
 			>
-				{state.status === 'applying' ? 'Applying...' : 'Apply Quick Action'}
+				{state.status === 'applying' ? 'Applying...' : 'Apply evolution'}
 			</button>
 		{:else}
 			<button data-pokemon-action-control class="primary" type="button" onclick={onClose}>

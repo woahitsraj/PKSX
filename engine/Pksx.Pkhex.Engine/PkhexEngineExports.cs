@@ -8,6 +8,11 @@ namespace Pksx.Pkhex.Engine;
 [SupportedOSPlatform("browser")]
 public static partial class PkhexEngineExports
 {
+    private const int LegalityFixPreviewCacheCapacity = 256;
+    private static readonly Lock LegalityFixPreviewCacheLock = new();
+    private static readonly Dictionary<string, LegalityFixPreview> LegalityFixPreviewCache = [];
+    private static readonly Queue<string> LegalityFixPreviewOrder = [];
+
     [JSExport]
     public static string GetVersionJson()
     {
@@ -1743,7 +1748,9 @@ public static partial class PkhexEngineExports
                 + (string.IsNullOrWhiteSpace(editedMoves) ? "" : $" Edited moves: {editedMoves}.");
         }
 
-        return $"Move Set edit makes this Pokemon illegal for its current format. {string.Join(" ", details)}";
+        var changedMoveLabels = string.Join(", ", edits.Select(edit => $"Move {edit.Slot + 1} {MoveName(edit.Move)}"));
+        return $"Move Set edit makes this Pokemon illegal for its current format. {string.Join(" ", details)}"
+            + (string.IsNullOrWhiteSpace(changedMoveLabels) ? "" : $" Edited moves: {changedMoveLabels}.");
     }
 
     private static string MoveName(ushort move) =>
@@ -1862,13 +1869,14 @@ public static partial class PkhexEngineExports
         var legalityFix = PreviewLegalityFix(pokemon, storageSlotType);
         var evolutionChoices = CreateEvolutionChoices(pokemon);
         var evolve = evolutionChoices.Count > 0
-            ? new PokemonActionAvailability("evolve", true, null, [], evolutionChoices)
+            ? new PokemonActionAvailability("evolve", true, null, [], evolutionChoices, [])
             : new PokemonActionAvailability(
                 "evolve",
                 false,
                 pokemon.IsEgg
                     ? "Eggs cannot evolve."
                     : "No direct evolution is available for this Pokemon.",
+                [],
                 [],
                 []);
 
@@ -1881,16 +1889,48 @@ public static partial class PkhexEngineExports
         PKM pokemon,
         StorageSlotType storageSlotType)
     {
+        var fixes = CreateLegalityFixChoices(pokemon, storageSlotType);
         var clone = pokemon.Clone();
-        var result = ApplyTargetedLegalityFix(clone, storageSlotType);
-        return result.Changes.Count > 0
-            ? new PokemonActionAvailability("legality-fix", true, null, result.Changes, [])
+        var result = ApplyTargetedLegalityFix(clone, storageSlotType, null);
+        return fixes.Count > 0
+            ? new PokemonActionAvailability("legality-fix", true, null, result.Changes, [], fixes)
             : new PokemonActionAvailability(
                 "legality-fix",
                 false,
                 "The Legality Report has no supported fixable problems.",
                 [],
+                [],
                 []);
+    }
+
+    private static List<PokemonLegalityFixChoice> CreateLegalityFixChoices(
+        PKM pokemon,
+        StorageSlotType storageSlotType)
+    {
+        var fixes = new List<PokemonLegalityFixChoice>();
+        foreach (var (id, label) in new[]
+        {
+            ("move-set", "Move Set"),
+            ("relearn-moves", "Relearn Moves"),
+            ("ball", "Ball"),
+            ("ribbons", "Ribbons"),
+        })
+        {
+            var clone = pokemon.Clone();
+            var result = ApplyTargetedLegalityFix(clone, storageSlotType, id);
+            if (result.Changes.Count > 0)
+            {
+                var token = CacheLegalityFixPreview(
+                    pokemon,
+                    storageSlotType,
+                    id,
+                    result.Pokemon,
+                    result.Changes);
+                fixes.Add(new PokemonLegalityFixChoice(id, token, label, result.Changes));
+            }
+        }
+
+        return fixes;
     }
 
     private static PokemonActionMutation ApplyPokemonAction(
@@ -1903,12 +1943,16 @@ public static partial class PkhexEngineExports
         {
             case "legality-fix":
                 {
-                    var fix = ApplyTargetedLegalityFix(pokemon, storageSlotType);
+                    var fix = choiceId is null
+                        ? ApplyTargetedLegalityFix(pokemon, storageSlotType, null)
+                        : ApplyCachedLegalityFix(pokemon, storageSlotType, choiceId);
+                    if (!fix.Ok)
+                        return fix;
                     return fix.Changes.Count == 0
                         ? PokemonActionMutation.Fail(
                             "unsupported-pokemon-action",
                             "The Legality Report has no supported fixable problems.")
-                        : PokemonActionMutation.Success(pokemon, fix.Changes);
+                        : PokemonActionMutation.Success(fix.Pokemon, fix.Changes);
                 }
             case "evolve":
                 {
@@ -1937,17 +1981,71 @@ public static partial class PkhexEngineExports
         }
     }
 
+    private static string CacheLegalityFixPreview(
+        PKM source,
+        StorageSlotType storageSlotType,
+        string fixId,
+        PKM result,
+        List<PokemonActionChange> changes)
+    {
+        var token = $"{fixId}:{Guid.NewGuid():N}";
+        var preview = new LegalityFixPreview(
+            source.Data.ToArray(),
+            source.GetType(),
+            storageSlotType,
+            fixId,
+            result.Clone(),
+            changes);
+        lock (LegalityFixPreviewCacheLock)
+        {
+            LegalityFixPreviewCache[token] = preview;
+            LegalityFixPreviewOrder.Enqueue(token);
+            while (LegalityFixPreviewOrder.Count > LegalityFixPreviewCacheCapacity)
+                LegalityFixPreviewCache.Remove(LegalityFixPreviewOrder.Dequeue());
+        }
+        return token;
+    }
+
+    private static PokemonActionMutation ApplyCachedLegalityFix(
+        PKM pokemon,
+        StorageSlotType storageSlotType,
+        string token)
+    {
+        LegalityFixPreview? preview;
+        lock (LegalityFixPreviewCacheLock)
+            LegalityFixPreviewCache.TryGetValue(token, out preview);
+
+        if (preview is null || !token.StartsWith($"{preview.FixId}:", StringComparison.Ordinal))
+        {
+            return PokemonActionMutation.Fail(
+                "unsupported-pokemon-action",
+                "This Quick Fix preview is no longer available. Refresh the Legality Report and try again.");
+        }
+
+        if (preview.StorageSlotType != storageSlotType ||
+            preview.PokemonType != pokemon.GetType() ||
+            !preview.SourceBytes.AsSpan().SequenceEqual(pokemon.Data))
+        {
+            return PokemonActionMutation.Fail(
+                "stale-pokemon-action-preview",
+                "This Pokemon changed after the Quick Fix preview. Refresh the Legality Report and try again.");
+        }
+
+        return PokemonActionMutation.Success(preview.Pokemon.Clone(), preview.Changes);
+    }
+
     private static PokemonActionMutation ApplyTargetedLegalityFix(
         PKM pokemon,
-        StorageSlotType storageSlotType)
+        StorageSlotType storageSlotType,
+        string? fixId)
     {
         var before = pokemon.Clone();
         var analysis = new LegalityAnalysis(pokemon, storageSlotType);
 
-        if (
-            !MoveResult.AllValid(analysis.Info.Moves) ||
-            analysis.Results.Any(result =>
-                !result.Valid && result.Identifier == CheckIdentifier.CurrentMove))
+        if ((fixId is null or "move-set") &&
+            (!MoveResult.AllValid(analysis.Info.Moves) ||
+             analysis.Results.Any(result =>
+                 !result.Valid && result.Identifier == CheckIdentifier.CurrentMove)))
         {
             pokemon.SetMoveset();
             if (pokemon is ITechRecord records)
@@ -1964,16 +2062,16 @@ public static partial class PkhexEngineExports
             analysis = new LegalityAnalysis(pokemon, storageSlotType);
         }
 
-        if (
-            !MoveResult.AllValid(analysis.Info.Relearn) ||
-            analysis.Results.Any(result =>
-                !result.Valid && result.Identifier == CheckIdentifier.RelearnMove))
+        if ((fixId is null or "relearn-moves") &&
+            (!MoveResult.AllValid(analysis.Info.Relearn) ||
+             analysis.Results.Any(result =>
+                 !result.Valid && result.Identifier == CheckIdentifier.RelearnMove)))
         {
             pokemon.SetRelearnMoves(analysis);
             analysis = new LegalityAnalysis(pokemon, storageSlotType);
         }
 
-        if (analysis.Results.Any(result =>
+        if ((fixId is null or "ball") && analysis.Results.Any(result =>
             !result.Valid && result.Identifier == CheckIdentifier.Ball))
         {
             BallApplicator.ApplyBallLegalByColor(
@@ -1983,7 +2081,7 @@ public static partial class PkhexEngineExports
             analysis = new LegalityAnalysis(pokemon, storageSlotType);
         }
 
-        if (analysis.Results.Any(result =>
+        if ((fixId is null or "ribbons") && analysis.Results.Any(result =>
             !result.Valid &&
             result.Identifier is CheckIdentifier.Ribbon or CheckIdentifier.RibbonMark))
         {
@@ -2205,11 +2303,52 @@ public static partial class PkhexEngineExports
             messages.Add(new LegalityReportLine(
                 check.Judgement.ToString(),
                 check.Identifier.ToString(),
-                message));
+                message,
+                check.Valid ? null : LegalityFixId(check.Identifier)));
         }
+
+        AddMoveLegalityMessages(messages, analysis.Info.Moves, in context, "CurrentMove", "Move", "move-set");
+        AddMoveLegalityMessages(
+            messages,
+            analysis.Info.Relearn,
+            in context,
+            "RelearnMove",
+            "Relearn move",
+            "relearn-moves");
 
         return messages;
     }
+
+    private static void AddMoveLegalityMessages(
+        List<LegalityReportLine> messages,
+        ReadOnlySpan<MoveResult> results,
+        in LegalityLocalizationContext context,
+        string identifier,
+        string label,
+        string fixId)
+    {
+        for (var index = 0; index < results.Length; index++)
+        {
+            var result = results[index];
+            if (result.Valid)
+                continue;
+
+            messages.Add(new LegalityReportLine(
+                result.Judgement.ToString(),
+                identifier,
+                $"{label} {index + 1}: {result.Summary(in context)}",
+                fixId));
+        }
+    }
+
+    private static string? LegalityFixId(CheckIdentifier identifier) => identifier switch
+    {
+        CheckIdentifier.CurrentMove => "move-set",
+        CheckIdentifier.RelearnMove => "relearn-moves",
+        CheckIdentifier.Ball => "ball",
+        CheckIdentifier.Ribbon or CheckIdentifier.RibbonMark => "ribbons",
+        _ => null,
+    };
 
     private static int ClampActiveBox(int box, SaveFile save)
     {
@@ -2308,6 +2447,14 @@ public static partial class PkhexEngineExports
         public static PokemonActionMutation Fail(string code, string message) =>
             new(false, null!, [], code, message);
     }
+
+    private sealed record LegalityFixPreview(
+        byte[] SourceBytes,
+        Type PokemonType,
+        StorageSlotType StorageSlotType,
+        string FixId,
+        PKM Pokemon,
+        List<PokemonActionChange> Changes);
 
     private readonly record struct SpeciesFormProjectionResult(
         bool Ok,

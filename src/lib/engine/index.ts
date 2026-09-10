@@ -35,6 +35,7 @@ export type {
 	PokemonActionPreview,
 	PokemonActionResult,
 	PokemonEvolutionChoice,
+	PokemonLegalityFixChoice,
 	PokemonEditOperation,
 	PokemonEditOperationResult,
 	PokemonCreationOperation,

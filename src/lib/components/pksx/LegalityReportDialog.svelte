@@ -1,17 +1,33 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import type { LegalityReportState } from '$lib/pksx/legality-report';
+	import type { PokemonActionState } from '$lib/pksx/pokemon-actions';
 
 	interface Props {
 		state: Exclude<LegalityReportState, { status: 'idle' }>;
+		actionState: PokemonActionState;
+		onQuickFix: (fixId: string, launcherId: string) => void;
+		onCancelQuickFix: () => void;
+		onApplyQuickFix: () => void;
 		onClose: () => void;
 	}
 
-	let { state, onClose }: Props = $props();
+	let { state, actionState, onQuickFix, onCancelQuickFix, onApplyQuickFix, onClose }: Props =
+		$props();
 	const report = $derived(state.status === 'ready' ? state.report : null);
 	const blockingMessage = $derived(
 		state.status === 'error' || state.status === 'unavailable' ? state.message : null
 	);
+	const actionReady = $derived(
+		actionState.status === 'ready' || actionState.status === 'applying' ? actionState : null
+	);
+	const legalityFix = $derived(
+		actionReady?.preview.actions.find((action) => action.kind === 'legality-fix') ?? null
+	);
+
+	function hasQuickFix(fixId?: string) {
+		return Boolean(fixId && legalityFix?.fixes.some((fix) => fix.id === fixId));
+	}
 
 	onMount(() => {
 		void tick().then(() => {
@@ -28,6 +44,7 @@
 		</div>
 		<button
 			id="legality-report-close"
+			data-legality-report-control
 			type="button"
 			class="icon-close"
 			aria-label="Close report"
@@ -65,6 +82,16 @@
 								<li>
 									<span>{line.identifier}</span>
 									<p>{line.message}</p>
+									{#if hasQuickFix(line.fixId)}
+										<button
+											id={`legality-quick-fix-warning-${index}`}
+											data-legality-report-control
+											type="button"
+											class="quick-fix"
+											onclick={() => onQuickFix(line.fixId!, `legality-quick-fix-warning-${index}`)}
+											>Quick Fix</button
+										>
+									{/if}
 								</li>
 							{/each}
 						</ul>
@@ -81,6 +108,16 @@
 								<li>
 									<span>{line.identifier}</span>
 									<p>{line.message}</p>
+									{#if hasQuickFix(line.fixId)}
+										<button
+											id={`legality-quick-fix-message-${index}`}
+											data-legality-report-control
+											type="button"
+											class="quick-fix"
+											onclick={() => onQuickFix(line.fixId!, `legality-quick-fix-message-${index}`)}
+											>Quick Fix</button
+										>
+									{/if}
 								</li>
 							{/each}
 						</ul>
@@ -89,11 +126,46 @@
 					{/if}
 				</section>
 			</div>
+			{#if actionReady?.selection?.kind === 'legality-fix'}
+				<section class="fix-preview" aria-label="Quick Fix preview">
+					<h3>{actionReady.selection.fix?.label ?? 'Quick Fix'}</h3>
+					<ul>
+						{#each actionReady.selection.changes as change (change.field)}
+							<li>
+								<strong>{change.field}</strong>
+								<p>{change.before} → {change.after}</p>
+							</li>
+						{/each}
+					</ul>
+				</section>
+			{/if}
 		{/if}
 	</div>
 
 	<footer>
-		<button type="button" class="close-report" onclick={onClose}>Close</button>
+		{#if actionReady?.selection?.kind === 'legality-fix'}
+			<button
+				id="legality-quick-fix-cancel"
+				data-legality-report-control
+				type="button"
+				onclick={onCancelQuickFix}
+				disabled={actionState.status === 'applying'}>Cancel</button
+			>
+			<button
+				id="legality-quick-fix-apply"
+				data-legality-report-control
+				type="button"
+				class="close-report"
+				onclick={onApplyQuickFix}
+				disabled={actionState.status === 'applying'}
+			>
+				{actionState.status === 'applying' ? 'Applying...' : 'Apply Quick Fix'}
+			</button>
+		{:else}
+			<button data-legality-report-control type="button" class="close-report" onclick={onClose}
+				>Close</button
+			>
+		{/if}
 	</footer>
 </div>
 
@@ -154,7 +226,9 @@
 	}
 
 	.icon-close,
-	.close-report {
+	.close-report,
+	footer button,
+	.quick-fix {
 		border: 0;
 		border-radius: var(--pksx-radius-medium);
 		background: var(--paper);
@@ -176,6 +250,23 @@
 		background: var(--rust);
 		color: white;
 		font-weight: 720;
+	}
+
+	.quick-fix {
+		justify-self: start;
+		min-height: var(--pksx-small-control-height);
+		padding: var(--pksx-space-1) var(--pksx-space-2);
+		border: 1px solid var(--rust);
+		color: var(--rust);
+		font-weight: 720;
+	}
+
+	.fix-preview {
+		display: grid;
+		gap: var(--pksx-space-1);
+		padding: var(--pksx-space-2);
+		border: 1px solid var(--rust);
+		border-radius: var(--pksx-radius-medium);
 	}
 
 	.summary {

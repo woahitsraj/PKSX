@@ -109,6 +109,7 @@ const knownEngineErrorCodes = new Set<EngineErrorCode>([
 	'unsupported-pokemon-edit',
 	'invalid-pokemon-action',
 	'unsupported-pokemon-action',
+	'stale-pokemon-action-preview',
 	'invalid-pokemon-creation',
 	'unsupported-pokemon-creation',
 	'invalid-pokemon-import',

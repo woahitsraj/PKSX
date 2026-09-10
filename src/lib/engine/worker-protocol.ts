@@ -36,6 +36,7 @@ export const engineErrorCodeSchema = z.enum([
 	'unsupported-pokemon-edit',
 	'invalid-pokemon-action',
 	'unsupported-pokemon-action',
+	'stale-pokemon-action-preview',
 	'invalid-pokemon-creation',
 	'unsupported-pokemon-creation',
 	'invalid-pokemon-import',
@@ -667,7 +668,8 @@ export const storedPokemonImportResultSchema = z.object({
 export const legalityReportLineSchema = z.object({
 	severity: z.string(),
 	identifier: z.string(),
-	message: z.string()
+	message: z.string(),
+	fixId: z.string().optional()
 });
 
 export const legalityReportSchema = z.object({
@@ -702,7 +704,15 @@ export const pokemonActionAvailabilitySchema = z.object({
 	available: z.boolean(),
 	unavailableReason: z.string().nullable().optional(),
 	changes: z.array(pokemonActionChangeSchema),
-	choices: z.array(pokemonEvolutionChoiceSchema)
+	choices: z.array(pokemonEvolutionChoiceSchema),
+	fixes: z.array(
+		z.object({
+			id: z.string().min(1),
+			token: z.string().min(1),
+			label: z.string(),
+			changes: z.array(pokemonActionChangeSchema)
+		})
+	)
 });
 
 export const pokemonActionPreviewSchema = z.object({
