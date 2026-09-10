@@ -8,8 +8,8 @@
 		activeIndex: number;
 		busy?: boolean;
 		onFocusCommand: (index: number) => void;
-		onOpen: () => void;
-		onBrowseBackups: () => void;
+		onOpenTrainer: () => void;
+		onOpenBag: () => void;
 		onDelete: () => void;
 		onCancelDelete: () => void;
 		onClose: () => void;
@@ -22,8 +22,8 @@
 		activeIndex,
 		busy = false,
 		onFocusCommand,
-		onOpen,
-		onBrowseBackups,
+		onOpenTrainer,
+		onOpenBag,
 		onDelete,
 		onCancelDelete,
 		onClose
@@ -41,29 +41,25 @@
 			{#if description}<span>{description}</span>{/if}
 		</header>
 
-		<div
-			class="commands"
-			role="list"
-			aria-label={mode === 'commands' ? 'Save File commands' : 'Delete confirmation'}
-		>
+		<div class="commands">
 			{#if mode === 'commands'}
 				<button
 					id="save-file-menu-command-0"
 					type="button"
 					class:controller-focused={activeIndex === 0}
 					onfocus={() => onFocusCommand(0)}
-					onclick={onOpen}
+					onclick={onOpenTrainer}
 				>
-					<strong>Open Save File</strong>
+					<strong>Open Trainer</strong>
 				</button>
 				<button
 					id="save-file-menu-command-1"
 					type="button"
 					class:controller-focused={activeIndex === 1}
 					onfocus={() => onFocusCommand(1)}
-					onclick={onBrowseBackups}
+					onclick={onOpenBag}
 				>
-					<strong>Backup Browser</strong>
+					<strong>Open Bag</strong>
 				</button>
 				<button
 					id="save-file-menu-command-2"

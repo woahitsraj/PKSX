@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { mount, tick, unmount } from 'svelte';
 import SavesGrid from './SavesGrid.svelte';
 import { createSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
-import { deleteIndexedDbSaves } from '$lib/pksx/saves';
+import { createEmptyPokemonStorage, deleteIndexedDbSaves } from '$lib/pksx/saves';
 import { getSavesSnapshot, getSavesStorage, invalidateSavesCache } from '$lib/pksx/saves-cache';
 
 const fakes = vi.hoisted(() => ({
@@ -63,7 +63,7 @@ it.each(['save-file-menu', 'save-file-delete', 'main-menu'] as const)(
 			.click();
 		await tick();
 		if (kind === 'save-file-delete') {
-			host.openRelated(kind, { type: 'control', id: 'save-file-menu-command-1' });
+			host.openRelated(kind, { type: 'control', id: 'save-file-menu-command-2' });
 		} else if (kind === 'main-menu') {
 			host.closeAll();
 			host.open(kind, { type: 'control', id: 'saves-grid' });
@@ -81,3 +81,30 @@ it.each(['save-file-menu', 'save-file-delete', 'main-menu'] as const)(
 		}
 	}
 );
+
+it('includes Pokemon Storage in grid navigation', async () => {
+	fakes.host = createSummonedWorkflowHost();
+	await getSavesStorage().putPokemonStorage(createEmptyPokemonStorage(4));
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(SavesGrid, { target: container });
+
+	const grid = container.querySelector<HTMLElement>('#saves-grid')!;
+	const storageCard = container.querySelector<HTMLElement>('#saves-target-pokemon-storage')!;
+	await expect
+		.poll(() => storageCard.textContent?.replace(/\s+/g, ' '))
+		.toContain('4 Storage Boxes');
+	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-import');
+	const storageText = storageCard.textContent?.replace(/\s+/g, ' ');
+	expect(storageCard.getAttribute('role')).toBe('gridcell');
+	expect(storageText).toContain('0 Pokemon');
+	expect(storageText).toContain('4 Storage Boxes');
+	expect(storageText).toContain('Automatically saved by PKSX');
+
+	grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+	await tick();
+	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-pokemon-storage');
+	grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+	await tick();
+	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-import');
+});

@@ -9,10 +9,6 @@
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
 	import ToastRegion from '$lib/components/pksx/ToastRegion.svelte';
 	import type { EngineError } from '$lib/engine';
-	import {
-		createCleanWorkspaceState,
-		createPersistedWorkspaceState
-	} from '$lib/pksx/backup-workflow';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
 	import {
@@ -26,7 +22,6 @@
 	import type { SaveFileId, StoredPokemonStorage, StoredSaveFile } from '$lib/pksx/saves';
 	import {
 		getCachedActiveWorkspace,
-		getCachedActiveWorkspaceBox,
 		getCachedSavesSnapshot,
 		getPkhexEngine,
 		getSavesSnapshot,
@@ -34,7 +29,6 @@
 		invalidateActiveWorkspaceCache,
 		invalidateSavesCache,
 		isCachedSavesSnapshotSeeded,
-		setCachedActiveWorkspace,
 		subscribeSavesSnapshot,
 		type SaveCardDetailsState,
 		type SavesSnapshot
@@ -44,6 +38,7 @@
 	type PokemonStorageSummary = { boxCount: number; pokemonCount: number };
 	type SavesGridEntry =
 		| { kind: 'save-file'; saveFile: StoredSaveFile; index: number }
+		| { kind: 'pokemon-storage'; index: number }
 		| { kind: 'import'; index: number };
 	type ToastView = {
 		id: string;
@@ -88,6 +83,7 @@
 
 	const targets = $derived<SavesTarget[]>([
 		...saveFiles.map((saveFile) => ({ kind: 'save-file' as const, id: saveFile.id })),
+		{ kind: 'pokemon-storage' },
 		{ kind: 'import' }
 	]);
 	const menuSaveFile = $derived(
@@ -99,7 +95,8 @@
 	const rowCount = $derived(Math.max(1, Math.ceil(targets.length / columnCount)));
 	const gridEntries = $derived<SavesGridEntry[]>([
 		...saveFiles.map((saveFile, index) => ({ kind: 'save-file' as const, saveFile, index })),
-		{ kind: 'import', index: saveFiles.length }
+		{ kind: 'pokemon-storage', index: saveFiles.length },
+		{ kind: 'import', index: saveFiles.length + 1 }
 	]);
 	const gridRows = $derived.by(() => {
 		const rows: SavesGridEntry[][] = [];
@@ -153,17 +150,18 @@
 	}
 
 	function targetKey(value: SavesTarget) {
-		return value.kind === 'import' ? 'import' : 'save-file:' + value.id;
+		return value.kind === 'save-file' ? 'save-file:' + value.id : value.kind;
 	}
 
 	function gridRowKey(row: SavesGridEntry[]) {
 		return row
-			.map((entry) => (entry.kind === 'import' ? 'import' : 'save-file:' + entry.saveFile.id))
+			.map((entry) => (entry.kind === 'save-file' ? 'save-file:' + entry.saveFile.id : entry.kind))
 			.join('|');
 	}
 
 	function rememberedTarget(): SavesTarget | null {
 		if (rememberedTargetKey === 'import') return { kind: 'import' };
+		if (rememberedTargetKey === 'pokemon-storage') return { kind: 'pokemon-storage' };
 		return rememberedTargetKey?.startsWith('save-file:')
 			? { kind: 'save-file', id: rememberedTargetKey.slice('save-file:'.length) }
 			: null;
@@ -174,14 +172,15 @@
 	}
 
 	function targetDomId(value: SavesTarget) {
-		return value.kind === 'import'
-			? 'saves-target-import'
-			: 'saves-target-' + encodeURIComponent(value.id);
+		return value.kind === 'save-file'
+			? 'saves-target-' + encodeURIComponent(value.id)
+			: 'saves-target-' + value.kind;
 	}
 
 	function currentTargets(saveFileList = saveFiles): SavesTarget[] {
 		return [
 			...saveFileList.map((saveFile) => ({ kind: 'save-file' as const, id: saveFile.id })),
+			{ kind: 'pokemon-storage' },
 			{ kind: 'import' }
 		];
 	}
@@ -322,14 +321,6 @@
 
 		if (event.key !== 'Enter' && event.key !== ' ') return;
 		event.preventDefault();
-		const focusedMenuButton =
-			document.activeElement instanceof HTMLElement
-				? document.activeElement.dataset.saveMenuId
-				: null;
-		if (focusedMenuButton) {
-			openSaveFileMenu(focusedMenuButton);
-			return;
-		}
 		activateTarget();
 	}
 
@@ -364,8 +355,18 @@
 			openImportPicker();
 			return;
 		}
+		if (currentTarget.kind === 'pokemon-storage') {
+			void openPokemonStorage();
+			return;
+		}
 		const saveFile = saveFiles.find((candidate) => candidate.id === currentTarget.id);
 		if (saveFile) void activateSaveFile(saveFile, 'boxes');
+	}
+
+	async function openPokemonStorage() {
+		if (busyTarget) return;
+		chooseTarget({ kind: 'pokemon-storage' }, false);
+		await goto(resolve('/?source=pokemon-storage'));
 	}
 
 	function openImportPicker() {
@@ -418,7 +419,7 @@
 
 	async function activateSaveFile(
 		saveFile: StoredSaveFile,
-		destination: 'boxes' | 'save-file' | 'backup-browser'
+		destination: 'boxes' | 'trainer' | 'bag'
 	) {
 		if (busyTarget) return;
 		busyTarget = saveFile.id;
@@ -445,35 +446,11 @@
 				invalidateSavesCache();
 			}
 			chooseTarget({ kind: 'save-file', id: current.id }, false);
-			if (destination === 'backup-browser') {
-				const cachedWorkspace = getCachedActiveWorkspace();
-				const box = cachedWorkspace?.file.id === current.id ? getCachedActiveWorkspaceBox() : 0;
-				setCachedActiveWorkspace(
-					cachedWorkspace?.file.id === current.id
-						? cachedWorkspace
-						: persistedWorkspace
-							? createPersistedWorkspaceState({
-									file: current,
-									bytes,
-									workspace: validation.value,
-									dirty: persistedWorkspace.dirty,
-									automaticBackupCreated: persistedWorkspace.automaticBackupCreated
-								})
-							: createCleanWorkspaceState({ file: current, bytes, workspace: validation.value }),
-					box
-				);
-				activeSaveFileId = current.id;
-				menuIndex = 1;
-				summonedWorkflow.openRelated('backup-browser', {
-					type: 'control',
-					id: 'save-file-menu-command-1'
-				});
-				return;
-			}
 			summonedWorkflow.closeAll();
 			menuSaveFileId = null;
 			menuReturnTarget = null;
-			await goto(destination === 'boxes' ? resolve('/') : resolve('/save-file'), {
+			const path = destination === 'boxes' ? '/' : '/' + destination;
+			await goto(resolve(path as Parameters<typeof resolve>[0]), {
 				keepFocus: true
 			});
 		} catch (error) {
@@ -591,9 +568,8 @@
 				if (menuIndex === 0) cancelDelete();
 				else void confirmDelete();
 			} else if (menuOpen) {
-				if (menuIndex === 0 && menuSaveFile) void activateSaveFile(menuSaveFile, 'save-file');
-				else if (menuIndex === 1 && menuSaveFile)
-					void activateSaveFile(menuSaveFile, 'backup-browser');
+				if (menuIndex === 0 && menuSaveFile) void activateSaveFile(menuSaveFile, 'trainer');
+				else if (menuIndex === 1 && menuSaveFile) void activateSaveFile(menuSaveFile, 'bag');
 				else void requestDelete();
 			}
 			return;
@@ -696,21 +672,13 @@
 			/>
 		</header>
 
-		<section class="storage-summary" aria-label="Pokemon Storage summary">
-			<span class="storage-mark" aria-hidden="true">{pokemonStorage.pokemonCount}</span>
-			<span>
-				<strong>Pokemon Storage</strong>
-				<small>{pokemonStorage.pokemonCount} Pokemon in {pokemonStorage.boxCount} boxes</small>
-			</span>
-		</section>
-
 		<div
 			id="saves-grid"
 			{@attach savesGridOwner}
 			class="saves-scrollport"
 			role="grid"
 			tabindex="0"
-			aria-label="Save Files"
+			aria-label="Saves collections"
 			aria-rowcount={rowCount}
 			aria-colcount={columnCount}
 			aria-activedescendant={activeTargetId}
@@ -722,7 +690,7 @@
 			<div class="saves-grid" {@attach savesGridContent}>
 				{#each gridRows as row, rowIndex (gridRowKey(row))}
 					<div class="saves-grid-row" role="row" aria-rowindex={rowIndex + 1}>
-						{#each row as entry (entry.kind === 'import' ? 'import' : entry.saveFile.id)}
+						{#each row as entry (entry.kind === 'save-file' ? entry.saveFile.id : entry.kind)}
 							{#if entry.kind === 'save-file'}
 								{@const saveFile = entry.saveFile}
 								{@const index = entry.index}
@@ -778,14 +746,38 @@
 										type="button"
 										class="save-menu-control"
 										aria-label={'Open Save File Menu for ' + displayName(saveFile)}
-										data-save-menu-id={saveFile.id}
-										data-destination-focus={'saves-menu-' + saveFile.id}
 										onpointerdown={(event) => event.preventDefault()}
 										onclick={() => openSaveFileMenu(saveFile.id)}
 									>
 										•••
 									</button>
 									{#if busyTarget === saveFile.id}<span class="busy-label">Opening...</span>{/if}
+								</div>
+							{:else if entry.kind === 'pokemon-storage'}
+								{@const selected = target.kind === 'pokemon-storage'}
+								<div
+									id="saves-target-pokemon-storage"
+									class={['storage-card', selected && 'controller-focused']}
+									role="gridcell"
+									aria-colindex={(entry.index % columnCount) + 1}
+								>
+									<button
+										type="button"
+										class="card-main storage-main"
+										tabindex="-1"
+										aria-label="Open Pokemon Storage in Boxes"
+										onclick={() => void openPokemonStorage()}
+									>
+										<span class="cartridge-spine" aria-hidden="true"></span>
+										<span class="card-heading"><strong>Pokemon Storage</strong></span>
+										<span class="storage-persistence">Automatically saved by PKSX</span>
+										<span class="card-stats">
+											<b>{pokemonStorage.pokemonCount}</b> Pokemon
+											<i aria-hidden="true"></i>
+											<b>{pokemonStorage.boxCount}</b> Storage
+											{pokemonStorage.boxCount === 1 ? 'Box' : 'Boxes'}
+										</span>
+									</button>
 								</div>
 							{:else}
 								<div
@@ -827,8 +819,8 @@
 		activeIndex={menuIndex}
 		busy={busyTarget === menuSaveFile.id}
 		onFocusCommand={(index) => (menuIndex = index)}
-		onOpen={() => void activateSaveFile(menuSaveFile, 'save-file')}
-		onBrowseBackups={() => void activateSaveFile(menuSaveFile, 'backup-browser')}
+		onOpenTrainer={() => void activateSaveFile(menuSaveFile, 'trainer')}
+		onOpenBag={() => void activateSaveFile(menuSaveFile, 'bag')}
 		onDelete={() => (deleteOpen ? void confirmDelete() : void requestDelete())}
 		onCancelDelete={cancelDelete}
 		onClose={dismissSaveFileWorkflow}
@@ -858,7 +850,7 @@
 		margin: 0 auto;
 		padding: var(--pksx-space-2);
 		display: grid;
-		grid-template-rows: auto auto minmax(0, 1fr);
+		grid-template-rows: auto minmax(0, 1fr);
 		gap: var(--pksx-space-2);
 	}
 
@@ -900,44 +892,6 @@
 		white-space: nowrap;
 	}
 
-	.storage-summary {
-		min-height: 36px;
-		display: flex;
-		align-items: center;
-		gap: var(--pksx-space-2);
-		padding: var(--pksx-space-1) var(--pksx-space-2);
-		border: var(--pksx-border-width) solid var(--rule);
-		border-radius: var(--pksx-radius-medium);
-		background: color-mix(in srgb, var(--paper-hi), transparent 20%);
-	}
-
-	.storage-summary > span:last-child {
-		display: grid;
-		gap: 1px;
-	}
-
-	.storage-summary strong,
-	.storage-summary small {
-		font-size: var(--pksx-type-caption);
-		line-height: 1.1;
-	}
-
-	.storage-summary small {
-		color: var(--ink-soft);
-		font-family: var(--pksx-font-mono);
-	}
-
-	.storage-mark {
-		width: 26px;
-		height: 26px;
-		display: grid;
-		place-items: center;
-		border-radius: 50%;
-		background: color-mix(in srgb, var(--ok), var(--paper-deep) 55%);
-		color: var(--ink);
-		font: 800 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
-	}
-
 	.saves-scrollport {
 		min-width: 0;
 		min-height: 0;
@@ -962,6 +916,7 @@
 	}
 
 	.save-card,
+	.storage-card,
 	.import-cell {
 		position: relative;
 		min-width: 240px;
@@ -981,7 +936,15 @@
 			var(--paper-hi);
 	}
 
+	.storage-card {
+		border-color: color-mix(in srgb, var(--ok), var(--rule) 38%);
+		background:
+			linear-gradient(color-mix(in srgb, var(--ok), transparent 90%), transparent 82%),
+			var(--paper-hi);
+	}
+
 	.save-card.controller-focused,
+	.storage-card.controller-focused,
 	.import-cell.controller-focused {
 		outline: var(--pksx-focus-ring) solid var(--rust-ring);
 		outline-offset: calc(-1 * var(--pksx-focus-ring));
@@ -1008,6 +971,10 @@
 		text-align: left;
 	}
 
+	.card-main.storage-main {
+		padding-right: calc(var(--pksx-space-3) + 5px);
+	}
+
 	.card-main:hover,
 	.import-cell > button:hover {
 		background: var(--rust-wash);
@@ -1026,6 +993,10 @@
 
 	.save-card.spine-third .cartridge-spine {
 		background: color-mix(in srgb, var(--gold), var(--rust) 25%);
+	}
+
+	.storage-card .cartridge-spine {
+		background: color-mix(in srgb, var(--ok), var(--ink) 12%);
 	}
 
 	.card-heading {
@@ -1063,7 +1034,8 @@
 
 	.file-name,
 	.card-stats,
-	.detail-state {
+	.detail-state,
+	.storage-persistence {
 		grid-column: 1 / -1;
 		color: var(--ink-soft);
 		font: 650 var(--pksx-type-caption) / 1.2 var(--pksx-font-mono);

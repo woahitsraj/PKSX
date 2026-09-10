@@ -2445,10 +2445,10 @@ test('deletes an active Dirty Save File and all Backups after confirmation', asy
 	await saveDialog.getByRole('button', { name: 'Delete', exact: true }).click();
 	await expect(page.getByText('emerald-011020251345.sav deleted.')).toBeVisible();
 	await expect(page.locator('.save-card')).toHaveCount(0);
-	await expect(page.getByLabel('Pokemon Storage summary')).toContainText('Pokemon Storage');
+	await expect(page.locator('#saves-target-pokemon-storage')).toContainText('Pokemon Storage');
 	await expect(page.locator('[data-destination-focus="saves-grid"]')).toHaveAttribute(
 		'aria-activedescendant',
-		'saves-target-import'
+		'saves-target-pokemon-storage'
 	);
 	await expect(page.locator('[data-destination-focus="saves-grid"]')).toBeFocused();
 });
@@ -2606,6 +2606,50 @@ test('Clear uses its Pokemon Storage owner without mutating the loaded Save File
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 });
 
+test('Saves opens Pokemon Storage as the focused single Boxes collection', async ({ page }) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.goto('/saves');
+
+	const grid = page.getByRole('grid', { name: 'Saves collections' });
+	const activeSaveFileId = (await page.locator('.save-card.active').getAttribute('id'))?.replace(
+		'saves-target-',
+		''
+	);
+	await page.getByRole('button', { name: 'Open Pokemon Storage in Boxes' }).click();
+
+	await expect(page).toHaveURL(/\?source=pokemon-storage$/);
+	await expect(
+		page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' })
+	).toBeVisible();
+	await expect(page.locator('.box-zone')).toHaveCount(1);
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+	const persistedActiveSaveFileId = await page.evaluate(
+		() =>
+			new Promise<string | null>((resolve, reject) => {
+				const open = indexedDB.open('pksx-saves');
+				open.onerror = () => reject(open.error);
+				open.onsuccess = () => {
+					const database = open.result;
+					const request = database
+						.transaction('appState', 'readonly')
+						.objectStore('appState')
+						.get('activeSaveFileId');
+					request.onerror = () => reject(request.error);
+					request.onsuccess = () => {
+						database.close();
+						resolve((request.result as { value?: string } | undefined)?.value ?? null);
+					};
+				};
+			})
+	);
+	expect(persistedActiveSaveFileId).toBe(activeSaveFileId);
+
+	await chooseMainMenu(page, 'Saves');
+	await expect(grid).toHaveAttribute('aria-activedescendant', 'saves-target-pokemon-storage');
+	await expect(page.locator('.save-card.active')).toContainText('emerald-011020251345.sav');
+});
+
 test('Saves uses one identity grid with internal scrolling at the landscape floor', async ({
 	page
 }) => {
@@ -2614,11 +2658,13 @@ test('Saves uses one identity grid with internal scrolling at the landscape floo
 	await page.goto('/saves');
 	await setSafeArea(page, { top: 12, right: 12, bottom: 12, left: 12 });
 
-	const grid = page.getByRole('grid', { name: 'Save Files' });
+	const grid = page.getByRole('grid', { name: 'Saves collections' });
 	await expect(grid).toBeFocused();
 	await expect(grid).toHaveAttribute('aria-activedescendant', 'saves-target-import');
-	await expect(page.getByLabel('Pokemon Storage summary')).toContainText('0 Pokemon in 3 boxes');
-	await expect(page.getByLabel('Pokemon Storage summary').locator(':focus')).toHaveCount(0);
+	const storageCard = page.locator('#saves-target-pokemon-storage');
+	await expect(storageCard).toContainText('0 Pokemon');
+	await expect(storageCard).toContainText('3 Storage Boxes');
+	await expect(storageCard).toContainText('Automatically saved by PKSX');
 
 	const fixture = await readFile(emeraldFixturePath);
 	for (const name of ['alpha.sav', 'beta.sav', 'gamma.sav', 'delta.sav']) {
@@ -2633,25 +2679,37 @@ test('Saves uses one identity grid with internal scrolling at the landscape floo
 	await expect(grid).toHaveAttribute('aria-activedescendant', /saves-target-.+/);
 	const floorFit = await page.locator('.saves-scrollport').evaluate((scrollport) => {
 		const viewport = scrollport.getBoundingClientRect();
-		const cards = Array.from(scrollport.querySelectorAll('.save-card'));
+		const targets = Array.from(scrollport.querySelectorAll<HTMLElement>('[role="gridcell"]'));
 		const importCard = scrollport.querySelector('.import-cell')?.getBoundingClientRect();
 		return {
-			fourCardsVisible: cards.every(
-				(card) => card.getBoundingClientRect().bottom <= viewport.bottom
+			firstFourTargetsVisible: targets
+				.slice(0, 4)
+				.every((target) => target.getBoundingClientRect().bottom <= viewport.bottom),
+			fifthTarget: targets[4]?.id,
+			fifthTargetNeedsScroll: Boolean(
+				targets[4] && targets[4].getBoundingClientRect().bottom > viewport.bottom + 1
 			),
 			importNeedsScroll: Boolean(importCard && importCard.bottom > viewport.bottom + 1)
 		};
 	});
-	expect(floorFit).toEqual({ fourCardsVisible: true, importNeedsScroll: true });
-	await page.keyboard.press('ArrowDown');
-	await page.keyboard.press('ArrowDown');
+	expect(floorFit).toEqual({
+		firstFourTargetsVisible: true,
+		fifthTarget: 'saves-target-pokemon-storage',
+		fifthTargetNeedsScroll: true,
+		importNeedsScroll: true
+	});
+	await page.locator('#save-file-input').dispatchEvent('cancel');
 	await expect(grid).toHaveAttribute('aria-activedescendant', 'saves-target-import');
 	await expect
 		.poll(() => page.locator('.saves-scrollport').evaluate((panel) => panel.scrollTop))
 		.toBeGreaterThan(0);
 	await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 	await page.keyboard.press('ArrowUp');
+	await expect(grid).toHaveAttribute('aria-activedescendant', /saves-target-.+/);
 	await expect(grid).not.toHaveAttribute('aria-activedescendant', 'saves-target-import');
+	await page.keyboard.press('ArrowDown');
+	await expect(grid).toHaveAttribute('aria-activedescendant', 'saves-target-import');
+	await page.keyboard.press('ArrowUp');
 	const targetBeforeResize = await grid.getAttribute('aria-activedescendant');
 	await page.setViewportSize({ width: 360, height: 640 });
 	await expect(grid).toHaveAttribute('aria-colcount', '1');
@@ -2746,7 +2804,7 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await chooseMainMenu(page, 'Saves');
 	await expect(page).toHaveURL(/\/saves$/);
 	await expect(page.getByRole('heading', { name: 'Saves' })).toBeVisible();
-	const grid = page.getByRole('grid', { name: 'Save Files' });
+	const grid = page.getByRole('grid', { name: 'Saves collections' });
 	await expect(grid).toBeFocused();
 
 	const fixture = await readFile(emeraldFixturePath);
@@ -2779,7 +2837,9 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 
 	await expect(page.locator('body')).toBeFocused();
 	await page.keyboard.press('ArrowRight');
-	await expect(grid).toHaveAttribute('aria-activedescendant', 'saves-target-import');
+	await expect(grid).toHaveAttribute('aria-activedescendant', 'saves-target-pokemon-storage');
+	await page.keyboard.press('x');
+	await expect(page.getByRole('dialog', { name: 'Save File Menu' })).toBeHidden();
 	await page.keyboard.press('ArrowLeft');
 	await expect(grid).toHaveAttribute('aria-activedescendant', alphaTarget!);
 	await page.getByRole('heading', { name: 'Saves', exact: true }).click();
@@ -2851,9 +2911,15 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await alphaCard.getByRole('button', { name: /Open Save File Menu/ }).click();
 	await expect(grid).toHaveAttribute('aria-activedescendant', betaTarget!);
 	menu = page.getByRole('dialog', { name: 'Save File Menu' });
-	await expect(menu.getByRole('button', { name: 'Open Save File' })).toBeFocused();
+	await expect(menu.getByRole('button', { name: 'Open Trainer' })).toBeFocused();
 	await page.locator('.edge-menu-backdrop').click({ position: { x: 8, y: 8 } });
 	await expect(grid).toBeFocused();
+	await expect(grid).toHaveAttribute('aria-activedescendant', betaTarget!);
+	await alphaCard.getByRole('button', { name: /Open Save File Menu/ }).focus();
+	await pressController(page, 'Enter');
+	await expect(page).toHaveURL(/\/$/);
+	await expect(page.getByRole('button', { name: 'Open Box Menu for beta.sav' })).toBeVisible();
+	await chooseMainMenu(page, 'Saves');
 	await expect(grid).toHaveAttribute('aria-activedescendant', betaTarget!);
 
 	await alphaCard.getByRole('button', { name: /Open Save File Menu/ }).click();
@@ -2925,9 +2991,8 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 
 	await alphaCard.getByRole('button', { name: /Open Save File Menu/ }).click();
 	menu = page.getByRole('dialog', { name: 'Save File Menu' });
-	await menu.getByRole('button', { name: 'Open Save File' }).click();
-	await expect(page).toHaveURL(/\/save-file$/);
-	await expect(page.locator('.save-file-route')).toContainText('alpha.sav', { timeout: 15000 });
+	await menu.getByRole('button', { name: 'Open Trainer' }).click();
+	await expect(page).toHaveURL(/\/trainer$/);
 	await page.goto('/');
 	await expectActiveSaveOwner(page, 'alpha.sav');
 
@@ -2954,9 +3019,7 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	});
 });
 
-test('Saves opens the focused Save File Backup Browser and restores menu focus', async ({
-	page
-}) => {
+test('Saves menu activates its Save File before opening Trainer or Bag', async ({ page }) => {
 	await openEmptySaves(page);
 	await chooseMainMenu(page, 'Saves');
 	const fixture = await readFile(emeraldFixturePath);
@@ -2969,11 +3032,6 @@ test('Saves opens the focused Save File Backup Browser and restores menu focus',
 		timeout: 15_000
 	});
 
-	let browser = await openBackupBrowser(page);
-	await browser.getByRole('button', { name: 'Create Backup' }).click();
-	await expect(browser.locator('article').filter({ hasText: 'Manual' })).toBeVisible();
-	await pressController(page, 'Escape');
-
 	await page.getByLabel('Import Save File').setInputFiles({
 		name: 'beta.sav',
 		mimeType: 'application/octet-stream',
@@ -2983,50 +3041,36 @@ test('Saves opens the focused Save File Backup Browser and restores menu focus',
 		timeout: 15_000
 	});
 
-	const grid = page.getByRole('grid', { name: 'Save Files' });
+	const grid = page.getByRole('grid', { name: 'Saves collections' });
 	const alphaCard = page.locator('.save-card').filter({ hasText: 'alpha.sav' });
 	const alphaTarget = await alphaCard.getAttribute('id');
 	await grid.focus();
 	await page.keyboard.press('ArrowRight');
 	await expect(grid).toHaveAttribute('aria-activedescendant', alphaTarget!);
 	await page.keyboard.press('x');
-	const menu = page.getByRole('dialog', { name: 'Save File Menu' });
-	await expect(menu.getByRole('button', { name: 'Open Save File' })).toBeFocused();
+	let menu = page.getByRole('dialog', { name: 'Save File Menu' });
+	await expect(menu.getByRole('button', { name: 'Open Trainer' })).toBeFocused();
 	await pressController(page, 'ArrowDown');
-	await expect(menu.getByRole('button', { name: 'Backup Browser' })).toBeFocused();
+	await expect(menu.getByRole('button', { name: 'Open Bag' })).toBeFocused();
+	await pressController(page, 'ArrowUp');
 	await pressController(page, 'Enter');
 
-	browser = page.getByRole('dialog', { name: 'Backup Browser' });
-	await expect(browser).toContainText('alpha.sav');
-	await expect(browser.locator('article').filter({ hasText: 'Manual' })).toBeVisible();
+	await expect(page).toHaveURL(/\/trainer$/);
+	const trainer = page.locator('[data-destination-root="trainer"]');
+	await expect(trainer).toHaveAttribute('data-initial-state', 'ready');
+	await expect(trainer).toContainText('alpha.sav');
+	await page.goto('/saves');
 	await expect(alphaCard).toHaveClass(/active/);
-	await pressController(page, 'Escape');
-	await expect(menu.getByRole('button', { name: 'Backup Browser' })).toBeFocused();
-	await pressController(page, 'Escape');
-	await expect(grid).toBeFocused();
+	await alphaCard.getByRole('button', { name: /Open Save File Menu/ }).click();
+	menu = page.getByRole('dialog', { name: 'Save File Menu' });
+	await menu.getByRole('button', { name: 'Open Bag' }).click();
+	await expect(page).toHaveURL(/\/bag$/);
+	const bag = page.locator('[data-destination-root="bag"]');
+	await expect(bag).toHaveAttribute('data-initial-state', 'ready');
+	await expect(bag).toContainText('alpha.sav');
+	await page.goto('/saves');
+	await expect(alphaCard).toHaveClass(/active/);
 	await expect(grid).toHaveAttribute('aria-activedescendant', alphaTarget!);
-
-	await page.keyboard.press('Enter');
-	await expect(page).toHaveURL(/\/$/);
-	await moveFirstEmeraldBoxSlotToThirdSlot(page);
-	await chooseMainMenu(page, 'Saves');
-	await expect(alphaCard).toHaveClass(/active/);
-	await grid.focus();
-	await page.keyboard.press('x');
-	await menu.getByRole('button', { name: 'Backup Browser' }).click();
-	await browser
-		.locator('article')
-		.filter({ hasText: 'Manual' })
-		.getByRole('button', {
-			name: 'Restore'
-		})
-		.click();
-	await expect(browser).toContainText('This replaces the Dirty Workspace.');
-	await pressController(page, 'Escape');
-	await pressController(page, 'Escape');
-	await expect(menu.getByRole('button', { name: 'Backup Browser' })).toBeFocused();
-	await pressController(page, 'Escape');
-	await expect(grid).toBeFocused();
 });
 
 test('Saves keeps unavailable cards actionable and restores semantic focus after navigation', async ({
@@ -3046,7 +3090,7 @@ test('Saves keeps unavailable cards actionable and restores semantic focus after
 	await removeSaveBytes(page, 'unavailable.sav');
 	await page.reload();
 
-	const grid = page.getByRole('grid', { name: 'Save Files' });
+	const grid = page.getByRole('grid', { name: 'Saves collections' });
 	const card = page.locator('.save-card').filter({ hasText: 'unavailable.sav' });
 	await expect(card).toContainText('Details unavailable', { timeout: 15_000 });
 	await expect(card.locator('.file-name')).toHaveText('unavailable.sav');

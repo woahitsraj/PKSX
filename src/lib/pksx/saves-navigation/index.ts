@@ -1,6 +1,9 @@
 import type { SaveFileId } from '$lib/pksx/saves';
 
-export type SavesTarget = { kind: 'save-file'; id: SaveFileId } | { kind: 'import' };
+export type SavesTarget =
+	| { kind: 'save-file'; id: SaveFileId }
+	| { kind: 'pokemon-storage' }
+	| { kind: 'import' };
 export type SavesDirection = 'left' | 'right' | 'up' | 'down';
 
 export function resolveSavesTarget(
@@ -13,7 +16,11 @@ export function resolveSavesTarget(
 	const active = activeSaveFileId
 		? targets.find((target) => target.kind === 'save-file' && target.id === activeSaveFileId)
 		: null;
-	return active ?? targets.find((target) => target.kind === 'save-file') ?? { kind: 'import' };
+	return (
+		active ??
+		targets.find((target) => target.kind === 'save-file') ??
+		targets.find((target) => target.kind === 'import') ?? { kind: 'pokemon-storage' }
+	);
 }
 
 export function moveSavesTarget(
@@ -61,12 +68,16 @@ export function deleteSavesTarget(
 	);
 	const deletedIndex = targetIndex(saveFiles, deleted);
 	const remaining = saveFiles.filter((target) => !sameSavesTarget(target, deleted));
-	return remaining[deletedIndex] ?? remaining[deletedIndex - 1] ?? { kind: 'import' };
+	return (
+		remaining[deletedIndex] ??
+		remaining[deletedIndex - 1] ??
+		preDeleteTargets.find((target) => target.kind === 'pokemon-storage') ?? { kind: 'import' }
+	);
 }
 
 export function sameSavesTarget(left: SavesTarget, right: SavesTarget) {
 	if (left.kind !== right.kind) return false;
-	if (left.kind === 'import') return true;
+	if (left.kind !== 'save-file') return true;
 	return right.kind === 'save-file' && left.id === right.id;
 }
 

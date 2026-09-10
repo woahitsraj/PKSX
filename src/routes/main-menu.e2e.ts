@@ -79,7 +79,7 @@ async function expectSavesFocus(page: Page, target: string | RegExp = 'saves-tar
 		'data-initial-state',
 		'ready'
 	);
-	const grid = page.getByRole('grid', { name: 'Save Files' });
+	const grid = page.getByRole('grid', { name: 'Saves collections' });
 	await expect(grid).toBeFocused();
 	await expect(grid).toHaveAttribute('aria-activedescendant', target);
 	return grid;
