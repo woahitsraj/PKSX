@@ -307,6 +307,10 @@
 		font-weight: 700;
 	}
 
+	footer button {
+		min-height: var(--pksx-control-height);
+	}
+
 	.proposed-fixes {
 		display: grid;
 		gap: var(--pksx-space-1);
