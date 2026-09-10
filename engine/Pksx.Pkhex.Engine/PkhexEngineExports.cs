@@ -386,6 +386,44 @@ public static partial class PkhexEngineExports
     }
 
     [JSExport]
+    public static string GetPokemonCreationCatalogueJson(byte[] bytes, string? fileName)
+    {
+        try
+        {
+            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var template = save.BlankPKM;
+            EntityTemplates.TemplateFields(template, save);
+            var availableSpecies = new List<PokemonSpeciesOption>();
+            for (ushort id = 1; id <= template.MaxSpeciesID; id++)
+            {
+                if (save.Personal.IsPresentInGame(id, 0))
+                    availableSpecies.Add(new PokemonSpeciesOption(id, PokemonName(id)));
+            }
+
+            var defaultSpecies = template.Species > 0 && save.Personal.IsPresentInGame(template.Species, 0)
+                ? new PokemonSpeciesOption(template.Species, PokemonName(template.Species))
+                : null;
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(new PokemonCreationCatalogue(defaultSpecies, availableSpecies)),
+                EngineJsonContext.Default.EngineResultPokemonCreationCatalogue);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
     public static string CreatePokemonJson(byte[] bytes, string? fileName, string operationJson)
     {
         try

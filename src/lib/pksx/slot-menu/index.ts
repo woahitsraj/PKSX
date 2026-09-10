@@ -75,7 +75,7 @@ export function createSlotMenuCommands(
 		},
 		{
 			key: 'pokemon-actions',
-			label: 'Pokemon Actions',
+			label: 'Quick Actions',
 			availability: 'available',
 			reason: null
 		},

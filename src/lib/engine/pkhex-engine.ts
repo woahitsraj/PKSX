@@ -9,6 +9,7 @@ import type {
 	PokemonActionOperation,
 	PokemonActionPreview,
 	PokemonActionResult,
+	PokemonCreationCatalogue,
 	PokemonCreationOperation,
 	PokemonCreationResult,
 	PokemonEditOperation,
@@ -66,6 +67,7 @@ type DotnetPkhexEngineExports = {
 		requestJson: string
 	): string;
 	CreatePokemonJson(bytes: Uint8Array, fileName: string | undefined, operationJson: string): string;
+	GetPokemonCreationCatalogueJson?(bytes: Uint8Array, fileName: string | undefined): string;
 	ApplySaveFileEditOperationJson?(
 		bytes: Uint8Array,
 		fileName: string | undefined,
@@ -181,6 +183,18 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 					)
 				)
 			),
+		getPokemonCreationCatalogue: async (bytes, fileName) => {
+			if (!engine.GetPokemonCreationCatalogueJson) {
+				return engineFailure(
+					'unsupported-pokemon-creation',
+					'Pokemon species names are not available in this PKHeX Engine build.'
+				);
+			}
+
+			return parseEngineResult<PokemonCreationCatalogue>(
+				engine.GetPokemonCreationCatalogueJson(bytes, fileName)
+			);
+		},
 		previewPokemonSpeciesFormEdit: async (bytes, fileName, source, speciesId, form) =>
 			parseEngineResult<PokemonSpeciesFormEditProjection>(
 				engine.PreviewPokemonSpeciesFormEditJson(

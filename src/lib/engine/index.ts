@@ -38,6 +38,7 @@ export type {
 	PokemonEditOperation,
 	PokemonEditOperationResult,
 	PokemonCreationOperation,
+	PokemonCreationCatalogue,
 	PokemonCreationResult,
 	PokemonExperienceProjection,
 	PokemonBattleFieldOption,

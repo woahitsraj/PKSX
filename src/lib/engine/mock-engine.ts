@@ -6,6 +6,7 @@ import type {
 	LegalityReport,
 	PokemonActionPreview,
 	PokemonActionResult,
+	PokemonCreationCatalogue,
 	PokemonCreationResult,
 	PokemonEditOperationResult,
 	PokemonSpeciesFormEditProjection,
@@ -427,6 +428,14 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 					partySlots: mockPartySlots,
 					boxSlots: activeBox === 0 ? mockBoxSlots : []
 				}
+			}),
+		getPokemonCreationCatalogue: async () =>
+			success<PokemonCreationCatalogue>({
+				defaultSpecies: { id: 1, name: 'Bulbasaur' },
+				availableSpecies: [
+					{ id: 1, name: 'Bulbasaur' },
+					{ id: 25, name: 'Pikachu' }
+				]
 			}),
 		previewPokemonSpeciesFormEdit: async (_bytes, _fileName, _source, speciesId, form) =>
 			success<PokemonSpeciesFormEditProjection>({

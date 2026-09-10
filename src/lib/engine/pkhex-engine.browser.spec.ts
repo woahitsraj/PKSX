@@ -592,6 +592,19 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			fetch(fixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const catalogue = await engine.getPokemonCreationCatalogue(
+			copyBytes(fixtureBytes),
+			'011020251345.sav'
+		);
+		expect(catalogue.ok).toBe(true);
+		if (!catalogue.ok) throw new Error('Expected a Create Pokemon catalogue.');
+		const defaultSpecies = catalogue.value.defaultSpecies;
+		expect(defaultSpecies).not.toBeNull();
+		if (!defaultSpecies) throw new Error('Expected the Save File default species.');
+		expect(catalogue.value.availableSpecies).toContainEqual(defaultSpecies);
+		expect(catalogue.value.availableSpecies).toContainEqual({ id: 25, name: 'Pikachu' });
+		expect(catalogue.value.availableSpecies).toContainEqual({ id: 386, name: 'Deoxys' });
+		expect(Math.max(...catalogue.value.availableSpecies.map(({ id }) => id))).toBe(386);
 
 		const created = await engine.createPokemon(
 			copyBytes(fixtureBytes),
@@ -609,7 +622,24 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			slot: 2,
 			isEmpty: false,
 			level: 5,
-			speciesId: expect.any(Number)
+			speciesId: defaultSpecies.id
+		});
+
+		const named = await engine.createPokemon(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				destination: { zone: 'box', box: 0, slot: 2 },
+				speciesId: 25,
+				level: 5
+			},
+			0
+		);
+		expect(named.ok).toBe(true);
+		if (!named.ok) throw new Error('Expected named Create Pokemon to succeed.');
+		expect(named.value.workspace.boxSlots[2]).toMatchObject({
+			nickname: 'PIKACHU',
+			speciesId: 25
 		});
 
 		const occupied = await engine.createPokemon(

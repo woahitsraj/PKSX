@@ -337,6 +337,10 @@ public sealed record PokemonMoveSetEditConstraints(
 
 public sealed record PokemonSpeciesOption(ushort Id, string Name);
 
+public sealed record PokemonCreationCatalogue(
+    PokemonSpeciesOption? DefaultSpecies,
+    List<PokemonSpeciesOption> AvailableSpecies);
+
 public sealed record PokemonFormOption(byte Id, string Name);
 
 public sealed record PokemonSpeciesFormPreviewRequest(

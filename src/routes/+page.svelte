@@ -5,6 +5,7 @@
 	import {
 		type EngineApi,
 		type EngineError,
+		type PokemonCreationCatalogue,
 		type PokemonEditOperation,
 		type StoredPokemonActionResult,
 		type PokemonEditOperationResult,
@@ -461,7 +462,11 @@
 	let initialStateReady = $state(false);
 	let pokemonCreation = $state<PokemonCreationView | null>(null);
 	let pokemonCreationFeedback = $state<string | null>(null);
+	let pokemonCreationCatalogue = $state<PokemonCreationCatalogue | null>(null);
+	let pokemonCreationCatalogueLoading = $state(false);
+	let pokemonCreationCatalogueError = $state<string | null>(null);
 	let pokemonCreationRequest = 0;
+	let pokemonCreationCatalogueRequest = 0;
 	let pokemonEditor = $state<PokemonEditorState | null>(null);
 	let pokemonEditorFeedback = $state<string | null>(null);
 	let pokemonEditorSession = $state<PokemonEditorSession>(createPokemonEditorSession());
@@ -1060,6 +1065,8 @@
 	}
 
 	function dispatchPokemonCreation(action: NavigationAction) {
+		if (handlePokemonCreationEnteredSelect(action)) return;
+
 		switch (action) {
 			case 'left':
 			case 'up':
@@ -1082,6 +1089,48 @@
 		}
 	}
 
+	function handlePokemonCreationEnteredSelect(action: NavigationAction) {
+		const select = document.activeElement;
+		if (
+			!(select instanceof HTMLSelectElement) ||
+			select.id !== 'pokemon-creation-species' ||
+			select.dataset.controllerEditing !== 'true'
+		) {
+			return false;
+		}
+
+		if (action === 'back') {
+			select.dataset.controllerEditing = 'false';
+			return true;
+		}
+
+		if (action === 'confirm') {
+			select.dataset.controllerEditing = 'false';
+			focusPokemonCreationControl(1);
+			return true;
+		}
+
+		if (action === 'left' || action === 'right' || action === 'up' || action === 'down') {
+			changePokemonCreationSelect(select, action === 'left' || action === 'up' ? -1 : 1);
+			return true;
+		}
+
+		return true;
+	}
+
+	function changePokemonCreationSelect(select: HTMLSelectElement, offset: -1 | 1) {
+		const options = Array.from(select.options).filter((option) => !option.disabled);
+		if (options.length === 0) return;
+		const current = Math.max(
+			0,
+			options.findIndex((option) => option.value === select.value)
+		);
+		const next = options[(current + offset + options.length) % options.length];
+		if (!next) return;
+		select.value = next.value;
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+	}
+
 	function pokemonActionControls() {
 		return Array.from(
 			document.querySelectorAll<HTMLButtonElement>('[data-pokemon-action-control]')
@@ -1102,12 +1151,17 @@
 			'#pokemon-creation-close',
 			'#pokemon-creation-species',
 			'#pokemon-creation-level',
+			'#pokemon-creation-catalogue-retry',
 			'#pokemon-creation-cancel',
 			'#pokemon-creation-apply'
 		]
 			.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
 			.filter((control) => {
-				if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
+				if (
+					control instanceof HTMLButtonElement ||
+					control instanceof HTMLInputElement ||
+					control instanceof HTMLSelectElement
+				) {
 					return !control.disabled;
 				}
 				return true;
@@ -1134,6 +1188,12 @@
 		const activeElement = document.activeElement;
 		if (activeElement instanceof HTMLButtonElement && !activeElement.disabled) {
 			activeElement.click();
+			return;
+		}
+
+		if (activeElement instanceof HTMLSelectElement && !activeElement.disabled) {
+			activeElement.dataset.controllerEditing = 'true';
+			activeElement.focus();
 			return;
 		}
 
@@ -2944,7 +3004,7 @@
 		}
 
 		if (!context) {
-			showToast('error', 'Pokemon Actions are unavailable for this source.');
+			showToast('error', 'Quick Actions are unavailable for this source.');
 			return;
 		}
 
@@ -3187,7 +3247,10 @@
 			paneId: focusedSlotPane?.id ?? activePaneId
 		};
 		pokemonCreationFeedback = null;
+		pokemonCreationCatalogue = null;
+		pokemonCreationCatalogueError = null;
 		openRelatedWorkflow('pokemon-creation', slotCommandLauncherId('create-pokemon'));
+		void loadPokemonCreationCatalogue();
 		void tick().then(() =>
 			requestAnimationFrame(() => document.getElementById('pokemon-creation-close')?.focus())
 		);
@@ -3197,9 +3260,63 @@
 		if (busy) return;
 
 		pokemonCreationRequest += 1;
+		pokemonCreationCatalogueRequest += 1;
 		pokemonCreation = null;
 		pokemonCreationFeedback = null;
+		pokemonCreationCatalogue = null;
+		pokemonCreationCatalogueLoading = false;
+		pokemonCreationCatalogueError = null;
 		dismissActiveWorkflow();
+	}
+
+	function retryPokemonCreationCatalogue() {
+		void loadPokemonCreationCatalogue(true);
+	}
+
+	async function loadPokemonCreationCatalogue(focusSpecies = false) {
+		const view = pokemonCreation;
+		if (!view) return;
+
+		const activeEngine = engine;
+		const destinationPane = workbenchPanes.find((pane) => pane.id === view.paneId);
+		const workingState = saveWorkspaceForPane(destinationPane)?.state ?? null;
+		const request = (pokemonCreationCatalogueRequest += 1);
+		pokemonCreationCatalogueLoading = true;
+		pokemonCreationCatalogueError = null;
+		if (focusSpecies) {
+			await tick();
+			if (request === pokemonCreationCatalogueRequest) {
+				document.getElementById('pokemon-creation-species')?.focus();
+			}
+		}
+
+		if (!workingState || !activeEngine) {
+			pokemonCreationCatalogueLoading = false;
+			pokemonCreationCatalogueError = !workingState
+				? 'Load a Save File to load species names.'
+				: 'The PKHeX Engine is not ready to load species names.';
+			return;
+		}
+
+		try {
+			const result = await activeEngine.getPokemonCreationCatalogue(
+				workingState.bytes,
+				workingState.file.originalFileName ?? undefined
+			);
+			if (request !== pokemonCreationCatalogueRequest || !pokemonCreation) return;
+
+			pokemonCreationCatalogueLoading = false;
+			if (!result.ok) {
+				pokemonCreationCatalogueError = result.error.message;
+				return;
+			}
+
+			pokemonCreationCatalogue = result.value;
+		} catch (error) {
+			if (request !== pokemonCreationCatalogueRequest || !pokemonCreation) return;
+			pokemonCreationCatalogueLoading = false;
+			pokemonCreationCatalogueError = getErrorMessage(error);
+		}
 	}
 
 	async function applyPokemonCreation(draft: PokemonCreationDraft) {
@@ -4639,7 +4756,11 @@
 			location={pokemonCreation.location}
 			feedback={pokemonCreationFeedback}
 			applying={busy}
+			catalogue={pokemonCreationCatalogue}
+			catalogueLoading={pokemonCreationCatalogueLoading}
+			catalogueError={pokemonCreationCatalogueError}
 			onApply={applyPokemonCreation}
+			onRetryCatalogue={retryPokemonCreationCatalogue}
 			onClose={closePokemonCreation}
 		/>
 	</TakeoverFrame>

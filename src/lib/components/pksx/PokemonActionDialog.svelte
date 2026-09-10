@@ -25,26 +25,26 @@
 	<header>
 		<div>
 			<p>{state.location}</p>
-			<h2 id="pokemon-action-title">Pokemon Actions</h2>
+			<h2 id="pokemon-action-title">Quick Actions</h2>
 		</div>
 		<button
 			id="pokemon-action-close"
 			data-pokemon-action-control
 			type="button"
-			aria-label="Close Pokemon Actions"
+			aria-label="Close Quick Actions"
 			disabled={state.status === 'applying'}
 			onclick={onClose}>×</button
 		>
 	</header>
 
 	<div class="action-scroll">
-		<section class="subject" aria-label="Pokemon Action source">
+		<section class="subject" aria-label="Quick Actions source">
 			<strong>{state.pokemonLabel}</strong>
 			<span>
 				{state.status === 'loading'
 					? 'Loading engine-backed actions...'
 					: state.status === 'error'
-						? 'Pokemon Actions unavailable'
+						? 'Quick Actions unavailable'
 						: state.preview.legalityReport.summary}
 			</span>
 		</section>
@@ -54,7 +54,7 @@
 		{:else if state.status === 'error'}
 			<p class="message error" role="alert">{state.message}</p>
 		{:else if state.selection}
-			<section class="preview" aria-label="Pokemon Action preview">
+			<section class="preview" aria-label="Quick Actions preview">
 				<div>
 					<p>Preview</p>
 					<h3>
@@ -144,7 +144,7 @@
 				disabled={state.status === 'applying'}
 				onclick={onApply}
 			>
-				{state.status === 'applying' ? 'Applying...' : 'Apply Pokemon Action'}
+				{state.status === 'applying' ? 'Applying...' : 'Apply Quick Action'}
 			</button>
 		{:else}
 			<button data-pokemon-action-control class="primary" type="button" onclick={onClose}>

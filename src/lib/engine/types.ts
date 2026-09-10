@@ -211,6 +211,11 @@ export type PokemonSpeciesOption = {
 	name: string;
 };
 
+export type PokemonCreationCatalogue = {
+	defaultSpecies: PokemonSpeciesOption | null;
+	availableSpecies: PokemonSpeciesOption[];
+};
+
 export type PokemonFormOption = {
 	id: number;
 	name: string;
@@ -633,6 +638,10 @@ export type EngineApi = {
 		operation: PokemonCreationOperation,
 		activeBox: number
 	): Promise<EngineResult<PokemonCreationResult>>;
+	getPokemonCreationCatalogue(
+		bytes: Uint8Array,
+		fileName: string | undefined
+	): Promise<EngineResult<PokemonCreationCatalogue>>;
 	applySaveFileEditOperation(
 		bytes: Uint8Array,
 		fileName: string | undefined,

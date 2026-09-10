@@ -1,17 +1,49 @@
 <script lang="ts">
+	import type { PokemonCreationCatalogue } from '$lib/engine';
 	import type { PokemonCreationDraft } from '$lib/pksx/pokemon-creation';
 
 	interface Props {
 		location: string;
 		feedback: string | null;
 		applying: boolean;
+		catalogue: PokemonCreationCatalogue | null;
+		catalogueLoading: boolean;
+		catalogueError: string | null;
 		onApply: (draft: PokemonCreationDraft) => void;
+		onRetryCatalogue: () => void;
 		onClose: () => void;
 	}
 
-	let { location, feedback, applying, onApply, onClose }: Props = $props();
+	let {
+		location,
+		feedback,
+		applying,
+		catalogue,
+		catalogueLoading,
+		catalogueError,
+		onApply,
+		onRetryCatalogue,
+		onClose
+	}: Props = $props();
 	let speciesId = $state<number | undefined>(undefined);
 	let level = $state(5);
+	const defaultSpeciesLabel = $derived(
+		catalogue?.defaultSpecies
+			? `Save File default (${catalogue.defaultSpecies.name})`
+			: 'Save File default'
+	);
+
+	function changeSpecies(event: Event) {
+		const target = event.currentTarget;
+		if (target instanceof HTMLSelectElement) {
+			speciesId = target.value === '' ? undefined : Number(target.value);
+		}
+	}
+
+	function stopControllerEditing(event: FocusEvent) {
+		const target = event.currentTarget;
+		if (target instanceof HTMLSelectElement) target.dataset.controllerEditing = 'false';
+	}
 
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
@@ -40,20 +72,26 @@
 		</header>
 
 		<div class="creation-scroll">
-			<p class="creation-copy">Leave Species ID blank to use PKHeX defaults for this Save File.</p>
-
 			<div class="creation-fields">
 				<label>
-					<span>Species ID</span>
-					<input
+					<span>Species</span>
+					<select
 						id="pokemon-creation-species"
-						type="number"
-						min="1"
-						step="1"
-						placeholder="Save File default"
+						data-controller-editing="false"
 						disabled={applying}
-						bind:value={speciesId}
-					/>
+						aria-busy={catalogueLoading}
+						aria-describedby={catalogueError || catalogueLoading
+							? 'pokemon-creation-catalogue-status'
+							: undefined}
+						value={speciesId ?? ''}
+						onchange={changeSpecies}
+						onblur={stopControllerEditing}
+					>
+						<option value="">{defaultSpeciesLabel}</option>
+						{#each catalogue?.availableSpecies ?? [] as species (species.id)}
+							<option value={species.id}>{species.name}</option>
+						{/each}
+					</select>
 				</label>
 				<label>
 					<span>Level</span>
@@ -69,6 +107,22 @@
 					/>
 				</label>
 			</div>
+
+			{#if catalogueLoading}
+				<p id="pokemon-creation-catalogue-status" class="creation-copy" role="status">
+					Loading species names. The Save File default is still available.
+				</p>
+			{:else if catalogueError}
+				<div id="pokemon-creation-catalogue-status" class="catalogue-error" role="alert">
+					<p>{catalogueError} The Save File default is still available.</p>
+					<button
+						id="pokemon-creation-catalogue-retry"
+						type="button"
+						disabled={applying}
+						onclick={onRetryCatalogue}>Retry</button
+					>
+				</div>
+			{/if}
 
 			{#if feedback}
 				<p class="creation-feedback" role="status">{feedback}</p>
@@ -167,7 +221,8 @@
 		flex: 1;
 	}
 
-	input {
+	input,
+	select {
 		min-width: 0;
 		height: var(--pksx-control-height);
 		padding: 0 var(--pksx-space-2);
@@ -178,6 +233,26 @@
 		font:
 			700 var(--pksx-type-body) var(--pksx-font-mono),
 			monospace;
+	}
+
+	.catalogue-error {
+		display: flex;
+		align-items: center;
+		gap: var(--pksx-space-2);
+	}
+
+	.catalogue-error p {
+		flex: 1;
+		color: var(--ink-soft);
+		font-size: var(--pksx-type-label);
+		font-weight: 650;
+	}
+
+	.catalogue-error button {
+		min-height: var(--pksx-control-height);
+		padding: 0 var(--pksx-space-3);
+		border-radius: var(--pksx-radius-medium);
+		font-weight: 800;
 	}
 
 	.creation-feedback {
@@ -203,7 +278,8 @@
 	}
 
 	button:focus-visible,
-	input:focus-visible {
+	input:focus-visible,
+	select:focus-visible {
 		outline: 3px solid color-mix(in srgb, var(--rust), transparent 48%);
 		outline-offset: 2px;
 	}

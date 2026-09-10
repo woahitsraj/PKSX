@@ -135,6 +135,53 @@ async function releaseWorkspaceResponses(page: Page) {
 	});
 }
 
+async function failFirstPokemonCreationCatalogue(page: Page) {
+	await page.addInitScript(() => {
+		const NativeWorker = window.Worker;
+		let failuresRemaining = 1;
+
+		window.Worker = new Proxy(NativeWorker, {
+			construct(Target, args: ConstructorParameters<typeof Worker>) {
+				const worker = new Target(...args);
+				const postMessage = worker.postMessage.bind(worker);
+				worker.postMessage = ((message: unknown, transfer?: Transferable[]) => {
+					const request = message as { type?: string; id?: string; method?: string };
+					if (
+						failuresRemaining > 0 &&
+						request.type === 'request' &&
+						request.method === 'getPokemonCreationCatalogue'
+					) {
+						failuresRemaining -= 1;
+						queueMicrotask(() =>
+							worker.dispatchEvent(
+								new MessageEvent('message', {
+									data: {
+										type: 'response',
+										id: request.id,
+										method: request.method,
+										result: {
+											ok: false,
+											value: null,
+											error: {
+												code: 'engine-unavailable',
+												message: 'Species names failed in acceptance.'
+											}
+										}
+									}
+								})
+							)
+						);
+						return;
+					}
+
+					postMessage(message, transfer ?? []);
+				}) as typeof worker.postMessage;
+				return worker;
+			}
+		}) as typeof Worker;
+	});
+}
+
 test.afterEach(async ({ page }) => {
 	if (!page.isClosed()) await releaseWorkspaceResponses(page);
 });
@@ -1818,7 +1865,7 @@ test('occupied slot actions expose Edit and Close dismisses', async ({ page }) =
 		'Clear Slot',
 		'Export',
 		'Legality Check',
-		'Pokemon Actions',
+		'Quick Actions',
 		'Create Pokemon'
 	]);
 	await expect(dialog.getByRole('button', { name: 'Export' })).toHaveAttribute(
@@ -1846,7 +1893,7 @@ test('occupied slot actions expose Edit and Close dismisses', async ({ page }) =
 		'aria-disabled',
 		'true'
 	);
-	await expect(page.getByRole('button', { name: 'Pokemon Actions' })).not.toHaveAttribute(
+	await expect(page.getByRole('button', { name: 'Quick Actions' })).not.toHaveAttribute(
 		'aria-disabled',
 		'true'
 	);
@@ -1861,16 +1908,16 @@ test('occupied slot actions expose Edit and Close dismisses', async ({ page }) =
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 });
 
-test('Pokemon Actions cancel without mutation and explicitly apply an evolution', async ({
+test('Quick Actions cancel without mutation and explicitly apply an evolution', async ({
 	page
 }) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
-	await page.getByRole('button', { name: 'Pokemon Actions' }).click();
+	await page.getByRole('button', { name: 'Quick Actions' }).click();
 
-	const actions = page.getByRole('dialog', { name: 'Pokemon Actions' });
+	const actions = page.getByRole('dialog', { name: 'Quick Actions' });
 	await expect(actions).toBeVisible({ timeout: 15000 });
 	await expect(page.getByRole('dialog')).toHaveCount(1);
 	await expect(page.locator('.boxes-route')).toHaveAttribute('inert', '');
@@ -1893,7 +1940,7 @@ test('Pokemon Actions cancel without mutation and explicitly apply an evolution'
 	await expect(actions).toBeHidden();
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
 	await expect(page.locator('#slot-action-6')).toBeFocused();
-	await page.getByRole('button', { name: 'Pokemon Actions' }).click();
+	await page.getByRole('button', { name: 'Quick Actions' }).click();
 	await expect(actions.locator('#pokemon-action-close')).toBeFocused({ timeout: 15000 });
 
 	await actions.getByRole('button', { name: /Lairon.*Level 32/i }).click();
@@ -1901,7 +1948,7 @@ test('Pokemon Actions cancel without mutation and explicitly apply an evolution'
 	await expect(actions).toContainText('Preview Legality Fix');
 
 	await actions.getByRole('button', { name: /Lairon.*Level 32/i }).click();
-	await actions.getByRole('button', { name: 'Apply Pokemon Action' }).click();
+	await actions.getByRole('button', { name: 'Apply Quick Action' }).click();
 	await expect(actions).toBeHidden({ timeout: 15000 });
 	await expect(page.locator('#box-0-slot-0')).toContainText('LAIRON');
 	await expect(page.locator('#box-0-slot-0')).toContainText('Lv 32');
@@ -1912,6 +1959,7 @@ test('Pokemon Actions cancel without mutation and explicitly apply an evolution'
 test('creates a Pokemon from an empty Slot after explicit apply and preserves cancel', async ({
 	page
 }) => {
+	await failFirstPokemonCreationCatalogue(page);
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 
@@ -1925,15 +1973,31 @@ test('creates a Pokemon from an empty Slot after explicit apply and preserves ca
 	const dialog = page.getByRole('dialog', { name: 'New Pokemon' });
 	await expect(dialog).toBeVisible();
 	await expect(page.locator('#pokemon-creation-close')).toBeFocused();
+	await expect(dialog.getByRole('alert')).toContainText('Species names failed in acceptance.');
+	await dialog.getByRole('button', { name: 'Retry' }).click();
+	await expect(dialog.getByLabel('Species')).toBeFocused();
+	await expect(dialog.getByLabel('Species')).toContainText('Pikachu', { timeout: 15000 });
+	await expect(dialog.getByText('Species ID')).toHaveCount(0);
+	await page.keyboard.press('Enter');
+	await expect(dialog.locator('#pokemon-creation-species')).toHaveAttribute(
+		'data-controller-editing',
+		'true'
+	);
 	await page.keyboard.press('ArrowDown');
-	await expect(dialog.locator('#pokemon-creation-species')).toBeFocused();
+	await expect(dialog.locator('#pokemon-creation-species')).toHaveValue('1');
+	await page.keyboard.press('Escape');
+	await expect(dialog.locator('#pokemon-creation-species')).toHaveAttribute(
+		'data-controller-editing',
+		'false'
+	);
+	await expect(dialog).toBeVisible();
 	await page.keyboard.press('Escape');
 	await expect(dialog).toBeHidden();
 	await expect(destination).toContainText('Empty');
 	await expect(page.locator('.toolbar-status-strip')).toHaveCount(0);
 
 	await createCommand.click();
-	await dialog.locator('#pokemon-creation-species').fill('25');
+	await dialog.getByLabel('Species').selectOption({ label: 'Pikachu' });
 	await dialog.locator('#pokemon-creation-level').fill('5');
 	await dialog.getByRole('button', { name: 'Apply creation' }).click();
 
@@ -1973,7 +2037,21 @@ test('Pokemon Creation uses the shared Takeover bounds and preserves its draft t
 
 	const species = dialog.locator('#pokemon-creation-species');
 	const level = dialog.locator('#pokemon-creation-level');
-	await species.fill('25');
+	await expect(species).toContainText('Pikachu', { timeout: 15000 });
+	await species.focus();
+	await pressController(page, 'Enter');
+	await expect(species).toHaveAttribute('data-controller-editing', 'true');
+	await pressController(page, 'ArrowDown');
+	await expect(species).toHaveValue('1');
+	await expect(species.locator('option:checked')).toHaveText('Bulbasaur');
+	await pressController(page, 'Escape');
+	await expect(species).toHaveAttribute('data-controller-editing', 'false');
+	await expect(species).toBeFocused();
+	await pressController(page, 'Enter');
+	await expect(species).toHaveAttribute('data-controller-editing', 'true');
+	await pressController(page, 'Enter');
+	await expect(level).toBeFocused();
+	await species.selectOption({ label: 'Pikachu' });
 	await level.fill('12');
 	await level.focus();
 
