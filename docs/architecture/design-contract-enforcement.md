@@ -1,6 +1,6 @@
 # Design contract and enforcement
 
-This record assembles the locked controller-first shell decisions from [the design map](https://github.com/woahitsraj/PKSX/issues/151) and [the consolidated specification](https://github.com/woahitsraj/PKSX/issues/210). Implementations, tests, and lint diagnostics cite the stable identifiers below. [CONTEXT.md](../../CONTEXT.md) remains the authority for domain language and relationships. The linked ADRs retain architectural rationale, so this record states the resulting contract without repeating it.
+This record assembles the locked controller-first shell decisions from [the design map](https://github.com/woahitsraj/PKSX/issues/151) and [the consolidated specification](https://github.com/woahitsraj/PKSX/issues/210). Implementations, tests, and lint diagnostics cite the stable identifiers below. [CONTEXT.md](../../CONTEXT.md) remains the authority for domain language. The authority order below governs relationships changed by later owner decisions. The linked ADRs retain architectural rationale, so this record states the resulting contract without repeating it.
 
 ## Authority and amendments
 
@@ -10,8 +10,9 @@ This record assembles the locked controller-first shell decisions from [the desi
 - [#196](https://github.com/woahitsraj/PKSX/issues/196) replaces the historical 63px floor Slot estimate with 58 to 59px and replaces percentage Tall Takeover bounds with a 760 by 560 maximum.
 - [#201](https://github.com/woahitsraj/PKSX/issues/201) consolidates Focus Zones, makes Party a Location, generalizes vanished-zone recovery, and defines the Main Menu launcher exception.
 - [#203](https://github.com/woahitsraj/PKSX/issues/203) adds the large-container type step to the otherwise fixed type ladder. [#212](https://github.com/woahitsraj/PKSX/issues/212) owns the corresponding wording correction to [ADR 0015](../adr/0015-fix-the-type-scale-and-scale-room-by-container-height.md).
-- [#167](https://github.com/woahitsraj/PKSX/issues/167) and the resolved [#209](https://github.com/woahitsraj/PKSX/issues/209) supersede the page-wide Save File staging inherited by #202, #164, and the original SAVEFILE-1 wording in #210. This amendment applies only to Trainer, Money, and Bag on `/save-file`. [ADR 0010](../adr/0010-use-engine-backed-pokemon-editor-apply-contract.md) continues to govern Pokemon Editor staging and atomic Apply.
-- [#169](https://github.com/woahitsraj/PKSX/issues/169) selects the Ledger direction for `/save-file`. [#170](https://github.com/woahitsraj/PKSX/issues/170) still owns its detailed overhaul specification and implementation issue breakdown.
+- [#167](https://github.com/woahitsraj/PKSX/issues/167) and the resolved [#209](https://github.com/woahitsraj/PKSX/issues/209) supersede the page-wide Save File staging inherited by #202, #164, and the original SAVEFILE-1 wording in #210. Their direct-commit contract applies only to Trainer, Money, and Bag. [ADR 0010](../adr/0010-use-engine-backed-pokemon-editor-apply-contract.md) continues to govern Pokemon Editor staging and atomic Apply.
+- [#169](https://github.com/woahitsraj/PKSX/issues/169) selects the Ledger direction. [#170](https://github.com/woahitsraj/PKSX/issues/170) owns its detailed specification and implementation issue breakdown.
+- The 2026-09-10 amendments to [#151](https://github.com/woahitsraj/PKSX/issues/151), [#207](https://github.com/woahitsraj/PKSX/issues/207), and [#210](https://github.com/woahitsraj/PKSX/issues/210) replace the combined Save File destination with Trainer and Bag, make Pokemon Storage a focusable Saves card and collection-picker option, rename Open another, set the editable-text floor, and reserve Search. They supersede every conflicting line above, in the earlier decision tickets, and in historical CONTEXT.md relationships. CONTEXT.md remains authoritative for vocabulary.
 
 <a id="budget-1"></a>
 
@@ -65,11 +66,13 @@ The Main Menu control overlays content at rest and reserves no layout. Durable s
 
 ## NAV-1: destinations and Main Menu summon
 
-Source: [#156](https://github.com/woahitsraj/PKSX/issues/156), using the final vocabulary from [#177](https://github.com/woahitsraj/PKSX/issues/177).
+Source: [#156](https://github.com/woahitsraj/PKSX/issues/156), using the final vocabulary from [#177](https://github.com/woahitsraj/PKSX/issues/177), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210). [#216](https://github.com/woahitsraj/PKSX/issues/216) owns the current Main Menu implementation, and [#254](https://github.com/woahitsraj/PKSX/issues/254) and [#255](https://github.com/woahitsraj/PKSX/issues/255) own Search.
 
-Boxes, Save File, Saves, and Settings are routed destinations. Boxes is home. A first run with no Save Files and empty Pokemon Storage lands on Saves.
+Boxes, Trainer, Bag, Saves, and Settings are routed destinations. Trainer owns Trainer fields and Money. Bag owns inventory pockets and item commands. Boxes is home. A first run with no Save Files and empty Pokemon Storage lands on Saves.
 
-The Main Menu contains this fixed order: Boxes, Save File, Saves, Settings, Backup Browser. Every entry remains present and selectable. An entry with no available data opens its normal empty state and explanation. Backup Browser is globally scoped to the active Save File.
+Until Search ships, the Main Menu order is Boxes, Trainer, Bag, Saves, Settings, Backup Browser. Every rendered entry remains present and selectable. Trainer and Bag remain selectable without an active Save File and explain why their data is unavailable. Backup Browser is globally scoped to the active Save File.
+
+Reserve Search's insertion point immediately after Boxes and reserve a controller shortcut as a Navigation Action. Do not assign a physical controller input to that action here, reuse its intended input for another command, or render Search before #254 implements Quick Search. Search opens in Quick Search mode. #255 adds Advanced Search inside the same workflow.
 
 Start toggles the Main Menu using a synthetic key ordinary typing cannot produce. Cmd/Ctrl+K opens it from the keyboard. The unlabelled pointer control opens it for touch and pointer input. The opener is visible and active at rest, then hidden and inert during Carry or while any Menu or Takeover is open.
 
@@ -128,6 +131,8 @@ Source: [#196](https://github.com/woahitsraj/PKSX/issues/196) and [ADR 0015](../
 | focus ring                               | `clamp(2px, 0.6cqh, 3px)`                                 |
 
 Register inherited token properties so container-relative lengths compute at the screen or Takeover that owns the density. Density never reads Height Band. Slots, cards, icon-only controls, and composition-owned surfaces are explicit custom categories rather than standard controls.
+
+Every editable `input`, `select`, `textarea`, combobox input, and `contenteditable` control has a computed font size of at least 16px. Implement the shared floor unconditionally rather than classifying a mobile viewport or device. Labels and non-editable compact text retain their semantic tokens.
 
 <a id="density-2"></a>
 
@@ -191,17 +196,19 @@ The Active Slot Detail Rail reflects the Slot under Controller Focus, including 
 
 ## BOXES-2: Box Menu
 
-Source: [#177](https://github.com/woahitsraj/PKSX/issues/177).
+Source: [#177](https://github.com/woahitsraj/PKSX/issues/177), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210). [#215](https://github.com/woahitsraj/PKSX/issues/215) and [#218](https://github.com/woahitsraj/PKSX/issues/218) own implementation.
 
 X from a Box Pane, or A, tap, or click on its collection control, opens that active pane's Box Menu. B or X closes it. Entries stay in this fixed order:
 
 1. Export
 2. Save a backup
 3. Switch
-4. Open another
+4. Open another collection
 5. Close
 
-Unavailable entries remain visible and explain why without executing. Pokemon Storage disables Export and Save a backup. The active Save File's pane disables Switch and Close and directs the user to select another active Save File from Saves. Export writes Workspace bytes. Save a backup invokes the existing manual Backup behavior.
+Unavailable entries remain visible and explain why without executing. Pokemon Storage disables Export and Save a backup. The active Save File's pane disables Switch and Close and directs the user to select another active Save File from Saves. That restriction belongs to this Box Menu only and does not prevent choosing Pokemon Storage in Saves. Export writes Workspace bytes. Save a backup invokes the existing manual Backup behavior.
+
+The Switch and Open another collection pickers list available Save Files and Pokemon Storage as peer collections. Their labels and command availability keep Pokemon Storage distinct as app-owned, immediately persisted data. Selecting Pokemon Storage in Open another collection opens it in the second Box Pane with its own Location and focus identity.
 
 Y has no rest action and toggles move or copy only during Carry. The Box Menu is inert during Carry or another summoned workflow.
 
@@ -254,21 +261,22 @@ Carry confines focus to Slots, including cross-pane and shoulder transitions, an
 
 ## FOCUS-4: destination and workflow ownership
 
-Source: [#201](https://github.com/woahitsraj/PKSX/issues/201).
+Source: [#201](https://github.com/woahitsraj/PKSX/issues/201), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210). [#216](https://github.com/woahitsraj/PKSX/issues/216) and [#219](https://github.com/woahitsraj/PKSX/issues/219) own destination implementation.
 
 Opening a Menu or Takeover suspends destination Focus Zones. A Menu owns one list. A Takeover owns its internal Focus Zones and starts from its initial target each time it opens.
 
-| Destination or Takeover | Initial focus                                       |
-| ----------------------- | --------------------------------------------------- |
-| Boxes                   | Active pane, current Location, Slot 0               |
-| Saves                   | Active Save File, else first Save File, else Import |
-| Settings                | Theme control                                       |
-| Save File               | First stop                                          |
-| Pokemon Editor          | First section                                       |
-| Backup Browser          | Newest Backup                                       |
-| Pokemon Creation        | First stop                                          |
+| Destination or Takeover | Initial focus                                                             |
+| ----------------------- | ------------------------------------------------------------------------- |
+| Boxes                   | Active pane, current Location, Slot 0                                     |
+| Saves                   | Active Save File, else first Save File, else Pokemon Storage, else Import |
+| Settings                | Theme control                                                             |
+| Trainer                 | First stop                                                                |
+| Bag                     | First stop                                                                |
+| Pokemon Editor          | First section                                                             |
+| Backup Browser          | Newest Backup                                                             |
+| Pokemon Creation        | First stop                                                                |
 
-Destinations remember their targets for the session and validate them with FOCUS-3 on return. Takeovers have no memory across closures.
+Destinations remember their targets for the session and validate them with FOCUS-3 on return. Trainer and Bag retain independent memories. Takeovers have no memory across closures.
 
 <a id="editor-1"></a>
 
@@ -280,7 +288,7 @@ The Pokemon Editor is a Takeover with a compact identity row, a persistent 11-se
 
 The rail and content pane are two Focus Zones. Moving along the rail changes the shown section while retaining rail focus. A enters that section's first stop. From content, Left at the first column reaches the side rail, or Up at the first stop reaches the top rail. L2/R2 page sections from anywhere in the Editor. B dismisses or invokes the discard confirmation and never moves between the zones.
 
-The densest IV/EV section fits the landscape floor with token-backed 32px standard controls, 12px labels, and 10px column headers.
+The densest IV/EV section fits the landscape floor with token-backed 32px standard controls, 12px labels, 10px column headers, and the 16px editable-control floor from DENSITY-1.
 
 <a id="editor-2"></a>
 
@@ -296,25 +304,27 @@ Apply keeps ADR 0010's explicit atomic write, Pokemon Editor Source identity che
 
 ## SAVES-1: contents and layout
 
-Source: [#180](https://github.com/woahitsraj/PKSX/issues/180).
+Source: [#180](https://github.com/woahitsraj/PKSX/issues/180), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210). [#219](https://github.com/woahitsraj/PKSX/issues/219) owns implementation.
 
-Saves contains cartridge-style Save File cards, Import, and a compact read-only Pokemon Storage summary showing Pokemon and box counts. It does not contain the Backup Browser or Box Source switching. Backup Browser remains globally accessible and scoped to the active Save File.
+Saves contains cartridge-style Save File cards, a Pokemon Storage collection card, and Import. Pokemon Storage shows Pokemon and Storage Box counts and identifies that PKSX owns and automatically persists it. It remains visibly and behaviorally distinct from a Save File. Saves does not contain the Backup Browser or Box Source switching. Backup Browser remains globally accessible and scoped to the active Save File.
 
-The title and Pokemon Storage summary stay fixed while the Save File grid owns overflow. Cards have a 240px minimum width and at most four columns. The landscape floor uses two columns and the portrait floor uses one. Four Save Files fit fully at 616×336. The fifth target, including Import after four files, starts grid scrolling.
+The title stays fixed while the card grid owns overflow. Cards have a 240px minimum width and at most four columns. The landscape floor uses two columns and the portrait floor uses one. Four grid targets fit fully at 616×336. A fifth target starts grid scrolling. Pokemon Storage counts as a grid target at every floor, target, and large-grid case.
 
-Each card shows game title, Trainer name, original filename, active state, box count, and Pokemon count. Omit Party preview, Trainer ID, generation, play time, import year, and last-opened metadata.
+Each Save File card shows game title, Trainer name, original filename, active state, box count, and Pokemon count. Omit Party preview, Trainer ID, generation, play time, import year, and last-opened metadata.
 
 <a id="saves-2"></a>
 
 ## SAVES-2: actions and states
 
-Source: [#180](https://github.com/woahitsraj/PKSX/issues/180).
+Source: [#180](https://github.com/woahitsraj/PKSX/issues/180), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210) and [#250](https://github.com/woahitsraj/PKSX/issues/250). [#219](https://github.com/woahitsraj/PKSX/issues/219) owns implementation.
 
-Saves has one grid Focus Zone with one target per Save File and Import. Directional movement follows grid coordinates, clamps at edges, and preserves the nearest column in an incomplete row. A, tap, or click activates a Save File and opens Boxes. X or the browser-accessible trailing control opens the fixed Save File Menu with Open Save File and Delete from Saves. Open Save File goes to the Save File destination.
+Saves has one grid Focus Zone with one target per Save File, Pokemon Storage, and Import. Directional movement follows grid coordinates, clamps at edges, and preserves the nearest column in an incomplete row. A, tap, or click activates a Save File and opens Boxes. Confirming Pokemon Storage opens Boxes in its normal single-pane composition with Pokemon Storage active and Controller Focus on its current Location. This explicit route action does not invoke a Box Menu picker or open a second pane. Viewport changes never add a pane automatically.
 
-Deletion confirmation names the file and explains that its Backups are removed. For the active file it also explains Workspace and Dirty Workspace removal. After deletion, focus moves to the next Save File, then the previous one, then Import.
+X from a Save File, or its browser-accessible trailing control, opens the fixed Save File Menu with Open Trainer, Open Bag, and Delete from Saves. Open Trainer or Open Bag activates that Save File and routes to the selected destination.
 
-Successful Import remains on Saves, makes the new Save File active, and focuses it. Cancelling returns focus to Import. Empty Saves retains the Pokemon Storage summary and focused Import target. A loading card uses its filename and `Reading save...`. A details failure shows `Details unavailable` while preserving the Save File Menu.
+Deletion confirmation names the file and explains that its Backups are removed. For the active file it also explains Workspace and Dirty Workspace removal. After deletion, focus moves to the next Save File, then the previous Save File, then Pokemon Storage, then Import.
+
+Successful Import remains on Saves, makes the new Save File active, and focuses it. Cancelling returns focus to Import. With no Save Files, Pokemon Storage and Import remain focusable. A loading Save File card retains its filename, sets `aria-busy` immediately, and shows a small local spinner only after 500 ms. A details failure shows `Details unavailable` while preserving the Save File Menu.
 
 <a id="settings-1"></a>
 
@@ -330,17 +340,19 @@ Settings is one column and one Focus Zone of vertical stops, including reference
 
 <a id="savefile-1"></a>
 
-## SAVEFILE-1: inherited layout and direct commit envelope
+## SAVEFILE-1: shared Trainer and Bag direct commit envelope
 
-Sources: [#202](https://github.com/woahitsraj/PKSX/issues/202), the [Save File overhaul](https://github.com/woahitsraj/PKSX/issues/163), the selected [Ledger direction](https://github.com/woahitsraj/PKSX/issues/169), and the direct commit resolutions [#167](https://github.com/woahitsraj/PKSX/issues/167), [#168](https://github.com/woahitsraj/PKSX/issues/168), and [#209](https://github.com/woahitsraj/PKSX/issues/209).
+Sources: [#202](https://github.com/woahitsraj/PKSX/issues/202), the [Save File overhaul](https://github.com/woahitsraj/PKSX/issues/163), the selected [Ledger direction](https://github.com/woahitsraj/PKSX/issues/169), and the direct commit resolutions [#167](https://github.com/woahitsraj/PKSX/issues/167), [#168](https://github.com/woahitsraj/PKSX/issues/168), and [#209](https://github.com/woahitsraj/PKSX/issues/209), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210) and the progress-copy decision in [#250](https://github.com/woahitsraj/PKSX/issues/250).
 
 ### Inherited screen and focus contract
 
-Identify the active Workspace with the original filename once. Trainer name appears only in its editable Trainer section. Omit box count and unsupported fields. Save File is one Focus Zone containing vertical focus stops in an internal scrollport. Left and Right move within a row, while Up and Down leave it. First visit starts at the first stop, and the destination remembers its valid stop for the session.
+Trainer and Bag each identify the active Workspace with the original filename once. Trainer owns Trainer fields and Money. Trainer name appears only as an editable Trainer field. Bag owns inventory pockets and item commands. Both omit box count and unsupported fields.
 
-The owner-selected direction is Ledger: Trainer and Money occupy a 260px leading column when wider than tall and a top block when taller than wide. Bag is a grouped scrolling ledger with sticky pocket headers and a pocket jump row. Each pocket header opens Add Item, with one command draft per pocket. Item names wrap to two lines. These are selected inputs to [#170](https://github.com/woahitsraj/PKSX/issues/170), which owns the complete responsive route specification, including the unresolved pocket-jump wrapping or scrolling behavior. This record does not close that work or add editable fields.
+Each destination owns one Focus Zone with vertical focus stops in an internal scrollport. Left and Right move within a row, while Up and Down leave it. A first visit starts at that destination's first stop, and Trainer and Bag remember their valid targets independently for the session.
 
-There is no page-wide staged state, Apply or Cancel action, draft count, bottom action bar, or route-leave warning. Successful direct commits are silent. Pending state stays on the affected field or Bag row with `Saving...`, `aria-busy`, and repeated activation blocked. An isolated engine, Backup, or storage failure restores the last persisted value and shows one error Toast naming the field or item. A route-wide editing outage becomes durable route content with Retry while navigation remains available.
+Trainer presents Trainer fields and Money as a ledger. Bag is a grouped scrolling ledger with sticky pocket headers and a pocket jump row. Each pocket header opens Add Item, with one command draft per pocket. Item names wrap to two lines. These are selected inputs from [#170](https://github.com/woahitsraj/PKSX/issues/170). This record does not add editable fields.
+
+Neither destination has page-wide staged state, an Apply or Cancel action, a draft count, a bottom action bar, or a route-leave warning. Successful direct commits are silent. Pending state sets `aria-busy` on the affected field or Bag row immediately and blocks repeated activation. If the operation remains pending after 500 ms, show a small local spinner until it completes or is cancelled. Do not replace action labels with `Saving...`, `Working...`, or other immediate progress copy. An isolated engine, Backup, or storage failure restores the last persisted value and shows one error Toast naming the field or item. A destination-wide editing outage becomes durable content with Retry while navigation remains available.
 
 An initial load failure replaces the editor with Retry and Back to Boxes. No active Save File is a normal empty state. Bag catalogue loading, count, and failure remain beside Add Item. Catalogue failure offers Retry and disables only item addition, leaving quantity and removal available. Export outcomes use Toasts.
 
@@ -356,11 +368,11 @@ An initial load failure replaces the editor with Retry and Back to Boxes. No act
 
 A rejected draft remains visible only while its field stays in edit mode, with local feedback and `aria-invalid`. Enter on an invalid draft keeps focus for correction. Invalid blur, Escape, or controller B restores the last accepted value. Its error remains until the control changes or the local view closes, is associated by `aria-describedby`, and is announced politely. Controller A or Enter activates a focused editable field. Enter or Done confirms. Escape or B abandons the draft, consumes that input, and leaves Controller Focus on the field. Engine validation rejection uses the same local path.
 
-Unfinished Add Item and Remove commands are discarded without warning when their pocket, local view, or route closes. A failed Add or Remove retains its command for retry only while that view remains open.
+Unfinished Add Item and Remove commands are discarded without warning when their pocket, local view, or Bag closes. A failed Add or Remove retains its command for retry only while that view remains open.
 
 ### Mutation, Backup, persistence, and deletion ordering
 
-Workspace mutations run FIFO against the latest committed Workspace and remain bound to their originating Save File and Workspace identities. Other fields and navigation remain available while a mutation is pending. Revisiting an origin reconstructs its local pending and `aria-busy` state from the mutation coordinator.
+The shared coordinator runs confirmed Trainer and Bag mutations FIFO against the latest committed Workspace. Mutations remain bound to their originating Save File and Workspace identities. Other controls and navigation remain available while a mutation is pending. Revisiting either destination reconstructs its local pending and `aria-busy` state from the coordinator.
 
 Export waits for already confirmed mutations, then serializes the resulting Workspace. It never consumes an unconfirmed draft or triggers a mutation.
 
@@ -370,7 +382,7 @@ A Backup failure prevents every queued mutation for that origin, restores affect
 
 Deleting a Save File is its terminal queued operation. Confirmed mutations finish first, then deletion removes the Save File, Workspace, and Backups and accepts no later operation for that origin. App termination preserves only persisted commits. It does not restore in-memory drafts or incomplete operations and shows no unload warning.
 
-These direct commit rules apply only to Trainer, Money, and Bag on `/save-file`. EDITOR-2 remains the Pokemon Editor contract.
+These direct commit rules apply only to Trainer and Bag Save File editing. EDITOR-2 remains the Pokemon Editor contract.
 
 <a id="boundary-1"></a>
 
@@ -378,7 +390,9 @@ These direct commit rules apply only to Trainer, Money, and Bag on `/save-file`.
 
 Source: [#210](https://github.com/woahitsraj/PKSX/issues/210), with executable enforcement owned by [#205](https://github.com/woahitsraj/PKSX/issues/205).
 
-Evolve the existing controller input, box navigation, box shell/workbench, destination, Pokemon Editor, and summoned-workflow modules. Keep domain navigation independently testable, and own the cross-destination Main Menu above Boxes. Do not add a competing responsive state store, second focus authority, test-only navigation abstraction, or new data schema.
+Evolve the existing controller input, box navigation, box shell/workbench, destination, Pokemon Editor, and summoned-workflow modules. Keep domain navigation independently testable, and own the cross-destination Main Menu above Boxes. Trainer and Bag remain separate destination owners over one shared Save File edit coordinator. Pokemon Storage keeps its existing app-owned persistence boundary. Do not add a competing responsive state store, second focus authority, test-only navigation abstraction, or new data schema.
+
+Before #254, root navigation owns only the reserved Search insertion point and Navigation Action. #254 owns rendering the Search Main Menu entry, choosing its physical controller binding, and implementing Quick Search. #255 owns Advanced Search inside that workflow.
 
 Save File bytes, Pokemon Entity ownership, persistence, Backup safety, and PKHeX Engine/Facade contracts retain their current owners. Implementation identifiers use current domain names rather than old action-surface or source terminology.
 
@@ -388,6 +402,8 @@ Save File bytes, Pokemon Entity ownership, persistence, Backup safety, and PKHeX
 
 Source: [#205](https://github.com/woahitsraj/PKSX/issues/205). The final static gate is tracked by [#225](https://github.com/woahitsraj/PKSX/issues/225).
 
+The amended checks retain their feature owners: [#212](https://github.com/woahitsraj/PKSX/issues/212) owns editable computed size; [#215](https://github.com/woahitsraj/PKSX/issues/215) and [#218](https://github.com/woahitsraj/PKSX/issues/218) own collection pickers; [#216](https://github.com/woahitsraj/PKSX/issues/216) owns the current destination set and Search reservation; [#219](https://github.com/woahitsraj/PKSX/issues/219) owns the Saves card and focus rules; and [#250](https://github.com/woahitsraj/PKSX/issues/250) owns delayed progress indicators. Search behavior and its tests begin with #254, followed by #255.
+
 Geometry, state, accessibility, and policy assertions fail CI. Target-state screenshots are review artifacts and do not fail on pixel differences.
 
 ### Static gate
@@ -396,6 +412,7 @@ Geometry, state, accessibility, and policy assertions fail CI. Target-state scre
 
 - Reject viewport width, aspect, or orientation layout queries in shipping code; Tailwind viewport variants; duplicate Height Band thresholds; unauthorized `--pksx-height-band` assignments; raw type sizes where semantic tokens apply; and standard controls without token ownership.
 - Permit the sole app-level `min-height: 560px` authority, the named `tall:` and container-query refinements, non-layout media features, and explicit custom categories for Slots, cards, icon-only controls, and composition-owned surfaces. Small controls must derive from the 24–33px token in DENSITY-1.
+- Require editable controls to use the shared DENSITY-1 font-size floor, and reject declarations or token use that can lower it below 16px. Static analysis checks declarations and token ownership. Browser acceptance checks computed sizes. Do not raise labels or non-editable compact text to satisfy this rule.
 - Reject layout-bearing `matchMedia()` calls, viewport dimension bindings, and direct viewport or screen reads used as classifiers. Permit test inspection, element measurement, and one narrowly owned geometry helper that returns coordinates rather than responsive modes.
 - Enable strict enforcement only after fixing every shipping-code violation. Use no baseline snapshot, temporary allowlist, or permanent prototype exception. Remove historical prototype routes when production replaces them and retain their commit-linked evidence.
 
@@ -423,11 +440,13 @@ Playwright supplies deterministic safe-area values through the production inset 
 
 Test the 900×700 large-type container threshold at 899×700, 900×699, and 900×700. It remains a container rule rather than a viewport mode.
 
-At floors and targets with the keyboard closed, assert Safe Canvas containment, specified scroll ownership, positive dimensions for visible controls, and complete visibility of the Controller Focus target. Opening a Menu or Takeover must not increase shell scroll extent. Assert the BUDGET-1 co-visibility and Slot measurements, DENSITY token bounds and categories, Height Band boundary, Menu edge selection, Short and Tall Takeover geometry, and LARGE-1 caps. Exercise square containers explicitly: panes stack, Menus use the bottom edge, and the Pokemon Editor rail uses the top edge.
+At floors and targets with the keyboard closed, assert Safe Canvas containment, specified scroll ownership, positive dimensions for visible controls, and complete visibility of the Controller Focus target. Opening a Menu or Takeover must not increase shell scroll extent. Assert the BUDGET-1 co-visibility and Slot measurements, DENSITY token bounds and categories, Height Band boundary, Menu edge selection, Short and Tall Takeover geometry, and LARGE-1 caps. At the portrait floor and target, and at both landscape cases, assert at least 16px computed text on editable controls in Trainer, Bag including an open Add Item command, the Pokemon Editor including its dense IV/EV section, Pokemon Creation, and other applicable summoned workflows. [#212](https://github.com/woahitsraj/PKSX/issues/212) owns the shared rule and the portrait floor and target checks. Exercise square containers explicitly: panes stack, Menus use the bottom edge, and the Pokemon Editor rail uses the top edge.
 
 Crossing the 559/560 boundary or changing aspect may reflow presentation while preserving destination, pane identity and count, Controller Focus, Carry, and open workflow. Below the floor, assert reachability without a warning gate or blank state.
 
-Interaction workflows cover first-run landing, Main Menu order and focus restoration, controller B versus platform Back, unavailable command reasons, Carry suppression of Menus, pane and Party transitions, focus after Slot mutations, pointer-only actions, import and deletion recovery, destination memory, replacement chains, vanished launchers, Pokemon Editor section navigation, staged review and validation, Legality Report return, and discard guards. Use real Save File fixtures for data-dependent paths.
+Interaction workflows cover first-run landing, Main Menu order and focus restoration, independent Trainer and Bag destination memory, controller B versus platform Back, unavailable command reasons, Carry suppression of Menus, pane and Party transitions, focus after Slot mutations, pointer-only actions, import and deletion recovery, Pokemon Storage grid selection and collection-picker behavior, replacement chains, vanished launchers, Pokemon Editor section navigation, staged review and validation, Legality Report return, and discard guards. Use real Save File fixtures for data-dependent paths.
+
+Before #254 lands, acceptance keeps the Search slot and Navigation Action reserved and asserts that the Main Menu does not render Search. #254 owns Quick Search entry, shortcut, and result-navigation coverage. #255 owns Advanced Search coverage.
 
 ### Native gate
 
@@ -437,20 +456,23 @@ Rotate through single-pane Boxes, two-pane Boxes, Carry, an open Menu, an open T
 
 ## Source index
 
-| Contract                   | Decision owner and amendments                                                                                                                                                                                                                                                                                                                                                                                        |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BUDGET-1                   | [#152](https://github.com/woahitsraj/PKSX/issues/152), [#165](https://github.com/woahitsraj/PKSX/issues/165), [#196](https://github.com/woahitsraj/PKSX/issues/196)                                                                                                                                                                                                                                                  |
-| BUDGET-2                   | [#161](https://github.com/woahitsraj/PKSX/issues/161), [ADR 0011](../adr/0011-derive-platform-floors-from-one-browser-baseline.md)                                                                                                                                                                                                                                                                                   |
-| SHELL-1                    | [#155](https://github.com/woahitsraj/PKSX/issues/155), [#156](https://github.com/woahitsraj/PKSX/issues/156), [#177](https://github.com/woahitsraj/PKSX/issues/177), [ADR 0012](../adr/0012-draw-durable-state-in-place.md)                                                                                                                                                                                          |
-| NAV-1, NAV-2               | [#156](https://github.com/woahitsraj/PKSX/issues/156), [#201](https://github.com/woahitsraj/PKSX/issues/201)                                                                                                                                                                                                                                                                                                         |
-| RESP-1, RESP-2             | [#157](https://github.com/woahitsraj/PKSX/issues/157), [#204](https://github.com/woahitsraj/PKSX/issues/204), [ADR 0013](../adr/0013-drive-responsive-layout-from-one-height-band.md)                                                                                                                                                                                                                                |
-| DENSITY-1, DENSITY-2       | [#196](https://github.com/woahitsraj/PKSX/issues/196), [ADR 0015](../adr/0015-fix-the-type-scale-and-scale-room-by-container-height.md)                                                                                                                                                                                                                                                                              |
-| LARGE-1                    | [#203](https://github.com/woahitsraj/PKSX/issues/203), follow-up [#212](https://github.com/woahitsraj/PKSX/issues/212)                                                                                                                                                                                                                                                                                               |
-| SURFACE-1, SURFACE-2       | [#158](https://github.com/woahitsraj/PKSX/issues/158), [#162](https://github.com/woahitsraj/PKSX/issues/162), [#196](https://github.com/woahitsraj/PKSX/issues/196), [#201](https://github.com/woahitsraj/PKSX/issues/201), [ADR 0014](../adr/0014-present-summoned-surfaces-as-menus-and-takeovers.md)                                                                                                              |
-| BOXES-1, BOXES-2           | [#159](https://github.com/woahitsraj/PKSX/issues/159), [#177](https://github.com/woahitsraj/PKSX/issues/177), [#201](https://github.com/woahitsraj/PKSX/issues/201)                                                                                                                                                                                                                                                  |
-| FOCUS-1 through FOCUS-4    | [#162](https://github.com/woahitsraj/PKSX/issues/162), [#201](https://github.com/woahitsraj/PKSX/issues/201), [CONTEXT.md](../../CONTEXT.md)                                                                                                                                                                                                                                                                         |
-| EDITOR-1, EDITOR-2         | [#160](https://github.com/woahitsraj/PKSX/issues/160), [#196](https://github.com/woahitsraj/PKSX/issues/196), [#201](https://github.com/woahitsraj/PKSX/issues/201), [ADR 0010](../adr/0010-use-engine-backed-pokemon-editor-apply-contract.md)                                                                                                                                                                      |
-| SAVES-1, SAVES-2           | [#180](https://github.com/woahitsraj/PKSX/issues/180), [#201](https://github.com/woahitsraj/PKSX/issues/201)                                                                                                                                                                                                                                                                                                         |
-| SETTINGS-1                 | [#179](https://github.com/woahitsraj/PKSX/issues/179), [#177](https://github.com/woahitsraj/PKSX/issues/177), [#201](https://github.com/woahitsraj/PKSX/issues/201)                                                                                                                                                                                                                                                  |
-| SAVEFILE-1                 | [#202](https://github.com/woahitsraj/PKSX/issues/202), [#163](https://github.com/woahitsraj/PKSX/issues/163), [#167](https://github.com/woahitsraj/PKSX/issues/167), [#168](https://github.com/woahitsraj/PKSX/issues/168), [#169](https://github.com/woahitsraj/PKSX/issues/169), [#209](https://github.com/woahitsraj/PKSX/issues/209), pending detail owner [#170](https://github.com/woahitsraj/PKSX/issues/170) |
-| BOUNDARY-1 and enforcement | [#205](https://github.com/woahitsraj/PKSX/issues/205), [#210](https://github.com/woahitsraj/PKSX/issues/210), final static gate [#225](https://github.com/woahitsraj/PKSX/issues/225)                                                                                                                                                                                                                                |
+The 2026-09-10 amendments to [#151](https://github.com/woahitsraj/PKSX/issues/151), [#207](https://github.com/woahitsraj/PKSX/issues/207), and [#210](https://github.com/woahitsraj/PKSX/issues/210) govern NAV-1, DENSITY-1, BOXES-2, FOCUS-4, SAVES-1, SAVES-2, SAVEFILE-1, and BOUNDARY-1.
+
+| Contract                   | Decision owner and amendments                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BUDGET-1                   | [#152](https://github.com/woahitsraj/PKSX/issues/152), [#165](https://github.com/woahitsraj/PKSX/issues/165), [#196](https://github.com/woahitsraj/PKSX/issues/196)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| BUDGET-2                   | [#161](https://github.com/woahitsraj/PKSX/issues/161), [ADR 0011](../adr/0011-derive-platform-floors-from-one-browser-baseline.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| SHELL-1                    | [#155](https://github.com/woahitsraj/PKSX/issues/155), [#156](https://github.com/woahitsraj/PKSX/issues/156), [#177](https://github.com/woahitsraj/PKSX/issues/177), [ADR 0012](../adr/0012-draw-durable-state-in-place.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| NAV-1, NAV-2               | [#156](https://github.com/woahitsraj/PKSX/issues/156), [#177](https://github.com/woahitsraj/PKSX/issues/177), [#201](https://github.com/woahitsraj/PKSX/issues/201), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210); current implementation [#216](https://github.com/woahitsraj/PKSX/issues/216), Quick Search [#254](https://github.com/woahitsraj/PKSX/issues/254), Advanced Search [#255](https://github.com/woahitsraj/PKSX/issues/255)                                                                                                                                                                                                                                                         |
+| RESP-1, RESP-2             | [#157](https://github.com/woahitsraj/PKSX/issues/157), [#204](https://github.com/woahitsraj/PKSX/issues/204), [ADR 0013](../adr/0013-drive-responsive-layout-from-one-height-band.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| DENSITY-1                  | [#196](https://github.com/woahitsraj/PKSX/issues/196), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210); shared implementation [#212](https://github.com/woahitsraj/PKSX/issues/212), [ADR 0015](../adr/0015-fix-the-type-scale-and-scale-room-by-container-height.md)                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| DENSITY-2                  | [#196](https://github.com/woahitsraj/PKSX/issues/196)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| LARGE-1                    | [#203](https://github.com/woahitsraj/PKSX/issues/203), follow-up [#212](https://github.com/woahitsraj/PKSX/issues/212)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| SURFACE-1, SURFACE-2       | [#158](https://github.com/woahitsraj/PKSX/issues/158), [#162](https://github.com/woahitsraj/PKSX/issues/162), [#196](https://github.com/woahitsraj/PKSX/issues/196), [#201](https://github.com/woahitsraj/PKSX/issues/201), [ADR 0014](../adr/0014-present-summoned-surfaces-as-menus-and-takeovers.md)                                                                                                                                                                                                                                                                                                                                                                                                                |
+| BOXES-1, BOXES-2           | [#159](https://github.com/woahitsraj/PKSX/issues/159), [#177](https://github.com/woahitsraj/PKSX/issues/177), [#201](https://github.com/woahitsraj/PKSX/issues/201), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210); implementation [#215](https://github.com/woahitsraj/PKSX/issues/215) and [#218](https://github.com/woahitsraj/PKSX/issues/218)                                                                                                                                                                                                                                                                                                                                                  |
+| FOCUS-1 through FOCUS-4    | [#162](https://github.com/woahitsraj/PKSX/issues/162), [#201](https://github.com/woahitsraj/PKSX/issues/201), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210); destination implementation [#216](https://github.com/woahitsraj/PKSX/issues/216) and [#219](https://github.com/woahitsraj/PKSX/issues/219), [CONTEXT.md](../../CONTEXT.md)                                                                                                                                                                                                                                                                                                                                                             |
+| EDITOR-1, EDITOR-2         | [#160](https://github.com/woahitsraj/PKSX/issues/160), [#196](https://github.com/woahitsraj/PKSX/issues/196), [#201](https://github.com/woahitsraj/PKSX/issues/201), [ADR 0010](../adr/0010-use-engine-backed-pokemon-editor-apply-contract.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| SAVES-1, SAVES-2           | [#180](https://github.com/woahitsraj/PKSX/issues/180), [#201](https://github.com/woahitsraj/PKSX/issues/201), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210) and [#250](https://github.com/woahitsraj/PKSX/issues/250); implementation [#219](https://github.com/woahitsraj/PKSX/issues/219)                                                                                                                                                                                                                                                                                                                                                                                                         |
+| SETTINGS-1                 | [#179](https://github.com/woahitsraj/PKSX/issues/179), [#177](https://github.com/woahitsraj/PKSX/issues/177), [#201](https://github.com/woahitsraj/PKSX/issues/201)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| SAVEFILE-1                 | [#202](https://github.com/woahitsraj/PKSX/issues/202), [#163](https://github.com/woahitsraj/PKSX/issues/163), [#167](https://github.com/woahitsraj/PKSX/issues/167), [#168](https://github.com/woahitsraj/PKSX/issues/168), [#169](https://github.com/woahitsraj/PKSX/issues/169), [#209](https://github.com/woahitsraj/PKSX/issues/209), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210) and [#250](https://github.com/woahitsraj/PKSX/issues/250), detail owner [#170](https://github.com/woahitsraj/PKSX/issues/170)                                                                                                                                                                               |
+| BOUNDARY-1 and enforcement | [#205](https://github.com/woahitsraj/PKSX/issues/205), [#210](https://github.com/woahitsraj/PKSX/issues/210), density [#212](https://github.com/woahitsraj/PKSX/issues/212), collection pickers [#215](https://github.com/woahitsraj/PKSX/issues/215) and [#218](https://github.com/woahitsraj/PKSX/issues/218), navigation [#216](https://github.com/woahitsraj/PKSX/issues/216), Saves [#219](https://github.com/woahitsraj/PKSX/issues/219), progress [#250](https://github.com/woahitsraj/PKSX/issues/250), final static gate [#225](https://github.com/woahitsraj/PKSX/issues/225), future Search [#254](https://github.com/woahitsraj/PKSX/issues/254) and [#255](https://github.com/woahitsraj/PKSX/issues/255) |
