@@ -63,6 +63,7 @@ pnpm dev -- --open
 | `pnpm build`               | Build the static production app.                                                            |
 | `pnpm preview`             | Preview the production build locally.                                                       |
 | `pnpm engine:sync`         | Publish the PKHeX Engine and sync generated browser WASM assets into `static/pkhex-engine`. |
+| `pnpm legal:sync`          | Copy the license, source location, and third-party notices into `static/legal`.             |
 | `pnpm typecheck`           | Run `svelte-check` and TypeScript checks for `scripts/**/*.ts`.                             |
 | `pnpm check`               | Alias for `pnpm typecheck`.                                                                 |
 | `pnpm check:watch`         | Run Svelte type checking in watch mode.                                                     |
@@ -157,6 +158,7 @@ CONTEXT.md                  Project glossary and domain language
 The following are generated and should not be committed:
 
 - `static/pkhex-engine`
+- `static/legal`
 - `.svelte-kit`
 - `build`
 - `engine/**/bin`
@@ -172,3 +174,13 @@ The following are generated and should not be committed:
 - [ADR: App-managed Saves](./docs/adr/0002-use-app-managed-saves.md)
 - [ADR: Box-first controller UI](./docs/adr/0003-build-box-first-controller-ui.md)
 - [ADR: Keep save artifacts out of TinyBase](./docs/adr/0004-keep-save-artifacts-out-of-tinybase.md)
+
+## License
+
+Copyright (C) 2026 Rajan Singh and PKSX contributors.
+
+Except where a file or directory says otherwise, PKSX source code is free software licensed under the [GNU General Public License, version 3 or later](./LICENSE). You may redistribute and modify it under GPL version 3 or, at your option, any later version.
+
+PKSX links and distributes `PKHeX.Core`, which uses the same GPL-3.0-or-later license. See [third-party notices](./THIRD_PARTY_NOTICES.md) for its attribution and for content that the PKSX license does not cover, including PokemonDB sprite images and third-party save fixtures.
+
+Production builds copy the license, third-party notices, and exact source revision into `/legal`. The repository includes the source and build scripts needed to produce the web, WebAssembly, iOS, and Android builds.
