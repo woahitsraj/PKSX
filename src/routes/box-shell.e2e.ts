@@ -1487,7 +1487,7 @@ test('Pokemon Storage opens as an independent second pane and persists copied Po
 	await page.keyboard.press('x');
 	await page
 		.getByRole('dialog', { name: 'Box Menu' })
-		.getByRole('button', { name: /^Open another(?: collection)?$/ })
+		.getByRole('button', { name: 'Open another collection', exact: true })
 		.click();
 	await page
 		.getByRole('dialog', { name: 'Open another collection' })
