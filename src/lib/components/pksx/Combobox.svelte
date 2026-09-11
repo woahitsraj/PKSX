@@ -185,6 +185,11 @@
 		if (open && event.target instanceof Node && !root?.contains(event.target)) closePicker();
 	}
 
+	function handleRootFocusOut(event: FocusEvent) {
+		const next = event.relatedTarget;
+		if (open && !(next instanceof Node && root?.contains(next))) closePicker();
+	}
+
 	function handleWindowKeydown(event: KeyboardEvent) {
 		if (!open) return;
 		if (!isControllerKeyboardEvent(event)) {
@@ -332,7 +337,12 @@
 
 <svelte:window onclick={handleWindowClick} onkeydown={handleWindowKeydown} />
 
-<div class="pksx-combobox" data-combobox-open={open} {@attach attachRoot}>
+<div
+	class="pksx-combobox"
+	data-combobox-open={open}
+	onfocusout={handleRootFocusOut}
+	{@attach attachRoot}
+>
 	<button
 		{@attach attachTrigger}
 		id={triggerId}

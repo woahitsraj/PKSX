@@ -113,15 +113,14 @@ test('arrow, Home, and End navigation skip disabled choices and wrap', async () 
 	expect(document.activeElement).toHaveAttribute('data-combobox-option-value', 'poke-ball');
 });
 
-test('owns controller directions and selection while open', async () => {
+test('owns controller directions, skips disabled choices, and selects while open', async () => {
 	const selected = render();
 	await tick();
 	document.querySelector<HTMLButtonElement>('#test-picker')!.click();
 	await tick();
-	const search = document.querySelector<HTMLInputElement>('[data-combobox-search]')!;
-	search.value = 'po';
-	search.dispatchEvent(new Event('input', { bubbles: true }));
-	await tick();
+	expect(
+		document.querySelector<HTMLButtonElement>('[data-combobox-option-value="naive"]')?.disabled
+	).toBe(true);
 
 	dispatchControllerKey('ArrowRight');
 	await tick();
@@ -137,6 +136,22 @@ test('owns controller directions and selection while open', async () => {
 	expect(selected).toHaveBeenCalledWith('poke-ball');
 	expect(document.querySelector('[data-combobox-open="true"]')).toBeNull();
 	expect(document.activeElement).toBe(document.querySelector('#test-picker'));
+});
+
+test('closes when Tab moves focus outside the picker', async () => {
+	render();
+	const outside = document.createElement('button');
+	document.body.append(outside);
+	await tick();
+	document.querySelector<HTMLButtonElement>('#test-picker')!.click();
+	await tick();
+	document
+		.querySelector<HTMLInputElement>('[data-combobox-search]')!
+		.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+	outside.focus();
+	await tick();
+	expect(document.querySelector('[data-combobox-open="true"]')).toBeNull();
+	expect(document.activeElement).toBe(outside);
 });
 
 test('flips the picker into the available scroll space at both viewport floors', async () => {
