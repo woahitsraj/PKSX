@@ -1,19 +1,19 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
-	import type { LegalityReportState } from '$lib/pksx/legality-report';
-	import type { PokemonActionState } from '$lib/pksx/pokemon-actions';
+	import {
+		createLegalityReportFindings,
+		type LegalityReportState
+	} from '$lib/pksx/legality-report';
+	import { allLegalityFixOperation, type PokemonActionState } from '$lib/pksx/pokemon-actions';
 
 	interface Props {
 		state: Exclude<LegalityReportState, { status: 'idle' }>;
 		actionState: PokemonActionState;
-		onQuickFix: (fixId: string, launcherId: string) => void;
-		onCancelQuickFix: () => void;
-		onApplyQuickFix: () => void;
+		onApplyAllFixes: () => void;
 		onClose: () => void;
 	}
 
-	let { state, actionState, onQuickFix, onCancelQuickFix, onApplyQuickFix, onClose }: Props =
-		$props();
+	let { state, actionState, onApplyAllFixes, onClose }: Props = $props();
 	const report = $derived(state.status === 'ready' ? state.report : null);
 	const blockingMessage = $derived(
 		state.status === 'error' || state.status === 'unavailable' ? state.message : null
@@ -24,10 +24,8 @@
 	const legalityFix = $derived(
 		actionReady?.preview.actions.find((action) => action.kind === 'legality-fix') ?? null
 	);
-
-	function hasQuickFix(fixId?: string) {
-		return Boolean(fixId && legalityFix?.fixes.some((fix) => fix.id === fixId));
-	}
+	const findings = $derived(report ? createLegalityReportFindings(report, legalityFix) : null);
+	const canApplyAllFixes = $derived(Boolean(actionReady && allLegalityFixOperation(actionReady)));
 
 	onMount(() => {
 		void tick().then(() => {
@@ -54,7 +52,7 @@
 		</button>
 	</header>
 
-	<div class="report-scroll">
+	<div class="report-scroll" role="region" aria-label="Legality Report findings">
 		<div class="summary">
 			<div class="judgement">
 				<span>{report?.judgement ?? (state.status === 'loading' ? 'Checking' : 'Unavailable')}</span
@@ -70,6 +68,18 @@
 					{blockingMessage}
 				{/if}
 			</p>
+			{#if findings && findings.dependentProposals.length > 0}
+				<div
+					class="proposed-fixes"
+					aria-label="Dependent proposed fixes"
+					data-legality-proposed-fixes
+				>
+					<p class="proposal-label">Dependent fixes</p>
+					{#each findings.dependentProposals as change (`${change.field}-${change.before}-${change.after}`)}
+						<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
+					{/each}
+				</div>
+			{/if}
 		</div>
 
 		{#if report}
@@ -78,19 +88,20 @@
 					<h3>Warnings</h3>
 					{#if report.warnings.length > 0}
 						<ul>
-							{#each report.warnings as line, index (`warning-${index}-${line.identifier}`)}
+							{#each findings?.warnings ?? [] as finding, index (`warning-${index}-${finding.line.identifier}`)}
 								<li>
-									<span>{line.identifier}</span>
-									<p>{line.message}</p>
-									{#if hasQuickFix(line.fixId)}
-										<button
-											id={`legality-quick-fix-warning-${index}`}
-											data-legality-report-control
-											type="button"
-											class="quick-fix"
-											onclick={() => onQuickFix(line.fixId!, `legality-quick-fix-warning-${index}`)}
-											>Quick Fix</button
+									<span>{finding.line.identifier}</span>
+									<p>{finding.line.message}</p>
+									{#if finding.proposals.length > 0}
+										<div
+											class="proposed-fixes"
+											aria-label="Proposed fixes"
+											data-legality-proposed-fixes
 										>
+											{#each finding.proposals as change (change.field)}
+												<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
+											{/each}
+										</div>
 									{/if}
 								</li>
 							{/each}
@@ -104,19 +115,20 @@
 					<h3>Messages</h3>
 					{#if report.messages.length > 0}
 						<ul>
-							{#each report.messages as line, index (`message-${index}-${line.identifier}`)}
+							{#each findings?.messages ?? [] as finding, index (`message-${index}-${finding.line.identifier}`)}
 								<li>
-									<span>{line.identifier}</span>
-									<p>{line.message}</p>
-									{#if hasQuickFix(line.fixId)}
-										<button
-											id={`legality-quick-fix-message-${index}`}
-											data-legality-report-control
-											type="button"
-											class="quick-fix"
-											onclick={() => onQuickFix(line.fixId!, `legality-quick-fix-message-${index}`)}
-											>Quick Fix</button
+									<span>{finding.line.identifier}</span>
+									<p>{finding.line.message}</p>
+									{#if finding.proposals.length > 0}
+										<div
+											class="proposed-fixes"
+											aria-label="Proposed fixes"
+											data-legality-proposed-fixes
 										>
+											{#each finding.proposals as change (change.field)}
+												<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
+											{/each}
+										</div>
 									{/if}
 								</li>
 							{/each}
@@ -126,41 +138,19 @@
 					{/if}
 				</section>
 			</div>
-			{#if actionReady?.selection?.kind === 'legality-fix'}
-				<section class="fix-preview" aria-label="Quick Fix preview">
-					<h3>{actionReady.selection.fix?.label ?? 'Quick Fix'}</h3>
-					<ul>
-						{#each actionReady.selection.changes as change (change.field)}
-							<li>
-								<strong>{change.field}</strong>
-								<p>{change.before} → {change.after}</p>
-							</li>
-						{/each}
-					</ul>
-				</section>
-			{/if}
 		{/if}
 	</div>
 
 	<footer>
-		{#if actionReady?.selection?.kind === 'legality-fix'}
-			<button
-				id="legality-quick-fix-cancel"
-				data-legality-report-control
-				type="button"
-				onclick={onCancelQuickFix}
-				disabled={actionState.status === 'applying'}>Cancel</button
-			>
+		{#if canApplyAllFixes}
 			<button
 				id="legality-quick-fix-apply"
 				data-legality-report-control
 				type="button"
 				class="close-report"
-				onclick={onApplyQuickFix}
-				disabled={actionState.status === 'applying'}
+				onclick={onApplyAllFixes}
+				disabled={actionState.status === 'applying'}>Apply all Fixes</button
 			>
-				{actionState.status === 'applying' ? 'Applying...' : 'Apply Quick Fix'}
-			</button>
 		{:else}
 			<button data-legality-report-control type="button" class="close-report" onclick={onClose}
 				>Close</button
@@ -227,8 +217,7 @@
 
 	.icon-close,
 	.close-report,
-	footer button,
-	.quick-fix {
+	footer button {
 		border: 0;
 		border-radius: var(--pksx-radius-medium);
 		background: var(--paper);
@@ -252,21 +241,23 @@
 		font-weight: 720;
 	}
 
-	.quick-fix {
-		justify-self: start;
-		min-height: var(--pksx-small-control-height);
-		padding: var(--pksx-space-1) var(--pksx-space-2);
-		border: 1px solid var(--rust);
-		color: var(--rust);
-		font-weight: 720;
-	}
-
-	.fix-preview {
+	.proposed-fixes {
 		display: grid;
 		gap: var(--pksx-space-1);
-		padding: var(--pksx-space-2);
-		border: 1px solid var(--rust);
-		border-radius: var(--pksx-radius-medium);
+		padding-top: var(--pksx-space-1);
+		border-top: 1px solid var(--rule);
+	}
+
+	.proposed-fixes p {
+		color: var(--ink);
+	}
+
+	.proposed-fixes .proposal-label {
+		color: var(--ink-mute);
+		font:
+			700 var(--pksx-type-caption) var(--pksx-font-mono),
+			monospace;
+		text-transform: uppercase;
 	}
 
 	.summary {

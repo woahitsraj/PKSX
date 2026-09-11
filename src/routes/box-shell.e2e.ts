@@ -167,13 +167,12 @@ async function applyMoveSetQuickFixToEditorDraft(page: Page, editor: Locator) {
 	const report = page.getByRole('dialog', { name: 'Legality Check' });
 	await expect(report).toBeVisible({ timeout: 15000 });
 	await expect(editor).toBeHidden();
-	const quickFix = report.getByRole('button', { name: 'Quick Fix', exact: true }).first();
-	await expect(quickFix).toBeVisible();
-	await quickFix.click();
-	const preview = report.getByLabel('Quick Fix preview');
-	await expect(preview.getByRole('heading')).toHaveText('Move Set');
+	await expect(report.locator('[data-legality-proposed-fixes]').first()).toBeVisible();
+	await expect(report.getByRole('button', { name: 'Apply all Fixes' })).toHaveCount(1);
 	await report.locator('#legality-quick-fix-apply').click();
-	await expect(preview).toHaveCount(0, { timeout: 15000 });
+	await expect(report.getByRole('button', { name: 'Apply all Fixes' })).toHaveCount(0, {
+		timeout: 15000
+	});
 	await report.getByRole('button', { name: 'Close report' }).click();
 	await expect(editor).toBeVisible();
 	await expect(page.locator('#pokemon-editor-section-move-set')).toHaveAttribute(
@@ -2823,8 +2822,11 @@ test('Pokemon Editor applies Met Data and returns focus to Edit', async ({ page 
 test('Legality Check opens an engine report from an occupied Slot and dismisses cleanly', async ({
 	page
 }) => {
+	await page.setViewportSize({ width: 640, height: 360 });
 	await openEmptySaves(page);
 	await importPlatinumThroughSaves(page);
+	const fileName = 'pokemon-platinum-eu.sav';
+	const workspaceBefore = await workspaceBytesHashForFile(page, fileName);
 	const backupsBefore = await backupCount(page);
 	await page.locator('#box-2-slot-18').focus();
 	await page.keyboard.press('Enter');
@@ -2842,39 +2844,65 @@ test('Legality Check opens an engine report from an occupied Slot and dismisses 
 	await expect(report).toContainText('MEW');
 	await expect(report).toContainText(/PKHeX (judged|found)/);
 	await expect(page.getByText('Dirty Workspace')).toHaveCount(0);
-	const quickFix = report.getByRole('button', { name: 'Quick Fix', exact: true }).first();
-	await expect(quickFix).toBeVisible();
-	await expect(quickFix.locator('xpath=ancestor::li')).toHaveCount(1);
-	await quickFix.click();
-	const preview = report.getByLabel('Quick Fix preview');
-	await expect(preview).toBeVisible();
-	await expect(preview.getByRole('heading')).toHaveText('Move Set');
-	await expect(preview.getByRole('listitem').first()).toBeVisible();
-	await expect(report.locator('#legality-quick-fix-apply')).toBeFocused();
+	const proposals = report.locator('[data-legality-proposed-fixes]');
+	await expect(proposals.first()).toBeVisible();
+	await expect(proposals.first()).toContainText(/Move [1-4]:/);
+	await expect.poll(() => proposals.locator('p').count()).toBeGreaterThan(1);
+	const applyAll = report.getByRole('button', { name: 'Apply all Fixes' });
+	await expect(applyAll).toHaveCount(1);
+	await expect(report.getByRole('button', { name: 'Quick Fix', exact: true })).toHaveCount(0);
+	await expect(report.getByLabel('Quick Fix preview')).toHaveCount(0);
 	await expect(page.locator('#box-2-slot-18')).toContainText('MEW');
 	expect(await backupCount(page)).toBe(backupsBefore);
+	await expect(report.getByRole('button', { name: 'Close report' })).toBeFocused();
+	const scrollport = report.locator('.report-scroll');
+	await expect.poll(() => scrollport.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+	const lastProposal = proposals.last().locator('p').last();
+	let reachedLastProposal = false;
+	for (let step = 0; step < 20; step += 1) {
+		const atBottom = await scrollport.evaluate(
+			(node) => node.scrollTop + node.clientHeight >= node.scrollHeight - 1
+		);
+		if (atBottom) break;
+		await page.keyboard.press('ArrowDown');
+		reachedLastProposal ||= await lastProposal.evaluate((node) => {
+			const bounds = node.getBoundingClientRect();
+			const scrollBounds = node.closest('.report-scroll')?.getBoundingClientRect();
+			return Boolean(
+				scrollBounds && bounds.top < scrollBounds.bottom && bounds.bottom > scrollBounds.top
+			);
+		});
+	}
+	expect(reachedLastProposal).toBe(true);
+	expect(await workspaceBytesHashForFile(page, fileName)).toBe(workspaceBefore);
+	expect(await backupCount(page)).toBe(backupsBefore);
+	await scrollport.evaluate((node) => {
+		node.scrollTop = node.scrollHeight - node.clientHeight - 0.5;
+	});
+	await expect
+		.poll(() =>
+			scrollport.evaluate(
+				(node) => node.scrollHeight - node.clientHeight - node.scrollTop
+			)
+		)
+		.toBeLessThanOrEqual(1);
+	await page.keyboard.press('ArrowDown');
+	await expect(applyAll).toBeFocused();
+	expect(await workspaceBytesHashForFile(page, fileName)).toBe(workspaceBefore);
 
-	await page.locator('.takeover-backdrop').click({ position: { x: 20, y: 20 } });
-	await expect(report).toBeVisible();
-	await expect(preview).toHaveCount(0);
-	await expect(quickFix).toBeFocused();
-	await quickFix.click();
-	await report.locator('#legality-quick-fix-cancel').click();
-	await expect(preview).toHaveCount(0);
-	await expect(quickFix).toBeFocused();
-
-	await page.locator('.takeover-backdrop').click({ position: { x: 20, y: 20 } });
+	await page.keyboard.press('Escape');
 	await expect(report).toBeHidden();
 	await expect(slotActions).toBeVisible();
 	await expect(legalityCommand).toBeFocused();
 
 	await legalityCommand.click();
-	await expect(quickFix).toBeVisible({ timeout: 15000 });
-	await quickFix.click();
+	await expect(report.getByRole('button', { name: 'Apply all Fixes' })).toBeVisible({
+		timeout: 15000
+	});
 	await report.locator('#legality-quick-fix-apply').click();
 	await expect(report).toBeVisible({ timeout: 15000 });
-	await expect(preview).toHaveCount(0);
-	await expect(report.locator('.quick-fix:focus, #legality-report-close:focus')).toHaveCount(1);
+	await expect(report.getByRole('button', { name: 'Apply all Fixes' })).toHaveCount(0);
+	await expect(report.locator('#legality-report-close')).toBeFocused();
 	await report.getByRole('button', { name: 'Close report' }).click();
 	await expect(report).toBeHidden();
 	await expect(slotActions).toBeVisible();
@@ -2964,12 +2992,11 @@ test('Pokemon Editor reports and fixes a staged illegal Move Set before Apply', 
 	await expect(report.locator('.report-scroll')).toContainText('Move 1: Duplicate Move.', {
 		timeout: 15000
 	});
-	const quickFix = report.getByRole('button', { name: 'Quick Fix', exact: true }).first();
-	await expect(quickFix).toBeVisible();
-	await quickFix.click();
-	await expect(report.getByLabel('Quick Fix preview').getByRole('heading')).toHaveText('Move Set');
+	await expect(report.locator('[data-legality-proposed-fixes]').first()).toBeVisible();
 	await report.locator('#legality-quick-fix-apply').click();
-	await expect(report.getByLabel('Quick Fix preview')).toHaveCount(0, { timeout: 15000 });
+	await expect(report.getByRole('button', { name: 'Apply all Fixes' })).toHaveCount(0, {
+		timeout: 15000
+	});
 	await report.getByRole('button', { name: 'Close report' }).click();
 
 	const updatedEditor = page.getByRole('dialog', { name: 'IRON' });
@@ -3001,12 +3028,11 @@ test('Pokemon Editor Quick Fix cannot publish a rejected staged Met Data edit', 
 
 	const report = page.getByRole('dialog', { name: 'Legality Check' });
 	await expect(report).toContainText(/PKHeX found|Invalid/, { timeout: 15000 });
-	const quickFix = report.getByRole('button', { name: 'Quick Fix', exact: true }).first();
-	await expect(quickFix).toBeVisible();
-	await quickFix.click();
-	await expect(report.getByLabel('Quick Fix preview').getByRole('heading')).toHaveText('Move Set');
+	await expect(report.locator('[data-legality-proposed-fixes]').first()).toBeVisible();
 	await report.locator('#legality-quick-fix-apply').click();
-	await expect(report.getByLabel('Quick Fix preview')).toHaveCount(0, { timeout: 15000 });
+	await expect(report.getByRole('button', { name: 'Apply all Fixes' })).toHaveCount(0, {
+		timeout: 15000
+	});
 	await report.getByRole('button', { name: 'Close report' }).click();
 
 	await editor.getByRole('button', { name: 'Apply edits' }).click();

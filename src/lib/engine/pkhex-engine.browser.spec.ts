@@ -500,7 +500,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(storedApplied.value.entityBytesBase64).not.toBe(slots.value[0].entityBytesBase64);
 	});
 
-	test('exposes and applies one targeted move legality fix through the browser-wasm bundle', async () => {
+	test('previews and atomically applies one combined legality candidate through the browser-wasm bundle', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
 			fetch(platinumEuFixtureUrl)
@@ -522,12 +522,18 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		);
 		expect(preview.ok, JSON.stringify(preview.error)).toBe(true);
 		if (!preview.ok) throw new Error('Expected targeted legality preview to succeed.');
-		const moveFix = preview.value.actions
-			.find((action) => action.kind === 'legality-fix')
-			?.fixes.find((fix) => fix.id === 'move-set');
+		const legalityFix = preview.value.actions.find((action) => action.kind === 'legality-fix');
+		const moveFix = legalityFix?.fixes.find((fix) => fix.id === 'move-set');
 		expect(moveFix).toMatchObject({ id: 'move-set', label: 'Move Set' });
-		expect(moveFix?.token).toMatch(/^move-set:[0-9a-f]{32}$/);
+		expect(moveFix?.token).toMatch(/^all-fixes:[0-9a-f]{32}$/);
 		if (!moveFix) throw new Error('Expected a targeted Move Set fix.');
+		expect(new Set(legalityFix?.fixes.map((fix) => fix.token))).toEqual(new Set([moveFix.token]));
+		expect(legalityFix?.fixes.flatMap((fix) => fix.changes)).toHaveLength(
+			legalityFix?.changes.length ?? -1
+		);
+		expect(legalityFix?.fixes.flatMap((fix) => fix.changes)).toEqual(
+			expect.arrayContaining(legalityFix?.changes ?? [])
+		);
 		const moveLine = [
 			...preview.value.legalityReport.warnings,
 			...preview.value.legalityReport.messages
@@ -539,7 +545,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		const unknown = await engine.applyPokemonAction(
 			unknownInput,
 			'pokemon-platinum-eu.sav',
-			{ kind: 'legality-fix', source, choiceId: `move-set:${'0'.repeat(32)}` },
+			{ kind: 'legality-fix', source, choiceId: `all-fixes:${'0'.repeat(32)}` },
 			2
 		);
 		expect(unknown).toMatchObject({
@@ -547,7 +553,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			error: {
 				code: 'unsupported-pokemon-action',
 				message:
-					'This Quick Fix preview is no longer available. Refresh the Legality Report and try again.'
+					'This fix preview is no longer available. Refresh the Legality Report and try again.'
 			}
 		});
 		expect(unknownInput).toEqual(originalBytes);
@@ -563,14 +569,14 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		if (!applied.ok) throw new Error('Expected targeted Move Set fix to succeed.');
 		const appliedSlot = applied.value.workspace.boxSlots[18];
 		if (!appliedSlot) throw new Error('Expected the fixed Platinum MEW Slot.');
-		expect(applied.value.changes).toEqual(moveFix.changes);
-		expect(moveFix.changes).toEqual([
-			{
-				field: 'Moves',
-				before: original.moves.map((move) => move.name).join(', '),
-				after: appliedSlot.moves.map((move) => move.name).join(', ')
-			}
-		]);
+		expect(applied.value.changes).toEqual(legalityFix?.changes);
+		expect(moveFix.changes).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ field: expect.stringMatching(/^Move [1-4]$/) })
+			])
+		);
+		expect(moveFix.changes.some((change) => change.before !== change.after)).toBe(true);
+		expect(appliedSlot.moves).not.toEqual(original.moves);
 		expect(pokemonActionUnrelatedProjection(applied.value.workspace.boxSlots[18])).toEqual(
 			pokemonActionUnrelatedProjection(original)
 		);
@@ -615,10 +621,102 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			error: {
 				code: 'stale-pokemon-action-preview',
 				message:
-					'This Pokemon changed after the Quick Fix preview. Refresh the Legality Report and try again.'
+					'This Pokemon changed after the fix preview. Refresh the Legality Report and try again.'
 			}
 		});
 		expect(staleInput).toEqual(staleOriginal);
+	});
+
+	test('describes repaired party state without offering a heal-only legality action', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(platinumEuFixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const workspace = await engine.loadSaveWorkspace(
+			fixtureBytes,
+			'pokemon-platinum-eu.sav',
+			2
+		);
+		if (!workspace.ok) throw new Error('Expected Platinum workspace to load.');
+		const mew = workspace.value.boxSlots[18]?.entityBytesBase64;
+		if (!mew) throw new Error('Expected the Platinum MEW entity bytes.');
+
+		const makeInjured = (entity: string) => {
+			const bytes = Uint8Array.from(atob(entity), (value) => value.charCodeAt(0));
+			const view = new DataView(bytes.buffer);
+			view.setInt32(0x88, 8, true);
+			view.setUint8(0x8c, 1);
+			view.setUint16(0x8e, 1, true);
+			view.setUint16(0x90, 50, true);
+			return btoa(String.fromCharCode(...bytes));
+		};
+
+		const injured = makeInjured(mew);
+		const preview = await engine.previewStoredPokemonActions(injured);
+		if (!preview.ok) throw new Error('Expected injured MEW preview to succeed.');
+		const action = preview.value.actions.find((candidate) => candidate.kind === 'legality-fix');
+		const token = action?.fixes[0]?.token;
+		expect(action).toMatchObject({
+			available: true,
+			changes: expect.arrayContaining([
+				{ field: 'Current HP', before: '1', after: expect.not.stringMatching(/^1$/) },
+				{ field: 'Maximum HP', before: '50', after: expect.any(String) },
+				{ field: 'Party Level', before: '1', after: expect.any(String) },
+				{ field: 'Status', before: 'Poison', after: 'None' }
+			])
+		});
+		if (!token) throw new Error('Expected a combined legality token.');
+
+		const applied = await engine.applyStoredPokemonAction(injured, {
+			kind: 'legality-fix',
+			choiceId: token
+		});
+		if (!applied.ok) throw new Error('Expected injured MEW fixes to apply.');
+		expect(applied.value.changes).toEqual(action?.changes);
+
+		const injuredLegal = makeInjured(applied.value.entityBytesBase64);
+		const healOnlyPreview = await engine.previewStoredPokemonActions(injuredLegal);
+		if (!healOnlyPreview.ok) throw new Error('Expected fixed MEW preview to succeed.');
+		expect(
+			healOnlyPreview.value.actions.find((candidate) => candidate.kind === 'legality-fix')
+		).toMatchObject({ available: false, changes: [], fixes: [] });
+	});
+
+	test('keeps identical localized ribbon names distinct in the repair preview', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(platinumEuFixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const workspace = await engine.loadSaveWorkspace(
+			fixtureBytes,
+			'pokemon-platinum-eu.sav',
+			2
+		);
+		if (!workspace.ok) throw new Error('Expected Platinum workspace to load.');
+		const mew = workspace.value.boxSlots[18]?.entityBytesBase64;
+		if (!mew) throw new Error('Expected the Platinum MEW entity bytes.');
+
+		const bytes = Uint8Array.from(atob(mew), (value) => value.charCodeAt(0));
+		bytes[0x3c] = (bytes[0x3c]! & 0xf0) | (1 << 3);
+		bytes[0x60] = (bytes[0x60]! & 0xf0) | (1 << 3);
+		const view = new DataView(bytes.buffer);
+		view.setUint32(0x38, view.getUint32(0x38, true) | (1 << 30), true);
+		const preview = await engine.previewStoredPokemonActions(
+			btoa(String.fromCharCode(...bytes))
+		);
+		if (!preview.ok) throw new Error('Expected invalid ribbon preview to succeed.');
+		const ribbonChanges = preview.value.actions
+			.find((action) => action.kind === 'legality-fix')
+			?.changes.filter((change) => change.field.startsWith('Ribbon Cool Master'));
+		expect(ribbonChanges?.map((change) => change.field)).toEqual(
+			expect.arrayContaining([
+				'Ribbon Cool Master (Gen 3)',
+				'Ribbon Cool Master (Gen 4)'
+			])
+		);
+		expect(new Set(ribbonChanges?.map((change) => change.field)).size).toBe(2);
 	});
 
 	test('applies Save File slot operations through the browser-wasm bundle', async () => {

@@ -120,7 +120,7 @@ export function selectPokemonAction(
 			kind,
 			choice,
 			fix,
-			changes: choice?.changes ?? fix?.changes ?? action.changes
+			changes: kind === 'legality-fix' ? action.changes : (choice?.changes ?? action.changes)
 		}
 	};
 }
@@ -141,6 +141,17 @@ export function selectedPokemonActionOperation(
 			? { choiceId: state.selection.choice?.id ?? state.selection.fix?.token }
 			: {})
 	};
+}
+
+export function allLegalityFixOperation(
+	state: PokemonActionReadyState | PokemonActionApplyingState
+): StoredPokemonActionOperation | null {
+	const action = state.preview.actions.find((candidate) => candidate.kind === 'legality-fix');
+	if (!action?.available || action.changes.length === 0 || action.fixes.length === 0) return null;
+
+	const token = action.fixes[0].token;
+	if (action.fixes.some((fix) => fix.token !== token)) return null;
+	return { kind: 'legality-fix', choiceId: token };
 }
 
 export async function requestPokemonActionPreview(engine: EngineApi, target: PokemonActionTarget) {

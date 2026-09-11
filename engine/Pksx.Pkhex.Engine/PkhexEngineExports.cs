@@ -2004,9 +2004,9 @@ public static partial class PkhexEngineExports
         PKM pokemon,
         StorageSlotType storageSlotType)
     {
-        var fixes = CreateLegalityFixChoices(pokemon, storageSlotType);
         var clone = pokemon.Clone();
         var result = ApplyTargetedLegalityFix(clone, storageSlotType, null);
+        var fixes = CreateLegalityFixChoices(pokemon, storageSlotType, result);
         return fixes.Count > 0
             ? new PokemonActionAvailability("legality-fix", true, null, result.Changes, [], fixes)
             : new PokemonActionAvailability(
@@ -2020,8 +2020,18 @@ public static partial class PkhexEngineExports
 
     private static List<PokemonLegalityFixChoice> CreateLegalityFixChoices(
         PKM pokemon,
-        StorageSlotType storageSlotType)
+        StorageSlotType storageSlotType,
+        PokemonActionMutation result)
     {
+        if (result.Changes.Count == 0)
+            return [];
+
+        var token = CacheLegalityFixPreview(
+            pokemon,
+            storageSlotType,
+            "all-fixes",
+            result.Pokemon,
+            result.Changes);
         var fixes = new List<PokemonLegalityFixChoice>();
         foreach (var (id, label) in new[]
         {
@@ -2031,18 +2041,11 @@ public static partial class PkhexEngineExports
             ("ribbons", "Ribbons"),
         })
         {
-            var clone = pokemon.Clone();
-            var result = ApplyTargetedLegalityFix(clone, storageSlotType, id);
-            if (result.Changes.Count > 0)
-            {
-                var token = CacheLegalityFixPreview(
-                    pokemon,
-                    storageSlotType,
-                    id,
-                    result.Pokemon,
-                    result.Changes);
-                fixes.Add(new PokemonLegalityFixChoice(id, token, label, result.Changes));
-            }
+            var changes = result.Changes
+                .Where(change => LegalityFixId(change.Field) == id)
+                .ToList();
+            if (changes.Count > 0)
+                fixes.Add(new PokemonLegalityFixChoice(id, token, label, changes));
         }
 
         return fixes;
@@ -2134,7 +2137,7 @@ public static partial class PkhexEngineExports
         {
             return PokemonActionMutation.Fail(
                 "unsupported-pokemon-action",
-                "This Quick Fix preview is no longer available. Refresh the Legality Report and try again.");
+                "This fix preview is no longer available. Refresh the Legality Report and try again.");
         }
 
         if (preview.StorageSlotType != storageSlotType ||
@@ -2143,7 +2146,7 @@ public static partial class PkhexEngineExports
         {
             return PokemonActionMutation.Fail(
                 "stale-pokemon-action-preview",
-                "This Pokemon changed after the Quick Fix preview. Refresh the Legality Report and try again.");
+                "This Pokemon changed after the fix preview. Refresh the Legality Report and try again.");
         }
 
         return PokemonActionMutation.Success(preview.Pokemon.Clone(), preview.Changes);
@@ -2156,12 +2159,14 @@ public static partial class PkhexEngineExports
     {
         var before = pokemon.Clone();
         var analysis = new LegalityAnalysis(pokemon, storageSlotType);
+        var repaired = false;
 
         if ((fixId is null or "move-set") &&
             (!MoveResult.AllValid(analysis.Info.Moves) ||
              analysis.Results.Any(result =>
                  !result.Valid && result.Identifier == CheckIdentifier.CurrentMove)))
         {
+            repaired = true;
             pokemon.SetMoveset();
             if (pokemon is ITechRecord records)
             {
@@ -2182,6 +2187,7 @@ public static partial class PkhexEngineExports
              analysis.Results.Any(result =>
                  !result.Valid && result.Identifier == CheckIdentifier.RelearnMove)))
         {
+            repaired = true;
             pokemon.SetRelearnMoves(analysis);
             analysis = new LegalityAnalysis(pokemon, storageSlotType);
         }
@@ -2189,6 +2195,7 @@ public static partial class PkhexEngineExports
         if ((fixId is null or "ball") && analysis.Results.Any(result =>
             !result.Valid && result.Identifier == CheckIdentifier.Ball))
         {
+            repaired = true;
             BallApplicator.ApplyBallLegalByColor(
                 pokemon,
                 analysis,
@@ -2200,6 +2207,7 @@ public static partial class PkhexEngineExports
             !result.Valid &&
             result.Identifier is CheckIdentifier.Ribbon or CheckIdentifier.RibbonMark))
         {
+            repaired = true;
             var args = new RibbonVerifierArguments(
                 pokemon,
                 analysis.EncounterMatch,
@@ -2207,10 +2215,11 @@ public static partial class PkhexEngineExports
             RibbonApplicator.FixInvalidRibbons(in args);
         }
 
-        if (pokemon.PartyStatsPresent)
+        if (repaired && pokemon.PartyStatsPresent)
             pokemon.ResetPartyStats();
-        pokemon.RefreshChecksum();
-        return PokemonActionMutation.Success(pokemon, DescribePokemonChanges(before, pokemon));
+        if (repaired)
+            pokemon.RefreshChecksum();
+        return PokemonActionMutation.Success(pokemon, DescribeLegalityFixChanges(before, pokemon));
     }
 
     private static List<string> GetFixableProblems(LegalityAnalysis analysis)
@@ -2347,6 +2356,45 @@ public static partial class PkhexEngineExports
         return changes;
     }
 
+    private static List<PokemonActionChange> DescribeLegalityFixChanges(PKM before, PKM after)
+    {
+        var changes = new List<PokemonActionChange>();
+        var beforeMoves = new[] { before.Move1, before.Move2, before.Move3, before.Move4 };
+        var afterMoves = new[] { after.Move1, after.Move2, after.Move3, after.Move4 };
+        var beforePp = new[] { before.Move1_PP, before.Move2_PP, before.Move3_PP, before.Move4_PP };
+        var afterPp = new[] { after.Move1_PP, after.Move2_PP, after.Move3_PP, after.Move4_PP };
+        var beforePpUps = new[] { before.Move1_PPUps, before.Move2_PPUps, before.Move3_PPUps, before.Move4_PPUps };
+        var afterPpUps = new[] { after.Move1_PPUps, after.Move2_PPUps, after.Move3_PPUps, after.Move4_PPUps };
+        var beforeRelearn = before.RelearnMoves;
+        var afterRelearn = after.RelearnMoves;
+
+        for (var index = 0; index < 4; index++)
+        {
+            AddChange(changes, $"Move {index + 1}", MoveName(beforeMoves[index]), MoveName(afterMoves[index]));
+            AddChange(changes, $"Move {index + 1} PP", beforePp[index].ToString(), afterPp[index].ToString());
+            AddChange(changes, $"Move {index + 1} PP Ups", beforePpUps[index].ToString(), afterPpUps[index].ToString());
+            AddChange(
+                changes,
+                $"Relearn Move {index + 1}",
+                MoveName(beforeRelearn[index]),
+                MoveName(afterRelearn[index]));
+        }
+
+        AddChange(changes, "Move Records", MoveRecordsLabel(before), MoveRecordsLabel(after));
+        AddChange(changes, "Ball", BallName(before.Ball), BallName(after.Ball));
+        AddRibbonChanges(changes, before, after);
+        AddChange(changes, "Current HP", before.Stat_HPCurrent.ToString(), after.Stat_HPCurrent.ToString());
+        AddChange(changes, "Maximum HP", before.Stat_HPMax.ToString(), after.Stat_HPMax.ToString());
+        AddChange(changes, "Attack", before.Stat_ATK.ToString(), after.Stat_ATK.ToString());
+        AddChange(changes, "Defense", before.Stat_DEF.ToString(), after.Stat_DEF.ToString());
+        AddChange(changes, "Speed", before.Stat_SPE.ToString(), after.Stat_SPE.ToString());
+        AddChange(changes, "Sp. Atk", before.Stat_SPA.ToString(), after.Stat_SPA.ToString());
+        AddChange(changes, "Sp. Def", before.Stat_SPD.ToString(), after.Stat_SPD.ToString());
+        AddChange(changes, "Party Level", before.Stat_Level.ToString(), after.Stat_Level.ToString());
+        AddChange(changes, "Status", StatusLabel(before), StatusLabel(after));
+        return changes;
+    }
+
     private static void AddChange(
         List<PokemonActionChange> changes,
         string field,
@@ -2355,6 +2403,21 @@ public static partial class PkhexEngineExports
     {
         if (!StringComparer.Ordinal.Equals(before, after))
             changes.Add(new PokemonActionChange(field, before, after));
+    }
+
+    private static void AddRibbonChanges(List<PokemonActionChange> changes, PKM before, PKM after)
+    {
+        var beforeRibbons = RibbonInfo.GetRibbonInfo(before)
+            .ToDictionary(ribbon => ribbon.Name, RibbonValue, StringComparer.Ordinal);
+        var afterRibbons = RibbonInfo.GetRibbonInfo(after)
+            .ToDictionary(ribbon => ribbon.Name, RibbonValue, StringComparer.Ordinal);
+
+        foreach (var name in beforeRibbons.Keys.Union(afterRibbons.Keys).Order(StringComparer.Ordinal))
+        {
+            var beforeValue = beforeRibbons.GetValueOrDefault(name, "Absent");
+            var afterValue = afterRibbons.GetValueOrDefault(name, "Absent");
+            AddChange(changes, RibbonLabel(name), beforeValue, afterValue);
+        }
     }
 
     private static string EvolutionChoiceId(EvolutionMethod method, byte sourceForm) =>
@@ -2379,6 +2442,51 @@ public static partial class PkhexEngineExports
             ? GameInfo.Strings.Ability[ability]
             : $"Ability {ability}";
 
+    private static string BallName(byte ball) =>
+        ball < GameInfo.Strings.balllist.Length ? GameInfo.Strings.balllist[ball] : $"Ball {ball}";
+
+    private static string RibbonLabel(string propertyName) =>
+        GameInfo.Strings.Ribbons.GetNameSafe(propertyName, out var name)
+            ? $"Ribbon {name}{RibbonGenerationQualifier(propertyName)}"
+            : $"Ribbon {propertyName["Ribbon".Length..]}";
+
+    private static string RibbonGenerationQualifier(string propertyName) =>
+        propertyName.StartsWith("RibbonG3", StringComparison.Ordinal) ? " (Gen 3)" :
+        propertyName.StartsWith("RibbonG4", StringComparison.Ordinal) ? " (Gen 4)" :
+        "";
+
+    private static string RibbonValue(RibbonInfo ribbon) => ribbon.Type switch
+    {
+        RibbonValueType.Boolean => ribbon.HasRibbon ? "Present" : "Absent",
+        RibbonValueType.Byte => ribbon.RibbonCount.ToString(),
+        _ => "Unknown",
+    };
+
+    private static string StatusLabel(PKM pokemon)
+    {
+        var status = pokemon.GetStatusType();
+        return status == StatusType.None && pokemon.Status_Condition != 0
+            ? $"Unknown ({pokemon.Status_Condition})"
+            : status.ToString();
+    }
+
+    private static string MoveRecordsLabel(PKM pokemon)
+    {
+        if (pokemon is not ITechRecord records)
+            return "None";
+
+        var permit = records.Permit;
+        var moves = permit.RecordPermitIndexes;
+        var active = new List<string>();
+        for (var index = 0; index < permit.RecordCountTotal; index++)
+        {
+            if (!records.GetMoveRecordFlag(index))
+                continue;
+            active.Add(index < moves.Length ? MoveName(moves[index]) : $"Record {index + 1}");
+        }
+        return active.Count == 0 ? "None" : string.Join(", ", active);
+    }
+
     private static string MovesLabel(PKM pokemon) =>
         string.Join(", ", new[] { pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4 }
             .Where(move => move != 0)
@@ -2391,6 +2499,13 @@ public static partial class PkhexEngineExports
 
     private static int RibbonCount(PKM pokemon) =>
         RibbonInfo.GetRibbonInfo(pokemon).Count(ribbon => ribbon.HasRibbon);
+
+    private static string? LegalityFixId(string field) =>
+        field.StartsWith("Relearn Move ", StringComparison.Ordinal) ? "relearn-moves" :
+        field.StartsWith("Move ", StringComparison.Ordinal) || field == "Move Records" ? "move-set" :
+        field == "Ball" ? "ball" :
+        field.StartsWith("Ribbon ", StringComparison.Ordinal) ? "ribbons" :
+        null;
 
     private static PKM? ParseStoredPokemon(string entityBytesBase64) =>
         EntityFormat.GetFromBytes(Convert.FromBase64String(entityBytesBase64));

@@ -305,7 +305,7 @@
 				: draftDirty
 					? `${draftEditCount} Pokemon edit${draftEditCount === 1 ? '' : 's'} drafted.`
 					: pendingScratch
-						? 'Quick Fix staged.'
+						? 'Legality Fix staged.'
 						: (editor.applyOutcome.message ??
 							(mode === 'create' ? `Ready to create ${slot.label}.` : 'No Pokemon edits staged.'))
 	);

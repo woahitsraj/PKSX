@@ -3,6 +3,7 @@ import { createMockEngine, type SaveWorkspace } from '$lib/engine';
 import type { SlotView } from '$lib/components/pksx/types';
 import type { WorkspaceState } from '$lib/pksx/backup-workflow';
 import {
+	createLegalityReportFindings,
 	createLegalityReportUnavailableState,
 	requestLegalityReport
 } from '$lib/pksx/legality-report';
@@ -75,6 +76,49 @@ const workspace = {
 } satisfies WorkspaceState;
 
 describe('legality report state', () => {
+	it('shows each combined candidate change once even without an original matching finding', () => {
+		const move = { field: 'Move 1', before: 'Swords Dance', after: 'Empty' };
+		const dependentBall = { field: 'Ball', before: 'Poke Ball', after: 'Luxury Ball' };
+		const findings = createLegalityReportFindings(
+			{
+				legal: false,
+				judgement: 'Illegal',
+				summary: 'PKHeX found legality issues.',
+				fixableProblems: ['Move Set'],
+				warnings: [
+					{
+						severity: 'Invalid',
+						identifier: 'CurrentMove',
+						message: 'Invalid move.',
+						fixId: 'move-set'
+					}
+				],
+				messages: [
+					{
+						severity: 'Invalid',
+						identifier: 'CurrentMove',
+						message: 'Invalid move.',
+						fixId: 'move-set'
+					}
+				]
+			},
+			{
+				kind: 'legality-fix',
+				available: true,
+				changes: [move, dependentBall],
+				choices: [],
+				fixes: [
+					{ id: 'move-set', token: 'all-fixes:token', label: 'Move Set', changes: [move] },
+					{ id: 'ball', token: 'all-fixes:token', label: 'Ball', changes: [dependentBall] }
+				]
+			}
+		);
+
+		expect(findings.warnings[0].proposals).toEqual([move]);
+		expect(findings.messages[0].proposals).toEqual([]);
+		expect(findings.dependentProposals).toEqual([dependentBall]);
+	});
+
 	it('marks empty Slots unavailable before calling the engine', async () => {
 		expect.assertions(2);
 		const engine = createMockEngine({ checkSlotLegality: vi.fn() });

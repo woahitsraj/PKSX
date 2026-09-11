@@ -13,7 +13,8 @@
 		type PokemonEditPreviewValidationScope,
 		type PokemonSpeciesFormEditProjection,
 		type SaveSlotRef,
-		type SlotOperation
+		type SlotOperation,
+		type StoredPokemonActionOperation
 	} from '$lib/engine';
 	import {
 		applyNavigationAction,
@@ -141,6 +142,7 @@
 		type LegalityReportState
 	} from '$lib/pksx/legality-report';
 	import {
+		allLegalityFixOperation,
 		applyPokemonAction,
 		clearPokemonActionSelection,
 		createPokemonActionLoadingState,
@@ -486,7 +488,6 @@
 	let pokemonSpeciesFormRequest = 0;
 	let legalityReport = $state<LegalityReportState>({ status: 'idle' });
 	let legalityReportRequest = 0;
-	let legalityQuickFixLauncherId: string | null = null;
 	let pokemonAction = $state<PokemonActionState>({ status: 'idle' });
 	let pokemonActionRequest = 0;
 	let pokemonActionContext = $state<PokemonActionContext | null>(null);
@@ -1084,16 +1085,32 @@
 
 	function dispatchLegalityReport(action: NavigationAction) {
 		const controls = Array.from(
-			document.querySelectorAll<HTMLButtonElement>('[data-legality-report-control]:not(:disabled)')
+			document.querySelectorAll<HTMLElement>('[data-legality-report-control]:not(:disabled)')
 		);
 		const active = document.activeElement;
-		const index = active instanceof HTMLButtonElement ? controls.indexOf(active) : -1;
+		const index = active instanceof HTMLElement ? controls.indexOf(active) : -1;
+		const report = document.querySelector<HTMLElement>('.report-scroll');
+		if (report && (action === 'up' || action === 'down')) {
+			const maximum = report.scrollHeight - report.clientHeight;
+			const next = Math.max(
+				0,
+				Math.min(
+					maximum,
+					report.scrollTop + (action === 'down' ? 1 : -1) * report.clientHeight * 0.75
+				)
+			);
+			if (Math.abs(next - report.scrollTop) > 1) {
+				report.scrollTop = next;
+				return;
+			}
+		}
 		if (action === 'left' || action === 'up') {
 			controls[(Math.max(0, index) - 1 + controls.length) % controls.length]?.focus();
 		} else if (action === 'right' || action === 'down') {
 			controls[(Math.max(0, index) + 1) % controls.length]?.focus();
 		} else if (action === 'confirm') {
-			controls[Math.max(0, index)]?.click();
+			const control = controls[Math.max(0, index)];
+			if (control instanceof HTMLButtonElement) control.click();
 		} else if (action === 'back') {
 			backLegalityReport();
 		}
@@ -2993,18 +3010,11 @@
 		focusPokemonActionControl(0);
 	}
 
-	function selectPokemonActionPreview(
-		kind: 'legality-fix' | 'evolve',
-		choiceId?: string,
-		launcherId?: string
-	) {
+	function selectPokemonActionPreview(kind: 'legality-fix' | 'evolve', choiceId?: string) {
 		if (pokemonAction.status !== 'ready') {
 			return;
 		}
 
-		if (kind === 'legality-fix' && activeSummonedWorkflow?.kind === 'legality-report') {
-			legalityQuickFixLauncherId = launcherId ?? null;
-		}
 		pokemonAction = selectPokemonAction(pokemonAction, kind, choiceId);
 		void tick().then(() =>
 			document
@@ -3020,29 +3030,26 @@
 			return;
 		}
 
-		const launcherId = legalityQuickFixLauncherId;
-		legalityQuickFixLauncherId = null;
 		pokemonAction = clearPokemonActionSelection(pokemonAction);
 		void tick().then(() => {
-			if (activeSummonedWorkflow?.kind === 'legality-report') {
-				(
-					(launcherId ? document.getElementById(launcherId) : null) ??
-					document.getElementById('legality-report-close')
-				)?.focus();
-			} else {
-				focusPokemonActionControl(0);
-			}
+			focusPokemonActionControl(0);
 		});
 	}
 
-	async function applySelectedPokemonAction() {
+	async function applyAllLegalityFixes() {
+		if (pokemonAction.status !== 'ready') return;
+		const operation = allLegalityFixOperation(pokemonAction);
+		if (operation) await applySelectedPokemonAction(operation);
+	}
+
+	async function applySelectedPokemonAction(operationOverride?: StoredPokemonActionOperation) {
 		const activeEngine = engine;
 		const context = pokemonActionContext;
 		if (!activeEngine || !context || pokemonAction.status !== 'ready') {
 			return;
 		}
 
-		const operation = selectedPokemonActionOperation(pokemonAction);
+		const operation = operationOverride ?? selectedPokemonActionOperation(pokemonAction);
 		if (!operation) {
 			return;
 		}
@@ -3161,7 +3168,7 @@
 		showToast('success', message);
 		await tick();
 		(
-			document.querySelector<HTMLButtonElement>('.quick-fix') ??
+			document.getElementById('legality-quick-fix-apply') ??
 			document.getElementById('legality-report-close')
 		)?.focus();
 	}
@@ -3263,10 +3270,10 @@
 				updatedSlot.label,
 				preview.value
 			);
-			showToast('success', 'Quick Fix applied to the Editor draft.');
+			showToast('success', 'All supported fixes applied to the Editor draft.');
 			await tick();
 			(
-				document.querySelector<HTMLButtonElement>('.quick-fix') ??
+				document.getElementById('legality-quick-fix-apply') ??
 				document.getElementById('legality-report-close')
 			)?.focus();
 		} catch (error) {
@@ -3733,7 +3740,6 @@
 			return;
 		}
 
-		legalityQuickFixLauncherId = null;
 		const activeEngine = engine;
 		const context = pokemonActionContextForFocusedSlot();
 		if (!activeEngine || !context) return;
@@ -3784,7 +3790,6 @@
 		const activeEngine = engine;
 		if (activeSummonedWorkflow?.kind !== 'pokemon-editor' || !editor || !activeEngine) return;
 
-		legalityQuickFixLauncherId = null;
 		const request = (legalityReportRequest += 1);
 		pokemonActionRequest += 1;
 		legalityReport = createLegalityReportLoadingState(editor.slot, editor.source.location);
@@ -3934,7 +3939,6 @@
 	function closeLegalityReport() {
 		if (pokemonAction.status === 'applying') return;
 		legalityReportRequest += 1;
-		legalityQuickFixLauncherId = null;
 		legalityReport = { status: 'idle' };
 		pokemonActionRequest += 1;
 		pokemonAction = { status: 'idle' };
@@ -5304,7 +5308,7 @@
 			state={pokemonAction}
 			onSelect={selectPokemonActionPreview}
 			onClearSelection={clearPokemonActionPreview}
-			onApply={applySelectedPokemonAction}
+			onApply={() => applySelectedPokemonAction()}
 			onClose={backPokemonActions}
 		/>
 	</TakeoverFrame>
@@ -5332,10 +5336,7 @@
 		<LegalityReportDialog
 			state={legalityReport}
 			actionState={pokemonAction}
-			onQuickFix={(fixId, launcherId) =>
-				selectPokemonActionPreview('legality-fix', fixId, launcherId)}
-			onCancelQuickFix={clearPokemonActionPreview}
-			onApplyQuickFix={applySelectedPokemonAction}
+			onApplyAllFixes={applyAllLegalityFixes}
 			onClose={closeLegalityReport}
 		/>
 	</TakeoverFrame>
