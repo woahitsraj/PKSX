@@ -239,6 +239,9 @@ async function expectDestinationContract(page: Page, destination: Destination, b
 			const focus = document.activeElement as HTMLElement | null;
 			const workspaceFile = route?.querySelector<HTMLElement>('.workspace-file');
 			const mainMenuOpener = document.querySelector<HTMLElement>('#main-menu-opener');
+			const nextLocation = route?.querySelector<HTMLButtonElement>(
+				'button[aria-label="Next Location"]'
+			);
 			const errors: string[] = [];
 			const rect = (element: HTMLElement) => {
 				const box = element.getBoundingClientRect();
@@ -341,6 +344,31 @@ async function expectDestinationContract(page: Page, destination: Destination, b
 						`[BUDGET-1] workspace filename ${JSON.stringify(fileRect)} overlaps Main Menu ${JSON.stringify(openerRect)}`
 					);
 			}
+			if (route.dataset.destinationRoot === 'boxes') {
+				if (!nextLocation || !mainMenuOpener) {
+					errors.push('[BOXES-1][FOCUS-1] missing Next Location or Main Menu opener');
+				} else {
+					const nextLocationRect = rect(nextLocation);
+					const openerRect = rect(mainMenuOpener);
+					const nextLocationVisible =
+						nextLocation.getClientRects().length > 0 &&
+						getComputedStyle(nextLocation).visibility !== 'hidden';
+					if (!nextLocationVisible || nextLocation.disabled) {
+						errors.push(
+							`[BOXES-1][FOCUS-1] Next Location must be visible and enabled ${JSON.stringify(nextLocationRect)}`
+						);
+					}
+					const overlaps =
+						nextLocationRect.left < openerRect.right &&
+						nextLocationRect.right > openerRect.left &&
+						nextLocationRect.top < openerRect.bottom &&
+						nextLocationRect.bottom > openerRect.top;
+					if (overlaps)
+						errors.push(
+							`[BOXES-1][FOCUS-1] Next Location ${JSON.stringify(nextLocationRect)} overlaps Main Menu opener ${JSON.stringify(openerRect)}`
+						);
+				}
+			}
 			if (document.documentElement.scrollWidth > innerWidth + 1)
 				errors.push(
 					`[BUDGET-1] document width ${document.documentElement.scrollWidth} exceeds ${innerWidth}`
@@ -383,6 +411,27 @@ async function expectDestinationContract(page: Page, destination: Destination, b
 		result.errors,
 		`${destination.name} ${budget.name}, focus ${result.focusIdentity}`
 	).toEqual([]);
+}
+
+async function expectPortraitBoxNextLocationPointerAction(page: Page, budget: BudgetCase) {
+	if (!budget.portrait) return;
+
+	const pane = page.locator('.box-pane.active-pane');
+	const nextLocation = pane.getByRole('button', { name: 'Next Location' });
+	await expect(
+		nextLocation,
+		`[BOXES-1] ${budget.name} Next Location must be visible`
+	).toBeVisible();
+	await expect(
+		nextLocation,
+		`[FOCUS-1] ${budget.name} Next Location must be enabled`
+	).toBeEnabled();
+	await nextLocation.click();
+	await expect(pane.getByRole('heading', { name: 'Box 02' })).toBeVisible();
+	await expect(
+		page.locator('#box-1-slot-0'),
+		`[FOCUS-1] ${budget.name} Next Location preserves Controller Focus`
+	).toBeFocused();
 }
 
 async function expectDensityContract(root: Locator, context: string) {
@@ -688,6 +737,8 @@ for (const budget of floorAndTargetCases) {
 				}
 				await anonymizeTrainerEvidence(root, testInfo, budget, destination);
 				await attachTargetScreenshot(page, testInfo, budget, destination);
+				if (destination.key === 'boxes')
+					await expectPortraitBoxNextLocationPointerAction(page, budget);
 			});
 		}
 	});
