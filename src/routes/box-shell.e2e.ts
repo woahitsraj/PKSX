@@ -2106,7 +2106,8 @@ test('Pokemon Creation reports legality for the private draft with staged Move S
 	await editor.getByRole('button', { name: 'Legality' }).click();
 
 	const report = page.getByRole('dialog', { name: 'Legality Check' });
-	await expect(report).toContainText(/PKHeX (judged|found)/, { timeout: 15000 });
+	await expect(report).toHaveAttribute('aria-busy', 'false', { timeout: 15000 });
+	await expect(report.locator('.report-scroll')).toContainText('This Pokemon has legality issues.');
 	await expect(report.locator('.report-scroll')).toContainText(/PID\+ correlation does not match/);
 	await expect(report.locator('.report-scroll')).toContainText('Encryption Constant is not set.');
 	await report.getByRole('button', { name: 'Close report' }).click();
@@ -2124,6 +2125,8 @@ test('Pokemon Creation reports legality for the private draft with staged Move S
 	await editor.getByRole('button', { name: 'Legality' }).click();
 
 	const reportScroll = report.locator('.report-scroll');
+	await expect(report).toHaveAttribute('aria-busy', 'false', { timeout: 15000 });
+	await expect(reportScroll).toContainText('This Pokemon has legality issues.');
 	await expect(reportScroll).toContainText(/Move [12]: Duplicate Move\./, { timeout: 15000 });
 	await expect(reportScroll).toContainText(/PID\+ correlation does not match/);
 	await expect(reportScroll).toContainText('Encryption Constant is not set.');
@@ -3063,7 +3066,7 @@ test('Pokemon Editor reports and fixes a staged illegal Move Set before Apply', 
 	await editor.getByRole('option', { name: new RegExp(`^${duplicateMove}`) }).click();
 	await choosePokemonEditorSection(page, 'nickname');
 	await fillEditorInput(editor.locator('#pokemon-editor-nickname'), 'IRON');
-	await expect(editor).toContainText('2 Pokemon edits drafted.');
+	await expect(editor.locator('#pokemon-editor-staged-count')).toHaveText('2 staged');
 	await editor.getByRole('button', { name: 'Legality' }).click();
 
 	const report = page.getByRole('dialog', { name: 'Legality Check' });
@@ -3105,7 +3108,8 @@ test('Pokemon Editor Quick Fix cannot publish a rejected staged Met Data edit', 
 	await editor.getByRole('button', { name: 'Legality' }).click();
 
 	const report = page.getByRole('dialog', { name: 'Legality Check' });
-	await expect(report).toContainText(/PKHeX found|Invalid/, { timeout: 15000 });
+	await expect(report).toHaveAttribute('aria-busy', 'false', { timeout: 15000 });
+	await expect(report.locator('.report-scroll')).toContainText('Invalid');
 	await expect(report.locator('[data-legality-proposed-fixes]').first()).toBeVisible();
 	await report.locator('#legality-quick-fix-apply').click();
 	await expect(report.getByRole('button', { name: 'Apply all Fixes' })).toHaveCount(0, {
