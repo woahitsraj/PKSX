@@ -2129,7 +2129,7 @@ test('Pokemon Creation preserves its legality report for a compatible staged Mov
 	await editor.getByRole('searchbox', { name: 'Search moves for Move 1' }).fill(stagedMove!);
 	await editor.getByRole('option', { name: new RegExp(`^${stagedMove}`) }).click();
 	await expect(move).toContainText(stagedMove!);
-	await expect(editor).toContainText('1 Pokemon edit drafted.');
+	await expect(editor.locator('#pokemon-editor-staged-count')).toHaveText('1 staged');
 	await editor.getByRole('button', { name: 'Legality' }).click();
 
 	await expect(report).toHaveAttribute('aria-busy', 'false', { timeout: 15000 });
@@ -2660,7 +2660,9 @@ test('Pokemon Editor keeps staged state through review, Legality, guarded Back, 
 	const report = page.getByRole('dialog', { name: 'Legality Check' });
 	await expect(report).toBeVisible({ timeout: 15000 });
 	await expect(editor).toBeHidden();
-	await report.getByRole('button', { name: 'Close', exact: true }).click();
+	const closeReport = report.getByRole('button', { name: 'Close report' });
+	await expect(closeReport).toBeFocused();
+	await closeReport.click();
 	await expect(editor).toBeVisible();
 	await expect(editor.locator('#pokemon-editor-nickname')).toHaveValue('STAGED');
 	await expect(editor.getByRole('button', { name: 'Legality' })).toBeFocused();
@@ -3028,15 +3030,32 @@ test('Legality Check opens an engine report from an occupied Slot and dismisses 
 	expect(reachedLastProposal).toBe(true);
 	expect(await workspaceBytesHashForFile(page, fileName)).toBe(workspaceBefore);
 	expect(await backupCount(page)).toBe(backupsBefore);
-	await scrollport.evaluate((node) => {
-		node.scrollTop = node.scrollHeight - node.clientHeight - 0.5;
-	});
-	await expect
-		.poll(() =>
-			scrollport.evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop)
-		)
-		.toBeLessThanOrEqual(1);
+	const pinReportBottom = async () => {
+		await scrollport.evaluate((node) => {
+			node.scrollTop = node.scrollHeight - node.clientHeight - 0.5;
+		});
+		await expect
+			.poll(() =>
+				scrollport.evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop)
+			)
+			.toBeLessThanOrEqual(1);
+	};
+	const enabledReportControls = report.locator('[data-legality-report-control]:not(:disabled)');
+	const individualFixes = report.locator(
+		'button.apply-fix[data-legality-report-control]:not(:disabled)'
+	);
+	const enabledControlCount = await enabledReportControls.count();
+	expect(await individualFixes.count()).toBeGreaterThan(0);
+	expect(enabledControlCount).toBeGreaterThan(2);
+	await expect(enabledReportControls.first()).toHaveAttribute('id', 'legality-report-close');
+	await pinReportBottom();
 	await page.keyboard.press('ArrowDown');
+	await expect(individualFixes.first()).toBeFocused();
+	for (let index = 2; index < enabledControlCount; index += 1) {
+		await pinReportBottom();
+		await page.keyboard.press('ArrowDown');
+		await expect(enabledReportControls.nth(index)).toBeFocused();
+	}
 	await expect(applyAll).toBeFocused();
 	expect(await workspaceBytesHashForFile(page, fileName)).toBe(workspaceBefore);
 
