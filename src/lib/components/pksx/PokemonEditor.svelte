@@ -1516,6 +1516,7 @@
 									<label>
 										<span>Species</span>
 										<Combobox
+											ownsControllerInput={false}
 											id="pokemon-editor-species"
 											ariaLabel="Species"
 											value={String(draftSpeciesId)}
@@ -1538,6 +1539,7 @@
 										<span>Form</span>
 										{#if speciesFormProjection.availableForms.length >= SEARCHABLE_OPTION_THRESHOLD}
 											<Combobox
+												ownsControllerInput={false}
 												id="pokemon-editor-form"
 												ariaLabel="Form"
 												value={String(draftForm)}
@@ -1611,6 +1613,7 @@
 											<span>{field.label}</span>
 											{#if field.options.length >= SEARCHABLE_OPTION_THRESHOLD}
 												<Combobox
+													ownsControllerInput={false}
 													id={`pokemon-editor-battle-field-${field.key}`}
 													ariaLabel={field.label}
 													value={String(draftBattleFields[field.key])}
@@ -1726,6 +1729,7 @@
 								<label class="nature-edit-controls">
 									<span>Nature choice</span>
 									<Combobox
+										ownsControllerInput={false}
 										id="pokemon-editor-nature"
 										ariaLabel="Nature choice"
 										value={String(draftNatureId)}
@@ -1768,6 +1772,7 @@
 								<label class="held-item-edit-controls">
 									<span>Held Item choice</span>
 									<Combobox
+										ownsControllerInput={false}
 										id="pokemon-editor-held-item"
 										ariaLabel="Held Item choice"
 										value={String(draftHeldItemId)}
@@ -1858,6 +1863,7 @@
 									<label>
 										<span>Met location</span>
 										<Combobox
+											ownsControllerInput={false}
 											id="pokemon-editor-met-location"
 											ariaLabel="Met location"
 											value={String(draftMetLocationId)}
@@ -1905,6 +1911,7 @@
 										<label>
 											<span>Origin game</span>
 											<Combobox
+												ownsControllerInput={false}
 												id="pokemon-editor-origin-game"
 												ariaLabel="Origin game"
 												value={String(draftOriginGameId)}
@@ -1927,6 +1934,7 @@
 										<label>
 											<span>Ball</span>
 											<Combobox
+												ownsControllerInput={false}
 												id="pokemon-editor-ball"
 												ariaLabel="Ball"
 												value={String(draftBallId)}
@@ -2106,6 +2114,7 @@
 										<label>
 											<span>Language</span>
 											<Combobox
+												ownsControllerInput={false}
 												id="pokemon-editor-pokemon-language"
 												ariaLabel="Language"
 												value={String(draftLanguageId)}
@@ -2309,6 +2318,7 @@
 											>
 												<span id={`pokemon-editor-move-${index}-label`}>Move {index + 1}</span>
 												<Combobox
+													ownsControllerInput={false}
 													id={`pokemon-editor-move-${index}`}
 													labelledBy={`pokemon-editor-move-${index}-label`}
 													value={String(move.move)}
@@ -2856,7 +2866,8 @@
 	}
 
 	.met-data-edit-controls input,
-	.ability-edit-controls select {
+	.ability-edit-controls select,
+	.battle-field-controls select {
 		width: 100%;
 		min-width: 0;
 		height: var(--pksx-control-height);
@@ -2871,7 +2882,8 @@
 	}
 
 	.met-data-edit-controls input:disabled,
-	.ability-edit-controls select:disabled {
+	.ability-edit-controls select:disabled,
+	.battle-field-controls select:disabled {
 		opacity: 0.55;
 	}
 

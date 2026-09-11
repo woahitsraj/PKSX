@@ -1270,20 +1270,24 @@ describe('SaveFileLedger direct-edit boundary seam', () => {
 		expect(ledger.handleBack()).toBe(false);
 	});
 
-	test('preserves native Add Item selection while controller arrows cross controls', async () => {
+	test('keeps controller navigation inside the open Add Item picker before crossing controls', async () => {
 		render();
 		const pocketKey = publicFixtureView.projection.inventory.pockets[0].key;
 		(target(`pocket-${pocketKey}-add`) as HTMLButtonElement).click();
 		await expectFocused(`pocket-${pocketKey}-add-item`);
-		const select = target(`pocket-${pocketKey}-add-item`);
-		const nativeArrow = new KeyboardEvent('keydown', {
-			key: 'ArrowRight',
-			bubbles: true,
-			cancelable: true
-		});
-		select.dispatchEvent(nativeArrow);
-		expect(nativeArrow.defaultPrevented).toBe(false);
-		expect(document.activeElement).toBe(select);
+		const picker = target(`pocket-${pocketKey}-add-item`) as HTMLButtonElement;
+		picker.click();
+		await tick();
+		const search = document.getElementById(`${picker.id}-search`)!;
+		expect(document.activeElement).toBe(search);
+
+		dispatchControllerKey('ArrowRight');
+		await tick();
+		expect(document.activeElement).toHaveAttribute('data-combobox-option');
+
+		dispatchControllerKey('Escape');
+		await tick();
+		expect(document.activeElement).toBe(picker);
 
 		dispatchControllerKey('ArrowRight');
 		expect(document.activeElement).toBe(target(`pocket-${pocketKey}-add-quantity`));

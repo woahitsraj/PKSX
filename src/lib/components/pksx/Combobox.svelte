@@ -28,6 +28,7 @@
 		controllerFocus?: string;
 		controllerFallbacks?: string;
 		ledgerControl?: boolean;
+		ownsControllerInput?: boolean;
 		requireExplicitEntry?: boolean;
 		onSelect: (value: string) => void;
 		onOpenChange?: (open: boolean) => void;
@@ -49,6 +50,7 @@
 		controllerFocus,
 		controllerFallbacks,
 		ledgerControl = false,
+		ownsControllerInput = true,
 		requireExplicitEntry = false,
 		onSelect,
 		onOpenChange
@@ -192,7 +194,7 @@
 			closePicker(true);
 			return;
 		}
-		if (root?.closest('.pokemon-editor')) return;
+		if (!ownsControllerInput) return;
 		if (event.key === 'Escape' || event.key === 'Backspace') {
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -438,6 +440,10 @@
 		padding: 0 11px;
 		font: 750 var(--pksx-type-label) var(--pksx-font-sans);
 		text-align: left;
+	}
+
+	.pksx-combobox-trigger[aria-invalid='true'] {
+		border-color: var(--pksx-color-feedback-danger);
 	}
 
 	.pksx-combobox-trigger span,

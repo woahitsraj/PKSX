@@ -148,6 +148,19 @@ function press(control: HTMLElement, key: string) {
 	control.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
 }
 
+async function selectComboboxValue(identity: string, value: number) {
+	const trigger = target(identity) as HTMLButtonElement;
+	trigger.click();
+	await tick();
+	const list = document.getElementById(trigger.getAttribute('aria-controls') ?? '');
+	const option = [
+		...(list?.querySelectorAll<HTMLButtonElement>('[data-combobox-option]') ?? [])
+	].find((candidate) => candidate.dataset.comboboxOptionValue === String(value));
+	if (!option) throw new Error(`Combobox option ${value} was not found.`);
+	option.click();
+	await tick();
+}
+
 async function waitForItem(
 	harness: MountedHarness,
 	pocketKey: string,
@@ -252,9 +265,7 @@ describe('Save File Bag with a real public fixture', () => {
 		await tick();
 		expect(harness.currentLedgerProps().command?.kind).toBe('add-item');
 		await vi.waitFor(() => expect(target(`pocket-${pocket.key}-add-item`)).not.toBeNull());
-		const select = target(`pocket-${pocket.key}-add-item`) as HTMLSelectElement;
-		select.value = String(option.id);
-		select.dispatchEvent(new Event('change', { bubbles: true }));
+		await selectComboboxValue(`pocket-${pocket.key}-add-item`, option.id);
 		const addQuantity = input(`pocket-${pocket.key}-add-quantity`);
 		enterValue(addQuantity, '7');
 		await tick();
@@ -404,9 +415,7 @@ describe('Save File Bag with a real public fixture', () => {
 			if (operation === 'add') {
 				target(`pocket-${pocket.key}-add`).click();
 				await tick();
-				const select = target(`pocket-${pocket.key}-add-item`) as HTMLSelectElement;
-				select.value = String(option.id);
-				select.dispatchEvent(new Event('change', { bubbles: true }));
+				await selectComboboxValue(`pocket-${pocket.key}-add-item`, option.id);
 				enterValue(input(`pocket-${pocket.key}-add-quantity`), '2');
 				await tick();
 				pendingIdentity = `pocket-${pocket.key}-add-confirm`;
@@ -514,9 +523,7 @@ describe('Save File Bag with a real public fixture', () => {
 
 		target(`pocket-${pocket.key}-add`).click();
 		await tick();
-		const select = target(`pocket-${pocket.key}-add-item`) as HTMLSelectElement;
-		select.value = String(option.id);
-		select.dispatchEvent(new Event('change', { bubbles: true }));
+		await selectComboboxValue(`pocket-${pocket.key}-add-item`, option.id);
 		enterValue(input(`pocket-${pocket.key}-add-quantity`), '2');
 		await tick();
 		target(`pocket-${pocket.key}-add-confirm`).click();
