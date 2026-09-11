@@ -187,7 +187,7 @@
 
 	function handleRootFocusOut(event: FocusEvent) {
 		const next = event.relatedTarget;
-		if (open && !(next instanceof Node && root?.contains(next))) closePicker();
+		if (open && next instanceof Node && !root?.contains(next)) closePicker();
 	}
 
 	function handleWindowKeydown(event: KeyboardEvent) {

@@ -125,10 +125,10 @@ test('owns controller directions, skips disabled choices, and selects while open
 	dispatchControllerKey('ArrowRight');
 	await tick();
 	expect(document.activeElement).toHaveAttribute('data-combobox-option-value', 'poke-ball');
-	dispatchControllerKey('ArrowLeft');
+	dispatchControllerKey('ArrowRight');
 	await tick();
 	expect(document.activeElement).toHaveAttribute('data-combobox-option-value', 'potion');
-	dispatchControllerKey('ArrowRight');
+	dispatchControllerKey('ArrowLeft');
 	await tick();
 	expect(document.activeElement).toHaveAttribute('data-combobox-option-value', 'poke-ball');
 	dispatchControllerKey('Enter');
@@ -152,6 +152,19 @@ test('closes when Tab moves focus outside the picker', async () => {
 	await tick();
 	expect(document.querySelector('[data-combobox-open="true"]')).toBeNull();
 	expect(document.activeElement).toBe(outside);
+});
+
+test('keeps the picker open through a null focusout so an option click can select', async () => {
+	const selected = render();
+	await tick();
+	document.querySelector<HTMLButtonElement>('#test-picker')!.click();
+	await tick();
+	document
+		.querySelector<HTMLInputElement>('[data-combobox-search]')!
+		.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+	await tick();
+	document.querySelector<HTMLButtonElement>('[data-combobox-option-value="potion"]')!.click();
+	expect(selected).toHaveBeenCalledWith('potion');
 });
 
 test('flips the picker into the available scroll space at both viewport floors', async () => {
