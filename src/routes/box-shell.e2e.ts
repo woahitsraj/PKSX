@@ -2918,13 +2918,19 @@ test('Legality Check opens an engine report from an occupied Slot and dismisses 
 	await expect(report).toContainText('MEW');
 	await expect(report).toContainText('This Pokemon has legality issues.');
 	await expect(report).not.toContainText(/PKHeX|Engine/);
-	const normalizeRows = (rows: string[]) => rows.map((row) => row.replace(/\s+/g, ' ').trim());
-	const warningRows = normalizeRows(
-		await report.getByLabel('Warnings').getByRole('listitem').allTextContents()
-	);
-	const messageRows = normalizeRows(
-		await report.getByLabel('Messages').getByRole('listitem').allTextContents()
-	);
+	const reportRows = async (label: string) =>
+		report
+			.getByLabel(label)
+			.getByRole('listitem')
+			.evaluateAll((items) =>
+				items.map((item) => {
+					const identifier = item.querySelector(':scope > span')?.textContent ?? '';
+					const message = item.querySelector(':scope > p')?.textContent ?? '';
+					return `${identifier} ${message}`.replace(/\s+/g, ' ').trim();
+				})
+			);
+	const warningRows = await reportRows('Warnings');
+	const messageRows = await reportRows('Messages');
 	expect(messageRows.filter((message) => warningRows.includes(message))).toEqual([]);
 	await expect(page.getByText('Dirty Workspace')).toHaveCount(0);
 	const proposals = report.locator('[data-legality-proposed-fixes]');
