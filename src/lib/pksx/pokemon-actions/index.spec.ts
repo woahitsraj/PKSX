@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createMockEngine, type PokemonActionPreview } from '$lib/engine';
 import { createCleanWorkspaceState } from '$lib/pksx/backup-workflow';
 import {
+	allLegalityFixOperation,
 	applyPokemonAction,
 	clearPokemonActionSelection,
 	createPokemonActionReadyState,
@@ -23,7 +24,21 @@ const preview: PokemonActionPreview = {
 			kind: 'legality-fix',
 			available: true,
 			changes: [{ field: 'Moves', before: 'Splash', after: 'Tackle' }],
-			choices: []
+			choices: [],
+			fixes: [
+				{
+					id: 'move-set',
+					token: 'all-fixes:preview-token',
+					label: 'Move Set',
+					changes: [{ field: 'Moves', before: 'Splash', after: 'Tackle' }]
+				},
+				{
+					id: 'ball',
+					token: 'all-fixes:preview-token',
+					label: 'Ball',
+					changes: [{ field: 'Ball', before: 'Poke Ball', after: 'Luxury Ball' }]
+				}
+			]
 		},
 		{
 			kind: 'evolve',
@@ -39,7 +54,8 @@ const preview: PokemonActionPreview = {
 					requirement: 'Level 16',
 					changes: [{ field: 'Species', before: 'Bulbasaur', after: 'Ivysaur' }]
 				}
-			]
+			],
+			fixes: []
 		}
 	]
 };
@@ -90,6 +106,36 @@ describe('Pokemon Actions', () => {
 		expect(clearPokemonActionSelection(selected)).toMatchObject({ selection: null });
 	});
 
+	it('selects one targeted legality fix', () => {
+		const ready = createPokemonActionReadyState('Box 1', 'Bulbasaur', preview);
+		if (ready.status !== 'ready') throw new Error('Expected ready state.');
+
+		const selected = selectPokemonAction(ready, 'legality-fix', 'move-set');
+		expect(selected).toMatchObject({
+			selection: {
+				kind: 'legality-fix',
+				fix: { id: 'move-set', label: 'Move Set' },
+				changes: preview.actions[0].changes
+			}
+		});
+		if (selected.status !== 'ready') throw new Error('Expected ready state.');
+		expect(selectedPokemonActionOperation(selected)).toEqual({
+			kind: 'legality-fix',
+			choiceId: 'all-fixes:preview-token'
+		});
+	});
+
+	it('builds one combined legality operation without selecting an individual finding', () => {
+		const ready = createPokemonActionReadyState('Box 1', 'Bulbasaur', preview);
+		if (ready.status !== 'ready') throw new Error('Expected ready state.');
+
+		expect(allLegalityFixOperation(ready)).toEqual({
+			kind: 'legality-fix',
+			choiceId: 'all-fixes:preview-token'
+		});
+		expect(ready.selection).toBeNull();
+	});
+
 	it('does not select an unavailable action', () => {
 		const ready = createPokemonActionReadyState('Box 1', 'Bulbasaur', {
 			...preview,
@@ -105,7 +151,7 @@ describe('Pokemon Actions', () => {
 		});
 		if (ready.status !== 'ready') throw new Error('Expected ready state.');
 
-		expect(selectPokemonAction(ready, 'legality-fix')).toBe(ready);
+		expect(selectPokemonAction(ready, 'legality-fix', 'move-set')).toBe(ready);
 		expect(ready.selection).toBeNull();
 	});
 

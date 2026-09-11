@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { SaveSlotRef } from './types';
+import type { BoxSlotSummary, SaveSlotRef } from './types';
 import colosseumFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/colosseum/011020251345.gci?url';
 import fixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav?url';
 import moonFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/moon/011020252257.sav?url';
@@ -500,6 +500,212 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(storedApplied.value.entityBytesBase64).not.toBe(slots.value[0].entityBytesBase64);
 	});
 
+	test('previews and atomically applies one combined legality candidate through the browser-wasm bundle', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(platinumEuFixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const originalBytes = copyBytes(fixtureBytes);
+		const source = { zone: 'box' as const, box: 2, slot: 18 };
+		const workspace = await engine.loadSaveWorkspace(fixtureBytes, 'pokemon-platinum-eu.sav', 2);
+		expect(workspace.ok, JSON.stringify(workspace.error)).toBe(true);
+		if (!workspace.ok) throw new Error('Expected Platinum workspace to load.');
+		const original = workspace.value.boxSlots[18];
+		expect(original).toMatchObject({ nickname: 'MEW' });
+		if (!original) throw new Error('Expected the Platinum MEW fixture Slot.');
+
+		const preview = await engine.previewPokemonActions(
+			fixtureBytes,
+			'pokemon-platinum-eu.sav',
+			source
+		);
+		expect(preview.ok, JSON.stringify(preview.error)).toBe(true);
+		if (!preview.ok) throw new Error('Expected targeted legality preview to succeed.');
+		const legalityFix = preview.value.actions.find((action) => action.kind === 'legality-fix');
+		const moveFix = legalityFix?.fixes.find((fix) => fix.id === 'move-set');
+		expect(moveFix).toMatchObject({ id: 'move-set', label: 'Move Set' });
+		expect(moveFix?.token).toMatch(/^all-fixes:[0-9a-f]{32}$/);
+		if (!moveFix) throw new Error('Expected a targeted Move Set fix.');
+		expect(new Set(legalityFix?.fixes.map((fix) => fix.token))).toEqual(new Set([moveFix.token]));
+		expect(legalityFix?.fixes.flatMap((fix) => fix.changes)).toHaveLength(
+			legalityFix?.changes.length ?? -1
+		);
+		expect(legalityFix?.fixes.flatMap((fix) => fix.changes)).toEqual(
+			expect.arrayContaining(legalityFix?.changes ?? [])
+		);
+		const moveLine = [
+			...preview.value.legalityReport.warnings,
+			...preview.value.legalityReport.messages
+		].find((line) => line.fixId === 'move-set');
+		expect(moveLine).toMatchObject({ fixId: 'move-set' });
+		expect(moveLine?.severity).not.toBe('Valid');
+
+		const unknownInput = copyBytes(fixtureBytes);
+		const unknown = await engine.applyPokemonAction(
+			unknownInput,
+			'pokemon-platinum-eu.sav',
+			{ kind: 'legality-fix', source, choiceId: `all-fixes:${'0'.repeat(32)}` },
+			2
+		);
+		expect(unknown).toMatchObject({
+			ok: false,
+			error: {
+				code: 'unsupported-pokemon-action',
+				message:
+					'This fix preview is no longer available. Refresh the Legality Report and try again.'
+			}
+		});
+		expect(unknownInput).toEqual(originalBytes);
+		expect(fixtureBytes).toEqual(originalBytes);
+
+		const applied = await engine.applyPokemonAction(
+			fixtureBytes,
+			'pokemon-platinum-eu.sav',
+			{ kind: 'legality-fix', source, choiceId: moveFix.token },
+			2
+		);
+		expect(applied.ok, JSON.stringify(applied.error)).toBe(true);
+		if (!applied.ok) throw new Error('Expected targeted Move Set fix to succeed.');
+		const appliedSlot = applied.value.workspace.boxSlots[18];
+		if (!appliedSlot) throw new Error('Expected the fixed Platinum MEW Slot.');
+		expect(applied.value.changes).toEqual(legalityFix?.changes);
+		expect(moveFix.changes).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ field: expect.stringMatching(/^Move [1-4]$/) })
+			])
+		);
+		expect(moveFix.changes.some((change) => change.before !== change.after)).toBe(true);
+		expect(appliedSlot.moves).not.toEqual(original.moves);
+		expect(pokemonActionUnrelatedProjection(applied.value.workspace.boxSlots[18])).toEqual(
+			pokemonActionUnrelatedProjection(original)
+		);
+		expect(applied.value.bytes).not.toEqual(originalBytes);
+		expect(fixtureBytes).toEqual(originalBytes);
+
+		// Discard the first result as if persistence failed, then retry the same preview and source.
+		const retried = await engine.applyPokemonAction(
+			fixtureBytes,
+			'pokemon-platinum-eu.sav',
+			{ kind: 'legality-fix', source, choiceId: moveFix.token },
+			2
+		);
+		expect(retried.ok, JSON.stringify(retried.error)).toBe(true);
+		if (!retried.ok) throw new Error('Expected the targeted Move Set fix retry to succeed.');
+		expect(retried.value).toEqual(applied.value);
+		expect(fixtureBytes).toEqual(originalBytes);
+
+		const fixedPreview = await engine.previewPokemonActions(
+			applied.value.bytes,
+			'pokemon-platinum-eu.sav',
+			source
+		);
+		expect(fixedPreview.ok, JSON.stringify(fixedPreview.error)).toBe(true);
+		if (!fixedPreview.ok) throw new Error('Expected fixed Move Set preview to succeed.');
+		expect(
+			fixedPreview.value.actions
+				.find((action) => action.kind === 'legality-fix')
+				?.fixes.some((fix) => fix.id === 'move-set')
+		).toBe(false);
+
+		const staleInput = copyBytes(applied.value.bytes);
+		const staleOriginal = copyBytes(staleInput);
+		const stale = await engine.applyPokemonAction(
+			staleInput,
+			'pokemon-platinum-eu.sav',
+			{ kind: 'legality-fix', source, choiceId: moveFix?.token },
+			2
+		);
+		expect(stale).toMatchObject({
+			ok: false,
+			error: {
+				code: 'stale-pokemon-action-preview',
+				message:
+					'This Pokemon changed after the fix preview. Refresh the Legality Report and try again.'
+			}
+		});
+		expect(staleInput).toEqual(staleOriginal);
+	});
+
+	test('describes repaired party state without offering a heal-only legality action', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(platinumEuFixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const workspace = await engine.loadSaveWorkspace(fixtureBytes, 'pokemon-platinum-eu.sav', 2);
+		if (!workspace.ok) throw new Error('Expected Platinum workspace to load.');
+		const mew = workspace.value.boxSlots[18]?.entityBytesBase64;
+		if (!mew) throw new Error('Expected the Platinum MEW entity bytes.');
+
+		const makeInjured = (entity: string) => {
+			const bytes = Uint8Array.from(atob(entity), (value) => value.charCodeAt(0));
+			const view = new DataView(bytes.buffer);
+			view.setInt32(0x88, 8, true);
+			view.setUint8(0x8c, 1);
+			view.setUint16(0x8e, 1, true);
+			view.setUint16(0x90, 50, true);
+			return btoa(String.fromCharCode(...bytes));
+		};
+
+		const injured = makeInjured(mew);
+		const preview = await engine.previewStoredPokemonActions(injured);
+		if (!preview.ok) throw new Error('Expected injured MEW preview to succeed.');
+		const action = preview.value.actions.find((candidate) => candidate.kind === 'legality-fix');
+		const token = action?.fixes[0]?.token;
+		expect(action).toMatchObject({
+			available: true,
+			changes: expect.arrayContaining([
+				{ field: 'Current HP', before: '1', after: expect.not.stringMatching(/^1$/) },
+				{ field: 'Maximum HP', before: '50', after: expect.any(String) },
+				{ field: 'Party Level', before: '1', after: expect.any(String) },
+				{ field: 'Status', before: 'Poison', after: 'None' }
+			])
+		});
+		if (!token) throw new Error('Expected a combined legality token.');
+
+		const applied = await engine.applyStoredPokemonAction(injured, {
+			kind: 'legality-fix',
+			choiceId: token
+		});
+		if (!applied.ok) throw new Error('Expected injured MEW fixes to apply.');
+		expect(applied.value.changes).toEqual(action?.changes);
+
+		const injuredLegal = makeInjured(applied.value.entityBytesBase64);
+		const healOnlyPreview = await engine.previewStoredPokemonActions(injuredLegal);
+		if (!healOnlyPreview.ok) throw new Error('Expected fixed MEW preview to succeed.');
+		expect(
+			healOnlyPreview.value.actions.find((candidate) => candidate.kind === 'legality-fix')
+		).toMatchObject({ available: false, changes: [], fixes: [] });
+	});
+
+	test('keeps identical localized ribbon names distinct in the repair preview', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(platinumEuFixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const workspace = await engine.loadSaveWorkspace(fixtureBytes, 'pokemon-platinum-eu.sav', 2);
+		if (!workspace.ok) throw new Error('Expected Platinum workspace to load.');
+		const mew = workspace.value.boxSlots[18]?.entityBytesBase64;
+		if (!mew) throw new Error('Expected the Platinum MEW entity bytes.');
+
+		const bytes = Uint8Array.from(atob(mew), (value) => value.charCodeAt(0));
+		bytes[0x3c] = (bytes[0x3c]! & 0xf0) | (1 << 3);
+		bytes[0x60] = (bytes[0x60]! & 0xf0) | (1 << 3);
+		const view = new DataView(bytes.buffer);
+		view.setUint32(0x38, view.getUint32(0x38, true) | (1 << 30), true);
+		const preview = await engine.previewStoredPokemonActions(btoa(String.fromCharCode(...bytes)));
+		if (!preview.ok) throw new Error('Expected invalid ribbon preview to succeed.');
+		const ribbonChanges = preview.value.actions
+			.find((action) => action.kind === 'legality-fix')
+			?.changes.filter((change) => change.field.startsWith('Ribbon Cool Master'));
+		expect(ribbonChanges?.map((change) => change.field)).toEqual(
+			expect.arrayContaining(['Ribbon Cool Master (Gen 3)', 'Ribbon Cool Master (Gen 4)'])
+		);
+		expect(new Set(ribbonChanges?.map((change) => change.field)).size).toBe(2);
+	});
+
 	test('applies Save File slot operations through the browser-wasm bundle', async () => {
 		expect.assertions(13);
 
@@ -592,6 +798,19 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			fetch(fixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const catalogue = await engine.getPokemonCreationCatalogue(
+			copyBytes(fixtureBytes),
+			'011020251345.sav'
+		);
+		expect(catalogue.ok).toBe(true);
+		if (!catalogue.ok) throw new Error('Expected a Create Pokemon catalogue.');
+		const defaultSpecies = catalogue.value.defaultSpecies;
+		expect(defaultSpecies).not.toBeNull();
+		if (!defaultSpecies) throw new Error('Expected the Save File default species.');
+		expect(catalogue.value.availableSpecies).toContainEqual(defaultSpecies);
+		expect(catalogue.value.availableSpecies).toContainEqual({ id: 25, name: 'Pikachu' });
+		expect(catalogue.value.availableSpecies).toContainEqual({ id: 386, name: 'Deoxys' });
+		expect(Math.max(...catalogue.value.availableSpecies.map(({ id }) => id))).toBe(386);
 
 		const created = await engine.createPokemon(
 			copyBytes(fixtureBytes),
@@ -609,7 +828,24 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			slot: 2,
 			isEmpty: false,
 			level: 5,
-			speciesId: expect.any(Number)
+			speciesId: defaultSpecies.id
+		});
+
+		const named = await engine.createPokemon(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				destination: { zone: 'box', box: 0, slot: 2 },
+				speciesId: 25,
+				level: 5
+			},
+			0
+		);
+		expect(named.ok).toBe(true);
+		if (!named.ok) throw new Error('Expected named Create Pokemon to succeed.');
+		expect(named.value.workspace.boxSlots[2]).toMatchObject({
+			nickname: 'PIKACHU',
+			speciesId: 25
 		});
 
 		const occupied = await engine.createPokemon(
@@ -1438,4 +1674,27 @@ function copyBytes(bytes: Uint8Array): Uint8Array {
 	const copy = new Uint8Array(bytes.byteLength);
 	copy.set(bytes);
 	return copy;
+}
+
+function pokemonActionUnrelatedProjection(slot: BoxSlotSummary | undefined) {
+	if (!slot) return null;
+	return {
+		speciesId: slot.speciesId,
+		form: slot.form,
+		format: slot.format,
+		level: slot.level,
+		experience: slot.experience,
+		nickname: slot.nickname,
+		isEgg: slot.isEgg,
+		gender: slot.gender,
+		nature: slot.nature,
+		ability: slot.ability,
+		heldItem: slot.heldItem,
+		types: slot.types,
+		stats: slot.stats,
+		ballId: slot.metDataEditConstraints.currentBallId,
+		metLabel: slot.metLabel,
+		originalTrainer: slot.originalTrainer,
+		spriteIdentity: slot.spriteIdentity
+	};
 }
