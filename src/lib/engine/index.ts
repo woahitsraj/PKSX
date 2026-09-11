@@ -24,6 +24,7 @@ export type {
 	InventoryEditOperation,
 	InventoryItemOption,
 	InventoryItemProjection,
+	ItemSpriteIdentity,
 	InventoryPocketProjection,
 	PartySlotSummary,
 	PokemonAbilityEditConstraints,

@@ -62,6 +62,16 @@ export type SpriteIdentity = {
 	displaySex: 'default' | 'male' | 'female';
 };
 
+export type ItemSpriteIdentity = {
+	nativeId: number;
+	canonicalId: number;
+	generation: number;
+	/** PKHeX.Core EntityContext enum name. */
+	context: string;
+	/** PKHeX.Core GameVersion enum value. */
+	gameVersionId: number;
+};
+
 export type BoxSlotSummary = {
 	box: number;
 	slot: number;
@@ -78,6 +88,7 @@ export type BoxSlotSummary = {
 	nature?: string | null;
 	ability?: string | null;
 	heldItem?: string | null;
+	heldItemSpriteIdentity?: ItemSpriteIdentity | null;
 	types: SlotTypeSummary[];
 	stats: SlotStatSummary[];
 	moves: SlotMoveSummary[];
@@ -166,6 +177,7 @@ export type PokemonHeldItemOption = {
 	name: string;
 	available: boolean;
 	unavailableReason?: string | null;
+	itemSpriteIdentity?: ItemSpriteIdentity | null;
 };
 
 export type PokemonHeldItemEditConstraints = {
@@ -380,6 +392,7 @@ export type InventoryItemProjection = {
 	name: string;
 	quantity: number;
 	maxQuantity: number;
+	itemSpriteIdentity?: ItemSpriteIdentity | null;
 };
 
 export type InventoryItemOption = Omit<InventoryItemProjection, 'quantity'>;

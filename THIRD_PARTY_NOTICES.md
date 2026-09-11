@@ -22,6 +22,18 @@ https://pokemondb.net/sprites
 
 PKSX packages these images according to PokemonDB's guidance that sites may save and self-host the images instead of hotlinking them. These images are third-party content and are not licensed under the PKSX GPL license. Their source URLs and retrieval dates appear in `static/sprites/pokemon/catalog.json`.
 
+## PokeAPI item sprite images
+
+The item sprite images under `static/sprites/items` come from the PokeAPI sprites repository at revision `2ecb4eeacd5a1718621fc30f12772e3f60d830b9`:
+
+https://github.com/PokeAPI/sprites/tree/2ecb4eeacd5a1718621fc30f12772e3f60d830b9/sprites/items
+
+The repository distribution is dedicated to the public domain under CC0. Its `LICENCE.txt` separately states that the images are copyrighted by The Pokemon Company. These images remain third-party content and are not licensed under the PKSX GPL license. Exact source paths and byte metadata appear in `static/sprites/items/catalog.json`.
+
+PKSX maps game-specific item indices with PokeAPI data from revision `8fe210b21c9abbe73de93670f3d5a346c80a3625`:
+
+https://github.com/PokeAPI/pokeapi/tree/8fe210b21c9abbe73de93670f3d5a346c80a3625/data/v2/csv
+
 ## Bl1ndBeholder Pokemon save fixtures
 
 The files under `test-fixtures/save-files/bl1ndbeholder-pokemon-saves` come from:

@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { onDestroy, tick } from 'svelte';
 	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
+	import { resolveItemSpriteCatalogEntry } from '$lib/pksx/item-sprite-catalog';
 	import DelayedSpinner from './DelayedSpinner.svelte';
 	import Combobox, { type ComboboxOption } from './Combobox.svelte';
+	import ItemSprite from './ItemSprite.svelte';
 	import type {
 		SaveFileLedgerCatalogue,
 		SaveFileLedgerCommand,
@@ -111,7 +113,12 @@
 	const addItemComboboxOptions = $derived.by(() => {
 		if (activeCommand?.kind !== 'add-item') return [];
 		return availableOptions(activeCommand.pocketKey).map(
-			(option) => ({ value: String(option.id), label: option.name }) satisfies ComboboxOption
+			(option) =>
+				({
+					value: String(option.id),
+					label: option.name,
+					imageSrc: resolveItemSpriteCatalogEntry(option.itemSpriteIdentity)?.path ?? null
+				}) satisfies ComboboxOption
 		);
 	});
 
@@ -1385,8 +1392,11 @@
 																	aria-busy={itemBusy || removeBusy}
 																>
 																	<div class="item-copy">
-																		<strong title={item.name}>{item.name}</strong>
-																		<span>Maximum {item.maxQuantity}</span>
+																		<ItemSprite identity={item.itemSpriteIdentity} size={30} />
+																		<div class="item-copy-text">
+																			<strong title={item.name}>{item.name}</strong>
+																			<span>Maximum {item.maxQuantity}</span>
+																		</div>
 																	</div>
 																	{#if command?.kind === 'remove-item' && command.pocketKey === pocket.key && command.itemId === item.id}
 																		<div
@@ -1941,6 +1951,14 @@
 	}
 
 	.item-copy {
+		display: grid;
+		grid-template-columns: 30px minmax(0, 1fr);
+		align-items: center;
+		gap: var(--pksx-space-2, 8px);
+		min-width: 0;
+	}
+
+	.item-copy-text {
 		display: grid;
 		min-width: 0;
 	}

@@ -3148,12 +3148,21 @@ test('Pokemon Editor changes Held Item and returns focus to the command stack', 
 
 	await heldItem.focus();
 	await pressController(page, 'Enter');
+	await expect(editor.locator('[data-combobox-option] img').first()).toHaveAttribute(
+		'src',
+		/^\/sprites\/items\//
+	);
+	await expect(editor.locator('[data-combobox-option] img').first()).toHaveAttribute('alt', '');
 	await expect(editor.locator('.pokemon-editor')).toHaveAttribute(
 		'data-editor-entered-field',
 		'pokemon-editor-held-item'
 	);
 	await pressController(page, 'ArrowDown');
 	await pressController(page, 'ArrowDown');
+	const selectedSpriteSrc = await editor
+		.locator('[data-combobox-option].active img')
+		.getAttribute('src');
+	expect(selectedSpriteSrc).toMatch(/^\/sprites\/items\//);
 	await pressController(page, 'Enter');
 	await expect(heldItem).not.toHaveAttribute('data-combobox-value', originalItem);
 	const changedItem = await comboboxValue(heldItem);
@@ -3162,11 +3171,15 @@ test('Pokemon Editor changes Held Item and returns focus to the command stack', 
 	await editor.getByRole('button', { name: 'Apply edits' }).click();
 	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
 	await expect(heldItem).toHaveAttribute('data-combobox-value', changedItem);
+	await expect(heldItem.locator('img')).toHaveAttribute('src', selectedSpriteSrc!);
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 
 	await page.keyboard.press('Escape');
 	await expect(editor).toBeHidden();
 	await expect(page.locator('#slot-action-0')).toBeFocused();
+	await expect(
+		page.getByTestId('active-slot-detail-rail').locator('.item-value img')
+	).toHaveAttribute('src', selectedSpriteSrc!);
 });
 
 test('Pokemon Editor changes Ability and returns focus to the command stack', async ({ page }) => {
@@ -4100,6 +4113,10 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 test('Bag Combobox owns controller navigation until an item is selected', async ({ page }) => {
 	await importEmeraldThroughSaves(page);
 	await chooseMainMenu(page, 'Bag');
+	await expect(page.locator('.item-copy img').first()).toHaveAttribute(
+		'src',
+		/^\/sprites\/items\//
+	);
 
 	const fileName = 'emerald-011020251345.sav';
 	const workspaceBefore = await workspaceBytesHashForFile(page, fileName);
@@ -4123,6 +4140,8 @@ test('Bag Combobox owns controller navigation until an item is selected', async 
 	expect(await search.evaluate((input) => (input as HTMLInputElement).selectionStart)).toBe(4);
 	const options = (await comboboxList(itemPicker)).getByRole('option');
 	expect(await options.count()).toBeGreaterThan(1);
+	await expect(options.locator('img').first()).toHaveAttribute('src', /^\/sprites\/items\//);
+	await expect(options.locator('img').first()).toHaveAttribute('alt', '');
 
 	await pressController(page, 'ArrowRight');
 	await expect(options.first()).toBeFocused();
@@ -4138,6 +4157,7 @@ test('Bag Combobox owns controller navigation until an item is selected', async 
 	await expect(itemPicker).toHaveAttribute('aria-expanded', 'false');
 	await expect(itemPicker).toBeFocused();
 	await expect(itemPicker).toHaveAttribute('data-combobox-value', selectedValue!);
+	await expect(itemPicker.locator('img')).toHaveAttribute('src', /^\/sprites\/items\//);
 	await expect(addCommand).toBeVisible();
 	expect(await workspaceBytesHashForFile(page, fileName)).toBe(workspaceBefore);
 	expect(await backupCount(page)).toBe(backupsBefore);
@@ -5589,6 +5609,14 @@ test('reloads the most recent imported Save File while offline', async ({ page, 
 
 	await expectActiveSaveOwner(page, 'emerald-011020251345.sav');
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
+	await chooseMainMenu(page, 'Bag');
+	const offlineItem = page.locator('.item-copy img').first();
+	await expect(offlineItem).toHaveAttribute('src', /^\/sprites\/items\//);
+	await expect
+		.poll(() =>
+			offlineItem.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)
+		)
+		.toBe(true);
 
 	await context.setOffline(false);
 });

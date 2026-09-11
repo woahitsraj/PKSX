@@ -1,4 +1,5 @@
 import type {
+	ItemSpriteIdentity,
 	PokemonBattleFieldProjection,
 	PokemonExperienceProjection,
 	PokemonAbilityEditConstraints,
@@ -28,6 +29,7 @@ export type SlotView = {
 	nature?: string;
 	ability?: string;
 	heldItem?: string;
+	heldItemSpriteIdentity?: ItemSpriteIdentity | null;
 	types?: SlotTypeView[];
 	stats?: SlotStatView[];
 	moves?: SlotMoveView[];

@@ -74,6 +74,40 @@ Offline cache coverage should verify, where practical, that committed sprite fil
 
 Visual or layout tests should verify that sprite and fallback states preserve stable Slot dimensions.
 
+## Item Sprite Catalog
+
+Issue #268 adds a separate offline catalog for Bag and held-item artwork. The PKHeX Engine projects an `ItemSpriteIdentity` containing the native item id, the canonical modern item id, generation, entity context, and game version. UI code treats that identity as opaque and never derives it from an item name or assumes that a PokeAPI id is a PKHeX id.
+
+PKSX 0.0.1 uses `PKHeX.Core` 26.5.5. That installed assembly exposes `ItemConverter.GetItemFuture1`, `GetItemFuture2`, and `GetItemFuture3`, but does not expose the newer `GetItemDisplay` convenience method. The Engine facade therefore applies the same public-API switch found in upstream PKHeX revision `77dcd3a7895bceaafbbff12d25bdf77c1acd8ca5`: Generation 1 converts through Generation 2 to a Generation 4+ id, Generations 2 and 3 convert directly to Generation 4+ ids, and later generations retain their native id. Zero means no item. The older-generation `128` sentinel means there is no canonical modern id, but the Engine retains the positive native identity so exact generation lookup still works. This preserves a useful canonical id when one exists while retaining native id and game context for exact catalog lookup.
+
+The acquisition script joins PokeAPI `item_game_indices.csv` to sprite identifiers by PokeAPI item id. It does not match display names or infer slugs. It collects every candidate before checking artwork availability, so an artless candidate cannot hide a collision. Resolution first checks an unambiguous `(generation, nativeId)` entry, then an unambiguous canonical id. A known ambiguous exact key stops resolution and renders the stable text fallback, even when its canonical id would otherwise resolve.
+
+Three known PokeAPI index errors have narrow overrides backed by the item tables and English resources bundled with PKHeX.Core 26.5.5, whose `26.05.05` tag resolves to revision `0b0e7e3e9d724fdbd704a7f6d4848d009b52acf7`: Generation 2 index 116 is Blue Card, Generation 5 index 227 is Deep Sea Scale, and Generation 9 index 2 is Ultra Ball. Each generated override records its PokeAPI item id, reason, and direct PKHeX source URL. Other collisions remain unresolved rather than using cross-generation or display-name guesses.
+
+The pinned sprite source is PokeAPI/sprites revision `2ecb4eeacd5a1718621fc30f12772e3f60d830b9`. Root item artwork is preferred, followed by exact identifiers from `gen9`, then `gen8`. PokeAPI models Z-crystal `--bag` and `--held` forms as separate item records with separate game indices. PKSX maps each exact identifier instead of collapsing those physical items, records the source variant, and uses one result consistently for that identity in every consumer. The mapping data is pinned to PokeAPI/pokeapi revision `8fe210b21c9abbe73de93670f3d5a346c80a3625`.
+
+The committed catalog contains 869 assets, 4,495 exact identity mappings, and 807 canonical mappings. It is 551,668 raw bytes; the sum of individually gzipped files is 569,286 bytes. Each manifest entry records its source URL and family, dimensions, byte size, and gzip size. The generation report is:
+
+| Generation | Source identities | Mapped | Missing | Ambiguous |
+| ---------- | ----------------: | -----: | ------: | --------: |
+| 1          |               130 |     75 |      55 |         0 |
+| 2          |               205 |    152 |      52 |         1 |
+| 3          |               308 |    256 |      51 |         1 |
+| 4          |               514 |    421 |      93 |         0 |
+| 5          |               619 |    521 |      94 |         4 |
+| 6          |               755 |    647 |     101 |         7 |
+| 7          |             1,034 |    794 |     233 |         7 |
+| 8          |             1,574 |    812 |     754 |         8 |
+| 9          |             2,116 |    817 |   1,291 |         8 |
+
+The 36 unresolved exact collisions are recorded in the manifest. Representative cases are Generation 2 index 221 (`kings-rock` or artless `tm29`), Generation 3 index 261 (`dowsing-machine` or `basement-key`), and Generation 8 index 1785 (artless `strange-ball` or `lastrange-ball`). These remain text-only because the PokeAPI generation index lacks the game-version precision needed to pick safely. Full context and version stay in the Engine identity so future source evidence can support another narrow exact override.
+
+Existing Emerald Bag labels come from PKHeX's global item string table and can disagree with physical Generation 3 inventory ids. Issue #268 does not alter those labels or the catalogue filtering rules from Issue #245. Sprite mapping remains based on the physical native id projected by the Engine.
+
+`pnpm item-sprites:download` is an explicit maintainer acquisition step. It accepts `--sprites-root` and `--data-root` together for pinned local checkouts. Normal installs and builds never access PokeAPI. `pnpm item-sprites:validate` is offline and verifies identical manifests, PNG dimensions, raw and gzip sizes, references, totals, and absence of unreferenced files. The existing SvelteKit service worker includes these committed static files through `$service-worker.files`.
+
+Pokemon Storage schema version 1 may cache `heldItemSpriteIdentity` beside the existing held-item text and entity bytes. The field is additive. Older records load with a null identity and retain a stable text fallback. `StoredWorkspace` remains unchanged.
+
 ## Open Questions
 
 None.

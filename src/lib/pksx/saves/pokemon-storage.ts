@@ -43,6 +43,9 @@ function clonePokemon(pokemon: StoredPokemonStoragePokemon): StoredPokemonStorag
 	return {
 		...current,
 		spriteIdentity: current.spriteIdentity ? { ...current.spriteIdentity } : null,
+		heldItemSpriteIdentity: current.heldItemSpriteIdentity
+			? { ...current.heldItemSpriteIdentity }
+			: null,
 		origin: { ...origin }
 	};
 }

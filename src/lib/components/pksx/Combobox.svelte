@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
+	import ItemSprite from './ItemSprite.svelte';
 
 	export type ComboboxOption = {
 		value: string;
 		label: string;
 		disabled?: boolean;
+		imageSrc?: string | null;
 		meta?: string;
 		detail?: string;
 		hue?: number;
@@ -67,6 +69,7 @@
 	let popoverAbove = $state(false);
 	let popoverMaxHeight = $state(240);
 	const selected = $derived(options.find((option) => option.value === value));
+	const showImages = $derived(options.some((option) => Object.hasOwn(option, 'imageSrc')));
 	const filtered = $derived.by(() => {
 		const query = normalize(search.trim());
 		if (!query) return options;
@@ -349,6 +352,7 @@
 		type="button"
 		class="pksx-combobox-trigger"
 		class:staged-field={staged}
+		class:with-images={showImages}
 		role="combobox"
 		aria-label={ariaLabel}
 		aria-labelledby={labelledBy}
@@ -366,6 +370,13 @@
 		onclick={() => openPicker()}
 		onkeydown={handleTriggerKeydown}
 	>
+		{#if showImages}
+			<ItemSprite
+				resolvedPath={selected?.imageSrc}
+				fallback={selected?.imageSrc !== undefined}
+				size={24}
+			/>
+		{/if}
 		<span>{selected?.label ?? placeholder}</span>
 		{#if selected?.meta}<em>{selected.meta}</em>{/if}
 		<i aria-hidden="true">⌄</i>
@@ -398,6 +409,7 @@
 						class="pksx-combobox-option"
 						class:active={activeIndex === optionIndex}
 						class:tinted={option.hue !== undefined}
+						class:with-images={showImages}
 						role="option"
 						data-combobox-option
 						data-combobox-option-value={option.value}
@@ -412,6 +424,13 @@
 						onfocus={() => (activeIndex = optionIndex)}
 						onkeydown={(event) => handleOptionKeydown(event, optionIndex)}
 					>
+						{#if showImages}
+							<ItemSprite
+								resolvedPath={option.imageSrc}
+								fallback={option.imageSrc !== undefined}
+								size={24}
+							/>
+						{/if}
 						<strong>{option.label}</strong>
 						{#if option.meta}<span>{option.meta}</span>{/if}
 						{#if option.detail}<em>{option.detail}</em>{/if}
@@ -454,6 +473,11 @@
 
 	.pksx-combobox-trigger[aria-invalid='true'] {
 		border-color: var(--pksx-color-feedback-danger);
+	}
+
+	.pksx-combobox-trigger.with-images,
+	.pksx-combobox-option.with-images {
+		grid-template-columns: 24px minmax(0, 1fr) max-content max-content;
 	}
 
 	.pksx-combobox-trigger span,

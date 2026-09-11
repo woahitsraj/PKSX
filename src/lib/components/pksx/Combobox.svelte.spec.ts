@@ -1,7 +1,7 @@
 import { mount, tick, unmount } from 'svelte';
 import { afterEach, expect, test, vi } from 'vitest';
 import { dispatchControllerKey } from '$lib/pksx/controller-input';
-import Combobox from './Combobox.svelte';
+import Combobox, { type ComboboxOption } from './Combobox.svelte';
 
 let component: ReturnType<typeof mount> | null = null;
 
@@ -11,7 +11,14 @@ afterEach(async () => {
 	document.body.replaceChildren();
 });
 
-function render(value = '') {
+function render(
+	value = '',
+	options: ComboboxOption[] = [
+		{ value: 'poke-ball', label: 'Poké Ball' },
+		{ value: 'naive', label: 'Naïve', disabled: true },
+		{ value: 'potion', label: 'Potion' }
+	]
+) {
 	const selected = vi.fn();
 	component = mount(Combobox, {
 		target: document.body,
@@ -19,11 +26,7 @@ function render(value = '') {
 			id: 'test-picker',
 			ariaLabel: 'Test choices',
 			value,
-			options: [
-				{ value: 'poke-ball', label: 'Poké Ball' },
-				{ value: 'naive', label: 'Naïve', disabled: true },
-				{ value: 'potion', label: 'Potion' }
-			],
+			options,
 			placeholder: 'Choose',
 			searchLabel: 'Search choices',
 			onSelect: selected
@@ -31,6 +34,29 @@ function render(value = '') {
 	});
 	return selected;
 }
+
+test('renders optional images without replacing choice labels or broken-image fallback', async () => {
+	render('potion', [
+		{
+			value: 'potion',
+			label: 'Potion',
+			imageSrc: '/sprites/items/0017-potion.png'
+		},
+		{ value: 'unknown', label: 'Unknown item', imageSrc: null }
+	]);
+	await tick();
+	const trigger = document.querySelector<HTMLButtonElement>('#test-picker')!;
+	expect(trigger.textContent).toContain('Potion');
+	expect(trigger.querySelector('img')).toHaveAttribute('src', '/sprites/items/0017-potion.png');
+	expect(trigger.querySelector('img')).toHaveAttribute('alt', '');
+
+	trigger.click();
+	await tick();
+	const unknown = document.querySelector<HTMLElement>('[data-combobox-option-value="unknown"]')!;
+	expect(unknown.textContent).toContain('Unknown item');
+	expect(unknown.querySelector('img')).toBeNull();
+	expect(unknown.querySelector('.missing-mark')).not.toBeNull();
+});
 
 test('searches accent-insensitively, skips disabled choices, and restores trigger focus on Back', async () => {
 	const selected = render();
