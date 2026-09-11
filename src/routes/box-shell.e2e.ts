@@ -1049,6 +1049,10 @@ test('switches to durable Pokemon Storage with focusable empty Slot actions', as
 
 	await seedPokemonStorageBoxes(page, 5);
 	await page.goto('/?source=pokemon-storage');
+	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
 
