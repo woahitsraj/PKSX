@@ -1060,10 +1060,15 @@ test('[DENSITY-1][SURFACE-1] portrait Pokemon Editor audits focused and open com
 		await setSafeArea(page, budget.insets);
 		await expectEditableFontFloor(editor, `Pokemon Editor ${budget.name}`, true);
 		await editor.locator('#pokemon-editor-section-move-set').click();
-		await editor.getByRole('combobox', { name: 'Move 1' }).click();
+		const move = editor.getByRole('combobox', { name: 'Move 1' });
+		await move.click();
 		const search = editor.getByRole('searchbox', { name: 'Search moves for Move 1' });
 		await expect(search).toBeFocused();
-		await expectEditableFontFloor(editor, `Pokemon Editor open combobox ${budget.name}`, true);
+		const combobox = editor.locator('.pksx-combobox').filter({ has: move });
+		await expect(combobox).toHaveAttribute('data-combobox-open', 'true');
+		await expectEditableFontFloor(combobox, `Pokemon Editor open combobox ${budget.name}`, true);
+		await expect(search).toBeFocused();
+		await expect(combobox).toHaveAttribute('data-combobox-open', 'true');
 		await search.press('Escape');
 	}
 });
