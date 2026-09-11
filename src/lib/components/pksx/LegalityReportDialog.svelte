@@ -10,11 +10,12 @@
 	interface Props {
 		state: Exclude<LegalityReportState, { status: 'idle' }>;
 		actionState: PokemonActionState;
+		onApplyFix: (fixId: string) => void;
 		onApplyAllFixes: () => void;
 		onClose: () => void;
 	}
 
-	let { state, actionState, onApplyAllFixes, onClose }: Props = $props();
+	let { state, actionState, onApplyFix, onApplyAllFixes, onClose }: Props = $props();
 	const report = $derived(state.status === 'ready' ? state.report : null);
 	const blockingMessage = $derived(
 		state.status === 'error' || state.status === 'unavailable' ? state.message : null
@@ -38,6 +39,7 @@
 		) ?? []
 	);
 	const canApplyAllFixes = $derived(Boolean(actionReady && allLegalityFixOperation(actionReady)));
+	const applying = $derived(actionState.status === 'applying');
 
 	onMount(() => {
 		void tick().then(() => {
@@ -82,14 +84,33 @@
 						{blockingMessage}
 					{/if}
 				</p>
-				{#if findings && findings.dependentProposals.length > 0}
+				{#each findings?.unmatchedFixes ?? [] as fix (fix.id)}
 					<div
 						class="proposed-fixes"
-						aria-label="Dependent proposed fixes"
+						aria-label={`${fix.label} proposed fixes`}
 						data-legality-proposed-fixes
 					>
-						<p class="proposal-label">Dependent fixes</p>
-						{#each findings.dependentProposals as change (`${change.field}-${change.before}-${change.after}`)}
+						<p class="proposal-label">{fix.label}</p>
+						{#each fix.changes as change (JSON.stringify( [change.field, change.before, change.after] ))}
+							<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
+						{/each}
+						<button
+							data-legality-report-control
+							type="button"
+							class="apply-fix"
+							onclick={() => onApplyFix(fix.id)}
+							disabled={applying}>Apply {fix.label} Fix</button
+						>
+					</div>
+				{/each}
+				{#if findings && findings.combinedProposals.length > 0}
+					<div
+						class="proposed-fixes"
+						aria-label="Apply all Fixes proposed changes"
+						data-legality-proposed-fixes
+					>
+						<p class="proposal-label">Apply all Fixes changes</p>
+						{#each findings.combinedProposals as change (JSON.stringify( [change.field, change.before, change.after] ))}
 							<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
 						{/each}
 					</div>
@@ -104,18 +125,28 @@
 					{#if report.warnings.length > 0}
 						<ul>
 							{#each findings?.warnings ?? [] as finding, index (`warning-${index}-${finding.line.identifier}`)}
+								{@const fix = finding.fix}
 								<li>
 									<span>{finding.line.identifier}</span>
 									<p>{finding.line.message}</p>
-									{#if finding.proposals.length > 0}
+									{#if finding.proposals.length > 0 || fix}
 										<div
 											class="proposed-fixes"
 											aria-label="Proposed fixes"
 											data-legality-proposed-fixes
 										>
-											{#each finding.proposals as change (change.field)}
+											{#each finding.proposals as change (JSON.stringify( [change.field, change.before, change.after] ))}
 												<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
 											{/each}
+											{#if fix}
+												<button
+													data-legality-report-control
+													type="button"
+													class="apply-fix"
+													onclick={() => onApplyFix(fix.id)}
+													disabled={applying}>Apply {fix.label} Fix</button
+												>
+											{/if}
 										</div>
 									{/if}
 								</li>
@@ -131,18 +162,28 @@
 						<h3>Messages</h3>
 						<ul>
 							{#each messages as finding, index (`message-${index}-${finding.line.identifier}`)}
+								{@const fix = finding.fix}
 								<li>
 									<span>{finding.line.identifier}</span>
 									<p>{finding.line.message}</p>
-									{#if finding.proposals.length > 0}
+									{#if finding.proposals.length > 0 || fix}
 										<div
 											class="proposed-fixes"
 											aria-label="Proposed fixes"
 											data-legality-proposed-fixes
 										>
-											{#each finding.proposals as change (change.field)}
+											{#each finding.proposals as change (JSON.stringify( [change.field, change.before, change.after] ))}
 												<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
 											{/each}
+											{#if fix}
+												<button
+													data-legality-report-control
+													type="button"
+													class="apply-fix"
+													onclick={() => onApplyFix(fix.id)}
+													disabled={applying}>Apply {fix.label} Fix</button
+												>
+											{/if}
 										</div>
 									{/if}
 								</li>
@@ -162,11 +203,11 @@
 				type="button"
 				class="close-report"
 				onclick={onApplyAllFixes}
-				disabled={actionState.status === 'applying'}
+				disabled={applying}
 			>
 				Apply all Fixes
 			</button>
-			<DelayedSpinner active={actionState.status === 'applying'} label="Applying all Fixes" />
+			<DelayedSpinner active={applying} label="Applying fixes" />
 		{:else}
 			<button data-legality-report-control type="button" class="close-report" onclick={onClose}
 				>Close</button
@@ -232,6 +273,7 @@
 	}
 
 	.icon-close,
+	.apply-fix,
 	.close-report,
 	footer button {
 		border: 0;
@@ -255,6 +297,14 @@
 		background: var(--rust);
 		color: white;
 		font-weight: 720;
+	}
+
+	.apply-fix {
+		justify-self: start;
+		min-height: var(--pksx-control-height);
+		padding: var(--pksx-space-1) var(--pksx-space-2);
+		border: 1px solid var(--rule);
+		font-weight: 700;
 	}
 
 	.proposed-fixes {
@@ -360,6 +410,8 @@
 
 	.icon-close:focus-visible,
 	.icon-close:focus,
+	.apply-fix:focus-visible,
+	.apply-fix:focus,
 	.close-report:focus-visible,
 	.close-report:focus {
 		outline: 2px solid var(--pksx-color-accent-primary);

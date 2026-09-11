@@ -580,6 +580,7 @@ export type PokemonActionAvailability = {
 	kind: PokemonActionKind;
 	available: boolean;
 	unavailableReason?: string | null;
+	applyAllToken?: string | null;
 	changes: PokemonActionChange[];
 	choices: PokemonEvolutionChoice[];
 	fixes: PokemonLegalityFixChoice[];

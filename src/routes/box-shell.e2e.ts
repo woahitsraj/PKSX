@@ -168,8 +168,9 @@ async function applyMoveSetQuickFixToEditorDraft(page: Page, editor: Locator) {
 	await expect(report).toBeVisible({ timeout: 15000 });
 	await expect(editor).toBeHidden();
 	await expect(report.locator('[data-legality-proposed-fixes]').first()).toBeVisible();
+	await expect(report.getByRole('button', { name: 'Apply Move Set Fix' })).toHaveCount(1);
 	await expect(report.getByRole('button', { name: 'Apply all Fixes' })).toHaveCount(1);
-	await report.locator('#legality-quick-fix-apply').click();
+	await report.getByRole('button', { name: 'Apply Move Set Fix' }).click();
 	await expect(report.getByRole('button', { name: 'Apply all Fixes' })).toHaveCount(0, {
 		timeout: 15000
 	});
@@ -2088,7 +2089,7 @@ test('creates a Pokemon from an empty Slot after explicit apply and preserves ca
 	await expect(browser).toContainText('Pokemon creation');
 });
 
-test('Pokemon Creation reports legality for the private draft with staged Move Set edits', async ({
+test('Pokemon Creation preserves its legality report for a compatible staged Move Set edit', async ({
 	page
 }) => {
 	await openEmptySaves(page);
@@ -2107,7 +2108,68 @@ test('Pokemon Creation reports legality for the private draft with staged Move S
 
 	const report = page.getByRole('dialog', { name: 'Legality Check' });
 	await expect(report).toHaveAttribute('aria-busy', 'false', { timeout: 15000 });
-	await expect(report.locator('.report-scroll')).toContainText('This Pokemon has legality issues.');
+	await expect(report).not.toContainText(/PKHeX|Engine/);
+	const originalReport = await report.locator('.report-scroll').innerText();
+	await report.getByRole('button', { name: 'Close report' }).click();
+
+	await editor.locator('#pokemon-editor-section-move-set').click();
+	const compatibleMoves = ['Toxic', 'Protect', 'Giga Drain', 'Hidden Power', 'Sunny Day'];
+	const currentMoves = await Promise.all(
+		([1, 2, 3, 4] as const).map((slot) =>
+			editor
+				.getByRole('combobox', { name: `Move ${slot}` })
+				.locator('span')
+				.innerText()
+		)
+	);
+	const stagedMove = compatibleMoves.find((move) => !currentMoves.includes(move));
+	expect(stagedMove).toBeDefined();
+	const move = editor.getByRole('combobox', { name: 'Move 1' });
+	await move.click();
+	await editor.getByRole('searchbox', { name: 'Search moves for Move 1' }).fill(stagedMove!);
+	await editor.getByRole('option', { name: new RegExp(`^${stagedMove}`) }).click();
+	await expect(move).toContainText(stagedMove!);
+	await expect(editor).toContainText('1 Pokemon edit drafted.');
+	await editor.getByRole('button', { name: 'Legality' }).click();
+
+	await expect(report).toHaveAttribute('aria-busy', 'false', { timeout: 15000 });
+	expect(await report.locator('.report-scroll').innerText()).toBe(originalReport);
+	await expect(report).not.toContainText('Move Set edit makes this Pokemon illegal');
+	await expect(report).not.toContainText(stagedMove!);
+	await expect(report.getByRole('button', { name: 'Quick Fix', exact: true })).toHaveCount(0);
+	await report.getByRole('button', { name: 'Close report' }).click();
+	await editor.getByRole('button', { name: 'Create Pokemon' }).click();
+	await expect(editor.locator('#pokemon-editor-status')).toContainText(
+		'Move Set edit makes this Pokemon illegal for its current format.'
+	);
+	await expect(editor.locator('#pokemon-editor-status')).toContainText(
+		'PID+ correlation does not match'
+	);
+	expect(await workspaceBytesHashForFile(page, fileName)).toBe(workspaceBefore);
+	expect(await backupCount(page)).toBe(backupsBefore);
+	await expect(page.locator('#box-0-slot-2')).toContainText('Empty');
+});
+
+test('Pokemon Creation reports a repair for a private duplicate Move Set draft', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	const fileName = 'emerald-011020251345.sav';
+	const workspaceBefore = await workspaceBytesHashForFile(page, fileName);
+	const backupsBefore = await backupCount(page);
+
+	await page.locator('#box-0-slot-2').click();
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'Create Pokemon' }).click();
+
+	const editor = page.getByRole('dialog', { name: 'New Pokemon' });
+	await expect(editor.locator('#pokemon-editor-species option:checked')).toHaveText('Bulbasaur');
+	await editor.getByRole('button', { name: 'Legality' }).click();
+
+	const report = page.getByRole('dialog', { name: 'Legality Check' });
+	await expect(report).toHaveAttribute('aria-busy', 'false', { timeout: 15000 });
+	await expect(report).not.toContainText(/PKHeX|Engine/);
 	await expect(report.locator('.report-scroll')).toContainText(/PID\+ correlation does not match/);
 	await expect(report.locator('.report-scroll')).toContainText('Encryption Constant is not set.');
 	await report.getByRole('button', { name: 'Close report' }).click();
@@ -2125,14 +2187,13 @@ test('Pokemon Creation reports legality for the private draft with staged Move S
 	await editor.getByRole('button', { name: 'Legality' }).click();
 
 	const reportScroll = report.locator('.report-scroll');
-	await expect(report).toHaveAttribute('aria-busy', 'false', { timeout: 15000 });
-	await expect(reportScroll).toContainText('This Pokemon has legality issues.');
 	await expect(reportScroll).toContainText(/Move [12]: Duplicate Move\./, { timeout: 15000 });
 	await expect(reportScroll).toContainText(/PID\+ correlation does not match/);
 	await expect(reportScroll).toContainText('Encryption Constant is not set.');
 	const proposedFixes = report.locator('[data-legality-proposed-fixes]');
 	await expect(proposedFixes.first()).toBeVisible();
 	await expect(proposedFixes.first()).toContainText(/Move [1-4]: Swords Dance →/);
+	await expect(report.getByRole('button', { name: 'Apply Move Set Fix' })).toHaveCount(1);
 	await expect(report.getByRole('button', { name: 'Apply all Fixes' })).toHaveCount(1);
 	await expect(report).not.toContainText('Unavailable');
 	await expect(report).not.toContainText('Move Set edit makes this Pokemon illegal');
@@ -3051,6 +3112,7 @@ test('Pokemon Editor keeps a Quick Fix private until Apply and guards discard', 
 test('Pokemon Editor reports and fixes a staged illegal Move Set before Apply', async ({
 	page
 }) => {
+	await installWorkspaceResponseHold(page);
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	const fileName = 'emerald-011020251345.sav';
@@ -3080,7 +3142,16 @@ test('Pokemon Editor reports and fixes a staged illegal Move Set before Apply', 
 		timeout: 15000
 	});
 	await expect(report.locator('[data-legality-proposed-fixes]').first()).toBeVisible();
-	await report.locator('#legality-quick-fix-apply').click();
+	const applyMoveSet = report.getByRole('button', { name: 'Apply Move Set Fix' });
+	const applyAll = report.getByRole('button', { name: 'Apply all Fixes' });
+	await expect(applyMoveSet).toHaveCount(1);
+	await expect(applyAll).toHaveCount(1);
+	await holdWorkspaceResponses(page, 1, 'applyPokemonAction');
+	await applyMoveSet.click();
+	await waitForHeldWorkspaceResponses(page);
+	await expect(applyMoveSet).toBeDisabled();
+	await expect(applyAll).toBeDisabled();
+	await releaseWorkspaceResponses(page);
 	await expect(report.getByRole('button', { name: 'Apply all Fixes' })).toHaveCount(0, {
 		timeout: 15000
 	});

@@ -541,6 +541,7 @@ describe('pokemonActionPreviewSchema', () => {
 					kind: 'legality-fix',
 					available: true,
 					unavailableReason: null,
+					applyAllToken: 'all-fixes:preview-token',
 					changes: [],
 					choices: [],
 					fixes: [
@@ -562,5 +563,6 @@ describe('pokemonActionPreviewSchema', () => {
 			token: 'move-set:preview-token',
 			label: 'Move Set'
 		});
+		expect(preview.actions[0]).toHaveProperty('applyAllToken', 'all-fixes:preview-token');
 	});
 });

@@ -731,7 +731,8 @@ public sealed record PokemonActionAvailability(
     string? UnavailableReason,
     List<PokemonActionChange> Changes,
     List<PokemonEvolutionChoice> Choices,
-    List<PokemonLegalityFixChoice> Fixes);
+    List<PokemonLegalityFixChoice> Fixes,
+    string? ApplyAllToken);
 
 public sealed record PokemonActionPreview(
     LegalityReport LegalityReport,

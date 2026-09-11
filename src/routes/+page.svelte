@@ -148,6 +148,7 @@
 		clearPokemonActionSelection,
 		createPokemonActionLoadingState,
 		createPokemonActionReadyState,
+		legalityFixOperation,
 		requestPokemonActionPreview,
 		selectPokemonAction,
 		selectedPokemonActionOperation,
@@ -3036,6 +3037,12 @@
 		if (operation) await applySelectedPokemonAction(operation);
 	}
 
+	async function applyLegalityFix(fixId: string) {
+		if (pokemonAction.status !== 'ready') return;
+		const operation = legalityFixOperation(pokemonAction, fixId);
+		if (operation) await applySelectedPokemonAction(operation);
+	}
+
 	async function applySelectedPokemonAction(operationOverride?: StoredPokemonActionOperation) {
 		const activeEngine = engine;
 		const context = pokemonActionContext;
@@ -3264,7 +3271,7 @@
 				updatedSlot.label,
 				preview.value
 			);
-			showToast('success', 'All supported fixes applied to the Editor draft.');
+			showToast('success', 'Legality Fix applied to the Editor draft.');
 			await tick();
 			(
 				document.getElementById('legality-quick-fix-apply') ??
@@ -5322,6 +5329,7 @@
 		<LegalityReportDialog
 			state={legalityReport}
 			actionState={pokemonAction}
+			onApplyFix={applyLegalityFix}
 			onApplyAllFixes={applyAllLegalityFixes}
 			onClose={closeLegalityReport}
 		/>
