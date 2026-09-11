@@ -221,11 +221,11 @@ describe('SaveFileLedger public fixture presentation', () => {
 				{
 					...firstItem,
 					itemSpriteIdentity: {
-						nativeId: 2,
-						canonicalId: 2,
-						generation: 9,
-						context: 'Gen9',
-						gameVersionId: 9
+						nativeId: 1785,
+						canonicalId: 1785,
+						generation: 8,
+						context: 'Gen8',
+						gameVersionId: 44
 					}
 				}
 			])
