@@ -2063,25 +2063,40 @@ test('Pokemon Creation reports legality for the private draft with staged Move S
 
 	const report = page.getByRole('dialog', { name: 'Legality Check' });
 	await expect(report).toContainText(/PKHeX (judged|found)/, { timeout: 15000 });
-	const originalReport = await report.locator('.report-scroll').innerText();
+	await expect(report.locator('.report-scroll')).toContainText(/PID\+ correlation does not match/);
+	await expect(report.locator('.report-scroll')).toContainText('Encryption Constant is not set.');
 	await report.getByRole('button', { name: 'Close report' }).click();
 
 	await editor.locator('#pokemon-editor-section-move-set').click();
-	await editor.getByRole('combobox', { name: 'Move 1' }).click();
-	await editor.getByRole('searchbox', { name: 'Search moves for Move 1' }).fill('Swords Dance');
-	await editor.getByRole('option', { name: /^Swords Dance/ }).click();
-	await expect(editor).toContainText('1 Pokemon edit drafted.');
+	for (const slot of [1, 2] as const) {
+		const move = editor.getByRole('combobox', { name: `Move ${slot}` });
+		await move.click();
+		await editor
+			.getByRole('searchbox', { name: `Search moves for Move ${slot}` })
+			.fill('Swords Dance');
+		await editor.getByRole('option', { name: /^Swords Dance/ }).click();
+		await expect(move).toContainText('Swords Dance');
+	}
 	await editor.getByRole('button', { name: 'Legality' }).click();
 
-	await expect(report).toContainText(/PKHeX (judged|found)/, { timeout: 15000 });
-	expect(await report.locator('.report-scroll').innerText()).toBe(originalReport);
+	const reportScroll = report.locator('.report-scroll');
+	await expect(reportScroll).toContainText(/Move [12]: Duplicate Move\./, { timeout: 15000 });
+	await expect(reportScroll).toContainText(/PID\+ correlation does not match/);
+	await expect(reportScroll).toContainText('Encryption Constant is not set.');
+	const proposedFixes = report.locator('[data-legality-proposed-fixes]');
+	await expect(proposedFixes.first()).toBeVisible();
+	await expect(proposedFixes.first()).toContainText(/Move [1-4]: Swords Dance →/);
+	await expect(report.getByRole('button', { name: 'Apply all Fixes' })).toHaveCount(1);
+	await expect(report).not.toContainText('Unavailable');
 	await expect(report).not.toContainText('Move Set edit makes this Pokemon illegal');
-	await expect(report).not.toContainText('Swords Dance');
 	await expect(report.getByRole('button', { name: 'Quick Fix', exact: true })).toHaveCount(0);
 	await report.getByRole('button', { name: 'Close report' }).click();
 	await editor.getByRole('button', { name: 'Create Pokemon' }).click();
 	await expect(editor.locator('#pokemon-editor-status')).toContainText(
 		'Move Set edit makes this Pokemon illegal for its current format.'
+	);
+	await expect(editor.locator('#pokemon-editor-status')).toContainText(
+		'PID+ correlation does not match'
 	);
 	expect(await workspaceBytesHashForFile(page, fileName)).toBe(workspaceBefore);
 	expect(await backupCount(page)).toBe(backupsBefore);
