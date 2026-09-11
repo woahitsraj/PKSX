@@ -455,7 +455,7 @@ function getPokemonCreationCatalogue(
 			value: null,
 			error: {
 				code: 'unsupported-pokemon-creation',
-				message: 'Pokemon species names are not available in this PKHeX Engine build.'
+				message: 'Pokemon species names are not available in this version.'
 			}
 		};
 	}
@@ -495,7 +495,7 @@ function applySaveFileEditOperation(
 			value: null,
 			error: {
 				code: 'unsupported-save-file-edit',
-				message: 'Save File field editing is not available in this PKHeX Engine build.'
+				message: 'Save File editing is not available in this version.'
 			}
 		};
 	}
@@ -522,7 +522,7 @@ function getSaveFileInventoryCatalogue(
 			value: null,
 			error: {
 				code: 'unsupported-save-file-edit',
-				message: 'Save File field editing is not available in this PKHeX Engine build.'
+				message: 'Save File editing is not available in this version.'
 			}
 		};
 	}
@@ -767,7 +767,7 @@ function unavailableResult(request: EngineWorkerRequest) {
 		value: null,
 		error: {
 			code: 'engine-unavailable',
-			message: 'The PKHeX Engine worker is not ready.'
+			message: 'Pokemon data is still loading. Try again.'
 		}
 	} as const;
 
@@ -829,5 +829,5 @@ function getErrorMessage(error: unknown): string {
 		return error.message;
 	}
 
-	return 'The PKHeX Engine failed to load.';
+	return 'Pokemon data could not be loaded.';
 }

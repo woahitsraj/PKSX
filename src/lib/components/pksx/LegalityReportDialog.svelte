@@ -5,6 +5,7 @@
 		type LegalityReportState
 	} from '$lib/pksx/legality-report';
 	import { allLegalityFixOperation, type PokemonActionState } from '$lib/pksx/pokemon-actions';
+	import DelayedSpinner from './DelayedSpinner.svelte';
 
 	interface Props {
 		state: Exclude<LegalityReportState, { status: 'idle' }>;
@@ -25,6 +26,17 @@
 		actionReady?.preview.actions.find((action) => action.kind === 'legality-fix') ?? null
 	);
 	const findings = $derived(report ? createLegalityReportFindings(report, legalityFix) : null);
+	const messages = $derived(
+		findings?.messages.filter(
+			({ line: message }) =>
+				!findings.warnings.some(
+					({ line: warning }) =>
+						warning.identifier === message.identifier &&
+						warning.message === message.message &&
+						warning.fixId === message.fixId
+				)
+		) ?? []
+	);
 	const canApplyAllFixes = $derived(Boolean(actionReady && allLegalityFixOperation(actionReady)));
 
 	onMount(() => {
@@ -55,30 +67,33 @@
 	<div class="report-scroll" role="region" aria-label="Legality Report findings">
 		<div class="summary">
 			<div class="judgement">
-				<span>{report?.judgement ?? (state.status === 'loading' ? 'Checking' : 'Unavailable')}</span
-				>
+				{#if report}<span>{report.judgement}</span>{:else if state.status !== 'loading'}<span
+						>Unavailable</span
+					>{/if}
 				<strong>{state.pokemonLabel}</strong>
 			</div>
-			<p>
-				{#if state.status === 'loading'}
-					Asking PKHeX Engine for a report...
-				{:else if report}
-					{report.summary}
-				{:else}
-					{blockingMessage}
+			{#if state.status === 'loading'}
+				<DelayedSpinner active label="Checking legality" />
+			{:else}
+				<p>
+					{#if report}
+						{report.summary}
+					{:else}
+						{blockingMessage}
+					{/if}
+				</p>
+				{#if findings && findings.dependentProposals.length > 0}
+					<div
+						class="proposed-fixes"
+						aria-label="Dependent proposed fixes"
+						data-legality-proposed-fixes
+					>
+						<p class="proposal-label">Dependent fixes</p>
+						{#each findings.dependentProposals as change (`${change.field}-${change.before}-${change.after}`)}
+							<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
+						{/each}
+					</div>
 				{/if}
-			</p>
-			{#if findings && findings.dependentProposals.length > 0}
-				<div
-					class="proposed-fixes"
-					aria-label="Dependent proposed fixes"
-					data-legality-proposed-fixes
-				>
-					<p class="proposal-label">Dependent fixes</p>
-					{#each findings.dependentProposals as change (`${change.field}-${change.before}-${change.after}`)}
-						<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
-					{/each}
-				</div>
 			{/if}
 		</div>
 
@@ -111,11 +126,11 @@
 					{/if}
 				</section>
 
-				<section aria-label="Messages">
-					<h3>Messages</h3>
-					{#if report.messages.length > 0}
+				{#if messages.length > 0}
+					<section aria-label="Messages">
+						<h3>Messages</h3>
 						<ul>
-							{#each findings?.messages ?? [] as finding, index (`message-${index}-${finding.line.identifier}`)}
+							{#each messages as finding, index (`message-${index}-${finding.line.identifier}`)}
 								<li>
 									<span>{finding.line.identifier}</span>
 									<p>{finding.line.message}</p>
@@ -133,10 +148,8 @@
 								</li>
 							{/each}
 						</ul>
-					{:else}
-						<p class="empty-copy">No issues returned.</p>
-					{/if}
-				</section>
+					</section>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -149,8 +162,11 @@
 				type="button"
 				class="close-report"
 				onclick={onApplyAllFixes}
-				disabled={actionState.status === 'applying'}>Apply all Fixes</button
+				disabled={actionState.status === 'applying'}
 			>
+				Apply all Fixes
+			</button>
+			<DelayedSpinner active={actionState.status === 'applying'} label="Applying all Fixes" />
 		{:else}
 			<button data-legality-report-control type="button" class="close-report" onclick={onClose}
 				>Close</button
@@ -311,6 +327,10 @@
 		display: grid;
 		align-content: start;
 		gap: var(--pksx-space-1);
+	}
+
+	.report-columns section:only-child {
+		grid-column: 1 / -1;
 	}
 
 	ul {

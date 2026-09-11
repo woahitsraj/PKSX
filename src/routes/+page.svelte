@@ -97,6 +97,7 @@
 	import BoxMenu from '$lib/components/pksx/BoxMenu.svelte';
 	import BoxSourceControls from '$lib/components/pksx/BoxSourceControls.svelte';
 	import ClearSlotConfirm from '$lib/components/pksx/ClearSlotConfirm.svelte';
+	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
 	import DetailRail from '$lib/components/pksx/DetailRail.svelte';
 	import LegalityReportDialog from '$lib/components/pksx/LegalityReportDialog.svelte';
 	import PokemonActionDialog from '$lib/components/pksx/PokemonActionDialog.svelte';
@@ -368,7 +369,7 @@
 					id: 25,
 					name: 'Poke Doll',
 					available: false,
-					unavailableReason: 'Poke Doll is not supported by this Pokemon Entity format.'
+					unavailableReason: 'Poke Doll is not supported for this Pokemon.'
 				}
 			]
 		},
@@ -471,7 +472,7 @@
 	let initialStateReady = $state(false);
 	let pokemonCreation = $state<PokemonCreationView | null>(null);
 	let pokemonCreationRequest = 0;
-	let pokemonCreationBusyRequest: number | null = null;
+	let pokemonCreationBusyRequest = $state<number | null>(null);
 	let pokemonEditor = $state<PokemonEditorState | null>(null);
 	let pokemonEditorFeedback = $state<string | null>(null);
 	let pokemonEditorSession = $state<PokemonEditorSession>(createPokemonEditorSession());
@@ -1647,7 +1648,6 @@
 
 		busy = true;
 		importError = null;
-		statusMessage = `Serializing ${resolved.workspace.state.file.originalFileName ?? 'Save File'}...`;
 		try {
 			const bytes = await workspaceService.exportBytes(resolved.workspace.state);
 			if (!resolveBoxMenuSaveTarget(target)) return;
@@ -1669,7 +1669,6 @@
 		if (!target || !resolved) return;
 
 		busy = true;
-		statusMessage = `Creating a Backup for ${resolved.workspace.state.file.originalFileName ?? 'Save File'}...`;
 		try {
 			await createManualBackup({
 				storage,
@@ -1859,7 +1858,7 @@
 				carryState.sourceOwner.id !== activeSaveId) ||
 			(ownerPane?.source.type === 'save-file' && ownerPane.source.id !== activeSaveId);
 		if (unsupportedSaveOwner) {
-			showToast('error', 'Moving Pokemon between Save Files needs engine transfer support.');
+			showToast('error', 'Moving Pokemon between Save Files is not available yet.');
 			statusMessage = 'Cross-save movement is not available yet.';
 			return;
 		}
@@ -1876,7 +1875,7 @@
 
 		if (carryState?.sourceOwner.type === 'save-file' && ownerPane?.source.type === 'save-file') {
 			if (carryState.sourceOwner.id !== ownerPane.source.id) {
-				showToast('error', 'Moving Pokemon between Save Files needs engine transfer support.');
+				showToast('error', 'Moving Pokemon between Save Files is not available yet.');
 				statusMessage = 'Cross-save movement is not available yet.';
 				return;
 			}
@@ -1937,7 +1936,6 @@
 		try {
 			let workingState = destinationWorkspace;
 			if (shouldCreateAutomaticBackup(workingState)) {
-				statusMessage = 'Creating Backup...';
 				await storage.createBackup({
 					saveFileId: workingState.file.id,
 					bytes: workingState.bytes,
@@ -1947,7 +1945,6 @@
 				if (loadedSave?.file.id === workingState.file.id) loadedSave = workingState;
 			}
 
-			statusMessage = 'Moving Pokemon from Storage...';
 			const result = await activeEngine.importStoredPokemon(
 				workingState.bytes,
 				workingState.file.originalFileName ?? undefined,
@@ -2122,7 +2119,7 @@
 
 		const activeEngine = engine;
 		if (!activeEngine) {
-			showToast('error', 'The PKHeX Engine is not ready.');
+			showToast('error', 'Pokemon data is still loading. Try again.');
 			return false;
 		}
 
@@ -2142,7 +2139,6 @@
 						? operation.source.box
 						: activePaneBox;
 
-			statusMessage = 'Applying Slot change...';
 			const result = await applyStorageOperation({
 				state: operationState,
 				operation,
@@ -2153,13 +2149,11 @@
 				services: {
 					engine: activeEngine,
 					createAutomaticBackup: async (state) => {
-						statusMessage = 'Creating Backup...';
 						await storage.createBackup({
 							saveFileId: state.file.id,
 							bytes: state.bytes,
 							reason: 'pokemon-movement'
 						});
-						statusMessage = 'Applying Slot change...';
 					},
 					persistWorkspace,
 					locationForSlotRef
@@ -3473,7 +3467,7 @@
 			showToast(
 				'error',
 				workingState
-					? 'The PKHeX Engine is not ready.'
+					? 'Pokemon creation is unavailable. Try again.'
 					: 'Load a Save File before creating Pokemon.'
 			);
 			return;
@@ -4032,8 +4026,7 @@
 			target.speciesId <= 0
 		) {
 			pokemonSpeciesFormProjection = null;
-			pokemonSpeciesFormError =
-				'Species and Form Editing is unavailable until the PKHeX Engine is ready.';
+			pokemonSpeciesFormError = 'Species and Form Editing is still loading. Try again.';
 			return;
 		}
 
@@ -4068,7 +4061,7 @@
 
 		pokemonEditor = editor;
 		busy = true;
-		pokemonEditorFeedback = 'Applying Pokemon edits...';
+		pokemonEditorFeedback = null;
 		const applyRequest = (pokemonEditorApplyRequest += 1);
 
 		try {
@@ -4159,7 +4152,6 @@
 			return;
 		}
 		if (shouldCreateAutomaticBackup(liveWorkspace)) {
-			statusMessage = 'Creating Backup...';
 			await storage.createBackup({
 				saveFileId: liveWorkspace.file.id,
 				bytes: liveWorkspace.bytes,
@@ -4288,7 +4280,6 @@
 		if (!editorPane || !editorWorkspace) return saveFileUnavailable();
 		if (!shouldCreateAutomaticBackup(editorWorkspace)) return { ok: true } as const;
 
-		statusMessage = 'Creating Backup...';
 		await storage.createBackup({
 			saveFileId: editorWorkspace.file.id,
 			bytes: editorWorkspace.bytes,
@@ -4316,7 +4307,6 @@
 		if (!editorPane || !workingState) return saveFileUnavailable();
 		if (!engine) return engineUnavailable();
 
-		statusMessage = 'Applying Pokemon edits...';
 		const mutation = await engine.applyPokemonEditOperation(
 			workingState.bytes,
 			workingState.file.originalFileName ?? undefined,
@@ -4432,7 +4422,7 @@
 		return {
 			ok: false,
 			status: 'failed',
-			message: 'The PKHeX Engine is not ready.',
+			message: 'Pokemon data is still loading. Try again.',
 			reason: 'engine-unavailable'
 		};
 	}
@@ -4785,7 +4775,7 @@
 
 	async function loadWorkspace(bytes: Uint8Array, fileName: string | undefined, box: number) {
 		if (!engine) {
-			throw new Error('The PKHeX Engine is not ready.');
+			throw new Error('Pokemon data is still loading. Try again.');
 		}
 
 		const result = await engine.loadSaveWorkspace(bytes, fileName, box);
@@ -4810,7 +4800,6 @@
 		const request = (workspaceLoadRequest += 1);
 		busy = true;
 		importError = null;
-		statusMessage = `Reading ${file.name}...`;
 
 		try {
 			const bytes = new Uint8Array(await file.arrayBuffer());
@@ -5013,11 +5002,10 @@
 									openBoxMenu(pane);
 								}}
 							>
-								<span>{pane.source.type === 'pokemon-storage' ? 'APP' : 'SAVE'}</span>
 								<strong>{pane.source.label}</strong>
 								<em>▾</em>
 							</button>
-							{#if paneBusy}<span class="pane-busy">Working</span>{/if}
+							<DelayedSpinner active={paneBusy} label={`Loading ${pane.source.label}`} />
 							{#if !paneFixed && workbenchPanes.length > 1}
 								<button
 									id={`close-pane-${pane.id}`}
@@ -5193,13 +5181,13 @@
 
 {#if slotMenuOpen && summonedSlotLauncher}
 	<SlotActionMenu
-		slot={focusedSlot}
 		location={summonedSlotLauncher.focus.zone === 'party'
 			? `Party slot ${summonedSlotLauncher.focus.slot + 1}`
 			: `${summonedSlotPane?.source.label ?? 'Collection'}, Box ${(summonedSlotBox ?? 0) + 1}, slot ${summonedSlotLauncher.focus.slot + 1}`}
 		commands={slotMenuCommands}
 		activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
 		availabilityPending={slotMenuPokemonActionsLoading}
+		pendingLabel={pokemonCreationBusyRequest !== null ? 'Opening Pokemon Editor' : null}
 		onFocusCommand={focusActionCommand}
 		onSelectCommand={selectSlotActionCommand}
 		onClose={closeSlotMenu}
@@ -5238,7 +5226,6 @@
 						onfocus={() => (sourcePickerFocusIndex = index)}
 						onclick={() => openSourceAsPane(sourceForCard(card), card.id)}
 					>
-						<span>{card.treatment === 'app-owned' ? 'APP-OWNED' : 'SAVE FILE'}</span>
 						<strong>{card.label}</strong>
 						<em>{card.metadata || 'Saves'}</em>
 					</button>
@@ -5251,7 +5238,6 @@
 					onfocus={() => (sourcePickerFocusIndex = sourcePickerCards.length)}
 					onclick={openImportFromSourcePicker}
 				>
-					<span>IMPORT</span>
 					<strong>Import Save File</strong>
 					<em>Add to Saves and open it as a pane.</em>
 				</button>
@@ -5515,7 +5501,8 @@
 	}
 
 	.source-chip {
-		width: 100%;
+		width: fit-content;
+		max-width: 100%;
 		min-width: 0;
 		height: var(--pksx-control-height);
 		display: inline-flex;
@@ -5527,16 +5514,6 @@
 		box-shadow: inset 0 0 0 var(--pksx-border-width) var(--rule);
 		color: var(--ink);
 		text-align: left;
-	}
-
-	.source-chip span,
-	.pane-busy {
-		flex: 0 0 auto;
-		font: 750 var(--pksx-type-caption) / 1.05 var(--pksx-font-mono);
-	}
-
-	.source-chip span {
-		color: var(--rust);
 	}
 
 	.source-chip strong {
@@ -5551,10 +5528,6 @@
 	.source-chip em {
 		color: var(--ink-soft);
 		font-style: normal;
-	}
-
-	.pane-busy {
-		color: var(--rust);
 	}
 
 	.pane-close {
@@ -5818,13 +5791,6 @@
 		border: 1px dashed var(--rule-hi);
 		background: transparent;
 		box-shadow: none;
-	}
-
-	.source-card span {
-		color: var(--rust);
-		font:
-			800 0.58rem var(--pksx-font-mono),
-			monospace;
 	}
 
 	.source-card strong {
