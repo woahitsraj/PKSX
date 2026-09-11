@@ -2324,7 +2324,9 @@ test('creates a Pokemon from an empty Slot after explicit apply and preserves ca
 		'data-combobox-value',
 		'1'
 	);
-	await expect(dialog.locator('#pokemon-editor-species')).toHaveText('Bulbasaur');
+	await expect(
+		dialog.locator('#pokemon-editor-species').getByText('Bulbasaur', { exact: true })
+	).toBeVisible();
 	await expect(dialog.locator('#pokemon-editor-apply')).toHaveText('Create Pokemon');
 	await expect(dialog.locator('#pokemon-editor-apply')).toBeEnabled();
 
@@ -2371,7 +2373,9 @@ test('Pokemon Creation preserves its legality report for a compatible staged Mov
 	await page.getByRole('button', { name: 'Create Pokemon' }).click();
 
 	const editor = page.getByRole('dialog', { name: 'New Pokemon' });
-	await expect(editor.locator('#pokemon-editor-species')).toHaveText('Bulbasaur');
+	await expect(
+		editor.locator('#pokemon-editor-species').getByText('Bulbasaur', { exact: true })
+	).toBeVisible();
 	await editor.getByRole('button', { name: 'Legality' }).click();
 
 	const report = page.getByRole('dialog', { name: 'Legality Check' });
@@ -2432,7 +2436,9 @@ test('Pokemon Creation reports a repair for a private duplicate Move Set draft',
 	await page.getByRole('button', { name: 'Create Pokemon' }).click();
 
 	const editor = page.getByRole('dialog', { name: 'New Pokemon' });
-	await expect(editor.locator('#pokemon-editor-species')).toHaveText('Bulbasaur');
+	await expect(
+		editor.locator('#pokemon-editor-species').getByText('Bulbasaur', { exact: true })
+	).toBeVisible();
 	await editor.getByRole('button', { name: 'Legality' }).click();
 
 	const report = page.getByRole('dialog', { name: 'Legality Check' });
@@ -2543,7 +2549,7 @@ test('Pokemon Creation uses the shared Takeover bounds and preserves its draft t
 
 	const species = dialog.locator('#pokemon-editor-species');
 	await expect(species).toHaveAttribute('data-combobox-value', '1');
-	await expect(species).toHaveText('Bulbasaur');
+	await expect(species.getByText('Bulbasaur', { exact: true })).toBeVisible();
 	await chooseComboboxOption(species, 'Pikachu');
 	await choosePokemonEditorSection(page, 'level-experience');
 	const level = dialog.locator('#pokemon-editor-level');
@@ -2872,9 +2878,10 @@ test('Pokemon Editor keeps staged state through review, Legality, guarded Back, 
 	await choosePokemonEditorSection(page, 'met-data');
 	const ball = editor.locator('#pokemon-editor-ball');
 	const originalBallId = await comboboxValue(ball);
-	const originalBallLabel = (await ball.textContent())?.trim() ?? '';
 	await ball.click();
-	const nextBall = (await comboboxList(ball)).getByRole('option').nth(1);
+	const ballOptions = await comboboxList(ball);
+	const originalBallLabel = await ballOptions.getByRole('option', { selected: true }).innerText();
+	const nextBall = ballOptions.getByRole('option').nth(1);
 	const nextBallValue = (await nextBall.getAttribute('data-combobox-option-value')) ?? '';
 	const nextBallLabel = (await nextBall.textContent())?.trim() ?? '';
 	if (!nextBallValue || nextBallValue === originalBallId)
@@ -3145,6 +3152,7 @@ test('Pokemon Editor changes Held Item and returns focus to the command stack', 
 		'data-editor-entered-field',
 		'pokemon-editor-held-item'
 	);
+	await pressController(page, 'ArrowDown');
 	await pressController(page, 'ArrowDown');
 	await pressController(page, 'Enter');
 	await expect(heldItem).not.toHaveAttribute('data-combobox-value', originalItem);

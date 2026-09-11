@@ -3387,6 +3387,10 @@
 		font-size: var(--pksx-type-body);
 	}
 
+	.editor-panel :global(.pksx-combobox-trigger) {
+		font-size: var(--pksx-type-editable);
+	}
+
 	.editor-panel label > span,
 	.panel-title,
 	.panel-title small {

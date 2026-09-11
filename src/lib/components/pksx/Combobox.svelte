@@ -438,7 +438,7 @@
 		align-items: center;
 		gap: 8px;
 		padding: 0 11px;
-		font: 750 var(--pksx-type-label) var(--pksx-font-sans);
+		font: 750 var(--pksx-type-editable) var(--pksx-font-sans);
 		text-align: left;
 	}
 
