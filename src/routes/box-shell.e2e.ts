@@ -2856,7 +2856,9 @@ test('Legality Check opens an engine report from an occupied Slot and dismisses 
 	expect(await backupCount(page)).toBe(backupsBefore);
 	await expect(report.getByRole('button', { name: 'Close report' })).toBeFocused();
 	const scrollport = report.locator('.report-scroll');
-	await expect.poll(() => scrollport.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+	await expect
+		.poll(() => scrollport.evaluate((node) => node.scrollHeight > node.clientHeight))
+		.toBe(true);
 	const lastProposal = proposals.last().locator('p').last();
 	let reachedLastProposal = false;
 	for (let step = 0; step < 20; step += 1) {
@@ -2881,9 +2883,7 @@ test('Legality Check opens an engine report from an occupied Slot and dismisses 
 	});
 	await expect
 		.poll(() =>
-			scrollport.evaluate(
-				(node) => node.scrollHeight - node.clientHeight - node.scrollTop
-			)
+			scrollport.evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop)
 		)
 		.toBeLessThanOrEqual(1);
 	await page.keyboard.press('ArrowDown');

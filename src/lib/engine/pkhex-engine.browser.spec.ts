@@ -633,11 +633,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			fetch(platinumEuFixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
-		const workspace = await engine.loadSaveWorkspace(
-			fixtureBytes,
-			'pokemon-platinum-eu.sav',
-			2
-		);
+		const workspace = await engine.loadSaveWorkspace(fixtureBytes, 'pokemon-platinum-eu.sav', 2);
 		if (!workspace.ok) throw new Error('Expected Platinum workspace to load.');
 		const mew = workspace.value.boxSlots[18]?.entityBytesBase64;
 		if (!mew) throw new Error('Expected the Platinum MEW entity bytes.');
@@ -689,11 +685,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			fetch(platinumEuFixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
-		const workspace = await engine.loadSaveWorkspace(
-			fixtureBytes,
-			'pokemon-platinum-eu.sav',
-			2
-		);
+		const workspace = await engine.loadSaveWorkspace(fixtureBytes, 'pokemon-platinum-eu.sav', 2);
 		if (!workspace.ok) throw new Error('Expected Platinum workspace to load.');
 		const mew = workspace.value.boxSlots[18]?.entityBytesBase64;
 		if (!mew) throw new Error('Expected the Platinum MEW entity bytes.');
@@ -703,18 +695,13 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		bytes[0x60] = (bytes[0x60]! & 0xf0) | (1 << 3);
 		const view = new DataView(bytes.buffer);
 		view.setUint32(0x38, view.getUint32(0x38, true) | (1 << 30), true);
-		const preview = await engine.previewStoredPokemonActions(
-			btoa(String.fromCharCode(...bytes))
-		);
+		const preview = await engine.previewStoredPokemonActions(btoa(String.fromCharCode(...bytes)));
 		if (!preview.ok) throw new Error('Expected invalid ribbon preview to succeed.');
 		const ribbonChanges = preview.value.actions
 			.find((action) => action.kind === 'legality-fix')
 			?.changes.filter((change) => change.field.startsWith('Ribbon Cool Master'));
 		expect(ribbonChanges?.map((change) => change.field)).toEqual(
-			expect.arrayContaining([
-				'Ribbon Cool Master (Gen 3)',
-				'Ribbon Cool Master (Gen 4)'
-			])
+			expect.arrayContaining(['Ribbon Cool Master (Gen 3)', 'Ribbon Cool Master (Gen 4)'])
 		);
 		expect(new Set(ribbonChanges?.map((change) => change.field)).size).toBe(2);
 	});
