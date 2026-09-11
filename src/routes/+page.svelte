@@ -5668,6 +5668,12 @@
 		overflow: auto;
 	}
 
+	@container boxes-route (orientation: portrait) {
+		.box-pane:first-child .pane-header {
+			padding-right: calc(var(--pksx-control-height) + var(--pksx-space-2));
+		}
+	}
+
 	@container boxes-route (orientation: landscape) {
 		.storage-workspace {
 			grid-template-areas: 'panes rail';
