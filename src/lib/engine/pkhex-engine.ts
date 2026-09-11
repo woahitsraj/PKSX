@@ -14,6 +14,7 @@ import type {
 	PokemonCreationResult,
 	PokemonEditOperation,
 	PokemonEditOperationResult,
+	PokemonEditPreviewValidationScope,
 	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperation,
 	SaveFileEditOperationResult,
@@ -60,6 +61,17 @@ type DotnetPkhexEngineExports = {
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		operationJson: string
+	): string;
+	PreviewPokemonEditOperationJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operationJson: string
+	): string;
+	ValidatePokemonEditPreviewJson(
+		baselineBytes: Uint8Array,
+		candidateBytes: Uint8Array,
+		fileName: string | undefined,
+		requestJson: string
 	): string;
 	PreviewPokemonSpeciesFormEditJson(
 		bytes: Uint8Array,
@@ -169,6 +181,30 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 							activeBox
 						} satisfies RawPokemonEditOperationRequest)
 					)
+				)
+			),
+		previewPokemonEditOperation: async (bytes, fileName, operation, activeBox) =>
+			decodeMutationResult(
+				parseEngineResult<RawPokemonEditOperationResult>(
+					engine.PreviewPokemonEditOperationJson(
+						bytes,
+						fileName,
+						JSON.stringify({
+							...operation,
+							activeBox
+						} satisfies RawPokemonEditOperationRequest)
+					)
+				)
+			),
+		validatePokemonEditPreview: async (baselineBytes, candidateBytes, fileName, source, scope) =>
+			parseEngineResult<boolean>(
+				engine.ValidatePokemonEditPreviewJson(
+					baselineBytes,
+					candidateBytes,
+					fileName,
+					JSON.stringify({ source, ...scope } satisfies {
+						source: import('./types').SaveSlotRef;
+					} & PokemonEditPreviewValidationScope)
 				)
 			),
 		createPokemon: async (bytes, fileName, operation, activeBox) =>

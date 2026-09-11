@@ -265,6 +265,17 @@ public static partial class PkhexEngineExports
 
     [JSExport]
     public static string ApplyPokemonEditOperationJson(byte[] bytes, string? fileName, string operationJson)
+        => PokemonEditOperationJson(bytes, fileName, operationJson, validateLegality: true);
+
+    [JSExport]
+    public static string PreviewPokemonEditOperationJson(byte[] bytes, string? fileName, string operationJson)
+        => PokemonEditOperationJson(bytes, fileName, operationJson, validateLegality: false);
+
+    private static string PokemonEditOperationJson(
+        byte[] bytes,
+        string? fileName,
+        string operationJson,
+        bool validateLegality)
     {
         try
         {
@@ -288,7 +299,7 @@ public static partial class PkhexEngineExports
                     EngineJsonContext.Default.EngineResultObject);
             }
 
-            var mutation = ApplyPokemonEditOperation(save, operation);
+            var mutation = ApplyPokemonEditOperation(save, operation, validateLegality);
             if (!mutation.Ok)
             {
                 return EngineJson.Serialize(
@@ -313,6 +324,96 @@ public static partial class PkhexEngineExports
             return EngineJson.Serialize(
                 EngineResult.Fail("unknown-engine-error", ex.Message),
                 EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
+    public static string ValidatePokemonEditPreviewJson(
+        byte[] baselineBytes,
+        byte[] candidateBytes,
+        string? fileName,
+        string requestJson)
+    {
+        try
+        {
+            var baselineSave = SaveUtil.GetSaveFile(baselineBytes, fileName);
+            var candidateSave = SaveUtil.GetSaveFile(candidateBytes, fileName);
+            if (baselineSave is null || candidateSave is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult<bool>.Failure("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineJsonContext.Default.EngineResultBoolean);
+            }
+
+            var request = System.Text.Json.JsonSerializer.Deserialize(
+                requestJson,
+                EngineJsonContext.Default.PokemonEditPreviewValidationRequest);
+            if (request is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult<bool>.Failure("invalid-pokemon-edit", "Pokemon edit preview validation payload is missing."),
+                    EngineJsonContext.Default.EngineResultBoolean);
+            }
+
+            var baselineSource = SlotRef.From(baselineSave, request.Source);
+            var candidateSource = SlotRef.From(candidateSave, request.Source);
+            if (!baselineSource.Ok || !candidateSource.Ok)
+            {
+                var failure = !baselineSource.Ok ? baselineSource : candidateSource;
+                return EngineJson.Serialize(
+                    EngineResult<bool>.Failure(failure.Code, failure.Message),
+                    EngineJsonContext.Default.EngineResultBoolean);
+            }
+
+            var baseline = baselineSource.Value.Get(baselineSave);
+            var candidate = candidateSource.Value.Get(candidateSave);
+            if (baseline.Species == 0 || candidate.Species == 0)
+            {
+                return EngineJson.Serialize(
+                    EngineResult<bool>.Failure("empty-source-slot", "Pokemon editing needs an occupied source Slot."),
+                    EngineJsonContext.Default.EngineResultBoolean);
+            }
+
+            var storageSlotType = candidateSource.Value.StorageSlotType;
+            if (request.Moves)
+            {
+                var analysis = new LegalityAnalysis(candidate, storageSlotType);
+                if (!analysis.Valid)
+                {
+                    return EngineJson.Serialize(
+                        EngineResult<bool>.Failure(
+                            "invalid-pokemon-edit",
+                            CreateIllegalMoveSetMessage(analysis, [])),
+                        EngineJsonContext.Default.EngineResultBoolean);
+                }
+            }
+
+            if (request.MetData || request.OriginalTrainer)
+            {
+                var existing = InvalidLegalityMessages(baseline, baselineSource.Value.StorageSlotType)
+                    .Select(LegalityMessageKey)
+                    .ToHashSet(StringComparer.Ordinal);
+                var introduced = InvalidLegalityMessages(candidate, storageSlotType)
+                    .FirstOrDefault(message => !existing.Contains(LegalityMessageKey(message)));
+                if (introduced is not null)
+                {
+                    return EngineJson.Serialize(
+                        EngineResult<bool>.Failure(
+                            "invalid-pokemon-edit",
+                            $"{LegalityEditFailurePrefix(request.MetData, request.OriginalTrainer)} {introduced.Message}"),
+                        EngineJsonContext.Default.EngineResultBoolean);
+                }
+            }
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(true),
+                EngineJsonContext.Default.EngineResultBoolean);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult<bool>.Failure("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultBoolean);
         }
     }
 
@@ -819,7 +920,10 @@ public static partial class PkhexEngineExports
         };
     }
 
-    private static SlotMutationResult ApplyPokemonEditOperation(SaveFile save, PokemonEditOperationRequest operation)
+    private static SlotMutationResult ApplyPokemonEditOperation(
+        SaveFile save,
+        PokemonEditOperationRequest operation,
+        bool validateLegality)
     {
         var sourceResult = SlotRef.From(save, operation.Source);
         if (!sourceResult.Ok)
@@ -877,7 +981,7 @@ public static partial class PkhexEngineExports
         var originalSecretId = pokemon.SID16;
         var originalTrainerGender = pokemon.OriginalTrainerGender;
         var originalLanguage = pokemon.Language;
-        var originalLegalityMessages = operation.MetData is null && operation.OriginalTrainer is null
+        var originalLegalityMessages = !validateLegality || operation.MetData is null && operation.OriginalTrainer is null
             ? null
             : InvalidLegalityMessages(pokemon, source.StorageSlotType)
                 .Select(LegalityMessageKey)
@@ -1058,7 +1162,11 @@ public static partial class PkhexEngineExports
 
         if (operation.Moves is not null)
         {
-            var moveResult = ApplyMoveSetEdits(pokemon, operation.Moves, source.StorageSlotType);
+            var moveResult = ApplyMoveSetEdits(
+                pokemon,
+                operation.Moves,
+                source.StorageSlotType,
+                validateLegality);
             if (!moveResult.Ok)
                 return moveResult;
         }
@@ -1366,11 +1474,14 @@ public static partial class PkhexEngineExports
     }
 
     private static string LegalityEditFailurePrefix(PokemonEditOperationRequest operation)
+        => LegalityEditFailurePrefix(operation.MetData is not null, operation.OriginalTrainer is not null);
+
+    private static string LegalityEditFailurePrefix(bool hasMetData, bool hasOriginalTrainer)
     {
-        if (operation.MetData is not null && operation.OriginalTrainer is not null)
+        if (hasMetData && hasOriginalTrainer)
             return "Pokemon edit is not valid for this Pokemon Entity.";
 
-        return operation.MetData is not null
+        return hasMetData
             ? "Met Data edit is not valid for this Pokemon encounter."
             : "Original Trainer data is not valid for this Pokemon Entity.";
     }
@@ -1677,7 +1788,11 @@ public static partial class PkhexEngineExports
                 ? affection.OriginalTrainerAffection
                 : affection.HandlingTrainerAffection;
 
-    private static SlotMutationResult ApplyMoveSetEdits(PKM pokemon, List<PokemonMoveSlotEdit> edits, StorageSlotType storageSlotType)
+    private static SlotMutationResult ApplyMoveSetEdits(
+        PKM pokemon,
+        List<PokemonMoveSlotEdit> edits,
+        StorageSlotType storageSlotType,
+        bool validateLegality)
     {
         var moves = new[] { pokemon.Move1, pokemon.Move2, pokemon.Move3, pokemon.Move4 };
         var pp = new[] { pokemon.Move1_PP, pokemon.Move2_PP, pokemon.Move3_PP, pokemon.Move4_PP };
@@ -1725,7 +1840,7 @@ public static partial class PkhexEngineExports
         pokemon.Move4_PP = pp[3];
 
         var analysis = new LegalityAnalysis(pokemon, storageSlotType);
-        if (!analysis.Valid)
+        if (validateLegality && !analysis.Valid)
             return SlotMutationResult.Fail(
                 "invalid-pokemon-edit",
                 CreateIllegalMoveSetMessage(analysis, changedEdits.Count == 0 ? edits : changedEdits));

@@ -10,6 +10,7 @@
 		type PokemonEditOperation,
 		type StoredPokemonActionResult,
 		type PokemonEditOperationResult,
+		type PokemonEditPreviewValidationScope,
 		type PokemonSpeciesFormEditProjection,
 		type SaveSlotRef,
 		type SlotOperation
@@ -207,6 +208,12 @@
 	type PokemonActionContext = {
 		target: PokemonActionTarget;
 		storageRef: SaveSlotRef | null;
+		editorPreviewValidation?: PokemonEditorPreviewValidation;
+	};
+
+	type PokemonEditorPreviewValidation = {
+		baselineBytes: Uint8Array;
+		scope: PokemonEditPreviewValidationScope;
 	};
 
 	const noSelectedSlot: SlotView = {
@@ -471,6 +478,7 @@
 	let pokemonEditorDraftDirty = $state(false);
 	let pokemonEditorScratchWorkspace = $state<WorkspaceState | null>(null);
 	let pokemonEditorBaseBytes = $state<Uint8Array | null>(null);
+	let pokemonEditorPreviewValidation = $state<PokemonEditorPreviewValidation | null>(null);
 	let pokemonEditorApplyRequest = 0;
 	let pokemonSpeciesFormProjection = $state<PokemonSpeciesFormEditProjection | null>(null);
 	let pokemonSpeciesFormError = $state<string | null>(null);
@@ -3202,6 +3210,17 @@
 			if (!updatedSlot) throw new Error('The fixed Pokemon projection was unavailable.');
 			const refreshedEditor = createPokemonEditorState(editor.source, updatedSlot);
 			if (!refreshedEditor.ok) throw new Error(refreshedEditor.reason);
+			const previewValidation = context.editorPreviewValidation ?? null;
+			if (previewValidation) {
+				const validation = await validatePokemonEditorPreview(
+					activeEngine,
+					editor,
+					scratchWorkspace,
+					previewValidation
+				);
+				if (request !== pokemonActionRequest) return;
+				pokemonEditorPreviewValidation = validation.ok ? null : previewValidation;
+			}
 
 			pokemonEditor = refreshedEditor.state;
 			pokemonEditorScratchWorkspace = scratchWorkspace;
@@ -3258,6 +3277,23 @@
 		} finally {
 			busy = false;
 		}
+	}
+
+	function validatePokemonEditorPreview(
+		activeEngine: EngineApi,
+		editor: PokemonEditorState,
+		workspace: WorkspaceState,
+		validation: PokemonEditorPreviewValidation
+	) {
+		if (editor.source.owner !== 'save-file')
+			throw new Error('The Pokemon Editor draft source is unavailable.');
+		return activeEngine.validatePokemonEditPreview(
+			validation.baselineBytes,
+			workspace.bytes,
+			workspace.file.originalFileName ?? undefined,
+			editor.source.slotRef,
+			validation.scope
+		);
 	}
 
 	function refreshPokemonActionContextWorkspace(
@@ -3497,6 +3533,7 @@
 			pokemonEditorDraftDirty = true;
 			pokemonEditorScratchWorkspace = scratchWorkspace;
 			pokemonEditorBaseBytes = workingState.bytes;
+			pokemonEditorPreviewValidation = null;
 			openRelatedWorkflow('pokemon-editor', slotCommandLauncherId('create-pokemon'));
 			pokemonSpeciesFormProjection = null;
 			pokemonSpeciesFormError = null;
@@ -3560,6 +3597,7 @@
 		pokemonEditorDraftDirty = false;
 		pokemonEditorScratchWorkspace = null;
 		pokemonEditorBaseBytes = null;
+		pokemonEditorPreviewValidation = null;
 		openRelatedWorkflow('pokemon-editor', slotCommandLauncherId('pokemon-action'));
 		pokemonSpeciesFormProjection = null;
 		pokemonSpeciesFormError = null;
@@ -3583,6 +3621,7 @@
 		pokemonEditorDraftDirty = false;
 		pokemonEditorScratchWorkspace = null;
 		pokemonEditorBaseBytes = null;
+		pokemonEditorPreviewValidation = null;
 		pokemonSpeciesFormRequest += 1;
 		pokemonSpeciesFormProjection = null;
 		pokemonSpeciesFormError = null;
@@ -3788,7 +3827,8 @@
 				source: editor.source.slotRef,
 				activeBox: editorPane?.activeBox ?? activePaneBox
 			},
-			storageRef: null
+			storageRef: null,
+			editorPreviewValidation: scratch.validation ?? undefined
 		};
 		pokemonActionContext = context;
 		pokemonActionReturnsToEditor = true;
@@ -3830,23 +3870,65 @@
 			pokemonEditorScratchWorkspace ?? saveWorkspaceForPane(editorPane)?.state ?? null;
 		if (!workspace || !engine)
 			return { ok: false as const, message: 'The Pokemon Editor source is unavailable.' };
-		if (Object.keys(pokemonEditorDraftEdits).length === 0) return { ok: true as const, workspace };
+		if (Object.keys(pokemonEditorDraftEdits).length === 0)
+			return {
+				ok: true as const,
+				workspace,
+				validation: pokemonEditorPreviewValidation
+			};
 
 		const staged = stagePokemonEditorDraftEdits(editor, pokemonEditorDraftEdits);
 		const operation = createPokemonEditOperation(staged);
 		if (!operation.ok) return { ok: false as const, message: operation.message };
-		const result = await engine.applyPokemonEditOperation(
+		const result = await engine.previewPokemonEditOperation(
 			workspace.bytes,
 			workspace.file.originalFileName ?? undefined,
 			operation.operation,
 			editorPane?.activeBox ?? activePaneBox
 		);
+		const scope = previewValidationScope(operation.operation);
 		return result.ok
 			? {
 					ok: true as const,
-					workspace: { ...workspace, bytes: result.value.bytes, workspace: result.value.workspace }
+					workspace: { ...workspace, bytes: result.value.bytes, workspace: result.value.workspace },
+					validation: hasPreviewValidationScope(scope)
+						? mergePokemonEditorPreviewValidation(
+								pokemonEditorPreviewValidation,
+								workspace.bytes,
+								scope
+							)
+						: pokemonEditorPreviewValidation
 				}
 			: { ok: false as const, message: result.error.message };
+	}
+
+	function previewValidationScope(
+		operation: PokemonEditOperation
+	): PokemonEditPreviewValidationScope {
+		return {
+			moves: operation.moves !== undefined,
+			metData: operation.metData !== undefined,
+			originalTrainer: operation.originalTrainer !== undefined
+		};
+	}
+
+	function hasPreviewValidationScope(scope: PokemonEditPreviewValidationScope) {
+		return scope.moves || scope.metData || scope.originalTrainer;
+	}
+
+	function mergePokemonEditorPreviewValidation(
+		pending: PokemonEditorPreviewValidation | null,
+		baselineBytes: Uint8Array,
+		scope: PokemonEditPreviewValidationScope
+	): PokemonEditorPreviewValidation {
+		return {
+			baselineBytes: pending?.baselineBytes ?? baselineBytes,
+			scope: {
+				moves: pending?.scope.moves === true || scope.moves,
+				metData: pending?.scope.metData === true || scope.metData,
+				originalTrainer: pending?.scope.originalTrainer === true || scope.originalTrainer
+			}
+		};
 	}
 
 	function closeLegalityReport() {
@@ -3913,6 +3995,7 @@
 		pokemonEditor = resetEditor?.ok ? resetEditor.state : cancelPokemonEditor(pokemonEditor);
 		pokemonEditorScratchWorkspace = pokemonCreation?.workspace ?? null;
 		pokemonEditorBaseBytes = pokemonCreation?.baseBytes ?? null;
+		pokemonEditorPreviewValidation = null;
 		pokemonEditorFeedback = null;
 		pokemonEditorDraft = null;
 		pokemonEditorDraftEdits = {};
@@ -4043,6 +4126,15 @@
 			if (!result.ok) throw result.error;
 			scratch = { ...scratch, bytes: result.value.bytes, workspace: result.value.workspace };
 		}
+		if (pokemonEditorPreviewValidation) {
+			const validation = await validatePokemonEditorPreview(
+				activeEngine,
+				editor,
+				scratch,
+				pokemonEditorPreviewValidation
+			);
+			if (!validation.ok) throw validation.error;
+		}
 		const updatedSlot = slotViewForRefFromWorkspace(scratch.workspace, editor.source.slotRef);
 		if (!updatedSlot) throw new Error('The updated Pokemon projection was unavailable.');
 		const refreshed = createPokemonEditorState(
@@ -4109,6 +4201,7 @@
 		pokemonEditorDraftDirty = false;
 		pokemonEditorScratchWorkspace = null;
 		pokemonEditorBaseBytes = null;
+		pokemonEditorPreviewValidation = null;
 		showToast('success', 'Pokemon edits applied.');
 		void previewPokemonSpeciesFormEdit({
 			speciesId: updatedSlot.speciesId ?? 0,
@@ -4132,6 +4225,7 @@
 		pokemonEditorDraftDirty = false;
 		pokemonEditorScratchWorkspace = null;
 		pokemonEditorBaseBytes = null;
+		pokemonEditorPreviewValidation = null;
 		summonedWorkflow.closeAll();
 		activePaneId = view.paneId;
 		navigation = {
@@ -4298,6 +4392,7 @@
 			pokemonEditorDraftDirty = false;
 			pokemonEditorScratchWorkspace = null;
 			pokemonEditorBaseBytes = null;
+			pokemonEditorPreviewValidation = null;
 			showToast('success', result.outcome.message);
 			void previewPokemonSpeciesFormEdit({
 				speciesId: result.state.slot.speciesId ?? 0,

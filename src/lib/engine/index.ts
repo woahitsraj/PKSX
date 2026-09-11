@@ -38,6 +38,7 @@ export type {
 	PokemonLegalityFixChoice,
 	PokemonEditOperation,
 	PokemonEditOperationResult,
+	PokemonEditPreviewValidationScope,
 	PokemonCreationOperation,
 	PokemonCreationCatalogue,
 	PokemonCreationResult,

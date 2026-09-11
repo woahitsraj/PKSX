@@ -2045,6 +2045,50 @@ test('creates a Pokemon from an empty Slot after explicit apply and preserves ca
 	await expect(browser).toContainText('Pokemon creation');
 });
 
+test('Pokemon Creation reports legality for the private draft with staged Move Set edits', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	const fileName = 'emerald-011020251345.sav';
+	const workspaceBefore = await workspaceBytesHashForFile(page, fileName);
+	const backupsBefore = await backupCount(page);
+
+	await page.locator('#box-0-slot-2').click();
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'Create Pokemon' }).click();
+
+	const editor = page.getByRole('dialog', { name: 'New Pokemon' });
+	await expect(editor.locator('#pokemon-editor-species option:checked')).toHaveText('Bulbasaur');
+	await editor.getByRole('button', { name: 'Legality' }).click();
+
+	const report = page.getByRole('dialog', { name: 'Legality Check' });
+	await expect(report).toContainText(/PKHeX (judged|found)/, { timeout: 15000 });
+	const originalReport = await report.locator('.report-scroll').innerText();
+	await report.getByRole('button', { name: 'Close report' }).click();
+
+	await editor.locator('#pokemon-editor-section-move-set').click();
+	await editor.getByRole('combobox', { name: 'Move 1' }).click();
+	await editor.getByRole('searchbox', { name: 'Search moves for Move 1' }).fill('Swords Dance');
+	await editor.getByRole('option', { name: /^Swords Dance/ }).click();
+	await expect(editor).toContainText('1 Pokemon edit drafted.');
+	await editor.getByRole('button', { name: 'Legality' }).click();
+
+	await expect(report).toContainText(/PKHeX (judged|found)/, { timeout: 15000 });
+	expect(await report.locator('.report-scroll').innerText()).toBe(originalReport);
+	await expect(report).not.toContainText('Move Set edit makes this Pokemon illegal');
+	await expect(report).not.toContainText('Swords Dance');
+	await expect(report.getByRole('button', { name: 'Quick Fix', exact: true })).toHaveCount(0);
+	await report.getByRole('button', { name: 'Close report' }).click();
+	await editor.getByRole('button', { name: 'Create Pokemon' }).click();
+	await expect(editor.locator('#pokemon-editor-status')).toContainText(
+		'Move Set edit makes this Pokemon illegal for its current format.'
+	);
+	expect(await workspaceBytesHashForFile(page, fileName)).toBe(workspaceBefore);
+	expect(await backupCount(page)).toBe(backupsBefore);
+	await expect(page.locator('#box-0-slot-2')).toContainText('Empty');
+});
+
 test('pending Create cannot reopen an Editor after its Slot Menu is dismissed', async ({
 	page
 }) => {
@@ -2887,6 +2931,91 @@ test('Pokemon Editor keeps a Quick Fix private until Apply and guards discard', 
 	await expect(finalApply).toBeDisabled();
 	await expect.poll(() => workspaceBytesHashForFile(page, fileName)).not.toBe(workspaceBefore);
 	expect(await backupCount(page)).toBe(backupsBefore + 1);
+});
+
+test('Pokemon Editor reports and fixes a staged illegal Move Set before Apply', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	const fileName = 'emerald-011020251345.sav';
+	const workspaceBefore = await workspaceBytesHashForFile(page, fileName);
+	const backupsBefore = await backupCount(page);
+	const slot = page.locator('#box-0-slot-0');
+
+	await slot.focus();
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'Edit' }).click();
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	await choosePokemonEditorSection(page, 'move-set');
+	const duplicateMove = await editor
+		.getByRole('combobox', { name: 'Move 2' })
+		.locator('span')
+		.innerText();
+	await editor.getByRole('combobox', { name: 'Move 1' }).click();
+	await editor.getByRole('searchbox', { name: 'Search moves for Move 1' }).fill(duplicateMove);
+	await editor.getByRole('option', { name: new RegExp(`^${duplicateMove}`) }).click();
+	await choosePokemonEditorSection(page, 'nickname');
+	await fillEditorInput(editor.locator('#pokemon-editor-nickname'), 'IRON');
+	await expect(editor).toContainText('2 Pokemon edits drafted.');
+	await editor.getByRole('button', { name: 'Legality' }).click();
+
+	const report = page.getByRole('dialog', { name: 'Legality Check' });
+	await expect(report.locator('.report-scroll')).toContainText('Move 1: Duplicate Move.', {
+		timeout: 15000
+	});
+	const quickFix = report.getByRole('button', { name: 'Quick Fix', exact: true }).first();
+	await expect(quickFix).toBeVisible();
+	await quickFix.click();
+	await expect(report.getByLabel('Quick Fix preview').getByRole('heading')).toHaveText('Move Set');
+	await report.locator('#legality-quick-fix-apply').click();
+	await expect(report.getByLabel('Quick Fix preview')).toHaveCount(0, { timeout: 15000 });
+	await report.getByRole('button', { name: 'Close report' }).click();
+
+	const updatedEditor = page.getByRole('dialog', { name: 'IRON' });
+	expect(await workspaceBytesHashForFile(page, fileName)).toBe(workspaceBefore);
+	expect(await backupCount(page)).toBe(backupsBefore);
+	await updatedEditor.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(updatedEditor).toContainText('Pokemon edits applied.', { timeout: 15000 });
+	await expect.poll(() => workspaceBytesHashForFile(page, fileName)).not.toBe(workspaceBefore);
+	expect(await backupCount(page)).toBe(backupsBefore + 1);
+});
+
+test('Pokemon Editor Quick Fix cannot publish a rejected staged Met Data edit', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	await importPlatinumThroughSaves(page);
+	const fileName = 'pokemon-platinum-eu.sav';
+	const workspaceBefore = await workspaceBytesHashForFile(page, fileName);
+	const backupsBefore = await backupCount(page);
+	const slot = page.locator('#box-2-slot-18');
+
+	await slot.focus();
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'Edit' }).click();
+	const editor = page.getByRole('dialog', { name: 'MEW' });
+	await choosePokemonEditorSection(page, 'met-data');
+	await fillEditorInput(editor.locator('#pokemon-editor-met-level'), '100');
+	await editor.getByRole('button', { name: 'Legality' }).click();
+
+	const report = page.getByRole('dialog', { name: 'Legality Check' });
+	await expect(report).toContainText(/PKHeX found|Invalid/, { timeout: 15000 });
+	const quickFix = report.getByRole('button', { name: 'Quick Fix', exact: true }).first();
+	await expect(quickFix).toBeVisible();
+	await quickFix.click();
+	await expect(report.getByLabel('Quick Fix preview').getByRole('heading')).toHaveText('Move Set');
+	await report.locator('#legality-quick-fix-apply').click();
+	await expect(report.getByLabel('Quick Fix preview')).toHaveCount(0, { timeout: 15000 });
+	await report.getByRole('button', { name: 'Close report' }).click();
+
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(editor.locator('#pokemon-editor-status')).toContainText('Met Data edit', {
+		timeout: 15000
+	});
+	expect(await workspaceBytesHashForFile(page, fileName)).toBe(workspaceBefore);
+	expect(await backupCount(page)).toBe(backupsBefore);
+	await expect(slot).toContainText('MEW');
 });
 
 test('Boxes navigation clamps at workspace edges while Main Menu owns destinations', async ({

@@ -649,6 +649,12 @@ public sealed record PokemonEditOperationResult(
     bool Mutated,
     SaveWorkspace Workspace);
 
+public sealed record PokemonEditPreviewValidationRequest(
+    SaveSlotRef Source,
+    bool Moves,
+    bool MetData,
+    bool OriginalTrainer);
+
 public sealed record SaveFileEditOperationRequest(
     TrainerProfileEdit? TrainerProfile,
     long? Money,

@@ -495,6 +495,12 @@ export type PokemonEditOperationResult = {
 	workspace: SaveWorkspace;
 };
 
+export type PokemonEditPreviewValidationScope = {
+	moves: boolean;
+	metData: boolean;
+	originalTrainer: boolean;
+};
+
 export type PokemonCreationOperation = {
 	destination: SaveSlotRef;
 	speciesId?: number;
@@ -635,6 +641,19 @@ export type EngineApi = {
 		operation: PokemonEditOperation,
 		activeBox: number
 	): Promise<EngineResult<PokemonEditOperationResult>>;
+	previewPokemonEditOperation(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		operation: PokemonEditOperation,
+		activeBox: number
+	): Promise<EngineResult<PokemonEditOperationResult>>;
+	validatePokemonEditPreview(
+		baselineBytes: Uint8Array,
+		candidateBytes: Uint8Array,
+		fileName: string | undefined,
+		source: SaveSlotRef,
+		scope: PokemonEditPreviewValidationScope
+	): Promise<EngineResult<boolean>>;
 	previewPokemonSpeciesFormEdit(
 		bytes: Uint8Array,
 		fileName: string | undefined,

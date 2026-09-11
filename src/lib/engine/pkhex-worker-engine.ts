@@ -213,6 +213,45 @@ export function createPkhexWorkerEngine(
 				[buffer]
 			);
 		},
+		previewPokemonEditOperation: (bytes, fileName, operation, activeBox) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+			const payloadOperation = {
+				...operation,
+				source: cloneSlotRef(operation.source)
+			};
+
+			return sendRequest(
+				'previewPokemonEditOperation',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'previewPokemonEditOperation',
+					payload: { bytes: buffer, fileName, operation: payloadOperation, activeBox }
+				},
+				[buffer]
+			);
+		},
+		validatePokemonEditPreview: (baselineBytes, candidateBytes, fileName, source, scope) => {
+			const baselineBuffer = copyBytesToArrayBuffer(baselineBytes);
+			const candidateBuffer = copyBytesToArrayBuffer(candidateBytes);
+
+			return sendRequest(
+				'validatePokemonEditPreview',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'validatePokemonEditPreview',
+					payload: {
+						baselineBytes: baselineBuffer,
+						candidateBytes: candidateBuffer,
+						fileName,
+						source: cloneSlotRef(source),
+						scope: { ...scope }
+					}
+				},
+				[baselineBuffer, candidateBuffer]
+			);
+		},
 		createPokemon: (bytes, fileName, operation, activeBox) => {
 			const buffer = copyBytesToArrayBuffer(bytes);
 			const payloadOperation = {
@@ -407,6 +446,16 @@ export function createPkhexWorkerEngine(
 		transfer: Transferable[]
 	): Promise<EngineResult<PokemonEditOperationResult>>;
 	async function sendRequest(
+		method: 'previewPokemonEditOperation',
+		request: Extract<EngineWorkerRequest, { method: 'previewPokemonEditOperation' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<PokemonEditOperationResult>>;
+	async function sendRequest(
+		method: 'validatePokemonEditPreview',
+		request: Extract<EngineWorkerRequest, { method: 'validatePokemonEditPreview' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<boolean>>;
+	async function sendRequest(
 		method: 'createPokemon',
 		request: Extract<EngineWorkerRequest, { method: 'createPokemon' }>,
 		transfer: Transferable[]
@@ -522,6 +571,7 @@ function normalizeWorkerResult(response: EngineWorkerResponse): EngineResult<unk
 	if (
 		(response.method !== 'applySlotOperation' &&
 			response.method !== 'applyPokemonEditOperation' &&
+			response.method !== 'previewPokemonEditOperation' &&
 			response.method !== 'createPokemon' &&
 			response.method !== 'applySaveFileEditOperation' &&
 			response.method !== 'importStoredPokemon' &&
