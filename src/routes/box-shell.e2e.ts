@@ -59,6 +59,42 @@ async function pressController(page: Page, key: string) {
 	}, key);
 }
 
+async function comboboxList(combobox: Locator) {
+	const listId = await combobox.getAttribute('aria-controls');
+	if (!listId) throw new Error('Combobox list identity is missing.');
+	return combobox.page().locator(`#${listId}`);
+}
+
+async function chooseComboboxOption(combobox: Locator, label: string) {
+	await combobox.click();
+	await (await comboboxList(combobox)).getByRole('option', { name: label, exact: true }).click();
+}
+
+async function comboboxValue(combobox: Locator) {
+	return (await combobox.getAttribute('data-combobox-value')) ?? '';
+}
+
+async function chooseComboboxValue(combobox: Locator, value: string) {
+	await combobox.click();
+	await (await comboboxList(combobox)).locator(`[data-combobox-option-value="${value}"]`).click();
+}
+
+async function chooseAnotherComboboxOption(combobox: Locator) {
+	const current = await comboboxValue(combobox);
+	await combobox.click();
+	const options = (await comboboxList(combobox)).getByRole('option');
+	const count = await options.count();
+	for (let index = 0; index < count; index += 1) {
+		const option = options.nth(index);
+		const value = await option.getAttribute('data-combobox-option-value');
+		if (value !== current && (await option.getAttribute('aria-disabled')) !== 'true') {
+			await option.click();
+			return value ?? '';
+		}
+	}
+	throw new Error('Expected another available Combobox option.');
+}
+
 async function installWorkspaceResponseHold(page: Page) {
 	await page.addInitScript(() => {
 		type TestWindow = typeof window & {
@@ -2284,8 +2320,11 @@ test('creates a Pokemon from an empty Slot after explicit apply and preserves ca
 	await expect(
 		dialog.getByRole('navigation', { name: 'Pokemon Editor sections' }).getByRole('button')
 	).toHaveCount(11);
-	await expect(dialog.locator('#pokemon-editor-species')).toHaveValue('1');
-	await expect(dialog.locator('#pokemon-editor-species option:checked')).toHaveText('Bulbasaur');
+	await expect(dialog.locator('#pokemon-editor-species')).toHaveAttribute(
+		'data-combobox-value',
+		'1'
+	);
+	await expect(dialog.locator('#pokemon-editor-species')).toHaveText('Bulbasaur');
 	await expect(dialog.locator('#pokemon-editor-apply')).toHaveText('Create Pokemon');
 	await expect(dialog.locator('#pokemon-editor-apply')).toBeEnabled();
 
@@ -2302,7 +2341,7 @@ test('creates a Pokemon from an empty Slot after explicit apply and preserves ca
 
 	await createCommand.click();
 	await expect(dialog.locator('#pokemon-editor-section-species-form')).toBeFocused();
-	await dialog.locator('#pokemon-editor-species').selectOption({ label: 'Pikachu' });
+	await chooseComboboxOption(dialog.locator('#pokemon-editor-species'), 'Pikachu');
 	await choosePokemonEditorSection(page, 'level-experience');
 	await fillEditorInput(dialog.locator('#pokemon-editor-level'), '5');
 	await dialog.getByRole('button', { name: 'Create Pokemon' }).click();
@@ -2332,7 +2371,7 @@ test('Pokemon Creation preserves its legality report for a compatible staged Mov
 	await page.getByRole('button', { name: 'Create Pokemon' }).click();
 
 	const editor = page.getByRole('dialog', { name: 'New Pokemon' });
-	await expect(editor.locator('#pokemon-editor-species option:checked')).toHaveText('Bulbasaur');
+	await expect(editor.locator('#pokemon-editor-species')).toHaveText('Bulbasaur');
 	await editor.getByRole('button', { name: 'Legality' }).click();
 
 	const report = page.getByRole('dialog', { name: 'Legality Check' });
@@ -2393,7 +2432,7 @@ test('Pokemon Creation reports a repair for a private duplicate Move Set draft',
 	await page.getByRole('button', { name: 'Create Pokemon' }).click();
 
 	const editor = page.getByRole('dialog', { name: 'New Pokemon' });
-	await expect(editor.locator('#pokemon-editor-species option:checked')).toHaveText('Bulbasaur');
+	await expect(editor.locator('#pokemon-editor-species')).toHaveText('Bulbasaur');
 	await editor.getByRole('button', { name: 'Legality' }).click();
 
 	const report = page.getByRole('dialog', { name: 'Legality Check' });
@@ -2503,9 +2542,9 @@ test('Pokemon Creation uses the shared Takeover bounds and preserves its draft t
 	expect(await shellExtents(page)).toEqual(landscapeBaseline);
 
 	const species = dialog.locator('#pokemon-editor-species');
-	await expect(species).toHaveValue('1');
-	await expect(species.locator('option:checked')).toHaveText('Bulbasaur');
-	await species.selectOption({ label: 'Pikachu' });
+	await expect(species).toHaveAttribute('data-combobox-value', '1');
+	await expect(species).toHaveText('Bulbasaur');
+	await chooseComboboxOption(species, 'Pikachu');
 	await choosePokemonEditorSection(page, 'level-experience');
 	const level = dialog.locator('#pokemon-editor-level');
 	await fillEditorInput(level, '12');
@@ -2515,7 +2554,7 @@ test('Pokemon Creation uses the shared Takeover bounds and preserves its draft t
 	const portraitInsets = { top: 24, right: 0, bottom: 72, left: 0 };
 	await page.setViewportSize(portrait);
 	await setSafeArea(page, portraitInsets);
-	await expect(species).toHaveValue('25');
+	await expect(species).toHaveAttribute('data-combobox-value', '25');
 	await expect(level).toHaveValue('12');
 	await expect(level).toBeFocused();
 	bounds = await takeoverBounds(page);
@@ -2546,7 +2585,10 @@ test('Pokemon Creation uses the shared Takeover bounds and preserves its draft t
 
 	await page.getByRole('button', { name: 'Create Pokemon' }).click();
 	await expect(dialog.locator('#pokemon-editor-section-species-form')).toBeFocused();
-	await expect(dialog.locator('#pokemon-editor-species')).toHaveValue('1');
+	await expect(dialog.locator('#pokemon-editor-species')).toHaveAttribute(
+		'data-combobox-value',
+		'1'
+	);
 	await expect(dialog.locator('#pokemon-editor-level')).toHaveValue('5');
 	await dialog.getByRole('button', { name: 'Create Pokemon' }).click();
 	await expect(dialog).toBeHidden({ timeout: 15000 });
@@ -2622,13 +2664,13 @@ test('Pokemon Editor preserves arrow navigation until an editable field is enter
 	const editorRoot = editor.locator('.pokemon-editor');
 	const species = editor.locator('#pokemon-editor-species');
 	await expect(species).toBeEnabled({ timeout: 15000 });
-	const originalSpecies = await species.inputValue();
+	const originalSpecies = await comboboxValue(species);
 
 	await page.keyboard.press('ArrowRight');
 	await expect(species).toBeFocused();
 	await page.keyboard.press('ArrowLeft');
 	await expect(page.locator('#pokemon-editor-section-species-form')).toBeFocused();
-	await expect(species).toHaveValue(originalSpecies);
+	await expect(species).toHaveAttribute('data-combobox-value', originalSpecies);
 
 	await page.keyboard.press('ArrowRight');
 	await page.keyboard.press('Enter');
@@ -2638,17 +2680,22 @@ test('Pokemon Editor preserves arrow navigation until an editable field is enter
 	await expect(species).toBeFocused();
 	await page.keyboard.press('ArrowLeft');
 	await expect(page.locator('#pokemon-editor-section-species-form')).toBeFocused();
-	await expect(species).toHaveValue(originalSpecies);
+	await expect(species).toHaveAttribute('data-combobox-value', originalSpecies);
 	await expect(editor).toBeVisible();
 
 	for (const section of ['held-item', 'ability'] as const) {
 		await choosePokemonEditorSection(page, section);
 		const field = editor.locator(`#pokemon-editor-${section}`);
-		const originalValue = await field.inputValue();
+		const originalValue =
+			section === 'held-item' ? await comboboxValue(field) : await field.inputValue();
 		await field.focus();
 		await page.keyboard.press('ArrowLeft');
 		await expect(page.locator(`#pokemon-editor-section-${section}`)).toBeFocused();
-		await expect(field).toHaveValue(originalValue);
+		if (section === 'held-item') {
+			await expect(field).toHaveAttribute('data-combobox-value', originalValue);
+		} else {
+			await expect(field).toHaveValue(originalValue);
+		}
 	}
 
 	await choosePokemonEditorSection(page, 'nickname');
@@ -2824,17 +2871,15 @@ test('Pokemon Editor keeps staged state through review, Legality, guarded Back, 
 
 	await choosePokemonEditorSection(page, 'met-data');
 	const ball = editor.locator('#pokemon-editor-ball');
-	const originalBallId = await ball.inputValue();
-	const ballOptions = await ball.locator('option').evaluateAll((options) =>
-		options.map((option) => ({
-			value: (option as HTMLOptionElement).value,
-			label: option.textContent ?? ''
-		}))
-	);
-	const originalBall = ballOptions.find(({ value }) => value === originalBallId);
-	const nextBall = ballOptions.find(({ value }) => value !== originalBallId);
-	if (!originalBall || !nextBall) throw new Error('Expected two engine-provided Ball choices.');
-	await ball.selectOption(nextBall.value);
+	const originalBallId = await comboboxValue(ball);
+	const originalBallLabel = (await ball.textContent())?.trim() ?? '';
+	await ball.click();
+	const nextBall = (await comboboxList(ball)).getByRole('option').nth(1);
+	const nextBallValue = (await nextBall.getAttribute('data-combobox-option-value')) ?? '';
+	const nextBallLabel = (await nextBall.textContent())?.trim() ?? '';
+	if (!nextBallValue || nextBallValue === originalBallId)
+		throw new Error('Expected another Ball choice.');
+	await nextBall.click();
 
 	await choosePokemonEditorSection(page, 'original-trainer');
 	const trainerId = editor.locator('#pokemon-editor-trainer-id');
@@ -2859,8 +2904,8 @@ test('Pokemon Editor keeps staged state through review, Legality, guarded Back, 
 	await expect(moveDelta).toContainText(`Move ${moveIndex + 1} PP: ${originalPp}`);
 	await expect(moveDelta).toContainText(`Move ${moveIndex + 1} PP: ${originalPp - 1}`);
 	const metDelta = editor.locator('.delta-list article').filter({ hasText: 'Set Met Data' });
-	await expect(metDelta).toContainText(`Ball: ${originalBall.label}`);
-	await expect(metDelta).toContainText(`Ball: ${nextBall.label}`);
+	await expect(metDelta).toContainText(`Ball: ${originalBallLabel}`);
+	await expect(metDelta).toContainText(`Ball: ${nextBallLabel}`);
 	const trainerDelta = editor
 		.locator('.delta-list article')
 		.filter({ hasText: 'Set Original Trainer data' });
@@ -3043,7 +3088,7 @@ test('Pokemon Editor previews and applies a Species and Form change', async ({ p
 	const editor = page.getByRole('dialog', { name: 'ARON' });
 	const species = editor.locator('#pokemon-editor-species');
 	await expect(species).toBeEnabled({ timeout: 15000 });
-	await species.selectOption({ label: 'Lairon' });
+	await chooseComboboxOption(species, 'Lairon');
 	await expect(editor).toContainText('Lairon · Default', { timeout: 15000 });
 	await expect(editor).toContainText('Sprite Identity');
 	await expect(editor.locator('#pokemon-editor-staged-count')).toHaveText('1 staged');
@@ -3092,7 +3137,7 @@ test('Pokemon Editor changes Held Item and returns focus to the command stack', 
 	await expect(editor).toContainText('Held Item');
 	await expect(heldItem).toBeEnabled();
 	await expect(editor.locator('#pokemon-editor-species')).toBeEnabled({ timeout: 15000 });
-	const originalItem = await heldItem.inputValue();
+	const originalItem = await comboboxValue(heldItem);
 
 	await heldItem.focus();
 	await pressController(page, 'Enter');
@@ -3101,14 +3146,14 @@ test('Pokemon Editor changes Held Item and returns focus to the command stack', 
 		'pokemon-editor-held-item'
 	);
 	await pressController(page, 'ArrowDown');
-	await expect(heldItem).not.toHaveValue(originalItem);
-	await pressController(page, 'Escape');
-	const changedItem = await heldItem.inputValue();
+	await pressController(page, 'Enter');
+	await expect(heldItem).not.toHaveAttribute('data-combobox-value', originalItem);
+	const changedItem = await comboboxValue(heldItem);
 	await expect(editor.locator('#pokemon-editor-staged-count')).toHaveText('1 staged');
 
 	await editor.getByRole('button', { name: 'Apply edits' }).click();
 	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
-	await expect(heldItem).toHaveValue(changedItem);
+	await expect(heldItem).toHaveAttribute('data-combobox-value', changedItem);
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 
 	await page.keyboard.press('Escape');
@@ -3164,23 +3209,16 @@ test('Pokemon Editor applies Met Data and returns focus to Edit', async ({ page 
 	await choosePokemonEditorSection(page, 'met-data');
 	const ball = editor.locator('#pokemon-editor-ball');
 	await expect(ball).toBeVisible();
-	const currentBall = await ball.inputValue();
-	const ballChoices = await ball.locator('option').evaluateAll((options) =>
-		options.map((option) => ({
-			value: (option as HTMLOptionElement).value,
-			label: option.textContent ?? ''
-		}))
-	);
-	const nextBall = ballChoices.find((option) => option.value !== currentBall);
-	if (!nextBall) throw new Error('Expected another engine-provided Ball choice.');
-
-	await ball.selectOption(nextBall.value);
+	const nextBall = await chooseAnotherComboboxOption(ball);
 	await expect(editor.locator('#pokemon-editor-staged-count')).toHaveText('1 staged');
 	await editor.getByRole('button', { name: 'Apply edits' }).click();
 
 	const updatedEditor = page.getByRole('dialog', { name: 'ARON' });
 	await expect(updatedEditor).toContainText('Pokemon edits applied.', { timeout: 15000 });
-	await expect(updatedEditor.locator('#pokemon-editor-ball')).toHaveValue(nextBall.value);
+	await expect(updatedEditor.locator('#pokemon-editor-ball')).toHaveAttribute(
+		'data-combobox-value',
+		nextBall
+	);
 	await updatedEditor.getByRole('button', { name: 'Close', exact: true }).click();
 	await expect(updatedEditor).toBeHidden();
 	await expect(page.locator('#slot-action-0')).toBeFocused();
@@ -4051,6 +4089,52 @@ test('imports the Emerald Save File, renders engine data, and exports serialized
 	expect(exported.byteLength).toBe(fixture.byteLength);
 });
 
+test('Bag Combobox owns controller navigation until an item is selected', async ({ page }) => {
+	await importEmeraldThroughSaves(page);
+	await chooseMainMenu(page, 'Bag');
+
+	const fileName = 'emerald-011020251345.sav';
+	const workspaceBefore = await workspaceBytesHashForFile(page, fileName);
+	const backupsBefore = await backupCount(page);
+	const firstPocket = page.locator('.pocket-section').first();
+	await firstPocket.getByRole('button', { name: 'Add Item', exact: true }).click();
+	const addCommand = firstPocket.locator('[data-ledger-command]');
+	const itemPicker = addCommand.getByRole('combobox', { name: /Item to add to/ });
+	await expect(itemPicker).toBeFocused();
+	await pressController(page, 'Enter');
+
+	const search = addCommand.getByRole('searchbox', { name: /Search items to add to/ });
+	await expect(search).toBeFocused();
+	await search.fill('berry');
+	await search.evaluate((input) => {
+		const searchInput = input as HTMLInputElement;
+		searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+	});
+	await page.keyboard.press('ArrowLeft');
+	await expect(search).toBeFocused();
+	expect(await search.evaluate((input) => (input as HTMLInputElement).selectionStart)).toBe(4);
+	const options = (await comboboxList(itemPicker)).getByRole('option');
+	expect(await options.count()).toBeGreaterThan(1);
+
+	await pressController(page, 'ArrowRight');
+	await expect(options.first()).toBeFocused();
+	await expect(itemPicker).toHaveAttribute('aria-expanded', 'true');
+	await pressController(page, 'ArrowLeft');
+	await expect(options.last()).toBeFocused();
+	await pressController(page, 'ArrowRight');
+	await expect(options.first()).toBeFocused();
+
+	const selectedValue = await options.first().getAttribute('data-combobox-option-value');
+	expect(selectedValue).toBeTruthy();
+	await pressController(page, 'Enter');
+	await expect(itemPicker).toHaveAttribute('aria-expanded', 'false');
+	await expect(itemPicker).toBeFocused();
+	await expect(itemPicker).toHaveAttribute('data-combobox-value', selectedValue!);
+	await expect(addCommand).toBeVisible();
+	expect(await workspaceBytesHashForFile(page, fileName)).toBe(workspaceBefore);
+	expect(await backupCount(page)).toBe(backupsBefore);
+});
+
 test('Trainer and Bag destinations apply their Save File edits', async ({ page }) => {
 	await importEmeraldThroughSaves(page);
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -4085,7 +4169,9 @@ test('Trainer and Bag destinations apply their Save File edits', async ({ page }
 	await addLauncher.click();
 	const addCommand = firstPocket.locator('[data-ledger-command]');
 	const itemSelect = addCommand.getByRole('combobox', { name: /Item to add to/ });
-	await itemSelect.selectOption({ index: 1 });
+	await itemSelect.click();
+	await (await comboboxList(itemSelect)).getByRole('option').nth(1).click();
+	await expect(itemRows).toHaveCount(originalItemCount);
 	await addCommand.getByRole('button', { name: 'Add Item', exact: true }).click();
 	await expect(addCommand).toHaveCount(0, { timeout: 15000 });
 	await expect(itemRows).toHaveCount(originalItemCount + 1);
@@ -4460,22 +4546,27 @@ test('Pokemon Editor stages, cancels, and applies an engine-projected Tera Type'
 	const editor = page.getByRole('dialog').filter({ hasText: 'Battle Fields' });
 	const teraType = editor.locator('#pokemon-editor-battle-field-tera-type');
 	await expect(teraType).toBeVisible({ timeout: 60000 });
-	const original = await teraType.inputValue();
-	const next = await teraType.locator('option').evaluateAll((options, current) => {
-		const option = options.find((candidate) => (candidate as HTMLOptionElement).value !== current);
-		return option ? (option as HTMLOptionElement).value : null;
-	}, original);
-	if (!next) throw new Error('Expected another Tera Type choice.');
-
-	await teraType.selectOption(next);
+	await expect(teraType).toHaveAttribute('role', 'combobox');
+	await teraType.click();
+	await expect(editor.getByRole('searchbox', { name: 'Search Tera Type' })).toBeFocused();
+	expect(await (await comboboxList(teraType)).getByRole('option').count()).toBeGreaterThanOrEqual(
+		7
+	);
+	await page.keyboard.press('Escape');
+	await expect(teraType).toBeFocused();
+	const original = await comboboxValue(teraType);
+	const next = await chooseAnotherComboboxOption(teraType);
 	await expect(editor.locator('#pokemon-editor-staged-count')).toHaveText('1 staged');
 	await editor.getByRole('button', { name: 'Cancel edits' }).click();
-	await expect(teraType).toHaveValue(original);
+	await expect(teraType).toHaveAttribute('data-combobox-value', original);
 
-	await teraType.selectOption(next);
+	await chooseComboboxValue(teraType, next);
 	await editor.getByRole('button', { name: 'Apply edits' }).click();
 	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 60000 });
-	await expect(editor.locator('#pokemon-editor-battle-field-tera-type')).toHaveValue(next);
+	await expect(editor.locator('#pokemon-editor-battle-field-tera-type')).toHaveAttribute(
+		'data-combobox-value',
+		next
+	);
 	await expect(page.locator('.toolbar-status-strip')).toHaveCount(0);
 });
 
@@ -4495,16 +4586,16 @@ test('controller reaches and applies a Pokemon Editor change', async ({ page }) 
 	await pressController(page, 'ArrowRight');
 	const nature = editor.locator('#pokemon-editor-nature');
 	await expect(nature).toBeFocused();
-	const originalNature = await nature.inputValue();
+	const originalNature = await comboboxValue(nature);
 	await pressController(page, 'Enter');
 	await expect(editor.locator('.pokemon-editor')).toHaveAttribute(
 		'data-editor-entered-field',
 		'pokemon-editor-nature'
 	);
 	await pressController(page, 'ArrowDown');
-	await expect(nature).not.toHaveValue(originalNature);
-	await pressController(page, 'Escape');
-	const nextNature = await nature.inputValue();
+	await pressController(page, 'Enter');
+	await expect(nature).not.toHaveAttribute('data-combobox-value', originalNature);
+	const nextNature = await comboboxValue(nature);
 	await expect(editor.locator('#pokemon-editor-staged-count')).toHaveText('1 staged');
 
 	await pressController(page, 'ArrowDown');
@@ -4515,7 +4606,7 @@ test('controller reaches and applies a Pokemon Editor change', async ({ page }) 
 	await expect(page.locator('#pokemon-editor-apply')).toBeFocused();
 	await pressController(page, 'Enter');
 	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
-	await expect(nature).toHaveValue(nextNature);
+	await expect(nature).toHaveAttribute('data-combobox-value', nextNature);
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 });
 

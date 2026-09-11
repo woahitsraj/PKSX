@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import path from 'node:path';
 
 const emeraldFixturePath = path.resolve(
@@ -72,6 +72,29 @@ async function controllerButton(page: Page, key: string, pressed: boolean) {
 async function pressController(page: Page, key: string) {
 	await controllerButton(page, key, true);
 	await controllerButton(page, key, false);
+}
+
+async function comboboxList(combobox: Locator) {
+	const listId = await combobox.getAttribute('aria-controls');
+	if (!listId) throw new Error('Combobox list identity is missing.');
+	return combobox.page().locator(`#${listId}`);
+}
+
+async function chooseComboboxOption(combobox: Locator, index = 0) {
+	await combobox.click();
+	await (await comboboxList(combobox)).getByRole('option').nth(index).click();
+}
+
+type SafeArea = { top: number; right: number; bottom: number; left: number };
+
+async function setSafeArea(page: Page, insets: SafeArea) {
+	await page.evaluate(({ top, right, bottom, left }) => {
+		const root = document.documentElement;
+		root.style.setProperty('--safe-area-inset-top', `${top}px`);
+		root.style.setProperty('--safe-area-inset-right', `${right}px`);
+		root.style.setProperty('--safe-area-inset-bottom', `${bottom}px`);
+		root.style.setProperty('--safe-area-inset-left', `${left}px`);
+	}, insets);
 }
 
 async function expectSavesFocus(page: Page, target: string | RegExp = 'saves-target-import') {
@@ -448,7 +471,55 @@ test('Trainer and Bag keep independent semantic focus within their separate dest
 	let addCommand = firstPocket.locator('[data-ledger-command]');
 	let itemSelect = addCommand.getByRole('combobox', { name: /Item to add to/ });
 	await expect(itemSelect).toBeFocused();
-	await itemSelect.selectOption({ index: 1 });
+	await pressController(page, 'Enter');
+	await expect(itemSelect).toHaveAttribute('aria-expanded', 'true');
+	const itemSearch = page.getByRole('searchbox', { name: /Search items to add to/ });
+	await expect(itemSearch).toBeFocused();
+	for (const [index, { viewport, insets }] of [
+		{
+			viewport: { width: 640, height: 360 },
+			insets: { top: 12, right: 12, bottom: 12, left: 12 }
+		},
+		{
+			viewport: { width: 360, height: 640 },
+			insets: { top: 24, right: 0, bottom: 72, left: 0 }
+		}
+	].entries()) {
+		await page.setViewportSize(viewport);
+		await setSafeArea(page, insets);
+		const picker = addCommand.locator('.pksx-combobox-popover');
+		await expect
+			.poll(async () => {
+				const [pickerBox, ownerBox, focusBox] = await Promise.all([
+					picker.boundingBox(),
+					bagRoot.getByTestId('bag-ledger-scrollport').boundingBox(),
+					page.locator(':focus').boundingBox()
+				]);
+				return (
+					pickerBox !== null &&
+					ownerBox !== null &&
+					focusBox !== null &&
+					pickerBox.y >= ownerBox.y &&
+					pickerBox.y + pickerBox.height <= ownerBox.y + ownerBox.height &&
+					pickerBox.x >= insets.left &&
+					pickerBox.x + pickerBox.width <= viewport.width - insets.right &&
+					pickerBox.y >= insets.top &&
+					pickerBox.y + pickerBox.height <= viewport.height - insets.bottom &&
+					focusBox.y >= ownerBox.y &&
+					focusBox.y + focusBox.height <= ownerBox.y + ownerBox.height
+				);
+			})
+			.toBe(true);
+		if (index === 0) {
+			await pressController(page, 'ArrowDown');
+			await expect((await comboboxList(itemSelect)).getByRole('option').first()).toBeFocused();
+		}
+	}
+	await pressController(page, 'Escape');
+	await expect(itemSelect).toHaveAttribute('aria-expanded', 'false');
+	await expect(addCommand).toBeVisible();
+	await expect(itemSelect).toBeFocused();
+	await chooseComboboxOption(itemSelect, 1);
 	let addConfirm = addCommand.getByRole('button', { name: 'Add Item', exact: true });
 	await addConfirm.focus();
 	const firstPocketAddId = await addConfirm.getAttribute('id');
@@ -464,7 +535,7 @@ test('Trainer and Bag keep independent semantic focus within their separate dest
 	await secondAddLauncher.click();
 	addCommand = secondPocket.locator('[data-ledger-command]');
 	itemSelect = addCommand.getByRole('combobox', { name: /Item to add to/ });
-	await itemSelect.selectOption({ index: 1 });
+	await chooseComboboxOption(itemSelect, 1);
 	addConfirm = addCommand.getByRole('button', { name: 'Add Item', exact: true });
 	await addConfirm.focus();
 	const secondPocketAddId = await addConfirm.getAttribute('id');

@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
 
 	export type ComboboxOption = {
 		value: string;
 		label: string;
+		disabled?: boolean;
 		meta?: string;
 		detail?: string;
 		hue?: number;
@@ -20,6 +22,12 @@
 		searchLabel: string;
 		searchPlaceholder?: string;
 		disabled?: boolean;
+		ariaInvalid?: boolean;
+		describedBy?: string;
+		staged?: boolean;
+		controllerFocus?: string;
+		controllerFallbacks?: string;
+		ledgerControl?: boolean;
 		requireExplicitEntry?: boolean;
 		onSelect: (value: string) => void;
 		onOpenChange?: (open: boolean) => void;
@@ -35,6 +43,12 @@
 		searchLabel,
 		searchPlaceholder = 'Search',
 		disabled = false,
+		ariaInvalid = false,
+		describedBy,
+		staged = false,
+		controllerFocus,
+		controllerFallbacks,
+		ledgerControl = false,
 		requireExplicitEntry = false,
 		onSelect,
 		onOpenChange
@@ -48,16 +62,26 @@
 	let open = $state(false);
 	let search = $state('');
 	let activeIndex = $state(0);
+	let popoverAbove = $state(false);
+	let popoverMaxHeight = $state(240);
 	const selected = $derived(options.find((option) => option.value === value));
 	const filtered = $derived.by(() => {
-		const query = search.trim().toLowerCase();
+		const query = normalize(search.trim());
 		if (!query) return options;
 		return options.filter((option) =>
 			[option.label, option.meta, option.detail, option.value].some((part) =>
-				part?.toLowerCase().includes(query)
+				normalize(part).includes(query)
 			)
 		);
 	});
+	const enabledFiltered = $derived(filtered.filter((option) => !option.disabled));
+
+	function normalize(value: string | undefined) {
+		return (value ?? '')
+			.normalize('NFD')
+			.replace(/\p{Diacritic}/gu, '')
+			.toLowerCase();
+	}
 
 	function openPicker(focusSearch = true) {
 		if (disabled) return;
@@ -69,12 +93,33 @@
 		open = true;
 		onOpenChange?.(true);
 		search = '';
-		const selectedIndex = options.findIndex((option) => option.value === value);
-		activeIndex = selectedIndex >= 0 ? selectedIndex : 0;
+		const selectedIndex = options.findIndex((option) => option.value === value && !option.disabled);
+		activeIndex = selectedIndex >= 0 ? selectedIndex : firstEnabledIndex(filtered);
 		void tick().then(() => {
+			measurePopover();
 			if (focusSearch) document.getElementById(`${triggerId}-search`)?.focus();
 			else focusOption(activeIndex);
 		});
+	}
+
+	function measurePopover() {
+		if (!trigger) return;
+		const triggerRect = trigger.getBoundingClientRect();
+		const bounds = (scrollOwner(trigger) ?? document.body).getBoundingClientRect();
+		const below = bounds.bottom - triggerRect.bottom - 8;
+		const above = triggerRect.top - bounds.top - 8;
+		popoverAbove = above > below;
+		popoverMaxHeight = Math.max(0, Math.min(240, popoverAbove ? above : below));
+	}
+
+	function scrollOwner(node: HTMLElement) {
+		let parent = node.parentElement;
+		while (parent) {
+			const overflowY = getComputedStyle(parent).overflowY;
+			if (overflowY === 'auto' || overflowY === 'scroll') return parent;
+			parent = parent.parentElement;
+		}
+		return null;
 	}
 
 	function closePicker(restoreFocus = false) {
@@ -85,15 +130,44 @@
 		if (restoreFocus) void tick().then(() => trigger?.focus());
 	}
 
+	export function handleBack() {
+		if (!open) return false;
+		closePicker(true);
+		return true;
+	}
+
 	function choose(option: ComboboxOption) {
-		onSelect(option.value);
+		if (option.disabled) return;
+		if (option.value !== value) onSelect(option.value);
 		closePicker(true);
 	}
 
-	function focusOption(index: number) {
-		if (filtered.length === 0) return;
-		activeIndex = (index + filtered.length) % filtered.length;
-		void tick().then(() => document.getElementById(optionId(filtered[activeIndex]))?.focus());
+	function focusOption(index: number, direction: 1 | -1 = 1) {
+		if (enabledFiltered.length === 0) return;
+		const length = filtered.length;
+		const start = ((index % length) + length) % length;
+		let next: ComboboxOption | undefined;
+		for (let offset = 0; offset < length; offset += 1) {
+			const candidate = filtered[(start + direction * offset + length) % length];
+			if (!candidate?.disabled) {
+				next = candidate;
+				break;
+			}
+		}
+		if (!next) return;
+		activeIndex = filtered.indexOf(next);
+		void tick().then(() => {
+			const target = document.getElementById(optionId(next));
+			target?.focus();
+			target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+		});
+	}
+
+	function firstEnabledIndex(items: ComboboxOption[]) {
+		return Math.max(
+			0,
+			items.findIndex((option) => !option.disabled)
+		);
 	}
 
 	function optionId(option: ComboboxOption) {
@@ -110,10 +184,42 @@
 	}
 
 	function handleWindowKeydown(event: KeyboardEvent) {
-		if (!open || event.key !== 'Escape') return;
+		if (!open) return;
+		if (!isControllerKeyboardEvent(event)) {
+			if (event.key !== 'Escape') return;
+			event.preventDefault();
+			event.stopPropagation();
+			closePicker(true);
+			return;
+		}
+		if (root?.closest('.pokemon-editor')) return;
+		if (event.key === 'Escape' || event.key === 'Backspace') {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			closePicker(true);
+			return;
+		}
+
+		const forward = event.key === 'ArrowRight' || event.key === 'ArrowDown';
+		const backward = event.key === 'ArrowLeft' || event.key === 'ArrowUp';
+		if (!forward && !backward && event.key !== 'Enter' && event.key !== ' ') return;
 		event.preventDefault();
-		event.stopPropagation();
-		closePicker(true);
+		event.stopImmediatePropagation();
+
+		const active = document.activeElement;
+		const optionIndex = filtered.findIndex(
+			(option) => document.getElementById(optionId(option)) === active
+		);
+		if (event.key === 'Enter' || event.key === ' ') {
+			const option = filtered[optionIndex >= 0 ? optionIndex : activeIndex];
+			if (option) choose(option);
+			return;
+		}
+		if (optionIndex < 0) {
+			focusOption(forward ? activeIndex : filtered.length - 1, forward ? 1 : -1);
+			return;
+		}
+		focusOption(optionIndex + (forward ? 1 : -1), forward ? 1 : -1);
 	}
 
 	function attachRoot(node: HTMLDivElement) {
@@ -123,7 +229,35 @@
 
 	function attachTrigger(node: HTMLButtonElement) {
 		trigger = node;
-		return () => (trigger = undefined);
+		const owner = scrollOwner(node);
+		let frame: number | undefined;
+		const scheduleMeasure = () => {
+			if (!open) return;
+			if (frame !== undefined) cancelAnimationFrame(frame);
+			frame = requestAnimationFrame(() => {
+				frame = undefined;
+				measurePopover();
+			});
+		};
+		const observer =
+			typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleMeasure);
+
+		observer?.observe(node);
+		if (owner) {
+			observer?.observe(owner);
+			owner.addEventListener('scroll', scheduleMeasure, { passive: true });
+		}
+		window.addEventListener('resize', scheduleMeasure);
+		window.visualViewport?.addEventListener('resize', scheduleMeasure);
+
+		return () => {
+			trigger = undefined;
+			if (frame !== undefined) cancelAnimationFrame(frame);
+			observer?.disconnect();
+			owner?.removeEventListener('scroll', scheduleMeasure);
+			window.removeEventListener('resize', scheduleMeasure);
+			window.visualViewport?.removeEventListener('resize', scheduleMeasure);
+		};
 	}
 
 	function handleTriggerKeydown(event: KeyboardEvent) {
@@ -139,7 +273,7 @@
 		const input = event.currentTarget;
 		if (input instanceof HTMLInputElement) {
 			search = input.value;
-			activeIndex = 0;
+			activeIndex = firstEnabledIndex(filtered);
 		}
 	}
 
@@ -155,7 +289,7 @@
 		} else if (event.key === 'ArrowUp') {
 			event.preventDefault();
 			event.stopPropagation();
-			focusOption(filtered.length - 1);
+			focusOption(filtered.length - 1, -1);
 		} else if (event.key === 'Enter') {
 			event.preventDefault();
 			event.stopPropagation();
@@ -176,15 +310,15 @@
 		} else if (event.key === 'ArrowUp') {
 			event.preventDefault();
 			event.stopPropagation();
-			focusOption(optionIndex - 1);
+			focusOption(optionIndex - 1, -1);
 		} else if (event.key === 'Home') {
 			event.preventDefault();
 			event.stopPropagation();
-			focusOption(0);
+			focusOption(0, 1);
 		} else if (event.key === 'End') {
 			event.preventDefault();
 			event.stopPropagation();
-			focusOption(filtered.length - 1);
+			focusOption(filtered.length - 1, -1);
 		} else if (event.key === 'Enter' || event.key === ' ') {
 			event.preventDefault();
 			event.stopPropagation();
@@ -202,13 +336,20 @@
 		id={triggerId}
 		type="button"
 		class="pksx-combobox-trigger"
+		class:staged-field={staged}
 		role="combobox"
 		aria-label={ariaLabel}
 		aria-labelledby={labelledBy}
 		aria-haspopup="listbox"
 		aria-expanded={open}
 		aria-controls={listId}
+		aria-invalid={ariaInvalid || undefined}
+		aria-describedby={describedBy}
 		aria-activedescendant={open ? activeOptionId() : undefined}
+		data-destination-focus={controllerFocus}
+		data-destination-fallbacks={controllerFallbacks}
+		data-ledger-control={ledgerControl || undefined}
+		data-combobox-value={value}
 		{disabled}
 		onclick={() => openPicker()}
 		onkeydown={handleTriggerKeydown}
@@ -219,7 +360,11 @@
 	</button>
 
 	{#if open}
-		<div class="pksx-combobox-popover">
+		<div
+			class="pksx-combobox-popover"
+			class:above={popoverAbove}
+			style={`--combobox-popover-max-height: ${popoverMaxHeight}px`}
+		>
 			<input
 				id={`${triggerId}-search`}
 				type="search"
@@ -243,7 +388,10 @@
 						class:tinted={option.hue !== undefined}
 						role="option"
 						data-combobox-option
+						data-combobox-option-value={option.value}
 						aria-selected={option.value === value}
+						aria-disabled={option.disabled || undefined}
+						disabled={option.disabled}
 						tabindex={activeIndex === optionIndex ? 0 : -1}
 						style={option.hue === undefined
 							? undefined
@@ -320,7 +468,7 @@
 		top: calc(100% + 6px);
 		left: 0;
 		width: clamp(280px, 100%, 420px);
-		max-width: calc(100vw - 32px);
+		max-width: 100%;
 		display: grid;
 		gap: 7px;
 		padding: 8px;
@@ -330,13 +478,21 @@
 		box-shadow: var(--shadow-deep);
 	}
 
+	.pksx-combobox-popover.above {
+		top: auto;
+		bottom: calc(100% + 6px);
+	}
+
 	.pksx-combobox-popover input {
 		padding: 0 11px;
 		font: 750 var(--pksx-type-editable) var(--pksx-font-sans);
 	}
 
 	.pksx-combobox-list {
-		max-height: 240px;
+		max-height: max(
+			0px,
+			calc(var(--combobox-popover-max-height) - var(--pksx-control-height) - 23px)
+		);
 		display: grid;
 		gap: 4px;
 		overflow-y: auto;
@@ -387,6 +543,11 @@
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rust), transparent 50%);
 	}
 
+	.pksx-combobox-option:disabled {
+		cursor: not-allowed;
+		opacity: 0.55;
+	}
+
 	.pksx-combobox-trigger:focus,
 	.pksx-combobox-trigger:focus-visible,
 	.pksx-combobox-option.active,
@@ -400,6 +561,17 @@
 	.pksx-combobox-trigger:disabled {
 		cursor: not-allowed;
 		opacity: 0.55;
+	}
+
+	.pksx-combobox-trigger.staged-field {
+		box-shadow: inset 3px 0 0 var(--pksx-color-accent-primary);
+		background-color: var(--pksx-color-accent-wash);
+	}
+
+	.pksx-combobox-trigger.staged-field[aria-invalid='true'] {
+		box-shadow:
+			inset 3px 0 0 var(--pksx-color-accent-primary),
+			inset 0 0 0 1px var(--pksx-color-feedback-danger);
 	}
 
 	.pksx-combobox-list p {
