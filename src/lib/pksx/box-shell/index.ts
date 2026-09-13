@@ -108,6 +108,7 @@ export function createSlotView(slot: PartySlotSummary | BoxSlotSummary): SlotVie
 		originalTrainerEditConstraints: slot.originalTrainerEditConstraints,
 		ability: slot.ability ?? undefined,
 		heldItem: slot.heldItem ?? undefined,
+		heldItemSpriteIdentity: slot.heldItemSpriteIdentity ?? null,
 		types: slot.types,
 		stats: slot.stats,
 		moves: slot.moves,

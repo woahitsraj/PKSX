@@ -1,3 +1,5 @@
+import type { ItemSpriteIdentity } from '$lib/engine';
+
 export type SaveFileId = string;
 export type BackupId = string;
 export type BackupReason =
@@ -77,6 +79,7 @@ export type StoredPokemonStoragePokemon = {
 	nature?: string;
 	ability?: string;
 	heldItem?: string;
+	heldItemSpriteIdentity?: ItemSpriteIdentity | null;
 	originalTrainer?: string;
 	metLabel?: string;
 	entityBytesBase64?: string;

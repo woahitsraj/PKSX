@@ -151,7 +151,7 @@ function projectionWithItems(
 }
 
 describe('SaveFileLedger public fixture presentation', () => {
-	test('renders separate Trainer and Bag destinations without mock, staging, table, or imagery residue', async () => {
+	test('renders separate Trainer and Bag destinations with local item artwork', async () => {
 		render(publicFixtureView, { destination: 'bag' });
 
 		expect(host.querySelectorAll('.pocket-section')).toHaveLength(
@@ -160,7 +160,13 @@ describe('SaveFileLedger public fixture presentation', () => {
 		expect(host.querySelectorAll('.pocket-section h3')).toHaveLength(
 			publicFixtureView.projection.inventory.pockets.length
 		);
-		expect(host.querySelector('table, [role="table"], img, svg')).toBeNull();
+		expect(host.querySelector('table, [role="table"], svg')).toBeNull();
+		const itemImages = host.querySelectorAll<HTMLImageElement>('.item-copy img');
+		expect(itemImages.length).toBeGreaterThan(0);
+		for (const image of itemImages) {
+			expect(image.getAttribute('src')).toMatch(/^\/sprites\/items\//);
+			expect(image.getAttribute('alt')).toBe('');
+		}
 		expect(host.querySelector('.mock-section, .mock-field, .apply-bar, .item-icon')).toBeNull();
 		expect(host.textContent).not.toMatch(/staged|Apply edits|Cancel all|generation|box count/i);
 		expect(host.textContent).not.toContain('¤');
@@ -182,6 +188,56 @@ describe('SaveFileLedger public fixture presentation', () => {
 		expect(target('money-decrease').getAttribute('aria-label')).toBe('Decrease Money');
 		expect(target('money-increase').getAttribute('aria-label')).toBe('Increase Money');
 		expect(host.textContent).not.toMatch(/staged|Apply edits|Cancel all|generation|box count/i);
+	});
+
+	test('shows the same local resolver in Add Item results and stable Bag fallback', async () => {
+		const pocket = publicFixtureView.projection.inventory.pockets.find((candidate) => {
+			const catalogue = publicCatalogues[candidate.key];
+			return (
+				candidate.items.length > 0 &&
+				!candidate.full &&
+				catalogue?.status === 'ready' &&
+				catalogue.availableItems.some(
+					(option) => !candidate.items.some((item) => item.id === option.id)
+				)
+			);
+		})!;
+		render(publicFixtureView, { destination: 'bag' });
+		(target(`pocket-${pocket.key}-add`) as HTMLButtonElement).click();
+		await expectFocused(`pocket-${pocket.key}-add-item`);
+		(target(`pocket-${pocket.key}-add-item`) as HTMLButtonElement).click();
+		await tick();
+		const resultImages = host.querySelectorAll<HTMLImageElement>('[data-combobox-option] img');
+		expect(resultImages.length).toBeGreaterThan(0);
+		for (const image of resultImages) {
+			expect(image.getAttribute('src')).toMatch(/^\/sprites\/items\//);
+			expect(image.getAttribute('alt')).toBe('');
+		}
+
+		await clearMounted();
+		const firstItem = pocket.items[0];
+		render(
+			projectionWithItems(pocket.key, [
+				{
+					...firstItem,
+					itemSpriteIdentity: {
+						nativeId: 1785,
+						canonicalId: 1785,
+						generation: 8,
+						context: 'Gen8',
+						gameVersionId: 44
+					}
+				}
+			])
+		);
+		const row = host.querySelector<HTMLElement>(
+			`[data-ledger-row="item-${pocket.key}-${firstItem.id}"]`
+		)!;
+		expect(row.textContent).toContain(firstItem.name);
+		expect(row.querySelector('[data-item-sprite="missing"]')).not.toBeNull();
+		expect(
+			row.querySelector<HTMLInputElement>('[data-ledger-draft="item-quantity"]')
+		).not.toBeNull();
 	});
 
 	test('keeps each destination independent across container aspect changes', async () => {

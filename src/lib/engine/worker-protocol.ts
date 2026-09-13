@@ -85,6 +85,14 @@ export const saveSummarySchema = z.object({
 	boxSlotCount: z.number()
 });
 
+export const itemSpriteIdentitySchema = z.object({
+	nativeId: z.number().int(),
+	canonicalId: z.number().int(),
+	generation: z.number().int(),
+	context: z.string(),
+	gameVersionId: z.number().int()
+});
+
 export const saveFileEditableProjectionSchema = z.object({
 	trainerProfile: z.object({
 		trainerName: z.string().nullable(),
@@ -120,7 +128,8 @@ export const saveFileEditableProjectionSchema = z.object({
 						id: z.number().int(),
 						name: z.string(),
 						quantity: z.number().int(),
-						maxQuantity: z.number().int()
+						maxQuantity: z.number().int(),
+						itemSpriteIdentity: itemSpriteIdentitySchema.nullable().optional()
 					})
 				)
 			})
@@ -138,7 +147,8 @@ export const saveFileInventoryCatalogueSchema = z.object({
 				z.object({
 					id: z.number().int(),
 					name: z.string(),
-					maxQuantity: z.number().int()
+					maxQuantity: z.number().int(),
+					itemSpriteIdentity: itemSpriteIdentitySchema.nullable().optional()
 				})
 			)
 		})
@@ -204,7 +214,8 @@ export const pokemonHeldItemOptionSchema = z.object({
 	id: z.number().int(),
 	name: z.string(),
 	available: z.boolean().default(false),
-	unavailableReason: z.string().nullable().optional()
+	unavailableReason: z.string().nullable().optional(),
+	itemSpriteIdentity: itemSpriteIdentitySchema.nullable().optional()
 });
 
 export const pokemonHeldItemEditConstraintsSchema = z.object({
@@ -364,6 +375,7 @@ const slotSummaryFields = {
 	nature: z.string().nullable().optional(),
 	ability: z.string().nullable().optional(),
 	heldItem: z.string().nullable().optional(),
+	heldItemSpriteIdentity: itemSpriteIdentitySchema.nullable().optional(),
 	types: z.array(slotTypeSummarySchema).default([]),
 	stats: z.array(slotStatSummarySchema).default([]),
 	moves: z.array(slotMoveSummarySchema).default([]),

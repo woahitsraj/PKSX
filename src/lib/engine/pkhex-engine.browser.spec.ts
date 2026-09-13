@@ -380,6 +380,17 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(catalogue.value.supported).toBe(true);
 		const availableFor = (key: string) =>
 			catalogue.value.pockets.find((entry) => entry.key === key)?.availableItems ?? [];
+		const machBike = [
+			...projection.inventory.pockets.flatMap((entry) => entry.items),
+			...catalogue.value.pockets.flatMap((entry) => entry.availableItems)
+		].find((item) => item.id === 259);
+		expect(machBike?.itemSpriteIdentity).toStrictEqual({
+			nativeId: 259,
+			canonicalId: 0,
+			generation: 3,
+			context: 'Gen3',
+			gameVersionId: 3
+		});
 
 		const pocket = projection.inventory.pockets.find(
 			(candidate) =>
@@ -395,6 +406,17 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			(option) => !pocket.items.some((item) => item.id === option.id)
 		);
 		if (!existing || !added) throw new Error('Expected editable Emerald items.');
+		expect(existing.itemSpriteIdentity).toMatchObject({
+			nativeId: existing.id,
+			generation: 3,
+			context: 'Gen3',
+			gameVersionId: 3
+		});
+		expect(added.itemSpriteIdentity).toMatchObject({
+			nativeId: added.id,
+			generation: 3,
+			context: 'Gen3'
+		});
 
 		const nextQuantity = existing.quantity < existing.maxQuantity ? existing.quantity + 1 : 1;
 		const nextMoney =
@@ -1578,6 +1600,11 @@ describe('PKHeX Engine browser runtime smoke', () => {
 				option.id !== slot.heldItemEditConstraints.currentItemId
 		);
 		if (!item) throw new Error('Expected an available Held Item choice.');
+		expect(item.itemSpriteIdentity).toMatchObject({
+			nativeId: item.id,
+			generation: 3,
+			context: 'Gen3'
+		});
 
 		const edited = await engine.applyPokemonEditOperation(
 			copyBytes(fixtureBytes),
@@ -1589,9 +1616,9 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		if (!edited.ok) throw new Error('Expected Held Item edit to succeed.');
 		expect(edited.value.workspace.boxSlots[0]).toMatchObject({
 			heldItem: item.name,
+			heldItemSpriteIdentity: item.itemSpriteIdentity,
 			heldItemEditConstraints: { currentItemId: item.id }
 		});
-
 		const unsupported = await engine.applyPokemonEditOperation(
 			copyBytes(fixtureBytes),
 			'011020251345.sav',
@@ -1613,8 +1640,91 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		if (!removed.ok) throw new Error('Expected Held Item removal to succeed.');
 		expect(removed.value.workspace.boxSlots[0]).toMatchObject({
 			heldItem: null,
+			heldItemSpriteIdentity: null,
 			heldItemEditConstraints: { currentItemId: 0 }
 		});
+	});
+
+	test('keeps Held Item identity in the containing Save context after Origin game edits', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(scarletFixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const workspace = await engine.loadSaveWorkspace(
+			fixtureBytes,
+			'pokemon-scarlet-2025-03-24-main.sav',
+			0
+		);
+		if (!workspace.ok) throw new Error('Expected Scarlet workspace to load.');
+		const slots = [...workspace.value.partySlots, ...workspace.value.boxSlots];
+		const slot = slots.find((candidate) => {
+			const metData = candidate.metDataEditConstraints;
+			return (
+				candidate.heldItemEditConstraints?.supported &&
+				metData?.supportsOriginGame &&
+				metData.locationGroups.some(
+					(group) =>
+						group.originGameId !== metData.currentOriginGameId &&
+						group.options.some((option) => option.id === metData.currentLocationId)
+				)
+			);
+		});
+		if (!slot) throw new Error('Expected a Scarlet Pokemon with another valid origin game.');
+		const metData = slot.metDataEditConstraints;
+		const alternateOrigin = metData.locationGroups.find(
+			(group) =>
+				group.originGameId !== metData.currentOriginGameId &&
+				group.options.some((option) => option.id === metData.currentLocationId)
+		)!;
+		const item = slot.heldItemEditConstraints.options.find(
+			(option) => option.available && option.id > 0
+		);
+		if (!item) throw new Error('Expected a held-item choice in Scarlet.');
+		const source: SaveSlotRef =
+			'box' in slot && typeof slot.box === 'number'
+				? { zone: 'box', box: slot.box, slot: slot.slot }
+				: { zone: 'party', slot: slot.slot };
+		const edited = await engine.applyPokemonEditOperation(
+			fixtureBytes,
+			'pokemon-scarlet-2025-03-24-main.sav',
+			{
+				source,
+				heldItemId: item.id,
+				metData: {
+					locationId: metData.currentLocationId,
+					metLevel: metData.currentMetLevel,
+					originGameId: alternateOrigin.originGameId,
+					ballId: metData.currentBallId,
+					metDate: metData.currentMetDate
+				}
+			},
+			0
+		);
+		expect(edited.ok, JSON.stringify(edited.error)).toBe(true);
+		if (!edited.ok) throw new Error('Expected Scarlet Origin game edit to succeed.');
+		const editedSlot =
+			source.zone === 'party'
+				? edited.value.workspace.partySlots.find((candidate) => candidate.slot === source.slot)
+				: edited.value.workspace.boxSlots.find(
+						(candidate) => candidate.box === source.box && candidate.slot === source.slot
+					);
+		expect(editedSlot?.metDataEditConstraints.currentOriginGameId).toBe(
+			alternateOrigin.originGameId
+		);
+		expect(editedSlot?.heldItemSpriteIdentity).toMatchObject({
+			nativeId: item.id,
+			gameVersionId: workspace.value.summary.gameVersionId
+		});
+		const bagCatalogue = await engine.getSaveFileInventoryCatalogue(
+			edited.value.bytes,
+			'pokemon-scarlet-2025-03-24-main.sav'
+		);
+		if (!bagCatalogue.ok) throw new Error('Expected Scarlet Bag catalogue.');
+		const matchingBagItem = bagCatalogue.value.pockets
+			.flatMap((pocket) => pocket.availableItems)
+			.find((option) => option.id === item.id);
+		expect(editedSlot?.heldItemSpriteIdentity).toStrictEqual(matchingBagItem?.itemSpriteIdentity);
 	});
 
 	test('projects and edits Tera Type only for supported Pokemon formats', async () => {
@@ -1637,6 +1747,11 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			candidate.battleFields?.some((field) => field.key === 'tera-type' && field.supported)
 		);
 		if (!slot) throw new Error('Expected Scarlet fixture to include an editable Tera Type.');
+		const modernItem = slot.heldItemEditConstraints?.options.find(
+			(option) => option.available && option.id > 0
+		)?.itemSpriteIdentity;
+		expect(modernItem).toMatchObject({ generation: 9, context: 'Gen9' });
+		expect(modernItem?.nativeId).toBe(modernItem?.canonicalId);
 		const teraType = slot.battleFields?.find((field) => field.key === 'tera-type');
 		if (!teraType) throw new Error('Expected Tera Type projection.');
 		expect(teraType).toMatchObject({

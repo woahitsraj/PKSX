@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { SaveSummary } from '$lib/engine';
 	import { getSpriteIdentityLabels } from '$lib/pksx/sprite-catalog';
+	import ItemSprite from './ItemSprite.svelte';
 	import type { SlotView } from './types';
 
 	interface Props {
@@ -13,6 +14,7 @@
 		activeBoxName: string;
 		positionLabel: string;
 	}
+	type FooterRow = { label: string; value: string; kind?: 'item' };
 
 	let {
 		focusedSlot,
@@ -47,11 +49,13 @@
 						: saveSummary?.trainerName
 							? { label: 'OT', value: saveSummary.trainerName }
 							: null,
-					focusedSlot.heldItem ? { label: 'Item', value: focusedSlot.heldItem } : null,
+					focusedSlot.heldItem
+						? { label: 'Item', value: focusedSlot.heldItem, kind: 'item' as const }
+						: null,
 					focusedSlot.metLabel ? { label: 'Met', value: focusedSlot.metLabel } : null,
 					saveSummary?.fileName ? { label: 'Save', value: saveSummary.fileName } : null,
 					{ label: 'Pos', value: positionLabel }
-				].filter((row): row is { label: string; value: string } => row !== null)
+				].filter((row): row is FooterRow => row !== null)
 			: []
 	);
 	const hasStats = $derived(isPokemon && focusedSlot.stats && focusedSlot.stats.length > 0);
@@ -176,7 +180,12 @@
 		<div class="detail-footer" aria-label="Storage metadata">
 			{#each footerRows as row (row.label)}
 				<span>{row.label}</span>
-				<strong>{row.value}</strong>
+				<strong class:item-value={row.kind === 'item'}>
+					{#if row.kind === 'item'}
+						<ItemSprite identity={focusedSlot.heldItemSpriteIdentity} size={30} />
+					{/if}
+					<span>{row.value}</span>
+				</strong>
 			{/each}
 		</div>
 	{/if}
@@ -564,7 +573,7 @@
 		background: color-mix(in srgb, var(--paper-deep), transparent 30%);
 	}
 
-	.detail-footer span,
+	.detail-footer > span,
 	.empty-copy span {
 		color: var(--ink-mute);
 		font:
@@ -584,6 +593,13 @@
 		font-weight: 750;
 		text-align: right;
 		overflow-wrap: anywhere;
+	}
+
+	.detail-footer .item-value {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 7px;
 	}
 
 	@container detail-rail (width < 260px) or (height <= 260px) {

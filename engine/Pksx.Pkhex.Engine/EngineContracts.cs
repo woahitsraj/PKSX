@@ -70,6 +70,7 @@ public sealed record PartySlotSummary(
     string? Nature,
     string? Ability,
     string? HeldItem,
+    ItemSpriteIdentity? HeldItemSpriteIdentity,
     List<SlotTypeSummary> Types,
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
@@ -103,6 +104,7 @@ public sealed record PartySlotSummary(
             SlotDetailProjection.Nature(pokemon),
             SlotDetailProjection.Ability(pokemon),
             SlotDetailProjection.HeldItem(pokemon),
+            ItemSpriteIdentity.From(pokemon.HeldItem, pokemon.Context, save.Version),
             SlotDetailProjection.Types(pokemon),
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
@@ -137,6 +139,7 @@ public sealed record BoxSlotSummary(
     string? Nature,
     string? Ability,
     string? HeldItem,
+    ItemSpriteIdentity? HeldItemSpriteIdentity,
     List<SlotTypeSummary> Types,
     List<SlotStatSummary> Stats,
     List<SlotMoveSummary> Moves,
@@ -171,6 +174,7 @@ public sealed record BoxSlotSummary(
             SlotDetailProjection.Nature(pokemon),
             SlotDetailProjection.Ability(pokemon),
             SlotDetailProjection.HeldItem(pokemon),
+            ItemSpriteIdentity.From(pokemon.HeldItem, pokemon.Context, save.Version),
             SlotDetailProjection.Types(pokemon),
             SlotDetailProjection.Stats(pokemon),
             SlotDetailProjection.Moves(pokemon),
@@ -296,7 +300,12 @@ public sealed record PokemonNatureEditConstraints(
     List<PokemonNatureOption> Options,
     string? UnsupportedReason);
 
-public sealed record PokemonHeldItemOption(int Id, string Name, bool Available, string? UnavailableReason);
+public sealed record PokemonHeldItemOption(
+    int Id,
+    string Name,
+    bool Available,
+    string? UnavailableReason,
+    ItemSpriteIdentity? ItemSpriteIdentity);
 
 public sealed record PokemonHeldItemEditConstraints(
     bool Supported,
@@ -515,7 +524,8 @@ public sealed record InventoryPocketProjection(
                 item.Index,
                 ItemName(item.Index),
                 item.Count,
-                bag.GetMaxCount(pouch.Type, item.Index)))
+                bag.GetMaxCount(pouch.Type, item.Index),
+                ItemSpriteIdentity.From(item.Index, save.Context, save.Version)))
             .OrderBy(item => item.Name, StringComparer.Ordinal)
             .ToList();
 
@@ -541,7 +551,11 @@ public sealed record InventoryPocketProjection(
             var name = ItemName(itemId);
             if (name.StartsWith("Item ", StringComparison.Ordinal) || name.Contains("???", StringComparison.Ordinal))
                 continue;
-            available.Add(new InventoryItemOption(itemId, name, max));
+            available.Add(new InventoryItemOption(
+                itemId,
+                name,
+                max,
+                ItemSpriteIdentity.From(itemId, save.Context, save.Version)));
         }
 
         available.Sort((left, right) => StringComparer.Ordinal.Compare(left.Name, right.Name));
@@ -567,9 +581,60 @@ public sealed record InventoryPocketProjection(
     };
 }
 
-public sealed record InventoryItemProjection(int Id, string Name, int Quantity, int MaxQuantity);
+public sealed record InventoryItemProjection(
+    int Id,
+    string Name,
+    int Quantity,
+    int MaxQuantity,
+    ItemSpriteIdentity? ItemSpriteIdentity);
 
-public sealed record InventoryItemOption(int Id, string Name, int MaxQuantity);
+public sealed record InventoryItemOption(
+    int Id,
+    string Name,
+    int MaxQuantity,
+    ItemSpriteIdentity? ItemSpriteIdentity);
+
+public sealed record ItemSpriteIdentity(
+    int NativeId,
+    int CanonicalId,
+    int Generation,
+    string Context,
+    int GameVersionId)
+{
+    private const int NoModernItemId = 128; // ItemConverter's old-generation no-conversion sentinel.
+
+    public static ItemSpriteIdentity? From(int itemId, EntityContext context, GameVersion version)
+    {
+        if (!IsValidNativeId(itemId, context))
+            return null;
+
+        var canonicalId = CanonicalItemId(itemId, context);
+        if (context.Generation <= 3 && canonicalId == NoModernItemId)
+            canonicalId = 0;
+
+        return new ItemSpriteIdentity(
+            itemId,
+            canonicalId,
+            context.Generation,
+            context.ToString(),
+            (int)version);
+    }
+
+    private static bool IsValidNativeId(int itemId, EntityContext context) => context switch
+    {
+        EntityContext.Gen1 or EntityContext.Gen2 => itemId is > 0 and <= byte.MaxValue,
+        EntityContext.Gen3 => itemId is > 0 and <= ushort.MaxValue,
+        _ => itemId > 0 && context.Generation > 0,
+    };
+
+    private static int CanonicalItemId(int itemId, EntityContext context) => context switch
+    {
+        EntityContext.Gen1 => ItemConverter.GetItemFuture2(ItemConverter.GetItemFuture1((byte)itemId)),
+        EntityContext.Gen2 => ItemConverter.GetItemFuture2((byte)itemId),
+        EntityContext.Gen3 => ItemConverter.GetItemFuture3((ushort)itemId),
+        _ => itemId,
+    };
+}
 
 internal static class SaveFileFieldSupport
 {
@@ -1104,7 +1169,7 @@ internal static class SlotDetailProjection
 
         var options = new List<PokemonHeldItemOption>(save.HeldItems.Length + 1)
         {
-            new(0, "No item", true, null)
+            new(0, "No item", true, null, null)
         };
         var itemNames = GameInfo.Strings.GetItemStrings(pokemon.Context, pokemon.Version);
 
@@ -1112,7 +1177,12 @@ internal static class SlotDetailProjection
         {
             var name = NameAt(itemNames, item) ?? $"Item {item}";
             var reason = HeldItemUnavailableReason(pokemon, item, name);
-            options.Add(new PokemonHeldItemOption(item, name, reason is null, reason));
+            options.Add(new PokemonHeldItemOption(
+                item,
+                name,
+                reason is null,
+                reason,
+                ItemSpriteIdentity.From(item, pokemon.Context, save.Version)));
         }
 
         if (pokemon.HeldItem > 0 && options.All(option => option.Id != pokemon.HeldItem))
@@ -1122,7 +1192,8 @@ internal static class SlotDetailProjection
                 pokemon.HeldItem,
                 name,
                 false,
-                $"{name} is not available in the active Save File."));
+                $"{name} is not available in the active Save File.",
+                ItemSpriteIdentity.From(pokemon.HeldItem, pokemon.Context, save.Version)));
         }
 
         return new PokemonHeldItemEditConstraints(true, pokemon.HeldItem, options, null);

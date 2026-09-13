@@ -25,6 +25,8 @@
 		"legal:sync": "node scripts/sync-legal-files.ts",
 		"sprites:download": "node scripts/download-sprite-catalog.ts",
 		"sprites:validate": "node scripts/download-sprite-catalog.ts --validate",
+		"item-sprites:download": "node scripts/download-item-sprite-catalog.ts",
+		"item-sprites:validate": "node scripts/download-item-sprite-catalog.ts --validate",
 		"prepare": "svelte-kit sync || echo ''",
 		"typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && tsc --noEmit -p tsconfig.scripts.json",
 		"check": "pnpm typecheck",

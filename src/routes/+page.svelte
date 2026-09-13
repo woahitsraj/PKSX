@@ -2835,6 +2835,7 @@
 			nature: pokemon.nature,
 			ability: pokemon.ability,
 			heldItem: pokemon.heldItem,
+			heldItemSpriteIdentity: pokemon.heldItemSpriteIdentity ?? null,
 			originalTrainer: pokemon.originalTrainer,
 			metLabel: pokemon.metLabel,
 			entityBytesBase64: pokemon.entityBytesBase64 ?? null
@@ -2874,6 +2875,7 @@
 			nature: slot.nature,
 			ability: slot.ability,
 			heldItem: slot.heldItem,
+			heldItemSpriteIdentity: slot.heldItemSpriteIdentity ?? null,
 			originalTrainer: slot.originalTrainer,
 			metLabel: slot.metLabel,
 			entityBytesBase64: slot.entityBytesBase64 ?? undefined,

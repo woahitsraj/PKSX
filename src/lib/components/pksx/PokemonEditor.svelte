@@ -31,6 +31,7 @@
 		type PokemonEditorSession
 	} from '$lib/pksx/pokemon-editor/session';
 	import { getSpriteIdentityLabels } from '$lib/pksx/sprite-catalog';
+	import { resolveItemSpriteCatalogEntry } from '$lib/pksx/item-sprite-catalog';
 	import DelayedSpinner from './DelayedSpinner.svelte';
 
 	interface Props {
@@ -275,6 +276,10 @@
 				({
 					value: String(option.id),
 					label: option.name,
+					imageSrc:
+						option.id === 0
+							? undefined
+							: (resolveItemSpriteCatalogEntry(option.itemSpriteIdentity)?.path ?? null),
 					detail: option.available ? undefined : 'Unavailable for format',
 					disabled: !option.available
 				}) satisfies ComboboxOption
