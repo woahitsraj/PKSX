@@ -6,6 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount, tick } from 'svelte';
+	import SavesIntroduction from '$lib/components/pksx/SavesIntroduction.svelte';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
 	import ToastRegion from '$lib/components/pksx/ToastRegion.svelte';
@@ -367,7 +368,7 @@
 	async function openPokemonStorage() {
 		if (busyTarget) return;
 		chooseTarget({ kind: 'pokemon-storage' }, false);
-		await goto(resolve('/?source=pokemon-storage'));
+		await goto(resolve('/boxes?source=pokemon-storage'));
 	}
 
 	function openImportPicker() {
@@ -452,7 +453,7 @@
 			menuReturnTarget = null;
 			const path =
 				destination === 'boxes'
-					? resolve('/')
+					? resolve('/boxes')
 					: destination === 'trainer'
 						? resolve('/trainer')
 						: resolve('/bag');
@@ -678,145 +679,154 @@
 			/>
 		</header>
 
-		<div
-			id="saves-grid"
-			{@attach savesGridOwner}
-			class="saves-scrollport"
-			role="grid"
-			tabindex="0"
-			aria-label="Saves collections"
-			aria-rowcount={rowCount}
-			aria-colcount={columnCount}
-			aria-activedescendant={activeTargetId}
-			aria-busy={catalogLoading || busyTarget !== null}
-			data-destination-focus="saves-grid"
-			data-destination-initial
-			onfocus={() => void scrollTargetIntoView()}
-		>
-			<div class="saves-grid" {@attach savesGridContent}>
-				{#each gridRows as row, rowIndex (gridRowKey(row))}
-					<div class="saves-grid-row" role="row" aria-rowindex={rowIndex + 1}>
-						{#each row as entry (entry.kind === 'save-file' ? entry.saveFile.id : entry.kind)}
-							{#if entry.kind === 'save-file'}
-								{@const saveFile = entry.saveFile}
-								{@const index = entry.index}
-								{@const details = detailsBySaveFileId[saveFile.id] ?? { status: 'loading' }}
-								{@const selected = sameSavesTarget(target, { kind: 'save-file', id: saveFile.id })}
-								<div
-									id={targetDomId({ kind: 'save-file', id: saveFile.id })}
-									class={[
-										'save-card',
-										(index + 1) % 2 === 0 && 'spine-even',
-										(index + 1) % 3 === 0 && 'spine-third',
-										selected && 'controller-focused',
-										saveFile.id === activeSaveFileId && 'active'
-									]}
-									role="gridcell"
-									aria-colindex={(index % columnCount) + 1}
-									aria-current={saveFile.id === activeSaveFileId ? 'true' : undefined}
-									aria-busy={busyTarget === saveFile.id || details.status === 'loading'}
-								>
-									<button
-										type="button"
-										class="card-main"
-										tabindex="-1"
-										aria-label={'Open ' + displayName(saveFile) + ' in Boxes'}
-										onclick={() => {
-											chooseTarget({ kind: 'save-file', id: saveFile.id }, false);
-											void activateSaveFile(saveFile, 'boxes');
-										}}
+		<div class="saves-scrollport">
+			<div
+				id="saves-grid"
+				{@attach savesGridOwner}
+				class="saves-collections"
+				role="grid"
+				tabindex="0"
+				aria-label="Saves collections"
+				aria-rowcount={rowCount}
+				aria-colcount={columnCount}
+				aria-activedescendant={activeTargetId}
+				aria-busy={catalogLoading || busyTarget !== null}
+				data-destination-focus="saves-grid"
+				data-destination-initial
+				onfocus={() => void scrollTargetIntoView()}
+			>
+				<div class="saves-grid" {@attach savesGridContent}>
+					{#each gridRows as row, rowIndex (gridRowKey(row))}
+						<div class="saves-grid-row" role="row" aria-rowindex={rowIndex + 1}>
+							{#each row as entry (entry.kind === 'save-file' ? entry.saveFile.id : entry.kind)}
+								{#if entry.kind === 'save-file'}
+									{@const saveFile = entry.saveFile}
+									{@const index = entry.index}
+									{@const details = detailsBySaveFileId[saveFile.id] ?? { status: 'loading' }}
+									{@const selected = sameSavesTarget(target, {
+										kind: 'save-file',
+										id: saveFile.id
+									})}
+									<div
+										id={targetDomId({ kind: 'save-file', id: saveFile.id })}
+										class={[
+											'save-card',
+											(index + 1) % 2 === 0 && 'spine-even',
+											(index + 1) % 3 === 0 && 'spine-third',
+											selected && 'controller-focused',
+											saveFile.id === activeSaveFileId && 'active'
+										]}
+										role="gridcell"
+										aria-colindex={(index % columnCount) + 1}
+										aria-current={saveFile.id === activeSaveFileId ? 'true' : undefined}
+										aria-busy={busyTarget === saveFile.id || details.status === 'loading'}
 									>
-										<span class="cartridge-spine" aria-hidden="true"></span>
-										<span class="card-heading">
-											<strong>{gameTitle(details, saveFile)}</strong>
-											{#if saveFile.id === activeSaveFileId}<em>Active</em>{/if}
-										</span>
-										{#if details.status === 'ready'}
-											<span class="trainer"
-												>{details.details.summary.trainerName ?? 'Unknown Trainer'}</span
-											>
-											<span class="file-name">{displayName(saveFile)}</span>
+										<button
+											type="button"
+											class="card-main"
+											tabindex="-1"
+											aria-label={'Open ' + displayName(saveFile) + ' in Boxes'}
+											onclick={() => {
+												chooseTarget({ kind: 'save-file', id: saveFile.id }, false);
+												void activateSaveFile(saveFile, 'boxes');
+											}}
+										>
+											<span class="cartridge-spine" aria-hidden="true"></span>
+											<span class="card-heading">
+												<strong>{gameTitle(details, saveFile)}</strong>
+												{#if saveFile.id === activeSaveFileId}<em>Active</em>{/if}
+											</span>
+											{#if details.status === 'ready'}
+												<span class="trainer"
+													>{details.details.summary.trainerName ?? 'Unknown Trainer'}</span
+												>
+												<span class="file-name">{displayName(saveFile)}</span>
+												<span class="card-stats">
+													<b>{details.details.summary.boxCount}</b> boxes
+													<i aria-hidden="true"></i>
+													<b>{details.details.creatureCount}</b> Pokemon
+												</span>
+											{:else}
+												<span class="file-name">{displayName(saveFile)}</span>
+												<span class="detail-state">
+													{#if details.status === 'loading'}
+														<DelayedSpinner active label={`Reading ${displayName(saveFile)}`} />
+													{:else}
+														Details unavailable
+													{/if}
+												</span>
+											{/if}
+										</button>
+										<button
+											type="button"
+											class="save-menu-control"
+											aria-label={'Open Save File Menu for ' + displayName(saveFile)}
+											onpointerdown={(event) => event.preventDefault()}
+											onclick={() => openSaveFileMenu(saveFile.id)}
+										>
+											•••
+										</button>
+										<DelayedSpinner
+											active={busyTarget === saveFile.id}
+											label={`Opening ${displayName(saveFile)}`}
+										/>
+									</div>
+								{:else if entry.kind === 'pokemon-storage'}
+									{@const selected = target.kind === 'pokemon-storage'}
+									<div
+										id="saves-target-pokemon-storage"
+										class={['storage-card', selected && 'controller-focused']}
+										role="gridcell"
+										aria-colindex={(entry.index % columnCount) + 1}
+									>
+										<button
+											type="button"
+											class="card-main storage-main"
+											tabindex="-1"
+											aria-label="Open Pokemon Storage in Boxes"
+											onclick={() => void openPokemonStorage()}
+										>
+											<span class="cartridge-spine" aria-hidden="true"></span>
+											<span class="card-heading"><strong>Pokemon Storage</strong></span>
+											<span class="storage-persistence">Automatically saved by PKSX</span>
 											<span class="card-stats">
-												<b>{details.details.summary.boxCount}</b> boxes
+												<b>{pokemonStorage.pokemonCount}</b> Pokemon
 												<i aria-hidden="true"></i>
-												<b>{details.details.creatureCount}</b> Pokemon
+												<b>{pokemonStorage.boxCount}</b> Storage
+												{pokemonStorage.boxCount === 1 ? 'Box' : 'Boxes'}
 											</span>
-										{:else}
-											<span class="file-name">{displayName(saveFile)}</span>
-											<span class="detail-state">
-												{#if details.status === 'loading'}
-													<DelayedSpinner active label={`Reading ${displayName(saveFile)}`} />
-												{:else}
-													Details unavailable
-												{/if}
-											</span>
-										{/if}
-									</button>
-									<button
-										type="button"
-										class="save-menu-control"
-										aria-label={'Open Save File Menu for ' + displayName(saveFile)}
-										onpointerdown={(event) => event.preventDefault()}
-										onclick={() => openSaveFileMenu(saveFile.id)}
+										</button>
+									</div>
+								{:else}
+									<div
+										id="saves-target-import"
+										class={['import-cell', target.kind === 'import' && 'controller-focused']}
+										role="gridcell"
+										aria-colindex={(entry.index % columnCount) + 1}
+										aria-busy={busyTarget === 'import'}
 									>
-										•••
-									</button>
-									<DelayedSpinner
-										active={busyTarget === saveFile.id}
-										label={`Opening ${displayName(saveFile)}`}
-									/>
-								</div>
-							{:else if entry.kind === 'pokemon-storage'}
-								{@const selected = target.kind === 'pokemon-storage'}
-								<div
-									id="saves-target-pokemon-storage"
-									class={['storage-card', selected && 'controller-focused']}
-									role="gridcell"
-									aria-colindex={(entry.index % columnCount) + 1}
-								>
-									<button
-										type="button"
-										class="card-main storage-main"
-										tabindex="-1"
-										aria-label="Open Pokemon Storage in Boxes"
-										onclick={() => void openPokemonStorage()}
-									>
-										<span class="cartridge-spine" aria-hidden="true"></span>
-										<span class="card-heading"><strong>Pokemon Storage</strong></span>
-										<span class="storage-persistence">Automatically saved by PKSX</span>
-										<span class="card-stats">
-											<b>{pokemonStorage.pokemonCount}</b> Pokemon
-											<i aria-hidden="true"></i>
-											<b>{pokemonStorage.boxCount}</b> Storage
-											{pokemonStorage.boxCount === 1 ? 'Box' : 'Boxes'}
-										</span>
-									</button>
-								</div>
-							{:else}
-								<div
-									id="saves-target-import"
-									class={['import-cell', target.kind === 'import' && 'controller-focused']}
-									role="gridcell"
-									aria-colindex={(entry.index % columnCount) + 1}
-									aria-busy={busyTarget === 'import'}
-								>
-									<button
-										type="button"
-										tabindex="-1"
-										aria-label="Import a Save File"
-										onclick={openImportPicker}
-									>
-										<span>+</span>
-										<strong>Import a Save File</strong>
-										<DelayedSpinner active={busyTarget === 'import'} label="Importing Save File" />
-										<small>Choose a compatible file from this device.</small>
-									</button>
-								</div>
-							{/if}
-						{/each}
-					</div>
-				{/each}
+										<button
+											type="button"
+											tabindex="-1"
+											aria-label="Import a Save File"
+											onclick={openImportPicker}
+										>
+											<span>+</span>
+											<strong>Import a Save File</strong>
+											<DelayedSpinner
+												active={busyTarget === 'import'}
+												label="Importing Save File"
+											/>
+											<small>Choose a compatible file from this device.</small>
+										</button>
+									</div>
+								{/if}
+							{/each}
+						</div>
+					{/each}
+				</div>
 			</div>
+			<SavesIntroduction compact={saveFiles.length > 0 || pokemonStorage.pokemonCount > 0} />
 		</div>
 	</div>
 </section>
@@ -910,7 +920,7 @@
 		scrollbar-width: thin;
 	}
 
-	.saves-scrollport:focus {
+	.saves-collections:focus {
 		outline: none;
 	}
 
