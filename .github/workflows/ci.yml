@@ -254,12 +254,18 @@ jobs:
           emulator-options: >-
             -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
-            adb shell cmd window fixed-to-user-rotation enabled
-            adb shell cmd window user-rotation lock 1
-            sleep 1
-            adb shell wm size 540x960
-            adb shell wm density 160
             ./gradlew :app:connectedDebugAndroidTest --no-daemon
+
+      - name: Upload Android acceptance failure results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-acceptance-failure
+          path: |
+            android/app/build/outputs/androidTest-results/connected/debug
+            android/app/build/reports/androidTests/connected/debug
+          if-no-files-found: warn
+          retention-days: 7
 
   android-bootstrap-bundle:
     name: Signed Android bootstrap bundle
