@@ -1145,9 +1145,11 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 
 	await page.keyboard.press('x');
 	await menu.getByRole('button', { name: 'Save a backup' }).click();
-	await expect(page.locator('.toast-success')).toContainText(
-		'Backup saved for emerald-011020251345.sav.'
-	);
+	await expect(
+		page.locator('.toast-success').filter({
+			hasText: 'Backup saved for emerald-011020251345.sav.'
+		})
+	).toBeVisible();
 	const backups = (await backupRecords(page)).filter(({ reason }) => reason === 'manual');
 	expect(backups).toHaveLength(1);
 	expect(backups[0]).toMatchObject({
@@ -3366,6 +3368,21 @@ test('controller input follows the keyboard navigation path', async ({ page }) =
 	await pressController(page, 'Escape');
 	await expect(page.locator('.boxes-route')).not.toHaveAttribute('inert', '');
 	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+});
+
+test('exports the displayed Save File through the edit coordinator boundary', async ({ page }) => {
+	await importEmeraldThroughSaves(page);
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	const download = page.waitForEvent('download');
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Export', exact: true })
+		.click();
+
+	expect((await download).suggestedFilename()).toBe('emerald-011020251345.pksx.sav');
+	await expect(page.locator('.toast-success')).toContainText(
+		'Export ready for emerald-011020251345.sav.'
+	);
 });
 
 test('controller focus framework covers every interactive surface', async ({ page }) => {
