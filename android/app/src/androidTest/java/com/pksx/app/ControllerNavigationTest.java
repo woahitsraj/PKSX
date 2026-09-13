@@ -2185,7 +2185,7 @@ public class ControllerNavigationTest {
 
     private void assertAllFocusableControlsHighlighted(String scope) throws Exception {
         String selector =
-            "button:not([disabled]),a[href],input:not([disabled]):not([type=hidden]):not([type=file]),"
+            "button:not([disabled]),a[href],summary,input:not([disabled]):not([type=hidden]):not([type=file]),"
                 + "select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex=\"-1\"])";
         awaitJavaScript(
             "(() => { const root = document.querySelector('"
@@ -2193,7 +2193,7 @@ public class ControllerNavigationTest {
                 + "'); if (!root) return false; const controls = [...root.querySelectorAll('"
                 + selector
                 + "')].filter(control => { const rect = control.getBoundingClientRect();"
-                + " const style = getComputedStyle(control); return rect.width > 0 && rect.height > 0"
+                + " const style = getComputedStyle(control); return control.checkVisibility() && rect.width > 0 && rect.height > 0"
                 + " && style.display !== 'none' && style.visibility !== 'hidden'; });"
                 + " return controls.length > 0 && controls.every(control => { control.focus();"
                 + " const style = getComputedStyle(control); return style.outlineStyle === 'solid'"
