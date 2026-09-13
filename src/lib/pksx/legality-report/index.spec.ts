@@ -76,8 +76,9 @@ const workspace = {
 } satisfies WorkspaceState;
 
 describe('legality report state', () => {
-	it('shows each combined candidate change once even without an original matching finding', () => {
+	it('keeps complete targeted and combined candidate changes distinct', () => {
 		const move = { field: 'Move 1', before: 'Swords Dance', after: 'Empty' };
+		const combinedMove = { field: 'Move 1', before: 'Swords Dance', after: 'Tackle' };
 		const dependentBall = { field: 'Ball', before: 'Poke Ball', after: 'Luxury Ball' };
 		const findings = createLegalityReportFindings(
 			{
@@ -105,18 +106,22 @@ describe('legality report state', () => {
 			{
 				kind: 'legality-fix',
 				available: true,
-				changes: [move, dependentBall],
+				applyAllToken: 'all-fixes:token',
+				changes: [combinedMove, dependentBall],
 				choices: [],
 				fixes: [
-					{ id: 'move-set', token: 'all-fixes:token', label: 'Move Set', changes: [move] },
-					{ id: 'ball', token: 'all-fixes:token', label: 'Ball', changes: [dependentBall] }
+					{ id: 'move-set', token: 'move-set:token', label: 'Move Set', changes: [move] },
+					{ id: 'ball', token: 'ball:token', label: 'Ball', changes: [dependentBall] }
 				]
 			}
 		);
 
-		expect(findings.warnings[0].proposals).toEqual([move]);
-		expect(findings.messages[0].proposals).toEqual([]);
-		expect(findings.dependentProposals).toEqual([dependentBall]);
+		expect(findings.warnings[0]).toMatchObject({ proposals: [move], fix: { id: 'move-set' } });
+		expect(findings.messages[0]).toMatchObject({ proposals: [], fix: null });
+		expect(findings.unmatchedFixes).toEqual([
+			expect.objectContaining({ id: 'ball', changes: [dependentBall] })
+		]);
+		expect(findings.combinedProposals).toEqual([combinedMove, dependentBall]);
 	});
 
 	it('marks empty Slots unavailable before calling the engine', async () => {

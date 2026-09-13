@@ -711,6 +711,7 @@ export const pokemonActionAvailabilitySchema = z.object({
 	kind: pokemonActionKindSchema,
 	available: z.boolean(),
 	unavailableReason: z.string().nullable().optional(),
+	applyAllToken: z.string().nullable().optional(),
 	changes: z.array(pokemonActionChangeSchema),
 	choices: z.array(pokemonEvolutionChoiceSchema),
 	fixes: z.array(

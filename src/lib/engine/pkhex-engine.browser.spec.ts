@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { BoxSlotSummary, SaveSlotRef } from './types';
+import type { BoxSlotSummary, PokemonActionChange, SaveSlotRef } from './types';
 import colosseumFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/colosseum/011020251345.gci?url';
 import fixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav?url';
 import moonFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/moon/011020252257.sav?url';
@@ -525,15 +525,12 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		const legalityFix = preview.value.actions.find((action) => action.kind === 'legality-fix');
 		const moveFix = legalityFix?.fixes.find((fix) => fix.id === 'move-set');
 		expect(moveFix).toMatchObject({ id: 'move-set', label: 'Move Set' });
-		expect(moveFix?.token).toMatch(/^all-fixes:[0-9a-f]{32}$/);
+		expect(moveFix?.token).toMatch(/^move-set:[0-9a-f]{32}$/);
+		expect(legalityFix?.applyAllToken).toMatch(/^all-fixes:[0-9a-f]{32}$/);
 		if (!moveFix) throw new Error('Expected a targeted Move Set fix.');
+		if (!legalityFix?.applyAllToken) throw new Error('Expected a combined legality token.');
+		expect(moveFix.token).not.toBe(legalityFix.applyAllToken);
 		expect(new Set(legalityFix?.fixes.map((fix) => fix.token))).toEqual(new Set([moveFix.token]));
-		expect(legalityFix?.fixes.flatMap((fix) => fix.changes)).toHaveLength(
-			legalityFix?.changes.length ?? -1
-		);
-		expect(legalityFix?.fixes.flatMap((fix) => fix.changes)).toEqual(
-			expect.arrayContaining(legalityFix?.changes ?? [])
-		);
 		const moveLine = [
 			...preview.value.legalityReport.warnings,
 			...preview.value.legalityReport.messages
@@ -569,7 +566,8 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		if (!applied.ok) throw new Error('Expected targeted Move Set fix to succeed.');
 		const appliedSlot = applied.value.workspace.boxSlots[18];
 		if (!appliedSlot) throw new Error('Expected the fixed Platinum MEW Slot.');
-		expect(applied.value.changes).toEqual(legalityFix?.changes);
+		expect(applied.value.changes).toEqual(moveFix.changes);
+		expectMoveChangesMatchProjection(moveFix.changes, original, appliedSlot);
 		expect(moveFix.changes).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ field: expect.stringMatching(/^Move [1-4]$/) })
@@ -582,6 +580,52 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		);
 		expect(applied.value.bytes).not.toEqual(originalBytes);
 		expect(fixtureBytes).toEqual(originalBytes);
+
+		const allApplied = await engine.applyPokemonAction(
+			fixtureBytes,
+			'pokemon-platinum-eu.sav',
+			{ kind: 'legality-fix', source, choiceId: legalityFix.applyAllToken },
+			2
+		);
+		expect(allApplied.ok, JSON.stringify(allApplied.error)).toBe(true);
+		if (!allApplied.ok) throw new Error('Expected combined legality fixes to succeed.');
+		const allAppliedSlot = allApplied.value.workspace.boxSlots[18];
+		if (!allAppliedSlot) throw new Error('Expected the combined Platinum MEW result.');
+		expect(allApplied.value.changes).toEqual(legalityFix.changes);
+		expectMoveChangesMatchProjection(legalityFix.changes, original, allAppliedSlot);
+		expect(pokemonActionUnrelatedProjection(allAppliedSlot)).toEqual(
+			pokemonActionUnrelatedProjection(original)
+		);
+		expect(fixtureBytes).toEqual(originalBytes);
+
+		const allRetried = await engine.applyPokemonAction(
+			fixtureBytes,
+			'pokemon-platinum-eu.sav',
+			{ kind: 'legality-fix', source, choiceId: legalityFix.applyAllToken },
+			2
+		);
+		expect(allRetried.ok, JSON.stringify(allRetried.error)).toBe(true);
+		if (!allRetried.ok) throw new Error('Expected the combined legality retry to succeed.');
+		expect(allRetried.value).toEqual(allApplied.value);
+		expect(fixtureBytes).toEqual(originalBytes);
+
+		const staleAllInput = copyBytes(allApplied.value.bytes);
+		const staleAllOriginal = copyBytes(staleAllInput);
+		const staleAll = await engine.applyPokemonAction(
+			staleAllInput,
+			'pokemon-platinum-eu.sav',
+			{ kind: 'legality-fix', source, choiceId: legalityFix.applyAllToken },
+			2
+		);
+		expect(staleAll).toMatchObject({
+			ok: false,
+			error: {
+				code: 'stale-pokemon-action-preview',
+				message:
+					'This Pokemon changed after the fix preview. Refresh the Legality Report and try again.'
+			}
+		});
+		expect(staleAllInput).toEqual(staleAllOriginal);
 
 		// Discard the first result as if persistence failed, then retry the same preview and source.
 		const retried = await engine.applyPokemonAction(
@@ -652,7 +696,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		const preview = await engine.previewStoredPokemonActions(injured);
 		if (!preview.ok) throw new Error('Expected injured MEW preview to succeed.');
 		const action = preview.value.actions.find((candidate) => candidate.kind === 'legality-fix');
-		const token = action?.fixes[0]?.token;
+		const token = action?.applyAllToken;
 		expect(action).toMatchObject({
 			available: true,
 			changes: expect.arrayContaining([
@@ -695,15 +739,70 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		bytes[0x60] = (bytes[0x60]! & 0xf0) | (1 << 3);
 		const view = new DataView(bytes.buffer);
 		view.setUint32(0x38, view.getUint32(0x38, true) | (1 << 30), true);
-		const preview = await engine.previewStoredPokemonActions(btoa(String.fromCharCode(...bytes)));
+		const invalidEntity = btoa(String.fromCharCode(...bytes));
+		const preview = await engine.previewStoredPokemonActions(invalidEntity);
 		if (!preview.ok) throw new Error('Expected invalid ribbon preview to succeed.');
-		const ribbonChanges = preview.value.actions
-			.find((action) => action.kind === 'legality-fix')
-			?.changes.filter((change) => change.field.startsWith('Ribbon Cool Master'));
+		const action = preview.value.actions.find((candidate) => candidate.kind === 'legality-fix');
+		const moveFix = action?.fixes.find((fix) => fix.id === 'move-set');
+		const ribbonFix = action?.fixes.find((fix) => fix.id === 'ribbons');
+		expect(moveFix?.token).toMatch(/^move-set:[0-9a-f]{32}$/);
+		expect(ribbonFix?.token).toMatch(/^ribbons:[0-9a-f]{32}$/);
+		expect(action?.applyAllToken).toMatch(/^all-fixes:[0-9a-f]{32}$/);
+		if (!moveFix || !ribbonFix || !action?.applyAllToken) {
+			throw new Error('Expected targeted Move Set and Ribbons fixes plus a combined fix.');
+		}
+		expect(new Set([moveFix.token, ribbonFix.token, action.applyAllToken]).size).toBe(3);
+		const ribbonChanges = action.changes.filter((change) =>
+			change.field.startsWith('Ribbon Cool Master')
+		);
 		expect(ribbonChanges?.map((change) => change.field)).toEqual(
 			expect.arrayContaining(['Ribbon Cool Master (Gen 3)', 'Ribbon Cool Master (Gen 4)'])
 		);
 		expect(new Set(ribbonChanges?.map((change) => change.field)).size).toBe(2);
+
+		const ribbonApplied = await engine.applyStoredPokemonAction(invalidEntity, {
+			kind: 'legality-fix',
+			choiceId: ribbonFix.token
+		});
+		expect(ribbonApplied.ok, JSON.stringify(ribbonApplied.error)).toBe(true);
+		if (!ribbonApplied.ok) throw new Error('Expected the targeted Ribbons fix to succeed.');
+		expect(ribbonApplied.value.changes).toEqual(ribbonFix.changes);
+		const afterRibbon = await engine.previewStoredPokemonActions(
+			ribbonApplied.value.entityBytesBase64
+		);
+		if (!afterRibbon.ok) throw new Error('Expected the targeted Ribbons result to preview.');
+		const afterRibbonFixes = afterRibbon.value.actions.find(
+			(candidate) => candidate.kind === 'legality-fix'
+		)?.fixes;
+		expect(afterRibbonFixes?.some((fix) => fix.id === 'ribbons')).toBe(false);
+		expect(afterRibbonFixes?.some((fix) => fix.id === 'move-set')).toBe(true);
+		const staleAll = await engine.applyStoredPokemonAction(ribbonApplied.value.entityBytesBase64, {
+			kind: 'legality-fix',
+			choiceId: action.applyAllToken
+		});
+		expect(staleAll).toMatchObject({
+			ok: false,
+			error: {
+				code: 'stale-pokemon-action-preview',
+				message:
+					'This Pokemon changed after the fix preview. Refresh the Legality Report and try again.'
+			}
+		});
+
+		const allApplied = await engine.applyStoredPokemonAction(invalidEntity, {
+			kind: 'legality-fix',
+			choiceId: action.applyAllToken
+		});
+		expect(allApplied.ok, JSON.stringify(allApplied.error)).toBe(true);
+		if (!allApplied.ok) throw new Error('Expected all fixes to apply.');
+		expect(allApplied.value.changes).toEqual(action.changes);
+		const afterAll = await engine.previewStoredPokemonActions(allApplied.value.entityBytesBase64);
+		if (!afterAll.ok) throw new Error('Expected the combined result to preview.');
+		const afterAllFixes = afterAll.value.actions.find(
+			(candidate) => candidate.kind === 'legality-fix'
+		)?.fixes;
+		expect(afterAllFixes?.some((fix) => fix.id === 'ribbons')).toBe(false);
+		expect(afterAllFixes?.some((fix) => fix.id === 'move-set')).toBe(false);
 	});
 
 	test('applies Save File slot operations through the browser-wasm bundle', async () => {
@@ -1674,6 +1773,32 @@ function copyBytes(bytes: Uint8Array): Uint8Array {
 	const copy = new Uint8Array(bytes.byteLength);
 	copy.set(bytes);
 	return copy;
+}
+
+function expectMoveChangesMatchProjection(
+	changes: PokemonActionChange[],
+	before: BoxSlotSummary,
+	after: BoxSlotSummary
+) {
+	const slots = [0, 1, 2, 3];
+	expect(before.moves.map((move) => move.slot)).toEqual(slots);
+	expect(after.moves.map((move) => move.slot)).toEqual(slots);
+	const expected = slots.flatMap((slot) => {
+		const beforeMove = before.moves.find((move) => move.slot === slot)!;
+		const afterMove = after.moves.find((move) => move.slot === slot)!;
+		return [
+			[`Move ${slot + 1}`, beforeMove.name, afterMove.name],
+			[`Move ${slot + 1} PP`, String(beforeMove.pp ?? 0), String(afterMove.pp ?? 0)],
+			[`Move ${slot + 1} PP Ups`, String(beforeMove.ppUps ?? 0), String(afterMove.ppUps ?? 0)]
+		]
+			.filter(([, beforeValue, afterValue]) => beforeValue !== afterValue)
+			.map(([field, beforeValue, afterValue]) => ({
+				field: field!,
+				before: beforeValue!,
+				after: afterValue!
+			}));
+	});
+	expect(changes).toEqual(expected);
 }
 
 function pokemonActionUnrelatedProjection(slot: BoxSlotSummary | undefined) {

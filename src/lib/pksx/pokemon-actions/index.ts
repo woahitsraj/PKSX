@@ -120,9 +120,18 @@ export function selectPokemonAction(
 			kind,
 			choice,
 			fix,
-			changes: kind === 'legality-fix' ? action.changes : (choice?.changes ?? action.changes)
+			changes: kind === 'legality-fix' ? (fix?.changes ?? []) : (choice?.changes ?? action.changes)
 		}
 	};
+}
+
+export function legalityFixOperation(
+	state: PokemonActionReadyState | PokemonActionApplyingState,
+	fixId: string
+): StoredPokemonActionOperation | null {
+	const action = state.preview.actions.find((candidate) => candidate.kind === 'legality-fix');
+	const fix = action?.fixes.find((candidate) => candidate.id === fixId);
+	return action?.available && fix ? { kind: 'legality-fix', choiceId: fix.token } : null;
 }
 
 export function clearPokemonActionSelection(
@@ -147,11 +156,9 @@ export function allLegalityFixOperation(
 	state: PokemonActionReadyState | PokemonActionApplyingState
 ): StoredPokemonActionOperation | null {
 	const action = state.preview.actions.find((candidate) => candidate.kind === 'legality-fix');
-	if (!action?.available || action.changes.length === 0 || action.fixes.length === 0) return null;
-
-	const token = action.fixes[0].token;
-	if (action.fixes.some((fix) => fix.token !== token)) return null;
-	return { kind: 'legality-fix', choiceId: token };
+	return action?.available && action.applyAllToken && action.changes.length > 0
+		? { kind: 'legality-fix', choiceId: action.applyAllToken }
+		: null;
 }
 
 export async function requestPokemonActionPreview(engine: EngineApi, target: PokemonActionTarget) {

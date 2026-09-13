@@ -5,6 +5,7 @@ import type {
 	LegalityReportLine,
 	PokemonActionAvailability,
 	PokemonActionChange,
+	PokemonLegalityFixChoice,
 	SaveSlotRef
 } from '$lib/engine';
 import type { SlotView } from '$lib/components/pksx/types';
@@ -34,40 +35,34 @@ export type LegalityReportRequestResult = {
 export type LegalityReportFinding = {
 	line: LegalityReportLine;
 	proposals: PokemonActionChange[];
+	fix: PokemonLegalityFixChoice | null;
 };
 
 export type LegalityReportFindings = {
 	warnings: LegalityReportFinding[];
 	messages: LegalityReportFinding[];
-	dependentProposals: PokemonActionChange[];
+	unmatchedFixes: PokemonLegalityFixChoice[];
+	combinedProposals: PokemonActionChange[];
 };
 
 export function createLegalityReportFindings(
 	report: LegalityReport,
 	fix: PokemonActionAvailability | null
 ): LegalityReportFindings {
-	const proposals = new Map(fix?.fixes.map((choice) => [choice.id, choice.changes]) ?? []);
-	const shown = new Set<string>();
+	const fixes = new Map(fix?.fixes.map((choice) => [choice.id, choice]) ?? []);
+	const shownFixes = new Set<string>();
 	const decorate = (lines: LegalityReportLine[]) =>
 		lines.map((line) => {
-			const candidates = line.fixId ? (proposals.get(line.fixId) ?? []) : [];
-			const lineProposals = candidates.filter((change) => {
-				const key = changeKey(change);
-				if (shown.has(key)) return false;
-				shown.add(key);
-				return true;
-			});
-			return { line, proposals: lineProposals };
+			const findingFix =
+				line.fixId && !shownFixes.has(line.fixId) ? (fixes.get(line.fixId) ?? null) : null;
+			if (findingFix) shownFixes.add(findingFix.id);
+			return { line, proposals: findingFix?.changes ?? [], fix: findingFix };
 		});
 
 	const warnings = decorate(report.warnings);
 	const messages = decorate(report.messages);
-	const dependentProposals = (fix?.changes ?? []).filter((change) => !shown.has(changeKey(change)));
-	return { warnings, messages, dependentProposals };
-}
-
-function changeKey(change: PokemonActionChange) {
-	return JSON.stringify([change.field, change.before, change.after]);
+	const unmatchedFixes = (fix?.fixes ?? []).filter((choice) => !shownFixes.has(choice.id));
+	return { warnings, messages, unmatchedFixes, combinedProposals: fix?.changes ?? [] };
 }
 
 export function createLegalityReportLoadingState(

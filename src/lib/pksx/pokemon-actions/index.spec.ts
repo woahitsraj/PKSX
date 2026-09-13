@@ -6,6 +6,7 @@ import {
 	applyPokemonAction,
 	clearPokemonActionSelection,
 	createPokemonActionReadyState,
+	legalityFixOperation,
 	selectPokemonAction,
 	selectedPokemonActionOperation
 } from '.';
@@ -23,18 +24,22 @@ const preview: PokemonActionPreview = {
 		{
 			kind: 'legality-fix',
 			available: true,
-			changes: [{ field: 'Moves', before: 'Splash', after: 'Tackle' }],
+			applyAllToken: 'all-fixes:preview-token',
+			changes: [
+				{ field: 'Moves', before: 'Splash', after: 'Tackle' },
+				{ field: 'Ball', before: 'Poke Ball', after: 'Luxury Ball' }
+			],
 			choices: [],
 			fixes: [
 				{
 					id: 'move-set',
-					token: 'all-fixes:preview-token',
+					token: 'move-set:preview-token',
 					label: 'Move Set',
 					changes: [{ field: 'Moves', before: 'Splash', after: 'Tackle' }]
 				},
 				{
 					id: 'ball',
-					token: 'all-fixes:preview-token',
+					token: 'ball:preview-token',
 					label: 'Ball',
 					changes: [{ field: 'Ball', before: 'Poke Ball', after: 'Luxury Ball' }]
 				}
@@ -115,14 +120,19 @@ describe('Pokemon Actions', () => {
 			selection: {
 				kind: 'legality-fix',
 				fix: { id: 'move-set', label: 'Move Set' },
-				changes: preview.actions[0].changes
+				changes: preview.actions[0].fixes[0].changes
 			}
 		});
 		if (selected.status !== 'ready') throw new Error('Expected ready state.');
 		expect(selectedPokemonActionOperation(selected)).toEqual({
 			kind: 'legality-fix',
-			choiceId: 'all-fixes:preview-token'
+			choiceId: 'move-set:preview-token'
 		});
+		expect(legalityFixOperation(ready, 'move-set')).toEqual({
+			kind: 'legality-fix',
+			choiceId: 'move-set:preview-token'
+		});
+		expect(legalityFixOperation(ready, 'missing')).toBeNull();
 	});
 
 	it('builds one combined legality operation without selecting an individual finding', () => {

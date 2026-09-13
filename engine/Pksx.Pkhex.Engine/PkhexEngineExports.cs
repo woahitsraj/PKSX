@@ -1984,7 +1984,7 @@ public static partial class PkhexEngineExports
         var legalityFix = PreviewLegalityFix(pokemon, storageSlotType);
         var evolutionChoices = CreateEvolutionChoices(pokemon);
         var evolve = evolutionChoices.Count > 0
-            ? new PokemonActionAvailability("evolve", true, null, [], evolutionChoices, [])
+            ? new PokemonActionAvailability("evolve", true, null, [], evolutionChoices, [], null)
             : new PokemonActionAvailability(
                 "evolve",
                 false,
@@ -1993,7 +1993,8 @@ public static partial class PkhexEngineExports
                     : "No direct evolution is available for this Pokemon.",
                 [],
                 [],
-                []);
+                [],
+                null);
 
         return new PokemonActionPreview(
             CreateLegalityReport(pokemon, storageSlotType),
@@ -2004,34 +2005,39 @@ public static partial class PkhexEngineExports
         PKM pokemon,
         StorageSlotType storageSlotType)
     {
-        var clone = pokemon.Clone();
-        var result = ApplyTargetedLegalityFix(clone, storageSlotType, null);
-        var fixes = CreateLegalityFixChoices(pokemon, storageSlotType, result);
+        var combined = ApplyTargetedLegalityFix(pokemon.Clone(), storageSlotType, null);
+        var fixes = CreateLegalityFixChoices(pokemon, storageSlotType);
+        var applyAllToken = combined.Changes.Count > 0
+            ? CacheLegalityFixPreview(
+                pokemon,
+                storageSlotType,
+                "all-fixes",
+                combined.Pokemon,
+                combined.Changes)
+            : null;
         return fixes.Count > 0
-            ? new PokemonActionAvailability("legality-fix", true, null, result.Changes, [], fixes)
+            ? new PokemonActionAvailability(
+                "legality-fix",
+                true,
+                null,
+                combined.Changes,
+                [],
+                fixes,
+                applyAllToken)
             : new PokemonActionAvailability(
                 "legality-fix",
                 false,
                 "The Legality Report has no supported fixable problems.",
                 [],
                 [],
-                []);
+                [],
+                null);
     }
 
     private static List<PokemonLegalityFixChoice> CreateLegalityFixChoices(
         PKM pokemon,
-        StorageSlotType storageSlotType,
-        PokemonActionMutation result)
+        StorageSlotType storageSlotType)
     {
-        if (result.Changes.Count == 0)
-            return [];
-
-        var token = CacheLegalityFixPreview(
-            pokemon,
-            storageSlotType,
-            "all-fixes",
-            result.Pokemon,
-            result.Changes);
         var fixes = new List<PokemonLegalityFixChoice>();
         foreach (var (id, label) in new[]
         {
@@ -2041,11 +2047,17 @@ public static partial class PkhexEngineExports
             ("ribbons", "Ribbons"),
         })
         {
-            var changes = result.Changes
-                .Where(change => LegalityFixId(change.Field) == id)
-                .ToList();
-            if (changes.Count > 0)
-                fixes.Add(new PokemonLegalityFixChoice(id, token, label, changes));
+            var result = ApplyTargetedLegalityFix(pokemon.Clone(), storageSlotType, id);
+            if (result.Changes.Count == 0)
+                continue;
+
+            var token = CacheLegalityFixPreview(
+                pokemon,
+                storageSlotType,
+                id,
+                result.Pokemon,
+                result.Changes);
+            fixes.Add(new PokemonLegalityFixChoice(id, token, label, result.Changes));
         }
 
         return fixes;
@@ -2499,13 +2511,6 @@ public static partial class PkhexEngineExports
 
     private static int RibbonCount(PKM pokemon) =>
         RibbonInfo.GetRibbonInfo(pokemon).Count(ribbon => ribbon.HasRibbon);
-
-    private static string? LegalityFixId(string field) =>
-        field.StartsWith("Relearn Move ", StringComparison.Ordinal) ? "relearn-moves" :
-        field.StartsWith("Move ", StringComparison.Ordinal) || field == "Move Records" ? "move-set" :
-        field == "Ball" ? "ball" :
-        field.StartsWith("Ribbon ", StringComparison.Ordinal) ? "ribbons" :
-        null;
 
     private static PKM? ParseStoredPokemon(string entityBytesBase64) =>
         EntityFormat.GetFromBytes(Convert.FromBase64String(entityBytesBase64));
