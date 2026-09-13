@@ -150,7 +150,7 @@
 	}
 	a:focus-visible,
 	summary:focus-visible {
-		outline: 2px solid var(--rust-ring);
+		outline: var(--pksx-focus-ring) solid var(--rust-ring);
 		outline-offset: 4px;
 	}
 </style>

@@ -4,6 +4,8 @@ The homepage is the working Saves selector. Introductory copy and planned downlo
 
 `/boxes` owns the box workspace. Default web, PWA and native launches use `/`. Existing `/saves` links redirect to `/`, with both a SvelteKit redirect and a Cloudflare HTTP redirect. Existing `/?source=pokemon-storage` bookmarks open `/boxes?source=pokemon-storage`. The existing `/save-file` alias still opens Trainer.
 
+Capacitor uses the generated `native.html` router shell as its local `index.html`, installed by the `capacitor:copy:after` hook. This lets native reloads resolve `/boxes` correctly while the web build retains the prerendered homepage. The shell carries an HTTP indexing exclusion on the public host.
+
 ## Indexing
 
 - `Seo.svelte` owns titles, descriptions, production canonical URLs and social cards. The card uses the existing app icon.

@@ -6,3 +6,6 @@ https://:version.:subdomain.workers.dev/*
 
 /prototype/*
   X-Robots-Tag: noindex
+
+/native*
+  X-Robots-Tag: noindex

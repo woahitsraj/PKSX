@@ -24,6 +24,7 @@ test('saved collections compact the introduction and open at the dedicated Boxes
 	page
 }) => {
 	await page.goto('/');
+	await expect(page.locator('.saves-route')).toHaveAttribute('data-initial-state', 'ready');
 	await page
 		.getByLabel('Import Save File', { exact: true })
 		.setInputFiles(

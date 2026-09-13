@@ -12,6 +12,7 @@
 		"deploy:preview": "wrangler versions upload --env staging",
 		"deploy:staging": "wrangler deploy --env staging",
 		"deploy:production": "wrangler deploy --env production",
+		"capacitor:copy:after": "node scripts/prepare-native-shell.ts",
 		"native:sync:ios": "pnpm build && cap sync ios",
 		"ios:open": "cap open ios",
 		"ios:build": "pnpm native:sync:ios && xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build",
