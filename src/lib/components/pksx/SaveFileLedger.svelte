@@ -1955,6 +1955,17 @@
 		gap: var(--pksx-space-1, 4px);
 	}
 
+	.quantity-controls input {
+		appearance: textfield;
+		text-align: center;
+	}
+
+	.quantity-controls input::-webkit-inner-spin-button,
+	.quantity-controls input::-webkit-outer-spin-button {
+		margin: 0;
+		-webkit-appearance: none;
+	}
+
 	.remove-command {
 		grid-template-columns: minmax(0, 1fr) auto auto;
 	}

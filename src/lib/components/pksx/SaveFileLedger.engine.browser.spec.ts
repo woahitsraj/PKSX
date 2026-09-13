@@ -1494,6 +1494,8 @@ describe('SaveFileLedger direct-edit boundary seam', () => {
 			String(firstItem.maxQuantity).length.toString()
 		);
 		expect(getComputedStyle(quantityInput).fontSize).toBe('16px');
+		expect(getComputedStyle(quantityInput).appearance).toBe('textfield');
+		expect(getComputedStyle(quantityInput).textAlign).toBe('center');
 		expectValueFits(quantityInput, String(firstItem.maxQuantity));
 		const wideQuantityWidth = quantityInput.getBoundingClientRect().width;
 
