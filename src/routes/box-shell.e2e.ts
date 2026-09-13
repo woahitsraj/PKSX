@@ -1049,6 +1049,10 @@ test('switches to durable Pokemon Storage with focusable empty Slot actions', as
 
 	await seedPokemonStorageBoxes(page, 5);
 	await page.goto('/?source=pokemon-storage');
+	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
 
@@ -2583,6 +2587,7 @@ test('Edit opens Pokemon Editor and returns focus to the command stack', async (
 	await expect(page.locator('#pokemon-editor-section-nickname')).toBeFocused();
 
 	await choosePokemonEditorSection(page, 'species-form');
+	await expect(editor.locator('#pokemon-editor-species')).toBeEnabled();
 	await page.keyboard.press('ArrowRight');
 	await expect(editor.locator('#pokemon-editor-species')).toBeFocused();
 	await pressController(page, 'ArrowLeft');
