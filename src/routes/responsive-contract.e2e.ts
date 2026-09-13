@@ -61,7 +61,7 @@ const floorAndTargetCases: BudgetCase[] = [
 const destinations: Destination[] = [
 	{
 		name: 'Boxes',
-		path: '/',
+		path: '/boxes',
 		key: 'boxes',
 		scrollOwner: '.storage-workspace',
 		initialFocus: 'box-0-slot-0'
@@ -83,7 +83,7 @@ const destinations: Destination[] = [
 	},
 	{
 		name: 'Saves',
-		path: '/saves',
+		path: '/',
 		key: 'saves',
 		scrollOwner: '.saves-scrollport',
 		initialFocus: 'active-save-file'
@@ -214,7 +214,7 @@ async function openDestination(page: Page, destination: Destination, budget: Bud
 
 async function importPublicSave(page: Page) {
 	await page.setViewportSize({ width: 1280, height: 800 });
-	await page.goto('/saves');
+	await page.goto('/');
 	const saves = page.locator('[data-destination-root="saves"]');
 	await expect(saves).toHaveAttribute('data-initial-state', 'ready');
 	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
@@ -994,7 +994,7 @@ test('[LARGE-1][SURFACE-1] large caps and representative surfaces use bounded ge
 	).toBeLessThanOrEqual(260);
 
 	await page.setViewportSize({ width: 1920, height: 1080 });
-	await page.goto('/saves');
+	await page.goto('/');
 	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });
 	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
 		'data-initial-state',
@@ -1038,7 +1038,7 @@ test('[DENSITY-1][SURFACE-1] portrait Pokemon Editor audits focused and open com
 }, testInfo) => {
 	skipNonChromium(testInfo);
 	await importPublicSave(page);
-	await page.goto('/');
+	await page.goto('/boxes');
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 30_000 });
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');

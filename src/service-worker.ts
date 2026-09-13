@@ -85,5 +85,10 @@ async function deleteOldCaches(): Promise<void> {
 function isSkippedAsset(file: string): boolean {
 	const fileName = file.split('/').at(-1) ?? file;
 
-	return debugAssetPattern.test(file) || fileName.startsWith('.');
+	return (
+		debugAssetPattern.test(file) ||
+		fileName.startsWith('.') ||
+		fileName === '_headers' ||
+		fileName === '_redirects'
+	);
 }

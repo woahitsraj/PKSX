@@ -196,7 +196,7 @@
 				}
 			});
 			invalidateSavesCache();
-			await goto(resolve('/'), { keepFocus: true });
+			await goto(resolve('/boxes'), { keepFocus: true });
 			await new Promise<void>((resolveFocus) => {
 				const focusDestination = () => {
 					const slot = document.getElementById(`box-${getCachedActiveWorkspaceBox()}-slot-0`);

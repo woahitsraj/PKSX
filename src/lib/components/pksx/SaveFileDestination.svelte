@@ -47,7 +47,7 @@
 		const common = {
 			destination,
 			getSessionFocusIdentity: () => getDestinationFocusIdentity?.(destination) ?? null,
-			onBackToBoxes: () => void goto(resolve('/'), { keepFocus: true }),
+			onBackToBoxes: () => void goto(resolve('/boxes'), { keepFocus: true }),
 			onRetryLoad: retryLoad
 		};
 		if (!session) return { ...common, view };
