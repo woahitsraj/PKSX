@@ -329,7 +329,7 @@ final class ControllerNavigationTests: XCTestCase {
             try await Task.sleep(nanoseconds: 100_000_000)
         }
         let state = try? await webView.evaluateJavaScript(
-            "JSON.stringify({activeId: document.activeElement?.id, dialogs: [...document.querySelectorAll('[role=dialog]')].map(dialog => dialog.getAttribute('aria-label')), controllerEvents: window.__pksxControllerEvents})"
+            "JSON.stringify({url: location.href, text: document.body.innerText.slice(0, 500), activeId: document.activeElement?.id, dialogs: [...document.querySelectorAll('[role=dialog]')].map(dialog => dialog.getAttribute('aria-label')), controllerEvents: window.__pksxControllerEvents})"
         )
         XCTFail("Timed out waiting for JavaScript: \(script), state: \(state ?? "unavailable")")
     }

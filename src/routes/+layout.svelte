@@ -65,7 +65,7 @@
 	let hasActiveSaveFile = $state(false);
 	let activeSaveAvailabilityRequest = 0;
 	const activeRoute = $derived<Destination>(
-		page.url.pathname === '/' || page.url.pathname.startsWith('/saves')
+		!page.url.pathname || page.url.pathname === '/' || page.url.pathname.startsWith('/saves')
 			? 'saves'
 			: page.url.pathname.startsWith('/trainer') || page.url.pathname.startsWith('/save-file')
 				? 'trainer'
