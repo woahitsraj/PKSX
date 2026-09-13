@@ -73,6 +73,7 @@
 
 	type DraftStats = Record<PokemonStatKey, string>;
 	type DraftFriendship = Record<string, string>;
+	const SEARCHABLE_OPTION_THRESHOLD = 7;
 
 	let {
 		editor,
@@ -253,6 +254,52 @@
 				}) satisfies ComboboxOption
 		)
 	);
+	const speciesComboboxOptions = $derived(
+		(speciesFormProjection?.availableSpecies ?? []).map(
+			(option) => ({ value: String(option.id), label: option.name }) satisfies ComboboxOption
+		)
+	);
+	const natureComboboxOptions = $derived(
+		(natureEditConstraints?.options ?? []).map(
+			(option) =>
+				({
+					value: String(option.id),
+					label: option.name,
+					detail: option.effect
+				}) satisfies ComboboxOption
+		)
+	);
+	const heldItemComboboxOptions = $derived(
+		(heldItemEditConstraints?.options ?? []).map(
+			(option) =>
+				({
+					value: String(option.id),
+					label: option.name,
+					detail: option.available ? undefined : 'Unavailable for format',
+					disabled: !option.available
+				}) satisfies ComboboxOption
+		)
+	);
+	const metLocationComboboxOptions = $derived(
+		metLocationOptions.map(
+			(option) => ({ value: String(option.id), label: option.name }) satisfies ComboboxOption
+		)
+	);
+	const originGameComboboxOptions = $derived(
+		(metDataEditConstraints?.originGames ?? []).map(
+			(option) => ({ value: String(option.id), label: option.name }) satisfies ComboboxOption
+		)
+	);
+	const ballComboboxOptions = $derived(
+		(metDataEditConstraints?.balls ?? []).map(
+			(option) => ({ value: String(option.id), label: option.name }) satisfies ComboboxOption
+		)
+	);
+	const languageComboboxOptions = $derived(
+		(originalTrainerEditConstraints?.languages ?? []).map(
+			(option) => ({ value: String(option.id), label: option.name }) satisfies ComboboxOption
+		)
+	);
 	const unavailableHeldItemCount = $derived(
 		heldItemEditConstraints?.options.filter((option) => !option.available).length ?? 0
 	);
@@ -359,19 +406,15 @@
 		}
 	}
 
-	function handleSpeciesChange(event: Event) {
-		const target = event.currentTarget;
-		if (!(target instanceof HTMLSelectElement)) return;
-		draftSpeciesId = Number(target.value);
+	function setDraftSpecies(value: string) {
+		draftSpeciesId = Number(value);
 		draftForm = 0;
 		publishDraftChange();
 		onPreviewSpeciesForm({ speciesId: draftSpeciesId, form: draftForm });
 	}
 
-	function handleFormChange(event: Event) {
-		const target = event.currentTarget;
-		if (!(target instanceof HTMLSelectElement)) return;
-		draftForm = Number(target.value);
+	function setDraftForm(value: string) {
+		draftForm = Number(value);
 		publishDraftChange();
 		onPreviewSpeciesForm({ speciesId: draftSpeciesId, form: draftForm });
 	}
@@ -446,12 +489,6 @@
 	function setDraftAbility(value: string) {
 		draftAbilityIndex = Number(value);
 		publishDraftChange();
-	}
-
-	function heldItemOptionLabel(
-		option: NonNullable<typeof heldItemEditConstraints>['options'][number]
-	) {
-		return `${option.name}${option.available ? '' : ' (Unavailable for format)'}`;
 	}
 
 	function abilityOptionLabel(
@@ -556,6 +593,11 @@
 		if (editingInputId === id) {
 			editingInputId = null;
 		}
+	}
+
+	function handleComboboxOpenChange(id: string, open: boolean) {
+		if (open) activateDraftInput(id, false);
+		else deactivateDraftInput(id);
 	}
 
 	function handleDraftInputKeydown(event: KeyboardEvent, id: string) {
@@ -1473,35 +1515,59 @@
 								<div class="species-form-controls">
 									<label>
 										<span>Species</span>
-										<select
+										<Combobox
+											ownsControllerInput={false}
 											id="pokemon-editor-species"
-											class:staged-field={draftSpeciesId !== slot.speciesId}
-											aria-invalid={isControlInvalid('pokemon-editor-species')}
-											aria-describedby={isControlInvalid('pokemon-editor-species')
+											ariaLabel="Species"
+											value={String(draftSpeciesId)}
+											options={speciesComboboxOptions}
+											placeholder="Choose a species"
+											searchLabel="Search species"
+											searchPlaceholder="Search species"
+											staged={draftSpeciesId !== slot.speciesId}
+											ariaInvalid={isControlInvalid('pokemon-editor-species')}
+											describedBy={isControlInvalid('pokemon-editor-species')
 												? 'pokemon-editor-status'
 												: undefined}
-											value={draftSpeciesId}
 											disabled={applying || speciesFormLoading}
-											onchange={handleSpeciesChange}
-										>
-											{#each speciesFormProjection.availableSpecies as species (species.id)}
-												<option value={species.id}>{species.name}</option>
-											{/each}
-										</select>
+											onSelect={setDraftSpecies}
+											onOpenChange={(open) =>
+												handleComboboxOpenChange('pokemon-editor-species', open)}
+										/>
 									</label>
 									<label>
 										<span>Form</span>
-										<select
-											id="pokemon-editor-form"
-											class:staged-field={draftForm !== (slot.form ?? 0)}
-											value={draftForm}
-											disabled={applying || speciesFormLoading}
-											onchange={handleFormChange}
-										>
-											{#each speciesFormProjection.availableForms as form (form.id)}
-												<option value={form.id}>{form.name}</option>
-											{/each}
-										</select>
+										{#if speciesFormProjection.availableForms.length >= SEARCHABLE_OPTION_THRESHOLD}
+											<Combobox
+												ownsControllerInput={false}
+												id="pokemon-editor-form"
+												ariaLabel="Form"
+												value={String(draftForm)}
+												options={speciesFormProjection.availableForms.map(
+													(form) =>
+														({ value: String(form.id), label: form.name }) satisfies ComboboxOption
+												)}
+												placeholder="Choose a form"
+												searchLabel="Search forms"
+												disabled={applying || speciesFormLoading}
+												staged={draftForm !== (slot.form ?? 0)}
+												onSelect={setDraftForm}
+												onOpenChange={(open) =>
+													handleComboboxOpenChange('pokemon-editor-form', open)}
+											/>
+										{:else}
+											<select
+												id="pokemon-editor-form"
+												class:staged-field={draftForm !== (slot.form ?? 0)}
+												value={draftForm}
+												disabled={applying || speciesFormLoading}
+												onchange={(event) => setDraftForm(event.currentTarget.value)}
+											>
+												{#each speciesFormProjection.availableForms as form (form.id)}<option
+														value={form.id}>{form.name}</option
+													>{/each}
+											</select>
+										{/if}
 									</label>
 								</div>
 								<div class="species-form-preview" aria-live="polite">
@@ -1545,23 +1611,55 @@
 									{#each battleFields as field (field.key)}
 										<label>
 											<span>{field.label}</span>
-											<select
-												id={`pokemon-editor-battle-field-${field.key}`}
-												class:staged-field={draftBattleFields[field.key] !== field.value}
-												aria-invalid={isControlInvalid(`pokemon-editor-battle-field-${field.key}`)}
-												aria-describedby={isControlInvalid(
-													`pokemon-editor-battle-field-${field.key}`
-												)
-													? 'pokemon-editor-status'
-													: undefined}
-												value={draftBattleFields[field.key]}
-												disabled={!field.supported || applying}
-												onchange={(event) => setBattleField(field.key, event.currentTarget.value)}
-											>
-												{#each field.options as option (option.value)}
-													<option value={option.value}>{option.label}</option>
-												{/each}
-											</select>
+											{#if field.options.length >= SEARCHABLE_OPTION_THRESHOLD}
+												<Combobox
+													ownsControllerInput={false}
+													id={`pokemon-editor-battle-field-${field.key}`}
+													ariaLabel={field.label}
+													value={String(draftBattleFields[field.key])}
+													options={field.options.map(
+														(option) =>
+															({
+																value: String(option.value),
+																label: option.label
+															}) satisfies ComboboxOption
+													)}
+													placeholder={`Choose ${field.label}`}
+													searchLabel={`Search ${field.label}`}
+													staged={draftBattleFields[field.key] !== field.value}
+													ariaInvalid={isControlInvalid(`pokemon-editor-battle-field-${field.key}`)}
+													describedBy={isControlInvalid(`pokemon-editor-battle-field-${field.key}`)
+														? 'pokemon-editor-status'
+														: undefined}
+													disabled={!field.supported || applying}
+													onSelect={(value) => setBattleField(field.key, value)}
+													onOpenChange={(open) =>
+														handleComboboxOpenChange(
+															`pokemon-editor-battle-field-${field.key}`,
+															open
+														)}
+												/>
+											{:else}
+												<select
+													id={`pokemon-editor-battle-field-${field.key}`}
+													class:staged-field={draftBattleFields[field.key] !== field.value}
+													aria-invalid={isControlInvalid(
+														`pokemon-editor-battle-field-${field.key}`
+													)}
+													aria-describedby={isControlInvalid(
+														`pokemon-editor-battle-field-${field.key}`
+													)
+														? 'pokemon-editor-status'
+														: undefined}
+													value={draftBattleFields[field.key]}
+													disabled={!field.supported || applying}
+													onchange={(event) => setBattleField(field.key, event.currentTarget.value)}
+												>
+													{#each field.options as option (option.value)}
+														<option value={option.value}>{option.label}</option>
+													{/each}
+												</select>
+											{/if}
 										</label>
 										{#if !field.supported && field.unsupportedReason}
 											<p>{field.unsupportedReason}</p>
@@ -1630,21 +1728,23 @@
 								</div>
 								<label class="nature-edit-controls">
 									<span>Nature choice</span>
-									<select
+									<Combobox
+										ownsControllerInput={false}
 										id="pokemon-editor-nature"
-										class:staged-field={isEditDirty('nature')}
-										aria-invalid={isControlInvalid('pokemon-editor-nature')}
-										aria-describedby={isControlInvalid('pokemon-editor-nature')
+										ariaLabel="Nature choice"
+										value={String(draftNatureId)}
+										options={natureComboboxOptions}
+										placeholder="Choose a Nature"
+										searchLabel="Search Natures"
+										staged={isEditDirty('nature')}
+										ariaInvalid={isControlInvalid('pokemon-editor-nature')}
+										describedBy={isControlInvalid('pokemon-editor-nature')
 											? 'pokemon-editor-status'
 											: undefined}
-										value={draftNatureId}
 										disabled={applying}
-										onchange={(event) => setDraftNature(event.currentTarget.value)}
-									>
-										{#each natureEditConstraints?.options ?? [] as option (option.id)}
-											<option value={option.id}>{option.name} — {option.effect}</option>
-										{/each}
-									</select>
+										onSelect={setDraftNature}
+										onOpenChange={(open) => handleComboboxOpenChange('pokemon-editor-nature', open)}
+									/>
 								</label>
 								<p class="nature-edit-hint">
 									{natureEditConstraints?.usesStatNature
@@ -1671,23 +1771,24 @@
 							{#if heldItemEditConstraints && heldItemEditConstraints.options.length > 0}
 								<label class="held-item-edit-controls">
 									<span>Held Item choice</span>
-									<select
+									<Combobox
+										ownsControllerInput={false}
 										id="pokemon-editor-held-item"
-										class:staged-field={isEditDirty('held-item')}
-										aria-invalid={isControlInvalid('pokemon-editor-held-item')}
-										aria-describedby={isControlInvalid('pokemon-editor-held-item')
+										ariaLabel="Held Item choice"
+										value={String(draftHeldItemId)}
+										options={heldItemComboboxOptions}
+										placeholder="Choose a held item"
+										searchLabel="Search held items"
+										staged={isEditDirty('held-item')}
+										ariaInvalid={isControlInvalid('pokemon-editor-held-item')}
+										describedBy={isControlInvalid('pokemon-editor-held-item')
 											? 'pokemon-editor-status'
 											: undefined}
-										value={draftHeldItemId}
 										disabled={!canEditHeldItem || applying}
-										onchange={(event) => setDraftHeldItem(event.currentTarget.value)}
-									>
-										{#each heldItemEditConstraints.options as option (option.id)}
-											<option value={option.id} disabled={!option.available}>
-												{heldItemOptionLabel(option)}
-											</option>
-										{/each}
-									</select>
+										onSelect={setDraftHeldItem}
+										onOpenChange={(open) =>
+											handleComboboxOpenChange('pokemon-editor-held-item', open)}
+									/>
 								</label>
 								{#if unavailableHeldItemCount > 0}
 									<p class="held-item-restrictions">
@@ -1761,22 +1862,24 @@
 								<div class="met-data-edit-controls">
 									<label>
 										<span>Met location</span>
-										<select
+										<Combobox
+											ownsControllerInput={false}
 											id="pokemon-editor-met-location"
-											class:staged-field={draftMetLocationId !==
-												metDataEditConstraints?.currentLocationId}
-											aria-invalid={isControlInvalid('pokemon-editor-met-location')}
-											aria-describedby={isControlInvalid('pokemon-editor-met-location')
+											ariaLabel="Met location"
+											value={String(draftMetLocationId)}
+											options={metLocationComboboxOptions}
+											placeholder="Choose a met location"
+											searchLabel="Search met locations"
+											staged={draftMetLocationId !== metDataEditConstraints?.currentLocationId}
+											ariaInvalid={isControlInvalid('pokemon-editor-met-location')}
+											describedBy={isControlInvalid('pokemon-editor-met-location')
 												? 'pokemon-editor-status'
 												: undefined}
-											value={draftMetLocationId}
 											disabled={applying || metLocationOptions.length === 0}
-											onchange={(event) => setDraftMetLocation(event.currentTarget.value)}
-										>
-											{#each metLocationOptions as option (option.id)}
-												<option value={option.id}>{option.name}</option>
-											{/each}
-										</select>
+											onSelect={setDraftMetLocation}
+											onOpenChange={(open) =>
+												handleComboboxOpenChange('pokemon-editor-met-location', open)}
+										/>
 									</label>
 									<label>
 										<span>Met level</span>
@@ -1807,42 +1910,47 @@
 									{#if metDataEditConstraints?.supportsOriginGame}
 										<label>
 											<span>Origin game</span>
-											<select
+											<Combobox
+												ownsControllerInput={false}
 												id="pokemon-editor-origin-game"
-												class:staged-field={draftOriginGameId !==
-													metDataEditConstraints.currentOriginGameId}
-												aria-invalid={isControlInvalid('pokemon-editor-origin-game')}
-												aria-describedby={isControlInvalid('pokemon-editor-origin-game')
+												ariaLabel="Origin game"
+												value={String(draftOriginGameId)}
+												options={originGameComboboxOptions}
+												placeholder="Choose an origin game"
+												searchLabel="Search origin games"
+												staged={draftOriginGameId !== metDataEditConstraints.currentOriginGameId}
+												ariaInvalid={isControlInvalid('pokemon-editor-origin-game')}
+												describedBy={isControlInvalid('pokemon-editor-origin-game')
 													? 'pokemon-editor-status'
 													: undefined}
-												value={draftOriginGameId}
 												disabled={applying}
-												onchange={(event) => setDraftOriginGame(event.currentTarget.value)}
-											>
-												{#each metDataEditConstraints.originGames as option (option.id)}
-													<option value={option.id}>{option.name}</option>
-												{/each}
-											</select>
+												onSelect={setDraftOriginGame}
+												onOpenChange={(open) =>
+													handleComboboxOpenChange('pokemon-editor-origin-game', open)}
+											/>
 										</label>
 									{/if}
 									{#if metDataEditConstraints?.supportsBall}
 										<label>
 											<span>Ball</span>
-											<select
+											<Combobox
+												ownsControllerInput={false}
 												id="pokemon-editor-ball"
-												class:staged-field={draftBallId !== metDataEditConstraints.currentBallId}
-												aria-invalid={isControlInvalid('pokemon-editor-ball')}
-												aria-describedby={isControlInvalid('pokemon-editor-ball')
+												ariaLabel="Ball"
+												value={String(draftBallId)}
+												options={ballComboboxOptions}
+												placeholder="Choose a Ball"
+												searchLabel="Search Balls"
+												staged={draftBallId !== metDataEditConstraints.currentBallId}
+												ariaInvalid={isControlInvalid('pokemon-editor-ball')}
+												describedBy={isControlInvalid('pokemon-editor-ball')
 													? 'pokemon-editor-status'
 													: undefined}
-												value={draftBallId}
 												disabled={applying}
-												onchange={(event) => setDraftBall(event.currentTarget.value)}
-											>
-												{#each metDataEditConstraints.balls as option (option.id)}
-													<option value={option.id}>{option.name}</option>
-												{/each}
-											</select>
+												onSelect={setDraftBall}
+												onOpenChange={(open) =>
+													handleComboboxOpenChange('pokemon-editor-ball', open)}
+											/>
 										</label>
 									{/if}
 									{#if metDataEditConstraints?.supportsMetDate}
@@ -2005,19 +2113,25 @@
 									{#if originalTrainerEditConstraints.supportsLanguage}
 										<label>
 											<span>Language</span>
-											<select
+											<Combobox
+												ownsControllerInput={false}
 												id="pokemon-editor-pokemon-language"
-												class:staged-field={draftLanguageId !==
+												ariaLabel="Language"
+												value={String(draftLanguageId)}
+												options={languageComboboxOptions}
+												placeholder="Choose a language"
+												searchLabel="Search languages"
+												staged={draftLanguageId !==
 													originalTrainerEditConstraints.currentLanguageId}
-												aria-invalid={isControlInvalid('pokemon-editor-pokemon-language')}
-												value={draftLanguageId}
+												ariaInvalid={isControlInvalid('pokemon-editor-pokemon-language')}
+												describedBy={isControlInvalid('pokemon-editor-pokemon-language')
+													? 'pokemon-editor-status'
+													: undefined}
 												disabled={applying}
-												onchange={(event) => setPokemonLanguage(event.currentTarget.value)}
-											>
-												{#each originalTrainerEditConstraints.languages as option (option.id)}
-													<option value={option.id}>{option.name}</option>
-												{/each}
-											</select>
+												onSelect={setPokemonLanguage}
+												onOpenChange={(open) =>
+													handleComboboxOpenChange('pokemon-editor-pokemon-language', open)}
+											/>
 										</label>
 									{/if}
 								</div>
@@ -2204,6 +2318,7 @@
 											>
 												<span id={`pokemon-editor-move-${index}-label`}>Move {index + 1}</span>
 												<Combobox
+													ownsControllerInput={false}
 													id={`pokemon-editor-move-${index}`}
 													labelledBy={`pokemon-editor-move-${index}-label`}
 													value={String(move.move)}
@@ -2675,23 +2790,6 @@
 		text-transform: uppercase;
 	}
 
-	.battle-field-controls select {
-		width: 100%;
-		height: var(--pksx-control-height);
-		padding: 0 12px;
-		border: 1px solid var(--rule);
-		border-radius: var(--pksx-radius-sm);
-		background: var(--paper-hi);
-		color: var(--ink);
-		font:
-			750 var(--pksx-type-editable) var(--pksx-font-mono),
-			monospace;
-	}
-
-	.battle-field-controls select:disabled {
-		opacity: 0.55;
-	}
-
 	.nickname-panel p {
 		margin: 0;
 		color: var(--ink-mute);
@@ -2768,10 +2866,8 @@
 	}
 
 	.met-data-edit-controls input,
-	.met-data-edit-controls select,
-	.nature-edit-controls select,
-	.held-item-edit-controls select,
-	.ability-edit-controls select {
+	.ability-edit-controls select,
+	.battle-field-controls select {
 		width: 100%;
 		min-width: 0;
 		height: var(--pksx-control-height);
@@ -2786,10 +2882,8 @@
 	}
 
 	.met-data-edit-controls input:disabled,
-	.met-data-edit-controls select:disabled,
-	.nature-edit-controls select:disabled,
-	.held-item-edit-controls select:disabled,
-	.ability-edit-controls select:disabled {
+	.ability-edit-controls select:disabled,
+	.battle-field-controls select:disabled {
 		opacity: 0.55;
 	}
 
@@ -3291,6 +3385,10 @@
 		min-height: var(--pksx-control-height);
 		height: var(--pksx-control-height);
 		font-size: var(--pksx-type-body);
+	}
+
+	.editor-panel :global(.pksx-combobox-trigger) {
+		font-size: var(--pksx-type-editable);
 	}
 
 	.editor-panel label > span,

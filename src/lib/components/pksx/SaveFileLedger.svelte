@@ -2,6 +2,7 @@
 	import { onDestroy, tick } from 'svelte';
 	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
 	import DelayedSpinner from './DelayedSpinner.svelte';
+	import Combobox, { type ComboboxOption } from './Combobox.svelte';
 	import type {
 		SaveFileLedgerCatalogue,
 		SaveFileLedgerCommand,
@@ -65,6 +66,7 @@
 	let recoveryWasActive = false;
 	let lastItemFocus: { pocketKey: string; itemId: number; index: number } | null = null;
 	let destroying = false;
+	let addItemCombobox = $state<{ handleBack: () => boolean } | undefined>(undefined);
 
 	onDestroy(() => {
 		destroying = true;
@@ -106,6 +108,12 @@
 		].join('|');
 	});
 	const initialTargetIdentity = $derived.by(firstTargetIdentity);
+	const addItemComboboxOptions = $derived.by(() => {
+		if (activeCommand?.kind !== 'add-item') return [];
+		return availableOptions(activeCommand.pocketKey).map(
+			(option) => ({ value: String(option.id), label: option.name }) satisfies ComboboxOption
+		);
+	});
 
 	function ledgerRoot(node: HTMLElement) {
 		root = node;
@@ -251,6 +259,7 @@
 		const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 		const inside = active && root?.contains(active);
 		if (!inside) return;
+		if (root.querySelector('[data-combobox-open="true"]')) return;
 
 		if (event.key === 'Escape') {
 			if (handleBack()) {
@@ -307,6 +316,7 @@
 	export function handleBack() {
 		const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 		if (!active || !root?.contains(active)) return false;
+		if (addItemCombobox?.handleBack()) return true;
 		if (activeEdit && !activeEdit.target.isConnected) endDraftEditing(activeEdit.identity);
 		if (activeEdit && activeEdit.target.isConnected) {
 			if (activeEdit.confirming || activeEdit.target.getAttribute('aria-disabled') === 'true') {
@@ -1175,23 +1185,22 @@
 															<div class="add-command" data-ledger-command aria-busy={addBusy}>
 																<label>
 																	<span>Item</span>
-																	<select
-																		aria-label={`Item to add to ${pocket.label}`}
-																		value={command.itemId ?? ''}
-																		data-ledger-control
-																		data-destination-fallbacks={addFocusFallbacks}
-																		data-destination-focus={`pocket-${pocket.key}-add-item`}
+																	<Combobox
+																		bind:this={addItemCombobox}
+																		id={`pksx-bag-pocket-${pocket.key}-add-item`}
+																		ariaLabel={`Item to add to ${pocket.label}`}
+																		value={command.itemId === null ? '' : String(command.itemId)}
+																		options={addItemComboboxOptions}
+																		placeholder="Choose an item"
+																		searchLabel={`Search items to add to ${pocket.label}`}
+																		searchPlaceholder="Search items"
 																		disabled={Boolean(editingUnavailable)}
-																		onchange={(event) =>
-																			updateAddCommand({
-																				itemId: Number(event.currentTarget.value)
-																			})}
-																	>
-																		<option value="">Choose an item</option>
-																		{#each options as option (option.id)}
-																			<option value={option.id}>{option.name}</option>
-																		{/each}
-																	</select>
+																		controllerFocus={`pocket-${pocket.key}-add-item`}
+																		controllerFallbacks={addFocusFallbacks}
+																		ledgerControl
+																		onSelect={(value) =>
+																			updateAddCommand({ itemId: Number(value) })}
+																	/>
 																</label>
 																<label>
 																	<span>Quantity</span>
@@ -2000,8 +2009,7 @@
 	}
 
 	button,
-	input,
-	select {
+	input {
 		min-height: var(--pksx-control-height);
 		border: var(--pksx-border-width, 1px) solid
 			var(--pksx-color-border-strong, rgba(42, 36, 28, 0.14));
@@ -2018,8 +2026,7 @@
 		cursor: pointer;
 	}
 
-	input,
-	select {
+	input {
 		font-size: max(16px, var(--pksx-type-editable, 16px));
 	}
 
@@ -2032,13 +2039,12 @@
 	button:disabled,
 	button[aria-disabled='true'],
 	input[aria-disabled='true'],
-	input:disabled,
-	select:disabled {
+	input:disabled {
 		cursor: default;
 		opacity: 0.56;
 	}
 
-	:is(button, input, select):focus-visible {
+	:is(button, input):focus-visible {
 		outline: var(--pksx-focus-ring, 2px) solid
 			var(--pksx-color-accent-ring, rgba(184, 88, 56, 0.35));
 		outline-offset: 1px;

@@ -1145,7 +1145,7 @@
 		if (openCombobox) {
 			return Array.from(
 				openCombobox.querySelectorAll<HTMLElement>('input, [data-combobox-option]')
-			).filter((control) => control.getClientRects().length > 0);
+			).filter((control) => control.getClientRects().length > 0 && !control.matches(':disabled'));
 		}
 
 		const controls = Array.from(
