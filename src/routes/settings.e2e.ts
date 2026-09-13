@@ -13,12 +13,12 @@ async function openSettings(page: Page, width = 1280, height = 800) {
 }
 
 async function openPokemonEditor(page: Page) {
-	await page.goto('/saves');
+	await page.goto('/');
 	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
 	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
 		timeout: 30_000
 	});
-	await page.goto('/');
+	await page.goto('/boxes');
 	const slot = page.locator('#box-0-slot-0');
 	await expect(slot).toContainText('ARON', { timeout: 15_000 });
 	await slot.click();
@@ -136,7 +136,7 @@ test('Settings is available without a Save File and reports live build metadata'
 });
 
 test('fresh Settings reload reports the active Save File in the Main Menu', async ({ page }) => {
-	await page.goto('/saves');
+	await page.goto('/');
 	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
 		'data-initial-state',
 		'ready'
@@ -243,7 +243,7 @@ test('Settings uses one clamped vertical Focus Zone and reveals its focused stop
 		page.getByRole('dialog', { name: 'Main Menu' }).getByRole('button', { name: /^Saves/ })
 	).toBeFocused();
 	await pressController(page, 'Enter');
-	await expect(page).toHaveURL(/\/saves$/);
+	await expect(page).toHaveURL(/\/$/);
 });
 
 test('Settings owns floor overflow and uses shared theme state', async ({ page }) => {
@@ -300,7 +300,7 @@ test('Settings owns floor overflow and uses shared theme state', async ({ page }
 		.poll(() => shell.evaluate((element) => getComputedStyle(element).backgroundColor))
 		.not.toBe(lightBackground);
 	await chooseMainMenu(page, 'Saves');
-	await expect(page).toHaveURL(/\/saves$/);
+	await expect(page).toHaveURL(/\/$/);
 	await expect(shell).toHaveClass(/dark/);
 	await page.goBack();
 	await expect(page).toHaveURL(/\/settings$/);
@@ -321,7 +321,7 @@ test('editable focus locks Height Band across pointer transfer and releases afte
 	page
 }) => {
 	await openSettings(page, 800, 700);
-	await page.goto('/saves');
+	await page.goto('/');
 	await expect(page.getByRole('grid', { name: 'Saves collections' })).toBeFocused();
 	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
 	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({

@@ -430,7 +430,7 @@
 	}
 
 	function openBoxes() {
-		void goto(resolve('/'));
+		void goto(resolve('/boxes'));
 	}
 
 	function openBackupBrowser() {
@@ -440,10 +440,6 @@
 		});
 	}
 </script>
-
-<svelte:head>
-	<title>{destination === 'trainer' ? 'Trainer' : 'Bag'} · PKSX</title>
-</svelte:head>
 
 {#if loading}
 	<section

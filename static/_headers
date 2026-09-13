@@ -1,0 +1,8 @@
+https://staging.pksx.app/*
+  X-Robots-Tag: noindex
+
+https://:version.:subdomain.workers.dev/*
+  X-Robots-Tag: noindex
+
+/prototype/*
+  X-Robots-Tag: noindex
