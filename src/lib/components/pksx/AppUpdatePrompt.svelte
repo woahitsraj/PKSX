@@ -1,6 +1,20 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import DelayedSpinner from './DelayedSpinner.svelte';
+	import { easeOut, reducedMotion } from '$lib/pksx/motion';
+
+	function rise(node: Element) {
+		void node;
+		const fade = reducedMotion();
+		return {
+			duration: fade ? 120 : 220,
+			easing: easeOut,
+			css: (t: number, u: number) =>
+				fade
+					? `opacity: ${t}`
+					: `opacity: ${t}; transform: translateY(${(u * 18).toFixed(2)}px) scale(${(0.98 + t * 0.02).toFixed(4)})`
+		};
+	}
 
 	let updateWorker = $state<ServiceWorker | null>(null);
 	let installing = $state(false);
@@ -62,7 +76,7 @@
 </script>
 
 {#if updateWorker}
-	<section class="update-prompt" role="status" aria-live="polite">
+	<section class="update-prompt" role="status" aria-live="polite" transition:rise>
 		<div>
 			<strong>Update ready</strong>
 			<span>Install the latest PKSX build and refresh cached app files.</span>

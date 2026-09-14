@@ -45,6 +45,7 @@ async function openMainMenu(page: Page) {
 async function choose(page: Page, label: string) {
 	const menu = await openMainMenu(page);
 	await menu.getByRole('button', { name: new RegExp(`^${label}`) }).click();
+	await expect(menu).toHaveCount(0);
 	const destination = destinations[label];
 	if (!destination) return;
 	await expect(page).toHaveURL((url) => url.pathname === destination.path);
@@ -159,6 +160,50 @@ test('empty first run lands on Saves and exposes the amended selectable destinat
 	await pressController(page, 'Escape');
 	await expect(page).toHaveURL(/\/settings$/);
 	await expect(page.locator('.top-bar, .mobile-tabbar')).toHaveCount(0);
+});
+
+test('destination navigation uses directional native page transitions and honors reduced motion', async ({
+	page
+}) => {
+	await page.emulateMedia({ reducedMotion: 'no-preference' });
+	await resetEmptyStorage(page);
+	await page.evaluate(() => {
+		if (!document.startViewTransition) throw new Error('View Transitions API is unavailable.');
+		const startViewTransition = document.startViewTransition.bind(document);
+		const testWindow = window as typeof window & { pksxRouteTransitions?: string[] };
+		testWindow.pksxRouteTransitions = [];
+		document.startViewTransition = (update) => {
+			testWindow.pksxRouteTransitions?.push(
+				document.documentElement.dataset.pksxRouteDirection ?? ''
+			);
+			return startViewTransition(update);
+		};
+	});
+
+	await choose(page, 'Boxes');
+	await choose(page, 'Saves');
+	await page.goBack();
+	await expect(page).toHaveURL(/\/boxes$/);
+	await expectDestinationReady(page, 'boxes');
+	await page.goForward();
+	await expect(page).toHaveURL(/\/$/);
+	await expectDestinationReady(page, 'saves');
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() => (window as typeof window & { pksxRouteTransitions?: string[] }).pksxRouteTransitions
+			)
+		)
+		.toEqual(['forward', 'backward', 'backward', 'forward']);
+
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await page.waitForFunction(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
+	await choose(page, 'Settings');
+	expect(
+		await page.evaluate(
+			() => (window as typeof window & { pksxRouteTransitions?: string[] }).pksxRouteTransitions
+		)
+	).toEqual(['forward', 'backward', 'backward', 'forward']);
 });
 
 test('Main Menu opens before destination controls are ready and restores the ready control', async ({

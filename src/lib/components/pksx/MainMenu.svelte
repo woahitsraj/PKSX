@@ -105,6 +105,11 @@
 		font: inherit;
 		text-align: left;
 		cursor: pointer;
+		transition: transform 120ms var(--pksx-ease-out);
+	}
+
+	.main-menu-row button:active {
+		transform: scale(0.97);
 	}
 
 	.main-menu-row button:hover,

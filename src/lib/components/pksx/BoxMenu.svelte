@@ -109,6 +109,11 @@
 		text-align: left;
 		cursor: not-allowed;
 		opacity: 0.68;
+		transition: transform 120ms var(--pksx-ease-out);
+	}
+
+	.box-menu-row button:active:not([aria-disabled='true']) {
+		transform: scale(0.97);
 	}
 
 	.box-menu-row button[data-availability='available'] {

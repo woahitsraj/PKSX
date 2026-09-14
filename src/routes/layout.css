@@ -146,6 +146,8 @@
 	--pksx-shadow-panel:
 		0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 14px 36px -16px rgba(70, 50, 30, 0.26),
 		0 4px 10px -6px rgba(70, 50, 30, 0.18);
+	--pksx-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--pksx-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @media (min-height: 560px) {
@@ -297,6 +299,76 @@ html[data-input-modality='controller'] body :focus {
 		repeating-linear-gradient(45deg, transparent 0 6px, rgba(70, 50, 30, 0.012) 6px 7px),
 		var(--paper);
 	color: var(--ink);
+	view-transition-name: pksx-route;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation: none;
+}
+
+::view-transition-old(pksx-route),
+::view-transition-new(pksx-route) {
+	animation-fill-mode: both;
+	animation-timing-function: var(--pksx-ease-out);
+}
+
+::view-transition-old(pksx-route) {
+	animation-duration: 140ms;
+}
+
+::view-transition-new(pksx-route) {
+	animation-duration: 180ms;
+}
+
+html[data-pksx-route-direction='forward']::view-transition-old(pksx-route) {
+	animation-name: pksx-route-out-forward;
+}
+
+html[data-pksx-route-direction='forward']::view-transition-new(pksx-route) {
+	animation-name: pksx-route-in-forward;
+}
+
+html[data-pksx-route-direction='backward']::view-transition-old(pksx-route) {
+	animation-name: pksx-route-out-backward;
+}
+
+html[data-pksx-route-direction='backward']::view-transition-new(pksx-route) {
+	animation-name: pksx-route-in-backward;
+}
+
+@keyframes pksx-route-out-forward {
+	to {
+		opacity: 0;
+		transform: translateX(-4px);
+	}
+}
+
+@keyframes pksx-route-in-forward {
+	from {
+		opacity: 0;
+		transform: translateX(8px);
+	}
+}
+
+@keyframes pksx-route-out-backward {
+	to {
+		opacity: 0;
+		transform: translateX(4px);
+	}
+}
+
+@keyframes pksx-route-in-backward {
+	from {
+		opacity: 0;
+		transform: translateX(-8px);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.app-shell {
+		view-transition-name: none;
+	}
 }
 
 .app-shell.dark {

@@ -200,6 +200,11 @@
 		font: inherit;
 		font-weight: 720;
 		cursor: pointer;
+		transition: transform 120ms var(--pksx-ease-out);
+	}
+
+	button:active:not(:disabled) {
+		transform: scale(0.97);
 	}
 
 	button:disabled {

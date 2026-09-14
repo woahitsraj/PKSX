@@ -12,6 +12,7 @@
 	import type { EngineError } from '$lib/engine';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
+	import { easeOut, reducedMotion } from '$lib/pksx/motion';
 	import {
 		deleteSavesTarget,
 		moveSavesTarget,
@@ -37,6 +38,18 @@
 	} from '$lib/pksx/saves-cache';
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 	import { getToastHost } from '$lib/pksx/toast/host.svelte';
+
+	function cardRise(node: Element, { index }: { index: number }) {
+		void node;
+		const fade = reducedMotion();
+		return {
+			delay: fade ? 0 : 30 * Math.min(index, 5),
+			duration: fade ? 120 : 160,
+			easing: easeOut,
+			css: (t: number, u: number) =>
+				fade ? `opacity: ${t}` : `opacity: ${t}; transform: translateY(${(u * 4).toFixed(2)}px)`
+		};
+	}
 
 	type PokemonStorageSummary = { boxCount: number; pokemonCount: number };
 	type SavesGridEntry =
@@ -700,6 +713,7 @@
 										aria-colindex={(index % columnCount) + 1}
 										aria-current={saveFile.id === activeSaveFileId ? 'true' : undefined}
 										aria-busy={busyTarget === saveFile.id || details.status === 'loading'}
+										in:cardRise={{ index }}
 									>
 										<button
 											type="button"
@@ -760,6 +774,7 @@
 										class={['storage-card', selected && 'controller-focused']}
 										role="gridcell"
 										aria-colindex={(entry.index % columnCount) + 1}
+										in:cardRise={{ index: entry.index }}
 									>
 										<button
 											type="button"
@@ -787,6 +802,7 @@
 										role="gridcell"
 										aria-colindex={(entry.index % columnCount) + 1}
 										aria-busy={busyTarget === 'import'}
+										in:cardRise={{ index: entry.index }}
 									>
 										<button
 											type="button"

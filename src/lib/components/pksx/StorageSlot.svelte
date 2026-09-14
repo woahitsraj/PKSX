@@ -131,7 +131,8 @@
 		transition:
 			transform 120ms ease,
 			box-shadow 120ms ease,
-			filter 120ms ease;
+			filter 120ms ease,
+			opacity 120ms ease;
 	}
 
 	.slot.dual-type {

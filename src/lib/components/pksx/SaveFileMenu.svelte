@@ -149,6 +149,11 @@
 		font: inherit;
 		text-align: left;
 		cursor: pointer;
+		transition: transform 120ms var(--pksx-ease-out);
+	}
+
+	.commands button:active:not(:disabled) {
+		transform: scale(0.97);
 	}
 
 	.commands button:hover,
