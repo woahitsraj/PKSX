@@ -23,6 +23,8 @@ public sealed record EngineError(string Code, string Message);
 
 public sealed record EngineVersion(string PkhexCoreVersion, string FacadeVersion);
 
+public sealed record SpeciesNameProjection(ushort SpeciesId, string SpeciesName);
+
 public sealed record SaveSummary(
     string? FileName,
     string SaveType,
@@ -58,6 +60,7 @@ public sealed record SaveSummary(
 public sealed record PartySlotSummary(
     int Slot,
     ushort SpeciesId,
+    string SpeciesName,
     byte Form,
     byte Format,
     int Level,
@@ -92,6 +95,7 @@ public sealed record PartySlotSummary(
         new(
             slot,
             pokemon.Species,
+            SlotDetailProjection.SpeciesName(pokemon),
             pokemon.Form,
             pokemon.Format,
             pokemon.Species == 0 ? 0 : pokemon.CurrentLevel,
@@ -127,6 +131,7 @@ public sealed record BoxSlotSummary(
     int Box,
     int Slot,
     ushort SpeciesId,
+    string SpeciesName,
     byte Form,
     byte Format,
     int Level,
@@ -162,6 +167,7 @@ public sealed record BoxSlotSummary(
             box,
             slot,
             pokemon.Species,
+            SlotDetailProjection.SpeciesName(pokemon),
             pokemon.Form,
             pokemon.Format,
             pokemon.Species == 0 ? 0 : pokemon.CurrentLevel,
@@ -873,6 +879,11 @@ internal static class SlotDetailProjection
         0.06, 0.18, 0.14, 0.17, 0.11, 0.12, 0.16, 0.10, 0.04,
         0.16, 0.15, 0.17, 0.16, 0.20, 0.07, 0.21, 0.05, 0.11
     ];
+
+    public static string SpeciesName(PKM pokemon) => SpeciesName(pokemon.Species);
+
+    public static string SpeciesName(ushort speciesId) =>
+        speciesId == 0 ? "" : NameAt(GameInfo.Strings.Species, speciesId) ?? $"Species {speciesId}";
 
     public static string? Gender(PKM pokemon) =>
         pokemon.Species == 0 ? null : pokemon.Gender switch

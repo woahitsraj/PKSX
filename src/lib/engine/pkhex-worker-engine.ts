@@ -20,7 +20,8 @@ import type {
 	StoredPokemonImportResult,
 	StoredPokemonActionResult,
 	SerializedSave,
-	SaveSummary
+	SaveSummary,
+	SpeciesNameProjection
 } from './types';
 import {
 	parseEngineWorkerProtocolError,
@@ -126,6 +127,13 @@ export function createPkhexWorkerEngine(
 
 	return {
 		getVersion: () => sendRequest('getVersion'),
+		projectSpeciesNames: (speciesIds) =>
+			sendRequest('projectSpeciesNames', {
+				type: 'request',
+				id: createRequestId(),
+				method: 'projectSpeciesNames',
+				payload: { speciesIds }
+			}),
 		summarizeSave: (bytes, fileName) => {
 			const buffer = copyBytesToArrayBuffer(bytes);
 
@@ -456,6 +464,10 @@ export function createPkhexWorkerEngine(
 	};
 
 	async function sendRequest(method: 'getVersion'): Promise<EngineResult<EngineVersion>>;
+	async function sendRequest(
+		method: 'projectSpeciesNames',
+		request: Extract<EngineWorkerRequest, { method: 'projectSpeciesNames' }>
+	): Promise<EngineResult<SpeciesNameProjection[]>>;
 	async function sendRequest(
 		method: 'summarizeSave',
 		request: Extract<EngineWorkerRequest, { method: 'summarizeSave' }>,

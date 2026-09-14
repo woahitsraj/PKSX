@@ -121,13 +121,13 @@ test('empty first run lands on Saves and exposes the amended selectable destinat
 	let menu = await openMainMenu(page);
 	await expect(menu.locator('.main-menu-row strong')).toHaveText([
 		'Boxes',
+		'Search',
 		'Trainer',
 		'Bag',
 		'Saves',
 		'Settings',
 		'Backup Browser'
 	]);
-	await expect(menu.getByRole('button', { name: /^Search/ })).toHaveCount(0);
 	await expect(menu.getByRole('button', { name: /^Saves/ })).toHaveAttribute(
 		'aria-current',
 		'page'

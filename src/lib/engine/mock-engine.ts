@@ -352,6 +352,14 @@ const mockPartySlots: PartySlotSummary[] = [
 export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi {
 	return {
 		getVersion: async () => success(mockVersion),
+		projectSpeciesNames: async (speciesIds) =>
+			success(
+				[...new Set(speciesIds)].map((speciesId) => ({
+					speciesId,
+					speciesName:
+						speciesId === 1 ? 'Bulbasaur' : speciesId === 25 ? 'Pikachu' : `Species ${speciesId}`
+				}))
+			),
 		summarizeSave: async (_bytes, fileName) => success({ ...mockSaveSummary, fileName }),
 		listBoxSlots: async (_bytes, _fileName, box) => {
 			if (box !== 0) {

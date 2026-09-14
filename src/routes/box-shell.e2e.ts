@@ -3642,7 +3642,10 @@ test('controller input follows the keyboard navigation path', async ({ page }) =
 	await expect(page.locator('#box-0-slot-1')).toBeFocused();
 
 	await pressController(page, 'y');
-	await expect(page.getByRole('dialog')).toHaveCount(0);
+	await expect(page.getByRole('dialog', { name: 'Quick Search' })).toBeVisible();
+	await pressController(page, 'Escape');
+	await expect(page.getByRole('dialog', { name: 'Quick Search' })).toBeHidden();
+	await expect(page.locator('#box-0-slot-1')).toBeFocused();
 	await pressController(page, 'x');
 	await expect(page.getByRole('dialog', { name: 'Box Menu' })).toBeVisible();
 	await expect(page.locator('.boxes-route')).toHaveAttribute('inert', '');

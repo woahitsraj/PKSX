@@ -9,6 +9,7 @@ export type SummonedWorkflowKind =
 	| 'slot-menu'
 	| 'box-menu'
 	| 'main-menu'
+	| 'quick-search'
 	| 'save-file-menu'
 	| 'save-file-delete'
 	| 'source-picker'

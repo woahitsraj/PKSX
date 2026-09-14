@@ -4,6 +4,7 @@ export const engineWorkerRequestIdSchema = z.string().min(1);
 
 export const engineWorkerMethodSchema = z.enum([
 	'getVersion',
+	'projectSpeciesNames',
 	'summarizeSave',
 	'listBoxSlots',
 	'loadSaveWorkspace',
@@ -74,6 +75,11 @@ export const engineErrorSchema = z.object({
 export const engineVersionSchema = z.object({
 	pkhexCoreVersion: z.string(),
 	facadeVersion: z.string()
+});
+
+export const speciesNameProjectionSchema = z.object({
+	speciesId: z.number().int(),
+	speciesName: z.string().min(1)
 });
 
 export const saveSummarySchema = z.object({
@@ -359,6 +365,7 @@ export const spriteIdentitySchema = z.object({
 const slotSummaryFields = {
 	slot: z.number(),
 	speciesId: z.number(),
+	speciesName: z.string().optional(),
 	form: z.number(),
 	format: z.number(),
 	level: z.number(),
@@ -816,6 +823,10 @@ const engineResultSchema = <T extends z.ZodType>(valueSchema: T) =>
 
 export const engineVersionResultSchema = engineResultSchema(engineVersionSchema);
 
+export const speciesNameProjectionListResultSchema = engineResultSchema(
+	z.array(speciesNameProjectionSchema)
+);
+
 export const saveSummaryResultSchema = engineResultSchema(saveSummarySchema);
 
 export const boxSlotSummaryListResultSchema = engineResultSchema(z.array(boxSlotSummarySchema));
@@ -873,6 +884,15 @@ export const engineWorkerGetVersionRequestSchema = z.object({
 	type: z.literal('request'),
 	id: engineWorkerRequestIdSchema,
 	method: z.literal('getVersion')
+});
+
+export const engineWorkerProjectSpeciesNamesRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('projectSpeciesNames'),
+	payload: z.object({
+		speciesIds: z.array(z.number().int().min(1).max(65_535))
+	})
 });
 
 export const engineWorkerSummarizeSaveRequestSchema = z.object({
@@ -1114,6 +1134,7 @@ export const engineWorkerProjectPreservationPayloadRequestSchema = z.object({
 
 export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionRequestSchema,
+	engineWorkerProjectSpeciesNamesRequestSchema,
 	engineWorkerSummarizeSaveRequestSchema,
 	engineWorkerListBoxSlotsRequestSchema,
 	engineWorkerLoadSaveWorkspaceRequestSchema,
@@ -1143,6 +1164,13 @@ export const engineWorkerGetVersionResponseSchema = z.object({
 	id: engineWorkerRequestIdSchema,
 	method: z.literal('getVersion'),
 	result: engineVersionResultSchema
+});
+
+export const engineWorkerProjectSpeciesNamesResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('projectSpeciesNames'),
+	result: speciesNameProjectionListResultSchema
 });
 
 export const engineWorkerSummarizeSaveResponseSchema = z.object({
@@ -1301,6 +1329,7 @@ export const engineWorkerProjectPreservationPayloadResponseSchema = z.object({
 
 export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionResponseSchema,
+	engineWorkerProjectSpeciesNamesResponseSchema,
 	engineWorkerSummarizeSaveResponseSchema,
 	engineWorkerListBoxSlotsResponseSchema,
 	engineWorkerLoadSaveWorkspaceResponseSchema,
@@ -1360,6 +1389,10 @@ export type EngineWorkerStatus = z.infer<typeof engineWorkerStatusSchema>;
 export type EngineWorkerInitMessage = z.infer<typeof engineWorkerInitMessageSchema>;
 
 export type EngineWorkerGetVersionRequest = z.infer<typeof engineWorkerGetVersionRequestSchema>;
+
+export type EngineWorkerProjectSpeciesNamesRequest = z.infer<
+	typeof engineWorkerProjectSpeciesNamesRequestSchema
+>;
 
 export type EngineWorkerSummarizeSaveRequest = z.infer<
 	typeof engineWorkerSummarizeSaveRequestSchema

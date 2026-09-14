@@ -17,6 +17,7 @@ import type {
 	SaveFileInventoryCatalogue,
 	SaveSummary,
 	SaveWorkspace,
+	SpeciesNameProjection,
 	SlotOperationResult,
 	StoredPokemonImportResult,
 	StoredPokemonActionResult,
@@ -45,6 +46,7 @@ import {
 	type EngineWorkerCreatePreservationPayloadRequest,
 	type EngineWorkerReadPreservationPayloadRequest,
 	type EngineWorkerProjectPreservationPayloadRequest,
+	type EngineWorkerProjectSpeciesNamesRequest,
 	type EngineWorkerLoadSaveWorkspaceRequest,
 	type EngineWorkerListBoxSlotsRequest,
 	type EngineWorkerMessage,
@@ -56,6 +58,7 @@ import {
 
 export type DotnetPkhexEngineExports = {
 	GetVersionJson(): string;
+	ProjectSpeciesNamesJson(speciesIdsJson: string): string;
 	ParseSaveSmoke(bytes: Uint8Array, fileName?: string): string;
 	ListBoxSmoke(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	LoadSaveWorkspaceJson(bytes: Uint8Array, fileName: string | undefined, box: number): string;
@@ -242,6 +245,9 @@ export function createPkhexEngineWorkerRuntime({
 					)
 				);
 				return;
+			case 'projectSpeciesNames':
+				postMessage(createEngineWorkerResponse(request, projectSpeciesNames(engine, request)));
+				return;
 			case 'summarizeSave':
 				postMessage(createEngineWorkerResponse(request, summarizeSave(engine, request)));
 				return;
@@ -362,6 +368,15 @@ export function createPkhexEngineWorkerRuntime({
 	}
 
 	return { handleMessage };
+}
+
+function projectSpeciesNames(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerProjectSpeciesNamesRequest
+): EngineResult<SpeciesNameProjection[]> {
+	return parseEngineResult<SpeciesNameProjection[]>(
+		engine.ProjectSpeciesNamesJson(JSON.stringify(request.payload.speciesIds))
+	);
 }
 
 function summarizeSave(
@@ -899,6 +914,8 @@ function unavailableResult(request: EngineWorkerRequest) {
 	switch (request.method) {
 		case 'getVersion':
 			return result satisfies EngineResult<EngineVersion>;
+		case 'projectSpeciesNames':
+			return result satisfies EngineResult<SpeciesNameProjection[]>;
 		case 'summarizeSave':
 			return result satisfies EngineResult<SaveSummary>;
 		case 'listBoxSlots':

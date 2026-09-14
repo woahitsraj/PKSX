@@ -24,6 +24,10 @@ export function dispatchControllerKey(key: ControllerKey) {
 	if (window.dispatchEvent(event)) handleControllerFallback(key);
 }
 
+export function controllerShortcutAction(key: string): NavigationAction | null {
+	return key.toLowerCase() === 'y' ? 'search' : null;
+}
+
 export function controllerFocusSystem() {
 	const handleKeydown = (event: KeyboardEvent) => {
 		if (!isControllerKeyboardEvent(event)) {
@@ -246,3 +250,4 @@ function readHatAxis(value: number): ControllerKey[] {
 function pressed(gamepad: Gamepad, index: number) {
 	return gamepad.buttons[index]?.pressed === true;
 }
+import type { NavigationAction } from '$lib/pksx/box-navigation';

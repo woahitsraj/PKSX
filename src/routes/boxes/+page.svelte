@@ -174,6 +174,15 @@
 	} from '$lib/pksx/summoned-workflow';
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 	import { getToastHost } from '$lib/pksx/toast/host.svelte';
+	import {
+		createPokemonStorageQuickSearchResults,
+		createSaveFileQuickSearchResults,
+		type QuickSearchResult
+	} from '$lib/pksx/quick-search';
+	import {
+		getQuickSearchHost,
+		type QuickSearchCollection
+	} from '$lib/pksx/quick-search/host.svelte';
 	import { createBoxMenuCommands, type BoxMenuCommandKey } from '$lib/pksx/box-menu';
 	import { createSlotMenuCommands, type SlotMenuCommandKey } from '$lib/pksx/slot-menu';
 	import { layerFade, panelSettle } from '$lib/pksx/motion';
@@ -237,6 +246,7 @@
 	const storage = getSavesStorage();
 	const workspaceService = getActiveWorkspaceService();
 	const summonedWorkflow = getSummonedWorkflowHost();
+	const quickSearchHost = getQuickSearchHost();
 	const toastHost = getToastHost();
 
 	const slotPalette = [16, 28, 48, 100, 140, 180, 195, 210, 220, 260, 280, 295, 330, 52];
@@ -1349,7 +1359,11 @@
 	}
 
 	function handleAppKeydown(event: KeyboardEvent) {
-		if (activeSummonedWorkflow?.kind === 'backup-browser') return;
+		if (
+			activeSummonedWorkflow?.kind === 'backup-browser' ||
+			activeSummonedWorkflow?.kind === 'quick-search'
+		)
+			return;
 		const action = keyboardAction(event);
 
 		if (!action) {
@@ -2840,6 +2854,7 @@
 		return {
 			slot,
 			label: pokemon.label,
+			speciesName: pokemon.speciesName,
 			detail: pokemon.detail,
 			level: pokemon.level,
 			experience: pokemon.experience,
@@ -2882,6 +2897,7 @@
 	): StoredPokemonStoragePokemon {
 		return {
 			label: slot.label,
+			speciesName: slot.speciesName,
 			detail: slot.detail,
 			level: slot.level,
 			experience: slot.experience,
@@ -4446,7 +4462,135 @@
 		);
 	}
 
+	function captureFocusedQuickSearchCollection(): QuickSearchCollection | null {
+		const pane = activePane;
+		if (!initialStateReady || !pane) return null;
+		const source = { ...pane.source };
+
+		return {
+			label: source.label,
+			isAvailable: async () => {
+				if (!matchesQuickSearchCollection(pane.id, source)) return false;
+				return source.type === 'pokemon-storage'
+					? (await storage.getPokemonStorage()) !== null
+					: Boolean(source.id && (await storage.getSave(source.id)));
+			},
+			loadResults: () => loadQuickSearchResults(pane.id, source),
+			focusResult: (result) => focusQuickSearchResult(result, pane.id, source)
+		};
+	}
+
+	function matchesQuickSearchCollection(paneId: string, source: BoxSourceRef) {
+		return workbenchPanes.some(
+			(pane) =>
+				pane.id === paneId && pane.source.type === source.type && pane.source.id === source.id
+		);
+	}
+
+	async function loadQuickSearchResults(paneId: string, source: BoxSourceRef) {
+		if (!matchesQuickSearchCollection(paneId, source)) return [];
+		if (source.type === 'pokemon-storage') {
+			const stored = await storage.getPokemonStorage();
+			if (!stored) return [];
+			const speciesIds = [
+				...new Set(
+					stored.boxes.flatMap((box) =>
+						box.slots.flatMap(({ pokemon }) =>
+							pokemon && !pokemon.speciesName && pokemon.speciesId ? [pokemon.speciesId] : []
+						)
+					)
+				)
+			];
+			const projection =
+				speciesIds.length > 0 && engine ? await engine.projectSpeciesNames(speciesIds) : null;
+			if (projection && !projection.ok) throw projection.error;
+			if (!matchesQuickSearchCollection(paneId, source)) return [];
+			return createPokemonStorageQuickSearchResults({
+				paneId,
+				storage: stored,
+				speciesNames: new Map(
+					projection?.ok
+						? projection.value.map(({ speciesId, speciesName }) => [speciesId, speciesName])
+						: []
+				)
+			});
+		}
+		if (!source.id || !engine) return [];
+
+		const [saveFile, saveBytes, persistedWorkspace] = await Promise.all([
+			storage.getSave(source.id),
+			storage.getSaveBytes(source.id),
+			storage.getWorkspace(source.id)
+		]);
+		if (!saveFile || !saveBytes || !matchesQuickSearchCollection(paneId, source)) return [];
+		const bytes = persistedWorkspace?.bytes ?? saveBytes;
+		const workspace = await loadWorkspace(bytes, saveFile.originalFileName ?? undefined, 0);
+		const boxSlots = [...workspace.boxSlots];
+		for (let box = 1; box < workspace.summary.boxCount; box += 1) {
+			const result = await engine.listBoxSlots(bytes, saveFile.originalFileName ?? undefined, box);
+			if (!result.ok) throw result.error;
+			boxSlots.push(...result.value);
+		}
+		if (!matchesQuickSearchCollection(paneId, source)) return [];
+
+		return createSaveFileQuickSearchResults({
+			collectionKey: source.id,
+			collectionLabel: source.label,
+			paneId,
+			partySlots: workspace.partySlots,
+			boxSlots
+		});
+	}
+
+	async function focusQuickSearchResult(
+		result: QuickSearchResult,
+		paneId: string,
+		source: BoxSourceRef
+	) {
+		if (
+			result.paneId !== paneId ||
+			result.collectionKey !== source.id ||
+			!matchesQuickSearchCollection(paneId, source)
+		) {
+			return null;
+		}
+
+		if (source.type === 'pokemon-storage') {
+			const stored = await storage.getPokemonStorage();
+			if (!stored) return null;
+			pokemonStorage = stored;
+		} else if (!source.id || !(await storage.getSave(source.id))) {
+			return null;
+		}
+
+		const pane = workbenchPanes.find((candidate) => candidate.id === paneId);
+		if (!pane) return null;
+		const focus = result.zone === 'party' ? focusPartySlot(result.slot) : focusBoxSlot(result.slot);
+		const activeBox = result.box ?? pane.activeBox;
+		activePaneId = paneId;
+		workbenchPanes = setPaneFocus(
+			setPaneActiveBox(workbenchPanes, paneId, activeBox),
+			paneId,
+			focus
+		);
+		navigation = {
+			...navigation,
+			activeBox,
+			boxCount: Math.max(1, pane.boxCount),
+			focus,
+			locationFocus: focus
+		};
+
+		if (source.type === 'save-file' && result.zone === 'box') {
+			await refreshPaneWorkspace(paneId, activeBox);
+		}
+		return getFocusId(focus, activeBox);
+	}
+
 	onMount(() => {
+		const unregisterQuickSearch = quickSearchHost.register({
+			captureFocusedCollection: captureFocusedQuickSearchCollection
+		});
 		const unsubscribe = workspaceService.subscribe((state) => {
 			const adoptAsActiveSave = state ? consumeActiveSaveAdoption(state.file.id) : false;
 			loadedSave = state;
@@ -4468,6 +4612,7 @@
 		void restoreInitialState();
 		return () => {
 			resizeObserver?.disconnect();
+			unregisterQuickSearch();
 			unsubscribe();
 		};
 	});
