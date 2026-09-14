@@ -435,11 +435,16 @@ export function evaluateDestination(input: {
 	const sourceType = carry.sourceOwner.type;
 	const destinationType = destinationPane.source.type;
 
-	if (sourceType === 'pokemon-storage' && destinationType === 'save-file' && occupied) {
-		return invalidDestination(
-			'Storage needs empty Slot',
-			'Choose an empty Save File Slot before moving from Pokemon Storage.'
-		);
+	if (sourceType !== destinationType && occupied) {
+		return destinationType === 'save-file'
+			? invalidDestination(
+					'Storage needs empty Slot',
+					'Choose an empty Save File Slot before moving from Pokemon Storage.'
+				)
+			: invalidDestination(
+					'Pokemon Storage needs empty Slot',
+					'Choose an empty Pokemon Storage Slot before moving from a Save File.'
+				);
 	}
 
 	const movementLabel = carry.mode === 'copy' ? 'Copy' : occupied ? 'Swap' : 'Move';
