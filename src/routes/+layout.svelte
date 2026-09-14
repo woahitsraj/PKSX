@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
+	import { afterNavigate, beforeNavigate, goto, onNavigate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { App as CapacitorApp } from '@capacitor/app';
@@ -17,6 +17,7 @@
 	import ToastRegion from '$lib/components/pksx/ToastRegion.svelte';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import { heightBandLock } from '$lib/pksx/height-band-lock';
+	import { reducedMotion } from '$lib/pksx/motion';
 	import {
 		captureDestinationFocus,
 		isFocusableTarget,
@@ -64,17 +65,9 @@
 	let replaceNextRouteHistory = false;
 	let hasActiveSaveFile = $state(false);
 	let activeSaveAvailabilityRequest = 0;
-	const activeRoute = $derived<Destination>(
-		!page.url.pathname || page.url.pathname === '/' || page.url.pathname.startsWith('/saves')
-			? 'saves'
-			: page.url.pathname.startsWith('/trainer') || page.url.pathname.startsWith('/save-file')
-				? 'trainer'
-				: page.url.pathname.startsWith('/bag')
-					? 'bag'
-					: page.url.pathname.startsWith('/settings')
-						? 'settings'
-						: 'boxes'
-	);
+	let routeTransitionRequest = 0;
+	const destinationOrder: Destination[] = ['saves', 'boxes', 'trainer', 'bag', 'settings'];
+	const activeRoute = $derived<Destination>(destinationForPathname(page.url.pathname));
 	const mainMenuOpen = $derived(summonedWorkflow.active?.kind === 'main-menu');
 	const mainMenuEntries = $derived.by<MainMenuEntry[]>(() => {
 		const entriesAfterReservedSearch: MainMenuEntry[] = [
@@ -119,6 +112,39 @@
 		}
 		if (skipNextFocusCapture) skipNextFocusCapture = false;
 		else rememberDestinationFocus();
+	});
+	onNavigate((navigation) => {
+		if (!document.startViewTransition || reducedMotion() || !navigation.from || !navigation.to) {
+			return;
+		}
+
+		const from = destinationForPathname(navigation.from.url.pathname);
+		const to = destinationForPathname(navigation.to.url.pathname);
+		if (from === to) return;
+
+		const request = ++routeTransitionRequest;
+		const direction =
+			navigation.type === 'popstate'
+				? navigation.delta < 0
+					? 'backward'
+					: 'forward'
+				: destinationOrder.indexOf(to) > destinationOrder.indexOf(from)
+					? 'forward'
+					: 'backward';
+		document.documentElement.dataset.pksxRouteDirection = direction;
+
+		return new Promise<void>((resolveTransition) => {
+			const transition = document.startViewTransition(async () => {
+				resolveTransition();
+				await navigation.complete;
+			});
+			const clearDirection = () => {
+				if (routeTransitionRequest === request) {
+					delete document.documentElement.dataset.pksxRouteDirection;
+				}
+			};
+			void transition.finished.then(clearDirection, clearDirection);
+		});
 	});
 	afterNavigate((navigation) => {
 		if (navigation.type === 'enter') {
@@ -214,6 +240,14 @@
 			case 'settings':
 				return resolve('/settings');
 		}
+	}
+
+	function destinationForPathname(pathname: string): Destination {
+		if (!pathname || pathname === '/' || pathname.startsWith('/saves')) return 'saves';
+		if (pathname.startsWith('/trainer') || pathname.startsWith('/save-file')) return 'trainer';
+		if (pathname.startsWith('/bag')) return 'bag';
+		if (pathname.startsWith('/settings')) return 'settings';
+		return 'boxes';
 	}
 
 	function handleRootKeydown(event: KeyboardEvent) {
