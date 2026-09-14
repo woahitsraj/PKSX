@@ -18,7 +18,7 @@ test('one root Toast host delivers across Saves and Boxes without moving focus o
 			})
 	);
 	await page.reload();
-	await expect(page).toHaveURL(/\/saves$/);
+	await expect(page).toHaveURL(/\/$/);
 
 	const notifications = page.getByRole('region', { name: 'Notifications' });
 	await expect(notifications).toHaveCount(1);

@@ -174,9 +174,6 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Settings · PKSX</title>
-</svelte:head>
 <svelte:window onkeydown={handleKeydown} />
 
 <section

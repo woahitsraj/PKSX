@@ -7,6 +7,7 @@
 	import { onMount, tick } from 'svelte';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import './layout.css';
+	import Seo from '$lib/components/pksx/Seo.svelte';
 	import AppUpdatePrompt from '$lib/components/pksx/AppUpdatePrompt.svelte';
 	import BackupBrowser from '$lib/components/pksx/BackupBrowser.svelte';
 	import MainMenu, {
@@ -56,7 +57,6 @@
 		(destination) => destinationFocus.get(destination)?.identity ?? null
 	);
 	let mainMenuIndex = $state(0);
-	let firstRunChecked = false;
 	let skipNextFocusCapture = false;
 	let focusRestoreRequest = 0;
 	let cancelPendingFocusWait: (() => void) | null = null;
@@ -65,7 +65,7 @@
 	let hasActiveSaveFile = $state(false);
 	let activeSaveAvailabilityRequest = 0;
 	const activeRoute = $derived<Destination>(
-		page.url.pathname.startsWith('/saves')
+		!page.url.pathname || page.url.pathname === '/' || page.url.pathname.startsWith('/saves')
 			? 'saves'
 			: page.url.pathname.startsWith('/trainer') || page.url.pathname.startsWith('/save-file')
 				? 'trainer'
@@ -138,40 +138,13 @@
 		const backListener = Capacitor.isNativePlatform()
 			? CapacitorApp.addListener('backButton', ({ canGoBack }) => handlePlatformBack(canGoBack))
 			: null;
-		void applyFirstRunLanding();
+		void refreshActiveSaveFileAvailability(++activeSaveAvailabilityRequest);
 		return () => {
 			window.removeEventListener('keydown', handleRootKeydown, true);
 			void backListener?.then((listener) => listener.remove());
 			toastHost.dispose();
 		};
 	});
-
-	async function applyFirstRunLanding() {
-		if (firstRunChecked) return;
-		firstRunChecked = true;
-		try {
-			const [saveFiles, activeSaveFileId, pokemonStorage] = await Promise.all([
-				storage.listSaves(),
-				storage.getActiveSaveFileId(),
-				storage.getPokemonStorage()
-			]);
-			hasActiveSaveFile = saveFiles.some(({ id }) => id === activeSaveFileId);
-			appChrome.hasLoadedSave = hasActiveSaveFile;
-			const hasStoredPokemon =
-				pokemonStorage?.boxes.some((box) => box.slots.some((slot) => slot.pokemon !== null)) ??
-				false;
-			if (activeRoute === 'boxes' && saveFiles.length === 0 && !hasStoredPokemon) {
-				replaceNextRouteHistory = true;
-				try {
-					await goto(resolve('/saves'), { replaceState: true, keepFocus: true });
-				} finally {
-					replaceNextRouteHistory = false;
-				}
-			}
-		} catch {
-			// The destination owns its normal storage failure state.
-		}
-	}
 
 	function openMainMenu() {
 		if (summonedWorkflow.active || appChrome.carryActive) return;
@@ -231,13 +204,13 @@
 	function destinationPath(destination: Destination) {
 		switch (destination) {
 			case 'boxes':
-				return resolve('/');
+				return resolve('/boxes');
 			case 'trainer':
 				return resolve('/trainer');
 			case 'bag':
 				return resolve('/bag');
 			case 'saves':
-				return resolve('/saves');
+				return resolve('/');
 			case 'settings':
 				return resolve('/settings');
 		}
@@ -311,7 +284,7 @@
 		) {
 			consumeRootEvent(event);
 			if (routeBackHandler?.()) return;
-			void goto(resolve('/'), { keepFocus: true });
+			void goto(resolve('/boxes'), { keepFocus: true });
 		}
 	}
 
@@ -622,6 +595,8 @@
 	};
 </script>
 
+<Seo pathname={page.url.pathname} />
+
 <svelte:head>
 	<link rel="icon" type="image/png" href="/icons/icon-192.png" />
 	<link rel="manifest" href="/manifest.webmanifest" />
@@ -638,7 +613,7 @@
 		theme.dark && 'dark',
 		summonedWorkflow.active?.kind === 'backup-browser' && 'takeover-active'
 	]}
-	aria-labelledby="screen-title"
+	aria-label="PKSX"
 	onfocusin={handleShellFocusIn}
 	{@attach controllerNavigation}
 	{@attach controllerFocusSystem}

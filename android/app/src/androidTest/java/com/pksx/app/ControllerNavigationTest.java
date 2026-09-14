@@ -65,7 +65,7 @@ public class ControllerNavigationTest {
     @Test
     public void gamepadNavigatesAndHighlightsSlotActions() throws Exception {
         awaitControllerSurface();
-        runJavaScript("location.assign('/?source=pokemon-storage')");
+        runJavaScript("location.assign('/boxes?source=pokemon-storage')");
         awaitJavaScript(
             "location.search === '?source=pokemon-storage'"
                 + " && document.querySelector('.boxes-route')?.dataset.initialState === 'ready'"
@@ -225,7 +225,7 @@ public class ControllerNavigationTest {
         awaitJavaScript("document.querySelector('[role=dialog][aria-label^=\"Delete \"]') !== null");
         pressPlatformBack();
         awaitJavaScript(
-            "location.pathname.endsWith('/saves')"
+            "location.pathname === '/'"
                 + " && document.querySelector('[role=dialog][aria-label^=\"Delete \"]') === null"
                 + " && document.querySelector('[role=dialog][aria-label=\"Save File Menu\"]') !== null"
         );
@@ -233,7 +233,7 @@ public class ControllerNavigationTest {
         awaitJavaScript("document.querySelector('[role=dialog][aria-label^=\"Delete \"]') !== null");
         pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_B,
-            "location.pathname.endsWith('/saves')"
+            "location.pathname === '/'"
                 + " && document.querySelector('[role=dialog][aria-label^=\"Delete \"]') === null"
                 + " && document.querySelector('[role=dialog][aria-label=\"Save File Menu\"]') !== null"
         );
@@ -257,10 +257,10 @@ public class ControllerNavigationTest {
             "window.__pksxSettingsHistoryLength > window.__pksxNativeHistoryStart"
         );
         pressPlatformBack();
-        awaitJavaScript("location.pathname.endsWith('/saves')");
+        awaitJavaScript("location.pathname === '/'");
         chooseMainMenu("Settings");
         awaitJavaScript("location.pathname.endsWith('/settings')");
-        pressGamepadKey(KeyEvent.KEYCODE_BUTTON_B, "location.pathname === '/'");
+        pressGamepadKey(KeyEvent.KEYCODE_BUTTON_B, "location.pathname === '/boxes'");
     }
 
     @Test
@@ -533,7 +533,7 @@ public class ControllerNavigationTest {
 
         chooseMainMenu("Saves");
         awaitJavaScript(
-            "location.pathname.endsWith('/saves')"
+            "location.pathname === '/'"
                 + " && document.querySelector('[data-destination-root=\"saves\"]')?.dataset.initialState === 'ready'"
         );
         runJavaScript("document.querySelector('[data-destination-focus=\"saves-grid\"]').focus()");
@@ -1087,7 +1087,7 @@ public class ControllerNavigationTest {
             "(() => { const panes = [...document.querySelectorAll('.box-pane')];"
                 + " const active = document.querySelector('.box-pane.active-pane');"
                 + " const carry = document.querySelector('.carry-at-focus');"
-                + " return location.pathname === '/' && panes.length === "
+                + " return location.pathname === '/boxes' && panes.length === "
                 + paneCount
                 + " && new Set(panes.map(pane => pane.dataset.paneId)).size === panes.length"
                 + " && panes[0]?.dataset.paneId === 'pane-active-save'"
@@ -1224,7 +1224,7 @@ public class ControllerNavigationTest {
         awaitJavaScript(
             "(() => { const editor = document.querySelector('.pokemon-editor');"
                 + " const panes = [...document.querySelectorAll('.box-pane')];"
-                + " return location.pathname === '/' && document.querySelectorAll('[role=dialog]').length === 1"
+                + " return location.pathname === '/boxes' && document.querySelectorAll('[role=dialog]').length === 1"
                 + " && editor?.dataset.editorSection === 'nickname'"
                 + " && panes.length === 2 && panes[0]?.dataset.location === 'box-0'"
                 + " && panes[1]?.dataset.sourceId === 'pokemon-storage'"
@@ -2185,7 +2185,7 @@ public class ControllerNavigationTest {
 
     private void assertAllFocusableControlsHighlighted(String scope) throws Exception {
         String selector =
-            "button:not([disabled]),a[href],input:not([disabled]):not([type=hidden]):not([type=file]),"
+            "button:not([disabled]),a[href],summary,input:not([disabled]):not([type=hidden]):not([type=file]),"
                 + "select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex=\"-1\"])";
         awaitJavaScript(
             "(() => { const root = document.querySelector('"
@@ -2193,7 +2193,7 @@ public class ControllerNavigationTest {
                 + "'); if (!root) return false; const controls = [...root.querySelectorAll('"
                 + selector
                 + "')].filter(control => { const rect = control.getBoundingClientRect();"
-                + " const style = getComputedStyle(control); return rect.width > 0 && rect.height > 0"
+                + " const style = getComputedStyle(control); return control.checkVisibility() && rect.width > 0 && rect.height > 0"
                 + " && style.display !== 'none' && style.visibility !== 'hidden'; });"
                 + " return controls.length > 0 && controls.every(control => { control.focus();"
                 + " const style = getComputedStyle(control); return style.outlineStyle === 'solid'"
@@ -2204,7 +2204,7 @@ public class ControllerNavigationTest {
     private void importEmeraldSave() throws Exception {
         chooseMainMenu("Saves");
         awaitJavaScript(
-            "location.pathname.endsWith('/saves') && document.querySelector('#save-file-input')"
+            "location.pathname === '/' && document.querySelector('#save-file-input')"
         );
         String encoded = Base64.encodeToString(readAsset("emerald-011020251345.sav"), Base64.NO_WRAP);
         runJavaScript(

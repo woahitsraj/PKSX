@@ -7,10 +7,10 @@ const emeraldFixturePath = path.resolve(
 );
 
 const destinations: Record<string, { path: string; root: string }> = {
-	Boxes: { path: '/', root: 'boxes' },
+	Boxes: { path: '/boxes', root: 'boxes' },
 	Trainer: { path: '/trainer', root: 'trainer' },
 	Bag: { path: '/bag', root: 'bag' },
-	Saves: { path: '/saves', root: 'saves' },
+	Saves: { path: '/', root: 'saves' },
 	Settings: { path: '/settings', root: 'settings' }
 };
 
@@ -33,7 +33,7 @@ async function resetEmptyStorage(page: Page) {
 			})
 	);
 	await page.reload();
-	await expect(page).toHaveURL(/\/saves$/);
+	await expect(page).toHaveURL(/\/$/);
 	await expectDestinationReady(page, 'saves');
 }
 
@@ -142,7 +142,7 @@ test('empty first run lands on Saves and exposes the amended selectable destinat
 	await expectSavesFocus(page);
 
 	await choose(page, 'Boxes');
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/boxes$/);
 	await choose(page, 'Trainer');
 	await expect(page).toHaveURL(/\/trainer$/);
 	await expect(page.getByText('No active Save File')).toBeVisible();
@@ -308,13 +308,13 @@ test('Start is fresh-press only and restores destination focus by identity', asy
 	await choose(page, 'Settings');
 	await expect(page).toHaveURL(/\/settings$/);
 	await page.goBack();
-	await expect(page).toHaveURL(/\/saves$/);
+	await expect(page).toHaveURL(/\/$/);
 	await expect(savesGrid).toBeFocused();
 	await expect(savesGrid).toHaveAttribute('aria-activedescendant', 'saves-target-import');
 
 	await choose(page, 'Settings');
 	await pressController(page, 'Escape');
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/boxes$/);
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 });
 
@@ -343,7 +343,9 @@ test('reloading with the Main Menu open does not prompt and resets session focus
 	expect(unloadDialogs).toBe(0);
 });
 
-test('stored Pokemon in any box makes Boxes the first-run destination', async ({ page }) => {
+test('stored Pokemon keeps the default entry on Saves with a compact introduction', async ({
+	page
+}) => {
 	await resetEmptyStorage(page);
 	await page.evaluate(
 		() =>
@@ -367,7 +369,24 @@ test('stored Pokemon in any box makes Boxes the first-run destination', async ({
 								slot,
 								pokemon:
 									box === 1 && slot === 29
-										? { label: 'PIKACHU', speciesId: 25, form: 0, isEgg: false }
+										? {
+												label: 'PIKACHU',
+												detail: 'Stored Pokemon',
+												level: null,
+												experience: null,
+												speciesId: 25,
+												form: 0,
+												isEgg: false,
+												spriteIdentity: null,
+												origin: {
+													entryMode: 'imported',
+													originSaveFileName: null,
+													originGame: null,
+													originalTrainer: null,
+													trainerId: null,
+													enteredAt: '2026-09-09T00:00:00.000Z'
+												}
+											}
 										: null
 							}))
 						}))
@@ -384,7 +403,8 @@ test('stored Pokemon in any box makes Boxes the first-run destination', async ({
 
 	await page.goto('/');
 	await expect(page).toHaveURL(/\/$/);
-	await expect(page.locator('#box-grid')).toBeVisible();
+	await expectDestinationReady(page, 'saves');
+	await expect(page.locator('#about-pksx details')).not.toHaveAttribute('open');
 });
 
 test('Saves restores an asynchronously loaded control by stable identity', async ({ page }) => {
@@ -579,7 +599,7 @@ test('Trainer and Bag keep independent semantic focus within their separate dest
 	await expect(trainerName).toBeFocused();
 	await page.getByRole('button', { name: 'Decrease Money' }).focus();
 	await pressController(page, 'Escape');
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/boxes$/);
 });
 
 test('Saves deletion workflow owns shortcuts, controller Back, and browser history', async ({
@@ -608,7 +628,7 @@ test('Saves deletion workflow owns shortcuts, controller Back, and browser histo
 	await pressController(page, 'Escape');
 	await expect(confirmation).toBeHidden();
 	await expect(saveFileMenu).toBeVisible();
-	await expect(page).toHaveURL(/\/saves$/);
+	await expect(page).toHaveURL(/\/$/);
 	await pressController(page, 'Escape');
 	await expect(saveFileMenu).toBeHidden();
 
@@ -622,5 +642,5 @@ test('Saves deletion workflow owns shortcuts, controller Back, and browser histo
 	await page.evaluate(() => history.back());
 	await expect(confirmation).toBeHidden();
 	await expect(saveFileMenu).toBeVisible();
-	await expect(page).toHaveURL(/\/saves$/);
+	await expect(page).toHaveURL(/\/$/);
 });
