@@ -1859,6 +1859,20 @@
 			return;
 		}
 
+		if (carryState && ownerPane) {
+			const evaluation = evaluateDestination({
+				carry: carryState,
+				destinationPane: ownerPane,
+				destination: workbenchSlotRefForSaveRef(ownerPane.id, destination),
+				destinationSlot
+			});
+			if (!evaluation.valid) {
+				toastHost.error(evaluation.consequence);
+				statusMessage = evaluation.consequence;
+				return;
+			}
+		}
+
 		const activeSaveId = loadedSave?.file.id;
 		const unsupportedSaveOwner =
 			(carryState?.sourceOwner.type === 'save-file' &&

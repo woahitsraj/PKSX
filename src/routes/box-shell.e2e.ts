@@ -648,6 +648,35 @@ async function workspaceBytesHashForFile(page: Page, fileName: string) {
 	);
 }
 
+async function persistedSavesStateSnapshot(page: Page) {
+	return page.evaluate(
+		() =>
+			new Promise<string>((resolve, reject) => {
+				const stores = [
+					'saveFiles',
+					'saveBytes',
+					'workspaces',
+					'pokemonStorage',
+					'backups',
+					'backupBytes'
+				] as const;
+				const open = indexedDB.open('pksx-saves');
+				open.onerror = () => reject(open.error ?? new Error('Could not open Saves.'));
+				open.onsuccess = () => {
+					const database = open.result;
+					const transaction = database.transaction(stores, 'readonly');
+					const requests = stores.map((store) => transaction.objectStore(store).getAll());
+					transaction.onerror = () =>
+						reject(transaction.error ?? new Error('Could not read persisted Saves state.'));
+					transaction.oncomplete = () => {
+						resolve(JSON.stringify(requests.map((request) => request.result)));
+						database.close();
+					};
+				};
+			})
+	);
+}
+
 async function backupRecords(page: Page) {
 	return page.evaluate(
 		() =>
@@ -1981,6 +2010,47 @@ test('Pokemon Storage opens as an independent second pane and persists copied Po
 	await page.getByRole('button', { name: 'Next Location' }).click();
 	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
 	await expect(page.locator('#box-1-slot-0')).toContainText('ARON');
+});
+
+test('Save File Carry rejects an occupied Pokemon Storage destination', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await seedOccupiedPokemonStorageSlot(page);
+	await page.reload();
+	await expectActiveSaveOwner(page, 'emerald-011020251345.sav');
+
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+
+	const panes = page.locator('.box-pane');
+	const savePane = panes.nth(0);
+	const storagePane = panes.nth(1);
+	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('STORAGE ARON');
+	const before = await persistedSavesStateSnapshot(page);
+
+	await savePane.locator('[id$="box-0-slot-0"]').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowRight');
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toBeFocused();
+	await page.keyboard.press('Enter');
+
+	await expect(page.locator('.toast-error')).toContainText(
+		'Choose an empty Pokemon Storage Slot before moving from a Save File.'
+	);
+	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('STORAGE ARON');
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toBeFocused();
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
+	expect(await persistedSavesStateSnapshot(page)).toBe(before);
 });
 
 test('Box Menu and related picker Cancel restore focus at both viewport floors', async ({

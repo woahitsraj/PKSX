@@ -348,11 +348,10 @@ describe('storage workbench carry contract', () => {
 		]);
 	});
 
-	it('blocks copy onto an occupied destination and marks it invalid', () => {
+	it('evaluates a Pokemon Storage to Save File move as dirty insert plus auto-saved removal', () => {
 		const sourcePane = createBoxPane('pane-storage', storageSource, { boxCount: 8 });
 		const destinationPane = createBoxPane('pane-save', saveSource, { boxCount: 14 });
 		const carry = createCarryState({
-			mode: 'copy',
 			pane: sourcePane,
 			slot: aron,
 			source: slotRef(sourcePane.id, 0)
@@ -361,16 +360,61 @@ describe('storage workbench carry contract', () => {
 		const result = evaluateDestination({
 			carry,
 			destinationPane,
-			destination: slotRef(destinationPane.id, 1),
-			destinationSlot: { ...aron, slot: 1, label: 'ZUBAT' }
+			destination: slotRef(destinationPane.id, 3),
+			destinationSlot: emptySlot
 		});
 
-		expect(result.valid).toBe(false);
-		expect(destinationStateForEvaluation(result)).toBe('invalid');
-		expect(result.consequence).toBe('Choose an empty Slot or switch to Move.');
+		expect(result.valid).toBe(true);
+		expect(result.mutations).toEqual([
+			{
+				owner: 'save-file',
+				paneId: 'pane-save',
+				sourceType: 'save-file',
+				mutation: 'insert',
+				requiresBackup: true,
+				dirtiesWorkspace: true
+			},
+			{
+				owner: 'pokemon-storage',
+				paneId: 'pane-storage',
+				sourceType: 'pokemon-storage',
+				mutation: 'remove',
+				autoSaved: true
+			}
+		]);
 	});
 
-	it('blocks storage to save moves onto occupied destinations', () => {
+	it('blocks copy onto an occupied destination in both transfer directions', () => {
+		for (const [sourcePane, destinationPane] of [
+			[
+				createBoxPane('pane-storage', storageSource, { boxCount: 8 }),
+				createBoxPane('pane-save', saveSource, { boxCount: 14 })
+			],
+			[
+				createBoxPane('pane-save', saveSource, { boxCount: 14 }),
+				createBoxPane('pane-storage', storageSource, { boxCount: 8 })
+			]
+		]) {
+			const carry = createCarryState({
+				mode: 'copy',
+				pane: sourcePane,
+				slot: aron,
+				source: slotRef(sourcePane.id, 0)
+			})!;
+			const result = evaluateDestination({
+				carry,
+				destinationPane,
+				destination: slotRef(destinationPane.id, 1),
+				destinationSlot: { ...aron, slot: 1, label: 'ZUBAT' }
+			});
+
+			expect(result.valid).toBe(false);
+			expect(destinationStateForEvaluation(result)).toBe('invalid');
+			expect(result.consequence).toBe('Choose an empty Slot or switch to Move.');
+		}
+	});
+
+	it('blocks Pokemon Storage to Save File moves onto occupied destinations', () => {
 		const sourcePane = createBoxPane('pane-storage', storageSource, { boxCount: 8 });
 		const destinationPane = createBoxPane('pane-save', saveSource, { boxCount: 14 });
 		const carry = createCarryState({
@@ -390,6 +434,29 @@ describe('storage workbench carry contract', () => {
 		expect(destinationStateForEvaluation(result)).toBe('invalid');
 		expect(result.consequence).toBe(
 			'Choose an empty Save File Slot before moving from Pokemon Storage.'
+		);
+	});
+
+	it('blocks Save File to Pokemon Storage moves onto occupied destinations', () => {
+		const sourcePane = createBoxPane('pane-save', saveSource, { boxCount: 14 });
+		const destinationPane = createBoxPane('pane-storage', storageSource, { boxCount: 8 });
+		const carry = createCarryState({
+			pane: sourcePane,
+			slot: aron,
+			source: slotRef(sourcePane.id, 0)
+		})!;
+
+		const result = evaluateDestination({
+			carry,
+			destinationPane,
+			destination: slotRef(destinationPane.id, 0),
+			destinationSlot: { ...aron, label: 'ZUBAT' }
+		});
+
+		expect(result.valid).toBe(false);
+		expect(destinationStateForEvaluation(result)).toBe('invalid');
+		expect(result.consequence).toBe(
+			'Choose an empty Pokemon Storage Slot before moving from a Save File.'
 		);
 	});
 
