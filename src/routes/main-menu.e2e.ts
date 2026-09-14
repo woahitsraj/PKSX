@@ -329,12 +329,12 @@ test('Start is fresh-press only and restores destination focus by identity', asy
 	await choose(page, 'Settings');
 	const darkTheme = page.getByRole('button', { name: 'Use dark theme' });
 	await darkTheme.focus();
-	await page.keyboard.press('Control+k');
+	await page.keyboard.press('Control+Shift+k');
 	let menu = page.getByRole('dialog', { name: 'Main Menu' });
 	await menu.getByRole('button', { name: /^Settings/ }).click();
 	await expect(darkTheme).toBeFocused();
 
-	await page.keyboard.press('Control+k');
+	await page.keyboard.press('Control+Shift+k');
 	menu = page.getByRole('dialog', { name: 'Main Menu' });
 	await menu.getByRole('button', { name: /^Backup Browser/ }).click();
 	await page.goBack();
@@ -342,7 +342,7 @@ test('Start is fresh-press only and restores destination focus by identity', asy
 	await expect(page.getByRole('dialog', { name: 'Backup Browser' })).toBeHidden();
 	await expect(darkTheme).toBeFocused();
 
-	await page.keyboard.press('Control+k');
+	await page.keyboard.press('Control+Shift+k');
 	menu = page.getByRole('dialog', { name: 'Main Menu' });
 	await menu.getByRole('button', { name: /^Backup Browser/ }).click();
 	await pressController(page, 'Escape');
@@ -501,7 +501,7 @@ test('Trainer and Bag keep independent semantic focus within their separate dest
 	expect(moneyId).toBe('pksx-trainer-money-value');
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await expect(money).toBeFocused();
-	await page.keyboard.press('Control+k');
+	await page.keyboard.press('Control+Shift+k');
 	await page
 		.getByRole('dialog', { name: 'Main Menu' })
 		.getByRole('button', { name: /^Trainer/ })
@@ -613,7 +613,7 @@ test('Trainer and Bag keep independent semantic focus within their separate dest
 	await quantity.focus();
 	const quantityId = await quantity.getAttribute('id');
 	expect(quantityId).toMatch(/^pksx-bag-item-.+-quantity$/);
-	await page.keyboard.press('Control+k');
+	await page.keyboard.press('Control+Shift+k');
 	await page
 		.getByRole('dialog', { name: 'Main Menu' })
 		.getByRole('button', { name: /^Bag/ })
@@ -665,7 +665,7 @@ test('Saves deletion workflow owns shortcuts, controller Back, and browser histo
 	});
 	await expect(confirmation).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Open Main Menu' })).toBeHidden();
-	await page.keyboard.press('Control+k');
+	await page.keyboard.press('Control+Shift+k');
 	await pressController(page, 'Menu');
 	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeHidden();
 	await expect(confirmation).toBeVisible();

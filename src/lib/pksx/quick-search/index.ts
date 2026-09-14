@@ -1,10 +1,9 @@
 import type { BoxSlotSummary, PartySlotSummary } from '$lib/engine';
-import type { StoredPokemonStorage } from '$lib/pksx/saves';
 
 export type QuickSearchResult = {
 	id: string;
-	collectionKey: string;
-	collectionLabel: string;
+	saveFileId: string;
+	saveFileName: string;
 	paneId: string;
 	speciesName: string;
 	nickname: string;
@@ -15,8 +14,8 @@ export type QuickSearchResult = {
 };
 
 type SaveFileSearchInput = {
-	collectionKey: string;
-	collectionLabel: string;
+	saveFileId: string;
+	saveFileName: string;
 	paneId: string;
 	partySlots: PartySlotSummary[];
 	boxSlots: BoxSlotSummary[];
@@ -41,36 +40,6 @@ export function createSaveFileQuickSearchResults(input: SaveFileSearchInput): Qu
 	];
 }
 
-export function createPokemonStorageQuickSearchResults(input: {
-	paneId: string;
-	storage: StoredPokemonStorage;
-	speciesNames?: ReadonlyMap<number, string>;
-}): QuickSearchResult[] {
-	return input.storage.boxes.flatMap((box) =>
-		box.slots.flatMap((storageSlot) => {
-			const pokemon = storageSlot.pokemon;
-			if (!pokemon) return [];
-			return [
-				{
-					id: `pokemon-storage:box:${box.index}:${storageSlot.slot}`,
-					collectionKey: 'pokemon-storage',
-					collectionLabel: 'Pokemon Storage',
-					paneId: input.paneId,
-					speciesName:
-						pokemon.speciesName ??
-						(pokemon.speciesId === null ? undefined : input.speciesNames?.get(pokemon.speciesId)) ??
-						pokemon.label,
-					nickname: pokemon.label,
-					locationLabel: `${box.name}, Slot ${storageSlot.slot + 1}`,
-					zone: 'box' as const,
-					box: box.index,
-					slot: storageSlot.slot
-				}
-			];
-		})
-	);
-}
-
 export function filterQuickSearchResults(
 	results: QuickSearchResult[],
 	query: string
@@ -86,16 +55,16 @@ export function filterQuickSearchResults(
 }
 
 function createResult(
-	input: Pick<SaveFileSearchInput, 'collectionKey' | 'collectionLabel' | 'paneId'>,
+	input: Pick<SaveFileSearchInput, 'saveFileId' | 'saveFileName' | 'paneId'>,
 	slot: PartySlotSummary | BoxSlotSummary,
 	zone: QuickSearchResult['zone'],
 	box: number | null,
 	locationLabel: string
 ): QuickSearchResult {
 	return {
-		id: `${input.collectionKey}:${zone}:${box ?? 'party'}:${slot.slot}`,
-		collectionKey: input.collectionKey,
-		collectionLabel: input.collectionLabel,
+		id: `${input.saveFileId}:${zone}:${box ?? 'party'}:${slot.slot}`,
+		saveFileId: input.saveFileId,
+		saveFileName: input.saveFileName,
 		paneId: input.paneId,
 		speciesName: slot.speciesName ?? slot.nickname,
 		nickname: slot.nickname,

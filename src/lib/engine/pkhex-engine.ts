@@ -28,8 +28,7 @@ import type {
 	StoredPokemonImportResult,
 	StoredPokemonActionResult,
 	SerializedSave,
-	SaveSummary,
-	SpeciesNameProjection
+	SaveSummary
 } from './types';
 
 type RawDotnetModule = {
@@ -52,7 +51,6 @@ type RawDotnetModule = {
 
 type DotnetPkhexEngineExports = {
 	GetVersionJson(): string;
-	ProjectSpeciesNamesJson(speciesIdsJson: string): string;
 	ParseSaveSmoke(bytes: Uint8Array, fileName?: string): string;
 	ListBoxSmoke(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	LoadSaveWorkspaceJson(bytes: Uint8Array, fileName: string | undefined, box: number): string;
@@ -160,10 +158,6 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 
 	return {
 		getVersion: async () => parseEngineResult<EngineVersion>(engine.GetVersionJson()),
-		projectSpeciesNames: async (speciesIds) =>
-			parseEngineResult<SpeciesNameProjection[]>(
-				engine.ProjectSpeciesNamesJson(JSON.stringify(speciesIds))
-			),
 		summarizeSave: async (bytes, fileName) =>
 			normalizeSaveSummaryResult(
 				parseEngineResult<RawSaveSummary>(engine.ParseSaveSmoke(bytes, fileName))

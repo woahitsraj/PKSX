@@ -1,26 +1,27 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
-	import type { QuickSearchCollection } from '$lib/pksx/quick-search/host.svelte';
+	import type { QuickSearchSaveFile } from '$lib/pksx/quick-search/host.svelte';
 	import { filterQuickSearchResults, type QuickSearchResult } from '$lib/pksx/quick-search';
 	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
 	import TakeoverFrame from './TakeoverFrame.svelte';
 
 	interface Props {
-		collection: QuickSearchCollection;
+		saveFile: QuickSearchSaveFile;
 		onSelect: (result: QuickSearchResult) => Promise<boolean>;
 		onClose: () => void;
 	}
 
-	let { collection, onSelect, onClose }: Props = $props();
+	let { saveFile, onSelect, onClose }: Props = $props();
 	let query = $state('');
 	let results = $state<QuickSearchResult[]>([]);
 	let loading = $state(true);
 	let unavailable = $state(false);
-	let error = $state<string | null>(null);
+	let error = $state(false);
 	let selectedResultId = $state<string | null>(null);
 	let input: HTMLInputElement | undefined;
 	let availabilityRequest = 0;
 	const matches = $derived(filterQuickSearchResults(results, query));
+	const activeResultId = $derived(selectedResultId ?? matches[0]?.id ?? null);
 	const selectedIndex = $derived(matches.findIndex(({ id }) => id === selectedResultId));
 
 	onMount(() => {
@@ -30,14 +31,13 @@
 	async function load() {
 		loading = true;
 		try {
-			if (!(await collection.isAvailable())) {
+			if (!(await saveFile.isAvailable())) {
 				unavailable = true;
 				return;
 			}
-			results = await collection.loadResults();
-		} catch (cause) {
-			error =
-				cause instanceof Error ? cause.message : 'Quick Search could not read this collection.';
+			results = await saveFile.loadResults();
+		} catch {
+			error = true;
 		} finally {
 			loading = false;
 			await tick();
@@ -49,7 +49,7 @@
 		query = event.currentTarget instanceof HTMLInputElement ? event.currentTarget.value : '';
 		selectedResultId = null;
 		const request = ++availabilityRequest;
-		if (!(await collection.isAvailable()) && request === availabilityRequest) unavailable = true;
+		if (!(await saveFile.isAvailable()) && request === availabilityRequest) unavailable = true;
 	}
 
 	async function selectResult(result: QuickSearchResult) {
@@ -70,21 +70,23 @@
 			return;
 		}
 
-		if (!isControllerKeyboardEvent(event)) return;
-		if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(event.key)) return;
+		const navigationKeys = isControllerKeyboardEvent(event)
+			? ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter']
+			: ['ArrowUp', 'ArrowDown', 'Enter'];
+		if (!navigationKeys.includes(event.key)) return;
 		event.preventDefault();
 
 		if (event.key === 'Enter') {
-			const result = matches.find(({ id }) => id === selectedResultId);
+			const result = matches.find(({ id }) => id === activeResultId);
 			if (result) void selectResult(result);
 			return;
 		}
 
-		const offset = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
 		if (matches.length === 0) {
 			input?.focus();
 			return;
 		}
+		const offset = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
 		const nextIndex = Math.max(-1, Math.min(matches.length - 1, selectedIndex + offset));
 		if (nextIndex < 0) input?.focus();
 		else document.getElementById(`quick-search-result-${matches[nextIndex]?.id}`)?.focus();
@@ -97,55 +99,58 @@
 	labelledby="quick-search-title"
 	describedby="quick-search-description"
 	busy={loading}
+	variant="command"
+	commandRows={matches.length}
 	onBack={onClose}
 >
 	<div class="quick-search">
-		<header>
-			<div>
-				<p>Focused collection</p>
-				<h2 id="quick-search-title">Quick Search</h2>
-			</div>
+		<h2 id="quick-search-title" class="visually-hidden">Search Active Save File</h2>
+		<p id="quick-search-description" class="visually-hidden">
+			Find a Pokemon by species, nickname, or location.
+		</p>
+
+		<div class="search-row">
+			<input
+				{@attach searchInput}
+				type="search"
+				aria-label="Search Active Save File"
+				aria-activedescendant={activeResultId ? `quick-search-result-${activeResultId}` : undefined}
+				placeholder="Species, nickname, or location"
+				value={query}
+				onfocus={() => (selectedResultId = null)}
+				oninput={handleInput}
+			/>
 			<button
 				type="button"
 				class="close-search"
 				data-pksx-control-category="small"
 				data-controller-back
-				aria-label="Close Quick Search"
-				onclick={onClose}>×</button
+				aria-label="Close Search"
+				onclick={onClose}>Esc</button
 			>
-		</header>
-
-		<p id="quick-search-description" class="collection-label">{collection.label}</p>
-		<input
-			{@attach searchInput}
-			type="search"
-			aria-label={`Search ${collection.label}`}
-			placeholder="Species, nickname, or Location"
-			value={query}
-			oninput={handleInput}
-		/>
+		</div>
 
 		<div class="results" aria-live="polite">
 			{#if loading}
-				<p class="state">Reading {collection.label}...</p>
+				<p class="state">Reading Active Save File...</p>
 			{:else if unavailable}
-				<p class="state">{collection.label} is no longer available.</p>
+				<p class="state">The Active Save File is no longer available.</p>
 			{:else if error}
-				<p class="state">{error}</p>
+				<p class="state">Search could not read the Active Save File.</p>
 			{:else if results.length === 0}
-				<p class="state">{collection.label} has no Pokemon to search.</p>
+				<p class="state">The Active Save File has no Pokemon to search.</p>
 			{:else if query.trim().length === 0}
-				<p class="state">Type a species, nickname, or Location.</p>
+				<p class="state">Search by species, nickname, or location.</p>
 			{:else if matches.length === 0}
 				<p class="state">No Pokemon match "{query.trim()}".</p>
 			{:else}
-				<div class="result-list" role="list" aria-label="Quick Search results">
+				<div class="result-list" role="list" aria-label="Search results">
 					{#each matches as result (result.id)}
 						<button
 							id={`quick-search-result-${result.id}`}
 							type="button"
-							class:controller-focused={selectedResultId === result.id}
-							aria-label={`${result.nickname} ${result.speciesName} ${result.collectionLabel} ${result.locationLabel}`}
+							class:active={activeResultId === result.id}
+							aria-label={`${result.nickname}, ${result.speciesName}, ${result.locationLabel}, ${result.saveFileName}`}
 							onfocus={() => (selectedResultId = result.id)}
 							onclick={() => void selectResult(result)}
 						>
@@ -153,15 +158,17 @@
 								<strong>{result.nickname}</strong>
 								{#if result.speciesName !== result.nickname}<small>{result.speciesName}</small>{/if}
 							</span>
-							<span class="location">
-								<strong>{result.collectionLabel}</strong>
-								<small>{result.locationLabel}</small>
-							</span>
+							<span class="location">{result.locationLabel}</span>
 						</button>
 					{/each}
 				</div>
 			{/if}
 		</div>
+
+		<footer>
+			<span><strong>Active Save File</strong> · {saveFile.fileName}</span>
+			<span class="hints"><kbd>↑↓</kbd> Navigate <kbd>↵</kbd> Open</span>
+		</footer>
 	</div>
 </TakeoverFrame>
 
@@ -170,69 +177,63 @@
 		height: 100%;
 		min-height: 0;
 		display: grid;
-		grid-template-rows: auto auto auto minmax(0, 1fr);
-		gap: var(--pksx-space-2);
-		padding: var(--pksx-space-3);
+		grid-template-rows: auto minmax(0, 1fr) auto;
 	}
 
-	header {
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+
+	.search-row {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		gap: var(--pksx-space-3);
-	}
-
-	header div {
-		display: grid;
-		gap: var(--pksx-space-1);
-	}
-
-	header p,
-	header h2,
-	.collection-label,
-	.state {
-		margin: 0;
-	}
-
-	header p {
-		color: var(--pksx-color-accent-primary);
-		font: 750 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
-
-	header h2 {
-		font-size: var(--pksx-type-display);
-		line-height: 1;
-	}
-
-	.close-search {
-		width: var(--pksx-small-control-height);
-		height: var(--pksx-small-control-height);
-		padding: 0;
-		border: var(--pksx-border-width) solid var(--pksx-color-border-strong);
-		border-radius: 50%;
-		background: var(--pksx-color-surface-subtle);
-		color: var(--pksx-color-text-primary);
-		font: inherit;
-		cursor: pointer;
-	}
-
-	.collection-label {
-		color: var(--pksx-color-text-secondary);
-		font: 700 var(--pksx-type-label) / 1 var(--pksx-font-mono);
+		gap: var(--pksx-space-2);
+		padding: var(--pksx-space-2);
+		border-bottom: var(--pksx-border-width) solid var(--pksx-color-border-strong);
 	}
 
 	input {
-		width: 100%;
+		min-width: 0;
 		min-height: var(--pksx-control-height);
-		padding: 0 var(--pksx-space-3);
-		border: var(--pksx-border-width) solid var(--pksx-color-border-strong);
-		border-radius: var(--pksx-radius-medium);
-		background: var(--pksx-color-surface-panel);
+		flex: 1;
+		padding: 0 var(--pksx-space-2);
+		border: 0;
+		background: transparent;
 		color: var(--pksx-color-text-primary);
 		font-family: var(--pksx-font-sans);
-		font-size: max(16px, var(--pksx-type-editable, 16px));
+		font-size: var(--pksx-type-editable);
+		outline: none;
+	}
+
+	input::placeholder {
+		color: var(--pksx-color-text-secondary);
+	}
+
+	.close-search {
+		min-width: var(--pksx-small-control-height);
+		height: var(--pksx-small-control-height);
+		padding: 0 var(--pksx-space-2);
+		border: var(--pksx-border-width) solid var(--pksx-color-border-strong);
+		border-radius: var(--pksx-radius-small);
+		background: var(--pksx-color-surface-subtle);
+		color: var(--pksx-color-text-secondary);
+		font: 700 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
+		cursor: pointer;
+	}
+
+	.close-search:hover,
+	.close-search:focus-visible {
+		border-color: var(--pksx-color-accent-primary);
+		color: var(--pksx-color-text-primary);
+		outline: none;
 	}
 
 	.results,
@@ -241,14 +242,13 @@
 	}
 
 	.results {
+		max-height: min(420px, 55dvh);
 		overflow: hidden;
 	}
 
 	.result-list {
-		height: 100%;
-		display: grid;
-		align-content: start;
-		gap: var(--pksx-space-1);
+		height: auto;
+		max-height: inherit;
 		overflow-y: auto;
 	}
 
@@ -256,13 +256,13 @@
 		width: 100%;
 		min-height: var(--pksx-control-height);
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
-		gap: var(--pksx-space-2);
+		gap: var(--pksx-space-3);
 		padding: var(--pksx-space-2) var(--pksx-space-3);
-		border: var(--pksx-border-width) solid transparent;
-		border-radius: var(--pksx-radius-medium);
-		background: var(--pksx-color-surface-subtle);
+		border: 0;
+		border-bottom: var(--pksx-border-width) solid var(--pksx-color-border-subtle);
+		background: transparent;
 		color: var(--pksx-color-text-primary);
 		font: inherit;
 		text-align: left;
@@ -271,42 +271,76 @@
 
 	.result-list button:hover,
 	.result-list button:focus-visible,
-	.result-list button.controller-focused {
-		border-color: var(--pksx-color-accent-primary);
+	.result-list button.active {
 		background: var(--pksx-color-accent-wash);
 		outline: none;
 	}
 
-	.identity,
-	.location {
+	.identity {
 		min-width: 0;
-		display: grid;
-		gap: var(--pksx-space-1);
+		display: flex;
+		align-items: baseline;
+		gap: var(--pksx-space-2);
+	}
+
+	.identity strong,
+	.identity small,
+	.location,
+	footer span {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.identity strong {
+		font-size: var(--pksx-type-label);
+	}
+
+	.identity small,
+	.location,
+	.state,
+	footer {
+		color: var(--pksx-color-text-secondary);
+		font-size: var(--pksx-type-caption);
+		line-height: 1.25;
 	}
 
 	.location {
 		text-align: right;
 	}
 
-	.identity strong,
-	.location strong {
-		overflow: hidden;
-		font-size: var(--pksx-type-label);
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	small,
 	.state {
-		color: var(--pksx-color-text-secondary);
-		font-size: var(--pksx-type-caption);
-		line-height: 1.25;
-	}
-
-	.state {
-		padding: var(--pksx-space-3);
-		border: var(--pksx-border-width) dashed var(--pksx-color-border-strong);
-		border-radius: var(--pksx-radius-medium);
+		margin: 0;
+		padding: var(--pksx-space-4) var(--pksx-space-3);
 		text-align: center;
+	}
+
+	footer {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--pksx-space-3);
+		padding: var(--pksx-space-2) var(--pksx-space-3);
+		border-top: var(--pksx-border-width) solid var(--pksx-color-border-strong);
+		background: var(--pksx-color-surface-subtle);
+	}
+
+	footer strong {
+		color: var(--pksx-color-text-primary);
+	}
+
+	.hints {
+		flex: none;
+	}
+
+	kbd {
+		font: inherit;
+		color: var(--pksx-color-text-primary);
+	}
+
+	@container pksx-takeover (max-width: 480px) {
+		.hints {
+			display: none;
+		}
 	}
 </style>

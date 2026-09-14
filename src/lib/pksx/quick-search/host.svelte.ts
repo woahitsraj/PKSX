@@ -3,15 +3,15 @@ import type { QuickSearchResult } from '.';
 
 const quickSearchHostKey = Symbol('pksx-quick-search-host');
 
-export type QuickSearchCollection = {
-	label: string;
+export type QuickSearchSaveFile = {
+	fileName: string;
 	isAvailable(): Promise<boolean>;
 	loadResults(): Promise<QuickSearchResult[]>;
 	focusResult(result: QuickSearchResult): Promise<string | null>;
 };
 
 export type QuickSearchProvider = {
-	captureFocusedCollection(): QuickSearchCollection | null;
+	captureActiveSaveFile(): QuickSearchSaveFile | null;
 };
 
 export type QuickSearchHost = {

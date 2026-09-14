@@ -23,8 +23,6 @@ public sealed record EngineError(string Code, string Message);
 
 public sealed record EngineVersion(string PkhexCoreVersion, string FacadeVersion);
 
-public sealed record SpeciesNameProjection(ushort SpeciesId, string SpeciesName);
-
 public sealed record SaveSummary(
     string? FileName,
     string SaveType,

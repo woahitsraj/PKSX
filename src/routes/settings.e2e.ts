@@ -218,7 +218,7 @@ test('Settings uses one clamped vertical Focus Zone and reveals its focused stop
 
 	const everywhere = page.getByRole('heading', { name: 'Everywhere', exact: true });
 	await everywhere.focus();
-	await page.keyboard.press('Control+k');
+	await page.keyboard.press('Control+Shift+k');
 	await page
 		.getByRole('dialog', { name: 'Main Menu' })
 		.getByRole('button', { name: /^Settings/ })
@@ -229,7 +229,7 @@ test('Settings uses one clamped vertical Focus Zone and reveals its focused stop
 	const about = page.getByRole('heading', { name: 'About', exact: true });
 	await expect(page.getByRole('region', { name: 'About' })).toBeVisible();
 	await about.focus();
-	await page.keyboard.press('Control+k');
+	await page.keyboard.press('Control+Shift+k');
 	await page
 		.getByRole('dialog', { name: 'Main Menu' })
 		.getByRole('button', { name: /^Settings/ })

@@ -32,7 +32,7 @@
 	import {
 		createQuickSearchHost,
 		setQuickSearchHost,
-		type QuickSearchCollection
+		type QuickSearchSaveFile
 	} from '$lib/pksx/quick-search/host.svelte';
 	import { setRouteBackRegistrar } from '$lib/pksx/route-back-context.svelte';
 	import { theme } from '$lib/pksx/theme.svelte';
@@ -73,7 +73,7 @@
 	let platformHistoryDepth = 0;
 	let replaceNextRouteHistory = false;
 	let hasActiveSaveFile = $state(false);
-	let quickSearchCollection = $state<QuickSearchCollection | null>(null);
+	let quickSearchSaveFile = $state<QuickSearchSaveFile | null>(null);
 	let activeSaveAvailabilityRequest = 0;
 	let routeTransitionRequest = 0;
 	const destinationOrder: Destination[] = ['saves', 'boxes', 'trainer', 'bag', 'settings'];
@@ -108,12 +108,12 @@
 		];
 
 		const entries: MainMenuEntry[] = [
-			{ key: 'boxes', label: 'Boxes', description: 'Browse the active collections.' }
+			{ key: 'boxes', label: 'Boxes', description: 'Browse the Active Save File.' }
 		];
 		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX, 0, {
 			key: 'search',
 			label: 'Search',
-			description: 'Find a Pokemon in the focused collection.'
+			description: 'Find a Pokemon in the Active Save File.'
 		});
 		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX + 1, 0, ...entriesAfterReservedSearch);
 		return entries;
@@ -260,8 +260,9 @@
 			searchLauncher = undefined;
 		}
 
-		const collection = quickSearchHost.getProvider()?.captureFocusedCollection() ?? null;
-		if (!collection) {
+		const saveFile = quickSearchHost.getProvider()?.captureActiveSaveFile() ?? null;
+		if (!saveFile) {
+			toastHost.error('Import a Save File before searching.');
 			await restoreDestinationFocus('boxes');
 			return;
 		}
@@ -269,16 +270,16 @@
 		const launcherId =
 			searchLauncher?.id ?? rememberDestinationFocus() ?? ensureDestinationFocus('boxes');
 		if (!launcherId) return;
-		quickSearchCollection = collection;
+		quickSearchSaveFile = saveFile;
 		if (!summonedWorkflow.open('quick-search', { type: 'control', id: launcherId })) {
-			quickSearchCollection = null;
+			quickSearchSaveFile = null;
 		}
 	}
 
 	function closeQuickSearch() {
 		if (!quickSearchOpen) return;
 		const launcher = summonedWorkflow.dismiss();
-		quickSearchCollection = null;
+		quickSearchSaveFile = null;
 		queueMicrotask(() => {
 			const target = launcher ? document.getElementById(launcher.id) : null;
 			const route = destinationRoute(activeRoute);
@@ -288,13 +289,13 @@
 	}
 
 	async function selectQuickSearchResult(result: QuickSearchResult) {
-		const collection = quickSearchCollection;
-		if (!quickSearchOpen || !collection) return false;
-		const focusId = await collection.focusResult(result);
+		const saveFile = quickSearchSaveFile;
+		if (!quickSearchOpen || !saveFile) return false;
+		const focusId = await saveFile.focusResult(result);
 		if (!focusId) return false;
 
 		summonedWorkflow.dismiss();
-		quickSearchCollection = null;
+		quickSearchSaveFile = null;
 		await tick();
 		const target = document.getElementById(focusId);
 		if (isFocusableTarget(target)) {
@@ -332,19 +333,25 @@
 	function handleRootKeydown(event: KeyboardEvent) {
 		const fromController = isControllerKeyboardEvent(event);
 		const controllerAction = fromController ? controllerShortcutAction(event.key) : null;
-		const shortcut =
+		const commandK =
 			!fromController &&
 			(event.metaKey || event.ctrlKey) &&
 			!event.altKey &&
 			event.key.toLowerCase() === 'k';
+		const mainMenuShortcut = commandK && event.shiftKey;
+		const searchShortcut = commandK && !event.shiftKey;
 
-		if (shortcut) {
+		if (mainMenuShortcut) {
 			consumeRootEvent(event);
 			if (!summonedWorkflow.active && !appChrome.carryActive) void openMainMenu();
 			return;
 		}
 
-		if (controllerAction === 'search' && !summonedWorkflow.active && !appChrome.carryActive) {
+		if (
+			(searchShortcut || controllerAction === 'search') &&
+			!summonedWorkflow.active &&
+			!appChrome.carryActive
+		) {
 			consumeRootEvent(event);
 			void openQuickSearch();
 			return;
@@ -769,9 +776,9 @@
 		/>
 	{:else if summonedWorkflow.active?.kind === 'backup-browser'}
 		<BackupBrowser />
-	{:else if quickSearchOpen && quickSearchCollection}
+	{:else if quickSearchOpen && quickSearchSaveFile}
 		<QuickSearch
-			collection={quickSearchCollection}
+			saveFile={quickSearchSaveFile}
 			onSelect={selectQuickSearchResult}
 			onClose={closeQuickSearch}
 		/>

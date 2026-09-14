@@ -92,34 +92,6 @@ public static partial class PkhexEngineExports
     }
 
     [JSExport]
-    public static string ProjectSpeciesNamesJson(string speciesIdsJson)
-    {
-        try
-        {
-            var speciesIds = System.Text.Json.JsonSerializer.Deserialize(
-                speciesIdsJson,
-                EngineJsonContext.Default.ListUInt16) ?? [];
-            var projections = speciesIds
-                .Distinct()
-                .Where(speciesId => speciesId > 0)
-                .Select(speciesId => new SpeciesNameProjection(
-                    speciesId,
-                    SlotDetailProjection.SpeciesName(speciesId)))
-                .ToList();
-
-            return EngineJson.Serialize(
-                EngineResult.Ok(projections),
-                EngineJsonContext.Default.EngineResultListSpeciesNameProjection);
-        }
-        catch (Exception ex)
-        {
-            return EngineJson.Serialize(
-                EngineResult.Fail("invalid-engine-response", ex.Message),
-                EngineJsonContext.Default.EngineResultObject);
-        }
-    }
-
-    [JSExport]
     public static string ParseSaveSmoke(byte[] bytes, string? fileName)
     {
         try

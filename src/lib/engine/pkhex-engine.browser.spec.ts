@@ -238,7 +238,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		}
 	);
 	test('parses the Emerald Save File fixture through the published browser-wasm bundle', async () => {
-		expect.assertions(19);
+		expect.assertions(17);
 
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
@@ -251,14 +251,6 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			ok: true,
 			value: { pkhexCoreVersion: expect.stringMatching(/^26\.5\.5\./) }
 		});
-
-		const speciesNames = await engine.projectSpeciesNames([304, 1, 304]);
-		expect(speciesNames.ok).toBe(true);
-		if (!speciesNames.ok) throw new Error('Expected species names to project.');
-		expect(speciesNames.value).toEqual([
-			{ speciesId: 304, speciesName: 'Aron' },
-			{ speciesId: 1, speciesName: 'Bulbasaur' }
-		]);
 
 		const save = await engine.summarizeSave(fixtureBytes, '011020251345.sav');
 		expect(save).toStrictEqual({

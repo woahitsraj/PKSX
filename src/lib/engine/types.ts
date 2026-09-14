@@ -40,11 +40,6 @@ export type EngineVersion = {
 	facadeVersion: string;
 };
 
-export type SpeciesNameProjection = {
-	speciesId: number;
-	speciesName: string;
-};
-
 export type SaveSummary = {
 	fileName?: string;
 	saveType: string;
@@ -668,7 +663,6 @@ export type PreservedPokemon = {
 
 export type EngineApi = {
 	getVersion(): Promise<EngineResult<EngineVersion>>;
-	projectSpeciesNames(speciesIds: number[]): Promise<EngineResult<SpeciesNameProjection[]>>;
 	summarizeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SaveSummary>>;
 	listBoxSlots(
 		bytes: Uint8Array,

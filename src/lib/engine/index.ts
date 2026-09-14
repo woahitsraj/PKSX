@@ -81,7 +81,6 @@ export type {
 	SlotOperationResult,
 	SerializedSave,
 	SaveSummary,
-	SpeciesNameProjection,
 	SpriteIdentity,
 	StoredPokemonActionOperation,
 	StoredPokemonActionResult,
@@ -91,7 +90,6 @@ export type {
 export type { EngineWorkerFactory, EngineWorkerPort } from './pkhex-worker-engine';
 export type {
 	EngineWorkerGetVersionRequest,
-	EngineWorkerProjectSpeciesNamesRequest,
 	EngineWorkerInitMessage,
 	EngineWorkerApplySaveFileEditOperationRequest,
 	EngineWorkerCreatePokemonRequest,

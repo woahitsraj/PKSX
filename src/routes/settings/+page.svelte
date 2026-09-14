@@ -24,8 +24,8 @@
 				{ action: 'Move focus', controller: 'D-pad', keyboard: 'Arrow keys' },
 				{ action: 'Confirm', controller: 'A', keyboard: 'Enter' },
 				{ action: 'Back', controller: 'B', keyboard: 'Escape' },
-				{ action: 'Main Menu', controller: 'Start', keyboard: 'Cmd/Ctrl+K' },
-				{ action: 'Quick Search', controller: 'Y', keyboard: 'Main Menu' }
+				{ action: 'Main Menu', controller: 'Start', keyboard: 'Cmd/Ctrl+Shift+K' },
+				{ action: 'Search', controller: 'Y', keyboard: 'Cmd/Ctrl+K' }
 			]
 		},
 		{

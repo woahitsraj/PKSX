@@ -32,12 +32,6 @@ function createEngineExports(): DotnetPkhexEngineExports {
 				value: { pkhexCoreVersion: '26.5.5.0', facadeVersion: '1.0.0.0' },
 				error: null
 			}),
-		ProjectSpeciesNamesJson: () =>
-			JSON.stringify({
-				ok: true,
-				value: [{ speciesId: 1, speciesName: 'Bulbasaur' }],
-				error: null
-			}),
 		ParseSaveSmoke: () =>
 			JSON.stringify({
 				ok: true,

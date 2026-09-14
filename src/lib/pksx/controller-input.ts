@@ -1,3 +1,5 @@
+import type { NavigationAction } from '$lib/pksx/box-navigation';
+
 export type ControllerKey =
 	| 'ArrowUp'
 	| 'ArrowDown'
@@ -250,4 +252,3 @@ function readHatAxis(value: number): ControllerKey[] {
 function pressed(gamepad: Gamepad, index: number) {
 	return gamepad.buttons[index]?.pressed === true;
 }
-import type { NavigationAction } from '$lib/pksx/box-navigation';
