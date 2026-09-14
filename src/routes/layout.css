@@ -214,7 +214,8 @@
 	--pksx-height-band: tall;
 }
 
-:root:has(.app-shell.dark) {
+:root:has(.app-shell.dark),
+:root[data-pksx-theme='dark'] {
 	--pksx-color-surface-canvas: #0e0f12;
 	--pksx-color-surface-panel: #181a1e;
 	--pksx-color-surface-subtle: #08090b;
@@ -371,7 +372,8 @@ html[data-pksx-route-direction='backward']::view-transition-new(pksx-route) {
 	}
 }
 
-.app-shell.dark {
+.app-shell.dark,
+:root[data-pksx-theme='dark'] .app-shell {
 	background:
 		radial-gradient(circle at 20% 10%, rgba(255, 138, 92, 0.04), transparent 50%),
 		radial-gradient(circle at 80% 90%, rgba(120, 140, 180, 0.04), transparent 55%), var(--paper);

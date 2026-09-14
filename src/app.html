@@ -3,6 +3,18 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
+		<script>
+			try {
+				const savedTheme = localStorage.getItem('pksx-theme');
+				document.documentElement.dataset.pksxTheme =
+					savedTheme ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+			} catch {
+				document.documentElement.dataset.pksxTheme = matchMedia('(prefers-color-scheme: dark)')
+					.matches
+					? 'dark'
+					: 'light';
+			}
+		</script>
 
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 

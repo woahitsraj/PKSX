@@ -160,6 +160,7 @@
 	});
 
 	onMount(() => {
+		theme.restore();
 		window.addEventListener('keydown', handleRootKeydown, true);
 		const backListener = Capacitor.isNativePlatform()
 			? CapacitorApp.addListener('backButton', ({ canGoBack }) => handlePlatformBack(canGoBack))

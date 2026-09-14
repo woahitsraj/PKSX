@@ -145,7 +145,8 @@
 		);
 	}
 
-	:global(.app-shell.dark) .slot {
+	:global(.app-shell.dark) .slot,
+	:global(:root[data-pksx-theme='dark']) .slot {
 		--slot-fill: color-mix(
 			in oklch,
 			var(--paper-hi) 84%,
@@ -158,7 +159,8 @@
 		);
 	}
 
-	:global(.app-shell.dark) .slot.dual-type {
+	:global(.app-shell.dark) .slot.dual-type,
+	:global(:root[data-pksx-theme='dark']) .slot.dual-type {
 		background: linear-gradient(
 			135deg,
 			var(--slot-fill) 0%,

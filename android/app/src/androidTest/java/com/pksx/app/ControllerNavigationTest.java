@@ -5,6 +5,7 @@ import static org.junit.Assume.assumeTrue;
 
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
+import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.Build;
@@ -25,6 +26,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -566,6 +568,41 @@ public class ControllerNavigationTest {
                 + installedVersion
                 + "' && document.querySelector('[data-testid=\"app-platform\"]')?.textContent === 'Android'"
         );
+    }
+
+    @Test
+    public void openingSecondSaveKeepsOriginalPanePainted() throws Exception {
+        try (NativeDisplayFixture fixture = new NativeDisplayFixture()) {
+            fixture.setViewport(360, 640, 1, false);
+            awaitControllerSurface();
+            importEmeraldSave();
+            importSave("x/011020252224.sav", "x.sav");
+            runJavaScript(
+                "[...document.querySelectorAll('.save-card')]"
+                    + ".find(card => card.textContent.includes('emerald.sav'))"
+                    + ".querySelector('.card-main').click()"
+            );
+            awaitJavaScript("document.querySelector('#box-0-slot-0')?.textContent.includes('ARON')");
+            runJavaScript("document.querySelector('.source-chip').click()");
+            awaitJavaScript("document.querySelector('[role=dialog][aria-label=\"Box Menu\"]')");
+            runJavaScript("document.querySelector('#box-menu-command-3').click()");
+            awaitJavaScript(
+                "document.querySelector('[role=dialog][aria-label=\"Open another collection\"]')"
+            );
+            runJavaScript(
+                "[...document.querySelectorAll('[data-source-picker-control]')]"
+                    + ".find(control => control.textContent.includes('x.sav')).click()"
+            );
+            awaitJavaScript(
+                "document.querySelectorAll('.box-pane').length === 2"
+                    + " && !document.querySelector('[data-pane-id=\"pane-active-save\"]')"
+                    + ".hasAttribute('aria-busy')"
+                    + " && document.querySelector('[data-pane-id=\"pane-active-save\"]')"
+                    + ".textContent.includes('ARON')",
+                ENGINE_TIMEOUT_SECONDS
+            );
+            assertPainted("[data-pane-id=\"pane-active-save\"] .location-grid");
+        }
     }
 
     @Test
@@ -2206,19 +2243,62 @@ public class ControllerNavigationTest {
         awaitJavaScript(
             "location.pathname === '/' && document.querySelector('#save-file-input')"
         );
-        String encoded = Base64.encodeToString(readAsset("emerald-011020251345.sav"), Base64.NO_WRAP);
+        importSave("emerald-011020251345.sav", "emerald.sav");
+    }
+
+    private void importSave(String assetName, String fileName) throws Exception {
+        String encoded = Base64.encodeToString(readAsset(assetName), Base64.NO_WRAP);
         runJavaScript(
             "(() => { const bytes = Uint8Array.from(atob('"
                 + encoded
                 + "'), value => value.charCodeAt(0)); const transfer = new DataTransfer();"
-                + " transfer.items.add(new File([bytes], 'emerald.sav'));"
+                + " transfer.items.add(new File([bytes], '"
+                + fileName
+                + "'));"
                 + " const input = document.querySelector('#save-file-input'); input.files = transfer.files;"
                 + " input.dispatchEvent(new Event('change', { bubbles: true })); return true; })()"
         );
         awaitJavaScript(
-            "document.body.textContent.includes('emerald.sav imported and made active.')",
+            "document.body.textContent.includes('"
+                + fileName
+                + " imported and made active.')",
             ENGINE_TIMEOUT_SECONDS
         );
+    }
+
+    private void assertPainted(String selector) throws Exception {
+        long deadline = SystemClock.uptimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+        if (!awaitNextVisualState(deadline)) fail("Timed out waiting for WebView paint");
+        JSONObject bounds = new JSONObject(
+            runJavaScript(
+                "(() => { const rect=document.querySelector('"
+                    + selector
+                    + "').getBoundingClientRect();"
+                    + " return {left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom}; })()"
+            )
+        );
+        AtomicReference<int[]> origin = new AtomicReference<>();
+        activityRule
+            .getScenario()
+            .onActivity(
+                activity -> {
+                    int[] value = new int[2];
+                    activity.getBridge().getWebView().getLocationOnScreen(value);
+                    origin.set(value);
+                }
+            );
+        Bitmap screenshot = InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
+        int[] webViewOrigin = origin.get();
+        HashSet<Integer> colors = new HashSet<>();
+        int left = webViewOrigin[0] + bounds.getInt("left") + 4;
+        int top = webViewOrigin[1] + bounds.getInt("top") + 4;
+        int right = webViewOrigin[0] + bounds.getInt("right") - 4;
+        int bottom = webViewOrigin[1] + bounds.getInt("bottom") - 4;
+        for (int y = top; y < bottom; y += 4) {
+            for (int x = left; x < right; x += 4) colors.add(screenshot.getPixel(x, y));
+        }
+        screenshot.recycle();
+        if (colors.size() < 24) fail("Save pane was not painted, sampled colors: " + colors.size());
     }
 
     private byte[] readAsset(String name) throws Exception {

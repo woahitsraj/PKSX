@@ -5445,7 +5445,11 @@
 	}
 
 	.two-pane .box-pane-strip {
-		display: contents;
+		grid-area: 1 / 1 / -1 / -1;
+		display: grid;
+		grid-template-columns: subgrid;
+		grid-template-rows: subgrid;
+		overflow: visible;
 	}
 
 	.two-pane .box-pane:first-child {
