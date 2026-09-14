@@ -33,7 +33,7 @@ A position in a party or box that may or may not contain a Pokemon Entity.
 _Avoid_: card, tile
 
 **Saves**:
-The on-device collection of imported Save Files, Backups, and Pokemon Storage, and the app destination that presents it.
+The PKSX-managed collection of imported Save Files, Backups, Pokemon Storage, and persisted Workspaces, and the app destination that presents it.
 _Avoid_: Local Library, cloud account, server library
 
 **Pokemon Storage**:
@@ -151,6 +151,10 @@ _Avoid_: raw gender value when no visible sprite difference exists
 **Peer Transfer**:
 A live connection between two devices running PKSX, for sending Pokemon Entities or Storage Boxes without cloud sync.
 _Avoid_: cloud sync, account sync
+
+**Cloud Sync**:
+An opt-in capability that makes Saves, including persisted Workspace changes, available to the same user across PKSX devices.
+_Avoid_: Peer Transfer, TinyBase sync, Export
 
 **Backup**:
 A restorable snapshot of save file bytes created before a risky operation.
@@ -271,7 +275,7 @@ _Avoid_: setting, option, config
 - A **Box** contains zero or more **Slots**.
 - A **Box** always has a number and may also have a **Box Name**.
 - A **Slot** contains zero or one **Pokemon Entity**.
-- **Saves** stores imported **Save Files**, **Backups**, and **Pokemon Storage**.
+- **Saves** stores imported **Save Files**, **Backups**, **Pokemon Storage**, and persisted **Workspaces**.
 - **Saves** may keep the active **Dirty Workspace** without overwriting the imported **Save File**.
 - Deleting a **Save File** from **Saves** also deletes its **Backups**.
 - Deleting the active **Save File** from **Saves** also deletes its **Workspace**, including any **Dirty Workspace**, and requires explicit user confirmation.
@@ -358,6 +362,9 @@ _Avoid_: setting, option, config
 - A **Sprite Catalog** may or may not contain an asset for a **Sprite Identity**.
 - A **Peer Transfer** sends **Pokemon Entities** or **Storage Boxes** between two devices running PKSX.
 - A **Pokemon Entity** received through **Peer Transfer** enters **Pokemon Storage** before it can be moved into a **Save File**.
+- **Cloud Sync** makes **Save Files**, **Backups**, **Pokemon Storage**, and persisted **Workspaces** available across a user's PKSX devices.
+- A **Dirty Workspace** received through **Cloud Sync** can be opened and **Exported** on another device.
+- **Cloud Sync** never writes to the original user-controlled file; **Export** does.
 - The **PKHeX Engine** provides a **Facade** that the Svelte app uses.
 - **Export** writes data from **Saves** back to user-controlled storage.
 - Moving, copying, or clearing a **Slot** in a **Save File** is a **Risky Change** to the **Workspace**.
