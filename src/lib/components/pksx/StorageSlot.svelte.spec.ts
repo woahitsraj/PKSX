@@ -61,6 +61,7 @@ function renderSlot(props: {
 	spriteUrl?: string | null;
 	zone?: 'party' | 'box';
 	onChooseSlot?: () => void;
+	onOpenMenu?: () => void;
 }) {
 	const host = document.createElement('div');
 	host.style.width = '80px';
@@ -81,6 +82,7 @@ function renderSlot(props: {
 			colIndex: 1,
 			spriteUrl: props.spriteUrl ?? null,
 			onChooseSlot: props.onChooseSlot,
+			onOpenMenu: props.onOpenMenu,
 			onFocusSlot
 		}
 	});
@@ -134,18 +136,36 @@ describe('StorageSlot', () => {
 		expect(onFocusSlot).toHaveBeenCalledTimes(1);
 	});
 
-	test('reports pointer activation for an already focused Slot once', () => {
+	test('opens the Slot Menu when an already focused Slot is tapped without browser zoom', () => {
+		const onOpenMenu = vi.fn();
 		const { button, onFocusSlot } = renderSlot({
 			slot: pokemonSlot,
-			focused: true
+			focused: true,
+			onOpenMenu
 		});
 
-		button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		const tapAllowed = button.dispatchEvent(
+			new MouseEvent('click', { bubbles: true, cancelable: true })
+		);
+
+		expect(tapAllowed).toBe(false);
+		expect(onOpenMenu).toHaveBeenCalledTimes(1);
+		expect(onFocusSlot).toHaveBeenCalledTimes(1);
+		expect(getComputedStyle(button).touchAction).toBe('manipulation');
+	});
+
+	test('only focuses an unfocused Slot on its first tap', () => {
+		const onOpenMenu = vi.fn();
+		const { button, onFocusSlot } = renderSlot({
+			slot: pokemonSlot,
+			focused: false,
+			onOpenMenu
+		});
+
 		button.click();
 
 		expect(onFocusSlot).toHaveBeenCalledTimes(1);
-		button.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-		expect(onFocusSlot).toHaveBeenCalledTimes(1);
+		expect(onOpenMenu).not.toHaveBeenCalled();
 	});
 
 	test('reports pointer activation for an unfocused Slot', () => {

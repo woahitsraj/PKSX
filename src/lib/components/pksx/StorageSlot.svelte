@@ -15,6 +15,7 @@
 		destinationState?: 'valid' | 'invalid' | 'source' | null;
 		onFocusSlot: () => void;
 		onChooseSlot?: () => void;
+		onOpenMenu?: () => void;
 	}
 
 	let {
@@ -30,7 +31,8 @@
 		carried = null,
 		destinationState = null,
 		onFocusSlot,
-		onChooseSlot
+		onChooseSlot,
+		onOpenMenu
 	}: Props = $props();
 
 	const zoneClass = $derived(zone === 'party' ? 'party-slot' : 'box-slot');
@@ -46,11 +48,25 @@
 	const accessibleLabel = $derived(
 		`${zone === 'party' ? 'Party' : 'Box'} Slot ${slot.slot + 1}, row ${rowIndex}, column ${colIndex}: ${accessibleDetails}${carried ? `. Carry ${carried.mode === 'move' ? 'Move' : 'Copy'} ${carried.label}` : ''}`
 	);
-	function handleClick() {
+	let focusedAtPointerDown: boolean | null = null;
+
+	function handlePointerDown() {
+		focusedAtPointerDown = focused;
+	}
+
+	function handleClick(event: MouseEvent) {
+		const wasFocused = focusedAtPointerDown ?? focused;
+		focusedAtPointerDown = null;
 		onFocusSlot();
 
 		if (onChooseSlot) {
 			onChooseSlot();
+			return;
+		}
+
+		if (wasFocused && onOpenMenu) {
+			event.preventDefault();
+			onOpenMenu();
 		}
 	}
 </script>
@@ -75,6 +91,8 @@
 	aria-rowindex={rowIndex}
 	aria-colindex={colIndex}
 	data-destination-state={destinationState ?? undefined}
+	onpointerdown={handlePointerDown}
+	onpointercancel={() => (focusedAtPointerDown = null)}
 	onfocus={onFocusSlot}
 	onclick={handleClick}
 >
@@ -128,6 +146,7 @@
 		box-shadow: var(--shadow-sm);
 		color: var(--ink);
 		overflow: visible;
+		touch-action: manipulation;
 		transition:
 			transform 120ms ease,
 			box-shadow 120ms ease,

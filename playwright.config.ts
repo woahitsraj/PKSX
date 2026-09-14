@@ -10,7 +10,17 @@ export default defineConfig({
 	timeout: 120_000,
 	use: { baseURL: `http://127.0.0.1:${port}` },
 	projects: [
-		{ name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+		{
+			name: 'chromium',
+			grepInvert: /@mobile-touch/,
+			use: { ...devices['Desktop Chrome'] }
+		},
+		{
+			name: 'webkit-mobile-touch',
+			grep: /@mobile-touch/,
+			testMatch: '**/box-shell.e2e.ts',
+			use: { ...devices['iPhone 13'] }
+		},
 		{
 			name: 'firefox-responsive',
 			grep: /@responsive-matrix/,

@@ -904,8 +904,10 @@ async function edgeSurfaceBounds(page: Page) {
 	await settleMotion(page);
 	return page.locator('.edge-menu-layer').evaluate((layer) => {
 		const panel = layer.querySelector('[role="dialog"]');
+		const backdrop = layer.querySelector('.edge-menu-backdrop');
 		const layerRect = layer.getBoundingClientRect();
 		const panelRect = panel?.getBoundingClientRect();
+		const backdropRect = backdrop?.getBoundingClientRect();
 		return {
 			layer: {
 				top: layerRect.top,
@@ -923,6 +925,16 @@ async function edgeSurfaceBounds(page: Page) {
 						left: panelRect.left,
 						width: panelRect.width,
 						height: panelRect.height
+					}
+				: null,
+			backdrop: backdropRect
+				? {
+						top: backdropRect.top,
+						right: backdropRect.right,
+						bottom: backdropRect.bottom,
+						left: backdropRect.left,
+						width: backdropRect.width,
+						height: backdropRect.height
 					}
 				: null
 		};
@@ -959,7 +971,7 @@ async function takeoverBounds(page: Page) {
 }
 
 function expectSafeCanvas(
-	bounds: Awaited<ReturnType<typeof edgeSurfaceBounds>>,
+	bounds: Pick<Awaited<ReturnType<typeof edgeSurfaceBounds>>, 'layer' | 'panel'>,
 	viewport: { width: number; height: number },
 	insets: SafeArea
 ) {
@@ -973,6 +985,20 @@ function expectSafeCanvas(
 	});
 	expect(bounds.panel?.width ?? 0).toBeGreaterThan(0);
 	expect(bounds.panel?.height ?? 0).toBeGreaterThan(0);
+}
+
+function expectBackdropCoversViewport(
+	bounds: Awaited<ReturnType<typeof edgeSurfaceBounds>>,
+	viewport: { width: number; height: number }
+) {
+	expect(bounds.backdrop).toEqual({
+		top: 0,
+		right: viewport.width,
+		bottom: viewport.height,
+		left: 0,
+		width: viewport.width,
+		height: viewport.height
+	});
 }
 
 async function expectLastSlotCommandVisible(page: Page) {
@@ -3924,6 +3950,7 @@ test('landscape-floor Slot Menu uses the trailing Safe Canvas edge without shell
 	await expectSmallSlotCommandControls(page);
 	const menuBounds = await edgeSurfaceBounds(page);
 	expectSafeCanvas(menuBounds, viewport, insets);
+	expectBackdropCoversViewport(menuBounds, viewport);
 	expect(menuBounds.panel?.right).toBe(menuBounds.layer.right);
 	expect(menuBounds.panel?.top).toBe(menuBounds.layer.top);
 	expect(menuBounds.panel?.bottom).toBe(menuBounds.layer.bottom);
@@ -3971,6 +3998,7 @@ test('portrait-floor Slot Menu uses the bottom Safe Canvas edge without shell gr
 	await expectSmallSlotCommandControls(page);
 	const menuBounds = await edgeSurfaceBounds(page);
 	expectSafeCanvas(menuBounds, viewport, insets);
+	expectBackdropCoversViewport(menuBounds, viewport);
 	expect(menuBounds.panel?.left).toBe(menuBounds.layer.left);
 	expect(menuBounds.panel?.right).toBe(menuBounds.layer.right);
 	expect(menuBounds.panel?.bottom).toBe(menuBounds.layer.bottom);
@@ -4084,23 +4112,29 @@ test('each Clear and Slot Menu backdrop tap dismisses exactly one level without 
 	expect(await backupCount(page)).toBe(backupsBefore);
 });
 
-test('pointer Slot clicks only move Controller Focus', async ({ page }) => {
+test('the first Slot tap moves Controller Focus and the second opens the Slot Menu', async ({
+	page
+}) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await showPartyFromFirstBox(page);
-	await page.locator('#party-slot-4').click();
+	const slotId = await page
+		.locator('.party-grid [role="gridcell"][aria-selected="false"]')
+		.first()
+		.getAttribute('id');
+	if (!slotId) throw new Error('Expected an unfocused Party Slot.');
+	const slot = page.locator(`#${slotId}`);
+	const slotNumber = Number(slotId.split('-').at(-1)) + 1;
+	await slot.click();
 
-	await expect(page.locator('#party-slot-4')).toHaveAttribute('aria-selected', 'true');
+	await expect(slot).toHaveAttribute('aria-selected', 'true');
+	await expect(slot).toHaveCSS('touch-action', 'manipulation');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
 
-	await page.locator('#party-slot-4').click();
-	await page.locator('#party-slot-4').dblclick();
-	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
-
-	await page.keyboard.press('Enter');
+	await slot.click();
 	const dialog = page.getByRole('dialog', { name: 'Slot actions' });
 	await expect(dialog).toBeVisible();
-	await expect(dialog).toContainText('Party slot 5');
+	await expect(dialog).toContainText(`Party slot ${slotNumber}`);
 	await settleMotion(page);
 
 	const menuState = await dialog.evaluate((element) => {
@@ -4123,6 +4157,43 @@ test('pointer Slot clicks only move Controller Focus', async ({ page }) => {
 	expect(menuState.right).toBeLessThanOrEqual(menuState.viewportWidth);
 	expect(menuState.bottom).toBeLessThanOrEqual(menuState.viewportHeight);
 	expect(menuState.menuOwnsTopPoint).toBe(true);
+});
+
+test('@mobile-touch Slot selection, Menu commands, and dismissal remain touch accessible', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await showPartyFromFirstBox(page);
+	const slotId = await page
+		.locator('.party-grid [role="gridcell"][aria-selected="false"]')
+		.first()
+		.getAttribute('id');
+	if (!slotId) throw new Error('Expected an unfocused Party Slot.');
+	const slot = page.locator(`#${slotId}`);
+
+	await slot.tap();
+	await expect(slot).toHaveAttribute('aria-selected', 'true');
+	await expect(slot).toHaveCSS('touch-action', 'manipulation');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
+
+	await slot.tap();
+	let menu = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(menu).toBeVisible();
+	await menu.getByRole('button', { name: 'Close' }).tap();
+	await expect(menu).toBeHidden();
+
+	await slot.tap();
+	menu = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(menu).toBeVisible();
+	await page.locator('.edge-menu-backdrop').tap({ position: { x: 1, y: 1 } });
+	await expect(menu).toBeHidden();
+
+	await slot.tap();
+	menu = page.getByRole('dialog', { name: 'Slot actions' });
+	await menu.getByRole('button', { name: 'Move' }).tap();
+	await expect(menu).toBeHidden();
+	await expect(slot).toHaveAccessibleName(/Carry Move/);
 });
 
 test('active slot detail rail follows controller focus', async ({ page }) => {
