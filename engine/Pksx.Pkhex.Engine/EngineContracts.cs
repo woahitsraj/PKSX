@@ -826,6 +826,32 @@ public sealed record StoredPokemonActionResult(
     BoxSlotSummary Projection,
     List<PokemonActionChange> Changes);
 
+public sealed record PreservationPayloadSummary(
+    ushort Version,
+    string RecordId,
+    string IdentityFingerprint,
+    ushort IdentityBaseSpeciesId,
+    string OriginalEntityFormat,
+    byte OriginalFormat,
+    string OriginalContext,
+    string CurrentEntityFormat,
+    byte CurrentFormat,
+    string CurrentContext,
+    int OriginalByteLength,
+    int CurrentByteLength,
+    string OriginalEntitySha256);
+
+public sealed record PreservationPayloadResult(
+    string PayloadBytesBase64,
+    int PayloadByteLength,
+    PreservationPayloadSummary Summary);
+
+public sealed record PreservedPokemonResult(
+    string EntityBytesBase64,
+    int EntityByteLength,
+    PreservationPayloadSummary Summary,
+    BoxSlotSummary Projection);
+
 internal static class SlotDetailProjection
 {
     private static readonly string[] NatureStats = ["Attack", "Defense", "Speed", "Sp. Atk", "Sp. Def"];

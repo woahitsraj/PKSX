@@ -16,6 +16,22 @@ _Avoid_: any save, all generations
 A single Pokemon data object contained in a save file, party, box, bank, or import file.
 _Avoid_: monster, creature, record
 
+**Preservation Payload**:
+An opaque, versioned PKHeX Engine artifact that keeps the first native Pokemon Entity bytes and the current engine projection together.
+_Avoid_: TypeScript Pokemon model, reconstructed entity
+
+**Record ID**:
+An app-generated identifier for one independent Pokemon Entity copy in PKSX.
+_Avoid_: Identity Fingerprint, database identity
+
+**Identity Fingerprint**:
+PKHeX Engine evidence that Pokemon Entity records may represent the same individual, derived from base-evolution species, raw Trainer ID, raw Secret ID, and PID.
+_Avoid_: Record ID, uniqueness constraint
+
+**Pokemon Copy**:
+An independent Pokemon Entity record created by an intentional copy operation, with its own Record ID.
+_Avoid_: duplicate when referring to identity or ownership
+
 **Party**:
 The active Pokemon collection stored by a save file for in-game use.
 _Avoid_: team, roster
@@ -315,6 +331,14 @@ _Avoid_: setting, option, config
 - The active **Save File**'s **Box Source** cannot be switched or closed while that **Save File** is active.
 - A future **Slot Action** may use source and destination **Slots** from different **Box Sources**.
 - A **Pokemon Entity** may have **Pokemon Origin** even when its original **Save File** is no longer in **Saves**.
+- A **Preservation Payload** keeps an unchanged, format-tagged copy of its first native **Pokemon Entity** bytes.
+- The **PKHeX Engine** alone creates, parses, validates, and projects a **Preservation Payload**.
+- TypeScript stores and transports **Preservation Payload** bytes without reconstructing Pokemon data from projections.
+- Every **Preservation Payload** has one **Record ID** and one **Identity Fingerprint**.
+- Each **Pokemon Copy** receives a new **Record ID**.
+- Two **Pokemon Copies** may have the same **Identity Fingerprint**.
+- An **Identity Fingerprint** uses the base-evolution species, so evolution alone does not change it.
+- An **Identity Fingerprint** is evidence of shared individual identity, not a database uniqueness constraint.
 - **Pokemon Origin** records where a **Pokemon Entity** came from; it does not determine its current owner or location.
 - A **Legality Check** evaluates one **Pokemon Entity**.
 - A **Legality Report** is produced by a **Legality Check**.

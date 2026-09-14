@@ -659,6 +659,123 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(storedApplied.value.entityBytesBase64).not.toBe(slots.value[0].entityBytesBase64);
 	});
 
+	test('preserves Pokemon identity and source-only data across an older format projection', async () => {
+		const [engine, emeraldResponse, scarletResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixtureUrl),
+			fetch(scarletFixtureUrl)
+		]);
+		const emeraldBytes = new Uint8Array(await emeraldResponse.arrayBuffer());
+		const scarletBytes = new Uint8Array(await scarletResponse.arrayBuffer());
+
+		const emerald = await engine.listBoxSlots(emeraldBytes, '011020251345.sav', 0);
+		if (!emerald.ok || !emerald.value[0]?.entityBytesBase64) {
+			throw new Error('Expected the Emerald Aron entity bytes.');
+		}
+		const aronBytes = base64ToBytes(emerald.value[0].entityBytesBase64);
+		const aronPayload = await engine.createPreservationPayload(aronBytes);
+		const evolutionPreview = await engine.previewStoredPokemonActions(
+			emerald.value[0].entityBytesBase64
+		);
+		if (!evolutionPreview.ok) throw new Error('Expected the Aron evolution preview.');
+		const lairon = evolutionPreview.value.actions
+			.find((action) => action.kind === 'evolve')
+			?.choices.find((choice) => choice.speciesId === 305);
+		const evolved = await engine.applyStoredPokemonAction(emerald.value[0].entityBytesBase64, {
+			kind: 'evolve',
+			choiceId: lairon?.id
+		});
+		if (!aronPayload.ok || !evolved.ok)
+			throw new Error('Expected Aron preservation and evolution.');
+		const laironPayload = await engine.createPreservationPayload(
+			base64ToBytes(evolved.value.entityBytesBase64)
+		);
+		if (!laironPayload.ok) throw new Error('Expected Lairon preservation.');
+		expect(aronPayload.value.summary).toMatchObject({
+			version: 1,
+			identityBaseSpeciesId: 304,
+			originalEntityFormat: 'PK3',
+			currentEntityFormat: 'PK3'
+		});
+		expect(laironPayload.value.summary.identityFingerprint).toBe(
+			aronPayload.value.summary.identityFingerprint
+		);
+		expect(laironPayload.value.summary.recordId).not.toBe(aronPayload.value.summary.recordId);
+
+		const scarlet = await engine.loadSaveWorkspace(
+			scarletBytes,
+			'pokemon-scarlet-2025-03-24-main.sav',
+			0
+		);
+		if (!scarlet.ok) throw new Error('Expected Scarlet workspace to load.');
+		const source = [...scarlet.value.partySlots, ...scarlet.value.boxSlots].find(
+			(slot) =>
+				slot.speciesId <= 898 &&
+				Boolean(slot.entityBytesBase64) &&
+				slot.battleFields.some((field) => field.key === 'tera-type')
+		);
+		if (!source?.entityBytesBase64) throw new Error('Expected a transferable Scarlet Pokemon.');
+		const sourceBytes = base64ToBytes(source.entityBytesBase64);
+		const sourceTeraType = source.battleFields.find((field) => field.key === 'tera-type')?.value;
+		const firstCopy = await engine.createPreservationPayload(sourceBytes);
+		const secondCopy = await engine.createPreservationPayload(sourceBytes);
+		if (!firstCopy.ok || !secondCopy.ok) throw new Error('Expected preservation payloads.');
+		expect(firstCopy.value.summary.identityFingerprint).toBe(
+			secondCopy.value.summary.identityFingerprint
+		);
+		expect(firstCopy.value.summary.recordId).not.toBe(secondCopy.value.summary.recordId);
+
+		const older = await engine.projectPreservationPayload(firstCopy.value.bytes, 8);
+		if (!older.ok) throw new Error(`Expected PK8 projection: ${older.error.message}`);
+		expect(older.value.summary).toMatchObject({
+			version: 1,
+			recordId: firstCopy.value.summary.recordId,
+			identityFingerprint: firstCopy.value.summary.identityFingerprint,
+			originalEntitySha256: firstCopy.value.summary.originalEntitySha256,
+			originalByteLength: sourceBytes.byteLength,
+			originalEntityFormat: 'PK9',
+			currentEntityFormat: 'PK8'
+		});
+		const olderEntity = await engine.readPreservationPayload(older.value.bytes);
+		if (!olderEntity.ok) throw new Error('Expected the PK8 preservation payload to parse.');
+		expect(olderEntity.value.entityBytes).not.toEqual(sourceBytes);
+		expect(olderEntity.value.projection.battleFields).toEqual([]);
+
+		const restored = await engine.projectPreservationPayload(older.value.bytes, 9);
+		if (!restored.ok) throw new Error('Expected the PK9 restoration.');
+		const restoredEntity = await engine.readPreservationPayload(restored.value.bytes);
+		if (!restoredEntity.ok) throw new Error('Expected the restored preservation payload to parse.');
+		expect(restored.value.summary.recordId).toBe(firstCopy.value.summary.recordId);
+		expect(restoredEntity.value.entityBytes).toEqual(sourceBytes);
+		expect(
+			restoredEntity.value.projection.battleFields.find((field) => field.key === 'tera-type')?.value
+		).toBe(sourceTeraType);
+
+		const malformed = firstCopy.value.bytes.slice(0, 12);
+		expect(await engine.readPreservationPayload(malformed)).toMatchObject({
+			ok: false,
+			error: { code: 'malformed-preservation-payload' }
+		});
+		const corrupted = firstCopy.value.bytes.slice();
+		corrupted[corrupted.length - 1]! ^= 1;
+		expect(await engine.readPreservationPayload(corrupted)).toMatchObject({
+			ok: false,
+			error: { code: 'malformed-preservation-payload' }
+		});
+		const unknownVersion = firstCopy.value.bytes.slice();
+		unknownVersion[4] = 2;
+		expect(await engine.readPreservationPayload(unknownVersion)).toMatchObject({
+			ok: false,
+			error: { code: 'unknown-preservation-version' }
+		});
+		const unsupported = firstCopy.value.bytes.slice();
+		unsupported[0] = 0;
+		expect(await engine.readPreservationPayload(unsupported)).toMatchObject({
+			ok: false,
+			error: { code: 'unsupported-preservation-payload' }
+		});
+	});
+
 	test('previews and atomically applies one combined legality candidate through the browser-wasm bundle', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
@@ -2025,6 +2142,10 @@ function copyBytes(bytes: Uint8Array): Uint8Array {
 	const copy = new Uint8Array(bytes.byteLength);
 	copy.set(bytes);
 	return copy;
+}
+
+function base64ToBytes(value: string): Uint8Array {
+	return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
 }
 
 function expectMoveChangesMatchProjection(

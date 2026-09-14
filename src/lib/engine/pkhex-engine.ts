@@ -15,6 +15,9 @@ import type {
 	PokemonEditOperation,
 	PokemonEditOperationResult,
 	PokemonEditPreviewValidationScope,
+	PreservationPayload,
+	PreservationPayloadSummary,
+	PreservedPokemon,
 	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperation,
 	SaveFileEditOperationResult,
@@ -108,6 +111,9 @@ type DotnetPkhexEngineExports = {
 	): string;
 	PreviewStoredPokemonActionsJson(entityBytesBase64: string): string;
 	ApplyStoredPokemonActionJson(entityBytesBase64: string, actionJson: string): string;
+	CreatePreservationPayloadJson(entityBytes: Uint8Array): string;
+	ReadPreservationPayloadJson(payloadBytes: Uint8Array): string;
+	ProjectPreservationPayloadJson(payloadBytes: Uint8Array, targetFormat: number): string;
 };
 
 const knownEngineErrorCodes = new Set<EngineErrorCode>([
@@ -129,6 +135,10 @@ const knownEngineErrorCodes = new Set<EngineErrorCode>([
 	'incompatible-stored-pokemon',
 	'invalid-save-file-edit',
 	'unsupported-save-file-edit',
+	'malformed-preservation-payload',
+	'unknown-preservation-version',
+	'unsupported-preservation-payload',
+	'unsupported-preservation-projection',
 	'engine-unavailable',
 	'invalid-engine-response',
 	'invalid-worker-message',
@@ -314,6 +324,24 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 		applyStoredPokemonAction: async (entityBytesBase64, operation) =>
 			parseEngineResult<StoredPokemonActionResult>(
 				engine.ApplyStoredPokemonActionJson(entityBytesBase64, JSON.stringify(operation))
+			),
+		createPreservationPayload: async (entityBytes) =>
+			decodePreservationPayloadResult(
+				parseEngineResult<RawPreservationPayloadResult>(
+					engine.CreatePreservationPayloadJson(entityBytes)
+				)
+			),
+		readPreservationPayload: async (payloadBytes) =>
+			decodePreservedPokemonResult(
+				parseEngineResult<RawPreservedPokemonResult>(
+					engine.ReadPreservationPayloadJson(payloadBytes)
+				)
+			),
+		projectPreservationPayload: async (payloadBytes, targetFormat) =>
+			decodePreservationPayloadResult(
+				parseEngineResult<RawPreservationPayloadResult>(
+					engine.ProjectPreservationPayloadJson(payloadBytes, targetFormat)
+				)
 			)
 	};
 }
@@ -362,6 +390,17 @@ type RawPokemonActionResult = Omit<PokemonActionResult, 'bytes' | 'workspace'> &
 	bytesBase64: string;
 	byteLength: number;
 	workspace: RawSaveWorkspace;
+};
+type RawPreservationPayloadResult = {
+	payloadBytesBase64: string;
+	payloadByteLength: number;
+	summary: PreservationPayloadSummary;
+};
+type RawPreservedPokemonResult = {
+	entityBytesBase64: string;
+	entityByteLength: number;
+	summary: PreservationPayloadSummary;
+	projection: BoxSlotSummary;
 };
 
 export function parseEngineResult<T>(json: string): EngineResult<T> {
@@ -445,6 +484,37 @@ function decodeMutationResult<
 			...value,
 			bytes: base64ToBytes(bytesBase64, byteLength),
 			workspace: normalizeSaveWorkspace(workspace)
+		},
+		error: null
+	};
+}
+
+function decodePreservationPayloadResult(
+	result: EngineResult<RawPreservationPayloadResult>
+): EngineResult<PreservationPayload> {
+	if (!result.ok) return result;
+
+	return {
+		ok: true,
+		value: {
+			bytes: base64ToBytes(result.value.payloadBytesBase64, result.value.payloadByteLength),
+			summary: result.value.summary
+		},
+		error: null
+	};
+}
+
+function decodePreservedPokemonResult(
+	result: EngineResult<RawPreservedPokemonResult>
+): EngineResult<PreservedPokemon> {
+	if (!result.ok) return result;
+
+	return {
+		ok: true,
+		value: {
+			entityBytes: base64ToBytes(result.value.entityBytesBase64, result.value.entityByteLength),
+			summary: result.value.summary,
+			projection: result.value.projection
 		},
 		error: null
 	};
