@@ -11,6 +11,8 @@ import type {
 	PokemonCreationResult,
 	PokemonEditOperationResult,
 	PokemonSpeciesFormEditProjection,
+	PreservationPayload,
+	PreservedPokemon,
 	SaveFileEditOperationResult,
 	SaveFileInventoryCatalogue,
 	SaveWorkspace,
@@ -411,7 +413,46 @@ export function createPkhexWorkerEngine(
 				id: createRequestId(),
 				method: 'applyStoredPokemonAction',
 				payload: { entityBytesBase64, operation: structuredClone(operation) }
-			})
+			}),
+		createPreservationPayload: (entityBytes) => {
+			const buffer = copyBytesToArrayBuffer(entityBytes);
+			return sendRequest(
+				'createPreservationPayload',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'createPreservationPayload',
+					payload: { bytes: buffer }
+				},
+				[buffer]
+			);
+		},
+		readPreservationPayload: (payloadBytes) => {
+			const buffer = copyBytesToArrayBuffer(payloadBytes);
+			return sendRequest(
+				'readPreservationPayload',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'readPreservationPayload',
+					payload: { bytes: buffer }
+				},
+				[buffer]
+			);
+		},
+		projectPreservationPayload: (payloadBytes, targetFormat) => {
+			const buffer = copyBytesToArrayBuffer(payloadBytes);
+			return sendRequest(
+				'projectPreservationPayload',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'projectPreservationPayload',
+					payload: { bytes: buffer, targetFormat }
+				},
+				[buffer]
+			);
+		}
 	};
 
 	async function sendRequest(method: 'getVersion'): Promise<EngineResult<EngineVersion>>;
@@ -509,6 +550,21 @@ export function createPkhexWorkerEngine(
 		request: Extract<EngineWorkerRequest, { method: 'applyStoredPokemonAction' }>
 	): Promise<EngineResult<StoredPokemonActionResult>>;
 	async function sendRequest(
+		method: 'createPreservationPayload',
+		request: Extract<EngineWorkerRequest, { method: 'createPreservationPayload' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<PreservationPayload>>;
+	async function sendRequest(
+		method: 'readPreservationPayload',
+		request: Extract<EngineWorkerRequest, { method: 'readPreservationPayload' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<PreservedPokemon>>;
+	async function sendRequest(
+		method: 'projectPreservationPayload',
+		request: Extract<EngineWorkerRequest, { method: 'projectPreservationPayload' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<PreservationPayload>>;
+	async function sendRequest(
 		method: EngineWorkerMethod,
 		request: EngineWorkerRequest = { type: 'request', id: createRequestId(), method: 'getVersion' },
 		transfer: Transferable[] = []
@@ -575,10 +631,24 @@ function normalizeWorkerResult(response: EngineWorkerResponse): EngineResult<unk
 			response.method !== 'createPokemon' &&
 			response.method !== 'applySaveFileEditOperation' &&
 			response.method !== 'importStoredPokemon' &&
-			response.method !== 'applyPokemonAction') ||
+			response.method !== 'applyPokemonAction' &&
+			response.method !== 'createPreservationPayload' &&
+			response.method !== 'readPreservationPayload' &&
+			response.method !== 'projectPreservationPayload') ||
 		!response.result.ok
 	) {
 		return response.result;
+	}
+
+	if (response.method === 'readPreservationPayload') {
+		return {
+			ok: true,
+			value: {
+				...response.result.value,
+				entityBytes: new Uint8Array(response.result.value.entityBytes)
+			},
+			error: null
+		};
 	}
 
 	return {

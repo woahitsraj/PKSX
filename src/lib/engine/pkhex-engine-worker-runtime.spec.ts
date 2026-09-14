@@ -269,8 +269,22 @@ function createEngineExports(): DotnetPkhexEngineExports {
 				ok: false,
 				value: null,
 				error: { code: 'unsupported-pokemon-action', message: 'Unavailable in this fixture.' }
-			})
+			}),
+		CreatePreservationPayloadJson: () => preservationUnavailable(),
+		ReadPreservationPayloadJson: () => preservationUnavailable(),
+		ProjectPreservationPayloadJson: () => preservationUnavailable()
 	};
+}
+
+function preservationUnavailable() {
+	return JSON.stringify({
+		ok: false,
+		value: null,
+		error: {
+			code: 'unsupported-preservation-payload',
+			message: 'Preservation is unavailable in this test engine.'
+		}
+	});
 }
 
 async function flushPromises() {

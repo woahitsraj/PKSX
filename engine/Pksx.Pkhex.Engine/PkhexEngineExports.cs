@@ -25,6 +25,73 @@ public static partial class PkhexEngineExports
     }
 
     [JSExport]
+    public static string CreatePreservationPayloadJson(byte[] entityBytes)
+    {
+        try
+        {
+            var payload = PokemonPreservationPayload.Create(entityBytes);
+            return SerializePreservationPayload(payload);
+        }
+        catch (PokemonPreservationException ex)
+        {
+            return PreservationFailure(ex);
+        }
+        catch (Exception ex)
+        {
+            return UnknownFailure(ex);
+        }
+    }
+
+    [JSExport]
+    public static string ReadPreservationPayloadJson(byte[] payloadBytes)
+    {
+        try
+        {
+            var payload = PokemonPreservationPayload.Parse(payloadBytes);
+            var pokemon = payload.CurrentPokemon;
+            var result = new PreservedPokemonResult(
+                Convert.ToBase64String(payload.CurrentBytes),
+                payload.CurrentBytes.Length,
+                payload.Summary(),
+                BoxSlotSummary.From(pokemon, BlankSaveForStoredPokemon(pokemon), 0, 0));
+            return EngineJson.Serialize(
+                EngineResult.Ok(result),
+                EngineJsonContext.Default.EngineResultPreservedPokemonResult);
+        }
+        catch (PokemonPreservationException ex)
+        {
+            return PreservationFailure(ex);
+        }
+        catch (Exception ex)
+        {
+            return UnknownFailure(ex);
+        }
+    }
+
+    [JSExport]
+    public static string ProjectPreservationPayloadJson(byte[] payloadBytes, int targetFormat)
+    {
+        try
+        {
+            if (targetFormat is < byte.MinValue or > byte.MaxValue)
+                throw new PokemonPreservationException(
+                    "unsupported-preservation-projection",
+                    $"Pokemon format {targetFormat} is not supported.");
+
+            var payload = PokemonPreservationPayload.Parse(payloadBytes).Project((byte)targetFormat);
+            return SerializePreservationPayload(payload);
+        }
+        catch (PokemonPreservationException ex)
+        {
+            return PreservationFailure(ex);
+        }
+        catch (Exception ex)
+        {
+            return UnknownFailure(ex);
+        }
+    }
+
+    [JSExport]
     public static string ParseSaveSmoke(byte[] bytes, string? fileName)
     {
         try
@@ -2514,6 +2581,27 @@ public static partial class PkhexEngineExports
 
     private static PKM? ParseStoredPokemon(string entityBytesBase64) =>
         EntityFormat.GetFromBytes(Convert.FromBase64String(entityBytesBase64));
+
+    private static string SerializePreservationPayload(PokemonPreservationPayload payload)
+    {
+        var bytes = payload.ToBytes();
+        return EngineJson.Serialize(
+            EngineResult.Ok(new PreservationPayloadResult(
+                Convert.ToBase64String(bytes),
+                bytes.Length,
+                payload.Summary())),
+            EngineJsonContext.Default.EngineResultPreservationPayloadResult);
+    }
+
+    private static string PreservationFailure(PokemonPreservationException exception) =>
+        EngineJson.Serialize(
+            EngineResult.Fail(exception.Code, exception.Message),
+            EngineJsonContext.Default.EngineResultObject);
+
+    private static string UnknownFailure(Exception exception) =>
+        EngineJson.Serialize(
+            EngineResult.Fail("unknown-engine-error", exception.Message),
+            EngineJsonContext.Default.EngineResultObject);
 
     // Pokemon Storage entities have no owning Save File; project them against a blank save of their own context.
     private static SaveFile BlankSaveForStoredPokemon(PKM pokemon) =>

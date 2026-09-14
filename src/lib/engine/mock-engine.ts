@@ -9,6 +9,9 @@ import type {
 	PokemonCreationCatalogue,
 	PokemonCreationResult,
 	PokemonEditOperationResult,
+	PreservationPayload,
+	PreservationPayloadSummary,
+	PreservedPokemon,
 	PokemonSpeciesFormEditProjection,
 	SaveSlotRef,
 	PartySlotSummary,
@@ -532,7 +535,41 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 				},
 				changes: [{ field: 'Species', before: 'Pikachu', after: 'Raichu' }]
 			}),
+		createPreservationPayload: async (entityBytes) =>
+			success<PreservationPayload>({
+				bytes: copyBytes(entityBytes),
+				summary: mockPreservationSummary()
+			}),
+		readPreservationPayload: async (payloadBytes) =>
+			success<PreservedPokemon>({
+				entityBytes: copyBytes(payloadBytes),
+				summary: mockPreservationSummary(),
+				projection: mockBoxSlots[0]
+			}),
+		projectPreservationPayload: async (payloadBytes) =>
+			success<PreservationPayload>({
+				bytes: copyBytes(payloadBytes),
+				summary: mockPreservationSummary()
+			}),
 		...overrides
+	};
+}
+
+function mockPreservationSummary(): PreservationPayloadSummary {
+	return {
+		version: 1,
+		recordId: '00000000000000000000000000000001',
+		identityFingerprint: '0025-a0f304b4-12345678',
+		identityBaseSpeciesId: 25,
+		originalEntityFormat: 'PK9',
+		originalFormat: 9,
+		originalContext: 'Gen9',
+		currentEntityFormat: 'PK9',
+		currentFormat: 9,
+		currentContext: 'Gen9',
+		originalByteLength: 12,
+		currentByteLength: 12,
+		originalEntitySha256: 'mock'
 	};
 }
 

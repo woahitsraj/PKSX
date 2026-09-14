@@ -17,6 +17,10 @@ export type EngineErrorCode =
 	| 'incompatible-stored-pokemon'
 	| 'invalid-save-file-edit'
 	| 'unsupported-save-file-edit'
+	| 'malformed-preservation-payload'
+	| 'unknown-preservation-version'
+	| 'unsupported-preservation-payload'
+	| 'unsupported-preservation-projection'
 	| 'engine-unavailable'
 	| 'invalid-engine-response'
 	| 'invalid-worker-message'
@@ -629,6 +633,33 @@ export type StoredPokemonActionResult = {
 	changes: PokemonActionChange[];
 };
 
+export type PreservationPayloadSummary = {
+	version: number;
+	recordId: string;
+	identityFingerprint: string;
+	identityBaseSpeciesId: number;
+	originalEntityFormat: string;
+	originalFormat: number;
+	originalContext: string;
+	currentEntityFormat: string;
+	currentFormat: number;
+	currentContext: string;
+	originalByteLength: number;
+	currentByteLength: number;
+	originalEntitySha256: string;
+};
+
+export type PreservationPayload = {
+	bytes: Uint8Array;
+	summary: PreservationPayloadSummary;
+};
+
+export type PreservedPokemon = {
+	entityBytes: Uint8Array;
+	summary: PreservationPayloadSummary;
+	projection: BoxSlotSummary;
+};
+
 export type EngineApi = {
 	getVersion(): Promise<EngineResult<EngineVersion>>;
 	summarizeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SaveSummary>>;
@@ -724,4 +755,10 @@ export type EngineApi = {
 		entityBytesBase64: string,
 		operation: StoredPokemonActionOperation
 	): Promise<EngineResult<StoredPokemonActionResult>>;
+	createPreservationPayload(entityBytes: Uint8Array): Promise<EngineResult<PreservationPayload>>;
+	readPreservationPayload(payloadBytes: Uint8Array): Promise<EngineResult<PreservedPokemon>>;
+	projectPreservationPayload(
+		payloadBytes: Uint8Array,
+		targetFormat: number
+	): Promise<EngineResult<PreservationPayload>>;
 };

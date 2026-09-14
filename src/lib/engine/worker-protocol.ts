@@ -22,7 +22,10 @@ export const engineWorkerMethodSchema = z.enum([
 	'previewPokemonActions',
 	'applyPokemonAction',
 	'previewStoredPokemonActions',
-	'applyStoredPokemonAction'
+	'applyStoredPokemonAction',
+	'createPreservationPayload',
+	'readPreservationPayload',
+	'projectPreservationPayload'
 ]);
 
 export const engineWorkerStatusSchema = z.enum(['idle', 'loading', 'ready', 'failed']);
@@ -46,6 +49,10 @@ export const engineErrorCodeSchema = z.enum([
 	'incompatible-stored-pokemon',
 	'invalid-save-file-edit',
 	'unsupported-save-file-edit',
+	'malformed-preservation-payload',
+	'unknown-preservation-version',
+	'unsupported-preservation-payload',
+	'unsupported-preservation-projection',
 	'engine-unavailable',
 	'invalid-engine-response',
 	'invalid-worker-message',
@@ -766,6 +773,33 @@ export const storedPokemonActionResultSchema = z.object({
 	changes: z.array(pokemonActionChangeSchema)
 });
 
+export const preservationPayloadSummarySchema = z.object({
+	version: z.number().int(),
+	recordId: z.string().min(1),
+	identityFingerprint: z.string().min(1),
+	identityBaseSpeciesId: z.number().int(),
+	originalEntityFormat: z.string().min(1),
+	originalFormat: z.number().int(),
+	originalContext: z.string().min(1),
+	currentEntityFormat: z.string().min(1),
+	currentFormat: z.number().int(),
+	currentContext: z.string().min(1),
+	originalByteLength: z.number().int().positive(),
+	currentByteLength: z.number().int().positive(),
+	originalEntitySha256: z.string().min(1)
+});
+
+export const preservationPayloadSchema = z.object({
+	bytes: z.instanceof(ArrayBuffer),
+	summary: preservationPayloadSummarySchema
+});
+
+export const preservedPokemonSchema = z.object({
+	entityBytes: z.instanceof(ArrayBuffer),
+	summary: preservationPayloadSummarySchema,
+	projection: boxSlotSummarySchema
+});
+
 const engineResultSchema = <T extends z.ZodType>(valueSchema: T) =>
 	z.discriminatedUnion('ok', [
 		z.object({
@@ -825,6 +859,10 @@ export const pokemonActionResultResultSchema = engineResultSchema(pokemonActionR
 export const storedPokemonActionResultResultSchema = engineResultSchema(
 	storedPokemonActionResultSchema
 );
+
+export const preservationPayloadResultSchema = engineResultSchema(preservationPayloadSchema);
+
+export const preservedPokemonResultSchema = engineResultSchema(preservedPokemonSchema);
 
 export const engineWorkerInitMessageSchema = z.object({
 	type: z.literal('init'),
@@ -1050,6 +1088,30 @@ export const engineWorkerApplyStoredPokemonActionRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerCreatePreservationPayloadRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('createPreservationPayload'),
+	payload: z.object({ bytes: z.instanceof(ArrayBuffer) })
+});
+
+export const engineWorkerReadPreservationPayloadRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('readPreservationPayload'),
+	payload: z.object({ bytes: z.instanceof(ArrayBuffer) })
+});
+
+export const engineWorkerProjectPreservationPayloadRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('projectPreservationPayload'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		targetFormat: z.number().int()
+	})
+});
+
 export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionRequestSchema,
 	engineWorkerSummarizeSaveRequestSchema,
@@ -1070,7 +1132,10 @@ export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerPreviewPokemonActionsRequestSchema,
 	engineWorkerApplyPokemonActionRequestSchema,
 	engineWorkerPreviewStoredPokemonActionsRequestSchema,
-	engineWorkerApplyStoredPokemonActionRequestSchema
+	engineWorkerApplyStoredPokemonActionRequestSchema,
+	engineWorkerCreatePreservationPayloadRequestSchema,
+	engineWorkerReadPreservationPayloadRequestSchema,
+	engineWorkerProjectPreservationPayloadRequestSchema
 ]);
 
 export const engineWorkerGetVersionResponseSchema = z.object({
@@ -1213,6 +1278,27 @@ export const engineWorkerApplyStoredPokemonActionResponseSchema = z.object({
 	result: storedPokemonActionResultResultSchema
 });
 
+export const engineWorkerCreatePreservationPayloadResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('createPreservationPayload'),
+	result: preservationPayloadResultSchema
+});
+
+export const engineWorkerReadPreservationPayloadResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('readPreservationPayload'),
+	result: preservedPokemonResultSchema
+});
+
+export const engineWorkerProjectPreservationPayloadResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('projectPreservationPayload'),
+	result: preservationPayloadResultSchema
+});
+
 export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionResponseSchema,
 	engineWorkerSummarizeSaveResponseSchema,
@@ -1233,7 +1319,10 @@ export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerPreviewPokemonActionsResponseSchema,
 	engineWorkerApplyPokemonActionResponseSchema,
 	engineWorkerPreviewStoredPokemonActionsResponseSchema,
-	engineWorkerApplyStoredPokemonActionResponseSchema
+	engineWorkerApplyStoredPokemonActionResponseSchema,
+	engineWorkerCreatePreservationPayloadResponseSchema,
+	engineWorkerReadPreservationPayloadResponseSchema,
+	engineWorkerProjectPreservationPayloadResponseSchema
 ]);
 
 export const engineWorkerProtocolErrorSchema = z.object({
@@ -1344,6 +1433,18 @@ export type EngineWorkerPreviewStoredPokemonActionsRequest = z.infer<
 
 export type EngineWorkerApplyStoredPokemonActionRequest = z.infer<
 	typeof engineWorkerApplyStoredPokemonActionRequestSchema
+>;
+
+export type EngineWorkerCreatePreservationPayloadRequest = z.infer<
+	typeof engineWorkerCreatePreservationPayloadRequestSchema
+>;
+
+export type EngineWorkerReadPreservationPayloadRequest = z.infer<
+	typeof engineWorkerReadPreservationPayloadRequestSchema
+>;
+
+export type EngineWorkerProjectPreservationPayloadRequest = z.infer<
+	typeof engineWorkerProjectPreservationPayloadRequestSchema
 >;
 
 export type EngineWorkerRequest = z.infer<typeof engineWorkerRequestSchema>;

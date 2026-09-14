@@ -10,6 +10,9 @@ import type {
 	PokemonCreationResult,
 	PokemonEditOperationResult,
 	PokemonSpeciesFormEditProjection,
+	PreservationPayload,
+	PreservationPayloadSummary,
+	PreservedPokemon,
 	SaveFileEditOperationResult,
 	SaveFileInventoryCatalogue,
 	SaveSummary,
@@ -39,6 +42,9 @@ import {
 	type EngineWorkerApplyPokemonActionRequest,
 	type EngineWorkerPreviewStoredPokemonActionsRequest,
 	type EngineWorkerApplyStoredPokemonActionRequest,
+	type EngineWorkerCreatePreservationPayloadRequest,
+	type EngineWorkerReadPreservationPayloadRequest,
+	type EngineWorkerProjectPreservationPayloadRequest,
 	type EngineWorkerLoadSaveWorkspaceRequest,
 	type EngineWorkerListBoxSlotsRequest,
 	type EngineWorkerMessage,
@@ -110,6 +116,9 @@ export type DotnetPkhexEngineExports = {
 	): string;
 	PreviewStoredPokemonActionsJson(entityBytesBase64: string): string;
 	ApplyStoredPokemonActionJson(entityBytesBase64: string, actionJson: string): string;
+	CreatePreservationPayloadJson(entityBytes: Uint8Array): string;
+	ReadPreservationPayloadJson(payloadBytes: Uint8Array): string;
+	ProjectPreservationPayloadJson(payloadBytes: Uint8Array, targetFormat: number): string;
 };
 
 type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes'> & {
@@ -135,6 +144,17 @@ type RawStoredPokemonImportResult = Omit<StoredPokemonImportResult, 'bytes'> & {
 type RawPokemonActionResult = Omit<PokemonActionResult, 'bytes'> & {
 	bytesBase64: string;
 	byteLength: number;
+};
+type RawPreservationPayloadResult = {
+	payloadBytesBase64: string;
+	payloadByteLength: number;
+	summary: PreservationPayloadSummary;
+};
+type RawPreservedPokemonResult = {
+	entityBytesBase64: string;
+	entityByteLength: number;
+	summary: PreservationPayloadSummary;
+	projection: BoxSlotSummary;
 };
 
 export type PkhexEngineWorkerRuntimeOptions = {
@@ -300,6 +320,27 @@ export function createPkhexEngineWorkerRuntime({
 				return;
 			case 'applyStoredPokemonAction':
 				postMessage(createEngineWorkerResponse(request, applyStoredPokemonAction(engine, request)));
+				return;
+			case 'createPreservationPayload':
+				postPreservationPayloadResponse(
+					postMessage,
+					request,
+					createPreservationPayload(engine, request)
+				);
+				return;
+			case 'readPreservationPayload':
+				postPreservedPokemonResponse(
+					postMessage,
+					request,
+					readPreservationPayload(engine, request)
+				);
+				return;
+			case 'projectPreservationPayload':
+				postPreservationPayloadResponse(
+					postMessage,
+					request,
+					projectPreservationPayload(engine, request)
+				);
 				return;
 		}
 	}
@@ -614,6 +655,36 @@ function applyStoredPokemonAction(
 	);
 }
 
+function createPreservationPayload(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerCreatePreservationPayloadRequest
+): EngineResult<RawPreservationPayloadResult> {
+	return parseEngineResult<RawPreservationPayloadResult>(
+		engine.CreatePreservationPayloadJson(new Uint8Array(request.payload.bytes))
+	);
+}
+
+function readPreservationPayload(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerReadPreservationPayloadRequest
+): EngineResult<RawPreservedPokemonResult> {
+	return parseEngineResult<RawPreservedPokemonResult>(
+		engine.ReadPreservationPayloadJson(new Uint8Array(request.payload.bytes))
+	);
+}
+
+function projectPreservationPayload(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerProjectPreservationPayloadRequest
+): EngineResult<RawPreservationPayloadResult> {
+	return parseEngineResult<RawPreservationPayloadResult>(
+		engine.ProjectPreservationPayloadJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.targetFormat
+		)
+	);
+}
+
 function postSlotOperationResponse(
 	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
 	request: EngineWorkerApplySlotOperationRequest,
@@ -761,6 +832,60 @@ function postPokemonActionResponse(
 	postMessage(response, [bytes]);
 }
 
+function postPreservationPayloadResponse(
+	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
+	request:
+		| EngineWorkerCreatePreservationPayloadRequest
+		| EngineWorkerProjectPreservationPayloadRequest,
+	result: EngineResult<RawPreservationPayloadResult>
+) {
+	if (!result.ok) {
+		postMessage(createEngineWorkerResponse(request, result));
+		return;
+	}
+
+	const bytes = base64ToArrayBuffer(
+		result.value.payloadBytesBase64,
+		result.value.payloadByteLength
+	);
+	postMessage(
+		createEngineWorkerResponse(request, {
+			ok: true,
+			value: { bytes, summary: result.value.summary },
+			error: null
+		}),
+		[bytes]
+	);
+}
+
+function postPreservedPokemonResponse(
+	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
+	request: EngineWorkerReadPreservationPayloadRequest,
+	result: EngineResult<RawPreservedPokemonResult>
+) {
+	if (!result.ok) {
+		postMessage(createEngineWorkerResponse(request, result));
+		return;
+	}
+
+	const entityBytes = base64ToArrayBuffer(
+		result.value.entityBytesBase64,
+		result.value.entityByteLength
+	);
+	postMessage(
+		createEngineWorkerResponse(request, {
+			ok: true,
+			value: {
+				entityBytes,
+				summary: result.value.summary,
+				projection: result.value.projection
+			},
+			error: null
+		}),
+		[entityBytes]
+	);
+}
+
 function unavailableResult(request: EngineWorkerRequest) {
 	const result = {
 		ok: false,
@@ -810,6 +935,11 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<PokemonActionResult>;
 		case 'applyStoredPokemonAction':
 			return result satisfies EngineResult<StoredPokemonActionResult>;
+		case 'createPreservationPayload':
+		case 'projectPreservationPayload':
+			return result satisfies EngineResult<PreservationPayload>;
+		case 'readPreservationPayload':
+			return result satisfies EngineResult<PreservedPokemon>;
 	}
 }
 
