@@ -16,6 +16,7 @@
 	} from '$lib/components/pksx/MainMenu.svelte';
 	import QuickSearch from '$lib/components/pksx/QuickSearch.svelte';
 	import ToastRegion from '$lib/components/pksx/ToastRegion.svelte';
+	import { appCommandForEvent } from '$lib/pksx/app-commands';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import { heightBandLock } from '$lib/pksx/height-band-lock';
 	import { reducedMotion } from '$lib/pksx/motion';
@@ -42,7 +43,6 @@
 		setSummonedWorkflowHost
 	} from '$lib/pksx/summoned-workflow/host.svelte';
 	import {
-		controllerShortcutAction,
 		controllerFocusSystem,
 		dispatchControllerKey,
 		isControllerKeyboardEvent,
@@ -332,35 +332,18 @@
 
 	function handleRootKeydown(event: KeyboardEvent) {
 		const fromController = isControllerKeyboardEvent(event);
-		const controllerAction = fromController ? controllerShortcutAction(event.key) : null;
-		const commandK =
-			!fromController &&
-			(event.metaKey || event.ctrlKey) &&
-			!event.altKey &&
-			event.key.toLowerCase() === 'k';
-		const mainMenuShortcut = commandK && event.shiftKey;
-		const searchShortcut = commandK && !event.shiftKey;
+		const appCommand = appCommandForEvent(event, fromController);
 
-		if (mainMenuShortcut) {
+		if (appCommand === 'main-menu') {
 			consumeRootEvent(event);
-			if (!summonedWorkflow.active && !appChrome.carryActive) void openMainMenu();
+			if (fromController && mainMenuOpen) closeMainMenu();
+			else if (!summonedWorkflow.active && !appChrome.carryActive) void openMainMenu();
 			return;
 		}
 
-		if (
-			(searchShortcut || controllerAction === 'search') &&
-			!summonedWorkflow.active &&
-			!appChrome.carryActive
-		) {
+		if (appCommand === 'search' && !summonedWorkflow.active && !appChrome.carryActive) {
 			consumeRootEvent(event);
 			void openQuickSearch();
-			return;
-		}
-
-		if (fromController && event.key === 'Menu') {
-			consumeRootEvent(event);
-			if (mainMenuOpen) closeMainMenu();
-			else if (!summonedWorkflow.active && !appChrome.carryActive) void openMainMenu();
 			return;
 		}
 

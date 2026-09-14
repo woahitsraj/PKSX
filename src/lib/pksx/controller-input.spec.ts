@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { controllerShortcutAction, readGamepadKeys } from './controller-input';
+import { readGamepadKeys } from './controller-input';
 
 describe('readGamepadKeys', () => {
 	test('maps standard buttons and axes to keyboard navigation', () => {
@@ -37,11 +37,6 @@ describe('readGamepadKeys', () => {
 			'PageDown'
 		]);
 	});
-});
-
-test('maps controller Y to the reserved Search action', () => {
-	expect(controllerShortcutAction('y')).toBe('search');
-	expect(controllerShortcutAction('Y')).toBe('search');
 });
 
 function createGamepad({

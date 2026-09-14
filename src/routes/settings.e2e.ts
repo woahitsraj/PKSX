@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import path from 'node:path';
+import { appCommands } from '$lib/pksx/app-commands';
 
 const emeraldFixturePath = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
@@ -140,8 +141,21 @@ test('Settings is available without a Save File and reports live build metadata'
 
 	await expect(page.getByRole('heading', { name: 'Preferences' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Controls reference' })).toBeVisible();
-	for (const group of ['Everywhere', 'Boxes', 'Carry', 'Menus and Takeovers', 'Pokemon Editor']) {
+	for (const group of [
+		'Everywhere',
+		'App commands',
+		'Boxes',
+		'Carry',
+		'Menus and Takeovers',
+		'Pokemon Editor'
+	]) {
 		await expect(page.getByRole('heading', { name: group, exact: true })).toBeVisible();
+	}
+	const commands = page.getByRole('table', { name: 'App commands controls' });
+	for (const command of appCommands) {
+		const row = commands.getByRole('row').filter({ hasText: command.action });
+		await expect(row).toContainText(command.controller);
+		await expect(row).toContainText(command.keyboard);
 	}
 	await expect(page.getByRole('heading', { name: 'About' })).toBeVisible();
 	await expect(page.getByText('0.0.1', { exact: true })).toBeVisible();

@@ -1,5 +1,3 @@
-import type { NavigationAction } from '$lib/pksx/box-navigation';
-
 export type ControllerKey =
 	| 'ArrowUp'
 	| 'ArrowDown'
@@ -24,10 +22,6 @@ export function dispatchControllerKey(key: ControllerKey) {
 	controllerEvents.add(event);
 	document.documentElement.dataset.inputModality = 'controller';
 	if (window.dispatchEvent(event)) handleControllerFallback(key);
-}
-
-export function controllerShortcutAction(key: string): NavigationAction | null {
-	return key.toLowerCase() === 'y' ? 'search' : null;
 }
 
 export function controllerFocusSystem() {

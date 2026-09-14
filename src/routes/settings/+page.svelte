@@ -6,6 +6,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
+	import { appCommands } from '$lib/pksx/app-commands';
 	import { appPlatformLabel, getAppMetadata } from '$lib/pksx/app-metadata';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
@@ -14,7 +15,7 @@
 	import { theme } from '$lib/pksx/theme.svelte';
 
 	type ReferenceRow = { action: string; controller: string; keyboard: string };
-	type ReferenceGroup = { id: string; title: string; rows: ReferenceRow[] };
+	type ReferenceGroup = { id: string; title: string; rows: readonly ReferenceRow[] };
 
 	const referenceGroups: ReferenceGroup[] = [
 		{
@@ -23,10 +24,13 @@
 			rows: [
 				{ action: 'Move focus', controller: 'D-pad', keyboard: 'Arrow keys' },
 				{ action: 'Confirm', controller: 'A', keyboard: 'Enter' },
-				{ action: 'Back', controller: 'B', keyboard: 'Escape' },
-				{ action: 'Main Menu', controller: 'Start', keyboard: 'Cmd/Ctrl+Shift+K' },
-				{ action: 'Search', controller: 'Y', keyboard: 'Cmd/Ctrl+K' }
+				{ action: 'Back', controller: 'B', keyboard: 'Escape' }
 			]
+		},
+		{
+			id: 'commands',
+			title: 'App commands',
+			rows: appCommands
 		},
 		{
 			id: 'boxes',
@@ -510,7 +514,20 @@
 		}
 
 		.reference-row {
-			grid-template-columns: minmax(100px, 1fr) minmax(72px, 0.65fr) minmax(94px, 0.85fr);
+			grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+			gap: var(--pksx-space-1) var(--pksx-space-2);
+			padding: var(--pksx-space-2) 0;
+		}
+
+		.reference-row .action {
+			grid-column: 1 / -1;
+			color: var(--ink-soft);
+			font-size: var(--pksx-type-caption);
+		}
+
+		.reference-row kbd {
+			min-width: 0;
+			overflow-wrap: anywhere;
 		}
 
 		.about dl {

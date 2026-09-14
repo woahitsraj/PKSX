@@ -116,12 +116,6 @@ describe('box navigation', () => {
 		expect(focusPaneBoundarySlot(24, 'left')).toEqual(focusBoxSlot(29));
 	});
 
-	it('reserves Search as a Navigation Action without changing Boxes', () => {
-		const state = { ...createInitialNavigationState(3), focus: focusBoxSlot(12) };
-
-		expect(applyNavigationAction(state, 'search')).toEqual(state);
-	});
-
 	it('crosses the rendered shared edge and clamps rows into Party', () => {
 		const panes: Parameters<typeof crossPaneSharedEdge>[0]['panes'] = [
 			{
