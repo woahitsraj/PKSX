@@ -25,6 +25,7 @@
 	const selectedIndex = $derived(matches.findIndex(({ id }) => id === selectedResultId));
 
 	onMount(() => {
+		input?.focus();
 		void load();
 	});
 
