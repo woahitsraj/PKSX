@@ -127,6 +127,7 @@
 		background: var(--slot-fill);
 		box-shadow: var(--shadow-sm);
 		color: var(--ink);
+		outline: none;
 		overflow: visible;
 		transition:
 			transform 120ms ease,
@@ -172,7 +173,7 @@
 	.slot.focused {
 		transform: translateY(-1px);
 		box-shadow:
-			0 0 0 2px var(--rust),
+			inset 0 0 0 2px var(--rust),
 			inset 0 0 0 1px color-mix(in srgb, white, transparent 38%),
 			var(--shadow);
 	}
@@ -188,7 +189,7 @@
 		border-style: solid;
 		border-color: var(--rust);
 		box-shadow:
-			0 0 0 2px var(--rust),
+			inset 0 0 0 2px var(--rust),
 			var(--shadow);
 	}
 
@@ -199,20 +200,20 @@
 
 	.slot.destination-valid {
 		box-shadow:
-			0 0 0 2px color-mix(in srgb, var(--ok), transparent 22%),
+			inset 0 0 0 2px color-mix(in srgb, var(--ok), transparent 22%),
 			var(--shadow-sm);
 	}
 
 	.slot.destination-source {
 		box-shadow:
-			0 0 0 2px color-mix(in srgb, var(--gold), transparent 20%),
+			inset 0 0 0 2px color-mix(in srgb, var(--gold), transparent 20%),
 			var(--shadow-sm);
 	}
 
 	.slot.destination-invalid.focused {
 		opacity: 0.72;
 		box-shadow:
-			0 0 0 2px color-mix(in srgb, var(--err), transparent 18%),
+			inset 0 0 0 2px color-mix(in srgb, var(--err), transparent 18%),
 			var(--shadow);
 	}
 

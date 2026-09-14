@@ -1076,6 +1076,29 @@ test('keyboard navigation moves deterministically across the box grid', async ({
 	await expect(page.locator('#collection-control-pane-pokemon-storage')).toBeFocused();
 });
 
+test('the active Slot uses one focus ring painted inside its bounds', async ({ page }) => {
+	await openEmptySaves(page);
+	const slot = page.locator('#box-0-slot-0');
+
+	await page.evaluate(() => {
+		document.documentElement.dataset.inputModality = 'controller';
+	});
+	await slot.focus();
+	await expect(slot).toBeFocused();
+	await expect(slot).toHaveClass(/focused/);
+
+	const focusPaint = await slot.evaluate((element) => {
+		const styles = getComputedStyle(element);
+		return {
+			firstShadow: styles.boxShadow.split(/,(?![^(]*\))/)[0],
+			outlineStyle: styles.outlineStyle
+		};
+	});
+
+	expect(focusPaint).toMatchObject({ outlineStyle: 'none' });
+	expect(focusPaint.firstShadow).toContain('inset');
+});
+
 test('compact box controls and keyboard shortcuts update the active box label', async ({
 	page
 }) => {
