@@ -83,6 +83,43 @@ describe('ActiveWorkspaceService', () => {
 		expect(service.current).toBeNull();
 	});
 
+	it('round-trips every SaveWorkspace projection field', async () => {
+		const service = createService();
+		const loaded = await service.load(file.id);
+		if (!loaded) throw new Error('Expected the mock Workspace to load.');
+		const workspace = {
+			...loaded.workspace,
+			saveFile: {
+				trainerProfile: {
+					trainerName: 'RED',
+					trainerNameSupported: true,
+					trainerNameMaxLength: 7,
+					trainerNameUnsupportedReason: null,
+					gender: 'male',
+					genderSupported: true,
+					genderUnsupportedReason: null,
+					trainerId: 1,
+					gameVersion: 'E',
+					generation: 3
+				},
+				money: {
+					value: 100,
+					min: 0,
+					max: 999_999,
+					supported: true,
+					unsupportedReason: null
+				},
+				inventory: { supported: true, unsupportedReason: null, pockets: [] }
+			},
+			futureProjection: { supported: true }
+		} satisfies SaveWorkspace &
+			Record<keyof SaveWorkspace, unknown> & { futureProjection: { supported: boolean } };
+
+		service.set({ ...loaded, workspace });
+
+		expect(service.current?.workspace).toStrictEqual(workspace);
+	});
+
 	it('exports unchanged Workspace bytes byte-for-byte', async () => {
 		const service = createService();
 		await service.hydrate(file.id);

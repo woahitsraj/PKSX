@@ -1,14 +1,13 @@
 import type { TablesSchema, ValuesSchema } from 'tinybase';
 
-export const WORKSPACE_SCHEMA_VERSION = 1;
+export const WORKSPACE_SCHEMA_VERSION = 2;
 export const WORKSPACE_PARSER_VERSION = 'pkhex-engine-v1';
 
 export const workspaceTablesSchema = {
 	workspaces: {
 		saveFileId: { type: 'string' },
 		activeBox: { type: 'number' },
-		summary: { type: 'string' },
-		saveFile: { type: 'string' },
+		projection: { type: 'string' },
 		restoredFromBackup: { type: 'string' },
 		automaticBackupCreated: { type: 'boolean' }
 	},

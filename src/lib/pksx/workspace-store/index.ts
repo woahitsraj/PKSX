@@ -20,6 +20,8 @@ type WorkspaceArtifactContext = {
 	entityBytesBySlot: Map<string, string | null | undefined>;
 };
 
+type WorkspaceProjection = Omit<SaveWorkspace, 'partySlots' | 'boxSlots'>;
+
 export type ActiveWorkspaceServiceOptions = {
 	storage: SavesStorage;
 	engine: EngineApi | (() => EngineApi);
@@ -111,22 +113,24 @@ export class ActiveWorkspaceService {
 			entityBytesBySlot: new Map()
 		};
 		const saveFileId = state.file.id;
+		const { partySlots, boxSlots, ...workspaceProjection } = state.workspace;
 		this.store.transaction(() => {
 			this.store.delTables();
 			this.store.setRow('workspaces', saveFileId, {
 				saveFileId,
 				activeBox,
-				summary: JSON.stringify(state.workspace.summary),
-				saveFile: JSON.stringify(state.workspace.saveFile ?? null),
+				projection: JSON.stringify(workspaceProjection),
 				restoredFromBackup: JSON.stringify(state.restoredFromBackup),
 				automaticBackupCreated: state.automaticBackupCreated
 			});
 			for (let index = 0; index < state.workspace.summary.boxCount; index += 1) {
 				this.store.setRow('boxes', `${saveFileId}:${index}`, { saveFileId, index });
 			}
-			for (const slot of state.workspace.partySlots) {
+			for (const slot of partySlots) {
 				const rowId = `${saveFileId}:party:${slot.slot}`;
-				this.artifact?.entityBytesBySlot.set(rowId, slot.entityBytesBase64);
+				if ('entityBytesBase64' in slot) {
+					this.artifact?.entityBytesBySlot.set(rowId, slot.entityBytesBase64);
+				}
 				const projection = { ...slot };
 				delete projection.entityBytesBase64;
 				this.store.setRow('slots', rowId, {
@@ -137,9 +141,11 @@ export class ActiveWorkspaceService {
 					projection: JSON.stringify(projection)
 				});
 			}
-			for (const slot of state.workspace.boxSlots) {
+			for (const slot of boxSlots) {
 				const rowId = `${saveFileId}:box:${slot.box}:${slot.slot}`;
-				this.artifact?.entityBytesBySlot.set(rowId, slot.entityBytesBase64);
+				if ('entityBytesBase64' in slot) {
+					this.artifact?.entityBytesBySlot.set(rowId, slot.entityBytesBase64);
+				}
 				const projection = { ...slot };
 				delete projection.entityBytesBase64;
 				this.store.setRow('slots', rowId, {
@@ -173,16 +179,17 @@ export class ActiveWorkspaceService {
 		const saveFileId = this.store.getValue('activeSaveFileId');
 		if (typeof saveFileId !== 'string' || !saveFileId || !this.artifact) return null;
 		const row = this.store.getRow('workspaces', saveFileId);
-		if (typeof row.summary !== 'string') return null;
+		if (typeof row.projection !== 'string') return null;
+		const workspaceProjection = JSON.parse(row.projection) as WorkspaceProjection;
 
 		const partySlots: SaveWorkspace['partySlots'] = [];
 		const boxSlots: SaveWorkspace['boxSlots'] = [];
 		for (const [rowId, slotRow] of Object.entries(this.store.getTable('slots'))) {
 			if (slotRow.saveFileId !== saveFileId || typeof slotRow.projection !== 'string') continue;
-			const projection = {
-				...JSON.parse(slotRow.projection),
-				entityBytesBase64: this.artifact.entityBytesBySlot.get(rowId)
-			};
+			const projection = JSON.parse(slotRow.projection);
+			if (this.artifact.entityBytesBySlot.has(rowId)) {
+				projection.entityBytesBase64 = this.artifact.entityBytesBySlot.get(rowId);
+			}
 			if (slotRow.zone === 'party') partySlots.push(projection);
 			if (slotRow.zone === 'box') boxSlots.push(projection);
 		}
@@ -193,11 +200,9 @@ export class ActiveWorkspaceService {
 			file: this.artifact.file,
 			bytes: new Uint8Array(this.artifact.bytes),
 			workspace: {
-				summary: JSON.parse(row.summary),
+				...workspaceProjection,
 				partySlots,
-				boxSlots,
-				saveFile:
-					typeof row.saveFile === 'string' ? (JSON.parse(row.saveFile) ?? undefined) : undefined
+				boxSlots
 			},
 			dirty: this.store.getValue('dirty') === true,
 			restoredFromBackup:
