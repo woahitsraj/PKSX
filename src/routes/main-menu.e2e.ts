@@ -45,6 +45,7 @@ async function openMainMenu(page: Page) {
 async function choose(page: Page, label: string) {
 	const menu = await openMainMenu(page);
 	await menu.getByRole('button', { name: new RegExp(`^${label}`) }).click();
+	await expect(menu).toHaveCount(0);
 	const destination = destinations[label];
 	if (!destination) return;
 	await expect(page).toHaveURL((url) => url.pathname === destination.path);

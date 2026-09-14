@@ -106,6 +106,11 @@
 		color: var(--ink);
 		font-size: var(--pksx-type-label);
 		font-weight: 800;
+		transition: transform 120ms var(--pksx-ease-out);
+	}
+
+	.confirm-actions button:active:not(:disabled) {
+		transform: scale(0.97);
 	}
 
 	.confirm-submit {

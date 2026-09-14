@@ -176,6 +176,10 @@
 	import { getToastHost } from '$lib/pksx/toast/host.svelte';
 	import { createBoxMenuCommands, type BoxMenuCommandKey } from '$lib/pksx/box-menu';
 	import { createSlotMenuCommands, type SlotMenuCommandKey } from '$lib/pksx/slot-menu';
+	import { layerFade, panelSettle } from '$lib/pksx/motion';
+
+	const sourcePickerFade = layerFade('.source-picker-backdrop');
+	const sourcePickerSettle = panelSettle('.source-picker-backdrop');
 
 	type ClearSlotConfirmation = {
 		source: SaveSlotRef;
@@ -5189,13 +5193,21 @@
 {/if}
 
 {#if sourcePickerOpen}
-	<div class="source-picker-backdrop" role="presentation" onclick={closeSourcePickerFromBackdrop}>
+	<div
+		class="source-picker-backdrop"
+		role="presentation"
+		onclick={closeSourcePickerFromBackdrop}
+		in:sourcePickerFade
+		out:sourcePickerFade
+	>
 		<div
 			class="source-picker"
 			role="dialog"
 			tabindex="-1"
 			aria-modal="true"
 			aria-label={sourcePickerTargetPaneId ? 'Switch collection' : 'Open another collection'}
+			in:sourcePickerSettle
+			out:sourcePickerSettle
 		>
 			<header>
 				<div>
@@ -5244,13 +5256,13 @@
 {/if}
 
 {#if activeSummonedWorkflow?.kind === 'pokemon-editor' && pokemonEditor}
-	{#key pokemonEditorDraftResetKey(pokemonEditor)}
-		<TakeoverFrame
-			labelledby="pokemon-editor-title"
-			describedby="pokemon-editor-status"
-			{busy}
-			onBack={requestClosePokemonEditor}
-		>
+	<TakeoverFrame
+		labelledby="pokemon-editor-title"
+		describedby="pokemon-editor-status"
+		{busy}
+		onBack={requestClosePokemonEditor}
+	>
+		{#key pokemonEditorDraftResetKey(pokemonEditor)}
 			<PokemonEditor
 				editor={pokemonEditor}
 				mode={pokemonCreation ? 'create' : 'edit'}
@@ -5277,8 +5289,8 @@
 				onCancelEdits={cancelPokemonEditorEdits}
 				onClose={requestClosePokemonEditor}
 			/>
-		</TakeoverFrame>
-	{/key}
+		{/key}
+	</TakeoverFrame>
 {/if}
 
 {#if activeSummonedWorkflow?.kind === 'pokemon-actions' && pokemonAction.status !== 'idle'}

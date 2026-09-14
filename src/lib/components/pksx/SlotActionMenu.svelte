@@ -129,6 +129,12 @@
 		color: var(--ink);
 		font: inherit;
 		text-align: left;
+		transition: transform 120ms var(--pksx-ease-out);
+	}
+
+	.slot-command-row button:active:not([aria-disabled='true']),
+	.close-command:active {
+		transform: scale(0.97);
 	}
 
 	.slot-command-row button {

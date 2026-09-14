@@ -672,11 +672,16 @@
 		box-shadow: var(--pksx-shadow-raised);
 		color: var(--pksx-color-accent-primary);
 		cursor: pointer;
+		transition: transform 120ms var(--pksx-ease-out);
 	}
 
 	.main-menu-opener:hover,
 	.main-menu-opener:active {
 		background: var(--pksx-color-accent-wash);
+	}
+
+	.main-menu-opener:active {
+		transform: scale(0.97);
 	}
 
 	.main-menu-icon {

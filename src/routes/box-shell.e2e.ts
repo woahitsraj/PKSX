@@ -13,6 +13,17 @@ const scarletFixturePath = path.resolve(
 	'test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-scarlet-2025-03-24-main.sav'
 );
 
+async function settleMotion(page: Page) {
+	await page.evaluate(() =>
+		Promise.all(
+			document
+				.getAnimations()
+				.filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+				.map((animation) => animation.finished.catch(() => undefined))
+		)
+	);
+}
+
 async function openEmptySaves(page: Page) {
 	await page.goto('/');
 	await page.evaluate(
@@ -325,6 +336,7 @@ async function chooseMainMenu(
 		.getByRole('dialog', { name: 'Main Menu' })
 		.getByRole('button', { name: new RegExp(`^${label}`) })
 		.click();
+	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toHaveCount(0);
 }
 
 type ActualRouteSaveFileDestination = {
@@ -860,6 +872,7 @@ async function boxLayoutMetrics(page: Page) {
 }
 
 async function edgeSurfaceBounds(page: Page) {
+	await settleMotion(page);
 	return page.locator('.edge-menu-layer').evaluate((layer) => {
 		const panel = layer.querySelector('[role="dialog"]');
 		const layerRect = layer.getBoundingClientRect();
@@ -888,6 +901,7 @@ async function edgeSurfaceBounds(page: Page) {
 }
 
 async function takeoverBounds(page: Page) {
+	await settleMotion(page);
 	return page.locator('.takeover-safe-canvas').evaluate((layer) => {
 		const panel = layer.querySelector('.takeover-frame');
 		const layerRect = layer.getBoundingClientRect();
@@ -1428,6 +1442,7 @@ test('Box Menu allows duplicate Save File panes and keeps Open another collectio
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('x');
+	await settleMotion(page);
 	await page
 		.getByRole('dialog', { name: 'Box Menu' })
 		.getByRole('button', {
@@ -1495,6 +1510,7 @@ test('Box Menu allows duplicate Save File panes and keeps Open another collectio
 		.click();
 	await expect(page.locator('#box-0-slot-8')).toBeFocused();
 	await page.keyboard.press('x');
+	await settleMotion(page);
 	const menu = page.getByRole('dialog', { name: 'Box Menu' });
 	await expect(menu.getByRole('button', { name: 'Open another collection' })).toHaveAttribute(
 		'aria-disabled',
@@ -4015,6 +4031,7 @@ test('pointer Slot clicks only move Controller Focus', async ({ page }) => {
 	const dialog = page.getByRole('dialog', { name: 'Slot actions' });
 	await expect(dialog).toBeVisible();
 	await expect(dialog).toContainText('Party slot 5');
+	await settleMotion(page);
 
 	const menuState = await dialog.evaluate((element) => {
 		const rect = element.getBoundingClientRect();
@@ -5007,6 +5024,11 @@ test('clear slot cancellation and confirmation use the in-app confirmation surfa
 
 	const confirmDialog = page.getByRole('dialog', { name: 'Clear ARON?' });
 	await expect(confirmDialog).toBeVisible();
+	expect(
+		await confirmDialog.evaluate((dialog) =>
+			dialog.getAnimations().map((animation) => animation.effect?.getTiming().duration)
+		)
+	).toEqual([]);
 	await expect(confirmDialog).not.toContainText('Clear Slot');
 	await expect(confirmDialog).toContainText('Box 01 Slot 1');
 	await page.getByRole('button', { name: 'Cancel' }).click();
@@ -5369,7 +5391,7 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await expect(grid).toHaveAttribute('aria-activedescendant', betaTarget!);
 	menu = page.getByRole('dialog', { name: 'Save File Menu' });
 	await expect(menu.getByRole('button', { name: 'Open Trainer' })).toBeFocused();
-	await page.locator('.edge-menu-backdrop').click({ position: { x: 8, y: 8 } });
+	await page.locator('.edge-menu-backdrop:not([inert])').click({ position: { x: 8, y: 8 } });
 	await expect(grid).toBeFocused();
 	await expect(grid).toHaveAttribute('aria-activedescendant', betaTarget!);
 	await alphaCard.getByRole('button', { name: /Open Save File Menu/ }).focus();
@@ -5386,7 +5408,7 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 		.getByRole('dialog', { name: 'Delete alpha.sav?' })
 		.getByRole('button', { name: 'Keep Save File' })
 		.click();
-	await page.locator('.edge-menu-backdrop').click({ position: { x: 8, y: 8 } });
+	await page.locator('.edge-menu-backdrop:not([inert])').click({ position: { x: 8, y: 8 } });
 	await expect(grid).toHaveAttribute('aria-activedescendant', betaTarget!);
 	await expect(grid).toBeFocused();
 

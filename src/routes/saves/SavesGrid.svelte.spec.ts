@@ -99,7 +99,7 @@ it.each(['save-file-menu', 'save-file-delete', 'main-menu'] as const)(
 		expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-' + survivor.id);
 		if (kind !== 'main-menu') {
 			await expect.poll(() => document.activeElement).toBe(grid);
-			expect(container.querySelector('[inert]')).toBeNull();
+			await expect.poll(() => container.querySelector('[inert]')).toBeNull();
 		}
 	}
 );

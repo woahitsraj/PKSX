@@ -103,6 +103,17 @@ const editableSelector =
 const visibleControlSelector =
 	'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false" i])';
 
+async function settleMotion(page: Page) {
+	await page.evaluate(() =>
+		Promise.all(
+			document
+				.getAnimations()
+				.filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+				.map((animation) => animation.finished.catch(() => undefined))
+		)
+	);
+}
+
 async function setSafeArea(page: Page, insets: Insets) {
 	await page.evaluate(({ top, right, bottom, left }) => {
 		const root = document.documentElement;
@@ -1088,6 +1099,7 @@ test('[SURFACE-1][SURFACE-2] Menu and Backup Browser follow Safe Canvas edges wi
 		await page.keyboard.press('Enter');
 		const panel = page.getByRole('dialog', { name: 'Slot actions' });
 		await expect(panel).toBeVisible();
+		await settleMotion(page);
 		const geometry = await page.locator('.edge-menu-layer').evaluate((layer) => {
 			const layerBox = layer.getBoundingClientRect();
 			const panelBox = layer.querySelector<HTMLElement>('[role="dialog"]')!.getBoundingClientRect();
@@ -1148,6 +1160,7 @@ test('[SURFACE-1][SURFACE-2] Menu and Backup Browser follow Safe Canvas edges wi
 	await chooseMainMenu(page, 'Backup Browser');
 	const browser = page.getByRole('dialog', { name: 'Backup Browser' });
 	await expect(browser).toBeVisible();
+	await settleMotion(page);
 	const bounds = await browser.boundingBox();
 	expect(bounds, '[SURFACE-1] portrait Backup Browser fills the Safe Canvas').toMatchObject({
 		x: portraitFloor.insets.left,

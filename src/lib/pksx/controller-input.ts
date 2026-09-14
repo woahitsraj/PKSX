@@ -151,6 +151,7 @@ function isVisible(control: HTMLElement) {
 	const rect = control.getBoundingClientRect();
 	return (
 		!control.hidden &&
+		!control.closest('[inert]') &&
 		style.display !== 'none' &&
 		style.visibility !== 'hidden' &&
 		rect.width > 0 &&

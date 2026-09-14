@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { layerFade, panelSettle } from '$lib/pksx/motion';
 
 	interface Props {
 		labelledby: string;
@@ -11,12 +12,24 @@
 
 	let { labelledby, describedby, busy = false, onBack, children }: Props = $props();
 
+	const fade = layerFade('.takeover-backdrop');
+	const settle = panelSettle(
+		'.takeover-backdrop',
+		(node) => getComputedStyle(node).getPropertyValue('--pksx-height-band').trim() === 'tall'
+	);
+
 	function handleBackdrop(event: MouseEvent) {
 		if (!(event.target instanceof Element) || !event.target.closest('.takeover-frame')) onBack();
 	}
 </script>
 
-<div class="takeover-backdrop" role="presentation" onclick={handleBackdrop}>
+<div
+	class="takeover-backdrop"
+	role="presentation"
+	onclick={handleBackdrop}
+	in:fade|global
+	out:fade|global
+>
 	<div class="takeover-safe-canvas">
 		<div
 			class="takeover-frame pksx-density-container"
@@ -25,6 +38,8 @@
 			aria-labelledby={labelledby}
 			aria-describedby={describedby}
 			aria-busy={busy}
+			in:settle|global
+			out:settle|global
 		>
 			<div class="takeover-content pksx-density">
 				{@render children()}
