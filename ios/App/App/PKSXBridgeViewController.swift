@@ -1,9 +1,42 @@
 import Capacitor
 import GameController
+import UIKit
+import WebKit
 
 final class PKSXBridgeViewController: CAPBridgeViewController {
+    private static let appViewportPolicy = """
+        document.querySelector('meta[name=viewport]')?.setAttribute(
+            'content',
+            'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'
+        )
+        """
+
     private var controllerObservers: [NSObjectProtocol] = []
     private var directionStates: [String: Set<String>] = [:]
+
+    override func capacitorDidLoad() {
+        super.capacitorDidLoad()
+        guard let webView else { return }
+
+        webView.configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: Self.appViewportPolicy,
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+        )
+        disableDoubleTapGestures(in: webView)
+    }
+
+    private func disableDoubleTapGestures(in view: UIView) {
+        for case let recognizer as UITapGestureRecognizer in view.gestureRecognizers ?? []
+        where recognizer.numberOfTapsRequired == 2 {
+            recognizer.isEnabled = false
+        }
+        for subview in view.subviews {
+            disableDoubleTapGestures(in: subview)
+        }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()

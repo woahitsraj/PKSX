@@ -4180,6 +4180,14 @@ test('the first Slot tap moves Controller Focus and the second opens the Slot Me
 	expect(menuState.menuOwnsTopPoint).toBe(true);
 });
 
+test('@mobile-touch the web viewport preserves browser zoom', async ({ page }) => {
+	await page.goto('/');
+	await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
+		'content',
+		'width=device-width, initial-scale=1, viewport-fit=cover'
+	);
+});
+
 test('@mobile-touch Slot selection, Menu commands, and dismissal remain touch accessible', async ({
 	page
 }) => {

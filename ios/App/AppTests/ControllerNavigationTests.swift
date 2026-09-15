@@ -263,6 +263,7 @@ final class ControllerNavigationTests: XCTestCase {
             "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
         )
         XCTAssertFalse(webView.configuration.ignoresViewportScaleLimits)
+        XCTAssertTrue(enabledDoubleTapRecognizers(in: webView).isEmpty)
         XCTAssertEqual(touchAction, "manipulation")
         XCTAssertTrue(webView.isUserInteractionEnabled)
     }
@@ -325,6 +326,18 @@ final class ControllerNavigationTests: XCTestCase {
             windows.lazy.compactMap(findWebView).first,
             "The app WebView is unavailable"
         )
+    }
+
+    private func enabledDoubleTapRecognizers(in view: UIView) -> [UITapGestureRecognizer] {
+        let local = (view.gestureRecognizers ?? []).compactMap { recognizer in
+            guard
+                let tap = recognizer as? UITapGestureRecognizer,
+                tap.numberOfTapsRequired == 2,
+                tap.isEnabled
+            else { return nil }
+            return tap
+        }
+        return local + view.subviews.flatMap(enabledDoubleTapRecognizers)
     }
 
     private func findWebView(in view: UIView) -> WKWebView? {
