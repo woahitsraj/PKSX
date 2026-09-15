@@ -85,7 +85,8 @@
 
 	.edge-menu-backdrop {
 		position: absolute;
-		inset: 0;
+		inset: calc(0px - var(--pksx-safe-area-top)) calc(0px - var(--pksx-safe-area-right))
+			calc(0px - var(--pksx-safe-area-bottom)) calc(0px - var(--pksx-safe-area-left));
 		border: 0;
 		border-radius: 0;
 		background: color-mix(in srgb, var(--ink), transparent 55%);

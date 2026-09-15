@@ -813,7 +813,7 @@ test('[RESP-1][RESP-2] 559/560 reflow preserves pane, focus, Carry, and Menu ide
 		}))
 	);
 	await expect(page.locator('.app-shell')).toHaveCSS('--pksx-height-band', 'short');
-	await page.locator('#box-0-slot-0').click();
+	await page.locator('#box-0-slot-0').focus();
 	await page.keyboard.press('Enter');
 	await page
 		.getByRole('dialog', { name: 'Slot actions' })
@@ -1095,7 +1095,7 @@ test('[SURFACE-1][SURFACE-2] Menu and Backup Browser follow Safe Canvas edges wi
 			width: shell.scrollWidth,
 			height: shell.scrollHeight
 		}));
-		await page.locator('#box-0-slot-0').click();
+		await page.locator('#box-0-slot-0').focus();
 		await page.keyboard.press('Enter');
 		const panel = page.getByRole('dialog', { name: 'Slot actions' });
 		await expect(panel).toBeVisible();

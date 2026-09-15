@@ -1483,8 +1483,8 @@
 		return isSlotFocus(focus) ? slotLauncher(focus) : controlLauncher(focusIdForNavigation(focus));
 	}
 
-	function openSlotMenu(focus: SlotFocus) {
-		if (!summonedWorkflow.open('slot-menu', slotLauncher(focus))) return;
+	function openSlotMenu(focus: SlotFocus, pane: BoxPaneState | undefined = activePane) {
+		if (!summonedWorkflow.open('slot-menu', slotLauncher(focus, pane))) return;
 		slotMenuPokemonActionRequest += 1;
 		slotMenuPokemonActionPreview = null;
 		slotMenuPokemonActionsLoading = false;
@@ -5242,6 +5242,14 @@
 												? () => {
 														activatePane(pane);
 														void completePendingSlotOperation(slotRef, pane);
+													}
+												: undefined}
+											onOpenMenu={!pendingSlotOperation
+												? () => {
+														activatePane(pane);
+														if (paneParty) focusParty(slot.slot);
+														else focusBox(slot.slot);
+														openSlotMenu(slotRef, pane);
 													}
 												: undefined}
 										/>
