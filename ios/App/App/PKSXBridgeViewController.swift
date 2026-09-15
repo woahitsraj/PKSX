@@ -3,6 +3,21 @@ import GameController
 import UIKit
 import WebKit
 
+private final class PKSXWebView: WKWebView {
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        disableDoubleTapGestures(in: self)
+    }
+
+    private func disableDoubleTapGestures(in view: UIView) {
+        for case let recognizer as UITapGestureRecognizer in view.gestureRecognizers ?? []
+        where recognizer.numberOfTapsRequired == 2 {
+            recognizer.isEnabled = false
+        }
+        view.subviews.forEach(disableDoubleTapGestures)
+    }
+}
+
 final class PKSXBridgeViewController: CAPBridgeViewController {
     private static let appViewportPolicy = """
         document.querySelector('meta[name=viewport]')?.setAttribute(
@@ -13,7 +28,10 @@ final class PKSXBridgeViewController: CAPBridgeViewController {
 
     private var controllerObservers: [NSObjectProtocol] = []
     private var directionStates: [String: Set<String>] = [:]
-    private var webViewProgressObservation: NSKeyValueObservation?
+
+    override func webView(with frame: CGRect, configuration: WKWebViewConfiguration) -> WKWebView {
+        PKSXWebView(frame: frame, configuration: configuration)
+    }
 
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
@@ -26,25 +44,6 @@ final class PKSXBridgeViewController: CAPBridgeViewController {
                 forMainFrameOnly: true
             )
         )
-        disableDoubleTapGestures(in: webView)
-        webViewProgressObservation = webView.observe(\.estimatedProgress, options: [.new]) {
-            [weak self] webView, change in
-            guard change.newValue == 1 else { return }
-            DispatchQueue.main.async { [weak self, weak webView] in
-                guard let self, let webView else { return }
-                self.disableDoubleTapGestures(in: webView)
-            }
-        }
-    }
-
-    private func disableDoubleTapGestures(in view: UIView) {
-        for case let recognizer as UITapGestureRecognizer in view.gestureRecognizers ?? []
-        where recognizer.numberOfTapsRequired == 2 {
-            recognizer.isEnabled = false
-        }
-        for subview in view.subviews {
-            disableDoubleTapGestures(in: subview)
-        }
     }
 
     override func viewDidLoad() {
