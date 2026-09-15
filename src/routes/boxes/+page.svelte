@@ -5564,17 +5564,17 @@
 	.two-pane .box-pane-strip {
 		grid-area: 1 / 1 / -1 / -1;
 		display: grid;
-		grid-template-columns: subgrid;
-		grid-template-rows: subgrid;
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: repeat(2, minmax(0, 1fr));
 		overflow: visible;
 	}
 
 	.two-pane .box-pane:first-child {
-		grid-area: leading;
+		grid-area: 1 / 1;
 	}
 
 	.two-pane .box-pane:last-child {
-		grid-area: trailing;
+		grid-area: 2 / 1;
 	}
 
 	.box-pane-strip.single-pane {
@@ -5817,6 +5817,15 @@
 			grid-template-rows: minmax(0, 1fr);
 		}
 
+		.two-pane .box-pane-strip {
+			grid-template-columns: minmax(0, 640px) var(--two-pane-detail-size) minmax(0, 640px);
+			grid-template-rows: minmax(0, 1fr);
+		}
+
+		.two-pane .box-pane:last-child {
+			grid-area: 1 / 3;
+		}
+
 		.two-pane .box-pane:last-child .pane-header {
 			padding-right: calc(var(--pksx-control-height) + var(--pksx-space-2));
 		}
@@ -5838,6 +5847,14 @@
 		.storage-workspace.two-pane {
 			grid-template-areas: 'leading trailing';
 			grid-template-columns: repeat(2, minmax(0, 640px));
+		}
+
+		.two-pane .box-pane-strip {
+			grid-template-columns: repeat(2, minmax(0, 640px));
+		}
+
+		.two-pane .box-pane:last-child {
+			grid-area: 1 / 2;
 		}
 
 		.two-pane .shared-detail {
