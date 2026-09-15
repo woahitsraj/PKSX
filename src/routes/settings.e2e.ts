@@ -25,7 +25,7 @@ async function openPokemonEditor(page: Page) {
 	await page.goto('/boxes');
 	const slot = page.locator('#box-0-slot-0');
 	await expect(slot).toContainText('ARON', { timeout: 15_000 });
-	await slot.click();
+	await slot.focus();
 	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Edit' }).click();
 	const editor = page.getByRole('dialog', { name: 'ARON' });

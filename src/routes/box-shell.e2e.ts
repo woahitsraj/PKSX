@@ -1609,7 +1609,7 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 	await expect(duplicatePane.getByRole('status').filter({ hasText: /Loading/ })).toBeVisible();
 	await page.clock.resume();
 
-	await firstPane.locator('[id$="box-0-slot-0"]').click();
+	await firstPane.locator('[id$="box-0-slot-0"]').focus();
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
 	await pressController(page, 'PageDown');
 	await expect(firstPane.getByRole('heading', { name: 'Box 02' })).toBeVisible({ timeout: 15000 });
@@ -1632,7 +1632,7 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 	await holdWorkspaceResponses(page, 1);
 	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
 	await waitForHeldWorkspaceResponses(page, 2);
-	await firstPane.locator('[id$="box-1-slot-0"]').click();
+	await firstPane.locator('[id$="box-1-slot-0"]').focus();
 	await releaseWorkspaceResponses(page);
 	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
 	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON');
@@ -1640,7 +1640,7 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 	await firstPane.getByRole('button', { name: 'Previous Location' }).click();
 	await expect(firstPane.getByRole('heading', { name: 'Box 01' })).toBeVisible({ timeout: 15000 });
 	await expect(firstPane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
-	await firstPane.locator('[id$="box-0-slot-0"]').click();
+	await firstPane.locator('[id$="box-0-slot-0"]').focus();
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
 	await holdWorkspaceResponses(page);
 	await firstPane.locator('[id$="box-0-slot-2"]').click();
@@ -1656,7 +1656,7 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
 	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON');
 
-	await duplicatePane.locator('[id$="box-1-slot-0"]').click();
+	await duplicatePane.locator('[id$="box-1-slot-0"]').focus();
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
 	await firstPane.locator('[id$="box-0-slot-3"]').click();
 	await expect(firstPane.locator('[id$="box-0-slot-3"]')).toContainText('ARON', {
@@ -2032,7 +2032,7 @@ test('Pokemon Storage opens as an independent second pane and persists copied Po
 	});
 	await savePane.getByRole('button', { name: 'Previous Location' }).click();
 	await expect(savePane).toHaveAttribute('data-location', 'party');
-	await storagePane.locator('[id$="box-1-slot-0"]').click();
+	await storagePane.locator('[id$="box-1-slot-0"]').focus();
 	await expect(storagePane).toHaveAttribute('data-location', 'box-1');
 	await expect(page.locator('#box-1-slot-0')).toBeFocused();
 	await page.keyboard.press('x');
@@ -4725,7 +4725,7 @@ test('Pokemon Editor stages, cancels, and applies an engine-projected Tera Type'
 	await importScarletThroughSaves(page);
 
 	await showPartyFromFirstBox(page);
-	await page.locator('#party-slot-0').click();
+	await page.locator('#party-slot-0').focus();
 	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Edit' }).click();
 
