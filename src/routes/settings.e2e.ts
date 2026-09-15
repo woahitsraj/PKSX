@@ -338,6 +338,20 @@ test('Settings owns floor overflow and uses shared theme state', async ({ page }
 		'aria-pressed',
 		'true'
 	);
+	await page.reload();
+	await expect(page.locator('.app-shell')).toHaveClass(/dark/);
+});
+
+test('Settings uses the system theme until the user chooses an override', async ({ page }) => {
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await openSettings(page);
+	await expect(page.locator('html')).toHaveAttribute('data-pksx-theme', 'dark');
+	await expect(page.locator('.app-shell')).toHaveClass(/dark/);
+
+	await page.getByRole('button', { name: 'Use light theme' }).click();
+	await page.reload();
+	await expect(page.locator('html')).toHaveAttribute('data-pksx-theme', 'light');
+	await expect(page.locator('.app-shell')).not.toHaveClass(/dark/);
 });
 
 test('raw viewport height selects the inherited Height Band at 560px', async ({ page }) => {

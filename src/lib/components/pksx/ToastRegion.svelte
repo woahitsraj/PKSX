@@ -73,7 +73,8 @@
 		will-change: opacity, transform;
 	}
 
-	:global(.app-shell.dark) .toast {
+	:global(.app-shell.dark) .toast,
+	:global(:root[data-pksx-theme='dark']) .toast {
 		background: color-mix(in srgb, var(--paper-hi), white 4%);
 		border-color: color-mix(in srgb, white, transparent 88%);
 	}

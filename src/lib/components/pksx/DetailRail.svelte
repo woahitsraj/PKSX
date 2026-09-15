@@ -253,7 +253,8 @@
 			var(--paper);
 	}
 
-	:global(.app-shell.dark) .portrait-card {
+	:global(.app-shell.dark) .portrait-card,
+	:global(:root[data-pksx-theme='dark']) .portrait-card {
 		background:
 			repeating-radial-gradient(
 				circle at 30% 35%,
