@@ -254,7 +254,7 @@ strong {
 	font-weight: 650;
 }
 
-html[data-input-modality='controller'] body :focus {
+html[data-input-modality='controller'] body :focus:not([data-pksx-control-category='slot']) {
 	outline: 3px solid var(--pksx-color-accent-ring) !important;
 	outline-offset: 3px !important;
 }
