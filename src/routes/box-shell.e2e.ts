@@ -2285,12 +2285,7 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 
 	await page.keyboard.press('Enter');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
-	const backgroundSlot = await page.locator('#box-0-slot-29').boundingBox();
-	expect(backgroundSlot).not.toBeNull();
-	await page.mouse.click(
-		(backgroundSlot?.x ?? 0) + (backgroundSlot?.width ?? 0) / 2,
-		(backgroundSlot?.y ?? 0) + (backgroundSlot?.height ?? 0) / 2
-	);
+	await page.locator('.edge-menu-backdrop:not([inert])').click({ position: { x: 8, y: 8 } });
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
 	await expect(page.locator('#box-0-slot-1')).toBeFocused();
 

@@ -49,4 +49,12 @@ test('keeps the original save visible after opening a second save on Android lan
 	await expect(panes.nth(1)).not.toHaveAttribute('aria-busy', 'true', { timeout: 30_000 });
 	await expect(panes.nth(0).locator('.slot.pokemon').first()).toBeVisible();
 	await expect(panes.nth(1).getByRole('grid')).toBeVisible();
+	const paneBounds = await panes.evaluateAll((elements) =>
+		elements.map((element) => element.getBoundingClientRect().toJSON())
+	);
+	expect(paneBounds[0]?.width).toBeGreaterThan(250);
+	expect(paneBounds[1]?.width).toBeGreaterThan(250);
+	expect(paneBounds[0]?.height).toBeGreaterThan(250);
+	expect(paneBounds[1]?.height).toBeGreaterThan(250);
+	expect(paneBounds[0]?.right).toBeLessThanOrEqual(paneBounds[1]?.left ?? 0);
 });

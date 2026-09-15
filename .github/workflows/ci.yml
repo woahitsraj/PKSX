@@ -5,10 +5,15 @@ on:
   workflow_dispatch:
     inputs:
       android_version:
-        description: Version name for the first manually uploaded Android bundle
+        description: Version name for the manually built Android bundle
         required: true
         default: 0.1.0
         type: string
+      upload_android_internal:
+        description: Upload the Android bundle to Google Play internal testing
+        required: true
+        default: false
+        type: boolean
   push:
     branches:
       - main
@@ -329,6 +334,17 @@ jobs:
           name: pksx-android-${{ inputs.android_version }}
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 3
+
+      - name: Upload build to Google Play internal testing
+        if: inputs.upload_android_internal
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.pksx.app
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          tracks: internal
+          status: completed
+          releaseName: ${{ inputs.android_version }} internal test
 
       - name: Remove Android signing credentials
         if: always()
