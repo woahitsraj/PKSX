@@ -4,6 +4,7 @@ const config: CapacitorConfig = {
 	appId: 'com.pksx.app',
 	appName: 'PKSX',
 	webDir: 'build',
+	zoomEnabled: false,
 	experimental: {
 		ios: {
 			spm: {

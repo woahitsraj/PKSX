@@ -1,9 +1,56 @@
 import Capacitor
 import GameController
+import UIKit
+import WebKit
+
+private final class PKSXWebView: WKWebView {
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let hitView = super.hitTest(point, with: event)
+        disableDoubleTapGestures(in: self)
+        return hitView
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        disableDoubleTapGestures(in: self)
+    }
+
+    private func disableDoubleTapGestures(in view: UIView) {
+        for case let recognizer as UITapGestureRecognizer in view.gestureRecognizers ?? []
+        where recognizer.numberOfTapsRequired == 2 {
+            recognizer.isEnabled = false
+        }
+        view.subviews.forEach(disableDoubleTapGestures)
+    }
+}
 
 final class PKSXBridgeViewController: CAPBridgeViewController {
+    private static let appViewportPolicy = """
+        document.querySelector('meta[name=viewport]')?.setAttribute(
+            'content',
+            'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'
+        )
+        """
+
     private var controllerObservers: [NSObjectProtocol] = []
     private var directionStates: [String: Set<String>] = [:]
+
+    override func webView(with frame: CGRect, configuration: WKWebViewConfiguration) -> WKWebView {
+        PKSXWebView(frame: frame, configuration: configuration)
+    }
+
+    override func capacitorDidLoad() {
+        super.capacitorDidLoad()
+        guard let webView else { return }
+
+        webView.configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: Self.appViewportPolicy,
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+        )
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
