@@ -263,7 +263,7 @@ final class ControllerNavigationTests: XCTestCase {
             "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
         )
         XCTAssertFalse(webView.configuration.ignoresViewportScaleLimits)
-        XCTAssertTrue(enabledDoubleTapRecognizers(in: webView).isEmpty)
+        XCTAssertFalse(hasEnabledDoubleTapRecognizer(in: webView))
         XCTAssertEqual(touchAction, "manipulation")
         XCTAssertTrue(webView.isUserInteractionEnabled)
     }
@@ -328,16 +328,12 @@ final class ControllerNavigationTests: XCTestCase {
         )
     }
 
-    private func enabledDoubleTapRecognizers(in view: UIView) -> [UITapGestureRecognizer] {
-        let local = (view.gestureRecognizers ?? []).compactMap { recognizer in
-            guard
-                let tap = recognizer as? UITapGestureRecognizer,
-                tap.numberOfTapsRequired == 2,
-                tap.isEnabled
-            else { return nil }
-            return tap
+    private func hasEnabledDoubleTapRecognizer(in view: UIView) -> Bool {
+        let hasLocal = (view.gestureRecognizers ?? []).contains { recognizer in
+            guard let tap = recognizer as? UITapGestureRecognizer else { return false }
+            return tap.numberOfTapsRequired == 2 && tap.isEnabled
         }
-        return local + view.subviews.flatMap(enabledDoubleTapRecognizers)
+        return hasLocal || view.subviews.contains(where: hasEnabledDoubleTapRecognizer)
     }
 
     private func findWebView(in view: UIView) -> WKWebView? {
