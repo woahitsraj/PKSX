@@ -263,6 +263,10 @@ final class ControllerNavigationTests: XCTestCase {
             "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
         )
         XCTAssertFalse(webView.configuration.ignoresViewportScaleLimits)
+        _ = webView.hitTest(
+            CGPoint(x: webView.bounds.midX, y: webView.bounds.midY),
+            with: nil
+        )
         XCTAssertFalse(hasEnabledDoubleTapRecognizer(in: webView))
         XCTAssertEqual(touchAction, "manipulation")
         XCTAssertTrue(webView.isUserInteractionEnabled)

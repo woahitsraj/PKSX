@@ -4,6 +4,12 @@ import UIKit
 import WebKit
 
 private final class PKSXWebView: WKWebView {
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let hitView = super.hitTest(point, with: event)
+        disableDoubleTapGestures(in: self)
+        return hitView
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         disableDoubleTapGestures(in: self)
