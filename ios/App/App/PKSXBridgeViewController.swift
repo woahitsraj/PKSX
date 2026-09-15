@@ -13,6 +13,7 @@ final class PKSXBridgeViewController: CAPBridgeViewController {
 
     private var controllerObservers: [NSObjectProtocol] = []
     private var directionStates: [String: Set<String>] = [:]
+    private var webViewProgressObservation: NSKeyValueObservation?
 
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
@@ -26,6 +27,14 @@ final class PKSXBridgeViewController: CAPBridgeViewController {
             )
         )
         disableDoubleTapGestures(in: webView)
+        webViewProgressObservation = webView.observe(\.estimatedProgress, options: [.new]) {
+            [weak self] webView, change in
+            guard change.newValue == 1 else { return }
+            DispatchQueue.main.async { [weak self, weak webView] in
+                guard let self, let webView else { return }
+                self.disableDoubleTapGestures(in: webView)
+            }
+        }
     }
 
     private func disableDoubleTapGestures(in view: UIView) {
