@@ -23,8 +23,7 @@ export type NavigationAction =
 	| 'previousBox'
 	| 'nextBox'
 	| 'sourceAction'
-	| 'carryMode'
-	| 'search';
+	| 'carryMode';
 
 export type BoxNavigationState = {
 	focus: ControllerFocus;
@@ -90,7 +89,6 @@ function applyNavigationCommand(
 		case 'back':
 		case 'sourceAction':
 		case 'carryMode':
-		case 'search':
 		case 'previousBox':
 		case 'nextBox':
 			return state;

@@ -359,6 +359,7 @@ export const spriteIdentitySchema = z.object({
 const slotSummaryFields = {
 	slot: z.number(),
 	speciesId: z.number(),
+	speciesName: z.string().optional(),
 	form: z.number(),
 	format: z.number(),
 	level: z.number(),

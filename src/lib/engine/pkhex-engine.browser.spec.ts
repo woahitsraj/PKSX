@@ -284,6 +284,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			box: 0,
 			slot: 0,
 			speciesId: 304,
+			speciesName: 'Aron',
 			form: 0,
 			format: 3,
 			level: 11,

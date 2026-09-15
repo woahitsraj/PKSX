@@ -2166,7 +2166,7 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 
 	await page.keyboard.press('x');
 	await expect(page.getByRole('dialog', { name: 'Box Menu' })).toBeHidden();
-	await page.keyboard.press('Control+k');
+	await page.keyboard.press('Control+Shift+k');
 	await pressController(page, 'Menu');
 	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeHidden();
 	await expect(page.getByRole('button', { name: 'Open Main Menu' })).toHaveCount(0);
@@ -3636,7 +3636,7 @@ test('Boxes navigation clamps at workspace edges while Main Menu owns destinatio
 	await expect(page.locator('#collection-control-pane-pokemon-storage')).toBeFocused();
 	await expect(page.locator('.section-pills')).toBeHidden();
 	await expect(page.locator('.top-bar, .mobile-tabbar')).toHaveCount(0);
-	await page.keyboard.press('Control+k');
+	await page.keyboard.press('Control+Shift+k');
 	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeVisible();
 });
 
@@ -3664,8 +3664,6 @@ test('controller input follows the keyboard navigation path', async ({ page }) =
 	await expect(page.locator('.boxes-route')).not.toHaveAttribute('inert', '');
 	await expect(page.locator('#box-0-slot-1')).toBeFocused();
 
-	await pressController(page, 'y');
-	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await pressController(page, 'x');
 	await expect(page.getByRole('dialog', { name: 'Box Menu' })).toBeVisible();
 	await expect(page.locator('.boxes-route')).toHaveAttribute('inert', '');

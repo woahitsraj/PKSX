@@ -9,6 +9,7 @@ export type SummonedWorkflowKind =
 	| 'slot-menu'
 	| 'box-menu'
 	| 'main-menu'
+	| 'quick-search'
 	| 'save-file-menu'
 	| 'save-file-delete'
 	| 'source-picker'
@@ -110,7 +111,6 @@ export function dispatchSlotMenuAction(
 		case 'nextBox':
 		case 'sourceAction':
 		case 'carryMode':
-		case 'search':
 			return { focus: focusActionCommand(index, count), effect: 'none' };
 	}
 }

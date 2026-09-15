@@ -62,6 +62,7 @@ export type StoredPokemonStorageSlot = {
 
 export type StoredPokemonStoragePokemon = {
 	label: string;
+	speciesName?: string;
 	detail: string;
 	level: number | null;
 	experience: number | null;

@@ -469,6 +469,10 @@ public class ControllerNavigationTest {
             controllerHighlightExpression("main-menu-entry-1")
         );
         pressGamepadKey(
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            controllerHighlightExpression("main-menu-entry-2")
+        );
+        pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_A,
             "location.pathname.endsWith('/trainer')"
         );

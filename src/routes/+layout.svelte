@@ -14,7 +14,9 @@
 		MAIN_MENU_SEARCH_INSERTION_INDEX,
 		type MainMenuEntry
 	} from '$lib/components/pksx/MainMenu.svelte';
+	import QuickSearch from '$lib/components/pksx/QuickSearch.svelte';
 	import ToastRegion from '$lib/components/pksx/ToastRegion.svelte';
+	import { appCommandForEvent } from '$lib/pksx/app-commands';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import { heightBandLock } from '$lib/pksx/height-band-lock';
 	import { reducedMotion } from '$lib/pksx/motion';
@@ -27,6 +29,12 @@
 	} from '$lib/pksx/destination-focus';
 	import { setDestinationFocusIdentityGetter } from '$lib/pksx/destination-focus-context.svelte';
 	import { getSavesStorage } from '$lib/pksx/saves-cache';
+	import type { QuickSearchResult } from '$lib/pksx/quick-search';
+	import {
+		createQuickSearchHost,
+		setQuickSearchHost,
+		type QuickSearchSaveFile
+	} from '$lib/pksx/quick-search/host.svelte';
 	import { setRouteBackRegistrar } from '$lib/pksx/route-back-context.svelte';
 	import { theme } from '$lib/pksx/theme.svelte';
 	import { createToastHost, setToastHost } from '$lib/pksx/toast/host.svelte';
@@ -44,6 +52,7 @@
 
 	let { children } = $props();
 	const summonedWorkflow = setSummonedWorkflowHost(createSummonedWorkflowHost());
+	const quickSearchHost = setQuickSearchHost(createQuickSearchHost());
 	const toastHost = setToastHost(createToastHost());
 	const storage = getSavesStorage();
 	const destinationFocus = new SvelteMap<Destination, DestinationFocus>();
@@ -64,11 +73,13 @@
 	let platformHistoryDepth = 0;
 	let replaceNextRouteHistory = false;
 	let hasActiveSaveFile = $state(false);
+	let quickSearchSaveFile = $state<QuickSearchSaveFile | null>(null);
 	let activeSaveAvailabilityRequest = 0;
 	let routeTransitionRequest = 0;
 	const destinationOrder: Destination[] = ['saves', 'boxes', 'trainer', 'bag', 'settings'];
 	const activeRoute = $derived<Destination>(destinationForPathname(page.url.pathname));
 	const mainMenuOpen = $derived(summonedWorkflow.active?.kind === 'main-menu');
+	const quickSearchOpen = $derived(summonedWorkflow.active?.kind === 'quick-search');
 	const mainMenuEntries = $derived.by<MainMenuEntry[]>(() => {
 		const entriesAfterReservedSearch: MainMenuEntry[] = [
 			{
@@ -97,9 +108,14 @@
 		];
 
 		const entries: MainMenuEntry[] = [
-			{ key: 'boxes', label: 'Boxes', description: 'Browse the active collections.' }
+			{ key: 'boxes', label: 'Boxes', description: 'Browse the Active Save File.' }
 		];
-		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX, 0, ...entriesAfterReservedSearch);
+		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX, 0, {
+			key: 'search',
+			label: 'Search',
+			description: 'Find a Pokemon in the Active Save File.'
+		});
+		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX + 1, 0, ...entriesAfterReservedSearch);
 		return entries;
 	});
 
@@ -210,6 +226,12 @@
 
 	async function selectMainMenuEntry(entry: MainMenuEntry) {
 		if (!mainMenuOpen) return;
+		if (entry.key === 'search') {
+			const launcher = summonedWorkflow.active?.launcher;
+			summonedWorkflow.closeAll();
+			await openQuickSearch(launcher?.type === 'control' ? launcher : undefined);
+			return;
+		}
 		if (entry.key === activeRoute) {
 			closeMainMenu();
 			return;
@@ -225,6 +247,64 @@
 		skipNextFocusCapture = true;
 		await goto(destinationPath(entry.key), { keepFocus: true });
 		await restoreDestinationFocus(entry.key);
+	}
+
+	async function openQuickSearch(launcher?: { type: 'control'; id: string }) {
+		if (summonedWorkflow.active || appChrome.carryActive) return;
+		let searchLauncher = launcher;
+
+		if (activeRoute !== 'boxes') {
+			skipNextFocusCapture = true;
+			await goto(resolve('/boxes'), { keepFocus: true });
+			await restoreDestinationFocus('boxes');
+			searchLauncher = undefined;
+		}
+
+		const saveFile = quickSearchHost.getProvider()?.captureActiveSaveFile() ?? null;
+		if (!saveFile) {
+			toastHost.error('Import a Save File before searching.');
+			await restoreDestinationFocus('boxes');
+			return;
+		}
+
+		const launcherId =
+			searchLauncher?.id ?? rememberDestinationFocus() ?? ensureDestinationFocus('boxes');
+		if (!launcherId) return;
+		quickSearchSaveFile = saveFile;
+		if (!summonedWorkflow.open('quick-search', { type: 'control', id: launcherId })) {
+			quickSearchSaveFile = null;
+		}
+	}
+
+	function closeQuickSearch() {
+		if (!quickSearchOpen) return;
+		const launcher = summonedWorkflow.dismiss();
+		quickSearchSaveFile = null;
+		queueMicrotask(() => {
+			const target = launcher ? document.getElementById(launcher.id) : null;
+			const route = destinationRoute(activeRoute);
+			if (isFocusableTarget(target) && route?.contains(target)) target.focus();
+			else void restoreDestinationFocus(activeRoute);
+		});
+	}
+
+	async function selectQuickSearchResult(result: QuickSearchResult) {
+		const saveFile = quickSearchSaveFile;
+		if (!quickSearchOpen || !saveFile) return false;
+		const focusId = await saveFile.focusResult(result);
+		if (!focusId) return false;
+
+		summonedWorkflow.dismiss();
+		quickSearchSaveFile = null;
+		await tick();
+		const target = document.getElementById(focusId);
+		if (isFocusableTarget(target)) {
+			target.focus();
+			target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+		} else {
+			await restoreDestinationFocus('boxes');
+		}
+		return true;
 	}
 
 	function destinationPath(destination: Destination) {
@@ -252,22 +332,18 @@
 
 	function handleRootKeydown(event: KeyboardEvent) {
 		const fromController = isControllerKeyboardEvent(event);
-		const shortcut =
-			!fromController &&
-			(event.metaKey || event.ctrlKey) &&
-			!event.altKey &&
-			event.key.toLowerCase() === 'k';
+		const appCommand = appCommandForEvent(event, fromController);
 
-		if (shortcut) {
+		if (appCommand === 'main-menu') {
 			consumeRootEvent(event);
-			if (!summonedWorkflow.active && !appChrome.carryActive) void openMainMenu();
+			if (fromController && mainMenuOpen) closeMainMenu();
+			else if (!summonedWorkflow.active && !appChrome.carryActive) void openMainMenu();
 			return;
 		}
 
-		if (fromController && event.key === 'Menu') {
+		if (appCommand === 'search' && !summonedWorkflow.active && !appChrome.carryActive) {
 			consumeRootEvent(event);
-			if (mainMenuOpen) closeMainMenu();
-			else if (!summonedWorkflow.active && !appChrome.carryActive) void openMainMenu();
+			void openQuickSearch();
 			return;
 		}
 
@@ -645,7 +721,7 @@
 		'app-shell',
 		'pksx-density',
 		theme.dark && 'dark',
-		summonedWorkflow.active?.kind === 'backup-browser' && 'takeover-active'
+		(summonedWorkflow.active?.kind === 'backup-browser' || quickSearchOpen) && 'takeover-active'
 	]}
 	aria-label="PKSX"
 	onfocusin={handleShellFocusIn}
@@ -683,6 +759,12 @@
 		/>
 	{:else if summonedWorkflow.active?.kind === 'backup-browser'}
 		<BackupBrowser />
+	{:else if quickSearchOpen && quickSearchSaveFile}
+		<QuickSearch
+			saveFile={quickSearchSaveFile}
+			onSelect={selectQuickSearchResult}
+			onClose={closeQuickSearch}
+		/>
 	{/if}
 
 	<ToastRegion toasts={toastHost.toasts} />

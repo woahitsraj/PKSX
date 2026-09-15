@@ -80,6 +80,7 @@ export type BoxSlotSummary = {
 	box: number;
 	slot: number;
 	speciesId: number;
+	speciesName?: string;
 	form: number;
 	format: number;
 	level: number;

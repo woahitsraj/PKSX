@@ -174,6 +174,8 @@
 	} from '$lib/pksx/summoned-workflow';
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 	import { getToastHost } from '$lib/pksx/toast/host.svelte';
+	import { createSaveFileQuickSearchResults, type QuickSearchResult } from '$lib/pksx/quick-search';
+	import { getQuickSearchHost, type QuickSearchSaveFile } from '$lib/pksx/quick-search/host.svelte';
 	import { createBoxMenuCommands, type BoxMenuCommandKey } from '$lib/pksx/box-menu';
 	import { createSlotMenuCommands, type SlotMenuCommandKey } from '$lib/pksx/slot-menu';
 	import { layerFade, panelSettle } from '$lib/pksx/motion';
@@ -237,6 +239,7 @@
 	const storage = getSavesStorage();
 	const workspaceService = getActiveWorkspaceService();
 	const summonedWorkflow = getSummonedWorkflowHost();
+	const quickSearchHost = getQuickSearchHost();
 	const toastHost = getToastHost();
 
 	const slotPalette = [16, 28, 48, 100, 140, 180, 195, 210, 220, 260, 280, 295, 330, 52];
@@ -1349,7 +1352,11 @@
 	}
 
 	function handleAppKeydown(event: KeyboardEvent) {
-		if (activeSummonedWorkflow?.kind === 'backup-browser') return;
+		if (
+			activeSummonedWorkflow?.kind === 'backup-browser' ||
+			activeSummonedWorkflow?.kind === 'quick-search'
+		)
+			return;
 		const action = keyboardAction(event);
 
 		if (!action) {
@@ -2840,6 +2847,7 @@
 		return {
 			slot,
 			label: pokemon.label,
+			speciesName: pokemon.speciesName,
 			detail: pokemon.detail,
 			level: pokemon.level,
 			experience: pokemon.experience,
@@ -2882,6 +2890,7 @@
 	): StoredPokemonStoragePokemon {
 		return {
 			label: slot.label,
+			speciesName: slot.speciesName,
 			detail: slot.detail,
 			level: slot.level,
 			experience: slot.experience,
@@ -4446,7 +4455,106 @@
 		);
 	}
 
+	function captureActiveQuickSearchSaveFile(): QuickSearchSaveFile | null {
+		const pane = workbenchPanes.find(({ id }) => id === activeSavePaneId);
+		if (!initialStateReady || pane?.source.type !== 'save-file' || !pane.source.id) return null;
+		const source = { ...pane.source };
+
+		return {
+			fileName: source.label,
+			isAvailable: async () => {
+				if (!matchesActiveQuickSearchSaveFile(pane.id, source)) return false;
+				return Boolean(source.id && (await storage.getSave(source.id)));
+			},
+			loadResults: () => loadQuickSearchResults(pane.id, source),
+			focusResult: (result) => focusQuickSearchResult(result, pane.id, source)
+		};
+	}
+
+	function matchesActiveQuickSearchSaveFile(paneId: string, source: BoxSourceRef) {
+		return workbenchPanes.some(
+			(pane) =>
+				pane.id === activeSavePaneId &&
+				pane.id === paneId &&
+				pane.source.type === 'save-file' &&
+				pane.source.id === source.id
+		);
+	}
+
+	async function loadQuickSearchResults(paneId: string, source: BoxSourceRef) {
+		if (!matchesActiveQuickSearchSaveFile(paneId, source)) return [];
+		if (!source.id || !engine) return [];
+
+		const [saveFile, saveBytes, persistedWorkspace] = await Promise.all([
+			storage.getSave(source.id),
+			storage.getSaveBytes(source.id),
+			storage.getWorkspace(source.id)
+		]);
+		if (!saveFile || !saveBytes || !matchesActiveQuickSearchSaveFile(paneId, source)) return [];
+		const bytes = persistedWorkspace?.bytes ?? saveBytes;
+		const workspace = await loadWorkspace(bytes, saveFile.originalFileName ?? undefined, 0);
+		const boxSlots = [...workspace.boxSlots];
+		for (let box = 1; box < workspace.summary.boxCount; box += 1) {
+			const result = await engine.listBoxSlots(bytes, saveFile.originalFileName ?? undefined, box);
+			if (!result.ok) throw result.error;
+			boxSlots.push(...result.value);
+		}
+		if (!matchesActiveQuickSearchSaveFile(paneId, source)) return [];
+
+		return createSaveFileQuickSearchResults({
+			saveFileId: source.id,
+			saveFileName: source.label,
+			paneId,
+			partySlots: workspace.partySlots,
+			boxSlots
+		});
+	}
+
+	async function focusQuickSearchResult(
+		result: QuickSearchResult,
+		paneId: string,
+		source: BoxSourceRef
+	) {
+		if (
+			result.paneId !== paneId ||
+			result.saveFileId !== source.id ||
+			!matchesActiveQuickSearchSaveFile(paneId, source)
+		) {
+			return null;
+		}
+
+		if (!source.id || !(await storage.getSave(source.id))) {
+			return null;
+		}
+
+		const pane = workbenchPanes.find((candidate) => candidate.id === paneId);
+		if (!pane) return null;
+		const focus = result.zone === 'party' ? focusPartySlot(result.slot) : focusBoxSlot(result.slot);
+		const activeBox = result.box ?? pane.activeBox;
+		activePaneId = paneId;
+		workbenchPanes = setPaneFocus(
+			setPaneActiveBox(workbenchPanes, paneId, activeBox),
+			paneId,
+			focus
+		);
+		navigation = {
+			...navigation,
+			activeBox,
+			boxCount: Math.max(1, pane.boxCount),
+			focus,
+			locationFocus: focus
+		};
+
+		if (result.zone === 'box') {
+			await refreshPaneWorkspace(paneId, activeBox);
+		}
+		return getFocusId(focus, activeBox);
+	}
+
 	onMount(() => {
+		const unregisterQuickSearch = quickSearchHost.register({
+			captureActiveSaveFile: captureActiveQuickSearchSaveFile
+		});
 		const unsubscribe = workspaceService.subscribe((state) => {
 			const adoptAsActiveSave = state ? consumeActiveSaveAdoption(state.file.id) : false;
 			loadedSave = state;
@@ -4468,6 +4576,7 @@
 		void restoreInitialState();
 		return () => {
 			resizeObserver?.disconnect();
+			unregisterQuickSearch();
 			unsubscribe();
 		};
 	});

@@ -21,6 +21,7 @@ export type SlotView = {
 	experience: number | null;
 	experienceProjection: PokemonExperienceProjection | null;
 	speciesId: number | null;
+	speciesName?: string;
 	form: number | null;
 	isEgg: boolean;
 	spriteIdentity: SpriteIdentity | null;

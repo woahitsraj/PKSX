@@ -126,6 +126,7 @@ export function createSlotView(slot: PartySlotSummary | BoxSlotSummary): SlotVie
 	return {
 		slot: slot.slot,
 		label: slot.nickname || `Species ${slot.speciesId}`,
+		speciesName: slot.speciesName,
 		detail: `Lv. ${slot.level}`,
 		level: slot.level,
 		experience: slot.experience,
