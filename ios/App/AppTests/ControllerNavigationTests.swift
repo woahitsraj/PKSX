@@ -249,6 +249,24 @@ final class ControllerNavigationTests: XCTestCase {
         XCTAssertEqual(preservesInsets, true)
     }
 
+    func testWebViewDisablesZoomWithoutBlockingSlotTouches() async throws {
+        let webView = try await controllerSurface()
+        let policy = try await webView.evaluateJavaScript(
+            "document.querySelector('meta[name=viewport]')?.content"
+        ) as? String
+        let touchAction = try await webView.evaluateJavaScript(
+            "getComputedStyle(document.querySelector('#box-0-slot-0')).touchAction"
+        ) as? String
+
+        XCTAssertEqual(
+            policy,
+            "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+        )
+        XCTAssertFalse(webView.configuration.ignoresViewportScaleLimits)
+        XCTAssertEqual(touchAction, "manipulation")
+        XCTAssertTrue(webView.isUserInteractionEnabled)
+    }
+
     func testSettingsReportsInstalledAppVersion() async throws {
         let webView = try await controllerSurface()
         let installedVersion = try XCTUnwrap(
