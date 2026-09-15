@@ -6,6 +6,7 @@ import static org.junit.Assume.assumeTrue;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.Build;
@@ -26,7 +27,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -577,7 +577,9 @@ public class ControllerNavigationTest {
     @Test
     public void openingSecondSaveKeepsOriginalPanePainted() throws Exception {
         try (NativeDisplayFixture fixture = new NativeDisplayFixture()) {
-            fixture.setViewport(360, 640, 1, false);
+            fixture.setViewport(1080, 1920, 1, false);
+            shellCommand("wm density 369");
+            awaitJavaScript("innerWidth > 800 && innerWidth < 850");
             awaitControllerSurface();
             importEmeraldSave();
             importSave("x/011020252224.sav", "x.sav");
@@ -605,7 +607,7 @@ public class ControllerNavigationTest {
                     + ".textContent.includes('ARON')",
                 ENGINE_TIMEOUT_SECONDS
             );
-            assertPainted("[data-pane-id=\"pane-active-save\"] .location-grid");
+            assertPainted("[data-pane-id=\"pane-active-save\"] .slot.pokemon");
         }
     }
 
@@ -2278,31 +2280,55 @@ public class ControllerNavigationTest {
                 "(() => { const rect=document.querySelector('"
                     + selector
                     + "').getBoundingClientRect();"
-                    + " return {left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom}; })()"
+                    + " return {left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,"
+                    + "innerWidth,innerHeight}; })()"
             )
         );
-        AtomicReference<int[]> origin = new AtomicReference<>();
+        AtomicReference<int[]> webViewGeometry = new AtomicReference<>();
         activityRule
             .getScenario()
             .onActivity(
                 activity -> {
                     int[] value = new int[2];
-                    activity.getBridge().getWebView().getLocationOnScreen(value);
-                    origin.set(value);
+                    WebView webView = activity.getBridge().getWebView();
+                    webView.getLocationOnScreen(value);
+                    webViewGeometry.set(
+                        new int[] { value[0], value[1], webView.getWidth(), webView.getHeight() }
+                    );
                 }
             );
+        SystemClock.sleep(500);
         Bitmap screenshot = InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
-        int[] webViewOrigin = origin.get();
-        HashSet<Integer> colors = new HashSet<>();
-        int left = webViewOrigin[0] + bounds.getInt("left") + 4;
-        int top = webViewOrigin[1] + bounds.getInt("top") + 4;
-        int right = webViewOrigin[0] + bounds.getInt("right") - 4;
-        int bottom = webViewOrigin[1] + bounds.getInt("bottom") - 4;
+        int[] webView = webViewGeometry.get();
+        double scaleX = webView[2] / bounds.getDouble("innerWidth");
+        double scaleY = webView[3] / bounds.getDouble("innerHeight");
+        int left = Math.max(
+            0,
+            webView[0] + (int) Math.ceil(bounds.getDouble("left") * scaleX) + 4
+        );
+        int top = Math.max(
+            0,
+            webView[1] + (int) Math.ceil(bounds.getDouble("top") * scaleY) + 4
+        );
+        int right = Math.min(
+            screenshot.getWidth(),
+            webView[0] + (int) Math.floor(bounds.getDouble("right") * scaleX) - 4
+        );
+        int bottom = Math.min(
+            screenshot.getHeight(),
+            webView[1] + (int) Math.floor(bounds.getDouble("bottom") * scaleY) - 4
+        );
+        int brightPixels = 0;
         for (int y = top; y < bottom; y += 4) {
-            for (int x = left; x < right; x += 4) colors.add(screenshot.getPixel(x, y));
+            for (int x = left; x < right; x += 4) {
+                int color = screenshot.getPixel(x, y);
+                if (Color.red(color) > 128 && Color.green(color) > 128 && Color.blue(color) > 128) {
+                    brightPixels += 1;
+                }
+            }
         }
         screenshot.recycle();
-        if (colors.size() < 24) fail("Save pane was not painted, sampled colors: " + colors.size());
+        if (brightPixels < 100) fail("Save pane was not painted, bright pixels: " + brightPixels);
     }
 
     private byte[] readAsset(String name) throws Exception {

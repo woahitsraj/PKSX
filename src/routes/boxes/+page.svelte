@@ -5543,6 +5543,8 @@
 
 	.storage-workspace.two-pane {
 		--two-pane-detail-size: clamp(56px, calc(20cqw - 68px), 260px);
+		--two-pane-inline-size: calc(100cqw - var(--pksx-space-1) * 2);
+		--two-pane-block-size: calc((100cqh - var(--pksx-space-1)) / 2 - var(--pksx-space-1) * 2);
 		grid-template-areas:
 			'leading'
 			'trailing';
@@ -5583,7 +5585,9 @@
 	}
 
 	.box-pane {
-		container: box-pane / size;
+		--box-pane-inline-size: 100cqw;
+		--box-pane-block-size: 100cqh;
+		container: none;
 		flex: 0 0 min(640px, 100%);
 		width: 100%;
 		height: 100%;
@@ -5688,10 +5692,10 @@
 		--slot-size: max(
 			var(--pksx-slot-minimum),
 			min(
-				calc((100cqw - var(--pksx-border-width) * 5) / 6),
+				calc((var(--box-pane-inline-size) - var(--pksx-border-width) * 5) / 6),
 				calc(
 					(
-							100cqh - var(--pksx-control-height) - var(--pksx-space-unit) -
+							var(--box-pane-block-size) - var(--pksx-control-height) - var(--pksx-space-unit) -
 								var(--pksx-border-width) * 4
 						) /
 						5
@@ -5716,10 +5720,10 @@
 			var(--pksx-slot-minimum),
 			min(
 				112px,
-				calc((100cqw - var(--pksx-border-width) * 2) / 3),
+				calc((var(--box-pane-inline-size) - var(--pksx-border-width) * 2) / 3),
 				calc(
 					(
-							100cqh - var(--pksx-control-height) - var(--pksx-space-unit) -
+							var(--box-pane-block-size) - var(--pksx-control-height) - var(--pksx-space-unit) -
 								var(--pksx-border-width)
 						) /
 						2
@@ -5728,6 +5732,11 @@
 		);
 		grid-template-columns: repeat(3, var(--slot-size));
 		grid-template-rows: repeat(2, var(--slot-size));
+	}
+
+	.two-pane .location-grid {
+		--box-pane-inline-size: var(--two-pane-inline-size);
+		--box-pane-block-size: var(--two-pane-block-size);
 	}
 
 	.slot-row {
@@ -5810,6 +5819,11 @@
 		}
 
 		.storage-workspace.two-pane {
+			--two-pane-inline-size: calc(
+				min(640px, calc((100cqw - var(--two-pane-detail-size) - var(--pksx-space-1) * 2) / 2)) -
+					var(--pksx-space-1) * 2
+			);
+			--two-pane-block-size: calc(100cqh - var(--pksx-space-1) * 2);
 			width: 100%;
 			max-width: calc(1280px + 260px + var(--pksx-space-1) * 2);
 			grid-template-areas: 'leading rail trailing';
@@ -5845,6 +5859,9 @@
 
 	@container boxes-route (orientation: landscape) and (max-width: 1250px) {
 		.storage-workspace.two-pane {
+			--two-pane-inline-size: calc(
+				min(640px, calc((100cqw - var(--pksx-space-1)) / 2)) - var(--pksx-space-1) * 2
+			);
 			grid-template-areas: 'leading trailing';
 			grid-template-columns: repeat(2, minmax(0, 640px));
 		}

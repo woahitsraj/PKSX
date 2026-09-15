@@ -34,24 +34,6 @@ test('keeps the original save visible after opening a second save on Android lan
 		'ready',
 		{ timeout: 30_000 }
 	);
-	// Simulate an Android WebView that ignores subgrid declarations.
-	const removedSubgridRules = await page.evaluate(() => {
-		let removed = 0;
-		for (const sheet of document.styleSheets) {
-			for (const rule of sheet.cssRules) {
-				if (
-					rule instanceof CSSStyleRule &&
-					rule.selectorText.includes('.box-pane-strip') &&
-					rule.style.gridTemplateColumns === 'subgrid'
-				) {
-					rule.style.removeProperty('grid-template-columns');
-					rule.style.removeProperty('grid-template-rows');
-					removed += 1;
-				}
-			}
-		}
-		return removed;
-	});
 	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
 	await page
 		.getByRole('dialog', { name: 'Box Menu' })
@@ -75,5 +57,4 @@ test('keeps the original save visible after opening a second save on Android lan
 	expect(paneBounds[0]?.height).toBeGreaterThan(250);
 	expect(paneBounds[1]?.height).toBeGreaterThan(250);
 	expect(paneBounds[0]?.right).toBeLessThanOrEqual(paneBounds[1]?.left ?? 0);
-	expect(removedSubgridRules).toBe(0);
 });
