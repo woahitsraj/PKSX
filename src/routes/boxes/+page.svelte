@@ -5585,8 +5585,6 @@
 	}
 
 	.box-pane {
-		--box-pane-inline-size: 100cqw;
-		--box-pane-block-size: 100cqh;
 		container: none;
 		flex: 0 0 min(640px, 100%);
 		width: 100%;
@@ -5689,6 +5687,10 @@
 	}
 
 	.location-grid {
+		--box-pane-inline-size: calc(min(800px, 100cqw) - var(--pksx-space-1) * 2);
+		--box-pane-block-size: calc(
+			max(334px, 100cqh - var(--pksx-space-1) - 260px) - var(--pksx-space-1) * 2
+		);
 		--slot-size: max(
 			var(--pksx-slot-minimum),
 			min(
@@ -5829,6 +5831,21 @@
 			grid-template-areas: 'leading rail trailing';
 			grid-template-columns: minmax(0, 640px) var(--two-pane-detail-size) minmax(0, 640px);
 			grid-template-rows: minmax(0, 1fr);
+		}
+
+		.single-pane .location-grid {
+			--box-pane-inline-size: calc(
+				min(
+						800px,
+						max(
+							360px,
+							calc((100cqw - var(--pksx-space-1) + 210px) / 2),
+							calc(100cqw - var(--pksx-space-1) - 260px)
+						)
+					) -
+					var(--pksx-space-1) * 2
+			);
+			--box-pane-block-size: calc(100cqh - var(--pksx-space-1) * 2);
 		}
 
 		.two-pane .box-pane-strip {
