@@ -180,6 +180,14 @@ _Avoid_: cloud account, provider account, device account
 A durable object in Saves that Cloud Sync addresses and tracks independently.
 _Avoid_: cloud file, provider record, synced row
 
+**Shared Sync State**:
+The last complete, valid state for a Sync Object that its Sync Profile has accepted for distribution across enrolled devices.
+_Avoid_: cloud source of truth, provider version, remote file
+
+**Pending Sync Change**:
+A durable local change to a Sync Object that has not yet entered Shared Sync State.
+_Avoid_: unsaved change, Export
+
 **Backup**:
 A restorable snapshot of save file bytes created before a risky operation.
 _Avoid_: copy, version, checkpoint, undo
@@ -303,6 +311,15 @@ _Avoid_: setting, option, config
 - A local **Saves** collection may exist without a **Sync Profile**.
 - A **Sync Profile** owns one synchronized **Saves** collection.
 - Every **Sync Object** belongs to exactly one **Sync Profile**.
+- Device-local **Saves** determines what that device opens and edits, including while offline.
+- **Shared Sync State** identifies the last complete, valid state accepted for cross-device distribution; it does not replace divergent local work.
+- A successfully persisted local change becomes a **Pending Sync Change** without blocking further local work.
+- Provider filenames, paths, timestamps, ordering, and object versions do not advance **Shared Sync State**.
+- A complete, valid incoming change replaces a clean, inactive local **Sync Object** automatically.
+- PKSX stages an incoming change while the user is working with its **Sync Object** and applies it at a safe reload boundary.
+- When local and incoming states have both changed from their acknowledged state, PKSX preserves both until the conflict is resolved.
+- Invalid or unsupported incoming state does not replace valid local state or advance **Shared Sync State**.
+- Enrolling an empty device in a **Sync Profile** materializes its **Shared Sync State** into local **Saves**.
 - A **Sync Object** keeps one permanent, opaque identifier across devices and providers.
 - Filenames, provider keys, storage paths, timestamps, and content hashes do not determine **Sync Object** identity.
 - Importing or copying a durable object creates a new identity; editing it or moving it within the same object boundary preserves its identity.
