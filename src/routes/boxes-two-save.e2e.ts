@@ -57,4 +57,25 @@ test('keeps the original save visible after opening a second save on Android lan
 	expect(paneBounds[0]?.height).toBeGreaterThan(250);
 	expect(paneBounds[1]?.height).toBeGreaterThan(250);
 	expect(paneBounds[0]?.right).toBeLessThanOrEqual(paneBounds[1]?.left ?? 0);
+
+	await panes.nth(1).evaluate((element) => {
+		const pane = element as HTMLElement & {
+			busyStates?: string[];
+			busyObserver?: MutationObserver;
+		};
+		pane.busyStates = [];
+		pane.busyObserver = new MutationObserver(() => {
+			pane.busyStates?.push(pane.getAttribute('aria-busy') ?? 'false');
+		});
+		pane.busyObserver.observe(pane, { attributes: true, attributeFilter: ['aria-busy'] });
+	});
+
+	await page.keyboard.press('ArrowRight');
+	await expect(panes.nth(1)).not.toHaveAttribute('aria-busy', 'true', { timeout: 30_000 });
+	expect(
+		await panes.nth(1).evaluate((element) => {
+			const pane = element as HTMLElement & { busyStates?: string[] };
+			return pane.busyStates ?? [];
+		})
+	).not.toContain('true');
 });

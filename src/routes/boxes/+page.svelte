@@ -765,7 +765,11 @@
 			void loadWorkspaceForSave(loadedSave, navigation.activeBox);
 		}
 
-		if (pane?.source.type === 'save-file' && pane.source.id !== loadedSave?.file.id) {
+		if (
+			pane?.source.type === 'save-file' &&
+			pane.source.id !== loadedSave?.file.id &&
+			navigation.activeBox !== previousBox
+		) {
 			void refreshPaneWorkspace(pane.id, navigation.activeBox);
 		}
 
