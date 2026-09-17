@@ -135,6 +135,25 @@ test('searches the Active Save File and opens the exact result', async ({ page }
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 });
 
+test('search returns to the captured Save File pane and exact Slot', async ({ page }) => {
+	await importActiveSaveFile(page);
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page.getByRole('button', { name: 'Open another collection' }).click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /emerald-011020251345\.sav/ })
+		.click();
+	await expect(page.locator('.box-pane').nth(1)).toHaveClass(/active-pane/);
+
+	const search = await openSearchFromMainMenu(page);
+	await search.getByRole('searchbox').fill('Aron');
+	await search.getByRole('button', { name: /ARON, Aron, Box 01, Slot 1/ }).click();
+
+	await expect(search).toBeHidden();
+	await expect(page.locator('.box-pane').nth(1)).toHaveClass(/active-pane/);
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+});
+
 test('keyboard and controller shortcuts open and navigate Search', async ({ page }) => {
 	await importActiveSaveFile(page);
 	await page.locator('#box-0-slot-0').focus();

@@ -12,7 +12,6 @@ export type BoxMenuCommand = {
 export function createBoxMenuCommands(input: {
 	source: { type: BoxSourceType; label: string };
 	workspaceReady: boolean;
-	activeSavePane: boolean;
 	paneCount: number;
 }): BoxMenuCommand[] {
 	const unavailable = (key: BoxMenuCommandKey, label: string, reason: string): BoxMenuCommand => ({
@@ -27,7 +26,6 @@ export function createBoxMenuCommands(input: {
 		availability: 'available',
 		reason: null
 	});
-	const activeFileReason = 'This is your active save file. Pick another one from Saves.';
 	const workspaceReason = `${input.source.label} is still loading.`;
 	const storage = input.source.type === 'pokemon-storage';
 
@@ -42,16 +40,12 @@ export function createBoxMenuCommands(input: {
 			: input.workspaceReady
 				? available('save-backup', 'Save a backup')
 				: unavailable('save-backup', 'Save a backup', workspaceReason),
-		input.activeSavePane
-			? unavailable('switch', 'Switch', activeFileReason)
-			: available('switch', 'Switch'),
+		available('switch', 'Switch'),
 		input.paneCount >= 2
 			? unavailable('open-another', 'Open another collection', 'Two collections are already open.')
 			: available('open-another', 'Open another collection'),
-		input.activeSavePane
-			? unavailable('close', 'Close', activeFileReason)
-			: input.paneCount <= 1
-				? unavailable('close', 'Close', 'Keep at least one collection open.')
-				: available('close', 'Close')
+		input.paneCount <= 1
+			? unavailable('close', 'Close', 'Keep at least one collection open.')
+			: available('close', 'Close')
 	];
 }

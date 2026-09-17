@@ -11,6 +11,7 @@
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
 	import type { EngineError } from '$lib/engine';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
+	import { getBoxesSession } from '$lib/pksx/boxes-session';
 	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
 	import { easeOut, reducedMotion } from '$lib/pksx/motion';
 	import {
@@ -57,6 +58,7 @@
 		| { kind: 'pokemon-storage'; index: number }
 		| { kind: 'import'; index: number };
 	const storage = getSavesStorage();
+	const boxesSession = getBoxesSession();
 	const summonedWorkflow = getSummonedWorkflowHost();
 	const toastHost = getToastHost();
 	const gameNames: Record<string, string> = {
@@ -371,7 +373,11 @@
 	async function openPokemonStorage() {
 		if (busyTarget) return;
 		chooseTarget({ kind: 'pokemon-storage' }, false);
-		await goto(resolve('/boxes?source=pokemon-storage'));
+		boxesSession.selectPrimary(
+			{ type: 'pokemon-storage', id: 'pokemon-storage', label: 'Pokemon Storage' },
+			pokemonStorage.boxCount
+		);
+		await goto(resolve('/boxes'));
 	}
 
 	function openImportPicker() {
@@ -400,6 +406,12 @@
 			const validation = await getPkhexEngine().loadSaveWorkspace(bytes, file.name, 0);
 			if (!validation.ok) throw validation.error;
 			const stored = await storage.importSave({ bytes, originalFileName: file.name });
+			boxesSession.selectPrimary({
+				type: 'save-file',
+				id: stored.id,
+				label: stored.originalFileName ?? 'Save File',
+				dirty: false
+			});
 			invalidateSavesCache();
 			invalidateActiveWorkspaceCache();
 			await refreshSaves({
@@ -449,6 +461,12 @@
 				invalidateActiveWorkspaceCache();
 				invalidateSavesCache();
 			}
+			boxesSession.selectPrimary({
+				type: 'save-file',
+				id: current.id,
+				label: current.originalFileName ?? 'Save File',
+				dirty: persistedWorkspace?.dirty ?? false
+			});
 			chooseTarget({ kind: 'save-file', id: current.id }, false);
 			summonedWorkflow.closeAll();
 			menuSaveFileId = null;

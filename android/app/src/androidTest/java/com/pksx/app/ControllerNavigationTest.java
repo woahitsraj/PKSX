@@ -69,7 +69,7 @@ public class ControllerNavigationTest {
         awaitControllerSurface();
         runJavaScript("location.assign('/boxes?source=pokemon-storage')");
         awaitJavaScript(
-            "location.search === '?source=pokemon-storage'"
+            "location.pathname === '/boxes' && location.search === ''"
                 + " && document.querySelector('.boxes-route')?.dataset.initialState === 'ready'"
                 + " && document.querySelector('#box-grid')?.getAttribute('aria-label')"
                 + ".startsWith('Pokemon Storage Box 01')"
@@ -601,13 +601,13 @@ public class ControllerNavigationTest {
             );
             awaitJavaScript(
                 "document.querySelectorAll('.box-pane').length === 2"
-                    + " && !document.querySelector('[data-pane-id=\"pane-active-save\"]')"
+                    + " && !document.querySelector('[data-pane-id=\"pane-primary\"]')"
                     + ".hasAttribute('aria-busy')"
-                    + " && document.querySelector('[data-pane-id=\"pane-active-save\"]')"
+                    + " && document.querySelector('[data-pane-id=\"pane-primary\"]')"
                     + ".textContent.includes('ARON')",
                 ENGINE_TIMEOUT_SECONDS
             );
-            assertPainted("[data-pane-id=\"pane-active-save\"] .slot.pokemon");
+            assertPainted("[data-pane-id=\"pane-primary\"] .slot.pokemon");
         }
     }
 
@@ -723,7 +723,7 @@ public class ControllerNavigationTest {
             awaitCapturedIdentity("two-pane landscape restored", paneIdentity, paneIdentityExpression());
 
             runJavaScript(
-                "document.querySelector('[data-pane-id=\"pane-active-save\"] [id$=\"-slot-0\"]').click()"
+                "document.querySelector('[data-pane-id=\"pane-primary\"] [id$=\"-slot-0\"]').click()"
             );
             awaitJavaScript("document.activeElement?.id === 'box-0-slot-0'");
             pressGamepadKey(
@@ -1133,7 +1133,7 @@ public class ControllerNavigationTest {
                 + " return location.pathname === '/boxes' && panes.length === "
                 + paneCount
                 + " && new Set(panes.map(pane => pane.dataset.paneId)).size === panes.length"
-                + " && panes[0]?.dataset.paneId === 'pane-active-save'"
+                + " && panes[0]?.dataset.paneId === 'pane-primary'"
                 + " && panes[0]?.dataset.location === 'box-0'"
                 + (paneCount == 2
                     ? " && panes[1]?.dataset.sourceId === 'pokemon-storage'"
