@@ -172,6 +172,14 @@ _Avoid_: cloud sync, account sync
 An opt-in capability that makes Saves, including persisted Workspace changes, available to the same user across PKSX devices.
 _Avoid_: Peer Transfer, TinyBase sync, Export
 
+**Sync Profile**:
+The provider-neutral owner of one synchronized Saves collection.
+_Avoid_: cloud account, provider account, device account
+
+**Sync Object**:
+A durable object in Saves that Cloud Sync addresses and tracks independently.
+_Avoid_: cloud file, provider record, synced row
+
 **Backup**:
 A restorable snapshot of save file bytes created before a risky operation.
 _Avoid_: copy, version, checkpoint, undo
@@ -292,6 +300,16 @@ _Avoid_: setting, option, config
 - A **Box** always has a number and may also have a **Box Name**.
 - A **Slot** contains zero or one **Pokemon Entity**.
 - **Saves** stores imported **Save Files**, **Backups**, **Pokemon Storage**, and persisted **Workspaces**.
+- A local **Saves** collection may exist without a **Sync Profile**.
+- A **Sync Profile** owns one synchronized **Saves** collection.
+- Every **Sync Object** belongs to exactly one **Sync Profile**.
+- A **Sync Object** keeps one permanent, opaque identifier across devices and providers.
+- Filenames, provider keys, storage paths, timestamps, and content hashes do not determine **Sync Object** identity.
+- Importing or copying a durable object creates a new identity; editing it or moving it within the same object boundary preserves its identity.
+- A **Save File** is a root **Sync Object** identified by its Save File ID.
+- A **Workspace** is a child **Sync Object** identified by its owning **Save File**, not by a separate Workspace ID.
+- A **Save File** owns at most one persisted **Workspace**.
+- A **Backup** is an immutable child **Sync Object** with its own Backup ID.
 - **Saves** may keep the active **Dirty Workspace** without overwriting the imported **Save File**.
 - Deleting a **Save File** from **Saves** also deletes its **Backups**.
 - Deleting the active **Save File** from **Saves** also deletes its **Workspace**, including any **Dirty Workspace**, and requires explicit user confirmation.
@@ -321,8 +339,19 @@ _Avoid_: setting, option, config
 - Keeping restored backup bytes as a separate **Save File** clears the **Dirty Workspace** when the active **Workspace** matches the new **Save File**.
 - A **Slot Action** that changes nothing is not a **Risky Change**.
 - **Pokemon Storage** contains **Pokemon Entities** that are outside any **Save File**.
+- A **Sync Profile** owns one **Pokemon Storage**, which is a root **Sync Object** with its own Pokemon Storage ID.
 - **Pokemon Storage** contains one or more **Storage Boxes**.
+- A **Storage Box** is a **Sync Object** with a permanent Storage Box ID that survives renaming and reordering.
 - A **Storage Box** contains zero or more **Slots**.
+- A **Slot** in **Pokemon Storage** is identified by its Storage Box ID and slot index; it is not a **Sync Object**.
+- A **Pokemon Storage**-owned **Pokemon Entity** is a **Sync Object** identified by the Record ID in its **Preservation Payload**.
+- A **Record ID** identifies a live **Preservation Payload**, not a **Pokemon Entity** after it enters **Save File** bytes.
+- Moving a **Pokemon Entity** within **Pokemon Storage** preserves its **Record ID**.
+- Copying a **Pokemon Entity** within **Pokemon Storage** creates a new **Record ID** and preserves its **Pokemon Origin**.
+- Copying a **Pokemon Entity** from **Pokemon Storage** into a **Save File** leaves the source **Record ID** in **Pokemon Storage**; the inserted save bytes have no **Record ID**.
+- Moving a **Pokemon Entity** from **Pokemon Storage** into a **Save File** retires its **Record ID** when PKSX removes the source **Preservation Payload**.
+- Extracting a **Pokemon Entity** from a **Save File** creates a new **Record ID**, even when its **Identity Fingerprint** matches an earlier record.
+- Parties, Boxes, and Slots inside **Save File** or **Workspace** bytes are not **Sync Objects**.
 - A **Storage Box** is owned by PKSX, not by any **Save File**.
 - A **Box Source** supplies either **Boxes** from a **Save File** or **Storage Boxes** from **Pokemon Storage**.
 - A **Box Source** is presented to the user only when the collection behind it is available in PKSX.
@@ -339,6 +368,9 @@ _Avoid_: setting, option, config
 - Two **Pokemon Copies** may have the same **Identity Fingerprint**.
 - An **Identity Fingerprint** uses the base-evolution species, so evolution alone does not change it.
 - An **Identity Fingerprint** is evidence of shared individual identity, not a database uniqueness constraint.
+- **Pokemon Origin** is immutable metadata embedded in a **Pokemon Storage** record, not a separate **Sync Object**.
+- **Pokemon Origin** is created when a **Pokemon Entity** first becomes a **Preservation Payload** through move, copy, import, or transfer.
+- A source Save File ID in **Pokemon Origin** is a historical reference, not an ownership relationship.
 - **Pokemon Origin** records where a **Pokemon Entity** came from; it does not determine its current owner or location.
 - A **Legality Check** evaluates one **Pokemon Entity**.
 - A **Legality Report** is produced by a **Legality Check**.
@@ -387,6 +419,9 @@ _Avoid_: setting, option, config
 - A **Peer Transfer** sends **Pokemon Entities** or **Storage Boxes** between two devices running PKSX.
 - A **Pokemon Entity** received through **Peer Transfer** enters **Pokemon Storage** before it can be moved into a **Save File**.
 - **Cloud Sync** makes **Save Files**, **Backups**, **Pokemon Storage**, and persisted **Workspaces** available across a user's PKSX devices.
+- Metadata needed to interpret or present a **Sync Object** travels with that object.
+- Synced metadata belongs to exactly one **Sync Object** or **Sync Profile**; it does not exist as an unowned record.
+- The active **Save File**, **Controller Focus**, caches, validation output, credentials, enrollment state, and **Preferences** remain device-local.
 - A **Dirty Workspace** received through **Cloud Sync** can be opened and **Exported** on another device.
 - **Cloud Sync** never writes to the original user-controlled file; **Export** does.
 - The **PKHeX Engine** provides a **Facade** that the Svelte app uses.
