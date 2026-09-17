@@ -8,7 +8,6 @@ describe('Box Menu commands', () => {
 			createBoxMenuCommands({
 				source: { type: 'save-file', label: 'emerald.sav' },
 				workspaceReady: true,
-				activeSavePane: false,
 				paneCount: 1
 			}).map((command) => command.label)
 		).toEqual(['Export', 'Save a backup', 'Switch', 'Open another collection', 'Close']);
@@ -18,7 +17,6 @@ describe('Box Menu commands', () => {
 		const commands = createBoxMenuCommands({
 			source: { type: 'pokemon-storage', label: 'Pokemon Storage' },
 			workspaceReady: false,
-			activeSavePane: false,
 			paneCount: 1
 		});
 
@@ -45,28 +43,25 @@ describe('Box Menu commands', () => {
 		]);
 	});
 
-	it('protects the active Save File pane and a second open collection', () => {
+	it('allows switching and closing the active Save File pane when another pane remains', () => {
 		const commands = createBoxMenuCommands({
 			source: { type: 'save-file', label: 'emerald.sav' },
 			workspaceReady: true,
-			activeSavePane: true,
 			paneCount: 2
 		});
-		const activeFileReason = 'This is your active save file. Pick another one from Saves.';
 
-		expect(commands[2]).toMatchObject({ availability: 'unavailable', reason: activeFileReason });
+		expect(commands[2]).toMatchObject({ availability: 'available', reason: null });
 		expect(commands[3]).toMatchObject({
 			availability: 'unavailable',
 			reason: 'Two collections are already open.'
 		});
-		expect(commands[4]).toMatchObject({ availability: 'unavailable', reason: activeFileReason });
+		expect(commands[4]).toMatchObject({ availability: 'available', reason: null });
 	});
 
 	it('waits for a Save File Workspace before exporting or backing up', () => {
 		const commands = createBoxMenuCommands({
 			source: { type: 'save-file', label: 'secondary.sav' },
 			workspaceReady: false,
-			activeSavePane: false,
 			paneCount: 2
 		});
 

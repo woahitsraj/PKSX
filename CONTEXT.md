@@ -68,6 +68,10 @@ _Avoid_: storage source, container, source in any user-facing text
 The box-first region that presents one Box Source's current Location and its header.
 _Avoid_: box panel, source pane
 
+**Boxes Session**:
+The current Box Pane composition, active Box Pane, and each pane's last meaningful Location and Controller Focus.
+_Avoid_: route state, URL state
+
 **Location**:
 A Party, Box, or Storage Box that a Box Pane shows one at a time.
 _Avoid_: page, tab
@@ -374,7 +378,11 @@ _Avoid_: setting, option, config
 - A **Box Source** is presented to the user only when the collection behind it is available in PKSX.
 - A **Box Pane** belongs to one **Box Source** and shows one **Location** at a time.
 - The **Box Source** whose **Box Pane** holds **Controller Focus** is the active **Box Source**; there is no separate focused **Box Source**.
-- The active **Save File**'s **Box Source** cannot be switched or closed while that **Save File** is active.
+- A **Boxes Session** owns one or two peer **Box Panes**; either pane may switch or close while at least one remains.
+- Selecting a **Save File** in the primary **Box Pane** makes it the active **Save File**. Selecting **Pokemon Storage**, or selecting a **Save File** in a secondary **Box Pane**, does not change the active **Save File**.
+- Selecting a collection from **Saves** replaces the **Boxes Session** with one focused primary **Box Pane**. Normal destination navigation preserves the current **Boxes Session**.
+- Reload restores only the primary **Box Pane** and its last meaningful **Location** and **Controller Focus**. It does not restore secondary panes, Carry, Menus, or confirmations.
+- Boxes uses `/boxes` as its canonical route. A legacy Pokemon Storage query is translated once into **Boxes Session** state and removed with replacement navigation.
 - A future **Slot Action** may use source and destination **Slots** from different **Box Sources**.
 - A **Pokemon Entity** may have **Pokemon Origin** even when its original **Save File** is no longer in **Saves**.
 - A **Preservation Payload** keeps an unchanged, format-tagged copy of its first native **Pokemon Entity** bytes.

@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { asset } from '$app/paths';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import {
@@ -52,6 +54,7 @@
 		type PendingStorageSlotOperation
 	} from '$lib/pksx/storage-operations';
 	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
+	import { getBoxesSession } from '$lib/pksx/boxes-session';
 	import {
 		addBoxPane,
 		applyPokemonStorageSlotOperation,
@@ -235,9 +238,10 @@
 	};
 
 	const placeholderBoxCount = 3;
-	const activeSavePaneId = 'pane-active-save';
+	const primaryPaneId = 'pane-primary';
 	const storage = getSavesStorage();
 	const workspaceService = getActiveWorkspaceService();
+	const boxesSession = getBoxesSession();
 	const summonedWorkflow = getSummonedWorkflowHost();
 	const quickSearchHost = getQuickSearchHost();
 	const toastHost = getToastHost();
@@ -302,168 +306,18 @@
 		return `Box ${String(box + 1).padStart(2, '0')}`;
 	}
 
-	const placeholderPokemonDetails = {
-		gender: '♂',
-		nature: 'Modest',
-		ability: 'Static',
-		heldItem: 'Light Ball',
-		types: [{ name: 'Electric', hue: 94, chroma: 0.16 }],
-		stats: [
-			{ key: 'HP', label: 'HP', value: 20, max: 31, ev: 0, iv: 31 },
-			{ key: 'ATK', label: 'ATK', value: 12, max: 31, ev: 0, iv: 31 },
-			{ key: 'DEF', label: 'DEF', value: 10, max: 31, ev: 0, iv: 31 },
-			{ key: 'SPA', label: 'SPA', value: 15, max: 31, ev: 0, iv: 31 },
-			{ key: 'SPD', label: 'SPD', value: 12, max: 31, ev: 0, iv: 31 },
-			{ key: 'SPE', label: 'SPE', value: 18, max: 31, ev: 0, iv: 31 }
-		],
-		moves: [
-			{
-				slot: 0,
-				id: 84,
-				name: 'Thunder Shock',
-				type: 'Electric',
-				hue: 94,
-				chroma: 0.16,
-				pp: 30,
-				maxPp: 30,
-				ppUps: 0
-			},
-			{
-				slot: 1,
-				id: 98,
-				name: 'Quick Attack',
-				type: 'Normal',
-				hue: 107,
-				chroma: 0.06,
-				pp: 30,
-				maxPp: 30,
-				ppUps: 0
-			},
-			{
-				slot: 2,
-				id: 39,
-				name: 'Tail Whip',
-				type: 'Normal',
-				hue: 107,
-				chroma: 0.06,
-				pp: 30,
-				maxPp: 30,
-				ppUps: 0
-			},
-			{
-				slot: 3,
-				id: 45,
-				name: 'Growl',
-				type: 'Normal',
-				hue: 107,
-				chroma: 0.06,
-				pp: 40,
-				maxPp: 40,
-				ppUps: 0
-			}
-		],
-		heldItemEditConstraints: {
-			supported: true,
-			currentItemId: 236,
-			options: [
-				{ id: 0, name: 'No item', available: true },
-				{ id: 236, name: 'Light Ball', available: true },
-				{
-					id: 25,
-					name: 'Poke Doll',
-					available: false,
-					unavailableReason: 'Poke Doll is not supported for this Pokemon.'
-				}
-			]
-		},
-		abilityEditConstraints: {
-			supported: true,
-			currentAbilityIndex: 0,
-			options: [
-				{ index: 0, id: 9, name: 'Static', hidden: false, available: true },
-				{ index: 1, id: 31, name: 'Lightning Rod', hidden: false, available: true }
-			]
-		},
-		metDataEditConstraints: {
-			supported: true,
-			currentLocationId: 16,
-			currentMetLevel: 5,
-			currentOriginGameId: 3,
-			currentBallId: 4,
-			minMetLevel: 0,
-			maxMetLevel: 100,
-			supportsMetDate: false,
-			supportsOriginGame: true,
-			supportsBall: true,
-			locationGroups: [
-				{
-					originGameId: 3,
-					options: [
-						{ id: 16, name: 'Route 101' },
-						{ id: 24, name: 'Littleroot Town' }
-					]
-				}
-			],
-			originGames: [{ id: 3, name: 'Emerald' }],
-			balls: [
-				{ id: 4, name: 'Poké Ball' },
-				{ id: 3, name: 'Great Ball' }
-			]
-		},
-		statEditConstraints: {
-			supported: true,
-			minIv: 0,
-			maxIv: 31,
-			minEv: 0,
-			maxEv: 255,
-			maxTotalEv: 510
-		},
-		moveSetEditConstraints: {
-			supported: true,
-			maxMoveSlots: 4,
-			availableMoves: [
-				{ id: 0, name: 'Empty', type: 'None', hue: 48, chroma: 0.04, maxPp: 0 },
-				{ id: 84, name: 'Thunder Shock', type: 'Electric', hue: 94, chroma: 0.16, maxPp: 30 },
-				{ id: 98, name: 'Quick Attack', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 30 },
-				{ id: 39, name: 'Tail Whip', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 30 },
-				{ id: 45, name: 'Growl', type: 'Normal', hue: 107, chroma: 0.06, maxPp: 40 }
-			]
-		},
-		originalTrainer: 'PKSX',
-		metLabel: 'Starter Box',
-		spriteIdentity: {
-			speciesId: 25,
-			form: 0,
-			isEgg: false,
-			isShiny: false,
-			displaySex: 'default'
-		}
-	} satisfies Partial<SlotView>;
-
-	const placeholderPartySlots: SlotView[] = Array.from({ length: PARTY_SLOT_COUNT }, (_, slot) => ({
+	const pendingPartySlots: SlotView[] = Array.from({ length: PARTY_SLOT_COUNT }, (_, slot) => ({
 		slot,
-		label: slot === 0 ? 'Pikachu' : 'Empty',
-		detail: slot === 0 ? 'Lv. 5' : '',
-		level: slot === 0 ? 5 : null,
-		experience: slot === 0 ? 125 : null,
-		experienceProjection:
-			slot === 0
-				? {
-						minLevel: 1,
-						maxLevel: 100,
-						minExperience: 0,
-						maxExperience: 1_000_000,
-						currentLevelMinExperience: 125,
-						nextLevelMinExperience: 216,
-						currentLevelProgress: 0
-					}
-				: null,
-		speciesId: slot === 0 ? 25 : null,
-		form: slot === 0 ? 0 : null,
+		label: 'Empty',
+		detail: '',
+		level: null,
+		experience: null,
+		experienceProjection: null,
+		speciesId: null,
+		form: null,
 		isEgg: false,
 		spriteIdentity: null,
-		kind: slot === 0 ? 'pokemon' : 'empty',
-		...(slot === 0 ? placeholderPokemonDetails : {})
+		kind: 'empty'
 	}));
 
 	let navigation = $state<BoxNavigationState>(createInitialNavigationState(placeholderBoxCount));
@@ -539,7 +393,6 @@
 		createBoxMenuCommands({
 			source: boxMenuTarget?.source ?? pokemonStorageSource(),
 			workspaceReady: saveWorkspaceForPane(boxMenuPane) !== null,
-			activeSavePane: boxMenuPane?.id === activeSavePaneId,
 			paneCount: workbenchPanes.length
 		})
 	);
@@ -589,13 +442,7 @@
 	const focusedSlotOwner = $derived(focusedSlotPane?.source ?? pokemonStorageSource());
 	const focusedPaneWorkspace = $derived(saveWorkspaceForPane(focusedSlotPane));
 	const createPokemonAvailability = $derived(
-		pokemonCreationAvailability(
-			focusedSlotOwner.type,
-			focusedSlot,
-			focusedPaneWorkspace !== null &&
-				focusedSlotOwner.type === 'save-file' &&
-				focusedSlotOwner.id === loadedSave?.file.id
-		)
+		pokemonCreationAvailability(focusedSlotOwner.type, focusedSlot, focusedPaneWorkspace !== null)
 	);
 	const slotMenuCommands = $derived(
 		createSlotMenuCommands(focusedSlot, createPokemonAvailability.reason, {
@@ -620,7 +467,7 @@
 					})()
 				: `Party · Slot ${activeSlotFocus.slot + 1}`
 	);
-	const activePaneControlCount = $derived(activePane ? paneControlCountFor(activePane) : 0);
+	const activePaneControlCount = $derived(activePane ? paneControlCountFor() : 0);
 	const sourcePickerCards = $derived<SourcePickerCard[]>(
 		createSourcePickerCards({
 			saveFiles:
@@ -660,6 +507,7 @@
 	const pokemonStorageBoxCount = $derived(pokemonStorage?.boxCount ?? placeholderBoxCount);
 
 	$effect(syncAppChrome);
+	$effect(syncBoxesSession);
 
 	function syncAppChrome() {
 		updateAppChrome({
@@ -670,6 +518,11 @@
 		return () => {
 			updateAppChrome({ carryActive: false });
 		};
+	}
+
+	function syncBoxesSession() {
+		if (!initialStateReady) return;
+		boxesSession.set({ panes: workbenchPanes, activePaneId });
 	}
 
 	function dispatch(action: NavigationAction) {
@@ -1436,7 +1289,7 @@
 			},
 			action,
 			{
-				paneControlCount: paneControlCountFor(pane),
+				paneControlCount: paneControlCountFor(),
 				partyAvailable: paneHasParty(pane),
 				carryActive: pendingSlotOperation !== null
 			}
@@ -1715,10 +1568,10 @@
 		const pane = target
 			? workbenchPanes.find((candidate) => matchesBoxMenuTarget(candidate, target))
 			: undefined;
-		if (!pane || pane.id === activeSavePaneId || workbenchPanes.length <= 1) return;
+		if (!pane || workbenchPanes.length <= 1) return;
 		boxMenuTarget = null;
 		summonedWorkflow.closeAll();
-		closePane(pane.id);
+		void closePane(pane.id);
 	}
 
 	function slotRefForFocus(
@@ -1886,17 +1739,6 @@
 				statusMessage = evaluation.consequence;
 				return;
 			}
-		}
-
-		const activeSaveId = loadedSave?.file.id;
-		const unsupportedSaveOwner =
-			(carryState?.sourceOwner.type === 'save-file' &&
-				carryState.sourceOwner.id !== activeSaveId) ||
-			(ownerPane?.source.type === 'save-file' && ownerPane.source.id !== activeSaveId);
-		if (unsupportedSaveOwner) {
-			toastHost.error('Moving Pokemon between Save Files is not available yet.');
-			statusMessage = 'Cross-save movement is not available yet.';
-			return;
 		}
 
 		if (ownerPane?.source.type === 'pokemon-storage') {
@@ -2513,33 +2355,33 @@
 		return { type: 'pokemon-storage', id: 'pokemon-storage', label: 'Pokemon Storage' };
 	}
 
-	function paneControlCountFor(pane: BoxPaneState): number {
-		return pane.id !== activeSavePaneId && workbenchPanes.length > 1 ? 2 : 1;
+	function paneControlCountFor(): number {
+		return workbenchPanes.length > 1 ? 2 : 1;
 	}
 
 	function installActiveSavePane(save: WorkspaceState, activeBox = 0) {
 		const clampedBox = Math.min(activeBox, Math.max(0, save.workspace.summary.boxCount - 1));
-		const existingPane = workbenchPanes.find((pane) => pane.id === activeSavePaneId);
+		const existingPane = workbenchPanes.find((pane) => pane.id === primaryPaneId);
 		const preservedFocus =
 			existingPane?.source.type === 'save-file' && existingPane.source.id === save.file.id
 				? existingPane.focus
 				: focusBoxSlot(0);
-		const fixedPane = createBoxPane(activeSavePaneId, saveFileSource(save), {
+		const primaryPane = createBoxPane(primaryPaneId, saveFileSource(save), {
 			boxCount: save.workspace.summary.boxCount,
 			activeBox: clampedBox,
 			focus: preservedFocus
 		});
-		const hadActiveSavePane = workbenchPanes.some((pane) => pane.id === activeSavePaneId);
+		const hadActiveSavePane = workbenchPanes.some((pane) => pane.id === primaryPaneId);
 		const rightPanes = hadActiveSavePane
-			? workbenchPanes.filter((pane) => pane.id !== activeSavePaneId).slice(0, 1)
+			? workbenchPanes.filter((pane) => pane.id !== primaryPaneId).slice(0, 1)
 			: [];
 
-		workbenchPanes = [fixedPane, ...rightPanes];
+		workbenchPanes = [primaryPane, ...rightPanes];
 		savePaneWorkspaces = {
 			...savePaneWorkspaces,
-			[activeSavePaneId]: { state: save, loadedBox: clampedBox }
+			[primaryPaneId]: { state: save, loadedBox: clampedBox }
 		};
-		activePaneId = activeSavePaneId;
+		activePaneId = primaryPaneId;
 		navigation = setLocationFocus(
 			selectActiveBox(createInitialNavigationState(save.workspace.summary.boxCount), clampedBox),
 			preservedFocus
@@ -2619,13 +2461,10 @@
 		type: BoxSourceType,
 		saveFileId: string | null = null
 	) {
-		if (paneId === activeSavePaneId) {
-			return;
-		}
-
 		const source = boxSourceForSelection(type, saveFileId);
 		const pane = workbenchPanes.find((candidate) => candidate.id === paneId);
 		if (!pane) return;
+		const switchingPrimaryPane = workbenchPanes[0]?.id === paneId;
 		const request = ++paneSwitchRequest;
 		const pickerOwner = activeSummonedWorkflow;
 		const paneSource = { ...pane.source };
@@ -2674,9 +2513,6 @@
 			focus: switchedPane?.focus ?? focusBoxSlot(0),
 			locationFocus: switchedPane?.focus ?? focusBoxSlot(0)
 		};
-		sourcePickerTargetPaneId = null;
-		boxMenuTarget = null;
-		summonedWorkflow.closeAll();
 		if (targetWorkspace) {
 			savePaneWorkspaces = { ...savePaneWorkspaces, [paneId]: targetWorkspace };
 		} else {
@@ -2684,6 +2520,15 @@
 			delete remaining[paneId];
 			savePaneWorkspaces = remaining;
 		}
+		if (switchingPrimaryPane && source.type === 'save-file' && source.id && targetWorkspace) {
+			await storage.setActiveSaveFileId(source.id);
+			loadedSave = targetWorkspace.state;
+			setCachedActiveWorkspace(targetWorkspace.state, targetWorkspace.loadedBox);
+			invalidateSavesCache();
+		}
+		sourcePickerTargetPaneId = null;
+		boxMenuTarget = null;
+		summonedWorkflow.closeAll();
 		statusMessage = `Pane switched to ${source.label}.`;
 		queueMicrotask(focusActiveControl);
 	}
@@ -2703,14 +2548,33 @@
 		};
 	}
 
-	function closePane(paneId: string) {
-		if (pendingSlotOperation || paneId === activeSavePaneId) {
+	async function closePane(paneId: string) {
+		if (pendingSlotOperation) {
 			return;
 		}
 
 		const closingPane = workbenchPanes.find((pane) => pane.id === paneId);
 		if (!closingPane) return;
+		const closingPrimaryPane = workbenchPanes[0]?.id === paneId;
 		const closingActivePane = paneId === activePaneId;
+		const promotedPane = closingPrimaryPane
+			? workbenchPanes.find((pane) => pane.id !== paneId)
+			: undefined;
+		if (closingPrimaryPane && promotedPane?.source.type === 'save-file' && promotedPane.source.id) {
+			try {
+				await storage.setActiveSaveFileId(promotedPane.source.id);
+			} catch (error) {
+				statusMessage = getErrorMessage(error);
+				toastHost.error(statusMessage);
+				return;
+			}
+			const promotedWorkspace = savePaneWorkspaces[promotedPane.id];
+			if (promotedWorkspace) {
+				loadedSave = promotedWorkspace.state;
+				setCachedActiveWorkspace(promotedWorkspace.state, promotedWorkspace.loadedBox);
+			}
+			invalidateSavesCache();
+		}
 		workbenchPanes = closeBoxPane(workbenchPanes, paneId);
 		if (closingActivePane || !workbenchPanes.some((pane) => pane.id === activePaneId)) {
 			const nextPane = workbenchPanes[0];
@@ -2794,10 +2658,10 @@
 	}
 
 	function panePartySlots(pane: BoxPaneState | undefined): SlotView[] {
-		const paneWorkspace = saveWorkspaceForPane(pane);
+		const paneWorkspace = pane ? savePaneWorkspaces[pane.id] : null;
 		return paneWorkspace
 			? createPartySlotViews(paneWorkspace.state.workspace.partySlots)
-			: placeholderPartySlots;
+			: pendingPartySlots;
 	}
 
 	function saveWorkspaceForPane(pane: BoxPaneState | undefined): SavePaneWorkspace | null {
@@ -4460,7 +4324,7 @@
 	}
 
 	function captureActiveQuickSearchSaveFile(): QuickSearchSaveFile | null {
-		const pane = workbenchPanes.find(({ id }) => id === activeSavePaneId);
+		const pane = workbenchPanes.find(({ id }) => id === activePaneId);
 		if (!initialStateReady || pane?.source.type !== 'save-file' || !pane.source.id) return null;
 		const source = { ...pane.source };
 
@@ -4478,10 +4342,7 @@
 	function matchesActiveQuickSearchSaveFile(paneId: string, source: BoxSourceRef) {
 		return workbenchPanes.some(
 			(pane) =>
-				pane.id === activeSavePaneId &&
-				pane.id === paneId &&
-				pane.source.type === 'save-file' &&
-				pane.source.id === source.id
+				pane.id === paneId && pane.source.type === 'save-file' && pane.source.id === source.id
 		);
 	}
 
@@ -4647,23 +4508,76 @@
 	}
 
 	async function restoreInitialState() {
-		await restorePokemonStorage();
-		if (page.url.searchParams.get('source') === 'pokemon-storage') {
-			setCachedActiveWorkspace(null, 0);
-			saveFiles = await storage.listSaves();
-			workbenchPanes = [
-				createBoxPane('pane-pokemon-storage', pokemonStorageSource(), {
-					boxCount: pokemonStorageBoxCount
+		busy = true;
+		workspaceLoadRequest += 1;
+		importError = null;
+		const legacyStorageRoute = page.url.searchParams.get('source') === 'pokemon-storage';
+
+		try {
+			await restorePokemonStorage();
+			const [availableSaveFiles, activeSaveFileId, restoredActiveSave] = await Promise.all([
+				storage.listSaves(),
+				storage.getActiveSaveFileId(),
+				loadActiveWorkspaceFromSaves()
+			]);
+			saveFiles = availableSaveFiles;
+			loadedSave = restoredActiveSave;
+			if (restoredActiveSave) seedSavesSnapshotFromActiveWorkspace(saveFiles);
+
+			const session = legacyStorageRoute
+				? boxesSession.selectPrimary(pokemonStorageSource(), pokemonStorageBoxCount)
+				: boxesSession.restore({
+						saveFiles: saveFiles.map((saveFile) => ({
+							type: 'save-file' as const,
+							id: saveFile.id,
+							label: saveFile.originalFileName ?? 'Save File',
+							dirty: restoredActiveSave?.file.id === saveFile.id && restoredActiveSave.dirty
+						})),
+						activeSaveFileId,
+						pokemonStorageBoxCount
+					});
+			workbenchPanes = session.panes;
+			activePaneId = session.activePaneId;
+
+			await Promise.all(
+				workbenchPanes.map(async (pane) => {
+					if (pane.source.type !== 'save-file' || !pane.source.id) return;
+					const request = beginPaneWorkspaceRequest(pane.id, true);
+					try {
+						const state = await loadWorkspaceStateForSaveFile(pane.source.id, pane.activeBox);
+						if (state) {
+							installPaneWorkspace(pane.id, pane.source.id, pane.activeBox, state, request);
+						}
+					} finally {
+						finishPaneWorkspaceRequest(pane.id, request);
+					}
 				})
-			];
-			activePaneId = 'pane-pokemon-storage';
-			navigation = createInitialNavigationState(pokemonStorageBoxCount);
-			statusMessage = 'Pokemon Storage loaded.';
+			);
+
+			const restoredPane =
+				workbenchPanes.find((pane) => pane.id === activePaneId) ?? workbenchPanes[0];
+			if (restoredPane) {
+				navigation = setLocationFocus(
+					selectActiveBox(
+						createInitialNavigationState(Math.max(1, restoredPane.boxCount)),
+						restoredPane.activeBox
+					),
+					restoredPane.focus
+				);
+			}
+			statusMessage = restoredPane ? `${restoredPane.source.label} loaded.` : 'Open Saves.';
+		} catch (error) {
+			importError = getErrorMessage(error);
+			statusMessage = 'Could not restore Boxes.';
+			toastHost.error(importError);
+		} finally {
+			busy = false;
 			initialStateReady = true;
-			return;
 		}
-		await restoreMostRecentSave();
-		initialStateReady = true;
+
+		if (legacyStorageRoute) {
+			await goto(resolve('/boxes'), { replaceState: true, keepFocus: true, noScroll: true });
+		}
 	}
 
 	async function restorePokemonStorage() {
@@ -4681,38 +4595,6 @@
 				createInitialNavigationState(pokemonStorage?.boxCount ?? placeholderBoxCount),
 				nextBox
 			);
-		}
-	}
-
-	async function restoreMostRecentSave() {
-		busy = true;
-		workspaceLoadRequest += 1;
-		importError = null;
-
-		try {
-			const restored = await loadActiveWorkspaceFromSaves();
-			if (!restored) {
-				statusMessage = 'Open Saves to import a Save File.';
-				return;
-			}
-
-			loadedSave = restored;
-			saveFiles = await storage.listSaves();
-			seedSavesSnapshotFromActiveWorkspace(saveFiles);
-			const restoredBox = Math.min(
-				getCachedActiveWorkspaceBox(),
-				Math.max(0, restored.workspace.summary.boxCount - 1)
-			);
-			installActiveSavePane(restored, restoredBox);
-			statusMessage = restored.dirty
-				? `${restored.file.originalFileName ?? 'Save File'} restored from Saves with unexported changes.`
-				: `${restored.file.originalFileName ?? 'Save File'} restored from Saves.`;
-		} catch (error) {
-			importError = getErrorMessage(error);
-			statusMessage = 'Could not restore the most recent Save File.';
-			toastHost.error(importError);
-		} finally {
-			busy = false;
 		}
 	}
 
@@ -4947,7 +4829,7 @@
 						!destroyed &&
 						request === workspaceLoadRequest &&
 						loadedSave?.file.id === saveFile.id &&
-						activePaneId === activeSavePaneId &&
+						activePaneId === primaryPaneId &&
 						navigation.focus.zone === 'box' &&
 						navigation.focus.slot === 0
 					) {
@@ -5080,8 +4962,7 @@
 				{@const paneActive = pane.id === activePaneId}
 				{@const paneBusy =
 					(busy && paneActive) || paneWorkspaceLoadingRequests[pane.id] !== undefined}
-				{@const paneFixed = pane.id === activeSavePaneId}
-				{@const paneControlCount = paneControlCountFor(pane)}
+				{@const paneControlCount = paneControlCountFor()}
 				{@const paneBox = pane.activeBox}
 				{@const paneParty = pane.focus.zone === 'party' && paneHasParty(pane)}
 				{@const paneSlots = paneParty ? panePartySlots(pane) : paneBoxSlots(pane, paneBox)}
@@ -5130,7 +5011,7 @@
 								<em>▾</em>
 							</button>
 							<DelayedSpinner active={paneBusy} label={`Loading ${pane.source.label}`} />
-							{#if !paneFixed && workbenchPanes.length > 1}
+							{#if workbenchPanes.length > 1}
 								<button
 									id={`close-pane-${pane.id}`}
 									data-pane-control-index="1"
@@ -5157,7 +5038,7 @@
 									}}
 									onclick={() => {
 										if (pendingSlotOperation) return;
-										closePane(pane.id);
+										void closePane(pane.id);
 									}}
 								>
 									×
