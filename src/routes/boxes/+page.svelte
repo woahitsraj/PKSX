@@ -49,6 +49,11 @@
 		type WorkspaceState
 	} from '$lib/pksx/backup-workflow';
 	import {
+		createPhysicalBoxPickerLocations,
+		moveBoxPickerFocus,
+		type BoxPickerLocation
+	} from '$lib/pksx/box-picker';
+	import {
 		applyStorageOperation,
 		destinationStateForStorageOperation,
 		type PendingStorageSlotOperation
@@ -98,6 +103,7 @@
 		setCachedActiveWorkspace
 	} from '$lib/pksx/saves-cache';
 	import BoxMenu from '$lib/components/pksx/BoxMenu.svelte';
+	import BoxPicker from '$lib/components/pksx/BoxPicker.svelte';
 	import BoxSourceControls from '$lib/components/pksx/BoxSourceControls.svelte';
 	import ClearSlotConfirm from '$lib/components/pksx/ClearSlotConfirm.svelte';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
@@ -211,6 +217,8 @@
 		paneId: string;
 		source: BoxSourceRef;
 	};
+
+	type BoxPickerTarget = BoxMenuTarget;
 
 	type PokemonActionContext = {
 		target: PokemonActionTarget;
@@ -359,6 +367,9 @@
 	let clearSlotConfirmation = $state<ClearSlotConfirmation | null>(null);
 	let clearSlotConfirmFocusIndex = $state(0);
 	let boxMenuTarget = $state<BoxMenuTarget | null>(null);
+	let boxPickerTarget = $state<BoxPickerTarget | null>(null);
+	let boxPickerFocusIndex = $state(0);
+	let boxPickerColumnCount = $state(1);
 	let workbenchPanes = $state<BoxPaneState[]>([
 		createBoxPane('pane-pokemon-storage', pokemonStorageSource(), { boxCount: placeholderBoxCount })
 	]);
@@ -380,6 +391,7 @@
 	const sourcePickerOpen = $derived(activeSummonedWorkflow?.kind === 'source-picker');
 	const slotMenuOpen = $derived(activeSummonedWorkflow?.kind === 'slot-menu');
 	const boxMenuOpen = $derived(activeSummonedWorkflow?.kind === 'box-menu');
+	const boxPickerOpen = $derived(activeSummonedWorkflow?.kind === 'box-picker');
 	const destinationInputSuspended = $derived(isDestinationInputSuspended(summonedWorkflow));
 	const summonedSlotLauncher = $derived(getLaunchingSlot(summonedWorkflow));
 	const activePane = $derived(
@@ -395,6 +407,13 @@
 			workspaceReady: saveWorkspaceForPane(boxMenuPane) !== null,
 			paneCount: workbenchPanes.length
 		})
+	);
+	const boxPickerPane = $derived.by(() => {
+		const target = boxPickerTarget;
+		return target ? workbenchPanes.find((pane) => matchesBoxMenuTarget(pane, target)) : undefined;
+	});
+	const boxPickerLocations = $derived(
+		createPhysicalBoxPickerLocations(boxPickerPane?.boxCount ?? 0)
 	);
 	const activePaneBox = $derived(activePane?.activeBox ?? navigation.activeBox);
 	const summonedSlotPane = $derived(
@@ -533,8 +552,16 @@
 	function dispatchToActiveSurface(action: NavigationAction): boolean {
 		if (activeSummonedWorkflow?.kind === 'backup-browser') return true;
 		if (action === 'sourceAction') {
+			if (boxPickerOpen) {
+				closeBoxPicker();
+				return true;
+			}
 			if (boxMenuOpen) {
 				closeBoxMenu();
+				return true;
+			}
+			if (pendingSlotOperation && activePane) {
+				openBoxPicker(activePane);
 				return true;
 			}
 			handleSourceAction();
@@ -554,6 +581,9 @@
 				return true;
 			case 'source-picker':
 				dispatchSourcePicker(action);
+				return true;
+			case 'box-picker':
+				dispatchBoxPicker(action);
 				return true;
 			case 'clear-slot-confirmation':
 				dispatchClearSlotConfirmation(action);
@@ -694,6 +724,37 @@
 		}
 	}
 
+	function dispatchBoxPicker(action: NavigationAction) {
+		switch (action) {
+			case 'left':
+			case 'right':
+			case 'up':
+			case 'down':
+				focusBoxPickerLocation(
+					moveBoxPickerFocus(
+						boxPickerFocusIndex,
+						action,
+						boxPickerLocations.length,
+						boxPickerColumnCount
+					)
+				);
+				break;
+			case 'confirm': {
+				const location = boxPickerLocations[boxPickerFocusIndex];
+				if (location) selectBoxPickerLocation(location);
+				break;
+			}
+			case 'back':
+				closeBoxPicker();
+				break;
+			case 'previousBox':
+			case 'nextBox':
+			case 'sourceAction':
+			case 'carryMode':
+				break;
+		}
+	}
+
 	function handleSourceAction() {
 		if (pendingSlotOperation || activeSummonedWorkflow || !activePane) {
 			return;
@@ -788,7 +849,9 @@
 
 	function focusIdForNavigation(focus: ControllerFocus) {
 		if (focus.zone !== 'paneControls') return getFocusId(focus, activePaneBox);
-		return focus.index === 0 ? collectionControlId(activePaneId) : `close-pane-${activePaneId}`;
+		if (focus.index === 0) return collectionControlId(activePaneId);
+		if (focus.index === 1) return locationControlId(activePaneId);
+		return `close-pane-${activePaneId}`;
 	}
 
 	function dispatchPokemonEditor(action: NavigationAction) {
@@ -1450,6 +1513,10 @@
 		return `collection-control-${paneId}`;
 	}
 
+	function locationControlId(paneId: string) {
+		return `location-control-${paneId}`;
+	}
+
 	function matchesBoxMenuTarget(pane: BoxPaneState, target: BoxMenuTarget) {
 		return (
 			pane.id === target.paneId &&
@@ -1473,6 +1540,74 @@
 	function closeBoxMenu() {
 		boxMenuTarget = null;
 		dismissActiveWorkflow();
+	}
+
+	function openBoxPicker(pane: BoxPaneState) {
+		if (
+			activeSummonedWorkflow ||
+			pane.boxCount < 1 ||
+			(pendingSlotOperation && pane.id !== activePaneId)
+		)
+			return;
+
+		const launcher =
+			pendingSlotOperation && isSlotFocus(navigation.focus)
+				? slotLauncher(navigation.focus, pane)
+				: controlLauncher(locationControlId(pane.id));
+		if (!summonedWorkflow.open('box-picker', launcher)) return;
+		boxPickerTarget = { paneId: pane.id, source: { ...pane.source } };
+		boxPickerFocusIndex = pane.activeBox;
+		queueMicrotask(() => focusBoxPickerLocation(pane.activeBox));
+	}
+
+	function closeBoxPicker() {
+		boxPickerTarget = null;
+		boxPickerFocusIndex = 0;
+		boxPickerColumnCount = 1;
+		dismissActiveWorkflow();
+	}
+
+	function focusBoxPickerLocation(index: number) {
+		if (boxPickerLocations.length === 0) return;
+		boxPickerFocusIndex = Math.max(0, Math.min(index, boxPickerLocations.length - 1));
+		queueMicrotask(() =>
+			document.getElementById(`box-picker-location-${boxPickerFocusIndex}`)?.focus()
+		);
+	}
+
+	function selectBoxPickerLocation(location: BoxPickerLocation) {
+		const pane = boxPickerPane;
+		if (!pane || location.location.kind !== 'physical-box') return;
+
+		const box = Math.min(location.location.box, Math.max(0, pane.boxCount - 1));
+		const locationFocus = projectSlotCoordinate(pane.focus, 'box');
+		const returnFocus = pendingSlotOperation
+			? locationFocus
+			: focusPaneControl(1, paneControlCountFor());
+		summonedWorkflow.dismiss();
+		boxPickerTarget = null;
+		boxPickerFocusIndex = 0;
+		boxPickerColumnCount = 1;
+		activePaneId = pane.id;
+		workbenchPanes = setPaneFocus(
+			setPaneActiveBox(workbenchPanes, pane.id, box),
+			pane.id,
+			locationFocus
+		);
+		navigation = {
+			...navigation,
+			activeBox: box,
+			boxCount: Math.max(1, pane.boxCount),
+			focus: returnFocus,
+			locationFocus
+		};
+
+		if (pane.source.type === 'save-file' && box !== pane.activeBox) {
+			if (loadedSave?.file.id === pane.source.id)
+				void loadWorkspaceForSave(loadedSave, box, pane.id);
+			else void refreshPaneWorkspace(pane.id, box);
+		}
+		queueMicrotask(focusActiveControl);
 	}
 
 	function focusBoxMenuCommand(index: number) {
@@ -2356,7 +2491,7 @@
 	}
 
 	function paneControlCountFor(): number {
-		return workbenchPanes.length > 1 ? 2 : 1;
+		return workbenchPanes.length > 1 ? 3 : 2;
 	}
 
 	function installActiveSavePane(save: WorkspaceState, activeBox = 0) {
@@ -5014,7 +5149,7 @@
 							{#if workbenchPanes.length > 1}
 								<button
 									id={`close-pane-${pane.id}`}
-									data-pane-control-index="1"
+									data-pane-control-index="2"
 									data-pksx-control-category="small"
 									type="button"
 									class="pane-close"
@@ -5032,7 +5167,7 @@
 										activatePane(pane);
 										navigation = {
 											...navigation,
-											focus: focusPaneControl(1, paneControlCount),
+											focus: focusPaneControl(2, paneControlCount),
 											locationFocus: pane.focus
 										};
 									}}
@@ -5058,8 +5193,22 @@
 									capacity: paneParty ? PARTY_SLOT_COUNT : BOX_SLOT_COUNT,
 									location: paneParty ? 'party' : 'box'
 								}}
+								pickerId={locationControlId(pane.id)}
+								pickerControlIndex={1}
+								pickerDisabled={pendingSlotOperation !== null && !paneActive}
+								pickerPointerOnly={pendingSlotOperation !== null}
 								onPreviousBox={() => changePaneLocation(pane, 'previousBox')}
 								onNextBox={() => changePaneLocation(pane, 'nextBox')}
+								onFocusPicker={() => {
+									if (pendingSlotOperation) return;
+									activatePane(pane);
+									navigation = {
+										...navigation,
+										focus: focusPaneControl(1, paneControlCount),
+										locationFocus: pane.focus
+									};
+								}}
+								onOpenPicker={() => openBoxPicker(pane)}
 							/>
 						</div>
 					</div>
@@ -5205,6 +5354,19 @@
 		onFocusCommand={focusActionCommand}
 		onSelectCommand={selectSlotActionCommand}
 		onClose={closeSlotMenu}
+	/>
+{/if}
+
+{#if boxPickerOpen && boxPickerTarget && boxPickerPane}
+	<BoxPicker
+		collection={boxPickerTarget.source.label}
+		locations={boxPickerLocations}
+		activeLocationId={`physical-box-${boxPickerPane.activeBox}`}
+		activeIndex={boxPickerFocusIndex}
+		onFocusLocation={focusBoxPickerLocation}
+		onSelectLocation={selectBoxPickerLocation}
+		onColumnCountChange={(columnCount) => (boxPickerColumnCount = columnCount)}
+		onClose={closeBoxPicker}
 	/>
 {/if}
 

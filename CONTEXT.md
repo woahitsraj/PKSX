@@ -68,6 +68,10 @@ _Avoid_: storage source, container, source in any user-facing text
 The box-first region that presents one Box Source's current Location and its header.
 _Avoid_: box panel, source pane
 
+**Box Picker**:
+A Takeover that lists the applicable Locations for one Box Pane and changes its current Location directly.
+_Avoid_: Box Menu, Source Picker
+
 **Boxes Session**:
 The current Box Pane composition, active Box Pane, and each pane's last meaningful Location and Controller Focus.
 _Avoid_: route state, URL state
@@ -475,13 +479,14 @@ _Avoid_: setting, option, config
 - A **Slot** may be under **Controller Focus** even when it is not a valid destination during a **Carry**.
 - **Controller Focus** targets a **Slot** or a control, never a **Pokemon Entity**; emptying the focused **Slot** leaves **Controller Focus** on it.
 - A completed **Slot Action** with a destination moves **Controller Focus** to the destination **Slot**; one without a destination leaves it on the source **Slot**.
-- A **Carry** moves **Controller Focus** only among **Slots**; cancelling returns **Controller Focus** to the source **Slot**.
+- A **Carry** moves **Controller Focus** among **Slots**. The **Box Picker** is its only summoned-workflow exception: dismissal returns **Controller Focus** to the launching **Slot**, while selection moves it to the same coordinate in the chosen **Location**.
+- During a **Carry**, the **Box Picker** changes only the destination **Location**. **Box Source** switching and changes to the set, order, or names of **Locations** remain unavailable.
 - When the **Focus Zone** under **Controller Focus** disappears, **Controller Focus** moves to the active **Box Source**'s current **Location** at the same **Slot** coordinate, clamped to its grid.
 - A **Menu** or **Takeover** returns **Controller Focus** to its launching **Slot** or control by identity, even when that **Slot** is now empty; if the launching **Pokemon Action** no longer exists, its **Slot Menu** closes too and **Controller Focus** returns to the **Slot**.
 - **Controller Focus** is never hidden when its target disappears, for any input kind; it always moves to a surviving target.
 - A **Height Band** change or rotation never moves **Controller Focus**, because it binds to **Slot** identity rather than screen position.
 - **Controller Focus** clamps at a **Focus Zone** edge unless that edge defines an explicit transition to another **Focus Zone**.
-- Each **Box Pane** is one **Focus Zone** containing its **Box Source** control and the visible **Slots** in its current **Location**.
+- Each **Box Pane** is one **Focus Zone** containing its **Box Source** control, **Box Picker** launcher, and the visible **Slots** in its current **Location**.
 - Switching between **Locations** in a **Box Pane** preserves the focused **Slot** coordinate when possible and clamps it to the destination grid.
 - Settings, Trainer, and Bag each have one **Focus Zone** containing vertical stops in a scrolling container; Left and Right move within a row, while Up and Down leave it.
 - Each destination remembers its **Controller Focus** target for the current session; this memory does not survive reload.
