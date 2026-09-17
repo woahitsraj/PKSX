@@ -169,8 +169,12 @@ A live connection between two devices running PKSX, for sending Pokemon Entities
 _Avoid_: cloud sync, account sync
 
 **Cloud Sync**:
-An opt-in capability that makes Saves, including persisted Workspace changes, available to the same user across PKSX devices.
+An opt-in, provider-readable capability that makes Saves, including persisted Workspace changes, available to the same user across PKSX devices. Its Sync Provider can read synchronized Saves content and metadata.
 _Avoid_: Peer Transfer, TinyBase sync, Export
+
+**Sync Provider**:
+The service that stores and serves Cloud Sync data. It never receives PKSX credentials or device-local state.
+_Avoid_: Cloud account, Sync Profile
 
 **Backup**:
 A restorable snapshot of save file bytes created before a risky operation.
@@ -387,6 +391,7 @@ _Avoid_: setting, option, config
 - A **Peer Transfer** sends **Pokemon Entities** or **Storage Boxes** between two devices running PKSX.
 - A **Pokemon Entity** received through **Peer Transfer** enters **Pokemon Storage** before it can be moved into a **Save File**.
 - **Cloud Sync** makes **Save Files**, **Backups**, **Pokemon Storage**, and persisted **Workspaces** available across a user's PKSX devices.
+- A **Sync Provider** may read all content and metadata that **Cloud Sync** synchronizes.
 - A **Dirty Workspace** received through **Cloud Sync** can be opened and **Exported** on another device.
 - **Cloud Sync** never writes to the original user-controlled file; **Export** does.
 - The **PKHeX Engine** provides a **Facade** that the Svelte app uses.
