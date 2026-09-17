@@ -1269,7 +1269,7 @@ test('primary and secondary Box Sources follow active Save File selection rules'
 	await emeraldCard.click();
 	await expect(page).toHaveURL(/\/boxes$/);
 	await expect(page.locator('.box-pane')).toHaveCount(1);
-	expect(await activeSaveFileId(page)).toBe(emeraldId);
+	await expect.poll(() => activeSaveFileId(page)).toBe(emeraldId);
 	await moveFirstEmeraldBoxSlotToThirdSlot(page);
 
 	const primary = page.locator('.box-pane').first();
@@ -1280,7 +1280,7 @@ test('primary and secondary Box Sources follow active Save File selection rules'
 		.getByRole('button', { name: /second-emerald\.sav/ })
 		.click();
 	await expect(page.locator('.box-pane')).toHaveCount(2);
-	expect(await activeSaveFileId(page)).toBe(emeraldId);
+	await expect.poll(() => activeSaveFileId(page)).toBe(emeraldId);
 
 	await primary.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
 	await page.getByRole('button', { name: 'Switch', exact: true }).click();
@@ -1291,7 +1291,7 @@ test('primary and secondary Box Sources follow active Save File selection rules'
 	await expect(
 		primary.getByRole('button', { name: 'Open Box Menu for second-emerald.sav' })
 	).toBeVisible();
-	expect(await activeSaveFileId(page)).toBe(secondId);
+	await expect.poll(() => activeSaveFileId(page)).toBe(secondId);
 	await primary.getByRole('button', { name: 'Open Box Menu for second-emerald.sav' }).click();
 	await page.getByRole('button', { name: 'Switch', exact: true }).click();
 	await page
@@ -1299,7 +1299,7 @@ test('primary and secondary Box Sources follow active Save File selection rules'
 		.getByRole('button', { name: /emerald-011020251345\.sav/ })
 		.click();
 	await expect(primary.locator('#box-0-slot-2')).toContainText('ARON');
-	expect(await activeSaveFileId(page)).toBe(emeraldId);
+	await expect.poll(() => activeSaveFileId(page)).toBe(emeraldId);
 
 	await primary.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
 	await page.getByRole('button', { name: 'Switch', exact: true }).click();
@@ -1310,7 +1310,7 @@ test('primary and secondary Box Sources follow active Save File selection rules'
 	await expect(
 		primary.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' })
 	).toBeVisible();
-	expect(await activeSaveFileId(page)).toBe(emeraldId);
+	await expect.poll(() => activeSaveFileId(page)).toBe(emeraldId);
 	await primary.getByRole('button', { name: 'Close Pokemon Storage pane' }).click();
 	await expect(page.locator('.box-pane')).toHaveCount(1);
 	await expect.poll(() => activeSaveFileId(page)).toBe(secondId);
