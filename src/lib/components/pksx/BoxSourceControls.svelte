@@ -3,11 +3,27 @@
 
 	interface Props {
 		source: BoxSourceView;
+		pickerId: string;
+		pickerControlIndex: number;
+		pickerDisabled?: boolean;
+		pickerPointerOnly?: boolean;
 		onPreviousBox: () => void;
 		onNextBox: () => void;
+		onFocusPicker: () => void;
+		onOpenPicker: () => void;
 	}
 
-	let { source, onPreviousBox, onNextBox }: Props = $props();
+	let {
+		source,
+		pickerId,
+		pickerControlIndex,
+		pickerDisabled = false,
+		pickerPointerOnly = false,
+		onPreviousBox,
+		onNextBox,
+		onFocusPicker,
+		onOpenPicker
+	}: Props = $props();
 </script>
 
 <div class="box-source-controls" aria-label="Collection controls">
@@ -21,7 +37,25 @@
 	>
 
 	<div class="box-title">
-		<h2>{source.activeBoxLabel}</h2>
+		<h2 aria-label={source.activeBoxLabel}>
+			{source.activeBoxLabel}
+			<button
+				id={pickerId}
+				type="button"
+				data-pksx-control-category="composition"
+				data-pane-control-index={pickerControlIndex}
+				aria-label={`Open Box Picker for ${source.label}`}
+				aria-disabled={pickerDisabled ? 'true' : undefined}
+				tabindex={pickerDisabled || pickerPointerOnly ? -1 : undefined}
+				onpointerdown={(event) => {
+					if (pickerDisabled || pickerPointerOnly) event.preventDefault();
+				}}
+				onfocus={onFocusPicker}
+				onclick={() => {
+					if (!pickerDisabled) onOpenPicker();
+				}}
+			></button>
+		</h2>
 		<span>
 			<em
 				>{source.location === 'party'
@@ -61,9 +95,25 @@
 	}
 
 	.box-title h2 {
+		position: relative;
 		margin: 0;
 		font-size: var(--pksx-type-title);
 		line-height: 1.05;
+	}
+
+	.box-title h2 button {
+		position: absolute;
+		inset: 0;
+		border: 0;
+		border-radius: var(--pksx-radius-small);
+		background: transparent;
+		cursor: pointer;
+	}
+
+	.box-title h2 button:hover,
+	.box-title h2 button:focus-visible {
+		outline: var(--pksx-focus-ring) solid color-mix(in srgb, var(--rust), transparent 55%);
+		outline-offset: var(--pksx-border-width);
 	}
 
 	.box-title span {

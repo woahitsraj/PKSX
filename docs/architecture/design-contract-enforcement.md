@@ -184,11 +184,11 @@ A Backdrop tap is exactly one Back press and inherits every workflow guard. Dism
 
 ## BOXES-1: composition
 
-Source: [#159](https://github.com/woahitsraj/PKSX/issues/159), consolidated by [#151](https://github.com/woahitsraj/PKSX/issues/151) and [#201](https://github.com/woahitsraj/PKSX/issues/201).
+Source: [#159](https://github.com/woahitsraj/PKSX/issues/159), consolidated by [#151](https://github.com/woahitsraj/PKSX/issues/151) and [#201](https://github.com/woahitsraj/PKSX/issues/201), and amended by [#312](https://github.com/woahitsraj/PKSX/issues/312).
 
 Boxes starts with one reusable Box Pane beside the Active Slot Detail Rail when wider than tall and above it when square or taller than wide. A user explicitly opening another collection creates two Box Panes around pointer-only transfer controls and the shared display-only detail summary. The two panes reflow between side-by-side and stacked arrangements and never collapse because the canvas changed.
 
-A Box is always a 6×5 grid. Party is a 3×2 Location in the same Box Pane rather than a separate permanent Focus Zone. Each pane owns its collection control, Box Name and Location display, and pointer-only previous and next controls. Collection labels show the concrete Save File name or Pokemon Storage, never the glossary-only term Box Source.
+A Box is always a 6×5 grid. Party is a 3×2 Location in the same Box Pane rather than a separate permanent Focus Zone. Each pane owns its collection control, a direct Box Picker launcher on its Location display, Box Name and Location display, and pointer-only previous and next controls. Collection labels show the concrete Save File name or Pokemon Storage, never the glossary-only term Box Source.
 
 The Active Slot Detail Rail reflects the Slot under Controller Focus, including an empty Slot, and never takes Controller Focus.
 
@@ -228,20 +228,24 @@ Pointer-only controls perform actions without taking Controller Focus, including
 
 ## FOCUS-2: Box Pane transitions
 
-Source: [#201](https://github.com/woahitsraj/PKSX/issues/201).
+Source: [#201](https://github.com/woahitsraj/PKSX/issues/201), amended by [#312](https://github.com/woahitsraj/PKSX/issues/312).
 
-One Box Pane is one Focus Zone containing its collection control and the Slots in its current Location.
+One Box Pane is one Focus Zone containing its collection control, direct Box Picker launcher, and the Slots in its current Location.
 
-| From               | Input           | Result                                                               |
-| ------------------ | --------------- | -------------------------------------------------------------------- |
-| Top-row Slot       | Up              | Collection control                                                   |
-| Collection control | Down            | Remembered coordinate, clamped to the current Location               |
-| Collection control | Left, Right, Up | Clamp                                                                |
-| Slot               | Direction       | Neighboring Slot, clamped unless an explicit pane transition applies |
-| Bottom-row Slot    | Down            | Clamp when no stacked-pane transition applies                        |
-| Anywhere in pane   | L1/R1           | Previous/next Location, preserving and clamping coordinate           |
-| Slot               | A               | Slot Menu                                                            |
-| Anywhere in pane   | X               | Box Menu                                                             |
+| From                     | Input      | Result                                                               |
+| ------------------------ | ---------- | -------------------------------------------------------------------- |
+| Top-row Slot             | Up         | Collection control                                                   |
+| Pane control             | Down       | Remembered coordinate, clamped to the current Location               |
+| Pane control             | Left/Right | Adjacent pane control, clamped                                       |
+| Pane control             | Up         | Clamp                                                                |
+| Slot                     | Direction  | Neighboring Slot, clamped unless an explicit pane transition applies |
+| Bottom-row Slot          | Down       | Clamp when no stacked-pane transition applies                        |
+| Anywhere in pane         | L1/R1      | Previous/next Location, preserving and clamping coordinate           |
+| Slot                     | A          | Slot Menu                                                            |
+| Collection control       | A          | Box Menu                                                             |
+| Box Picker launcher      | A          | Box Picker                                                           |
+| Anywhere in pane at rest | X          | Box Menu                                                             |
+| Slot during Carry        | X          | Box Picker                                                           |
 
 For a Save File with a Party, L1/R1 wrap through Party, Box 1 through Box N. Pokemon Storage has no Party stop. Shoulders used on the collection control change Location while focus remains on the control.
 
@@ -251,11 +255,11 @@ In side-by-side panes, moving outward from the facing horizontal edge crosses to
 
 ## FOCUS-3: mutation results, disappearance, and Carry
 
-Source: [#162](https://github.com/woahitsraj/PKSX/issues/162), completed by [#201](https://github.com/woahitsraj/PKSX/issues/201).
+Source: [#162](https://github.com/woahitsraj/PKSX/issues/162), completed by [#201](https://github.com/woahitsraj/PKSX/issues/201), and amended by [#312](https://github.com/woahitsraj/PKSX/issues/312).
 
 A Slot Action with a destination finishes on its destination Slot. Clear Slot leaves focus on its now-empty source Slot. When a pane or Focus Zone disappears, focus moves to the surviving active Box Source's current Location at the same coordinate, clamped, for every input kind.
 
-Carry confines focus to Slots, including cross-pane and shoulder transitions, and skips collection controls. An invalid destination Slot may receive focus without becoming a valid operation. A attempts completion, B cancels and returns to the source Slot, and Y toggles move or copy. All Menus remain inert. Existing Slot Swap, empty-copy-destination, Backup, and atomic-write behavior remains authoritative.
+Carry confines destination focus to Slots, including cross-pane and shoulder transitions, and skips collection controls. The direct Box Picker is the only summoned-workflow exception: X, or a pointer action on the active Location display, opens it for destination navigation. Dismissal restores the launching Slot. Selection keeps Carry active and moves focus to the same Slot coordinate in the chosen Location. Source switching and organizer mutations remain unavailable, and all Menus remain inert. An invalid destination Slot may receive focus without becoming a valid operation. A attempts completion, B cancels and returns to the source Slot, and Y toggles move or copy. Existing Slot Swap, empty-copy-destination, Backup, and atomic-write behavior remains authoritative.
 
 <a id="focus-4"></a>
 

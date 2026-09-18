@@ -1180,6 +1180,36 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 	await expect(page.locator('#box-2-slot-0')).toHaveAttribute('aria-selected', 'true');
 });
 
+test('direct Box Picker jumps across every Save File Box and restores focus', async ({ page }) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	const pickerControl = page.getByRole('button', {
+		name: 'Open Box Picker for emerald-011020251345.sav'
+	});
+
+	await pickerControl.click();
+	let picker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await expect(picker.getByRole('button', { name: /^Box \d{2}/ })).toHaveCount(14);
+	await picker.getByRole('button', { name: /^Box 14/ }).click();
+	await expect(page.getByRole('heading', { name: 'Box 14' })).toBeVisible({ timeout: 15000 });
+	await expect(pickerControl).toBeFocused();
+
+	await page.keyboard.press('Enter');
+	picker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await expect(picker.getByRole('button', { name: /^Box 14/ })).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(picker).toBeHidden();
+	await expect(pickerControl).toBeFocused();
+
+	await pressController(page, 'Enter');
+	await expect(picker).toBeVisible();
+	await pressController(page, 'ArrowLeft');
+	await expect(picker.getByRole('button', { name: /^Box 13/ })).toBeFocused();
+	await pressController(page, 'Enter');
+	await expect(page.getByRole('heading', { name: 'Box 13' })).toBeVisible({ timeout: 15000 });
+	await expect(pickerControl).toBeFocused();
+});
+
 test('switches to durable Pokemon Storage with focusable empty Slot actions', async ({ page }) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
@@ -1212,6 +1242,11 @@ test('switches to durable Pokemon Storage with focusable empty Slot actions', as
 	);
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await expect(
+		page.getByRole('dialog', { name: 'Choose a Box' }).getByRole('button', { name: /^Box \d{2}/ })
+	).toHaveCount(5);
+	await page.keyboard.press('Escape');
 
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('PageDown');
@@ -2360,14 +2395,28 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 
 	await page.keyboard.press('x');
 	await expect(page.getByRole('dialog', { name: 'Box Menu' })).toBeHidden();
+	const boxPicker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await expect(boxPicker).toBeVisible();
+	await expect(boxPicker.getByRole('button', { name: /^Box 01/ })).toBeFocused();
+	await pressController(page, 'ArrowRight');
+	await pressController(page, 'Enter');
+	await expect(
+		page.locator('.box-pane.active-pane').getByRole('heading', { name: 'Box 02' })
+	).toBeVisible({ timeout: 15000 });
+	await expect(page.locator('#box-1-slot-0')).toBeFocused();
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
+	await page.keyboard.press('x');
+	await expect(boxPicker).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(page.locator('#box-1-slot-0')).toBeFocused();
 	await page.keyboard.press('Control+Shift+k');
 	await pressController(page, 'Menu');
 	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeHidden();
 	await expect(page.getByRole('button', { name: 'Open Main Menu' })).toHaveCount(0);
 	await page.keyboard.press('y');
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
-	await expect(page.locator('#box-0-slot-0')).toHaveAccessibleName(
-		'Box Slot 1, row 1, column 1: ARON, Lv. 11. Carry Copy ARON'
+	await expect(page.locator('#box-1-slot-0')).toHaveAccessibleName(
+		'Box Slot 1, row 1, column 1: Empty. Carry Copy ARON'
 	);
 	await page.keyboard.press('y');
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
@@ -2381,19 +2430,19 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await expect(closeControl).toHaveAttribute('aria-disabled', 'true');
 	await expect(closeControl).toHaveAttribute('tabindex', '-1');
 	await closeControl.focus();
-	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+	await expect(page.locator('#box-1-slot-0')).toBeFocused();
 	await closeControl.click({ force: true });
 	await expect(page.locator('.box-pane')).toHaveCount(2);
 
 	await pressController(page, 'PageDown');
 	await expect(
-		page.locator('.box-pane.active-pane').getByRole('heading', { name: 'Box 02' })
+		page.locator('.box-pane.active-pane').getByRole('heading', { name: 'Box 03' })
 	).toBeVisible();
-	await expect(page.locator('#box-1-slot-0')).toBeFocused();
+	await expect(page.locator('#box-2-slot-0')).toBeFocused();
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
 	await expect(page.locator('.carry-at-focus img')).toHaveAttribute('src', sourceSpriteUrl!);
 	await page.setViewportSize({ width: 360, height: 640 });
-	await expect(page.locator('#box-1-slot-0')).toBeFocused();
+	await expect(page.locator('#box-2-slot-0')).toBeFocused();
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
 	await expect(page.locator('.carry-at-focus img')).toHaveAttribute('src', sourceSpriteUrl!);
 	await page.keyboard.press('Escape');
