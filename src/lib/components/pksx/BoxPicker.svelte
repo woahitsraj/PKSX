@@ -7,6 +7,7 @@
 		locations: BoxPickerLocation[];
 		activeLocationId: string;
 		activeIndex: number;
+		boxNameUnavailableReason?: string | null;
 		onFocusLocation: (index: number) => void;
 		onSelectLocation: (location: BoxPickerLocation) => void;
 		onColumnCountChange: (columnCount: number) => void;
@@ -18,6 +19,7 @@
 		locations,
 		activeLocationId,
 		activeIndex,
+		boxNameUnavailableReason = null,
 		onFocusLocation,
 		onSelectLocation,
 		onColumnCountChange,
@@ -44,6 +46,9 @@
 			<div>
 				<h2 id="box-picker-title">Choose a Box</h2>
 				<p>{collection}</p>
+				{#if boxNameUnavailableReason}
+					<p class="box-name-unavailable" role="note">{boxNameUnavailableReason}</p>
+				{/if}
 			</div>
 			<button
 				type="button"
@@ -55,11 +60,16 @@
 
 		<div class="box-picker-grid" aria-label={`${collection} Boxes`} {@attach measureColumns}>
 			{#each locations as location, index (location.id)}
+				{@const numericLabel =
+					location.location.kind === 'physical-box'
+						? `Box ${String(location.location.box + 1).padStart(2, '0')}`
+						: location.label}
 				<button
 					id={`box-picker-location-${index}`}
 					type="button"
 					data-pksx-control-category="card"
 					class:controller-focused={activeIndex === index}
+					aria-label={`${numericLabel}: ${location.label}, ${location.detail}`}
 					aria-current={location.id === activeLocationId ? 'true' : undefined}
 					onfocus={() => onFocusLocation(index)}
 					onclick={() => onSelectLocation(location)}
@@ -108,6 +118,10 @@
 	p {
 		color: var(--ink-soft);
 		font-size: var(--pksx-type-label);
+	}
+
+	.box-name-unavailable {
+		font-size: var(--pksx-type-caption);
 	}
 
 	header button {

@@ -144,6 +144,12 @@ export const saveFileEditableProjectionSchema = z.object({
 	})
 });
 
+export const saveFileBoxNameProjectionSchema = z.object({
+	supported: z.boolean(),
+	names: z.array(z.string()),
+	unsupportedReason: z.string().nullable()
+});
+
 export const saveFileInventoryCatalogueSchema = z.object({
 	supported: z.boolean(),
 	unsupportedReason: z.string().nullable(),
@@ -496,6 +502,11 @@ export const saveWorkspaceSchema = z.object({
 	summary: saveSummarySchema,
 	partySlots: z.array(partySlotSummarySchema),
 	boxSlots: z.array(boxSlotSummarySchema),
+	boxNames: saveFileBoxNameProjectionSchema.default({
+		supported: false,
+		names: [],
+		unsupportedReason: 'Box Names are not available for this Save File format.'
+	}),
 	saveFile: saveFileEditableProjectionSchema.optional()
 });
 

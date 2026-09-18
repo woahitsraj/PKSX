@@ -48,6 +48,7 @@ function workspace(
 			},
 			partySlots: [],
 			boxSlots: [],
+			boxNames: { supported: true, names: ['BOX 1'], unsupportedReason: null },
 			saveFile: {
 				trainerProfile: {
 					trainerName: 'PUBLIC',

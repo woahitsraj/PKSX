@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createPhysicalBoxPickerLocations, moveBoxPickerFocus } from './index';
+import { boxNameFor, createPhysicalBoxPickerLocations, moveBoxPickerFocus } from './index';
 
 describe('box picker', () => {
 	it('creates one numbered physical Location for every reported Box', () => {
@@ -30,6 +30,42 @@ describe('box picker', () => {
 		const locations = createPhysicalBoxPickerLocations(1);
 
 		expect(locations[0].location).toEqual({ kind: 'physical-box', box: 0 });
+	});
+
+	it('uses engine-reported Box Names while preserving numeric position details', () => {
+		expect(
+			createPhysicalBoxPickerLocations(2, {
+				supported: true,
+				names: ['Friends', 'Training'],
+				unsupportedReason: null
+			})
+		).toEqual([
+			{
+				id: 'physical-box-0',
+				label: 'Friends',
+				detail: '1 of 2',
+				location: { kind: 'physical-box', box: 0 }
+			},
+			{
+				id: 'physical-box-1',
+				label: 'Training',
+				detail: '2 of 2',
+				location: { kind: 'physical-box', box: 1 }
+			}
+		]);
+	});
+
+	it('falls back to numbered labels when the engine reports Box Names unavailable or blank', () => {
+		expect(
+			boxNameFor(0, {
+				supported: false,
+				names: [],
+				unsupportedReason: 'Box Names are not available for this Save File format.'
+			})
+		).toBe('Box 01');
+		expect(
+			boxNameFor(1, { supported: true, names: ['Friends', ''], unsupportedReason: null })
+		).toBe('Box 02');
 	});
 
 	it('follows the rendered grid and wraps incomplete rows', () => {

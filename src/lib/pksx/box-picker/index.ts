@@ -1,4 +1,5 @@
 import type { NavigationAction } from '$lib/pksx/box-navigation';
+import type { SaveFileBoxNameProjection } from '$lib/engine';
 
 export type BoxPickerLocationRef =
 	| { kind: 'physical-box'; box: number }
@@ -11,11 +12,19 @@ export type BoxPickerLocation = {
 	location: BoxPickerLocationRef;
 };
 
-export function createPhysicalBoxPickerLocations(boxCount: number): BoxPickerLocation[] {
+export function boxNameFor(box: number, boxNames?: SaveFileBoxNameProjection | null): string {
+	const name = boxNames?.supported ? boxNames.names[box]?.trim() : undefined;
+	return name || `Box ${String(box + 1).padStart(2, '0')}`;
+}
+
+export function createPhysicalBoxPickerLocations(
+	boxCount: number,
+	boxNames?: SaveFileBoxNameProjection | null
+): BoxPickerLocation[] {
 	const count = Math.max(0, Math.trunc(boxCount));
 	return Array.from({ length: count }, (_, box) => ({
 		id: `physical-box-${box}`,
-		label: `Box ${String(box + 1).padStart(2, '0')}`,
+		label: boxNameFor(box, boxNames),
 		detail: `${box + 1} of ${count}`,
 		location: { kind: 'physical-box', box }
 	}));

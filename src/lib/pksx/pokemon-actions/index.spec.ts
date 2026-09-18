@@ -89,7 +89,8 @@ const workspace = createCleanWorkspaceState({
 			boxSlotCount: 30
 		},
 		partySlots: [],
-		boxSlots: []
+		boxSlots: [],
+		boxNames: { supported: true, names: ['BOX 1'], unsupportedReason: null }
 	}
 });
 

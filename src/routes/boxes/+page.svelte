@@ -49,6 +49,7 @@
 		type WorkspaceState
 	} from '$lib/pksx/backup-workflow';
 	import {
+		boxNameFor as projectedBoxNameFor,
 		createPhysicalBoxPickerLocations,
 		moveBoxPickerFocus,
 		type BoxPickerLocation
@@ -310,8 +311,8 @@
 		return slot.kind === 'pokemon' && slotTypeHues(slot, box).secondaryHue !== null;
 	}
 
-	function boxNameFor(box: number): string {
-		return `Box ${String(box + 1).padStart(2, '0')}`;
+	function boxNameFor(box: number, pane: BoxPaneState | undefined = activePane): string {
+		return projectedBoxNameFor(box, saveWorkspaceForPane(pane)?.state.workspace.boxNames ?? null);
 	}
 
 	const pendingPartySlots: SlotView[] = Array.from({ length: PARTY_SLOT_COUNT }, (_, slot) => ({
@@ -413,8 +414,16 @@
 		return target ? workbenchPanes.find((pane) => matchesBoxMenuTarget(pane, target)) : undefined;
 	});
 	const boxPickerLocations = $derived(
-		createPhysicalBoxPickerLocations(boxPickerPane?.boxCount ?? 0)
+		createPhysicalBoxPickerLocations(
+			boxPickerPane?.boxCount ?? 0,
+			saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames ?? null
+		)
 	);
+	const boxPickerNameUnavailableReason = $derived.by(() => {
+		if (boxPickerPane?.source.type !== 'save-file') return null;
+		const boxNames = saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames;
+		return boxNames && !boxNames.supported ? boxNames.unsupportedReason : null;
+	});
 	const activePaneBox = $derived(activePane?.activeBox ?? navigation.activeBox);
 	const summonedSlotPane = $derived(
 		summonedSlotLauncher
@@ -482,7 +491,7 @@
 			: activeSlotFocus.zone === 'box'
 				? (() => {
 						const position = getBoxSlotPosition(activeSlotFocus.slot);
-						return `${boxNameFor(summonedSlotBox ?? activePaneBox)} · Slot ${activeSlotFocus.slot + 1} · Row ${String.fromCharCode(65 + position.row)} / Col ${position.column + 1}`;
+						return `${boxNameFor(summonedSlotBox ?? activePaneBox, focusedSlotPane)} · Slot ${activeSlotFocus.slot + 1} · Row ${String.fromCharCode(65 + position.row)} / Col ${position.column + 1}`;
 					})()
 				: `Party · Slot ${activeSlotFocus.slot + 1}`
 	);
@@ -5108,7 +5117,7 @@
 					data-pane-id={pane.id}
 					data-source-id={pane.source.id}
 					data-location={paneParty ? 'party' : `box-${paneBox}`}
-					aria-label={`${pane.source.label}, ${paneParty ? 'Party' : boxNameFor(paneBox)}`}
+					aria-label={`${pane.source.label}, ${paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
 					aria-busy={paneBusy ? 'true' : undefined}
 				>
 					<div class="pane-header">
@@ -5185,7 +5194,7 @@
 								source={{
 									key: pane.source.type,
 									label: pane.source.label,
-									activeBoxLabel: paneParty ? 'Party' : boxNameFor(paneBox),
+									activeBoxLabel: paneParty ? 'Party' : boxNameFor(paneBox, pane),
 									activeBoxNumber: paneBox + 1,
 									boxCount:
 										pane.source.type === 'pokemon-storage' ? pokemonStorageBoxCount : pane.boxCount,
@@ -5217,7 +5226,7 @@
 						class={['location-grid', paneParty && 'party-grid']}
 						role="grid"
 						tabindex={paneActive ? 0 : -1}
-						aria-label={`${pane.source.label} ${paneParty ? 'Party' : boxNameFor(paneBox)}`}
+						aria-label={`${pane.source.label} ${paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
 						aria-activedescendant={paneActive && isSlotFocus(navigation.focus)
 							? activeFocusId
 							: undefined}
@@ -5322,7 +5331,10 @@
 				slotHueStyle={slotStyle(focusedSlot, activePaneBox)}
 				spriteUrl={spriteUrlFor(focusedSlot)}
 				{saveSummary}
-				activeBoxName={boxNameFor(summonedSlotBox ?? focusedSlotPane?.activeBox ?? activePaneBox)}
+				activeBoxName={boxNameFor(
+					summonedSlotBox ?? focusedSlotPane?.activeBox ?? activePaneBox,
+					focusedSlotPane
+				)}
 				positionLabel={carryState
 					? `${activeSlotPositionLabel} · ${carryState.mode === 'move' ? 'Drop' : 'Copy'} target`
 					: activeSlotPositionLabel}
@@ -5363,6 +5375,7 @@
 		locations={boxPickerLocations}
 		activeLocationId={`physical-box-${boxPickerPane.activeBox}`}
 		activeIndex={boxPickerFocusIndex}
+		boxNameUnavailableReason={boxPickerNameUnavailableReason}
 		onFocusLocation={focusBoxPickerLocation}
 		onSelectLocation={selectBoxPickerLocation}
 		onColumnCountChange={(columnCount) => (boxPickerColumnCount = columnCount)}

@@ -68,7 +68,8 @@ const workspace = {
 			boxSlotCount: 30
 		},
 		partySlots: [],
-		boxSlots: []
+		boxSlots: [],
+		boxNames: { supported: true, names: ['BOX 1'], unsupportedReason: null }
 	} satisfies SaveWorkspace,
 	dirty: false,
 	restoredFromBackup: null,

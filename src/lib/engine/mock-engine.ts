@@ -14,6 +14,7 @@ import type {
 	PreservedPokemon,
 	PokemonSpeciesFormEditProjection,
 	SaveSlotRef,
+	SaveFileBoxNameProjection,
 	PartySlotSummary,
 	SaveSummary,
 	SaveWorkspace,
@@ -44,6 +45,12 @@ const mockSaveSummary: SaveSummary = {
 	boxCount: 1,
 	boxSlotCount: 30
 };
+
+const mockBoxNames = {
+	supported: true,
+	names: ['Friends'],
+	unsupportedReason: null
+} satisfies SaveWorkspace['boxNames'];
 
 const mockPikachuDetails = {
 	experience: 125,
@@ -349,7 +356,11 @@ const mockPartySlots: PartySlotSummary[] = [
 	}
 ];
 
-export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi {
+export function createMockEngine(
+	overrides: Partial<EngineApi> = {},
+	options: { boxNames?: SaveFileBoxNameProjection } = {}
+): EngineApi {
+	const boxNames = options.boxNames ?? mockBoxNames;
 	return {
 		getVersion: async () => success(mockVersion),
 		summarizeSave: async (_bytes, fileName) => success({ ...mockSaveSummary, fileName }),
@@ -382,7 +393,8 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 			return success<SaveWorkspace>({
 				summary: { ...mockSaveSummary, fileName },
 				partySlots: mockPartySlots,
-				boxSlots: mockBoxSlots
+				boxSlots: mockBoxSlots,
+				boxNames
 			});
 		},
 		serializeSave: async (bytes) =>
@@ -397,7 +409,8 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,
-					boxSlots: activeBox === 0 ? mockBoxSlots : []
+					boxSlots: activeBox === 0 ? mockBoxSlots : [],
+					boxNames
 				}
 			}),
 		applyPokemonEditOperation: async (bytes, fileName, operation, activeBox) =>
@@ -419,7 +432,8 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,
-					boxSlots: activeBox === 0 ? mockBoxSlots : []
+					boxSlots: activeBox === 0 ? mockBoxSlots : [],
+					boxNames
 				}
 			}),
 		createPokemon: async (bytes, fileName, _operation, activeBox) =>
@@ -429,7 +443,8 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,
-					boxSlots: activeBox === 0 ? mockBoxSlots : []
+					boxSlots: activeBox === 0 ? mockBoxSlots : [],
+					boxNames
 				}
 			}),
 		getPokemonCreationCatalogue: async () =>
@@ -478,7 +493,8 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,
-					boxSlots: activeBox === 0 ? mockBoxSlots : []
+					boxSlots: activeBox === 0 ? mockBoxSlots : [],
+					boxNames
 				}
 			}),
 		validatePokemonEditPreview: async () => success(true),
@@ -497,7 +513,8 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,
-					boxSlots: activeBox === 0 ? mockBoxSlots : []
+					boxSlots: activeBox === 0 ? mockBoxSlots : [],
+					boxNames
 				}
 			}),
 		checkSlotLegality: async () =>
@@ -517,7 +534,8 @@ export function createMockEngine(overrides: Partial<EngineApi> = {}): EngineApi 
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,
-					boxSlots: activeBox === 0 ? mockBoxSlots : []
+					boxSlots: activeBox === 0 ? mockBoxSlots : [],
+					boxNames
 				},
 				changes: [{ field: 'Species', before: 'Pikachu', after: 'Raichu' }]
 			}),
