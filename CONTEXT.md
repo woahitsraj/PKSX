@@ -169,11 +169,23 @@ A live connection between two devices running PKSX, for sending Pokemon Entities
 _Avoid_: cloud sync, account sync
 
 **Cloud Sync**:
-An opt-in, provider-readable capability that makes Saves, including persisted Workspace changes, available to the same user across PKSX devices. Its Sync Provider can read synchronized Saves content and metadata.
+An opt-in, provider-readable capability that makes Saves, including persisted Workspace changes, available to the same user across PKSX Installations. Its Sync Provider can read synchronized Saves content and metadata.
 _Avoid_: Peer Transfer, TinyBase sync, Export
 
+**User Account**:
+The identity a person uses to authenticate to Cloud Sync and recover access to a personal Sync Profile.
+_Avoid_: Sync Profile, PKSX Installation, cloud account
+
+**Sync Profile**:
+The provider-neutral owner of one synchronized Saves collection. It belongs to one User Account and is never shared with another account.
+_Avoid_: User Account, provider account, PKSX Installation
+
+**PKSX Installation**:
+An isolated PKSX app instance with its own local Saves and Cloud Sync enrollment state, such as one browser storage context or installed native app instance.
+_Avoid_: physical device, browser tab, session
+
 **Sync Provider**:
-The service that stores and serves Cloud Sync data. It never receives PKSX credentials or device-local state.
+The service that stores and serves Cloud Sync data. It never receives PKSX credentials or installation-local state.
 _Avoid_: Cloud account, Sync Profile
 
 **Backup**:
@@ -390,7 +402,21 @@ _Avoid_: setting, option, config
 - A **Sprite Catalog** may or may not contain an asset for a **Sprite Identity**.
 - A **Peer Transfer** sends **Pokemon Entities** or **Storage Boxes** between two devices running PKSX.
 - A **Pokemon Entity** received through **Peer Transfer** enters **Pokemon Storage** before it can be moved into a **Save File**.
-- **Cloud Sync** makes **Save Files**, **Backups**, **Pokemon Storage**, and persisted **Workspaces** available across a user's PKSX devices.
+- **Cloud Sync** makes **Save Files**, **Backups**, **Pokemon Storage**, and persisted **Workspaces** available across a user's PKSX Installations.
+- A **User Account** owns zero or one **Sync Profile**.
+- A **Sync Profile** belongs to exactly one **User Account** and cannot be shared with another account.
+- A **PKSX Installation** enrolls in at most one **Sync Profile** at a time.
+- Authenticating a **User Account** is sufficient to enroll a **PKSX Installation** in its **Sync Profile**; another Installation does not approve it.
+- Multiple **PKSX Installations** may enroll in one **Sync Profile** concurrently.
+- Signing out removes an Installation's credentials and enrollment state but retains its local **Saves** as local-only data.
+- Removing local **Saves** after sign-out is a separate, user-confirmed action.
+- An Installation with existing local **Saves** does not upload them or replace them with shared data until the user completes adoption and reconciliation.
+- Formerly synchronized data retains its **Sync Profile** association after sign-out.
+- Signing back into the same **User Account** re-enrolls the Installation and reconciles its retained local **Saves** with that account's **Sync Profile**.
+- Signing into another **User Account** never uploads data associated with the previous account's **Sync Profile** without explicit adoption.
+- Revoking an Installation's authentication blocks future **Sync Provider** access after the Installation reconnects but cannot erase its local **Saves**.
+- The first Cloud Sync release has no PKSX-managed Installation directory, per-Installation revocation, or product-level Installation limit.
+- Local **Saves** may exist without a **User Account** or **Sync Profile**.
 - A **Sync Provider** may read all content and metadata that **Cloud Sync** synchronizes.
 - A **Dirty Workspace** received through **Cloud Sync** can be opened and **Exported** on another device.
 - **Cloud Sync** never writes to the original user-controlled file; **Export** does.
