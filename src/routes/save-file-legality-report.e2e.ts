@@ -45,7 +45,7 @@ async function importSaveFile(page: Page, fixturePath = emeraldFixturePath) {
 	await page.reload();
 	await page.getByLabel('Import Save File').setInputFiles(fixturePath);
 	await expect(
-		page.getByRole('button', { name: `Open ${path.basename(fixturePath)} in Boxes` })
+		page.getByText(`${path.basename(fixturePath)} imported and made active.`)
 	).toBeVisible({ timeout: 15_000 });
 }
 
@@ -321,7 +321,7 @@ test('keeps a secondary Save File report current across Box projection loads', a
 	await importSaveFile(page);
 	await page.getByLabel('Import Save File').setInputFiles(platinumFixturePath);
 	await expect(
-		page.getByRole('button', { name: `Open ${path.basename(platinumFixturePath)} in Boxes` })
+		page.getByText(`${path.basename(platinumFixturePath)} imported and made active.`)
 	).toBeVisible({ timeout: 15_000 });
 	await page
 		.getByRole('button', { name: `Open ${path.basename(emeraldFixturePath)} in Boxes` })
