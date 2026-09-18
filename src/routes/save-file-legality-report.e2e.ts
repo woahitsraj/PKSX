@@ -331,15 +331,18 @@ test('keeps a secondary Save File report current across Box projection loads', a
 		name: `Open Box Menu for ${path.basename(emeraldFixturePath)}`
 	});
 	await expect(primaryMenuButton).toBeVisible({ timeout: 15_000 });
+	await page.goto('/boxes');
+	await expect(primaryMenuButton).toBeVisible({ timeout: 15_000 });
 	await primaryMenuButton.click();
 	await page
 		.getByRole('dialog', { name: 'Box Menu' })
 		.getByRole('button', { name: 'Open another collection' })
 		.click();
-	await page
+	const platinumOption = page
 		.getByRole('dialog', { name: 'Open another collection' })
-		.getByRole('button', { name: new RegExp(path.basename(platinumFixturePath)) })
-		.click();
+		.getByRole('button', { name: new RegExp(path.basename(platinumFixturePath)) });
+	await expect(platinumOption).toBeVisible({ timeout: 15_000 });
+	await platinumOption.click();
 
 	const secondaryPane = page.locator('.box-pane').filter({
 		has: page.getByRole('button', {
