@@ -151,7 +151,9 @@ export const saveFileBoxNameProjectionSchema = z.object({
 	renameSupported: z.boolean().optional(),
 	renameMaxLength: z.number().int().nonnegative().optional(),
 	renameConstraints: z.string().nullable().optional(),
-	renameUnsupportedReason: z.string().nullable().optional()
+	renameUnsupportedReason: z.string().nullable().optional(),
+	reorderSupported: z.boolean().optional(),
+	reorderUnsupportedReason: z.string().nullable().optional()
 });
 
 export const saveFileInventoryCatalogueSchema = z.object({
@@ -513,7 +515,9 @@ export const saveWorkspaceSchema = z.object({
 		renameSupported: false,
 		renameMaxLength: 0,
 		renameConstraints: null,
-		renameUnsupportedReason: 'Box Name editing is not supported for this Save File format.'
+		renameUnsupportedReason: 'Box Name editing is not supported for this Save File format.',
+		reorderSupported: false,
+		reorderUnsupportedReason: 'Box reordering is not supported for this Save File format.'
 	}),
 	saveFile: saveFileEditableProjectionSchema.optional()
 });
@@ -680,6 +684,12 @@ export const saveFileEditOperationSchema = z.object({
 		.object({
 			box: z.number().int(),
 			name: z.string()
+		})
+		.optional(),
+	boxMove: z
+		.object({
+			box: z.number().int(),
+			destination: z.number().int()
 		})
 		.optional(),
 	trainerProfile: z

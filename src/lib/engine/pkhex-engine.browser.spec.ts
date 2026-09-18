@@ -203,14 +203,16 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			fileName: '011020251345.sav',
 			url: fixtureUrl,
 			supported: true,
-			firstName: 'BOX1'
+			firstName: 'BOX1',
+			reorderSupported: true
 		},
 		{
 			name: "Let's Go Eevee",
 			fileName: 'pokemon-lets-go-eevee-2025-03-24-savedata.bin',
 			url: letsGoEeveeFixtureUrl,
 			supported: false,
-			firstName: undefined
+			firstName: undefined,
+			reorderSupported: false
 		}
 	] as const)('projects Box Name capability for the $name fixture', async (fixture) => {
 		const [engine, fixtureResponse] = await Promise.all([
@@ -223,6 +225,12 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(loaded.ok, JSON.stringify(loaded.error)).toBe(true);
 		if (!loaded.ok) throw new Error(`Expected ${fixture.name} workspace to load.`);
 		expect(loaded.value.boxNames.supported).toBe(fixture.supported);
+		expect(loaded.value.boxNames.reorderSupported).toBe(fixture.reorderSupported);
+		expect(loaded.value.boxNames.reorderUnsupportedReason).toBe(
+			fixture.reorderSupported
+				? null
+				: 'Box reordering is not supported for this Save File format or its protected slots.'
+		);
 		if (fixture.supported) {
 			expect(loaded.value.boxNames.names).toHaveLength(loaded.value.summary.boxCount);
 			expect(loaded.value.boxNames.names[0]).toBe(fixture.firstName);
@@ -241,6 +249,48 @@ describe('PKHeX Engine browser runtime smoke', () => {
 				'Box Names are not available for this Save File format.'
 			);
 		}
+	});
+
+	test('reorders exported Box content and metadata without mutating the source Save File', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const [originalFirst, originalSecond] = await Promise.all([
+			engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0),
+			engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 1)
+		]);
+		if (!originalFirst.ok || !originalSecond.ok) throw new Error('Expected source Boxes to load.');
+
+		const moved = await engine.applySaveFileEditOperation(
+			fixtureBytes,
+			'011020251345.sav',
+			{ boxMove: { box: 0, destination: 1 } },
+			1
+		);
+		expect(moved.ok, JSON.stringify(moved.error)).toBe(true);
+		if (!moved.ok) throw moved.error;
+		expect(moved.value.mutated).toBe(true);
+		expect(moved.value.workspace.boxNames.names.slice(0, 2)).toEqual(['BOX2', 'BOX1']);
+
+		const exported = await engine.serializeSave(moved.value.bytes, '011020251345.sav');
+		expect(exported.ok, JSON.stringify(exported.error)).toBe(true);
+		if (!exported.ok) throw exported.error;
+		const exportedBytes = Uint8Array.from(atob(exported.value.bytesBase64), (byte) =>
+			byte.charCodeAt(0)
+		);
+		const [exportedFirst, exportedSecond] = await Promise.all([
+			engine.loadSaveWorkspace(exportedBytes, '011020251345.sav', 0),
+			engine.loadSaveWorkspace(exportedBytes, '011020251345.sav', 1)
+		]);
+		if (!exportedFirst.ok || !exportedSecond.ok) throw new Error('Expected moved Boxes to load.');
+		const content = (slots: BoxSlotSummary[]) => slots.map((slot) => ({ ...slot, box: 0 }));
+		expect(content(exportedFirst.value.boxSlots)).toEqual(content(originalSecond.value.boxSlots));
+		expect(content(exportedSecond.value.boxSlots)).toEqual(content(originalFirst.value.boxSlots));
+
+		const original = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
+		expect(original.ok && original.value.boxNames.names.slice(0, 2)).toEqual(['BOX1', 'BOX2']);
 	});
 
 	test('renames a supported Box and rejects format-invalid names without changing source bytes', async () => {

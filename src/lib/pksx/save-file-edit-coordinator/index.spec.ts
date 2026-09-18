@@ -217,16 +217,21 @@ function mutationResult(
 			value: operation.money ?? projection.money.value
 		}
 	};
+	const names = [...source.workspace.boxNames.names];
+	if (operation.boxMove) {
+		const [moved] = names.splice(operation.boxMove.box, 1);
+		names.splice(operation.boxMove.destination, 0, moved);
+	}
 	const nextWorkspace: SaveWorkspace = {
 		...source.workspace,
-		boxNames: operation.boxName
-			? {
-					...source.workspace.boxNames,
-					names: source.workspace.boxNames.names.map((name, box) =>
+		boxNames: {
+			...source.workspace.boxNames,
+			names: operation.boxName
+				? names.map((name, box) =>
 						box === operation.boxName!.box ? operation.boxName!.name : name
 					)
-				}
-			: source.workspace.boxNames,
+				: names
+		},
 		summary: {
 			...source.workspace.summary,
 			trainerName: operation.trainerProfile?.trainerName ?? source.workspace.summary.trainerName
@@ -304,6 +309,23 @@ function workspace(id = 'save-1', byte = 1, automaticBackupCreated = false): Wor
 		dirty: false,
 		automaticBackupCreated
 	});
+}
+
+function workspaceWithBoxes() {
+	const state = workspace();
+	return {
+		...state,
+		workspace: {
+			...state.workspace,
+			summary: { ...state.workspace.summary, boxCount: 3 },
+			boxNames: {
+				...state.workspace.boxNames,
+				names: ['FRIENDS', 'TRAINING', 'TRADES'],
+				reorderSupported: true,
+				reorderUnsupportedReason: null
+			}
+		}
+	};
 }
 
 function storedWorkspace(
@@ -407,6 +429,53 @@ describe('Save File edit coordinator', () => {
 		expect(harness.backups.size).toBe(0);
 		expect(harness.workspaces.get(state.file.id)).toEqual(before);
 	});
+
+	it('atomically commits a Box move with its Backup and Dirty Workspace', async () => {
+		const state = workspaceWithBoxes();
+		const harness = createHarness(state);
+		const edits = coordinator(harness);
+		const origin = edits.openWorkspace(state, 2);
+
+		const result = await edits.enqueueEdit(origin, {
+			key: 'box-move:0:2',
+			operation: { boxMove: { box: 0, destination: 2 } }
+		});
+
+		expect(result).toMatchObject({ ok: true, status: 'committed' });
+		if (!result.ok) throw new Error(result.message);
+		expect(result.workspace.workspace.boxNames.names).toEqual(['TRAINING', 'TRADES', 'FRIENDS']);
+		expect(result.workspace).toMatchObject({ dirty: true, automaticBackupCreated: true });
+		expect(harness.backups.size).toBe(1);
+	});
+
+	it.each(['engine', 'persistence'] as const)(
+		'leaves Box order, Backup, and Dirty Workspace unchanged after %s failure',
+		async (failure) => {
+			const state = workspaceWithBoxes();
+			const harness = createHarness(state);
+			if (failure === 'engine') {
+				vi.mocked(harness.engine.applySaveFileEditOperation).mockRejectedValueOnce(
+					new Error('engine unavailable')
+				);
+			} else {
+				vi.mocked(harness.storage.commitRiskyWorkspaceMutation!).mockRejectedValueOnce(
+					new Error('quota exceeded')
+				);
+			}
+			const edits = coordinator(harness);
+			const origin = edits.openWorkspace(state);
+			const before = harness.workspaces.get(state.file.id);
+
+			const result = await edits.enqueueEdit(origin, {
+				key: 'box-move:0:2',
+				operation: { boxMove: { box: 0, destination: 2 } }
+			});
+
+			expect(result.ok).toBe(false);
+			expect(harness.backups.size).toBe(0);
+			expect(harness.workspaces.get(state.file.id)).toEqual(before);
+		}
+	);
 
 	it('drains edits admitted during recovery parsing and publishes their final Workspace', async () => {
 		const state = workspace('save-1', 1, true);

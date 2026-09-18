@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+	boxIndexAfterMove,
 	boxNameFor,
 	createPhysicalBoxPickerLocations,
 	moveBoxPickerControllerFocus,
@@ -95,6 +96,26 @@ describe('box picker', () => {
 		expect(moveBoxPickerControllerFocus(form, 'up', 6, 4, true)).toEqual({
 			...form,
 			formIndex: 2
+		});
+	});
+
+	it('tracks Box identity through a move', () => {
+		expect([0, 1, 2, 3].map((box) => boxIndexAfterMove(box, 0, 2))).toEqual([2, 0, 1, 3]);
+		expect([0, 1, 2, 3].map((box) => boxIndexAfterMove(box, 3, 1))).toEqual([0, 2, 3, 1]);
+	});
+
+	it('moves Controller Focus between Box commands and reorder targets', () => {
+		const grid = { zone: 'locations', locationIndex: 0, formIndex: 0 } as const;
+		const rename = moveBoxPickerControllerFocus(grid, 'up', 6, 4, true, true);
+		expect(rename.zone).toBe('rename-command');
+		const reorder = moveBoxPickerControllerFocus(rename, 'right', 6, 4, true, true);
+		expect(reorder.zone).toBe('reorder-command');
+		expect(moveBoxPickerControllerFocus(reorder, 'down', 6, 4, true, true)).toEqual(grid);
+
+		const targets = { ...grid, zone: 'reorder-targets' } as const;
+		expect(moveBoxPickerControllerFocus(targets, 'right', 6, 4, true, true)).toEqual({
+			...targets,
+			locationIndex: 1
 		});
 	});
 });

@@ -53,7 +53,9 @@ const mockBoxNames = {
 	renameSupported: true,
 	renameMaxLength: 17,
 	renameConstraints: "Use 1 to 17 characters that this Save File's encoding preserves exactly.",
-	renameUnsupportedReason: null
+	renameUnsupportedReason: null,
+	reorderSupported: false,
+	reorderUnsupportedReason: 'Box reordering requires at least two Boxes.'
 } satisfies SaveWorkspace['boxNames'];
 
 const mockPikachuDetails = {

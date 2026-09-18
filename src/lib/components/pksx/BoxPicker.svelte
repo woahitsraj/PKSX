@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import type { BoxPickerControllerFocus, BoxPickerLocation } from '$lib/pksx/box-picker';
+	import DelayedSpinner from './DelayedSpinner.svelte';
 	import TakeoverFrame from './TakeoverFrame.svelte';
 
 	interface Props {
@@ -9,9 +10,14 @@
 		activeLocationId: string;
 		activeIndex: number;
 		boxNameUnavailableReason?: string | null;
+		reorderUnavailableReason?: string | null;
 		renameMaxLength?: number;
 		renameConstraints?: string | null;
 		onRenameLocation?: (location: BoxPickerLocation, name: string) => Promise<string | null>;
+		onReorderLocation?: (
+			source: BoxPickerLocation,
+			destination: BoxPickerLocation
+		) => Promise<string | null>;
 		onFocusTarget: (focus: BoxPickerControllerFocus) => void;
 		onFocusLocation: (index: number) => void;
 		onSelectLocation: (location: BoxPickerLocation) => void;
@@ -25,9 +31,11 @@
 		activeLocationId,
 		activeIndex,
 		boxNameUnavailableReason = null,
+		reorderUnavailableReason = null,
 		renameMaxLength = 0,
 		renameConstraints = null,
 		onRenameLocation,
+		onReorderLocation,
 		onFocusTarget,
 		onFocusLocation,
 		onSelectLocation,
@@ -39,7 +47,11 @@
 	let renameDraft = $state('');
 	let renameError = $state<string | null>(null);
 	let renamePending = $state(false);
+	let reorderLocation = $state<BoxPickerLocation | null>(null);
+	let reorderError = $state<string | null>(null);
+	let reorderPending = $state(false);
 	const focusedLocation = $derived(locations[activeIndex] ?? null);
+	const busy = $derived(renamePending || reorderPending);
 
 	function focusRenameInput(select = false) {
 		const input = document.getElementById('box-name-input');
@@ -84,6 +96,49 @@
 		queueMicrotask(() => document.getElementById(`box-picker-location-${activeIndex}`)?.focus());
 	}
 
+	function beginReorder() {
+		if (!onReorderLocation || !focusedLocation) return;
+		reorderLocation = focusedLocation;
+		reorderError = null;
+		onFocusTarget({ zone: 'reorder-targets', locationIndex: activeIndex, formIndex: 0 });
+		queueMicrotask(() => document.getElementById(`box-picker-location-${activeIndex}`)?.focus());
+	}
+
+	function cancelReorder() {
+		if (reorderPending || !reorderLocation) return;
+		const sourceIndex =
+			reorderLocation.location.kind === 'physical-box' ? reorderLocation.location.box : activeIndex;
+		reorderLocation = null;
+		reorderError = null;
+		onFocusTarget({ zone: 'locations', locationIndex: sourceIndex, formIndex: 0 });
+		queueMicrotask(() => document.getElementById(`box-picker-location-${sourceIndex}`)?.focus());
+	}
+
+	async function selectLocation(location: BoxPickerLocation) {
+		if (!reorderLocation) {
+			onSelectLocation(location);
+			return;
+		}
+		if (!onReorderLocation || reorderPending) return;
+		reorderPending = true;
+		reorderError = null;
+		const error = await onReorderLocation(reorderLocation, location);
+		reorderPending = false;
+		if (error) {
+			reorderError = error;
+			await tick();
+			document.getElementById(`box-picker-location-${activeIndex}`)?.focus();
+			return;
+		}
+		const destinationIndex =
+			location.location.kind === 'physical-box' ? location.location.box : activeIndex;
+		reorderLocation = null;
+		onFocusTarget({ zone: 'locations', locationIndex: destinationIndex, formIndex: 0 });
+		queueMicrotask(() =>
+			document.getElementById(`box-picker-location-${destinationIndex}`)?.focus()
+		);
+	}
+
 	function measureColumns(node: HTMLElement) {
 		const report = () => {
 			const columnCount = getComputedStyle(node)
@@ -98,8 +153,11 @@
 	}
 </script>
 
-<TakeoverFrame labelledby="box-picker-title" onBack={renameLocation ? cancelRename : onClose}>
-	<div class="box-picker">
+<TakeoverFrame
+	labelledby="box-picker-title"
+	onBack={renameLocation ? cancelRename : reorderLocation ? cancelReorder : onClose}
+>
+	<div class="box-picker" aria-busy={reorderPending}>
 		<header>
 			<div>
 				<h2 id="box-picker-title">Choose a Box</h2>
@@ -107,14 +165,29 @@
 				{#if boxNameUnavailableReason}
 					<p class="box-name-unavailable" role="note">{boxNameUnavailableReason}</p>
 				{/if}
+				{#if reorderUnavailableReason}
+					<p class="box-name-unavailable" role="note">{reorderUnavailableReason}</p>
+				{:else if reorderLocation}
+					<div class="reorder-status" aria-live="polite">
+						{#if reorderPending}
+							<DelayedSpinner active label="Moving Box" />
+							<span>Moving {reorderLocation.label}…</span>
+						{:else}
+							<span>Choose the new position for {reorderLocation.label}.</span>
+						{/if}
+					</div>
+				{/if}
+				{#if reorderError}
+					<p id="box-reorder-error" class="rename-error" aria-live="polite">{reorderError}</p>
+				{/if}
 			</div>
 			<div class="header-actions">
-				{#if onRenameLocation && focusedLocation && !renameLocation}
+				{#if onRenameLocation && focusedLocation && !renameLocation && !reorderLocation}
 					<button
 						id="box-picker-rename-command"
 						type="button"
 						data-pksx-control-category="small"
-						class="rename-button"
+						class="command-button"
 						onfocus={() =>
 							onFocusTarget({
 								zone: 'rename-command',
@@ -124,12 +197,29 @@
 						onclick={beginRename}>Rename Box</button
 					>
 				{/if}
+				{#if onReorderLocation && focusedLocation && !renameLocation && !reorderLocation}
+					<button
+						id="box-picker-reorder-command"
+						type="button"
+						data-pksx-control-category="small"
+						class="command-button"
+						onfocus={() =>
+							onFocusTarget({
+								zone: 'reorder-command',
+								locationIndex: activeIndex,
+								formIndex: 0
+							})}
+						onclick={beginReorder}>Move Box</button
+					>
+				{/if}
 				<button
+					id={reorderLocation ? 'box-picker-reorder-cancel' : undefined}
 					type="button"
 					data-pksx-control-category="icon-only"
 					aria-label="Close Box Picker"
-					disabled={renamePending}
-					onclick={renameLocation ? cancelRename : onClose}>×</button
+					disabled={busy}
+					onclick={renameLocation ? cancelRename : reorderLocation ? cancelReorder : onClose}
+					>×</button
 				>
 			</div>
 		</header>
@@ -192,10 +282,16 @@
 						type="button"
 						data-pksx-control-category="card"
 						class:controller-focused={activeIndex === index}
+						class:reorder-source={reorderLocation?.id === location.id}
 						aria-label={`${numericLabel}: ${location.label}, ${location.detail}`}
 						aria-current={location.id === activeLocationId ? 'true' : undefined}
-						onfocus={() => onFocusLocation(index)}
-						onclick={() => onSelectLocation(location)}
+						aria-pressed={reorderLocation ? reorderLocation.id === location.id : undefined}
+						disabled={reorderPending}
+						onfocus={() =>
+							reorderLocation
+								? onFocusTarget({ zone: 'reorder-targets', locationIndex: index, formIndex: 0 })
+								: onFocusLocation(index)}
+						onclick={() => selectLocation(location)}
 					>
 						<strong>{location.label}</strong>
 						<span>{location.detail}</span>
@@ -255,6 +351,14 @@
 		font-size: var(--pksx-type-caption);
 	}
 
+	.reorder-status {
+		display: flex;
+		align-items: center;
+		gap: var(--pksx-space-1);
+		color: var(--ink-soft);
+		font-size: var(--pksx-type-label);
+	}
+
 	header button {
 		width: var(--pksx-small-control-height);
 		height: var(--pksx-small-control-height);
@@ -268,7 +372,7 @@
 		cursor: pointer;
 	}
 
-	header .rename-button {
+	header .command-button {
 		width: auto;
 		padding: 0 var(--pksx-space-2);
 		font-size: var(--pksx-type-label);
@@ -354,6 +458,11 @@
 
 	.box-picker-grid button[aria-current='true'] {
 		box-shadow: inset 0 0 0 2px var(--rust);
+	}
+
+	.box-picker-grid button.reorder-source {
+		border-color: var(--rust);
+		background: var(--rust-wash);
 	}
 
 	.box-picker-grid strong {
