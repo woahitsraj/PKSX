@@ -10,6 +10,8 @@ export type {
 	BackupId,
 	BackupMetadata,
 	BackupReason,
+	CommitRiskyWorkspaceMutationInput,
+	CommitRiskyWorkspaceMutationResult,
 	CreateBackupInput,
 	EnsureAutomaticBackupInput,
 	EnsureAutomaticBackupResult,

@@ -126,6 +126,20 @@ export type EnsureAutomaticBackupResult = {
 	established: boolean;
 };
 
+export type CommitRiskyWorkspaceMutationInput = {
+	saveFileId: SaveFileId;
+	importedAt: string;
+	expectedUpdatedAt: string | null;
+	bytes: Uint8Array;
+	dirty: boolean;
+	reason: BackupReason;
+};
+
+export type CommitRiskyWorkspaceMutationResult = {
+	workspace: StoredWorkspace;
+	backupEstablished: boolean;
+};
+
 export type SavesStorage = {
 	importSave(input: ImportSaveInput): Promise<StoredSaveFile>;
 	getSave(saveFileId: SaveFileId): Promise<StoredSaveFile | null>;
@@ -141,6 +155,9 @@ export type SavesStorage = {
 	deleteSave(saveFileId: SaveFileId): Promise<void>;
 	createBackup(input: CreateBackupInput): Promise<BackupMetadata>;
 	ensureAutomaticBackup(input: EnsureAutomaticBackupInput): Promise<EnsureAutomaticBackupResult>;
+	commitRiskyWorkspaceMutation?(
+		input: CommitRiskyWorkspaceMutationInput
+	): Promise<CommitRiskyWorkspaceMutationResult>;
 	listBackups(saveFileId: SaveFileId): Promise<BackupMetadata[]>;
 	getBackupBytes(backupId: BackupId): Promise<Uint8Array | null>;
 	deleteBackup(backupId: BackupId): Promise<void>;

@@ -12,6 +12,12 @@ export type BoxPickerLocation = {
 	location: BoxPickerLocationRef;
 };
 
+export type BoxPickerControllerFocus = {
+	zone: 'locations' | 'rename-command' | 'rename-form';
+	locationIndex: number;
+	formIndex: number;
+};
+
 export function boxNameFor(box: number, boxNames?: SaveFileBoxNameProjection | null): string {
 	const name = boxNames?.supported ? boxNames.names[box]?.trim() : undefined;
 	return name || `Box ${String(box + 1).padStart(2, '0')}`;
@@ -52,4 +58,27 @@ export function moveBoxPickerFocus(
 	const offset = action === 'up' ? -1 : 1;
 	const targetRow = (row + offset + rowCount) % rowCount;
 	return targetRow * columns + Math.min(column, count - targetRow * columns - 1);
+}
+
+export function moveBoxPickerControllerFocus(
+	focus: BoxPickerControllerFocus,
+	action: Extract<NavigationAction, 'left' | 'right' | 'up' | 'down'>,
+	locationCount: number,
+	columnCount: number,
+	renameAvailable: boolean
+): BoxPickerControllerFocus {
+	if (focus.zone === 'rename-form') {
+		const offset = action === 'left' || action === 'up' ? -1 : 1;
+		return { ...focus, formIndex: (focus.formIndex + offset + 3) % 3 };
+	}
+	if (focus.zone === 'rename-command') {
+		return action === 'down' ? { ...focus, zone: 'locations' } : focus;
+	}
+	if (action === 'up' && renameAvailable && focus.locationIndex < columnCount) {
+		return { ...focus, zone: 'rename-command' };
+	}
+	return {
+		...focus,
+		locationIndex: moveBoxPickerFocus(focus.locationIndex, action, locationCount, columnCount)
+	};
 }

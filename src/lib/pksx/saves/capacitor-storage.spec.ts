@@ -467,6 +467,49 @@ describe('CapacitorSavesStorage', () => {
 		expect([...files.keys()].filter((path) => path.startsWith('backups/'))).toHaveLength(1);
 	});
 
+	it('atomically commits risky Workspace bytes with their automatic Backup', async () => {
+		const original = new Uint8Array([1, 2, 3]);
+		const saveFile = await storage.importSave({ bytes: original, originalFileName: null });
+		const committed = await storage.commitRiskyWorkspaceMutation({
+			saveFileId: saveFile.id,
+			importedAt: saveFile.importedAt,
+			expectedUpdatedAt: null,
+			bytes: new Uint8Array([3, 2, 1]),
+			dirty: true,
+			reason: 'save-file-editing'
+		});
+
+		expect(committed.workspace).toMatchObject({
+			bytes: new Uint8Array([3, 2, 1]),
+			dirty: true,
+			automaticBackupCreated: true
+		});
+		const [backup] = await storage.listBackups(saveFile.id);
+		expect(await storage.getBackupBytes(backup.id)).toEqual(original);
+	});
+
+	it('leaves Backup and Workspace state unchanged when a risky mutation commit fails', async () => {
+		const saveFile = await storage.importSave({
+			bytes: new Uint8Array([1, 2, 3]),
+			originalFileName: null
+		});
+		failCatalogWrites = 1;
+
+		await expect(
+			storage.commitRiskyWorkspaceMutation({
+				saveFileId: saveFile.id,
+				importedAt: saveFile.importedAt,
+				expectedUpdatedAt: null,
+				bytes: new Uint8Array([3, 2, 1]),
+				dirty: true,
+				reason: 'save-file-editing'
+			})
+		).rejects.toThrow('catalog unavailable');
+		expect(await storage.getWorkspace(saveFile.id)).toBeNull();
+		expect(await storage.listBackups(saveFile.id)).toEqual([]);
+		expect([...files.keys()].filter((path) => path.startsWith('backups/'))).toEqual([]);
+	});
+
 	it.each([
 		['Workspace baseline read', () => (failWorkspaceReads = 1), 'workspace read unavailable'],
 		['Workspace baseline write', () => (failWorkspaceWrites = 1), 'workspace write unavailable']

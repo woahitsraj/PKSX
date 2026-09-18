@@ -51,7 +51,8 @@
 	import {
 		boxNameFor as projectedBoxNameFor,
 		createPhysicalBoxPickerLocations,
-		moveBoxPickerFocus,
+		moveBoxPickerControllerFocus,
+		type BoxPickerControllerFocus,
 		type BoxPickerLocation
 	} from '$lib/pksx/box-picker';
 	import {
@@ -369,7 +370,11 @@
 	let clearSlotConfirmFocusIndex = $state(0);
 	let boxMenuTarget = $state<BoxMenuTarget | null>(null);
 	let boxPickerTarget = $state<BoxPickerTarget | null>(null);
-	let boxPickerFocusIndex = $state(0);
+	let boxPickerControllerFocus = $state<BoxPickerControllerFocus>({
+		zone: 'locations',
+		locationIndex: 0,
+		formIndex: 0
+	});
 	let boxPickerColumnCount = $state(1);
 	let workbenchPanes = $state<BoxPaneState[]>([
 		createBoxPane('pane-pokemon-storage', pokemonStorageSource(), { boxCount: placeholderBoxCount })
@@ -393,6 +398,7 @@
 	const slotMenuOpen = $derived(activeSummonedWorkflow?.kind === 'slot-menu');
 	const boxMenuOpen = $derived(activeSummonedWorkflow?.kind === 'box-menu');
 	const boxPickerOpen = $derived(activeSummonedWorkflow?.kind === 'box-picker');
+	const boxPickerFocusIndex = $derived(boxPickerControllerFocus.locationIndex);
 	const destinationInputSuspended = $derived(isDestinationInputSuspended(summonedWorkflow));
 	const summonedSlotLauncher = $derived(getLaunchingSlot(summonedWorkflow));
 	const activePane = $derived(
@@ -422,7 +428,19 @@
 	const boxPickerNameUnavailableReason = $derived.by(() => {
 		if (boxPickerPane?.source.type !== 'save-file') return null;
 		const boxNames = saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames;
-		return boxNames && !boxNames.supported ? boxNames.unsupportedReason : null;
+		if (!boxNames?.renameSupported) {
+			return (
+				boxNames?.renameUnsupportedReason ??
+				boxNames?.unsupportedReason ??
+				'Box Name editing is not supported for this Save File format.'
+			);
+		}
+		return pendingSlotOperation ? 'Finish or cancel Carry before renaming a Box.' : null;
+	});
+	const boxPickerRenameProjection = $derived.by(() => {
+		if (boxPickerPane?.source.type !== 'save-file' || pendingSlotOperation) return null;
+		const boxNames = saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames;
+		return boxNames?.renameSupported ? boxNames : null;
 	});
 	const activePaneBox = $derived(activePane?.activeBox ?? navigation.activeBox);
 	const summonedSlotPane = $derived(
@@ -739,22 +757,39 @@
 			case 'right':
 			case 'up':
 			case 'down':
-				focusBoxPickerLocation(
-					moveBoxPickerFocus(
-						boxPickerFocusIndex,
+				focusBoxPickerTarget(
+					moveBoxPickerControllerFocus(
+						boxPickerControllerFocus,
 						action,
 						boxPickerLocations.length,
-						boxPickerColumnCount
+						boxPickerColumnCount,
+						boxPickerRenameProjection !== null
 					)
 				);
 				break;
 			case 'confirm': {
+				if (boxPickerControllerFocus.zone === 'rename-command') {
+					document.getElementById('box-picker-rename-command')?.click();
+					break;
+				}
+				if (boxPickerControllerFocus.zone === 'rename-form') {
+					if (boxPickerControllerFocus.formIndex > 0) {
+						document
+							.getElementById(
+								boxPickerControllerFocus.formIndex === 1 ? 'box-name-cancel' : 'box-name-submit'
+							)
+							?.click();
+					}
+					break;
+				}
 				const location = boxPickerLocations[boxPickerFocusIndex];
 				if (location) selectBoxPickerLocation(location);
 				break;
 			}
 			case 'back':
-				closeBoxPicker();
+				if (boxPickerControllerFocus.zone === 'rename-form') {
+					document.getElementById('box-name-cancel')?.click();
+				} else closeBoxPicker();
 				break;
 			case 'previousBox':
 			case 'nextBox':
@@ -1565,23 +1600,43 @@
 				: controlLauncher(locationControlId(pane.id));
 		if (!summonedWorkflow.open('box-picker', launcher)) return;
 		boxPickerTarget = { paneId: pane.id, source: { ...pane.source } };
-		boxPickerFocusIndex = pane.activeBox;
+		boxPickerControllerFocus = {
+			zone: 'locations',
+			locationIndex: pane.activeBox,
+			formIndex: 0
+		};
 		queueMicrotask(() => focusBoxPickerLocation(pane.activeBox));
 	}
 
 	function closeBoxPicker() {
 		boxPickerTarget = null;
-		boxPickerFocusIndex = 0;
+		boxPickerControllerFocus = { zone: 'locations', locationIndex: 0, formIndex: 0 };
 		boxPickerColumnCount = 1;
 		dismissActiveWorkflow();
 	}
 
 	function focusBoxPickerLocation(index: number) {
 		if (boxPickerLocations.length === 0) return;
-		boxPickerFocusIndex = Math.max(0, Math.min(index, boxPickerLocations.length - 1));
-		queueMicrotask(() =>
-			document.getElementById(`box-picker-location-${boxPickerFocusIndex}`)?.focus()
-		);
+		focusBoxPickerTarget({
+			zone: 'locations',
+			locationIndex: Math.max(0, Math.min(index, boxPickerLocations.length - 1)),
+			formIndex: 0
+		});
+	}
+
+	function focusBoxPickerTarget(focus: BoxPickerControllerFocus) {
+		boxPickerControllerFocus = focus;
+		const id =
+			focus.zone === 'locations'
+				? `box-picker-location-${focus.locationIndex}`
+				: focus.zone === 'rename-command'
+					? 'box-picker-rename-command'
+					: ['box-name-input', 'box-name-cancel', 'box-name-submit'][focus.formIndex];
+		if (id) queueMicrotask(() => document.getElementById(id)?.focus());
+	}
+
+	function setBoxPickerControllerFocus(focus: BoxPickerControllerFocus) {
+		boxPickerControllerFocus = focus;
 	}
 
 	function selectBoxPickerLocation(location: BoxPickerLocation) {
@@ -1595,7 +1650,7 @@
 			: focusPaneControl(1, paneControlCountFor());
 		summonedWorkflow.dismiss();
 		boxPickerTarget = null;
-		boxPickerFocusIndex = 0;
+		boxPickerControllerFocus = { zone: 'locations', locationIndex: 0, formIndex: 0 };
 		boxPickerColumnCount = 1;
 		activePaneId = pane.id;
 		workbenchPanes = setPaneFocus(
@@ -1617,6 +1672,69 @@
 			else void refreshPaneWorkspace(pane.id, box);
 		}
 		queueMicrotask(focusActiveControl);
+	}
+
+	async function renameBoxPickerLocation(location: BoxPickerLocation, name: string) {
+		const target = boxPickerTarget;
+		const pane = boxPickerPane;
+		const paneWorkspace = saveWorkspaceForPane(pane);
+		if (
+			!target ||
+			!pane ||
+			!paneWorkspace ||
+			target.source.type !== 'save-file' ||
+			location.location.kind !== 'physical-box'
+		) {
+			return 'The Save File Workspace is no longer available.';
+		}
+
+		const coordinator = getSaveFileEditCoordinator();
+		const origin = coordinator.openWorkspace(paneWorkspace.state, pane.activeBox);
+		const result = await coordinator.enqueueEdit(origin, {
+			key: `box-name:${location.location.box}`,
+			operation: { boxName: { box: location.location.box, name } },
+			isResultCurrent: () => true,
+			publish: (state, publishedBox) => installBoxNameMutation(state, publishedBox)
+		});
+		if (!result.ok) return result.message;
+		return null;
+	}
+
+	function installBoxNameMutation(state: WorkspaceState, publishedBox: number) {
+		if (loadedSave?.file.id === state.file.id) {
+			loadedSave = state;
+			setCachedActiveWorkspace(state, publishedBox);
+		}
+
+		workbenchPanes = workbenchPanes.map((pane) =>
+			pane.source.type === 'save-file' && pane.source.id === state.file.id
+				? { ...pane, source: { ...pane.source, dirty: state.dirty } }
+				: pane
+		);
+		const nextPaneWorkspaces = { ...savePaneWorkspaces };
+		for (const pane of workbenchPanes) {
+			if (pane.source.type !== 'save-file' || pane.source.id !== state.file.id) continue;
+			const current = nextPaneWorkspaces[pane.id];
+			if (!current) continue;
+			nextPaneWorkspaces[pane.id] =
+				current.loadedBox === publishedBox
+					? { state, loadedBox: publishedBox }
+					: {
+							...current,
+							state: {
+								...current.state,
+								bytes: state.bytes,
+								dirty: state.dirty,
+								automaticBackupCreated: state.automaticBackupCreated,
+								workspace: {
+									...current.state.workspace,
+									boxNames: state.workspace.boxNames
+								}
+							}
+						};
+		}
+		savePaneWorkspaces = nextPaneWorkspaces;
+		invalidateSavesCache();
 	}
 
 	function focusBoxMenuCommand(index: number) {
@@ -5376,6 +5494,10 @@
 		activeLocationId={`physical-box-${boxPickerPane.activeBox}`}
 		activeIndex={boxPickerFocusIndex}
 		boxNameUnavailableReason={boxPickerNameUnavailableReason}
+		renameMaxLength={boxPickerRenameProjection?.renameMaxLength ?? 0}
+		renameConstraints={boxPickerRenameProjection?.renameConstraints ?? null}
+		onRenameLocation={boxPickerRenameProjection ? renameBoxPickerLocation : undefined}
+		onFocusTarget={setBoxPickerControllerFocus}
 		onFocusLocation={focusBoxPickerLocation}
 		onSelectLocation={selectBoxPickerLocation}
 		onColumnCountChange={(columnCount) => (boxPickerColumnCount = columnCount)}

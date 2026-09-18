@@ -241,6 +241,55 @@ describe('IndexedDbSavesStorage', () => {
 		expect(await storage.listBackups(saveFile.id)).toEqual([]);
 	});
 
+	it('commits risky Workspace bytes and their automatic Backup in one transaction', async () => {
+		const original = new Uint8Array([1, 2, 3]);
+		const saveFile = await storage.importSave({ bytes: original, originalFileName: null });
+		const committed = await storage.commitRiskyWorkspaceMutation({
+			saveFileId: saveFile.id,
+			importedAt: saveFile.importedAt,
+			expectedUpdatedAt: null,
+			bytes: new Uint8Array([3, 2, 1]),
+			dirty: true,
+			reason: 'save-file-editing'
+		});
+
+		expect(committed.backupEstablished).toBe(true);
+		expect(committed.workspace).toMatchObject({
+			bytes: new Uint8Array([3, 2, 1]),
+			dirty: true,
+			automaticBackupCreated: true
+		});
+		const [backup] = await storage.listBackups(saveFile.id);
+		expect(backup.reason).toBe('save-file-editing');
+		expect(await storage.getBackupBytes(backup.id)).toEqual(original);
+	});
+
+	it('rejects an obsolete risky mutation without creating a Backup or changing Workspace bytes', async () => {
+		const saveFile = await storage.importSave({
+			bytes: new Uint8Array([1]),
+			originalFileName: null
+		});
+		const current = await storage.putWorkspace({
+			saveFileId: saveFile.id,
+			bytes: new Uint8Array([2]),
+			dirty: false,
+			automaticBackupCreated: false
+		});
+
+		await expect(
+			storage.commitRiskyWorkspaceMutation({
+				saveFileId: saveFile.id,
+				importedAt: saveFile.importedAt,
+				expectedUpdatedAt: null,
+				bytes: new Uint8Array([3]),
+				dirty: true,
+				reason: 'save-file-editing'
+			})
+		).rejects.toBeInstanceOf(WorkspaceRevisionConflictError);
+		expect(await storage.getWorkspace(saveFile.id)).toEqual(current);
+		expect(await storage.listBackups(saveFile.id)).toEqual([]);
+	});
+
 	it('clears persisted workspace bytes for a save artifact', async () => {
 		const saveFile = await storage.importSave({
 			bytes: new Uint8Array([1, 2, 3]),

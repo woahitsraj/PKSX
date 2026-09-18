@@ -115,18 +115,23 @@ async function installWorkspaceResponseHold(page: Page) {
 			__pksxWorkspaceRequestsToHold?: number;
 			__pksxHeldWorkspaceResponses?: number;
 			__pksxResponseMethodToHold?: string;
+			__pksxReleaseWorkspaceResponse?: (method: string) => void;
 			__pksxReleaseWorkspaceResponses?: () => void;
 		};
 		const testWindow = window as TestWindow;
 		const NativeWorker = window.Worker;
-		const heldRequestIds = new Set<string>();
-		const releases: Array<() => void> = [];
+		const heldRequestMethods = new Map<string, string>();
+		const releases: Array<{ method: string; invoke: () => void }> = [];
 		testWindow.__pksxWorkspaceRequestsToHold = 0;
 		testWindow.__pksxHeldWorkspaceResponses = 0;
 		testWindow.__pksxResponseMethodToHold = 'loadSaveWorkspace';
+		testWindow.__pksxReleaseWorkspaceResponse = (method) => {
+			const index = releases.findIndex((release) => release.method === method);
+			if (index >= 0) releases.splice(index, 1)[0]?.invoke();
+		};
 		testWindow.__pksxReleaseWorkspaceResponses = () => {
-			heldRequestIds.clear();
-			for (const release of releases.splice(0)) release();
+			heldRequestMethods.clear();
+			for (const release of releases.splice(0)) release.invoke();
 		};
 
 		window.Worker = new Proxy(NativeWorker, {
@@ -143,7 +148,7 @@ async function installWorkspaceResponseHold(page: Page) {
 							remaining !== 0
 						) {
 							if (remaining > 0) testWindow.__pksxWorkspaceRequestsToHold = remaining - 1;
-							heldRequestIds.add(request.id);
+							heldRequestMethods.set(request.id, request.method);
 						}
 						return Reflect.apply(target, thisArg, args);
 					}
@@ -160,13 +165,15 @@ async function installWorkspaceResponseHold(page: Page) {
 							if (typeof listener === 'function') listener.call(worker, event);
 							else listener.handleEvent(event);
 						};
-						if (!message?.id || !heldRequestIds.delete(message.id)) {
+						const method = message?.id ? heldRequestMethods.get(message.id) : undefined;
+						if (!message?.id || !method) {
 							invoke();
 							return;
 						}
+						heldRequestMethods.delete(message.id);
 						testWindow.__pksxHeldWorkspaceResponses =
 							(testWindow.__pksxHeldWorkspaceResponses ?? 0) + 1;
-						releases.push(invoke);
+						releases.push({ method, invoke });
 					});
 				}) as typeof worker.addEventListener;
 				return worker;
@@ -212,6 +219,18 @@ async function releaseWorkspaceResponses(page: Page) {
 		testWindow.__pksxResponseMethodToHold = 'loadSaveWorkspace';
 		testWindow.__pksxReleaseWorkspaceResponses?.();
 	});
+}
+
+async function releaseWorkspaceResponse(page: Page, method: string) {
+	await page.evaluate(
+		(responseMethod) =>
+			(
+				window as typeof window & {
+					__pksxReleaseWorkspaceResponse?: (method: string) => void;
+				}
+			).__pksxReleaseWorkspaceResponse?.(responseMethod),
+		method
+	);
 }
 
 async function restoreEditingBackup(page: Page) {
@@ -1232,6 +1251,100 @@ test('direct Box Picker jumps across every Save File Box and restores focus', as
 	await expect(pickerControl).toBeFocused();
 });
 
+test('Save File Box rename validates atomically, persists, and updates picker and pane', async ({
+	page
+}) => {
+	await installWorkspaceResponseHold(page);
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	const fileName = 'emerald-011020251345.sav';
+	const pickerControl = page.getByRole('button', { name: `Open Box Picker for ${fileName}` });
+	const before = await persistedSavesStateSnapshot(page);
+	const bytesBefore = await workspaceBytesHashForFile(page, fileName);
+	const backupsBefore = await backupCount(page);
+
+	await pickerControl.click();
+	const picker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await page.keyboard.press('ArrowUp');
+	await expect(picker.getByRole('button', { name: 'Rename Box' })).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(picker.getByRole('button', { name: /^Box 01:/ })).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await page.keyboard.press('Enter');
+	const input = picker.getByRole('textbox', { name: 'Box Name' });
+	await expect(input).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(picker.getByRole('button', { name: /^Box 01:/ })).toBeFocused();
+	await pressController(page, 'ArrowUp');
+	await pressController(page, 'Enter');
+	await expect(input).toBeFocused();
+	await expect(input).toHaveAttribute('maxlength', '8');
+	await input.fill('😀');
+	await picker.getByRole('button', { name: 'Rename', exact: true }).click();
+	await expect(picker).toContainText('cannot preserve exactly');
+	await expect.poll(() => persistedSavesStateSnapshot(page)).toBe(before);
+
+	await input.fill('FRIENDS');
+	await pressController(page, 'ArrowDown');
+	await expect(picker.getByRole('button', { name: 'Cancel' })).toBeFocused();
+	await pressController(page, 'ArrowDown');
+	await expect(picker.getByRole('button', { name: 'Rename', exact: true })).toBeFocused();
+	await holdWorkspaceResponses(page, 1, 'applySaveFileEditOperation');
+	await pressController(page, 'Enter');
+	await waitForHeldWorkspaceResponses(page);
+	await pressController(page, 'x');
+	await expect(picker).toBeHidden();
+	await releaseWorkspaceResponses(page);
+	await expect.poll(() => backupCount(page)).toBe(backupsBefore + 1);
+	await expect.poll(() => workspaceBytesHashForFile(page, fileName)).not.toBe(bytesBefore);
+	await expect(page.getByRole('heading', { name: 'FRIENDS' })).toBeVisible();
+	await pickerControl.click();
+	await expect(picker.getByRole('button', { name: /^Box 01: FRIENDS/ })).toBeVisible();
+	await picker.getByRole('button', { name: 'Close Box Picker' }).click();
+	await page.reload();
+	await expect(page.getByRole('heading', { name: 'FRIENDS' })).toBeVisible({ timeout: 15000 });
+	await page.getByRole('button', { name: `Open Box Picker for ${fileName}` }).click();
+	await expect(
+		page.getByRole('dialog', { name: 'Choose a Box' }).getByRole('button', {
+			name: /^Box 01: FRIENDS/
+		})
+	).toBeVisible();
+});
+
+test('stale Box loads cannot replace a committed Box rename', async ({ page }) => {
+	await installWorkspaceResponseHold(page);
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	const pickerControl = page.getByRole('button', {
+		name: 'Open Box Picker for emerald-011020251345.sav'
+	});
+
+	await pickerControl.click();
+	const picker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await page.keyboard.press('ArrowUp');
+	await page.keyboard.press('Enter');
+	await picker.getByRole('textbox', { name: 'Box Name' }).fill('FRIENDS');
+	await holdWorkspaceResponses(page, 1, 'applySaveFileEditOperation');
+	await picker.getByRole('button', { name: 'Rename', exact: true }).click();
+	await waitForHeldWorkspaceResponses(page);
+	await pressController(page, 'x');
+	await expect(picker).toBeHidden();
+
+	await holdWorkspaceResponses(page, 1, 'loadSaveWorkspace');
+	await page.getByRole('button', { name: 'Next Location' }).click();
+	await waitForHeldWorkspaceResponses(page, 2);
+	await releaseWorkspaceResponse(page, 'applySaveFileEditOperation');
+	await expect.poll(() => backupCount(page)).toBe(1);
+	await pickerControl.click();
+	await expect(picker.getByRole('button', { name: /^Box 01: FRIENDS/ })).toBeVisible();
+	await picker.getByRole('button', { name: 'Close Box Picker' }).click();
+	await releaseWorkspaceResponse(page, 'loadSaveWorkspace');
+	await expect(page.getByRole('heading', { name: 'BOX2' })).toBeVisible();
+
+	await pickerControl.click();
+	await expect(picker.getByRole('button', { name: /^Box 01: FRIENDS/ })).toBeVisible();
+});
+
 test('Save Files without Box Names retain numbered direct Box Picker navigation', async ({
 	page
 }) => {
@@ -1244,6 +1357,7 @@ test('Save Files without Box Names retain numbered direct Box Picker navigation'
 	await pickerControl.click();
 	const picker = page.getByRole('dialog', { name: 'Choose a Box' });
 	await expect(picker).toContainText('Box Names are not available for this Save File format.');
+	await expect(picker.getByRole('button', { name: 'Rename Box' })).toHaveCount(0);
 	await expect(picker.getByRole('button', { name: /^Box \d{2}/ })).toHaveCount(40);
 	await picker.getByRole('button', { name: /^Box 40/ }).click();
 

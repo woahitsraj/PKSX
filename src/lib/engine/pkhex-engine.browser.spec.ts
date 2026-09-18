@@ -227,12 +227,54 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			expect(loaded.value.boxNames.names).toHaveLength(loaded.value.summary.boxCount);
 			expect(loaded.value.boxNames.names[0]).toBe(fixture.firstName);
 			expect(loaded.value.boxNames.unsupportedReason).toBeNull();
+			expect(loaded.value.boxNames.renameSupported).toBe(true);
+			expect(loaded.value.boxNames.renameMaxLength).toBeGreaterThan(0);
+			expect(loaded.value.boxNames.renameConstraints).toContain('encoding preserves exactly');
+			expect(loaded.value.boxNames.renameUnsupportedReason).toBeNull();
 		} else {
 			expect(loaded.value.boxNames.names).toEqual([]);
 			expect(loaded.value.boxNames.unsupportedReason).toBe(
 				'Box Names are not available for this Save File format.'
 			);
+			expect(loaded.value.boxNames.renameSupported).toBe(false);
+			expect(loaded.value.boxNames.renameUnsupportedReason).toBe(
+				'Box Names are not available for this Save File format.'
+			);
 		}
+	});
+
+	test('renames a supported Box and rejects format-invalid names without changing source bytes', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const renamed = await engine.applySaveFileEditOperation(
+			fixtureBytes,
+			'011020251345.sav',
+			{ boxName: { box: 0, name: 'FRIENDS' } },
+			0
+		);
+
+		expect(renamed.ok, JSON.stringify(renamed.error)).toBe(true);
+		if (!renamed.ok) throw renamed.error;
+		expect(renamed.value.mutated).toBe(true);
+		expect(renamed.value.workspace.boxNames.names[0]).toBe('FRIENDS');
+		expect(renamed.value.bytes).not.toEqual(fixtureBytes);
+
+		const invalid = await engine.applySaveFileEditOperation(
+			fixtureBytes,
+			'011020251345.sav',
+			{ boxName: { box: 0, name: 'TOO-LONG-NAME' } },
+			0
+		);
+		expect(invalid).toMatchObject({
+			ok: false,
+			error: { code: 'invalid-save-file-edit' }
+		});
+
+		const original = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
+		expect(original.ok && original.value.boxNames.names[0]).toBe('BOX1');
 	});
 
 	test.each(editorCapabilityFixtures)(

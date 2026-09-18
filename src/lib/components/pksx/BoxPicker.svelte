@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { BoxPickerLocation } from '$lib/pksx/box-picker';
+	import { tick } from 'svelte';
+	import type { BoxPickerControllerFocus, BoxPickerLocation } from '$lib/pksx/box-picker';
 	import TakeoverFrame from './TakeoverFrame.svelte';
 
 	interface Props {
@@ -8,6 +9,10 @@
 		activeLocationId: string;
 		activeIndex: number;
 		boxNameUnavailableReason?: string | null;
+		renameMaxLength?: number;
+		renameConstraints?: string | null;
+		onRenameLocation?: (location: BoxPickerLocation, name: string) => Promise<string | null>;
+		onFocusTarget: (focus: BoxPickerControllerFocus) => void;
 		onFocusLocation: (index: number) => void;
 		onSelectLocation: (location: BoxPickerLocation) => void;
 		onColumnCountChange: (columnCount: number) => void;
@@ -20,11 +25,64 @@
 		activeLocationId,
 		activeIndex,
 		boxNameUnavailableReason = null,
+		renameMaxLength = 0,
+		renameConstraints = null,
+		onRenameLocation,
+		onFocusTarget,
 		onFocusLocation,
 		onSelectLocation,
 		onColumnCountChange,
 		onClose
 	}: Props = $props();
+
+	let renameLocation = $state<BoxPickerLocation | null>(null);
+	let renameDraft = $state('');
+	let renameError = $state<string | null>(null);
+	let renamePending = $state(false);
+	const focusedLocation = $derived(locations[activeIndex] ?? null);
+
+	function focusRenameInput(select = false) {
+		const input = document.getElementById('box-name-input');
+		if (!(input instanceof HTMLInputElement)) return;
+		input.focus();
+		if (select) input.select();
+	}
+
+	async function beginRename() {
+		if (!onRenameLocation || !focusedLocation) return;
+		renameLocation = focusedLocation;
+		renameDraft = focusedLocation.label;
+		renameError = null;
+		onFocusTarget({ zone: 'rename-form', locationIndex: activeIndex, formIndex: 0 });
+		await tick();
+		focusRenameInput(true);
+	}
+
+	function cancelRename() {
+		if (renamePending) return;
+		renameLocation = null;
+		renameError = null;
+		onFocusTarget({ zone: 'locations', locationIndex: activeIndex, formIndex: 0 });
+		queueMicrotask(() => document.getElementById(`box-picker-location-${activeIndex}`)?.focus());
+	}
+
+	async function submitRename(event: SubmitEvent) {
+		event.preventDefault();
+		if (!onRenameLocation || !renameLocation || renamePending) return;
+		renamePending = true;
+		renameError = null;
+		const error = await onRenameLocation(renameLocation, renameDraft);
+		renamePending = false;
+		if (error) {
+			renameError = error;
+			await tick();
+			focusRenameInput();
+			return;
+		}
+		renameLocation = null;
+		onFocusTarget({ zone: 'locations', locationIndex: activeIndex, formIndex: 0 });
+		queueMicrotask(() => document.getElementById(`box-picker-location-${activeIndex}`)?.focus());
+	}
 
 	function measureColumns(node: HTMLElement) {
 		const report = () => {
@@ -40,7 +98,7 @@
 	}
 </script>
 
-<TakeoverFrame labelledby="box-picker-title" onBack={onClose}>
+<TakeoverFrame labelledby="box-picker-title" onBack={renameLocation ? cancelRename : onClose}>
 	<div class="box-picker">
 		<header>
 			<div>
@@ -50,35 +108,101 @@
 					<p class="box-name-unavailable" role="note">{boxNameUnavailableReason}</p>
 				{/if}
 			</div>
-			<button
-				type="button"
-				data-pksx-control-category="icon-only"
-				aria-label="Close Box Picker"
-				onclick={onClose}>×</button
-			>
+			<div class="header-actions">
+				{#if onRenameLocation && focusedLocation && !renameLocation}
+					<button
+						id="box-picker-rename-command"
+						type="button"
+						data-pksx-control-category="small"
+						class="rename-button"
+						onfocus={() =>
+							onFocusTarget({
+								zone: 'rename-command',
+								locationIndex: activeIndex,
+								formIndex: 0
+							})}
+						onclick={beginRename}>Rename Box</button
+					>
+				{/if}
+				<button
+					type="button"
+					data-pksx-control-category="icon-only"
+					aria-label="Close Box Picker"
+					disabled={renamePending}
+					onclick={renameLocation ? cancelRename : onClose}>×</button
+				>
+			</div>
 		</header>
 
-		<div class="box-picker-grid" aria-label={`${collection} Boxes`} {@attach measureColumns}>
-			{#each locations as location, index (location.id)}
-				{@const numericLabel =
-					location.location.kind === 'physical-box'
-						? `Box ${String(location.location.box + 1).padStart(2, '0')}`
-						: location.label}
-				<button
-					id={`box-picker-location-${index}`}
-					type="button"
-					data-pksx-control-category="card"
-					class:controller-focused={activeIndex === index}
-					aria-label={`${numericLabel}: ${location.label}, ${location.detail}`}
-					aria-current={location.id === activeLocationId ? 'true' : undefined}
-					onfocus={() => onFocusLocation(index)}
-					onclick={() => onSelectLocation(location)}
-				>
-					<strong>{location.label}</strong>
-					<span>{location.detail}</span>
-				</button>
-			{/each}
-		</div>
+		{#if renameLocation}
+			<form
+				class="rename-form"
+				aria-label={`Rename ${renameLocation.label}`}
+				onsubmit={submitRename}
+			>
+				<label for="box-name-input">Box Name</label>
+				<input
+					id="box-name-input"
+					data-pksx-control-category="composition"
+					bind:value={renameDraft}
+					maxlength={renameMaxLength}
+					aria-describedby="box-name-constraints box-name-error"
+					aria-invalid={renameError ? 'true' : undefined}
+					disabled={renamePending}
+					onfocus={() =>
+						onFocusTarget({ zone: 'rename-form', locationIndex: activeIndex, formIndex: 0 })}
+					oninput={() => (renameError = null)}
+					onkeydown={(event) => {
+						event.stopPropagation();
+						if (event.key === 'Escape') cancelRename();
+					}}
+				/>
+				{#if renameConstraints}
+					<p id="box-name-constraints">{renameConstraints}</p>
+				{/if}
+				<p id="box-name-error" class="rename-error" aria-live="polite">{renameError ?? ''}</p>
+				<div class="rename-actions">
+					<button
+						id="box-name-cancel"
+						type="button"
+						disabled={renamePending}
+						onfocus={() =>
+							onFocusTarget({ zone: 'rename-form', locationIndex: activeIndex, formIndex: 1 })}
+						onclick={cancelRename}>Cancel</button
+					>
+					<button
+						id="box-name-submit"
+						type="submit"
+						disabled={renamePending}
+						onfocus={() =>
+							onFocusTarget({ zone: 'rename-form', locationIndex: activeIndex, formIndex: 2 })}
+						>Rename</button
+					>
+				</div>
+			</form>
+		{:else}
+			<div class="box-picker-grid" aria-label={`${collection} Boxes`} {@attach measureColumns}>
+				{#each locations as location, index (location.id)}
+					{@const numericLabel =
+						location.location.kind === 'physical-box'
+							? `Box ${String(location.location.box + 1).padStart(2, '0')}`
+							: location.label}
+					<button
+						id={`box-picker-location-${index}`}
+						type="button"
+						data-pksx-control-category="card"
+						class:controller-focused={activeIndex === index}
+						aria-label={`${numericLabel}: ${location.label}, ${location.detail}`}
+						aria-current={location.id === activeLocationId ? 'true' : undefined}
+						onfocus={() => onFocusLocation(index)}
+						onclick={() => onSelectLocation(location)}
+					>
+						<strong>{location.label}</strong>
+						<span>{location.detail}</span>
+					</button>
+				{/each}
+			</div>
+		{/if}
 	</div>
 </TakeoverFrame>
 
@@ -104,6 +228,13 @@
 	header div {
 		display: grid;
 		gap: var(--pksx-border-width);
+	}
+
+	.header-actions,
+	.rename-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--pksx-space-2);
 	}
 
 	h2,
@@ -135,6 +266,57 @@
 		font: inherit;
 		font-weight: 750;
 		cursor: pointer;
+	}
+
+	header .rename-button {
+		width: auto;
+		padding: 0 var(--pksx-space-2);
+		font-size: var(--pksx-type-label);
+	}
+
+	.rename-form {
+		align-self: start;
+		display: grid;
+		gap: var(--pksx-space-2);
+		padding: var(--pksx-space-3);
+		border-radius: var(--pksx-radius-medium);
+		background: var(--paper);
+		box-shadow: inset 0 0 0 var(--pksx-border-width) var(--rule);
+	}
+
+	.rename-form label {
+		font-size: var(--pksx-type-label);
+		font-weight: 800;
+	}
+
+	.rename-form input {
+		min-height: var(--pksx-control-height);
+		padding: 0 var(--pksx-space-2);
+		border: var(--pksx-border-width) solid var(--rule);
+		border-radius: var(--pksx-radius-small);
+		background: var(--paper-hi);
+		color: var(--ink);
+		font: 750 var(--pksx-type-editable) var(--pksx-font-sans);
+	}
+
+	.rename-error {
+		min-height: 1em;
+		color: var(--rust);
+	}
+
+	.rename-actions {
+		justify-content: end;
+	}
+
+	.rename-actions button {
+		min-height: var(--pksx-control-height);
+		padding: 0 var(--pksx-space-3);
+		border-radius: var(--pksx-radius-small);
+		background: var(--paper-hi);
+		box-shadow: inset 0 0 0 var(--pksx-border-width) var(--rule);
+		color: var(--ink);
+		font: inherit;
+		font-weight: 750;
 	}
 
 	.box-picker-grid {

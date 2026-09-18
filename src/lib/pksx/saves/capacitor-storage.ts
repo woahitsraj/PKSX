@@ -16,6 +16,8 @@ import { nextWorkspaceRevision, WorkspaceRevisionConflictError } from './workspa
 import type {
 	BackupId,
 	BackupMetadata,
+	CommitRiskyWorkspaceMutationInput,
+	CommitRiskyWorkspaceMutationResult,
 	CreateBackupInput,
 	EnsureAutomaticBackupInput,
 	EnsureAutomaticBackupResult,
@@ -300,6 +302,79 @@ export class CapacitorSavesStorage implements SavesStorage {
 			return {
 				workspace: { ...storedWorkspaceMetadata(metadata), bytes: copyBytes(bytes) },
 				established: true
+			};
+		});
+	}
+
+	commitRiskyWorkspaceMutation(
+		input: CommitRiskyWorkspaceMutationInput
+	): Promise<CommitRiskyWorkspaceMutationResult> {
+		return this.#run(async () => {
+			const snapshot = await this.#journal.read();
+			const catalog = cloneCatalog(snapshot.catalog);
+			const saveFile = catalog.saves.find(({ id }) => id === input.saveFileId);
+			if (!saveFile || saveFile.importedAt !== input.importedAt) {
+				throw new Error('The selected Save File is no longer available.');
+			}
+			const previous = catalog.workspaces[input.saveFileId];
+			if ((previous?.updatedAt ?? null) !== input.expectedUpdatedAt) {
+				throw new WorkspaceRevisionConflictError();
+			}
+
+			const baselineBytes = previous
+				? await this.#journal.readWorkspace(snapshot, input.saveFileId)
+				: await this.#fileStore.readBytes(saveBytesPath(input.saveFileId));
+			if (!baselineBytes) throw new Error('The Save File bytes are no longer available.');
+
+			let backupEstablished = false;
+			let stagedBytes: { path: string; bytes: Uint8Array }[] = [];
+			if (!previous?.automaticBackupCreated) {
+				const backupId = stableAutomaticBackupId({
+					saveFileId: input.saveFileId,
+					importedAt: input.importedAt,
+					persistedRevision: previous?.updatedAt ?? saveFile.importedAt,
+					bytes: baselineBytes
+				});
+				const existingBackup = catalog.backups.find(({ id }) => id === backupId);
+				const path = backupBytesPath(backupId);
+				const existingBytes = await this.#fileStore.readBytes(path);
+				if (
+					existingBackup &&
+					(existingBackup.saveFileId !== input.saveFileId ||
+						existingBackup.byteLength !== baselineBytes.byteLength)
+				) {
+					throw new Error('The automatic Backup identity belongs to different content.');
+				}
+				if (existingBytes && !bytesEqual(existingBytes, baselineBytes)) {
+					throw new Error('The automatic Backup bytes do not match their identity.');
+				}
+				if (!existingBackup) {
+					catalog.backups.push({
+						id: backupId,
+						saveFileId: input.saveFileId,
+						reason: input.reason,
+						byteLength: baselineBytes.byteLength,
+						createdAt: this.#now()
+					});
+				}
+				if (!existingBytes) stagedBytes = [{ path, bytes: baselineBytes }];
+				backupEstablished = true;
+			}
+
+			const metadata: NativeWorkspaceMetadata = {
+				saveFileId: input.saveFileId,
+				dirty: input.dirty,
+				automaticBackupCreated: true,
+				updatedAt: nextWorkspaceRevision(previous?.updatedAt, this.#now())
+			};
+			catalog.workspaces[input.saveFileId] = metadata;
+			await this.#journal.commit(snapshot, catalog, {
+				workspaceBytes: new Map([[input.saveFileId, input.bytes]]),
+				stagedBytes
+			});
+			return {
+				workspace: { ...storedWorkspaceMetadata(metadata), bytes: copyBytes(input.bytes) },
+				backupEstablished
 			};
 		});
 	}
