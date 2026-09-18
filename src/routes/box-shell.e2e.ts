@@ -4570,14 +4570,14 @@ test('Bag Combobox owns controller navigation until an item is selected', async 
 
 	const search = addCommand.getByRole('searchbox', { name: /Search items to add to/ });
 	await expect(search).toBeFocused();
-	await search.fill('berry');
+	await search.fill('mail');
 	await search.evaluate((input) => {
 		const searchInput = input as HTMLInputElement;
 		searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
 	});
 	await page.keyboard.press('ArrowLeft');
 	await expect(search).toBeFocused();
-	expect(await search.evaluate((input) => (input as HTMLInputElement).selectionStart)).toBe(4);
+	expect(await search.evaluate((input) => (input as HTMLInputElement).selectionStart)).toBe(3);
 	const options = (await comboboxList(itemPicker)).getByRole('option');
 	expect(await options.count()).toBeGreaterThan(1);
 	await expect(options.locator('img').first()).toHaveAttribute('src', /^\/sprites\/items\//);
