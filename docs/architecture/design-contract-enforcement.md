@@ -66,13 +66,13 @@ The Main Menu control overlays content at rest and reserves no layout. Durable s
 
 ## NAV-1: destinations and Main Menu summon
 
-Source: [#156](https://github.com/woahitsraj/PKSX/issues/156), using the final vocabulary from [#177](https://github.com/woahitsraj/PKSX/issues/177), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210). [#216](https://github.com/woahitsraj/PKSX/issues/216) owns the current Main Menu implementation, and [#254](https://github.com/woahitsraj/PKSX/issues/254) and [#255](https://github.com/woahitsraj/PKSX/issues/255) own Search.
+Source: [#156](https://github.com/woahitsraj/PKSX/issues/156), using the final vocabulary from [#177](https://github.com/woahitsraj/PKSX/issues/177), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210). [#216](https://github.com/woahitsraj/PKSX/issues/216) owns the current Main Menu implementation, [#254](https://github.com/woahitsraj/PKSX/issues/254) and [#255](https://github.com/woahitsraj/PKSX/issues/255) own Search, and [#256](https://github.com/woahitsraj/PKSX/issues/256) owns the Save File-wide Legality Report.
 
 Boxes, Trainer, Bag, Saves, and Settings are routed destinations. Trainer owns Trainer fields and Money. Bag owns inventory pockets and item commands. Boxes is home. A first run with no Save Files and empty Pokemon Storage lands on Saves.
 
-Until Search ships, the Main Menu order is Boxes, Trainer, Bag, Saves, Settings, Backup Browser. Every rendered entry remains present and selectable. Trainer and Bag remain selectable without an active Save File and explain why their data is unavailable. Backup Browser is globally scoped to the active Save File.
+The Main Menu order is Boxes, Search, Legality Report, Trainer, Bag, Saves, Settings, Backup Browser. Every rendered entry remains present and selectable. Trainer, Bag, and Legality Report remain selectable without an active Save File and explain why their data is unavailable. Backup Browser and the Save File-wide Legality Report are globally scoped to the active Save File.
 
-Reserve Search's insertion point immediately after Boxes and reserve a controller shortcut as a Navigation Action. Do not assign a physical controller input to that action here, reuse its intended input for another command, or render Search before #254 implements Quick Search. Search opens in Quick Search mode. #255 adds Advanced Search inside the same workflow.
+Search occupies the insertion point immediately after Boxes and owns its controller shortcut as a Navigation Action. Search opens in Quick Search mode. #255 adds Advanced Search inside the same workflow.
 
 Start toggles the Main Menu using a synthetic key ordinary typing cannot produce. Cmd/Ctrl+K opens it from the keyboard. The unlabelled pointer control opens it for touch and pointer input. The opener is visible and active at rest, then hidden and inert during Carry or while any Menu or Takeover is open.
 
@@ -196,17 +196,18 @@ The Active Slot Detail Rail reflects the Slot under Controller Focus, including 
 
 ## BOXES-2: Box Menu
 
-Source: [#177](https://github.com/woahitsraj/PKSX/issues/177), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210). [#215](https://github.com/woahitsraj/PKSX/issues/215) and [#218](https://github.com/woahitsraj/PKSX/issues/218) own implementation.
+Source: [#177](https://github.com/woahitsraj/PKSX/issues/177), amended by [#210](https://github.com/woahitsraj/PKSX/issues/210). [#215](https://github.com/woahitsraj/PKSX/issues/215) and [#218](https://github.com/woahitsraj/PKSX/issues/218) own implementation, and [#256](https://github.com/woahitsraj/PKSX/issues/256) adds the Save File-wide Legality Report.
 
 X from a Box Pane, or A, tap, or click on its collection control, opens that active pane's Box Menu. B or X closes it. Entries stay in this fixed order:
 
 1. Export
 2. Save a backup
-3. Switch
-4. Open another collection
-5. Close
+3. Legality Report
+4. Switch
+5. Open another collection
+6. Close
 
-Unavailable entries remain visible and explain why without executing. Pokemon Storage disables Export and Save a backup. The active Save File's pane disables Switch and Close and directs the user to select another active Save File from Saves. That restriction belongs to this Box Menu only and does not prevent choosing Pokemon Storage in Saves. Export writes Workspace bytes. Save a backup invokes the existing manual Backup behavior.
+Unavailable entries remain visible and explain why without executing. Pokemon Storage disables Export, Save a backup, and Legality Report. The active Save File's pane disables Switch and Close and directs the user to select another active Save File from Saves. That restriction belongs to this Box Menu only and does not prevent choosing Pokemon Storage in Saves. Export writes Workspace bytes. Save a backup invokes the existing manual Backup behavior. Legality Report opens the read-only Save File-wide Legality Report Takeover for that pane.
 
 The Switch and Open another collection pickers list available Save Files and Pokemon Storage as peer collections. Their labels and command availability keep Pokemon Storage distinct as app-owned, immediately persisted data. Selecting Pokemon Storage in Open another collection opens it in the second Box Pane with its own Location and focus identity.
 

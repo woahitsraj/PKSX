@@ -142,6 +142,10 @@ public class ControllerNavigationTest {
             "document.activeElement?.id === 'box-menu-command-3'"
         );
         pressGamepadKey(
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            "document.activeElement?.id === 'box-menu-command-4'"
+        );
+        pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_A,
             "document.querySelector('[role=\"dialog\"][aria-label=\"Open another collection\"]') !== null"
                 + " && document.activeElement?.classList.contains('source-card')"
@@ -149,7 +153,7 @@ public class ControllerNavigationTest {
         pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_B,
             "document.querySelector('[role=\"dialog\"][aria-label=\"Open another collection\"]') === null"
-                + " && document.activeElement?.id === 'box-menu-command-3'"
+                + " && document.activeElement?.id === 'box-menu-command-4'"
         );
         pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_B,
@@ -475,6 +479,10 @@ public class ControllerNavigationTest {
             controllerHighlightExpression("main-menu-entry-2")
         );
         pressGamepadKey(
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            controllerHighlightExpression("main-menu-entry-3")
+        );
+        pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_A,
             "location.pathname.endsWith('/trainer')"
         );
@@ -591,7 +599,7 @@ public class ControllerNavigationTest {
             awaitJavaScript("document.querySelector('#box-0-slot-0')?.textContent.includes('ARON')");
             runJavaScript("document.querySelector('.source-chip').click()");
             awaitJavaScript("document.querySelector('[role=dialog][aria-label=\"Box Menu\"]')");
-            runJavaScript("document.querySelector('#box-menu-command-3').click()");
+            runJavaScript("document.querySelector('#box-menu-command-4').click()");
             awaitJavaScript(
                 "document.querySelector('[role=dialog][aria-label=\"Open another collection\"]')"
             );
@@ -641,7 +649,7 @@ public class ControllerNavigationTest {
                 KeyEvent.KEYCODE_BUTTON_X,
                 "document.querySelector('[role=dialog][aria-label=\"Box Menu\"]')"
             );
-            runJavaScript("document.querySelector('#box-menu-command-3').click()");
+            runJavaScript("document.querySelector('#box-menu-command-4').click()");
             awaitJavaScript(
                 "document.querySelector('[role=dialog][aria-label=\"Open another collection\"]')"
             );

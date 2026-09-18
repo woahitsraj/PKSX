@@ -494,11 +494,11 @@ _Avoid_: setting, option, config
 - At most one **Menu** is open at a time; a **Menu** cannot open while another **Menu**, a **Pokemon Editor**, or the **Backup Browser** is open, or during a **Carry**.
 - A **Menu** shows applicable entries in a stable order. The **Slot Menu** hides unavailable Slot Actions; other Menus keep unavailable entries visible, inert, and explained.
 - The **Slot Menu** acts on the **Slot** under **Controller Focus**.
-- The **Box Menu** acts on the active **Box Source**: **Export**, create a **Backup**, switch it, open another, or close it.
+- The **Box Menu** acts on the active **Box Source**: **Export**, create a **Backup**, run a Save File-wide **Legality Report**, switch it, open another, or close it.
 - The **Box Menu** opens from the control that names the active **Box Source**, which is a **Controller Focus** target.
 - The **Save File Menu** opens the focused **Save File** in Trainer or Bag, or deletes it from **Saves**.
 - **Export** from the **Box Menu** writes the **Workspace** bytes.
-- The **Main Menu** lists every destination, including the **Backup Browser**, in a fixed order and never hides or dims one.
+- The **Main Menu** order is Boxes, Search, Save File-wide **Legality Report**, Trainer, Bag, Saves, Settings, and **Backup Browser**; it never hides or dims an entry.
 - Choosing an entry in the **Main Menu** closes it; returning from that destination does not reopen it.
 - A **Pokemon Editor** opened from a **Slot Menu** returns **Controller Focus** to its launching **Pokemon Action** when dismissed.
 - Back dismisses an open **Menu** before it affects broader app navigation.
