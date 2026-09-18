@@ -37,6 +37,7 @@ async function openSearchFromMainMenu(page: Page) {
 	await expect(menu.locator('.main-menu-row strong')).toHaveText([
 		'Boxes',
 		'Search',
+		'Legality Report',
 		'Trainer',
 		'Bag',
 		'Saves',

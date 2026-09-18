@@ -15,6 +15,7 @@
 		type MainMenuEntry
 	} from '$lib/components/pksx/MainMenu.svelte';
 	import QuickSearch from '$lib/components/pksx/QuickSearch.svelte';
+	import SaveFileLegalityReport from '$lib/components/pksx/SaveFileLegalityReport.svelte';
 	import ToastRegion from '$lib/components/pksx/ToastRegion.svelte';
 	import { appCommandForEvent } from '$lib/pksx/app-commands';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
@@ -29,6 +30,10 @@
 	} from '$lib/pksx/destination-focus';
 	import { setDestinationFocusIdentityGetter } from '$lib/pksx/destination-focus-context.svelte';
 	import { getSavesStorage } from '$lib/pksx/saves-cache';
+	import {
+		createSaveFileLegalityReportHost,
+		setSaveFileLegalityReportHost
+	} from '$lib/pksx/save-file-legality-report/host.svelte';
 	import type { QuickSearchResult } from '$lib/pksx/quick-search';
 	import {
 		createQuickSearchHost,
@@ -52,6 +57,9 @@
 
 	let { children } = $props();
 	const summonedWorkflow = setSummonedWorkflowHost(createSummonedWorkflowHost());
+	const saveFileLegalityReport = setSaveFileLegalityReportHost(
+		createSaveFileLegalityReportHost(summonedWorkflow)
+	);
 	const quickSearchHost = setQuickSearchHost(createQuickSearchHost());
 	const toastHost = setToastHost(createToastHost());
 	const storage = getSavesStorage();
@@ -80,6 +88,9 @@
 	const activeRoute = $derived<Destination>(destinationForPathname(page.url.pathname));
 	const mainMenuOpen = $derived(summonedWorkflow.active?.kind === 'main-menu');
 	const quickSearchOpen = $derived(summonedWorkflow.active?.kind === 'quick-search');
+	const saveFileLegalityReportOpen = $derived(
+		summonedWorkflow.active?.kind === 'save-file-legality-report'
+	);
 	const mainMenuEntries = $derived.by<MainMenuEntry[]>(() => {
 		const entriesAfterReservedSearch: MainMenuEntry[] = [
 			{
@@ -115,7 +126,14 @@
 			label: 'Search',
 			description: 'Find a Pokemon in the Active Save File.'
 		});
-		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX + 1, 0, ...entriesAfterReservedSearch);
+		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX + 1, 0, {
+			key: 'save-file-legality-report',
+			label: 'Legality Report',
+			description: hasActiveSaveFile
+				? 'Check Party and every occupied Box Slot.'
+				: 'Import a Save File before running a report.'
+		});
+		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX + 2, 0, ...entriesAfterReservedSearch);
 		return entries;
 	});
 
@@ -233,6 +251,12 @@
 			await openQuickSearch(launcher?.type === 'control' ? launcher : undefined);
 			return;
 		}
+		if (entry.key === 'save-file-legality-report') {
+			const launcher = summonedWorkflow.active?.launcher;
+			summonedWorkflow.closeAll();
+			await openSaveFileLegalityReport(launcher?.type === 'control' ? launcher : undefined);
+			return;
+		}
 		if (entry.key === activeRoute) {
 			closeMainMenu();
 			return;
@@ -274,6 +298,23 @@
 		quickSearchSaveFile = saveFile;
 		if (!summonedWorkflow.open('quick-search', { type: 'control', id: launcherId })) {
 			quickSearchSaveFile = null;
+		}
+	}
+
+	async function openSaveFileLegalityReport(launcher?: { type: 'control'; id: string }) {
+		if (appChrome.carryActive) return;
+		let reportLauncher = launcher;
+		if (activeRoute !== 'boxes') {
+			skipNextFocusCapture = true;
+			await goto(resolve('/boxes'), { keepFocus: true });
+			await restoreDestinationFocus('boxes');
+			reportLauncher = undefined;
+		}
+		const launcherId =
+			reportLauncher?.id ?? rememberDestinationFocus() ?? ensureDestinationFocus('boxes');
+		if (!launcherId || !saveFileLegalityReport.open({ type: 'control', id: launcherId })) {
+			toastHost.error('Import a Save File before running a Legality Report.');
+			await restoreDestinationFocus('boxes');
 		}
 	}
 
@@ -722,7 +763,10 @@
 		'app-shell',
 		'pksx-density',
 		theme.dark && 'dark',
-		(summonedWorkflow.active?.kind === 'backup-browser' || quickSearchOpen) && 'takeover-active'
+		(summonedWorkflow.active?.kind === 'backup-browser' ||
+			quickSearchOpen ||
+			saveFileLegalityReportOpen) &&
+			'takeover-active'
 	]}
 	aria-label="PKSX"
 	onfocusin={handleShellFocusIn}
@@ -765,6 +809,16 @@
 			saveFile={quickSearchSaveFile}
 			onSelect={selectQuickSearchResult}
 			onClose={closeQuickSearch}
+		/>
+	{:else if saveFileLegalityReportOpen && saveFileLegalityReport.fileName}
+		<SaveFileLegalityReport
+			fileName={saveFileLegalityReport.fileName}
+			state={saveFileLegalityReport.state}
+			onRun={saveFileLegalityReport.run}
+			onCancel={saveFileLegalityReport.cancel}
+			onClose={saveFileLegalityReport.close}
+			onJumpToSlot={saveFileLegalityReport.jumpToSlot}
+			onOpenPokemonReport={saveFileLegalityReport.openPokemonReport}
 		/>
 	{/if}
 
