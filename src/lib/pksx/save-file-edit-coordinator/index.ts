@@ -28,6 +28,8 @@ export type SaveFileEditOrigin = {
 export type SaveFileEditRequest = {
 	key: string;
 	operation: SaveFileEditOperation;
+	publish?: (workspace: WorkspaceState, activeBox: number) => void;
+	isResultCurrent?: () => boolean;
 };
 
 export type SaveFileEditFailureCode =
@@ -425,11 +427,135 @@ export class SaveFileEditCoordinator {
 		}
 		if (!this.currentRecord(record.origin)) return this.staleResult(record.origin, latest);
 		if (operationIsNoop(latest, request.operation)) {
-			if (!this.resultIsCurrent(record)) return this.staleResult(record.origin, latest);
+			if (!this.resultIsCurrent(record, request)) return this.staleResult(record.origin, latest);
 			return { ok: true, status: 'noop', origin: record.origin, workspace: latest };
 		}
 
+		if (request.operation.boxName) {
+			return this.applyAtomicBoxNameEdit(record, request, generation, latest);
+		}
 		return this.applyAgainstLatest(record, request, generation, latest);
+	}
+
+	private async applyAtomicBoxNameEdit(
+		record: OriginRecord,
+		request: SaveFileEditRequest,
+		generation: number,
+		initial: WorkspaceState
+	): Promise<SaveFileEditResult> {
+		let latest = initial;
+		for (;;) {
+			let mutation;
+			try {
+				mutation = await this.engine.applySaveFileEditOperation(
+					latest.bytes,
+					latest.file.originalFileName ?? undefined,
+					request.operation,
+					record.activeBox
+				);
+			} catch (error) {
+				if (!this.currentRecord(record.origin)) return this.staleResult(record.origin, latest);
+				return {
+					ok: false,
+					status: 'failed',
+					origin: record.origin,
+					code: 'engine-unavailable',
+					message: errorMessage(error),
+					workspace: copyWorkspace(latest)
+				};
+			}
+			if (!this.currentRecord(record.origin)) return this.staleResult(record.origin, latest);
+			if (!mutation.ok) {
+				return {
+					ok: false,
+					status:
+						mutation.error.code === 'invalid-save-file-edit' ||
+						mutation.error.code === 'unsupported-save-file-edit' ||
+						mutation.error.code === 'invalid-box'
+							? 'rejected'
+							: 'failed',
+					origin: record.origin,
+					code: mutation.error.code,
+					message: mutation.error.message,
+					workspace: copyWorkspace(latest)
+				};
+			}
+			if (!mutation.value.mutated) {
+				return {
+					ok: true,
+					status: 'noop',
+					origin: record.origin,
+					workspace: copyWorkspace(latest)
+				};
+			}
+
+			const commit = this.options.storage.commitRiskyWorkspaceMutation;
+			if (!commit) {
+				return this.failedResult(
+					record,
+					generation,
+					'workspace-persistence-failed',
+					new Error('Atomic Save File Box rename persistence is unavailable.'),
+					latest
+				);
+			}
+
+			const next: WorkspaceState = {
+				...latest,
+				bytes: copyBytes(mutation.value.bytes),
+				workspace: mutation.value.workspace,
+				dirty: true,
+				restoredFromBackup: null,
+				automaticBackupCreated: true
+			};
+			let stored: StoredWorkspace;
+			try {
+				stored = (
+					await commit.call(this.options.storage, {
+						saveFileId: latest.file.id,
+						importedAt: latest.file.importedAt,
+						expectedUpdatedAt: record.storedRevision,
+						bytes: next.bytes,
+						dirty: true,
+						reason: 'save-file-editing'
+					})
+				).workspace;
+			} catch (error) {
+				if (!this.currentRecord(record.origin)) return this.staleResult(record.origin, latest);
+				if (error instanceof WorkspaceRevisionConflictError) {
+					const reloaded = await this.reloadAfterConcurrentWrite(
+						record,
+						generation,
+						request,
+						latest
+					);
+					if ('result' in reloaded) return reloaded.result;
+					latest = reloaded.workspace;
+					continue;
+				}
+				return this.failedResult(record, generation, 'workspace-persistence-failed', error, latest);
+			}
+
+			if (!this.currentRecord(record.origin)) {
+				try {
+					await this.restoreCurrentWorkspace(record.file.id, stored.updatedAt);
+				} catch (error) {
+					return this.recoveryFailure(record.origin, error);
+				}
+				return this.staleResult(record.origin, latest);
+			}
+
+			record.latest = copyWorkspace(next);
+			record.storedRevision = stored.updatedAt;
+			if (!this.resultIsCurrent(record, request)) return this.staleResult(record.origin, next);
+			this.publishResult(record, request, next);
+			return {
+				ok: true,
+				status: 'committed',
+				origin: record.origin,
+				workspace: copyWorkspace(next)
+			};
+		}
 	}
 
 	private async applyAgainstLatest(
@@ -570,8 +696,8 @@ export class SaveFileEditCoordinator {
 
 			record.latest = copyWorkspace(next);
 			record.storedRevision = stored.updatedAt;
-			if (!this.resultIsCurrent(record)) return this.staleResult(record.origin, next);
-			this.options.publish?.(copyWorkspace(next), record.activeBox);
+			if (!this.resultIsCurrent(record, request)) return this.staleResult(record.origin, next);
+			this.publishResult(record, request, next);
 			return {
 				ok: true,
 				status: 'committed',
@@ -608,7 +734,7 @@ export class SaveFileEditCoordinator {
 			return { result: this.staleResult(record.origin, latest) };
 		}
 		if (operationIsNoop(latest, request.operation)) {
-			if (!this.resultIsCurrent(record)) {
+			if (!this.resultIsCurrent(record, request)) {
 				return { result: this.staleResult(record.origin, latest) };
 			}
 			return {
@@ -835,8 +961,16 @@ export class SaveFileEditCoordinator {
 		return record && this.currentBySaveFileId.get(origin.saveFileId) === record ? record : null;
 	}
 
-	private resultIsCurrent(record: OriginRecord) {
-		return this.options.isResultCurrent?.(record.origin) ?? true;
+	private resultIsCurrent(record: OriginRecord, request?: SaveFileEditRequest) {
+		return request?.isResultCurrent?.() ?? this.options.isResultCurrent?.(record.origin) ?? true;
+	}
+
+	private publishResult(
+		record: OriginRecord,
+		request: SaveFileEditRequest,
+		workspace: WorkspaceState
+	) {
+		(request.publish ?? this.options.publish)?.(copyWorkspace(workspace), record.activeBox);
 	}
 
 	private notify(record: OriginRecord) {
@@ -874,9 +1008,16 @@ function sameRecoveryAuthority(
 }
 
 function operationIsNoop(workspace: WorkspaceState, operation: SaveFileEditOperation) {
-	const projection = workspace.workspace.saveFile;
-	if (!projection) return false;
 	let compared = false;
+	if (operation.boxName) {
+		compared = true;
+		if (operation.boxName.name !== workspace.workspace.boxNames.names[operation.boxName.box]) {
+			return false;
+		}
+	}
+
+	const projection = workspace.workspace.saveFile;
+	if (!projection) return compared;
 
 	if (operation.trainerProfile?.trainerName !== undefined) {
 		compared = true;

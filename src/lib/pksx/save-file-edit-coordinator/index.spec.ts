@@ -8,6 +8,7 @@ import type {
 import { createPersistedWorkspaceState, type WorkspaceState } from '$lib/pksx/backup-workflow';
 import type {
 	BackupMetadata,
+	CommitRiskyWorkspaceMutationInput,
 	EnsureAutomaticBackupInput,
 	PutWorkspaceInput,
 	SavesStorage,
@@ -115,6 +116,45 @@ function createHarness(...states: WorkspaceState[]) {
 			workspaces.set(input.saveFileId, stored);
 			return { workspace: stored, established: true };
 		}),
+		commitRiskyWorkspaceMutation: vi.fn(async (input: CommitRiskyWorkspaceMutationInput) => {
+			const file = files.get(input.saveFileId);
+			if (!file || file.importedAt !== input.importedAt) {
+				throw new Error('The selected Save File is no longer available.');
+			}
+			const previous = workspaces.get(input.saveFileId);
+			if ((previous?.updatedAt ?? null) !== input.expectedUpdatedAt) {
+				throw new WorkspaceRevisionConflictError();
+			}
+			const baseline = previous?.bytes ?? imported.get(input.saveFileId);
+			if (!baseline) throw new Error('The Save File bytes are no longer available.');
+			if (!previous?.automaticBackupCreated) {
+				const id = stableAutomaticBackupId({
+					saveFileId: input.saveFileId,
+					importedAt: input.importedAt,
+					persistedRevision: previous?.updatedAt ?? file.importedAt,
+					bytes: baseline
+				});
+				backups.set(id, {
+					metadata: {
+						id,
+						saveFileId: input.saveFileId,
+						reason: input.reason,
+						byteLength: baseline.byteLength,
+						createdAt: '2026-09-10T12:00:00.000Z'
+					},
+					bytes: new Uint8Array(baseline)
+				});
+			}
+			const stored = {
+				saveFileId: input.saveFileId,
+				bytes: new Uint8Array(input.bytes),
+				dirty: input.dirty,
+				automaticBackupCreated: true,
+				updatedAt: `2026-09-10T12:00:0${timestamp++}.000Z`
+			};
+			workspaces.set(input.saveFileId, stored);
+			return { workspace: stored, backupEstablished: !previous?.automaticBackupCreated };
+		}),
 		listBackups: vi.fn(async (id: string) =>
 			[...backups.values()]
 				.map(({ metadata }) => metadata)
@@ -179,6 +219,14 @@ function mutationResult(
 	};
 	const nextWorkspace: SaveWorkspace = {
 		...source.workspace,
+		boxNames: operation.boxName
+			? {
+					...source.workspace.boxNames,
+					names: source.workspace.boxNames.names.map((name, box) =>
+						box === operation.boxName!.box ? operation.boxName!.name : name
+					)
+				}
+			: source.workspace.boxNames,
 		summary: {
 			...source.workspace.summary,
 			trainerName: operation.trainerProfile?.trainerName ?? source.workspace.summary.trainerName
@@ -288,6 +336,78 @@ function coordinator(harness: Harness) {
 }
 
 describe('Save File edit coordinator', () => {
+	it('atomically commits a Box rename with its Backup and Dirty Workspace', async () => {
+		const state = workspace();
+		const harness = createHarness(state);
+		const edits = coordinator(harness);
+		const origin = edits.openWorkspace(state);
+
+		const result = await edits.enqueueEdit(origin, {
+			key: 'box-name:0',
+			operation: { boxName: { box: 0, name: 'FRIENDS' } }
+		});
+
+		expect(result).toMatchObject({ ok: true, status: 'committed' });
+		if (!result.ok) throw new Error(result.message);
+		expect(result.workspace.workspace.boxNames.names[0]).toBe('FRIENDS');
+		expect(result.workspace.dirty).toBe(true);
+		expect(result.workspace.automaticBackupCreated).toBe(true);
+		expect(harness.backups.size).toBe(1);
+		expect(harness.workspaces.get(state.file.id)).toMatchObject({
+			dirty: true,
+			automaticBackupCreated: true
+		});
+	});
+
+	it.each([
+		{ name: 'validation', rejection: new Error('invalid') },
+		{ name: 'engine', rejection: new Error('engine unavailable') }
+	])('leaves Box rename state unchanged after $name failure', async ({ name, rejection }) => {
+		const state = workspace();
+		const harness = createHarness(state);
+		if (name === 'validation') {
+			vi.mocked(harness.engine.applySaveFileEditOperation).mockResolvedValueOnce({
+				ok: false,
+				value: null,
+				error: { code: 'invalid-save-file-edit', message: rejection.message }
+			});
+		} else {
+			vi.mocked(harness.engine.applySaveFileEditOperation).mockRejectedValueOnce(rejection);
+		}
+		const edits = coordinator(harness);
+		const origin = edits.openWorkspace(state);
+		const before = harness.workspaces.get(state.file.id);
+
+		const result = await edits.enqueueEdit(origin, {
+			key: 'box-name:0',
+			operation: { boxName: { box: 0, name: 'FRIENDS' } }
+		});
+
+		expect(result.ok).toBe(false);
+		expect(harness.backups.size).toBe(0);
+		expect(harness.workspaces.get(state.file.id)).toEqual(before);
+	});
+
+	it('leaves Box rename state unchanged when its atomic persistence fails', async () => {
+		const state = workspace();
+		const harness = createHarness(state);
+		vi.mocked(harness.storage.commitRiskyWorkspaceMutation!).mockRejectedValueOnce(
+			new Error('quota exceeded')
+		);
+		const edits = coordinator(harness);
+		const origin = edits.openWorkspace(state);
+		const before = harness.workspaces.get(state.file.id);
+
+		const result = await edits.enqueueEdit(origin, {
+			key: 'box-name:0',
+			operation: { boxName: { box: 0, name: 'FRIENDS' } }
+		});
+
+		expect(result).toMatchObject({ ok: false, code: 'workspace-persistence-failed' });
+		expect(harness.backups.size).toBe(0);
+		expect(harness.workspaces.get(state.file.id)).toEqual(before);
+	});
+
 	it('drains edits admitted during recovery parsing and publishes their final Workspace', async () => {
 		const state = workspace('save-1', 1, true);
 		const harness = createHarness(state);

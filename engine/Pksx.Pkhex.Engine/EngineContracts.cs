@@ -429,17 +429,86 @@ public sealed record SaveWorkspace(
 public sealed record SaveFileBoxNameProjection(
     bool Supported,
     List<string> Names,
-    string? UnsupportedReason)
+    string? UnsupportedReason,
+    bool RenameSupported,
+    int RenameMaxLength,
+    string? RenameConstraints,
+    string? RenameUnsupportedReason)
 {
     public static SaveFileBoxNameProjection From(SaveFile save)
     {
         if (save is not IBoxDetailNameRead names)
-            return new(false, [], "Box Names are not available for this Save File format.");
+        {
+            const string unavailable = "Box Names are not available for this Save File format.";
+            return new(false, [], unavailable, false, 0, null, unavailable);
+        }
+
+        if (save is not IBoxDetailName)
+        {
+            return new(
+                true,
+                Enumerable.Range(0, save.BoxCount).Select(names.GetBoxName).ToList(),
+                null,
+                false,
+                0,
+                null,
+                "Box Name editing is not supported for this Save File format.");
+        }
+
+        var maxLength = BoxNameEditSupport.MaxLength(save);
 
         return new(
             true,
             Enumerable.Range(0, save.BoxCount).Select(names.GetBoxName).ToList(),
-            null);
+            null,
+            maxLength > 0,
+            maxLength,
+            maxLength > 0
+                ? $"Use 1 to {maxLength} characters that this Save File's encoding preserves exactly."
+                : null,
+            maxLength > 0 ? null : "Box Name editing is not supported for this Save File format.");
+    }
+}
+
+internal static class BoxNameEditSupport
+{
+    private const int ProbeLimit = 64;
+
+    public static int MaxLength(SaveFile save)
+    {
+        if (save.BoxCount == 0 || save.Clone() is not IBoxDetailName names)
+            return 0;
+
+        var probe = "A";
+        try
+        {
+            names.SetBoxName(0, probe);
+        }
+        catch (Exception)
+        {
+            return 0;
+        }
+        var readback = names.GetBoxName(0);
+        if (!StringComparer.Ordinal.Equals(probe, readback))
+            return 0;
+
+        var maxLength = probe.Length;
+        while (probe.Length < ProbeLimit)
+        {
+            probe += "A";
+            try
+            {
+                names.SetBoxName(0, probe);
+            }
+            catch (Exception)
+            {
+                break;
+            }
+            if (!StringComparer.Ordinal.Equals(probe, names.GetBoxName(0)))
+                break;
+            maxLength = probe.Length;
+        }
+        return maxLength;
     }
 }
 
@@ -746,9 +815,12 @@ public sealed record SaveFileEditOperationRequest(
     TrainerProfileEdit? TrainerProfile,
     long? Money,
     List<InventoryEditOperation>? Inventory,
+    BoxNameEdit? BoxName,
     int ActiveBox);
 
 public sealed record TrainerProfileEdit(string? TrainerName, string? Gender);
+
+public sealed record BoxNameEdit(int Box, string Name);
 
 public sealed record InventoryEditOperation(string Kind, string Pocket, int ItemId, int? Quantity);
 

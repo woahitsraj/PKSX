@@ -147,7 +147,11 @@ export const saveFileEditableProjectionSchema = z.object({
 export const saveFileBoxNameProjectionSchema = z.object({
 	supported: z.boolean(),
 	names: z.array(z.string()),
-	unsupportedReason: z.string().nullable()
+	unsupportedReason: z.string().nullable(),
+	renameSupported: z.boolean().optional(),
+	renameMaxLength: z.number().int().nonnegative().optional(),
+	renameConstraints: z.string().nullable().optional(),
+	renameUnsupportedReason: z.string().nullable().optional()
 });
 
 export const saveFileInventoryCatalogueSchema = z.object({
@@ -505,7 +509,11 @@ export const saveWorkspaceSchema = z.object({
 	boxNames: saveFileBoxNameProjectionSchema.default({
 		supported: false,
 		names: [],
-		unsupportedReason: 'Box Names are not available for this Save File format.'
+		unsupportedReason: 'Box Names are not available for this Save File format.',
+		renameSupported: false,
+		renameMaxLength: 0,
+		renameConstraints: null,
+		renameUnsupportedReason: 'Box Name editing is not supported for this Save File format.'
 	}),
 	saveFile: saveFileEditableProjectionSchema.optional()
 });
@@ -668,6 +676,12 @@ export const pokemonSpeciesFormEditProjectionSchema = z.object({
 });
 
 export const saveFileEditOperationSchema = z.object({
+	boxName: z
+		.object({
+			box: z.number().int(),
+			name: z.string()
+		})
+		.optional(),
 	trainerProfile: z
 		.object({
 			trainerName: z.string().optional(),

@@ -5,6 +5,8 @@ import { nextWorkspaceRevision, WorkspaceRevisionConflictError } from './workspa
 import type {
 	BackupId,
 	BackupMetadata,
+	CommitRiskyWorkspaceMutationInput,
+	CommitRiskyWorkspaceMutationResult,
 	CreateBackupInput,
 	EnsureAutomaticBackupInput,
 	EnsureAutomaticBackupResult,
@@ -438,6 +440,103 @@ export class IndexedDbSavesStorage implements SavesStorage {
 			workspaceStore.put({ ...workspace, bytes: copyBytes(bytes) } satisfies WorkspaceRecord);
 			await transactionDone(transaction);
 			return { workspace: cloneWorkspace(workspace), established: true };
+		} catch (error) {
+			try {
+				transaction.abort();
+			} catch {
+				// The transaction already completed or aborted.
+			}
+			throw error;
+		} finally {
+			database.close();
+		}
+	}
+
+	async commitRiskyWorkspaceMutation(
+		input: CommitRiskyWorkspaceMutationInput
+	): Promise<CommitRiskyWorkspaceMutationResult> {
+		const database = await openSavesDatabase(this.#databaseName);
+		const transaction = database.transaction(
+			[saveFilesStore, saveBytesStore, workspacesStore, backupsStore, backupBytesStore],
+			'readwrite'
+		);
+		try {
+			const saveFile = await requestToPromise<StoredSaveFile | undefined>(
+				transaction.objectStore(saveFilesStore).get(input.saveFileId)
+			);
+			if (!saveFile || saveFile.importedAt !== input.importedAt) {
+				throw new Error('The selected Save File is no longer available.');
+			}
+
+			const workspaceStore = transaction.objectStore(workspacesStore);
+			const previous = await requestToPromise<WorkspaceRecord | undefined>(
+				workspaceStore.get(input.saveFileId)
+			);
+			if ((previous?.updatedAt ?? null) !== input.expectedUpdatedAt) {
+				throw new WorkspaceRevisionConflictError();
+			}
+
+			const baselineBytes = previous
+				? previous.bytes
+				: (
+						await requestToPromise<SaveBytesRecord | undefined>(
+							transaction.objectStore(saveBytesStore).get(input.saveFileId)
+						)
+					)?.bytes;
+			if (!baselineBytes) throw new Error('The Save File bytes are no longer available.');
+
+			let backupEstablished = false;
+			if (!previous?.automaticBackupCreated) {
+				const backupId = stableAutomaticBackupId({
+					saveFileId: input.saveFileId,
+					importedAt: input.importedAt,
+					persistedRevision: previous?.updatedAt ?? saveFile.importedAt,
+					bytes: baselineBytes
+				});
+				const backupStore = transaction.objectStore(backupsStore);
+				const backupBytes = transaction.objectStore(backupBytesStore);
+				const [existingBackup, existingBytes] = await Promise.all([
+					requestToPromise<BackupMetadata | undefined>(backupStore.get(backupId)),
+					requestToPromise<BackupBytesRecord | undefined>(backupBytes.get(backupId))
+				]);
+				if (
+					existingBackup &&
+					(existingBackup.saveFileId !== input.saveFileId ||
+						existingBackup.byteLength !== baselineBytes.byteLength)
+				) {
+					throw new Error('The automatic Backup identity belongs to different content.');
+				}
+				if (existingBytes && !bytesEqual(existingBytes.bytes, baselineBytes)) {
+					throw new Error('The automatic Backup bytes do not match their identity.');
+				}
+				if (!existingBytes) {
+					backupBytes.put({
+						backupId,
+						bytes: copyBytes(baselineBytes)
+					} satisfies BackupBytesRecord);
+				}
+				if (!existingBackup) {
+					backupStore.put({
+						id: backupId,
+						saveFileId: input.saveFileId,
+						reason: input.reason,
+						byteLength: baselineBytes.byteLength,
+						createdAt: this.#now()
+					} satisfies BackupMetadata);
+				}
+				backupEstablished = true;
+			}
+
+			const workspace: StoredWorkspace = {
+				saveFileId: input.saveFileId,
+				bytes: copyBytes(input.bytes),
+				dirty: input.dirty,
+				automaticBackupCreated: true,
+				updatedAt: nextWorkspaceRevision(previous?.updatedAt, this.#now())
+			};
+			workspaceStore.put({ ...workspace, bytes: copyBytes(input.bytes) } satisfies WorkspaceRecord);
+			await transactionDone(transaction);
+			return { workspace: cloneWorkspace(workspace), backupEstablished };
 		} catch (error) {
 			try {
 				transaction.abort();

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { boxNameFor, createPhysicalBoxPickerLocations, moveBoxPickerFocus } from './index';
+import {
+	boxNameFor,
+	createPhysicalBoxPickerLocations,
+	moveBoxPickerControllerFocus,
+	moveBoxPickerFocus
+} from './index';
 
 describe('box picker', () => {
 	it('creates one numbered physical Location for every reported Box', () => {
@@ -74,5 +79,22 @@ describe('box picker', () => {
 		expect(moveBoxPickerFocus(1, 'down', 6, 4)).toBe(5);
 		expect(moveBoxPickerFocus(3, 'down', 6, 4)).toBe(5);
 		expect(moveBoxPickerFocus(5, 'up', 6, 4)).toBe(1);
+	});
+
+	it('moves Controller Focus through rename without losing the selected Box', () => {
+		const grid = { zone: 'locations', locationIndex: 1, formIndex: 0 } as const;
+		const command = moveBoxPickerControllerFocus(grid, 'up', 6, 4, true);
+		expect(command).toEqual({ ...grid, zone: 'rename-command' });
+		expect(moveBoxPickerControllerFocus(command, 'down', 6, 4, true)).toEqual(grid);
+
+		const form = { ...grid, zone: 'rename-form' } as const;
+		expect(moveBoxPickerControllerFocus(form, 'down', 6, 4, true)).toEqual({
+			...form,
+			formIndex: 1
+		});
+		expect(moveBoxPickerControllerFocus(form, 'up', 6, 4, true)).toEqual({
+			...form,
+			formIndex: 2
+		});
 	});
 });

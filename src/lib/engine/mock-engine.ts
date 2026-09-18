@@ -49,7 +49,11 @@ const mockSaveSummary: SaveSummary = {
 const mockBoxNames = {
 	supported: true,
 	names: ['Friends'],
-	unsupportedReason: null
+	unsupportedReason: null,
+	renameSupported: true,
+	renameMaxLength: 17,
+	renameConstraints: "Use 1 to 17 characters that this Save File's encoding preserves exactly.",
+	renameUnsupportedReason: null
 } satisfies SaveWorkspace['boxNames'];
 
 const mockPikachuDetails = {

@@ -1317,10 +1317,42 @@ public static partial class PkhexEngineExports
 
     private static SlotMutationResult ApplySaveFileEditOperation(SaveFile save, SaveFileEditOperationRequest operation)
     {
-        if (operation.TrainerProfile is null && operation.Money is null && (operation.Inventory is null || operation.Inventory.Count == 0))
+        if (operation.TrainerProfile is null && operation.Money is null && (operation.Inventory is null || operation.Inventory.Count == 0) && operation.BoxName is null)
             return SlotMutationResult.Fail("invalid-save-file-edit", "Choose a Save File edit to apply.");
 
         var mutated = false;
+        if (operation.BoxName is { } boxName)
+        {
+            if ((uint)boxName.Box >= save.BoxCount)
+                return SlotMutationResult.Fail("invalid-box", $"Box {boxName.Box} is outside the save's box range.");
+            if (save is not IBoxDetailName names)
+                return SlotMutationResult.Fail("unsupported-save-file-edit", "Box Name editing is not supported for this Save File format.");
+
+            var maxLength = BoxNameEditSupport.MaxLength(save);
+            if (maxLength == 0)
+                return SlotMutationResult.Fail("unsupported-save-file-edit", "Box Name editing is not supported for this Save File format.");
+            if (string.IsNullOrWhiteSpace(boxName.Name) || boxName.Name.Length > maxLength)
+                return SlotMutationResult.Fail("invalid-save-file-edit", $"Box Name must be between 1 and {maxLength} characters.");
+
+            var original = names.GetBoxName(boxName.Box);
+            try
+            {
+                names.SetBoxName(boxName.Box, boxName.Name);
+            }
+            catch (Exception)
+            {
+                return SlotMutationResult.Fail("invalid-save-file-edit", "Box Name is not valid for this Save File format.");
+            }
+            var applied = names.GetBoxName(boxName.Box);
+            if (!StringComparer.Ordinal.Equals(applied, boxName.Name))
+            {
+                return SlotMutationResult.Fail(
+                    "invalid-save-file-edit",
+                    "Box Name contains characters or encoding that this Save File format cannot preserve exactly.");
+            }
+            mutated |= !StringComparer.Ordinal.Equals(original, applied);
+        }
+
         if (operation.TrainerProfile is { } trainer)
         {
             if (trainer.TrainerName is string trainerName)

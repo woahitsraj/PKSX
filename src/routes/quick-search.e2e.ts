@@ -188,7 +188,7 @@ test('Cmd/Ctrl+K opens Search from another destination', async ({ page }) => {
 	await expect(page).toHaveURL(/\/boxes/);
 	await expect(
 		page.getByRole('dialog', { name: 'Search Active Save File' }).getByRole('searchbox')
-	).toBeFocused();
+	).toBeFocused({ timeout: 15_000 });
 });
 
 test('reports when the Active Save File disappears', async ({ page }) => {

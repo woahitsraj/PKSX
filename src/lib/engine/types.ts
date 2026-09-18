@@ -352,6 +352,10 @@ export type SaveFileBoxNameProjection = {
 	supported: boolean;
 	names: string[];
 	unsupportedReason: string | null;
+	renameSupported?: boolean;
+	renameMaxLength?: number;
+	renameConstraints?: string | null;
+	renameUnsupportedReason?: string | null;
 };
 
 export type TrainerGender = 'male' | 'female';
@@ -539,6 +543,10 @@ export type PokemonCreationResult = {
 };
 
 export type SaveFileEditOperation = {
+	boxName?: {
+		box: number;
+		name: string;
+	};
 	trainerProfile?: {
 		trainerName?: string;
 		gender?: TrainerGender;

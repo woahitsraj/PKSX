@@ -214,6 +214,22 @@ describe('parseEngineWorkerRequest', () => {
 		});
 	});
 
+	test('preserves Box Name edits for engine-side validation', () => {
+		const bytes = new ArrayBuffer(4);
+		const request = {
+			type: 'request',
+			id: 'req-box-name',
+			method: 'applySaveFileEditOperation',
+			payload: {
+				bytes,
+				operation: { boxName: { box: 2, name: 'FRIENDS' } },
+				activeBox: 0
+			}
+		};
+
+		expect(parseEngineWorkerRequest(request)).toEqual({ ok: true, value: request });
+	});
+
 	test('rejects malformed request payload types without applying domain validation', () => {
 		expect.assertions(2);
 
@@ -248,7 +264,15 @@ describe('parseEngineWorkerResponse', () => {
 	test.each([
 		{
 			name: 'supported',
-			boxNames: { supported: true, names: ['FRIENDS', 'BOX 2'], unsupportedReason: null }
+			boxNames: {
+				supported: true,
+				names: ['FRIENDS', 'BOX 2'],
+				unsupportedReason: null,
+				renameSupported: true,
+				renameMaxLength: 8,
+				renameConstraints: 'Use 1 to 8 characters that this Save File encoding preserves.',
+				renameUnsupportedReason: null
+			}
 		},
 		{
 			name: 'unsupported',
