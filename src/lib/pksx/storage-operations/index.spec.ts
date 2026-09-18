@@ -40,7 +40,8 @@ const workspace: SaveWorkspace = {
 		boxSlotCount: 30
 	},
 	partySlots: [],
-	boxSlots: []
+	boxSlots: [],
+	boxNames: { supported: true, names: ['BOX 1', 'BOX 2'], unsupportedReason: null }
 };
 
 const source: SaveSlotRef = { zone: 'box', box: 0, slot: 0 };

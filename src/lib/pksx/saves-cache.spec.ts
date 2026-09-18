@@ -144,7 +144,8 @@ const boxSlot: BoxSlotSummary = {
 const workspace: SaveWorkspace = {
 	summary,
 	partySlots: [partySlot],
-	boxSlots: [boxSlot, { ...boxSlot, slot: 1, isEmpty: true, nickname: '' }]
+	boxSlots: [boxSlot, { ...boxSlot, slot: 1, isEmpty: true, nickname: '' }],
+	boxNames: { supported: true, names: ['BOX 1'], unsupportedReason: null }
 };
 
 describe('Saves cache', () => {

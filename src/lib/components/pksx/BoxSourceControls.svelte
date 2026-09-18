@@ -37,7 +37,11 @@
 	>
 
 	<div class="box-title">
-		<h2 aria-label={source.activeBoxLabel}>
+		<h2
+			aria-label={source.location === 'party'
+				? source.activeBoxLabel
+				: `${source.activeBoxLabel}, Box ${String(source.activeBoxNumber).padStart(2, '0')} of ${source.boxCount}`}
+		>
 			{source.activeBoxLabel}
 			<button
 				id={pickerId}

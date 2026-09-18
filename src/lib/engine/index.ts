@@ -73,6 +73,7 @@ export type {
 	PokemonStatEditConstraints,
 	PokemonStatEditSet,
 	SaveFileEditOperation,
+	SaveFileBoxNameProjection,
 	SaveFileEditableProjection,
 	SaveFileEditOperationResult,
 	SaveSlotRef,

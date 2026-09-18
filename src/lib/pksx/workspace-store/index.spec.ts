@@ -64,13 +64,21 @@ describe('ActiveWorkspaceService', () => {
 		expect(service.store.getRow('workspaces', file.id).saveFileId).toBe(file.id);
 		expect(service.store.getRowIds('boxes')[0]).toBe(`${file.id}:0`);
 		expect(JSON.stringify(service.store.getContent())).not.toContain('engine-owned-secret');
+		expect(
+			JSON.parse(String(service.store.getRow('workspaces', file.id).projection))
+		).toMatchObject({
+			boxNames: { supported: true, names: ['Friends'], unsupportedReason: null }
+		});
 		expect(service.current?.workspace.boxSlots[0]?.entityBytesBase64).toBe('engine-owned-secret');
+		expect(service.current?.workspace.boxNames.names).toEqual(['Friends']);
 
 		service.set({ ...service.current!, dirty: true });
 		await service.flushed();
 		expect(observed.at(-1)).toBe(true);
 		expect(persistence.save).toHaveBeenCalled();
 		expect(persistence.content?.[1].dirty).toBe(true);
+		expect(JSON.stringify(persistence.content)).toContain('Friends');
+		expect(JSON.stringify(persistence.content)).not.toContain('engine-owned-secret');
 		unsubscribe();
 	});
 

@@ -348,6 +348,7 @@ function workspaceFor(revision: number) {
 		},
 		partySlots: [],
 		boxSlots: [],
+		boxNames: { supported: true, names: ['BOX 1'], unsupportedReason: null },
 		saveFile: projection
 	};
 }

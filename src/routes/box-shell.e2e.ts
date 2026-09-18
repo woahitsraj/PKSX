@@ -12,6 +12,9 @@ const platinumFixturePath = path.resolve(
 const scarletFixturePath = path.resolve(
 	'test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-scarlet-2025-03-24-main.sav'
 );
+const letsGoEeveeFixturePath = path.resolve(
+	'test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-lets-go-eevee-2025-03-24-savedata.bin'
+);
 
 async function settleMotion(page: Page) {
 	await page.evaluate(() =>
@@ -473,6 +476,23 @@ async function importPlatinumThroughSaves(page: Page) {
 	await expect(page.locator('#box-2-slot-18')).toContainText('MEW', { timeout: 15000 });
 }
 
+async function importLetsGoEeveeThroughSaves(page: Page) {
+	await page.goto('/');
+	await page.getByLabel('Import Save File').setInputFiles(letsGoEeveeFixturePath);
+	await expect(
+		page.getByText('pokemon-lets-go-eevee-2025-03-24-savedata.bin imported and made active.')
+	).toBeVisible({ timeout: 15000 });
+	await page.goto('/boxes');
+	await expect(
+		page.getByRole('button', {
+			name: 'Open Box Menu for pokemon-lets-go-eevee-2025-03-24-savedata.bin'
+		})
+	).toBeVisible({ timeout: 15000 });
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
+		timeout: 15000
+	});
+}
+
 async function importScarletThroughSaves(page: Page) {
 	await page.goto('/');
 	await page.getByLabel('Import Save File').setInputFiles(scarletFixturePath);
@@ -495,7 +515,9 @@ async function importScarletThroughSaves(page: Page) {
 async function showPartyFromFirstBox(page: Page) {
 	const pane = page.locator('.box-pane.active-pane');
 	await pane.getByRole('button', { name: 'Previous Location' }).click();
-	await expect(pane.getByRole('heading', { name: 'Party' })).toBeVisible({ timeout: 60000 });
+	await expect(pane.getByRole('heading', { name: 'Party', exact: true })).toBeVisible({
+		timeout: 60000
+	});
 }
 
 async function showFirstBoxFromParty(page: Page) {
@@ -1189,14 +1211,14 @@ test('direct Box Picker jumps across every Save File Box and restores focus', as
 
 	await pickerControl.click();
 	let picker = page.getByRole('dialog', { name: 'Choose a Box' });
-	await expect(picker.getByRole('button', { name: /^Box \d{2}/ })).toHaveCount(14);
-	await picker.getByRole('button', { name: /^Box 14/ }).click();
-	await expect(page.getByRole('heading', { name: 'Box 14' })).toBeVisible({ timeout: 15000 });
+	await expect(picker.getByRole('button', { name: /^Box \d{2}: BOX\d+/ })).toHaveCount(14);
+	await picker.getByRole('button', { name: /^Box 14: BOX14/ }).click();
+	await expect(page.getByRole('heading', { name: 'BOX14' })).toBeVisible({ timeout: 15000 });
 	await expect(pickerControl).toBeFocused();
 
 	await page.keyboard.press('Enter');
 	picker = page.getByRole('dialog', { name: 'Choose a Box' });
-	await expect(picker.getByRole('button', { name: /^Box 14/ })).toBeFocused();
+	await expect(picker.getByRole('button', { name: /^Box 14: BOX14/ })).toBeFocused();
 	await page.keyboard.press('Escape');
 	await expect(picker).toBeHidden();
 	await expect(pickerControl).toBeFocused();
@@ -1204,9 +1226,28 @@ test('direct Box Picker jumps across every Save File Box and restores focus', as
 	await pressController(page, 'Enter');
 	await expect(picker).toBeVisible();
 	await pressController(page, 'ArrowLeft');
-	await expect(picker.getByRole('button', { name: /^Box 13/ })).toBeFocused();
+	await expect(picker.getByRole('button', { name: /^Box 13: BOX13/ })).toBeFocused();
 	await pressController(page, 'Enter');
-	await expect(page.getByRole('heading', { name: 'Box 13' })).toBeVisible({ timeout: 15000 });
+	await expect(page.getByRole('heading', { name: 'BOX13' })).toBeVisible({ timeout: 15000 });
+	await expect(pickerControl).toBeFocused();
+});
+
+test('Save Files without Box Names retain numbered direct Box Picker navigation', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	await importLetsGoEeveeThroughSaves(page);
+	const pickerControl = page.getByRole('button', {
+		name: 'Open Box Picker for pokemon-lets-go-eevee-2025-03-24-savedata.bin'
+	});
+
+	await pickerControl.click();
+	const picker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await expect(picker).toContainText('Box Names are not available for this Save File format.');
+	await expect(picker.getByRole('button', { name: /^Box \d{2}/ })).toHaveCount(40);
+	await picker.getByRole('button', { name: /^Box 40/ }).click();
+
+	await expect(page.getByRole('heading', { name: 'Box 40' })).toBeVisible({ timeout: 15000 });
 	await expect(pickerControl).toBeFocused();
 });
 
@@ -1648,7 +1689,7 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 		.click();
 	await expect(page.locator('#box-grid')).toHaveAttribute(
 		'aria-label',
-		/pokemon-scarlet-2025-03-24-main\.sav Box 01/
+		/pokemon-scarlet-2025-03-24-main\.sav To tranfer/
 	);
 	const activePane = page.locator('.box-pane.active-pane');
 	await activePane.getByRole('button', { name: 'Previous Location' }).click();
@@ -1662,7 +1703,7 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 	await page.getByRole('button', { name: /011020251345\.sav/ }).click();
 	await expect(page.locator('#box-grid')).toHaveAttribute(
 		'aria-label',
-		/emerald-011020251345\.sav Box 14/
+		/emerald-011020251345\.sav BOX14/
 	);
 	await expect(page.locator('#box-13-slot-29')).toBeFocused();
 
@@ -2964,7 +3005,7 @@ test('Edit opens Pokemon Editor and returns focus to the command stack', async (
 	await expect(editor.locator('#pokemon-editor-status')).toBeAttached();
 	await expect(editor).not.toContainText('Save File Pokemon');
 	await expect(editor).not.toContainText(/Engine|Editable/);
-	await expect(editor).toContainText('Box 01 · Slot 1 · Row A / Col 1');
+	await expect(editor).toContainText('BOX1 · Slot 1 · Row A / Col 1');
 	await expect(editor).toContainText('Species #0304');
 	await expect(editor.locator('[data-editor-rail-section]')).toHaveCount(11);
 	await expect(page.locator('#pokemon-editor-section-species-form')).toBeFocused();
@@ -4192,7 +4233,7 @@ test('landscape-floor Slot Menu uses the trailing Safe Canvas edge without shell
 
 	await page.getByRole('button', { name: 'Clear Slot' }).click();
 	await expect(page.getByRole('dialog')).toHaveCount(1);
-	await expect(page.getByRole('dialog', { name: 'Clear ARON?' })).toContainText('Box 01 Slot 1');
+	await expect(page.getByRole('dialog', { name: 'Clear ARON?' })).toContainText('BOX1 Slot 1');
 	const clearBounds = await edgeSurfaceBounds(page);
 	expectSafeCanvas(clearBounds, viewport, insets);
 	expect(clearBounds.panel?.right).toBe(clearBounds.layer.right);
@@ -4239,7 +4280,7 @@ test('portrait-floor Slot Menu uses the bottom Safe Canvas edge without shell gr
 
 	await page.getByRole('button', { name: 'Clear Slot' }).click();
 	await expect(page.getByRole('dialog')).toHaveCount(1);
-	await expect(page.getByRole('dialog', { name: 'Clear ARON?' })).toContainText('Box 01 Slot 1');
+	await expect(page.getByRole('dialog', { name: 'Clear ARON?' })).toContainText('BOX1 Slot 1');
 	const clearBounds = await edgeSurfaceBounds(page);
 	expectSafeCanvas(clearBounds, viewport, insets);
 	expect(clearBounds.panel?.left).toBe(clearBounds.layer.left);
@@ -4303,7 +4344,7 @@ test('square Safe Canvas keeps the bottom Menu edge and preserves a pending Clea
 	expect(await shellExtents(page)).toEqual(squareBaseline);
 	await page.setViewportSize(landscapeViewport);
 
-	await expect(clear).toContainText('Box 01 Slot 1');
+	await expect(clear).toContainText('BOX1 Slot 1');
 	await expect(page.getByRole('dialog')).toHaveCount(1);
 	edges = await edgeSurfaceBounds(page);
 	expectSafeCanvas(edges, landscapeViewport, insets);
@@ -4447,7 +4488,7 @@ test('active slot detail rail follows controller focus', async ({ page }) => {
 	await expect(rail).toContainText('Species #0304');
 	await expect(rail).toContainText('LEVEL');
 	await expect(rail).toContainText('11');
-	await expect(rail).toContainText('Box 01 · Slot 1 · Row A / Col 1');
+	await expect(rail).toContainText('BOX1 · Slot 1 · Row A / Col 1');
 	await expect(rail).toContainText('Sassy');
 	await expect(rail).toContainText('Rock Head');
 	await expect(rail).toContainText('Move Set');
@@ -4458,7 +4499,7 @@ test('active slot detail rail follows controller focus', async ({ page }) => {
 	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
 	await expect(rail).toContainText('ILLUMISE');
 	await expect(rail).toContainText('Species #0314');
-	await expect(rail).toContainText('Box 01 · Slot 2 · Row A / Col 2');
+	await expect(rail).toContainText('BOX1 · Slot 2 · Row A / Col 2');
 	await expect(rail).not.toContainText('Not available');
 	await expect(rail).toContainText('Move Set');
 
@@ -5412,7 +5453,7 @@ test('clear slot cancellation and confirmation use the in-app confirmation surfa
 		)
 	).toEqual([]);
 	await expect(confirmDialog).not.toContainText('Clear Slot');
-	await expect(confirmDialog).toContainText('Box 01 Slot 1');
+	await expect(confirmDialog).toContainText('BOX1 Slot 1');
 	await page.getByRole('button', { name: 'Cancel' }).click();
 	await expect(confirmDialog).toBeHidden();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');

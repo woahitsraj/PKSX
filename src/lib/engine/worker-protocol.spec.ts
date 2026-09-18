@@ -245,6 +245,51 @@ describe('parseEngineWorkerRequest', () => {
 });
 
 describe('parseEngineWorkerResponse', () => {
+	test.each([
+		{
+			name: 'supported',
+			boxNames: { supported: true, names: ['FRIENDS', 'BOX 2'], unsupportedReason: null }
+		},
+		{
+			name: 'unsupported',
+			boxNames: {
+				supported: false,
+				names: [],
+				unsupportedReason: 'Box Names are not available for this Save File format.'
+			}
+		}
+	])('preserves $name Box Name capability in Workspace responses', ({ boxNames }) => {
+		const response = {
+			type: 'response',
+			id: 'req-box-names',
+			method: 'loadSaveWorkspace',
+			result: {
+				ok: true,
+				value: {
+					summary: {
+						saveType: 'SAV3E',
+						gameVersion: 'E',
+						gameVersionId: 3,
+						generation: 3,
+						trainerId: 1,
+						playTime: '1:00',
+						playedHours: 1,
+						playedMinutes: 0,
+						partyCount: 0,
+						boxCount: 2,
+						boxSlotCount: 30
+					},
+					partySlots: [],
+					boxSlots: [],
+					boxNames
+				},
+				error: null
+			}
+		};
+
+		expect(parseEngineWorkerResponse(response)).toEqual({ ok: true, value: response });
+	});
+
 	test('parses correlated responses and preserves shallow result values', () => {
 		expect.assertions(1);
 

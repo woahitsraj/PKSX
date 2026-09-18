@@ -250,6 +250,7 @@ function workspace(id = 'save-1', byte = 1, automaticBackupCreated = false): Wor
 			},
 			partySlots: [],
 			boxSlots: [],
+			boxNames: { supported: true, names: ['BOX 1'], unsupportedReason: null },
 			saveFile
 		},
 		dirty: false,

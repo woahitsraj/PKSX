@@ -964,6 +964,7 @@ public static partial class PkhexEngineExports
             SaveSummary.From(save, fileName),
             partySlots,
             boxSlots,
+            SaveFileBoxNameProjection.From(save),
             SaveFileEditableProjection.From(save));
     }
 

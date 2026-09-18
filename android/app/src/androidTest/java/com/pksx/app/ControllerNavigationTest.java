@@ -1189,7 +1189,7 @@ public class ControllerNavigationTest {
         JSONObject identity = captureIdentity(label, pokemonEditorIdentityExpression());
         if (
             !"ARON".equals(identity.optString("pokemonTitle"))
-                || !"Box 01 · Slot 1 · Row A / Col 1".equals(identity.optString("sourceLocation"))
+                || !"BOX1 · Slot 1 · Row A / Col 1".equals(identity.optString("sourceLocation"))
         ) {
             fail(label + " is missing Pokemon or source-location ownership: " + identity);
         }

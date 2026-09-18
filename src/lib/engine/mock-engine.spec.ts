@@ -66,4 +66,26 @@ describe('createMockEngine', () => {
 			error: { code: 'invalid-box' }
 		});
 	});
+
+	test.each([
+		{
+			name: 'supported',
+			boxNames: { supported: true, names: ['Friends'], unsupportedReason: null }
+		},
+		{
+			name: 'unsupported',
+			boxNames: {
+				supported: false,
+				names: [],
+				unsupportedReason: 'Box Names are not available for this Save File format.'
+			}
+		}
+	])('reports $name Box Name capability', async ({ boxNames }) => {
+		const engine = createMockEngine({}, { boxNames });
+
+		await expect(engine.loadSaveWorkspace(new Uint8Array(), undefined, 0)).resolves.toMatchObject({
+			ok: true,
+			value: { boxNames }
+		});
+	});
 });

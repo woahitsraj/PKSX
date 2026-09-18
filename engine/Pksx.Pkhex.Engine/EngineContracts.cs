@@ -423,7 +423,25 @@ public sealed record SaveWorkspace(
     SaveSummary Summary,
     List<PartySlotSummary> PartySlots,
     List<BoxSlotSummary> BoxSlots,
+    SaveFileBoxNameProjection BoxNames,
     SaveFileEditableProjection SaveFile);
+
+public sealed record SaveFileBoxNameProjection(
+    bool Supported,
+    List<string> Names,
+    string? UnsupportedReason)
+{
+    public static SaveFileBoxNameProjection From(SaveFile save)
+    {
+        if (save is not IBoxDetailNameRead names)
+            return new(false, [], "Box Names are not available for this Save File format.");
+
+        return new(
+            true,
+            Enumerable.Range(0, save.BoxCount).Select(names.GetBoxName).ToList(),
+            null);
+    }
+}
 
 public sealed record SaveFileEditableProjection(
     TrainerProfileProjection TrainerProfile,

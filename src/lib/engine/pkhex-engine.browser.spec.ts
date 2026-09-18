@@ -197,6 +197,44 @@ const expectedEditorPockets: Record<(typeof editorCapabilityFixtures)[number]['n
 };
 
 describe('PKHeX Engine browser runtime smoke', () => {
+	test.each([
+		{
+			name: 'Emerald',
+			fileName: '011020251345.sav',
+			url: fixtureUrl,
+			supported: true,
+			firstName: 'BOX1'
+		},
+		{
+			name: "Let's Go Eevee",
+			fileName: 'pokemon-lets-go-eevee-2025-03-24-savedata.bin',
+			url: letsGoEeveeFixtureUrl,
+			supported: false,
+			firstName: undefined
+		}
+	] as const)('projects Box Name capability for the $name fixture', async (fixture) => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixture.url)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const loaded = await engine.loadSaveWorkspace(fixtureBytes, fixture.fileName, 0);
+
+		expect(loaded.ok, JSON.stringify(loaded.error)).toBe(true);
+		if (!loaded.ok) throw new Error(`Expected ${fixture.name} workspace to load.`);
+		expect(loaded.value.boxNames.supported).toBe(fixture.supported);
+		if (fixture.supported) {
+			expect(loaded.value.boxNames.names).toHaveLength(loaded.value.summary.boxCount);
+			expect(loaded.value.boxNames.names[0]).toBe(fixture.firstName);
+			expect(loaded.value.boxNames.unsupportedReason).toBeNull();
+		} else {
+			expect(loaded.value.boxNames.names).toEqual([]);
+			expect(loaded.value.boxNames.unsupportedReason).toBe(
+				'Box Names are not available for this Save File format.'
+			);
+		}
+	});
+
 	test.each(editorCapabilityFixtures)(
 		'records editor capabilities for the $name full Save File fixture',
 		async (fixture) => {

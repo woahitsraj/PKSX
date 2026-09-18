@@ -344,7 +344,14 @@ export type SaveWorkspace = {
 	summary: SaveSummary;
 	partySlots: PartySlotSummary[];
 	boxSlots: BoxSlotSummary[];
+	boxNames: SaveFileBoxNameProjection;
 	saveFile?: SaveFileEditableProjection;
+};
+
+export type SaveFileBoxNameProjection = {
+	supported: boolean;
+	names: string[];
+	unsupportedReason: string | null;
 };
 
 export type TrainerGender = 'male' | 'female';
