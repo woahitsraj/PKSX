@@ -32,7 +32,7 @@ async function pressController(page: Page, key: string) {
 	}, key);
 }
 
-async function importActiveSaveFile(page: Page, fixturePath = emeraldFixturePath) {
+async function importSaveFile(page: Page, fixturePath = emeraldFixturePath) {
 	await page.goto('/');
 	await page.evaluate(
 		() =>
@@ -47,6 +47,10 @@ async function importActiveSaveFile(page: Page, fixturePath = emeraldFixturePath
 	await expect(
 		page.getByRole('button', { name: `Open ${path.basename(fixturePath)} in Boxes` })
 	).toBeVisible({ timeout: 15_000 });
+}
+
+async function importActiveSaveFile(page: Page, fixturePath = emeraldFixturePath) {
+	await importSaveFile(page, fixturePath);
 	await page.goto('/boxes');
 	await expect(
 		page.getByRole('button', { name: `Open Box Menu for ${path.basename(fixturePath)}` })
@@ -314,8 +318,7 @@ test('runs, cancels, refreshes, filters, and navigates a Save File-wide Legality
 });
 
 test('keeps a secondary Save File report current across Box projection loads', async ({ page }) => {
-	await importActiveSaveFile(page);
-	await page.goto('/');
+	await importSaveFile(page);
 	await page.getByLabel('Import Save File').setInputFiles(platinumFixturePath);
 	await expect(
 		page.getByRole('button', { name: `Open ${path.basename(platinumFixturePath)} in Boxes` })
