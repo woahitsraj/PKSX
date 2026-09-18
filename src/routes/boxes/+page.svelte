@@ -49,6 +49,7 @@
 		type WorkspaceState
 	} from '$lib/pksx/backup-workflow';
 	import {
+		boxIndexAfterMove,
 		boxNameFor as projectedBoxNameFor,
 		createPhysicalBoxPickerLocations,
 		moveBoxPickerControllerFocus,
@@ -442,6 +443,21 @@
 		const boxNames = saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames;
 		return boxNames?.renameSupported ? boxNames : null;
 	});
+	const boxPickerReorderUnavailableReason = $derived.by(() => {
+		if (boxPickerPane?.source.type !== 'save-file') return null;
+		const boxNames = saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames;
+		if (!boxNames?.reorderSupported) {
+			return (
+				boxNames?.reorderUnsupportedReason ??
+				'Box reordering is not supported for this Save File format.'
+			);
+		}
+		return pendingSlotOperation ? 'Finish or cancel Carry before moving a Box.' : null;
+	});
+	const boxPickerReorderAvailable = $derived.by(() => {
+		if (boxPickerPane?.source.type !== 'save-file' || pendingSlotOperation) return false;
+		return saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames.reorderSupported === true;
+	});
 	const activePaneBox = $derived(activePane?.activeBox ?? navigation.activeBox);
 	const summonedSlotPane = $derived(
 		summonedSlotLauncher
@@ -763,13 +779,18 @@
 						action,
 						boxPickerLocations.length,
 						boxPickerColumnCount,
-						boxPickerRenameProjection !== null
+						boxPickerRenameProjection !== null,
+						boxPickerReorderAvailable
 					)
 				);
 				break;
 			case 'confirm': {
 				if (boxPickerControllerFocus.zone === 'rename-command') {
 					document.getElementById('box-picker-rename-command')?.click();
+					break;
+				}
+				if (boxPickerControllerFocus.zone === 'reorder-command') {
+					document.getElementById('box-picker-reorder-command')?.click();
 					break;
 				}
 				if (boxPickerControllerFocus.zone === 'rename-form') {
@@ -782,6 +803,12 @@
 					}
 					break;
 				}
+				if (boxPickerControllerFocus.zone === 'reorder-targets') {
+					document
+						.getElementById(`box-picker-location-${boxPickerControllerFocus.locationIndex}`)
+						?.click();
+					break;
+				}
 				const location = boxPickerLocations[boxPickerFocusIndex];
 				if (location) selectBoxPickerLocation(location);
 				break;
@@ -789,6 +816,8 @@
 			case 'back':
 				if (boxPickerControllerFocus.zone === 'rename-form') {
 					document.getElementById('box-name-cancel')?.click();
+				} else if (boxPickerControllerFocus.zone === 'reorder-targets') {
+					document.getElementById('box-picker-reorder-cancel')?.click();
 				} else closeBoxPicker();
 				break;
 			case 'previousBox':
@@ -1627,11 +1656,13 @@
 	function focusBoxPickerTarget(focus: BoxPickerControllerFocus) {
 		boxPickerControllerFocus = focus;
 		const id =
-			focus.zone === 'locations'
+			focus.zone === 'locations' || focus.zone === 'reorder-targets'
 				? `box-picker-location-${focus.locationIndex}`
 				: focus.zone === 'rename-command'
 					? 'box-picker-rename-command'
-					: ['box-name-input', 'box-name-cancel', 'box-name-submit'][focus.formIndex];
+					: focus.zone === 'reorder-command'
+						? 'box-picker-reorder-command'
+						: ['box-name-input', 'box-name-cancel', 'box-name-submit'][focus.formIndex];
 		if (id) queueMicrotask(() => document.getElementById(id)?.focus());
 	}
 
@@ -1694,33 +1725,90 @@
 			key: `box-name:${location.location.box}`,
 			operation: { boxName: { box: location.location.box, name } },
 			isResultCurrent: () => true,
-			publish: (state, publishedBox) => installBoxNameMutation(state, publishedBox)
+			publish: (state, publishedBox) => installBoxMutation(state, publishedBox)
 		});
 		if (!result.ok) return result.message;
 		return null;
 	}
 
-	function installBoxNameMutation(state: WorkspaceState, publishedBox: number) {
-		if (loadedSave?.file.id === state.file.id) {
-			loadedSave = state;
-			setCachedActiveWorkspace(state, publishedBox);
+	async function reorderBoxPickerLocation(
+		source: BoxPickerLocation,
+		destination: BoxPickerLocation
+	) {
+		const target = boxPickerTarget;
+		const pane = boxPickerPane;
+		const paneWorkspace = saveWorkspaceForPane(pane);
+		if (
+			!target ||
+			!pane ||
+			!paneWorkspace ||
+			target.source.type !== 'save-file' ||
+			source.location.kind !== 'physical-box' ||
+			destination.location.kind !== 'physical-box'
+		) {
+			return 'The Save File Workspace is no longer available.';
 		}
 
-		workbenchPanes = workbenchPanes.map((pane) =>
+		const box = source.location.box;
+		const destinationBox = destination.location.box;
+		if (box === destinationBox) return null;
+		const coordinator = getSaveFileEditCoordinator();
+		const activeBox = boxIndexAfterMove(pane.activeBox, box, destinationBox);
+		const origin = coordinator.openWorkspace(paneWorkspace.state, activeBox);
+		const result = await coordinator.enqueueEdit(origin, {
+			key: `box-move:${box}:${destinationBox}`,
+			operation: { boxMove: { box, destination: destinationBox } },
+			isResultCurrent: () => true,
+			publish: (state, publishedBox) =>
+				installBoxMutation(state, publishedBox, (index) =>
+					boxIndexAfterMove(index, box, destinationBox)
+				)
+		});
+		if (!result.ok) return result.message;
+		return null;
+	}
+
+	function installBoxMutation(
+		state: WorkspaceState,
+		publishedBox: number,
+		remap: (index: number) => number = (index) => index
+	) {
+		const previousPanes = workbenchPanes;
+		for (const pane of previousPanes) {
+			if (pane.source.type === 'save-file' && pane.source.id === state.file.id) {
+				beginPaneWorkspaceRequest(pane.id, false);
+			}
+		}
+		workbenchPanes = previousPanes.map((pane) =>
 			pane.source.type === 'save-file' && pane.source.id === state.file.id
-				? { ...pane, source: { ...pane.source, dirty: state.dirty } }
+				? {
+						...pane,
+						activeBox: remap(pane.activeBox),
+						source: { ...pane.source, dirty: state.dirty }
+					}
 				: pane
 		);
+
+		const activeBefore = previousPanes.find((pane) => pane.id === activePaneId);
+		if (activeBefore?.source.type === 'save-file' && activeBefore.source.id === state.file.id) {
+			navigation = { ...navigation, activeBox: remap(navigation.activeBox) };
+		}
+
 		const nextPaneWorkspaces = { ...savePaneWorkspaces };
-		for (const pane of workbenchPanes) {
+		const missingProjections: Array<{ paneId: string; box: number }> = [];
+		for (const pane of previousPanes) {
 			if (pane.source.type !== 'save-file' || pane.source.id !== state.file.id) continue;
 			const current = nextPaneWorkspaces[pane.id];
-			if (!current) continue;
+			if (!current) {
+				missingProjections.push({ paneId: pane.id, box: remap(pane.activeBox) });
+				continue;
+			}
+			const loadedBox = remap(current.loadedBox);
 			nextPaneWorkspaces[pane.id] =
-				current.loadedBox === publishedBox
-					? { state, loadedBox: publishedBox }
+				loadedBox === publishedBox
+					? { state, loadedBox }
 					: {
-							...current,
+							loadedBox,
 							state: {
 								...current.state,
 								bytes: state.bytes,
@@ -1734,7 +1822,15 @@
 						};
 		}
 		savePaneWorkspaces = nextPaneWorkspaces;
+
+		if (loadedSave?.file.id === state.file.id) {
+			loadedSave = state;
+			setCachedActiveWorkspace(state, publishedBox);
+		}
 		invalidateSavesCache();
+		for (const projection of missingProjections) {
+			void loadWorkspaceForSave(state, projection.box, projection.paneId);
+		}
 	}
 
 	function focusBoxMenuCommand(index: number) {
@@ -5494,9 +5590,11 @@
 		activeLocationId={`physical-box-${boxPickerPane.activeBox}`}
 		activeIndex={boxPickerFocusIndex}
 		boxNameUnavailableReason={boxPickerNameUnavailableReason}
+		reorderUnavailableReason={boxPickerReorderUnavailableReason}
 		renameMaxLength={boxPickerRenameProjection?.renameMaxLength ?? 0}
 		renameConstraints={boxPickerRenameProjection?.renameConstraints ?? null}
 		onRenameLocation={boxPickerRenameProjection ? renameBoxPickerLocation : undefined}
+		onReorderLocation={boxPickerReorderAvailable ? reorderBoxPickerLocation : undefined}
 		onFocusTarget={setBoxPickerControllerFocus}
 		onFocusLocation={focusBoxPickerLocation}
 		onSelectLocation={selectBoxPickerLocation}

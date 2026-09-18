@@ -230,6 +230,22 @@ describe('parseEngineWorkerRequest', () => {
 		expect(parseEngineWorkerRequest(request)).toEqual({ ok: true, value: request });
 	});
 
+	test('preserves Box moves for engine-side validation', () => {
+		const bytes = new ArrayBuffer(4);
+		const request = {
+			type: 'request',
+			id: 'req-box-move',
+			method: 'applySaveFileEditOperation',
+			payload: {
+				bytes,
+				operation: { boxMove: { box: 0, destination: 2 } },
+				activeBox: 2
+			}
+		};
+
+		expect(parseEngineWorkerRequest(request)).toEqual({ ok: true, value: request });
+	});
+
 	test('rejects malformed request payload types without applying domain validation', () => {
 		expect.assertions(2);
 
@@ -271,7 +287,9 @@ describe('parseEngineWorkerResponse', () => {
 				renameSupported: true,
 				renameMaxLength: 8,
 				renameConstraints: 'Use 1 to 8 characters that this Save File encoding preserves.',
-				renameUnsupportedReason: null
+				renameUnsupportedReason: null,
+				reorderSupported: true,
+				reorderUnsupportedReason: null
 			}
 		},
 		{
@@ -279,7 +297,9 @@ describe('parseEngineWorkerResponse', () => {
 			boxNames: {
 				supported: false,
 				names: [],
-				unsupportedReason: 'Box Names are not available for this Save File format.'
+				unsupportedReason: 'Box Names are not available for this Save File format.',
+				reorderSupported: false,
+				reorderUnsupportedReason: 'Box reordering is not supported for this Save File format.'
 			}
 		}
 	])('preserves $name Box Name capability in Workspace responses', ({ boxNames }) => {

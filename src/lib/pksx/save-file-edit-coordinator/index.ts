@@ -431,13 +431,13 @@ export class SaveFileEditCoordinator {
 			return { ok: true, status: 'noop', origin: record.origin, workspace: latest };
 		}
 
-		if (request.operation.boxName) {
-			return this.applyAtomicBoxNameEdit(record, request, generation, latest);
+		if (request.operation.boxName || request.operation.boxMove) {
+			return this.applyAtomicBoxEdit(record, request, generation, latest);
 		}
 		return this.applyAgainstLatest(record, request, generation, latest);
 	}
 
-	private async applyAtomicBoxNameEdit(
+	private async applyAtomicBoxEdit(
 		record: OriginRecord,
 		request: SaveFileEditRequest,
 		generation: number,
@@ -495,7 +495,7 @@ export class SaveFileEditCoordinator {
 					record,
 					generation,
 					'workspace-persistence-failed',
-					new Error('Atomic Save File Box rename persistence is unavailable.'),
+					new Error('Atomic Save File Box edit persistence is unavailable.'),
 					latest
 				);
 			}
@@ -1009,6 +1009,10 @@ function sameRecoveryAuthority(
 
 function operationIsNoop(workspace: WorkspaceState, operation: SaveFileEditOperation) {
 	let compared = false;
+	if (operation.boxMove) {
+		compared = true;
+		if (operation.boxMove.box !== operation.boxMove.destination) return false;
+	}
 	if (operation.boxName) {
 		compared = true;
 		if (operation.boxName.name !== workspace.workspace.boxNames.names[operation.boxName.box]) {

@@ -1317,10 +1317,21 @@ public static partial class PkhexEngineExports
 
     private static SlotMutationResult ApplySaveFileEditOperation(SaveFile save, SaveFileEditOperationRequest operation)
     {
-        if (operation.TrainerProfile is null && operation.Money is null && (operation.Inventory is null || operation.Inventory.Count == 0) && operation.BoxName is null)
+        if (operation.TrainerProfile is null && operation.Money is null && (operation.Inventory is null || operation.Inventory.Count == 0) && operation.BoxName is null && operation.BoxMove is null)
             return SlotMutationResult.Fail("invalid-save-file-edit", "Choose a Save File edit to apply.");
 
         var mutated = false;
+        if (operation.BoxMove is { } boxMove)
+        {
+            if ((uint)boxMove.Box >= save.BoxCount || (uint)boxMove.Destination >= save.BoxCount)
+                return SlotMutationResult.Fail("invalid-box", "The Box reorder positions are outside the save's box range.");
+            if (!BoxReorderSupport.IsSupported(save))
+                return SlotMutationResult.Fail("unsupported-save-file-edit", BoxReorderSupport.UnsupportedReason);
+            if (!BoxReorderSupport.Move(save, boxMove.Box, boxMove.Destination))
+                return SlotMutationResult.Fail("invalid-save-file-edit", "Protected slots prevent the selected Boxes from being reordered.");
+            mutated |= boxMove.Box != boxMove.Destination;
+        }
+
         if (operation.BoxName is { } boxName)
         {
             if ((uint)boxName.Box >= save.BoxCount)

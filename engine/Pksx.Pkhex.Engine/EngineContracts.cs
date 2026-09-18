@@ -433,14 +433,20 @@ public sealed record SaveFileBoxNameProjection(
     bool RenameSupported,
     int RenameMaxLength,
     string? RenameConstraints,
-    string? RenameUnsupportedReason)
+    string? RenameUnsupportedReason,
+    bool ReorderSupported,
+    string? ReorderUnsupportedReason)
 {
     public static SaveFileBoxNameProjection From(SaveFile save)
     {
+        var reorderSupported = BoxReorderSupport.IsSupported(save);
+        var reorderUnsupportedReason = reorderSupported
+            ? null
+            : BoxReorderSupport.UnsupportedReason;
         if (save is not IBoxDetailNameRead names)
         {
             const string unavailable = "Box Names are not available for this Save File format.";
-            return new(false, [], unavailable, false, 0, null, unavailable);
+            return new(false, [], unavailable, false, 0, null, unavailable, reorderSupported, reorderUnsupportedReason);
         }
 
         if (save is not IBoxDetailName)
@@ -452,7 +458,9 @@ public sealed record SaveFileBoxNameProjection(
                 false,
                 0,
                 null,
-                "Box Name editing is not supported for this Save File format.");
+                "Box Name editing is not supported for this Save File format.",
+                reorderSupported,
+                reorderUnsupportedReason);
         }
 
         var maxLength = BoxNameEditSupport.MaxLength(save);
@@ -466,7 +474,84 @@ public sealed record SaveFileBoxNameProjection(
             maxLength > 0
                 ? $"Use 1 to {maxLength} characters that this Save File's encoding preserves exactly."
                 : null,
-            maxLength > 0 ? null : "Box Name editing is not supported for this Save File format.");
+            maxLength > 0 ? null : "Box Name editing is not supported for this Save File format.",
+            reorderSupported,
+            reorderUnsupportedReason);
+    }
+}
+
+internal static class BoxReorderSupport
+{
+    public const string UnsupportedReason = "Box reordering is not supported for this Save File format or its protected slots.";
+
+    public static bool IsSupported(SaveFile save)
+    {
+        if (!save.HasBox || save.BoxCount < 2)
+            return false;
+
+        try
+        {
+            return Move(save.Clone(), 0, 1);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    public static bool Move(SaveFile save, int box, int destination)
+    {
+        var names = save is IBoxDetailName nameDetails
+            ? Enumerable.Range(0, save.BoxCount).Select(nameDetails.GetBoxName).ToArray()
+            : null;
+        var wallpapers = save is IBoxDetailWallpaper wallpaperDetails
+            ? Enumerable.Range(0, save.BoxCount).Select(wallpaperDetails.GetBoxWallpaper).ToArray()
+            : null;
+
+        if (box < destination)
+        {
+            for (var current = box; current < destination; current++)
+            {
+                if (!save.SwapBox(current, current + 1))
+                    return false;
+            }
+        }
+        else
+        {
+            for (var current = box; current > destination; current--)
+            {
+                if (!save.SwapBox(current, current - 1))
+                    return false;
+            }
+        }
+        return MetadataMatches(names, save as IBoxDetailName, box, destination, static (details, index) => details.GetBoxName(index)) &&
+               MetadataMatches(wallpapers, save as IBoxDetailWallpaper, box, destination, static (details, index) => details.GetBoxWallpaper(index));
+    }
+
+    private static bool MetadataMatches<TValue, TDetails>(
+        IReadOnlyList<TValue>? before,
+        TDetails? details,
+        int box,
+        int destination,
+        Func<TDetails, int, TValue> get)
+        where TDetails : class
+    {
+        if (before is null || details is null)
+            return true;
+
+        for (var original = 0; original < before.Count; original++)
+        {
+            var current = original == box
+                ? destination
+                : box < destination && original > box && original <= destination
+                    ? original - 1
+                    : box > destination && original >= destination && original < box
+                        ? original + 1
+                        : original;
+            if (!EqualityComparer<TValue>.Default.Equals(before[original], get(details, current)))
+                return false;
+        }
+        return true;
     }
 }
 
@@ -816,11 +901,14 @@ public sealed record SaveFileEditOperationRequest(
     long? Money,
     List<InventoryEditOperation>? Inventory,
     BoxNameEdit? BoxName,
+    BoxMoveEdit? BoxMove,
     int ActiveBox);
 
 public sealed record TrainerProfileEdit(string? TrainerName, string? Gender);
 
 public sealed record BoxNameEdit(int Box, string Name);
+
+public sealed record BoxMoveEdit(int Box, int Destination);
 
 public sealed record InventoryEditOperation(string Kind, string Pocket, int ItemId, int? Quantity);
 

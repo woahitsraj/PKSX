@@ -1311,6 +1311,143 @@ test('Save File Box rename validates atomically, persists, and updates picker an
 	).toBeVisible();
 });
 
+test('Save File Box reorder persists atomically and keeps panes on the moved Box', async ({
+	page
+}) => {
+	await installWorkspaceResponseHold(page);
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	const fileName = 'emerald-011020251345.sav';
+	const pickerControl = page.getByRole('button', { name: `Open Box Picker for ${fileName}` });
+	const bytesBefore = await workspaceBytesHashForFile(page, fileName);
+	const backupsBefore = await backupCount(page);
+
+	await pickerControl.click();
+	let picker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await pressController(page, 'ArrowUp');
+	await expect(picker.getByRole('button', { name: 'Rename Box' })).toBeFocused();
+	await pressController(page, 'ArrowRight');
+	await expect(picker.getByRole('button', { name: 'Move Box' })).toBeFocused();
+	await pressController(page, 'Enter');
+	await expect(picker).toContainText('Choose the new position for BOX1.');
+	await expect(picker.getByRole('button', { name: /^Box 01: BOX1/ })).toBeFocused();
+	await pressController(page, 'ArrowRight');
+	await holdWorkspaceResponses(page, 1, 'applySaveFileEditOperation');
+	await pressController(page, 'Enter');
+	await waitForHeldWorkspaceResponses(page);
+	await expect(picker.locator('.box-picker')).toHaveAttribute('aria-busy', 'true');
+	await expect(picker).toContainText('Moving BOX1…');
+	await releaseWorkspaceResponse(page, 'applySaveFileEditOperation');
+
+	await expect.poll(() => backupCount(page)).toBe(backupsBefore + 1);
+	await expect.poll(() => workspaceBytesHashForFile(page, fileName)).not.toBe(bytesBefore);
+	await expect(picker.getByRole('button', { name: /^Box 01: BOX2/ })).toBeVisible();
+	await expect(picker.getByRole('button', { name: /^Box 02: BOX1/ })).toBeFocused();
+	await picker.getByRole('button', { name: 'Close Box Picker' }).click();
+	await expect(page.getByRole('heading', { name: 'BOX1' })).toBeVisible();
+
+	await page.reload();
+	await expect(page.getByRole('heading', { name: 'BOX1' })).toBeVisible({ timeout: 15000 });
+	await pickerControl.click();
+	picker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await expect(picker.getByRole('button', { name: /^Box 01: BOX2/ })).toBeVisible();
+	await expect(picker.getByRole('button', { name: /^Box 02: BOX1/ })).toHaveAttribute(
+		'aria-current',
+		'true'
+	);
+});
+
+test('stale pane loads cannot replace a committed Box reorder', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await installWorkspaceResponseHold(page);
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	const fileName = 'emerald-011020251345.sav';
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('x');
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /011020251345\.sav/ })
+		.click();
+
+	const panes = page.locator('.box-pane');
+	const firstPane = panes.nth(0);
+	const duplicatePane = panes.nth(1);
+	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
+	await expect(duplicatePane.getByRole('heading', { name: 'BOX2' })).toBeVisible({
+		timeout: 15000
+	});
+	await holdWorkspaceResponses(page, 1);
+	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
+	await waitForHeldWorkspaceResponses(page);
+	await expect(duplicatePane).toHaveAttribute('aria-busy', 'true');
+
+	await firstPane.getByRole('button', { name: `Open Box Picker for ${fileName}` }).click();
+	let picker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await picker.getByRole('button', { name: 'Move Box' }).click();
+	await picker.getByRole('button', { name: /^Box 02: BOX2/ }).click();
+	await expect.poll(() => backupCount(page)).toBe(1);
+	await expect(picker.getByRole('button', { name: /^Box 01: BOX2/ })).toBeVisible();
+	await picker.getByRole('button', { name: 'Close Box Picker' }).click();
+
+	await releaseWorkspaceResponse(page, 'loadSaveWorkspace');
+	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
+	await duplicatePane.getByRole('button', { name: `Open Box Picker for ${fileName}` }).click();
+	picker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await expect(picker.getByRole('button', { name: /^Box 01: BOX2/ })).toBeVisible();
+	await expect(picker.getByRole('button', { name: /^Box 02: BOX1/ })).toBeVisible();
+});
+
+test('a cacheless pane reloads from the committed Box reorder', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await installWorkspaceResponseHold(page);
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	const fileName = 'emerald-011020251345.sav';
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('x');
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another' })
+		.click();
+	await holdWorkspaceResponses(page, 1);
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /011020251345\.sav/ })
+		.click();
+	await waitForHeldWorkspaceResponses(page);
+
+	const panes = page.locator('.box-pane');
+	const firstPane = panes.nth(0);
+	const duplicatePane = panes.nth(1);
+	await expect(duplicatePane).toHaveAttribute('aria-busy', 'true');
+
+	await firstPane.getByRole('button', { name: `Open Box Picker for ${fileName}` }).click();
+	let picker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await picker.getByRole('button', { name: 'Move Box' }).click();
+	await picker.getByRole('button', { name: /^Box 02: BOX2/ }).click();
+	await expect.poll(() => backupCount(page)).toBe(1);
+	await picker.getByRole('button', { name: 'Close Box Picker' }).click();
+
+	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
+	await expect(duplicatePane.getByRole('heading', { name: 'BOX1' })).toBeVisible();
+	await expect(duplicatePane.getByRole('gridcell').first()).toContainText('ARON');
+	await releaseWorkspaceResponse(page, 'loadSaveWorkspace');
+
+	await duplicatePane.getByRole('button', { name: `Open Box Picker for ${fileName}` }).click();
+	picker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await expect(picker.getByRole('button', { name: /^Box 01: BOX2/ })).toBeVisible();
+	await expect(picker.getByRole('button', { name: /^Box 02: BOX1/ })).toBeVisible();
+	await picker.getByRole('button', { name: 'Close Box Picker' }).click();
+	await expect(duplicatePane.getByRole('gridcell').first()).toContainText('ARON');
+});
+
 test('stale Box loads cannot replace a committed Box rename', async ({ page }) => {
 	await installWorkspaceResponseHold(page);
 	await openEmptySaves(page);
@@ -1357,7 +1494,11 @@ test('Save Files without Box Names retain numbered direct Box Picker navigation'
 	await pickerControl.click();
 	const picker = page.getByRole('dialog', { name: 'Choose a Box' });
 	await expect(picker).toContainText('Box Names are not available for this Save File format.');
+	await expect(picker).toContainText(
+		'Box reordering is not supported for this Save File format or its protected slots.'
+	);
 	await expect(picker.getByRole('button', { name: 'Rename Box' })).toHaveCount(0);
+	await expect(picker.getByRole('button', { name: 'Move Box' })).toHaveCount(0);
 	await expect(picker.getByRole('button', { name: /^Box \d{2}/ })).toHaveCount(40);
 	await picker.getByRole('button', { name: /^Box 40/ }).click();
 

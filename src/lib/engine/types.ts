@@ -356,6 +356,8 @@ export type SaveFileBoxNameProjection = {
 	renameMaxLength?: number;
 	renameConstraints?: string | null;
 	renameUnsupportedReason?: string | null;
+	reorderSupported?: boolean;
+	reorderUnsupportedReason?: string | null;
 };
 
 export type TrainerGender = 'male' | 'female';
@@ -546,6 +548,10 @@ export type SaveFileEditOperation = {
 	boxName?: {
 		box: number;
 		name: string;
+	};
+	boxMove?: {
+		box: number;
+		destination: number;
 	};
 	trainerProfile?: {
 		trainerName?: string;

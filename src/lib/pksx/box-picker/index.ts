@@ -13,10 +13,17 @@ export type BoxPickerLocation = {
 };
 
 export type BoxPickerControllerFocus = {
-	zone: 'locations' | 'rename-command' | 'rename-form';
+	zone: 'locations' | 'rename-command' | 'rename-form' | 'reorder-command' | 'reorder-targets';
 	locationIndex: number;
 	formIndex: number;
 };
+
+export function boxIndexAfterMove(index: number, box: number, destination: number): number {
+	if (index === box) return destination;
+	if (box < destination && index > box && index <= destination) return index - 1;
+	if (box > destination && index >= destination && index < box) return index + 1;
+	return index;
+}
 
 export function boxNameFor(box: number, boxNames?: SaveFileBoxNameProjection | null): string {
 	const name = boxNames?.supported ? boxNames.names[box]?.trim() : undefined;
@@ -65,17 +72,26 @@ export function moveBoxPickerControllerFocus(
 	action: Extract<NavigationAction, 'left' | 'right' | 'up' | 'down'>,
 	locationCount: number,
 	columnCount: number,
-	renameAvailable: boolean
+	renameAvailable: boolean,
+	reorderAvailable = false
 ): BoxPickerControllerFocus {
 	if (focus.zone === 'rename-form') {
 		const offset = action === 'left' || action === 'up' ? -1 : 1;
 		return { ...focus, formIndex: (focus.formIndex + offset + 3) % 3 };
 	}
-	if (focus.zone === 'rename-command') {
-		return action === 'down' ? { ...focus, zone: 'locations' } : focus;
+	if (focus.zone === 'rename-command' || focus.zone === 'reorder-command') {
+		if (action === 'down') return { ...focus, zone: 'locations' };
+		if ((action === 'left' || action === 'right') && renameAvailable && reorderAvailable) {
+			return {
+				...focus,
+				zone: focus.zone === 'rename-command' ? 'reorder-command' : 'rename-command'
+			};
+		}
+		return focus;
 	}
-	if (action === 'up' && renameAvailable && focus.locationIndex < columnCount) {
-		return { ...focus, zone: 'rename-command' };
+	if (focus.zone === 'locations' && action === 'up' && focus.locationIndex < columnCount) {
+		if (renameAvailable) return { ...focus, zone: 'rename-command' };
+		if (reorderAvailable) return { ...focus, zone: 'reorder-command' };
 	}
 	return {
 		...focus,
