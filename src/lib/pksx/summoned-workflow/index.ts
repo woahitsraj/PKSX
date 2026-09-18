@@ -18,6 +18,7 @@ export type SummonedWorkflowKind =
 	| 'pokemon-editor'
 	| 'pokemon-actions'
 	| 'legality-report'
+	| 'save-file-legality-report'
 	| 'backup-browser';
 
 export type SummonedWorkflowLauncher =

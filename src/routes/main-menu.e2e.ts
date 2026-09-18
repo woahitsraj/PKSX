@@ -122,6 +122,7 @@ test('empty first run lands on Saves and exposes the amended selectable destinat
 	await expect(menu.locator('.main-menu-row strong')).toHaveText([
 		'Boxes',
 		'Search',
+		'Legality Report',
 		'Trainer',
 		'Bag',
 		'Saves',

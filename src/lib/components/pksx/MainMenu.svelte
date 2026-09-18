@@ -2,7 +2,15 @@
 	export const MAIN_MENU_SEARCH_INSERTION_INDEX = 1;
 
 	export type MainMenuEntry = {
-		key: 'boxes' | 'search' | 'trainer' | 'bag' | 'saves' | 'settings' | 'backup-browser';
+		key:
+			| 'boxes'
+			| 'search'
+			| 'save-file-legality-report'
+			| 'trainer'
+			| 'bag'
+			| 'saves'
+			| 'settings'
+			| 'backup-browser';
 		label: string;
 		description: string;
 	};
@@ -13,7 +21,10 @@
 
 	interface Props {
 		entries: MainMenuEntry[];
-		activeDestination: Exclude<MainMenuEntry['key'], 'search' | 'backup-browser'>;
+		activeDestination: Exclude<
+			MainMenuEntry['key'],
+			'search' | 'save-file-legality-report' | 'backup-browser'
+		>;
 		activeIndex: number;
 		onFocusEntry: (index: number) => void;
 		onSelectEntry: (entry: MainMenuEntry) => void;

@@ -81,7 +81,7 @@ final class ControllerNavigationTests: XCTestCase {
         )
         controller.extendedGamepad?.buttonX.setValue(0)
 
-        for index in 1...3 {
+        for index in 1...4 {
             controller.extendedGamepad?.dpad.setValueForXAxis(0, yAxis: -1)
             try await waitForJavaScript(
                 "document.activeElement?.id === 'box-menu-command-\(index)'",
@@ -103,7 +103,7 @@ final class ControllerNavigationTests: XCTestCase {
 
         controller.extendedGamepad?.buttonB.setValue(1)
         try await waitForJavaScript(
-            "document.querySelector('[role=\"dialog\"][aria-label=\"Open another collection\"]') === null && document.activeElement?.id === 'box-menu-command-3'",
+            "document.querySelector('[role=\"dialog\"][aria-label=\"Open another collection\"]') === null && document.activeElement?.id === 'box-menu-command-4'",
             in: webView
         )
         controller.extendedGamepad?.buttonB.setValue(0)

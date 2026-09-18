@@ -88,6 +88,7 @@
 	} from '$lib/pksx/storage-workbench';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 	import {
+		bytesEqual,
 		createEmptyPokemonStorage,
 		type StoredPokemonStorage,
 		type StoredPokemonStoragePokemon,
@@ -188,6 +189,16 @@
 	import { getToastHost } from '$lib/pksx/toast/host.svelte';
 	import { createSaveFileQuickSearchResults, type QuickSearchResult } from '$lib/pksx/quick-search';
 	import { getQuickSearchHost, type QuickSearchSaveFile } from '$lib/pksx/quick-search/host.svelte';
+	import {
+		saveFileLegalityOpenControlId,
+		scanSaveFileLegality,
+		type SaveFileLegalityResult
+	} from '$lib/pksx/save-file-legality-report';
+	import {
+		getSaveFileLegalityReportHost,
+		type SaveFileLegalityReportProvider,
+		type SaveFileLegalityReportTarget
+	} from '$lib/pksx/save-file-legality-report/host.svelte';
 	import { createBoxMenuCommands, type BoxMenuCommandKey } from '$lib/pksx/box-menu';
 	import { createSlotMenuCommands, type SlotMenuCommandKey } from '$lib/pksx/slot-menu';
 	import { layerFade, panelSettle } from '$lib/pksx/motion';
@@ -255,6 +266,7 @@
 	const boxesSession = getBoxesSession();
 	const summonedWorkflow = getSummonedWorkflowHost();
 	const quickSearchHost = getQuickSearchHost();
+	const saveFileLegalityReportHost = getSaveFileLegalityReportHost();
 	const toastHost = getToastHost();
 
 	const slotPalette = [16, 28, 48, 100, 140, 180, 195, 210, 220, 260, 280, 295, 330, 52];
@@ -639,6 +651,8 @@
 				return true;
 			case 'legality-report':
 				dispatchLegalityReport(action);
+				return true;
+			case 'save-file-legality-report':
 				return true;
 		}
 
@@ -1849,6 +1863,9 @@
 			case 'save-backup':
 				void saveBoxMenuBackup();
 				break;
+			case 'legality-report':
+				openSaveFileLegalityReport();
+				break;
 			case 'switch':
 				openRelatedSourcePicker(boxMenuTarget?.paneId ?? null);
 				break;
@@ -1859,6 +1876,16 @@
 				closeBoxMenuPane();
 				break;
 		}
+	}
+
+	function openSaveFileLegalityReport() {
+		const target = boxMenuTarget;
+		if (!target) return;
+		const commandIndex = boxMenuCommands.findIndex(({ key }) => key === 'legality-report');
+		saveFileLegalityReportHost.open(
+			controlLauncher(`box-menu-command-${commandIndex}`),
+			'active-collection'
+		);
 	}
 
 	function resolveBoxMenuSaveTarget(target: BoxMenuTarget | null = boxMenuTarget) {
@@ -2878,6 +2905,7 @@
 			delete remaining[paneId];
 			savePaneWorkspaces = remaining;
 		}
+		saveFileLegalityReportHost.validate();
 		if (switchingPrimaryPane && source.type === 'save-file' && source.id && targetWorkspace) {
 			await storage.setActiveSaveFileId(source.id);
 			loadedSave = targetWorkspace.state;
@@ -3976,7 +4004,10 @@
 		if (activeSummonedWorkflow?.kind !== 'slot-menu') {
 			return;
 		}
+		await openFocusedSlotLegalityReport(controlLauncher(slotCommandLauncherId('legality-check')));
+	}
 
+	async function openFocusedSlotLegalityReport(launcher: SummonedWorkflowLauncher) {
 		const activeEngine = engine;
 		const context = pokemonActionContextForFocusedSlot();
 		if (!activeEngine || !context) return;
@@ -3988,7 +4019,7 @@
 		pokemonActionContext = context;
 		pokemonActionReturnsToEditor = false;
 		pokemonAction = createPokemonActionLoadingState(location, slot.label);
-		openRelatedWorkflow('legality-report', slotCommandLauncherId('legality-check'));
+		summonedWorkflow.openRelated('legality-report', launcher);
 
 		const result = await requestPokemonActionPreview(activeEngine, context.target);
 
@@ -4697,6 +4728,114 @@
 		};
 	}
 
+	function captureActiveSaveFileLegalityProvider(
+		target: SaveFileLegalityReportTarget
+	): SaveFileLegalityReportProvider | null {
+		const pane =
+			target === 'active-save' && loadedSave
+				? workbenchPanes.find(
+						(candidate) =>
+							candidate.source.type === 'save-file' && candidate.source.id === loadedSave?.file.id
+					)
+				: workbenchPanes.find(({ id }) => id === activePaneId);
+		const paneWorkspace = pane ? saveWorkspaceForPane(pane) : null;
+		const snapshot = target === 'active-save' ? loadedSave : paneWorkspace?.state;
+		if (
+			!initialStateReady ||
+			!engine ||
+			!snapshot ||
+			(target === 'active-collection' &&
+				(pane?.source.type !== 'save-file' || !pane.source.id || !paneWorkspace))
+		) {
+			return null;
+		}
+		const saveFileId = snapshot.file.id;
+		const source = saveFileSource(snapshot);
+		const paneId = pane?.id ?? primaryPaneId;
+		const activeEngine = engine;
+
+		return {
+			saveFileId,
+			fileName: source.label,
+			isCurrent: () => {
+				if (target === 'active-save') {
+					return loadedSave?.file.id === saveFileId && bytesEqual(loadedSave.bytes, snapshot.bytes);
+				}
+				const currentPane = workbenchPanes.find(({ id }) => id === paneId);
+				const currentWorkspace = savePaneWorkspaces[paneId]?.state;
+				return (
+					currentPane?.source.id === saveFileId &&
+					currentWorkspace?.file.id === saveFileId &&
+					bytesEqual(currentWorkspace.bytes, snapshot.bytes)
+				);
+			},
+			run: (signal, onProgress) =>
+				scanSaveFileLegality({ engine: activeEngine, workspace: snapshot, signal, onProgress }),
+			jumpToSlot: (result) => focusSaveFileLegalityResult(result, paneId, source, snapshot),
+			openPokemonReport: (result) => openSaveFileLegalityResult(result, paneId, source, snapshot)
+		};
+	}
+
+	async function focusSaveFileLegalityResult(
+		result: SaveFileLegalityResult,
+		paneId: string,
+		source: BoxSourceRef,
+		snapshot?: WorkspaceState
+	) {
+		let pane = workbenchPanes.find(
+			(candidate) =>
+				candidate.id === paneId &&
+				candidate.source.type === 'save-file' &&
+				candidate.source.id === source.id
+		);
+		if (!pane && snapshot?.file.id === source.id) {
+			installActiveSavePane(snapshot, result.source.zone === 'box' ? result.source.box : 0);
+			pane = workbenchPanes.find(({ id }) => id === paneId);
+		}
+		if (!pane || !source.id || !(await storage.getSave(source.id))) return null;
+		const focus =
+			result.source.zone === 'party'
+				? focusPartySlot(result.source.slot)
+				: focusBoxSlot(result.source.slot);
+		const activeBox = result.source.zone === 'box' ? result.source.box : pane.activeBox;
+		activePaneId = paneId;
+		workbenchPanes = setPaneFocus(
+			setPaneActiveBox(workbenchPanes, paneId, activeBox),
+			paneId,
+			focus
+		);
+		navigation = {
+			...navigation,
+			activeBox,
+			boxCount: Math.max(1, pane.boxCount),
+			focus,
+			locationFocus: focus
+		};
+		if (result.source.zone === 'box') await refreshPaneWorkspace(paneId, activeBox);
+		return getFocusId(focus, activeBox);
+	}
+
+	async function openSaveFileLegalityResult(
+		result: SaveFileLegalityResult,
+		paneId: string,
+		source: BoxSourceRef,
+		snapshot?: WorkspaceState
+	) {
+		const focusId = await focusSaveFileLegalityResult(result, paneId, source, snapshot);
+		if (!focusId) return false;
+		const pane = workbenchPanes.find(({ id }) => id === paneId);
+		const focus =
+			result.source.zone === 'party'
+				? focusPartySlot(result.source.slot)
+				: focusBoxSlot(result.source.slot);
+		if (!pane) return false;
+		await openFocusedSlotLegalityReport({
+			...slotLauncher(focus, pane),
+			id: saveFileLegalityOpenControlId(result)
+		});
+		return summonedWorkflow.active?.kind === 'legality-report';
+	}
+
 	function matchesActiveQuickSearchSaveFile(paneId: string, source: BoxSourceRef) {
 		return workbenchPanes.some(
 			(pane) =>
@@ -4778,6 +4917,9 @@
 		const unregisterQuickSearch = quickSearchHost.register({
 			captureActiveSaveFile: captureActiveQuickSearchSaveFile
 		});
+		const unregisterSaveFileLegality = saveFileLegalityReportHost.register(
+			captureActiveSaveFileLegalityProvider
+		);
 		const unsubscribe = workspaceService.subscribe((state) => {
 			const adoptAsActiveSave = state ? consumeActiveSaveAdoption(state.file.id) : false;
 			loadedSave = state;
@@ -4800,6 +4942,7 @@
 		return () => {
 			resizeObserver?.disconnect();
 			unregisterQuickSearch();
+			unregisterSaveFileLegality();
 			unsubscribe();
 		};
 	});
@@ -5107,6 +5250,7 @@
 		if (activePaneId === paneId) {
 			navigation = { ...navigation, activeBox, boxCount };
 		}
+		saveFileLegalityReportHost.validate();
 		return true;
 	}
 
