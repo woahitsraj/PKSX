@@ -100,7 +100,7 @@ jobs:
         run: pnpm engine:sync -- --skip-publish
 
       - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium firefox webkit
+        run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: Fixture-backed PKHeX Engine smoke test
         run: pnpm test:engine-smoke

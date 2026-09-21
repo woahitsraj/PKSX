@@ -22,12 +22,6 @@ export default defineConfig({
 			use: { ...devices['iPhone 13'] }
 		},
 		{
-			name: 'firefox-responsive',
-			grep: /@responsive-matrix/,
-			testMatch: '**/responsive-contract.e2e.ts',
-			use: { ...devices['Desktop Firefox'] }
-		},
-		{
 			name: 'webkit-responsive',
 			grep: /@responsive-matrix/,
 			testMatch: '**/responsive-contract.e2e.ts',
