@@ -12,6 +12,7 @@ This record assembles the locked controller-first shell decisions from [the desi
 - [#203](https://github.com/woahitsraj/PKSX/issues/203) adds the large-container type step to the otherwise fixed type ladder. [#212](https://github.com/woahitsraj/PKSX/issues/212) owns the corresponding wording correction to [ADR 0015](../adr/0015-fix-the-type-scale-and-scale-room-by-container-height.md).
 - [#167](https://github.com/woahitsraj/PKSX/issues/167) and the resolved [#209](https://github.com/woahitsraj/PKSX/issues/209) supersede the page-wide Save File staging inherited by #202, #164, and the original SAVEFILE-1 wording in #210. Their direct-commit contract applies only to Trainer, Money, and Bag. [ADR 0010](../adr/0010-use-engine-backed-pokemon-editor-apply-contract.md) continues to govern Pokemon Editor staging and atomic Apply.
 - [#169](https://github.com/woahitsraj/PKSX/issues/169) selects the Ledger direction. [#170](https://github.com/woahitsraj/PKSX/issues/170) owns its detailed specification and implementation issue breakdown.
+- [#354](https://github.com/woahitsraj/PKSX/issues/354) removes Firefox from the supported browser baseline and automated test matrix. Chromium and WebKit remain supported.
 - The 2026-09-10 amendments to [#151](https://github.com/woahitsraj/PKSX/issues/151), [#207](https://github.com/woahitsraj/PKSX/issues/207), and [#210](https://github.com/woahitsraj/PKSX/issues/210) replace the combined Save File destination with Trainer and Bag, make Pokemon Storage a focusable Saves card and collection-picker option, rename Open another, set the editable-text floor, and reserve Search. They supersede every conflicting line above, in the earlier decision tickets, and in historical CONTEXT.md relationships. CONTEXT.md remains authoritative for vocabulary.
 
 <a id="budget-1"></a>
@@ -48,9 +49,9 @@ Landscape is guaranteed on native builds. Portrait is also guaranteed in browser
 
 ## BUDGET-2: fixed platform baseline
 
-Source: [#161](https://github.com/woahitsraj/PKSX/issues/161) and [ADR 0011](../adr/0011-derive-platform-floors-from-one-browser-baseline.md).
+Source: [#161](https://github.com/woahitsraj/PKSX/issues/161), [ADR 0011](../adr/0011-derive-platform-floors-from-one-browser-baseline.md), and [ADR 0017](../adr/0017-support-chromium-and-webkit-browsers.md).
 
-The fixed browser baseline is Safari/WebKit 26, Chromium 140, and Firefox 151. It derives native floors of iOS 26 and Android 10/API 29. It is a locked product decision rather than a rolling latest-version policy. Android WebView updates independently of Android, so the safe-area fallbacks in BUDGET-1 remain required at the Android OS floor.
+The fixed browser baseline is Safari/WebKit 26 and Chromium 140. Firefox is unsupported and untested. The baseline derives native floors of iOS 26 and Android 10/API 29. It is a locked product decision rather than a rolling latest-version policy. Android WebView updates independently of Android, so the safe-area fallbacks in BUDGET-1 remain required at the Android OS floor.
 
 <a id="shell-1"></a>
 
@@ -444,7 +445,7 @@ Focused box-navigation reducer tests cover the Box Pane transition table, two-pa
 
 ### Browser gate
 
-Playwright supplies deterministic safe-area values through the production inset mechanism. Chromium runs the full matrix and interaction workflows. WebKit and Firefox render every destination at the four floor and target cases.
+Playwright supplies deterministic safe-area values through the production inset mechanism. Chromium runs the full matrix and interaction workflows. WebKit renders every destination at the four floor and target cases. Firefox has no automated coverage because it is not a supported browser.
 
 | Case             | Raw viewport |                  Safe Canvas | Coverage                           |
 | ---------------- | -----------: | ---------------------------: | ---------------------------------- |
