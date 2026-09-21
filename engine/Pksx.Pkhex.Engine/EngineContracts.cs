@@ -609,6 +609,7 @@ public sealed record SaveFileEditableProjection(
         var moneySupported = SaveFileFieldSupport.IsOverridden(save, nameof(SaveFile.Money));
         var bag = save.Inventory;
         var inventorySupported = bag.Pouches.Count > 0;
+        var itemNames = GameInfo.Strings.GetItemStrings(save.Context, save.Version);
 
         return new SaveFileEditableProjection(
             new TrainerProfileProjection(
@@ -631,7 +632,7 @@ public sealed record SaveFileEditableProjection(
             new InventoryProjection(
                 inventorySupported,
                 inventorySupported ? null : "Inventory editing is not supported for this Save File format.",
-                inventorySupported ? bag.Pouches.Select(pouch => InventoryPocketProjection.From(save, bag, pouch)).ToList() : []));
+                inventorySupported ? bag.Pouches.Select(pouch => InventoryPocketProjection.From(save, bag, pouch, itemNames)).ToList() : []));
     }
 }
 
@@ -646,6 +647,7 @@ public sealed record SaveFileInventoryCatalogue(
         var bag = save.Inventory;
         if (bag.Pouches.Count == 0)
             return new SaveFileInventoryCatalogue(false, "Inventory editing is not supported for this Save File format.", []);
+        var itemNames = GameInfo.Strings.GetItemStrings(save.Context, save.Version);
 
         return new SaveFileInventoryCatalogue(
             true,
@@ -653,7 +655,7 @@ public sealed record SaveFileInventoryCatalogue(
             bag.Pouches
                 .Select(pouch => new InventoryPocketCatalogue(
                     pouch.Type.ToString(),
-                    InventoryPocketProjection.AvailableItemsFor(save, bag, pouch)))
+                    InventoryPocketProjection.AvailableItemsFor(save, bag, pouch, itemNames)))
                 .ToList());
     }
 }
@@ -692,13 +694,17 @@ public sealed record InventoryPocketProjection(
     string? UnsupportedReason,
     List<InventoryItemProjection> Items)
 {
-    public static InventoryPocketProjection From(SaveFile save, PlayerBag bag, InventoryPouch pouch)
+    public static InventoryPocketProjection From(
+        SaveFile save,
+        PlayerBag bag,
+        InventoryPouch pouch,
+        IReadOnlyList<string> itemNames)
     {
         var items = pouch.Items
             .Where(item => item.Index > 0 && item.Count > 0)
             .Select(item => new InventoryItemProjection(
                 item.Index,
-                ItemName(item.Index),
+                ItemName(item.Index, itemNames),
                 item.Count,
                 bag.GetMaxCount(pouch.Type, item.Index),
                 ItemSpriteIdentity.From(item.Index, save.Context, save.Version)))
@@ -714,7 +720,11 @@ public sealed record InventoryPocketProjection(
             items);
     }
 
-    public static List<InventoryItemOption> AvailableItemsFor(SaveFile save, PlayerBag bag, InventoryPouch pouch)
+    public static List<InventoryItemOption> AvailableItemsFor(
+        SaveFile save,
+        PlayerBag bag,
+        InventoryPouch pouch,
+        IReadOnlyList<string> itemNames)
     {
         var available = new List<InventoryItemOption>();
 
@@ -724,7 +734,7 @@ public sealed record InventoryPocketProjection(
             if (itemId == 0 || itemId > save.MaxItemID || max <= 0 || !bag.IsLegal(pouch.Type, itemId, Math.Min(1, max)))
                 continue;
 
-            var name = ItemName(itemId);
+            var name = ItemName(itemId, itemNames);
             if (name.StartsWith("Item ", StringComparison.Ordinal) || name.Contains("???", StringComparison.Ordinal))
                 continue;
             available.Add(new InventoryItemOption(
@@ -738,9 +748,9 @@ public sealed record InventoryPocketProjection(
         return available;
     }
 
-    private static string ItemName(int itemId) =>
-        itemId < GameInfo.Strings.Item.Count && !string.IsNullOrWhiteSpace(GameInfo.Strings.Item[itemId])
-            ? GameInfo.Strings.Item[itemId]
+    private static string ItemName(int itemId, IReadOnlyList<string> itemNames) =>
+        itemId < itemNames.Count && !string.IsNullOrWhiteSpace(itemNames[itemId])
+            ? itemNames[itemId]
             : $"Item {itemId}";
 
     private static string InventoryLabel(InventoryType type) => type switch

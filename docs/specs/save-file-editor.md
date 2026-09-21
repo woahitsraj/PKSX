@@ -246,8 +246,8 @@ design map in issue #163.
   not block this destination.
 - Issue #150 guards Workspace persistence against silently dropping new fields. It is non-blocking
   unless implementation changes the stored Workspace shape.
-- The PKHeX Engine currently offers later-generation items to the Emerald Bag catalogue. Track that
-  as a separate non-blocking bug and do not expand the destination overhaul into catalogue work.
+- Issue #245 owns the separate PKHeX Engine fix that filters each Add Item catalogue by the loaded
+  game's exact pouch rules.
 
 ## Decision sources
 

@@ -367,6 +367,95 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			});
 		}
 	);
+
+	test('filters the Emerald inventory catalogue through its exact game and pocket rules', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const catalogue = await engine.getSaveFileInventoryCatalogue(fixtureBytes, '011020251345.sav');
+		expect(catalogue.ok, JSON.stringify(catalogue.error)).toBe(true);
+		if (!catalogue.ok) throw new Error('Expected the Emerald inventory catalogue.');
+
+		const availableFor = (key: string) =>
+			catalogue.value.pockets.find((pocket) => pocket.key === key)?.availableItems ?? [];
+		const names = catalogue.value.pockets.flatMap((pocket) =>
+			pocket.availableItems.map((item) => item.name)
+		);
+		for (const excludedName of [
+			'Pokémon Box Link (1)',
+			'Pokemon Box Link (1)',
+			'Catching Pocket',
+			'Power-Up Pocket',
+			'Ability Capsule',
+			'Dynamax Candy',
+			'Wishing Piece'
+		]) {
+			expect(names).not.toContain(excludedName);
+		}
+		expect(availableFor('Items')).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: 13, name: 'Potion' }),
+				expect.objectContaining({ id: 121, name: 'Orange Mail' }),
+				expect.objectContaining({ id: 125, name: 'Wood Mail' }),
+				expect.objectContaining({ id: 127, name: 'Bead Mail' })
+			])
+		);
+		expect(availableFor('Balls')).toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: 1, name: 'Master Ball' })])
+		);
+		expect(availableFor('KeyItems')).toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: 259, name: 'Mach Bike' })])
+		);
+		expect(availableFor('TMHMs')).toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: 289, name: 'TM01' })])
+		);
+		expect(availableFor('Berries')).toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: 133, name: 'Cheri Berry' })])
+		);
+		expect(availableFor('Items')).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: 1 })])
+		);
+	});
+
+	test('keeps valid later-generation choices and preserves invalid owned items', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(publicShieldFixtureUrl)
+		]);
+		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const [loaded, catalogue] = await Promise.all([
+			engine.loadSaveWorkspace(fixtureBytes, 'test-save-shield.sav', 0),
+			engine.getSaveFileInventoryCatalogue(fixtureBytes, 'test-save-shield.sav')
+		]);
+		expect(loaded.ok, JSON.stringify(loaded.error)).toBe(true);
+		expect(catalogue.ok, JSON.stringify(catalogue.error)).toBe(true);
+		if (!loaded.ok || !loaded.value.saveFile || !catalogue.ok) {
+			throw new Error('Expected the Shield inventory projection and catalogue.');
+		}
+
+		const availableFor = (key: string) =>
+			catalogue.value.pockets.find((pocket) => pocket.key === key)?.availableItems ?? [];
+		expect(availableFor('Items')).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: 1129, name: 'Dynamax Candy' }),
+				expect.objectContaining({ id: 1252, name: 'Wishing Piece' })
+			])
+		);
+		expect(availableFor('TMHMs')).toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: 1130, name: 'TR00' })])
+		);
+
+		const ownedCherishBall = loaded.value.saveFile.inventory.pockets
+			.find((pocket) => pocket.key === 'Balls')
+			?.items.find((item) => item.id === 16);
+		expect(ownedCherishBall).toMatchObject({ name: 'Cherish Ball', quantity: 995 });
+		expect(availableFor('Balls')).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: 16 })])
+		);
+	});
+
 	test('parses the Emerald Save File fixture through the published browser-wasm bundle', async () => {
 		expect.assertions(17);
 

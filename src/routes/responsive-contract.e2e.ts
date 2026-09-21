@@ -79,7 +79,7 @@ const destinations: Destination[] = [
 		key: 'bag',
 		scrollOwner: '[data-testid="bag-ledger-scrollport"]',
 		// The matrix holds catalogue readiness until this loading-state first stop is asserted.
-		initialFocus: 'item-Items-18-decrease'
+		initialFocus: 'item-Items-14-decrease'
 	},
 	{
 		name: 'Saves',
