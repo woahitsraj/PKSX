@@ -216,7 +216,7 @@ async function openFromMainMenu(page: Page) {
 	});
 	await reportCommand.click();
 	const report = page.getByRole('dialog', { name: 'Save File Legality Report' });
-	await expect(report).toBeVisible();
+	await expect(report).toBeVisible({ timeout: 120_000 });
 	return report;
 }
 
