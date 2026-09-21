@@ -69,7 +69,118 @@ describe('Save File Legality Report host', () => {
 			message: 'The Workspace changed. Run the report again.'
 		});
 	});
+
+	it('previews and applies a batch while preserving per-Pokemon outcomes', async () => {
+		const workflow = workflowHost();
+		const previewFixes = vi.fn(async () => ({
+			status: 'complete' as const,
+			entries: [
+				{
+					result: reportResult('Pikachu'),
+					status: 'fixable' as const,
+					operation: { kind: 'legality-fix' as const, choiceId: 'fix:1' },
+					changes: [{ field: 'Move 1', before: 'Splash', after: 'Thunder Shock' }]
+				},
+				{
+					result: reportResult('Mew'),
+					status: 'unfixable' as const,
+					reason: 'No supported Legality Fix is available.'
+				}
+			]
+		}));
+		const applyFixes = vi.fn(async (preview: Awaited<ReturnType<typeof previewFixes>>) => ({
+			status: 'complete' as const,
+			workspace: {} as never,
+			applied: preview.entries.filter(
+				(entry): entry is Extract<(typeof preview.entries)[number], { status: 'fixable' }> =>
+					entry.status === 'fixable'
+			)
+		}));
+		const host = createSaveFileLegalityReportHost(workflow);
+		host.register(() => ({
+			...provider(1, () => true, []),
+			previewFixes,
+			applyFixes
+		}));
+
+		host.open({ type: 'control', id: 'launcher' });
+		await vi.waitFor(() => expect(host.state.status).toBe('ready'));
+		host.previewFixes();
+		await vi.waitFor(() =>
+			expect(host.state).toMatchObject({
+				status: 'ready',
+				batch: {
+					status: 'preview-ready',
+					entries: [{ status: 'fixable' }, { status: 'unfixable' }]
+				}
+			})
+		);
+		host.applyFixes();
+		await vi.waitFor(() =>
+			expect(host.state).toMatchObject({
+				status: 'ready',
+				stale: true,
+				batch: { status: 'applied', entries: [{ status: 'applied' }, { status: 'unfixable' }] }
+			})
+		);
+		expect(previewFixes).toHaveBeenCalledOnce();
+		expect(applyFixes).toHaveBeenCalledOnce();
+	});
+
+	it('does not report cancellation after the final Workspace commit starts', async () => {
+		const finishCommit = deferred<void>();
+		const workflow = workflowHost();
+		const host = createSaveFileLegalityReportHost(workflow);
+		host.register(() => ({
+			...provider(1, () => true, []),
+			previewFixes: async () => ({
+				status: 'complete',
+				entries: [
+					{
+						result: reportResult('Pikachu'),
+						status: 'fixable',
+						operation: { kind: 'legality-fix', choiceId: 'fix:1' },
+						changes: [{ field: 'Move 1', before: 'Splash', after: 'Thunder Shock' }]
+					}
+				]
+			}),
+			applyFixes: async (preview, _signal, onCommitting) => {
+				onCommitting();
+				await finishCommit.promise;
+				return {
+					status: 'complete',
+					workspace: {} as never,
+					applied: preview.entries.filter((entry) => entry.status === 'fixable')
+				};
+			}
+		}));
+
+		host.open({ type: 'control', id: 'launcher' });
+		await vi.waitFor(() => expect(host.state.status).toBe('ready'));
+		host.previewFixes();
+		await vi.waitFor(() =>
+			expect(host.state).toMatchObject({ batch: { status: 'preview-ready' } })
+		);
+		host.applyFixes();
+		await vi.waitFor(() => expect(host.state).toMatchObject({ batch: { status: 'committing' } }));
+
+		host.cancel();
+		expect(host.state).toMatchObject({ batch: { status: 'committing' } });
+		finishCommit.resolve();
+		await vi.waitFor(() => expect(host.state).toMatchObject({ batch: { status: 'applied' } }));
+	});
 });
+
+function workflowHost() {
+	return {
+		active: null,
+		open: vi.fn(() => true),
+		openRelated: vi.fn(),
+		dismiss: vi.fn(() => null),
+		closeAll: vi.fn(),
+		subscribe: vi.fn(() => () => {})
+	} satisfies SummonedWorkflowHost;
+}
 
 function provider(
 	version: number,
@@ -85,7 +196,35 @@ function provider(
 			onProgress({ checked: 0, total: 0, location: null });
 			return { status: 'complete', checked: 0, total: 0, results: [] };
 		},
+		previewFixes: async () => ({ status: 'complete', entries: [] }),
+		applyFixes: async () => ({ status: 'error', message: 'No fixes.' }),
 		jumpToSlot: async () => null,
 		openPokemonReport: async () => false
 	};
+}
+
+function reportResult(pokemonLabel: string) {
+	return {
+		id: pokemonLabel,
+		source: { zone: 'party' as const, slot: 0 },
+		location: 'Party, Slot 1',
+		pokemonLabel,
+		speciesName: pokemonLabel,
+		classification: 'illegal' as const,
+		firstIssue: 'Example issue.',
+		report: {
+			legal: false,
+			judgement: 'Illegal',
+			summary: 'This Pokemon has legality issues.',
+			fixableProblems: [],
+			warnings: [],
+			messages: []
+		}
+	};
+}
+
+function deferred<T>() {
+	let resolve!: (value: T | PromiseLike<T>) => void;
+	const promise = new Promise<T>((next) => (resolve = next));
+	return { promise, resolve };
 }

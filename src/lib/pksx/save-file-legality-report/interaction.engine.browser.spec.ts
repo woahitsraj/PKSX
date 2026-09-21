@@ -2,9 +2,14 @@ import { createPkhexWorkerEngine } from '$lib/engine/pkhex-worker-engine';
 import { createCleanWorkspaceState } from '$lib/pksx/backup-workflow';
 import { createSaveFileLegalityReportHost } from './host.svelte';
 import { createSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
-import { scanSaveFileLegality } from '.';
+import {
+	applySaveFileLegalityFixBatch,
+	previewSaveFileLegalityFixBatch,
+	scanSaveFileLegality
+} from '.';
 import { beforeAll, describe, expect, test, vi } from 'vitest';
 import emeraldUrl from '../../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav?url';
+import platinumUrl from '../../../../test-fixtures/save-files/raj-pokemon-save-backups/nds/pokemon-platinum-eu.sav?url';
 
 let fixtureBytes: Uint8Array;
 
@@ -76,6 +81,8 @@ describe('Save File-wide Legality Report with real Save File bytes', () => {
 			fileName: setup.workspace.file.originalFileName ?? 'save.sav',
 			isCurrent: () => current,
 			run: (signal, onProgress) => scanSaveFileLegality({ ...setup, signal, onProgress }),
+			previewFixes: async () => ({ status: 'complete', entries: [] }),
+			applyFixes: async () => ({ status: 'error', message: 'No fixes.' }),
 			jumpToSlot: async () => null,
 			openPokemonReport: async () => false
 		}));
@@ -85,5 +92,59 @@ describe('Save File-wide Legality Report with real Save File bytes', () => {
 		current = false;
 		host.validate();
 		expect(host.state).toMatchObject({ status: 'ready', stale: true });
+	}, 120_000);
+
+	test('previews and commits supported fixes as one copied-byte worker batch', async () => {
+		const bytes = new Uint8Array(await (await fetch(platinumUrl)).arrayBuffer());
+		const original = bytes.slice();
+		const engine = createPkhexWorkerEngine('/pkhex-engine');
+		const loaded = await engine.loadSaveWorkspace(bytes, 'pokemon-platinum-eu.sav', 2);
+		if (!loaded.ok) throw loaded.error;
+		const state = createCleanWorkspaceState({
+			file: {
+				id: 'platinum',
+				originalFileName: 'pokemon-platinum-eu.sav',
+				byteLength: bytes.byteLength,
+				importedAt: '2026-09-18T00:00:00.000Z',
+				updatedAt: '2026-09-18T00:00:00.000Z'
+			},
+			bytes,
+			workspace: loaded.value
+		});
+		const scan = await scanSaveFileLegality({ engine, workspace: state });
+		if (scan.status !== 'complete') throw new Error('Expected the Platinum report to complete.');
+		const preview = await previewSaveFileLegalityFixBatch({
+			engine,
+			workspace: state,
+			results: scan.results
+		});
+		if (preview.status !== 'complete') throw new Error('Expected the batch preview to complete.');
+		expect(preview.entries.some(({ status }) => status === 'fixable')).toBe(true);
+		expect(preview.entries.some(({ status }) => status === 'unfixable')).toBe(true);
+		expect(preview.entries).toHaveLength(
+			scan.results.filter(({ classification }) => classification === 'illegal').length
+		);
+
+		const persistWorkspace = vi.fn(async () => undefined);
+		const applied = await applySaveFileLegalityFixBatch({
+			engine,
+			workspace: state,
+			preview,
+			activeBox: 2,
+			isCurrent: () => true,
+			prepareAutomaticBackup: async (workspace) => ({
+				state: { ...workspace, automaticBackupCreated: true },
+				revision: 'revision-1',
+				established: true
+			}),
+			persistWorkspace
+		});
+
+		expect(applied.status).toBe('complete');
+		expect(persistWorkspace).toHaveBeenCalledOnce();
+		expect(bytes).toEqual(original);
+		if (applied.status !== 'complete') throw new Error('Expected the batch to apply.');
+		expect(applied.workspace.dirty).toBe(true);
+		expect(applied.workspace.bytes).not.toEqual(original);
 	}, 120_000);
 });

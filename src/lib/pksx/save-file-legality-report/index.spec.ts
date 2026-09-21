@@ -2,8 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { createMockEngine, type LegalityReport, type SaveWorkspace } from '$lib/engine';
 import type { WorkspaceState } from '$lib/pksx/backup-workflow';
 import {
+	applySaveFileLegalityFixBatch,
 	filterSaveFileLegalityResults,
+	previewSaveFileLegalityFixBatch,
 	scanSaveFileLegality,
+	type SaveFileLegalityFixableEntry,
 	type SaveFileLegalityResult
 } from '.';
 
@@ -113,20 +116,240 @@ describe('Save File-wide Legality Report', () => {
 			{ pokemonLabel: 'Mew' }
 		]);
 	});
+
+	it('previews only Illegal Pokemon and explains unsupported entries', async () => {
+		const results = [
+			result('illegal', 'Pikachu', 0),
+			result('warning', 'Eevee', 1),
+			result('illegal', 'Mew', 2)
+		];
+		const previewPokemonActions = vi.fn(async (_bytes, _fileName, source) => ({
+			ok: true as const,
+			value: {
+				legalityReport: legalReport,
+				actions: [
+					{
+						kind: 'legality-fix' as const,
+						available: source.slot === 0,
+						unavailableReason:
+							source.slot === 0 ? null : 'The remaining legality issue has no supported fix.',
+						applyAllToken: source.slot === 0 ? 'all-fixes:token' : null,
+						changes:
+							source.slot === 0
+								? [{ field: 'Move 1', before: 'Splash', after: 'Thunder Shock' }]
+								: [],
+						choices: [],
+						fixes: []
+					}
+				]
+			},
+			error: null
+		}));
+		const engine = createMockEngine({ previewPokemonActions });
+
+		const preview = await previewSaveFileLegalityFixBatch({ engine, workspace, results });
+
+		expect(preview.status).toBe('complete');
+		if (preview.status !== 'complete') throw new Error('Expected a complete preview.');
+		expect(preview.entries).toMatchObject([
+			{
+				result: { pokemonLabel: 'Pikachu' },
+				status: 'fixable',
+				changes: [{ field: 'Move 1', before: 'Splash', after: 'Thunder Shock' }]
+			},
+			{
+				result: { pokemonLabel: 'Mew' },
+				status: 'unfixable',
+				reason: 'The remaining legality issue has no supported fix.'
+			}
+		]);
+		expect(previewPokemonActions).toHaveBeenCalledTimes(2);
+		expect(previewPokemonActions.mock.calls.map((call) => call[2])).toEqual([
+			{ zone: 'party', slot: 0 },
+			{ zone: 'party', slot: 2 }
+		]);
+	});
+
+	it('applies all previewed fixes to copied bytes and persists one dirty Workspace', async () => {
+		const preview = fixBatchPreview();
+		const applyPokemonAction = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: true,
+				value: {
+					bytes: new Uint8Array([4, 2, 3]),
+					mutated: true,
+					workspace: workspace.workspace,
+					changes: preview.entries[0].changes
+				},
+				error: null
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				value: {
+					bytes: new Uint8Array([4, 5, 3]),
+					mutated: true,
+					workspace: workspace.workspace,
+					changes: preview.entries[1].changes
+				},
+				error: null
+			});
+		const engine = createMockEngine({ applyPokemonAction });
+		const prepareAutomaticBackup = vi.fn(async () => ({
+			state: { ...workspace, automaticBackupCreated: true },
+			revision: 'revision-1',
+			established: true
+		}));
+		const commitOrder: string[] = [];
+		const persistWorkspace = vi.fn(async () => {
+			commitOrder.push('persist');
+		});
+
+		const applied = await applySaveFileLegalityFixBatch({
+			engine,
+			workspace,
+			preview,
+			activeBox: 0,
+			isCurrent: () => true,
+			onCommitting: () => commitOrder.push('committing'),
+			prepareAutomaticBackup,
+			persistWorkspace
+		});
+
+		expect(applied).toMatchObject({ status: 'complete', applied: preview.entries });
+		expect(prepareAutomaticBackup).toHaveBeenCalledOnce();
+		expect(applyPokemonAction).toHaveBeenCalledTimes(2);
+		expect(applyPokemonAction.mock.calls[0][0]).toEqual(new Uint8Array([1, 2, 3]));
+		expect(applyPokemonAction.mock.calls[1][0]).toEqual(new Uint8Array([4, 2, 3]));
+		expect(workspace.bytes).toEqual(new Uint8Array([1, 2, 3]));
+		expect(persistWorkspace).toHaveBeenCalledOnce();
+		expect(commitOrder).toEqual(['committing', 'persist']);
+		expect(persistWorkspace).toHaveBeenCalledWith(
+			expect.objectContaining({
+				bytes: new Uint8Array([4, 5, 3]),
+				dirty: true,
+				automaticBackupCreated: true
+			}),
+			'revision-1'
+		);
+	});
+
+	it('does not commit partial results when one fix fails', async () => {
+		const preview = fixBatchPreview();
+		const applyPokemonAction = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: true,
+				value: {
+					bytes: new Uint8Array([4, 2, 3]),
+					mutated: true,
+					workspace: workspace.workspace,
+					changes: preview.entries[0].changes
+				},
+				error: null
+			})
+			.mockResolvedValueOnce({
+				ok: false,
+				value: null,
+				error: { code: 'stale-pokemon-action-preview', message: 'The preview is stale.' }
+			});
+		const persistWorkspace = vi.fn();
+
+		const applied = await applySaveFileLegalityFixBatch({
+			engine: createMockEngine({ applyPokemonAction }),
+			workspace,
+			preview,
+			activeBox: 0,
+			isCurrent: () => true,
+			prepareAutomaticBackup: async () => ({
+				state: { ...workspace, automaticBackupCreated: true },
+				revision: 'revision-1',
+				established: true
+			}),
+			persistWorkspace
+		});
+
+		expect(applied).toMatchObject({ status: 'error', message: 'The preview is stale.' });
+		expect(persistWorkspace).not.toHaveBeenCalled();
+		expect(workspace.bytes).toEqual(new Uint8Array([1, 2, 3]));
+	});
+
+	it('cancels before the final commit and leaves the Workspace unchanged', async () => {
+		const preview = fixBatchPreview();
+		const controller = new AbortController();
+		const applyPokemonAction = vi.fn(async () => {
+			controller.abort();
+			return {
+				ok: true as const,
+				value: {
+					bytes: new Uint8Array([4, 2, 3]),
+					mutated: true,
+					workspace: workspace.workspace,
+					changes: preview.entries[0].changes
+				},
+				error: null
+			};
+		});
+		const persistWorkspace = vi.fn();
+
+		const applied = await applySaveFileLegalityFixBatch({
+			engine: createMockEngine({ applyPokemonAction }),
+			workspace,
+			preview,
+			activeBox: 0,
+			signal: controller.signal,
+			isCurrent: () => true,
+			prepareAutomaticBackup: async () => ({
+				state: { ...workspace, automaticBackupCreated: true },
+				revision: 'revision-1',
+				established: true
+			}),
+			persistWorkspace
+		});
+
+		expect(applied.status).toBe('cancelled');
+		expect(applyPokemonAction).toHaveBeenCalledOnce();
+		expect(persistWorkspace).not.toHaveBeenCalled();
+		expect(workspace.bytes).toEqual(new Uint8Array([1, 2, 3]));
+	});
 });
 
 function result(
 	classification: SaveFileLegalityResult['classification'],
-	pokemonLabel: string
+	pokemonLabel: string,
+	slot = 0
 ): SaveFileLegalityResult {
 	return {
 		id: pokemonLabel,
-		source: { zone: 'party', slot: 0 },
-		location: 'Party, Slot 1',
+		source: { zone: 'party', slot },
+		location: `Party, Slot ${slot + 1}`,
 		pokemonLabel,
 		speciesName: pokemonLabel,
 		classification,
 		firstIssue: classification === 'legal' ? 'No issues found.' : 'Example issue.',
 		report: legalReport
+	};
+}
+
+function fixBatchPreview(): {
+	status: 'complete';
+	entries: [SaveFileLegalityFixableEntry, SaveFileLegalityFixableEntry];
+} {
+	return {
+		status: 'complete',
+		entries: [
+			{
+				result: result('illegal', 'Pikachu', 0),
+				status: 'fixable',
+				operation: { kind: 'legality-fix', choiceId: 'fix-1' },
+				changes: [{ field: 'Move 1', before: 'Splash', after: 'Thunder Shock' }]
+			},
+			{
+				result: result('illegal', 'Mew', 2),
+				status: 'fixable',
+				operation: { kind: 'legality-fix', choiceId: 'fix-2' },
+				changes: [{ field: 'Ball', before: 'None', after: 'Poke Ball' }]
+			}
+		]
 	};
 }

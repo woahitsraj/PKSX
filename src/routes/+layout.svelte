@@ -815,6 +815,8 @@
 			fileName={saveFileLegalityReport.fileName}
 			state={saveFileLegalityReport.state}
 			onRun={saveFileLegalityReport.run}
+			onPreviewFixes={saveFileLegalityReport.previewFixes}
+			onApplyFixes={saveFileLegalityReport.applyFixes}
 			onCancel={saveFileLegalityReport.cancel}
 			onClose={saveFileLegalityReport.close}
 			onJumpToSlot={saveFileLegalityReport.jumpToSlot}

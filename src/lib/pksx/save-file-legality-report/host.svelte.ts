@@ -2,6 +2,10 @@ import { getContext, setContext, tick } from 'svelte';
 import type { SummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 import type { SummonedWorkflowLauncher } from '$lib/pksx/summoned-workflow';
 import type {
+	SaveFileLegalityFixBatchApplyResult,
+	SaveFileLegalityFixBatchEntry,
+	SaveFileLegalityFixBatchPreview,
+	SaveFileLegalityFixableEntry,
 	SaveFileLegalityProgress,
 	SaveFileLegalityResult,
 	SaveFileLegalityScanResult
@@ -17,16 +21,46 @@ export type SaveFileLegalityReportProvider = {
 		signal: AbortSignal,
 		onProgress: (progress: SaveFileLegalityProgress) => void
 	): Promise<SaveFileLegalityScanResult>;
+	previewFixes(
+		results: SaveFileLegalityResult[],
+		signal: AbortSignal
+	): Promise<SaveFileLegalityFixBatchPreview>;
+	applyFixes(
+		preview: Extract<SaveFileLegalityFixBatchPreview, { status: 'complete' }>,
+		signal: AbortSignal,
+		onCommitting: () => void
+	): Promise<SaveFileLegalityFixBatchApplyResult>;
 	jumpToSlot(result: SaveFileLegalityResult): Promise<string | null>;
 	openPokemonReport(result: SaveFileLegalityResult): Promise<boolean>;
 };
 
 export type SaveFileLegalityReportTarget = 'active-save' | 'active-collection';
 
+export type SaveFileLegalityFixBatchViewState =
+	| { status: 'idle' }
+	| { status: 'previewing' }
+	| { status: 'preview-ready'; entries: SaveFileLegalityFixBatchEntry[] }
+	| { status: 'applying'; entries: SaveFileLegalityFixBatchEntry[] }
+	| { status: 'committing'; entries: SaveFileLegalityFixBatchEntry[] }
+	| {
+			status: 'applied';
+			entries: Array<
+				| Exclude<SaveFileLegalityFixBatchEntry, SaveFileLegalityFixableEntry>
+				| (Omit<SaveFileLegalityFixableEntry, 'status'> & { status: 'applied' })
+			>;
+	  }
+	| { status: 'cancelled'; entries: SaveFileLegalityFixBatchEntry[] }
+	| { status: 'error'; message: string; entries: SaveFileLegalityFixBatchEntry[] };
+
 export type SaveFileLegalityReportViewState =
 	| { status: 'idle' }
 	| { status: 'loading'; progress: SaveFileLegalityProgress }
-	| { status: 'ready'; results: SaveFileLegalityResult[]; stale: boolean }
+	| {
+			status: 'ready';
+			results: SaveFileLegalityResult[];
+			stale: boolean;
+			batch: SaveFileLegalityFixBatchViewState;
+	  }
 	| { status: 'cancelled'; results: SaveFileLegalityResult[] }
 	| { status: 'error'; message: string; results: SaveFileLegalityResult[] };
 
@@ -38,6 +72,8 @@ export type SaveFileLegalityReportHost = {
 	): () => void;
 	open(launcher: SummonedWorkflowLauncher, target?: SaveFileLegalityReportTarget): boolean;
 	run(): void;
+	previewFixes(): void;
+	applyFixes(): void;
 	cancel(): void;
 	close(): void;
 	validate(): void;
@@ -107,11 +143,89 @@ export function createSaveFileLegalityReportHost(
 			return true;
 		},
 		run,
+		previewFixes() {
+			const source = captured;
+			if (!source || state.status !== 'ready' || state.stale) return;
+			const results = state.results;
+			controller?.abort();
+			controller = new AbortController();
+			const currentRequest = ++request;
+			state = { ...state, batch: { status: 'previewing' } };
+			void source.previewFixes(results, controller.signal).then((preview) => {
+				if (currentRequest !== request || state.status !== 'ready') return;
+				state = {
+					...state,
+					batch:
+						preview.status === 'cancelled'
+							? { status: 'cancelled', entries: preview.entries }
+							: { status: 'preview-ready', entries: preview.entries }
+				};
+			});
+		},
+		applyFixes() {
+			const source = captured;
+			if (
+				!source ||
+				state.status !== 'ready' ||
+				state.stale ||
+				state.batch.status !== 'preview-ready'
+			)
+				return;
+			const entries = state.batch.entries;
+			const preview = { status: 'complete' as const, entries };
+			controller?.abort();
+			controller = new AbortController();
+			const currentRequest = ++request;
+			state = { ...state, batch: { status: 'applying', entries } };
+			void source
+				.applyFixes(preview, controller.signal, () => {
+					if (
+						currentRequest === request &&
+						state.status === 'ready' &&
+						state.batch.status === 'applying'
+					) {
+						state = { ...state, batch: { status: 'committing', entries } };
+					}
+				})
+				.then((result) => {
+					if (currentRequest !== request || state.status !== 'ready') return;
+					if (result.status === 'cancelled') {
+						state = { ...state, batch: { status: 'cancelled', entries } };
+						return;
+					}
+					if (result.status === 'error') {
+						state = { ...state, batch: { status: 'error', message: result.message, entries } };
+						return;
+					}
+					const appliedById = Object.fromEntries(
+						result.applied.map((entry) => [entry.result.id, entry])
+					);
+					state = {
+						...state,
+						stale: true,
+						batch: {
+							status: 'applied',
+							entries: entries.map((entry) => {
+								if (entry.status === 'unfixable') return entry;
+								const applied = appliedById[entry.result.id] ?? entry;
+								return { ...applied, status: 'applied' as const };
+							})
+						}
+					};
+				});
+		},
 		cancel() {
 			controller?.abort();
 			if (state.status === 'loading') {
 				request += 1;
 				state = { status: 'cancelled', results: [] };
+			} else if (
+				state.status === 'ready' &&
+				(state.batch.status === 'previewing' || state.batch.status === 'applying')
+			) {
+				const entries = state.batch.status === 'applying' ? state.batch.entries : [];
+				request += 1;
+				state = { ...state, batch: { status: 'cancelled', entries } };
 			}
 		},
 		close() {
@@ -175,7 +289,9 @@ function viewStateFor(
 	result: SaveFileLegalityScanResult,
 	stale: boolean
 ): SaveFileLegalityReportViewState {
-	if (result.status === 'complete') return { status: 'ready', results: result.results, stale };
+	if (result.status === 'complete') {
+		return { status: 'ready', results: result.results, stale, batch: { status: 'idle' } };
+	}
 	if (result.status === 'cancelled') return { status: 'cancelled', results: result.results };
 	return { status: 'error', message: result.message, results: result.results };
 }
