@@ -19,7 +19,6 @@ describe('automatic Backup mutation integration', () => {
 	it('repairs a stale cached marker from authoritative storage before Engine work', async () => {
 		const storage = createStorage();
 		const state = await importWorkspace(storage);
-
 		const prepared = await prepareAutomaticBackup({
 			storage,
 			state: { ...state, automaticBackupCreated: true },
@@ -232,6 +231,7 @@ describe('automatic Backup mutation integration', () => {
 	it('keeps batch Legality Fix bytes uncommitted when a later Pokemon fails', async () => {
 		const storage = createStorage();
 		const state = await importWorkspace(storage);
+		const preview = legalityFixBatchPreview();
 		const applyPokemonAction = vi
 			.fn()
 			.mockResolvedValueOnce(successfulPokemonAction(state.workspace, 2))
@@ -244,7 +244,7 @@ describe('automatic Backup mutation integration', () => {
 		const result = await applySaveFileLegalityFixBatch({
 			engine: createMockEngine({ applyPokemonAction }),
 			workspace: state,
-			preview: legalityFixBatchPreview(),
+			preview,
 			activeBox: 0,
 			isCurrent: () => true,
 			prepareAutomaticBackup: (workspace) =>
@@ -276,6 +276,7 @@ describe('automatic Backup mutation integration', () => {
 		const state = await importWorkspace(storage);
 		const started = deferred<void>();
 		const engineResult = deferred<ReturnType<typeof successfulPokemonAction>>();
+		const entry = legalityFixEntry('Pikachu', 0);
 		const engine = createMockEngine({
 			applyPokemonAction: vi.fn(async () => {
 				started.resolve();
@@ -287,7 +288,7 @@ describe('automatic Backup mutation integration', () => {
 			workspace: state,
 			preview: {
 				status: 'complete',
-				entries: [legalityFixEntry('Pikachu', 0, 'fix:1')]
+				entries: [entry]
 			},
 			activeBox: 0,
 			isCurrent: () => true,
@@ -328,15 +329,11 @@ describe('automatic Backup mutation integration', () => {
 function legalityFixBatchPreview() {
 	return {
 		status: 'complete' as const,
-		entries: [legalityFixEntry('Pikachu', 0, 'fix:1'), legalityFixEntry('Mew', 1, 'fix:2')]
+		entries: [legalityFixEntry('Pikachu', 0), legalityFixEntry('Mew', 1)]
 	};
 }
 
-function legalityFixEntry(
-	pokemonLabel: string,
-	slot: number,
-	choiceId: string
-): SaveFileLegalityFixableEntry {
+function legalityFixEntry(pokemonLabel: string, slot: number): SaveFileLegalityFixableEntry {
 	return {
 		result: {
 			id: `party:${slot}`,
@@ -356,7 +353,7 @@ function legalityFixEntry(
 			}
 		},
 		status: 'fixable',
-		operation: { kind: 'legality-fix', choiceId },
+		operation: { kind: 'legality-fix', choiceId: `fix:${slot}` },
 		changes: [{ field: 'Move 1', before: 'Splash', after: 'Thunder Shock' }]
 	};
 }

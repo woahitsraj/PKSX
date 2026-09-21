@@ -419,7 +419,15 @@ test('previews, cancels, and atomically applies a mixed Legality Fix batch', asy
 		timeout: 120_000
 	});
 
+	await holdWorkspaceResponses(page, 'previewPokemonActions');
 	await report.getByRole('button', { name: 'Preview supported fixes' }).click();
+	await waitForHeldWorkspaceResponse(page);
+	await expect(report.getByRole('button', { name: 'Cancel batch' })).toBeFocused();
+	await expect(report.getByRole('button', { name: 'Open report' }).first()).toBeDisabled();
+	await expect(report.getByRole('button', { name: 'Go to Slot' }).first()).toBeDisabled();
+	await report.getByRole('button', { name: 'Open report' }).first().dispatchEvent('click');
+	await expect(report).toBeVisible();
+	await releaseWorkspaceResponses(page);
 	await expect(report.getByRole('heading', { name: 'Legality Fix preview' })).toBeVisible({
 		timeout: 120_000
 	});
@@ -436,7 +444,9 @@ test('previews, cancels, and atomically applies a mixed Legality Fix batch', asy
 	await waitForHeldWorkspaceResponse(page);
 	await report.getByRole('button', { name: 'Cancel batch' }).click();
 	await releaseWorkspaceResponses(page);
-	await expect(report).toContainText('Batch cancelled. No Pokemon changes were committed.');
+	await expect(page.getByRole('region', { name: 'Notifications' })).toContainText(
+		'Legality Fix batch cancelled. No Pokemon changes were committed.'
+	);
 	await expect
 		.poll(() => readBatchPersistence(page))
 		.toMatchObject({
@@ -451,7 +461,9 @@ test('previews, cancels, and atomically applies a mixed Legality Fix batch', asy
 	await expect(apply).toBeVisible({ timeout: 120_000 });
 	await failNextWorkspaceResponse(page, 'applyPokemonAction');
 	await apply.click();
-	await expect(report.getByRole('alert')).toContainText('Injected batch failure.');
+	await expect(page.getByRole('region', { name: 'Notifications' })).toContainText(
+		'Injected batch failure.'
+	);
 	await expect
 		.poll(() => readBatchPersistence(page))
 		.toMatchObject({
@@ -469,7 +481,9 @@ test('previews, cancels, and atomically applies a mixed Legality Fix batch', asy
 	await expect(report.getByRole('heading', { name: 'Applied Legality Fixes' })).toBeVisible({
 		timeout: 120_000
 	});
-	await expect(report).toContainText('All supported fixes succeeded.');
+	await expect(page.getByRole('region', { name: 'Notifications' })).toContainText(
+		'All supported Legality Fixes succeeded.'
+	);
 	await expect(report.getByRole('list', { name: 'Legality Fix outcomes' })).toContainText(
 		'applied'
 	);

@@ -94,7 +94,7 @@ describe('Save File-wide Legality Report with real Save File bytes', () => {
 		expect(host.state).toMatchObject({ status: 'ready', stale: true });
 	}, 120_000);
 
-	test('previews and commits supported fixes as one copied-byte worker batch', async () => {
+	test('retains exact candidates across 140 previews and commits one copied-byte worker batch', async () => {
 		const bytes = new Uint8Array(await (await fetch(platinumUrl)).arrayBuffer());
 		const original = bytes.slice();
 		const engine = createPkhexWorkerEngine('/pkhex-engine');
@@ -124,6 +124,18 @@ describe('Save File-wide Legality Report with real Save File bytes', () => {
 		expect(preview.entries).toHaveLength(
 			scan.results.filter(({ classification }) => classification === 'illegal').length
 		);
+		const firstFixable = preview.entries.find(({ status }) => status === 'fixable');
+		if (!firstFixable || firstFixable.status !== 'fixable') {
+			throw new Error('Expected a supported Legality Fix.');
+		}
+		for (let index = 0; index < 140; index += 1) {
+			const extraPreview = await engine.previewPokemonActions(
+				state.bytes,
+				state.file.originalFileName ?? undefined,
+				firstFixable.result.source
+			);
+			if (!extraPreview.ok) throw extraPreview.error;
+		}
 
 		const persistWorkspace = vi.fn(async () => undefined);
 		const applied = await applySaveFileLegalityFixBatch({

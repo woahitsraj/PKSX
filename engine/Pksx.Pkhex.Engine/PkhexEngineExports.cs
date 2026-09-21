@@ -8,10 +8,9 @@ namespace Pksx.Pkhex.Engine;
 [SupportedOSPlatform("browser")]
 public static partial class PkhexEngineExports
 {
-    private const int LegalityFixPreviewCacheCapacity = 256;
+    private static readonly TimeSpan LegalityFixPreviewLifetime = TimeSpan.FromMinutes(30);
     private static readonly Lock LegalityFixPreviewCacheLock = new();
     private static readonly Dictionary<string, LegalityFixPreview> LegalityFixPreviewCache = [];
-    private static readonly Queue<string> LegalityFixPreviewOrder = [];
 
     [JSExport]
     public static string GetVersionJson()
@@ -2236,13 +2235,12 @@ public static partial class PkhexEngineExports
             storageSlotType,
             fixId,
             result.Clone(),
-            changes);
+            changes,
+            DateTimeOffset.UtcNow.Add(LegalityFixPreviewLifetime));
         lock (LegalityFixPreviewCacheLock)
         {
+            RemoveExpiredLegalityFixPreviews();
             LegalityFixPreviewCache[token] = preview;
-            LegalityFixPreviewOrder.Enqueue(token);
-            while (LegalityFixPreviewOrder.Count > LegalityFixPreviewCacheCapacity)
-                LegalityFixPreviewCache.Remove(LegalityFixPreviewOrder.Dequeue());
         }
         return token;
     }
@@ -2254,7 +2252,10 @@ public static partial class PkhexEngineExports
     {
         LegalityFixPreview? preview;
         lock (LegalityFixPreviewCacheLock)
+        {
+            RemoveExpiredLegalityFixPreviews();
             LegalityFixPreviewCache.TryGetValue(token, out preview);
+        }
 
         if (preview is null || !token.StartsWith($"{preview.FixId}:", StringComparison.Ordinal))
         {
@@ -2273,6 +2274,16 @@ public static partial class PkhexEngineExports
         }
 
         return PokemonActionMutation.Success(preview.Pokemon.Clone(), preview.Changes);
+    }
+
+    private static void RemoveExpiredLegalityFixPreviews()
+    {
+        var now = DateTimeOffset.UtcNow;
+        foreach (var token in LegalityFixPreviewCache
+                     .Where(entry => entry.Value.ExpiresAt <= now)
+                     .Select(entry => entry.Key)
+                     .ToArray())
+            LegalityFixPreviewCache.Remove(token);
     }
 
     private static PokemonActionMutation ApplyTargetedLegalityFix(
@@ -2821,7 +2832,8 @@ public static partial class PkhexEngineExports
         StorageSlotType StorageSlotType,
         string FixId,
         PKM Pokemon,
-        List<PokemonActionChange> Changes);
+        List<PokemonActionChange> Changes,
+        DateTimeOffset ExpiresAt);
 
     private readonly record struct SpeciesFormProjectionResult(
         bool Ok,

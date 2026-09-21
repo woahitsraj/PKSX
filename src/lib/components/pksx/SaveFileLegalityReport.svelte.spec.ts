@@ -48,16 +48,31 @@ describe('Save File Legality Report batch action', () => {
 		const onCancel = vi.fn();
 		render(readyState('committing'), { onCancel });
 
-		expect(button('Saving batch').disabled).toBe(true);
+		const saving = button('Saving batch');
+		expect(saving.disabled).toBe(false);
+		expect(saving.getAttribute('aria-disabled')).toBe('true');
+		saving.click();
 		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
 		expect(onCancel).not.toHaveBeenCalled();
 	});
 
-	test('shows per-Pokemon applied changes and the successful outcome', () => {
+	test('disables pointer result navigation while a batch is busy', () => {
+		const onJumpToSlot = vi.fn(async () => true);
+		const onOpenPokemonReport = vi.fn(async () => true);
+		render(readyState('applying'), { onJumpToSlot, onOpenPokemonReport });
+
+		expect(button('Open report').disabled).toBe(true);
+		expect(button('Go to Slot').disabled).toBe(true);
+		button('Open report').click();
+		button('Go to Slot').click();
+		expect(onOpenPokemonReport).not.toHaveBeenCalled();
+		expect(onJumpToSlot).not.toHaveBeenCalled();
+	});
+
+	test('keeps per-Pokemon applied changes inline', () => {
 		render(readyState('applied'));
 
 		expect(document.body.textContent).toContain('Applied Legality Fixes');
-		expect(document.body.textContent).toContain('All supported fixes succeeded.');
 		expect(document.body.textContent).toContain('Move 1: Splash to Thunder Shock');
 		expect(document.body.textContent).toContain('No supported Legality Fix is available.');
 	});
@@ -68,6 +83,8 @@ function render(
 	overrides: Partial<{
 		onApplyFixes: () => void;
 		onCancel: () => void;
+		onJumpToSlot: (result: SaveFileLegalityResult) => Promise<boolean>;
+		onOpenPokemonReport: (result: SaveFileLegalityResult) => Promise<boolean>;
 	}> = {}
 ) {
 	component = mount(SaveFileLegalityReport, {
@@ -80,8 +97,8 @@ function render(
 			onApplyFixes: overrides.onApplyFixes ?? vi.fn(),
 			onCancel: overrides.onCancel ?? vi.fn(),
 			onClose: vi.fn(),
-			onJumpToSlot: vi.fn(async () => true),
-			onOpenPokemonReport: vi.fn(async () => true)
+			onJumpToSlot: overrides.onJumpToSlot ?? vi.fn(async () => true),
+			onOpenPokemonReport: overrides.onOpenPokemonReport ?? vi.fn(async () => true)
 		}
 	});
 	flushSync();

@@ -57,11 +57,11 @@
 
 	let { children } = $props();
 	const summonedWorkflow = setSummonedWorkflowHost(createSummonedWorkflowHost());
+	const toastHost = setToastHost(createToastHost());
 	const saveFileLegalityReport = setSaveFileLegalityReportHost(
-		createSaveFileLegalityReportHost(summonedWorkflow)
+		createSaveFileLegalityReportHost(summonedWorkflow, toastHost)
 	);
 	const quickSearchHost = setQuickSearchHost(createQuickSearchHost());
-	const toastHost = setToastHost(createToastHost());
 	const storage = getSavesStorage();
 	const destinationFocus = new SvelteMap<Destination, DestinationFocus>();
 	let routeBackHandler: (() => boolean) | null = null;

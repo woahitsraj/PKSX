@@ -312,6 +312,82 @@ describe('Save File-wide Legality Report', () => {
 		expect(persistWorkspace).not.toHaveBeenCalled();
 		expect(workspace.bytes).toEqual(new Uint8Array([1, 2, 3]));
 	});
+
+	it('applies 140 exact preview candidates and commits once', async () => {
+		const cache = new Set<string>();
+		let nextToken = 0;
+		const results = Array.from({ length: 140 }, (_, index) =>
+			result('illegal', `Pokemon ${index + 1}`, index)
+		);
+		const previewPokemonActions = vi.fn(async (_bytes, _fileName, source) => {
+			const key =
+				source.zone === 'party' ? `party:${source.slot}` : `box:${source.box}:${source.slot}`;
+			const tokens = [`choice:${nextToken++}`, `apply-all:${nextToken++}`];
+			for (const token of tokens) cache.add(token);
+			return {
+				ok: true as const,
+				value: {
+					legalityReport: legalReport,
+					actions: [
+						{
+							kind: 'legality-fix' as const,
+							available: true,
+							unavailableReason: null,
+							applyAllToken: tokens[1],
+							changes: [{ field: 'Move 1', before: key, after: 'Tackle' }],
+							choices: [],
+							fixes: []
+						}
+					]
+				},
+				error: null
+			};
+		});
+		const applyPokemonAction = vi.fn(async (bytes, _fileName, operation) =>
+			cache.has(operation.choiceId)
+				? {
+						ok: true as const,
+						value: {
+							bytes: new Uint8Array(bytes),
+							mutated: true,
+							workspace: workspace.workspace,
+							changes: []
+						},
+						error: null
+					}
+				: {
+						ok: false as const,
+						value: null,
+						error: {
+							code: 'stale-pokemon-action-preview' as const,
+							message: 'This fix preview is no longer available.'
+						}
+					}
+		);
+		const engine = createMockEngine({ previewPokemonActions, applyPokemonAction });
+		const preview = await previewSaveFileLegalityFixBatch({ engine, workspace, results });
+		if (preview.status !== 'complete') throw new Error('Expected a complete preview.');
+		const persistWorkspace = vi.fn(async () => undefined);
+
+		const applied = await applySaveFileLegalityFixBatch({
+			engine,
+			workspace,
+			preview,
+			activeBox: 0,
+			isCurrent: () => true,
+			prepareAutomaticBackup: async () => ({
+				state: { ...workspace, automaticBackupCreated: true },
+				revision: 'revision-1',
+				established: true
+			}),
+			persistWorkspace
+		});
+
+		expect(applied).toMatchObject({ status: 'complete', applied: { length: 140 } });
+		expect(applyPokemonAction).toHaveBeenCalledTimes(140);
+		expect(previewPokemonActions).toHaveBeenCalledTimes(140);
+		expect(persistWorkspace).toHaveBeenCalledOnce();
+	});
 });
 
 function result(

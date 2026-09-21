@@ -152,6 +152,7 @@
 				<p id="save-legality-description">Party and occupied Box Slots</p>
 			</div>
 			<button
+				id="save-legality-close"
 				type="button"
 				class="close"
 				data-save-legality-control
@@ -163,7 +164,7 @@
 						: batchCommitting
 							? 'Saving batch'
 							: 'Close report'}
-				disabled={batchCommitting}
+				aria-disabled={batchCommitting}
 				onfocus={(event) => (activeControl = controls().indexOf(event.currentTarget))}
 				onclick={handleBack}
 				>{loading || batchCancelable ? 'Cancel' : batchCommitting ? 'Saving' : 'Esc'}</button
@@ -295,13 +296,6 @@
 								>
 							{/if}
 						</div>
-						{#if reportState.batch.status === 'cancelled'}
-							<p class="batch-feedback">Batch cancelled. No Pokemon changes were committed.</p>
-						{:else if reportState.batch.status === 'error'}
-							<p class="batch-feedback error" role="alert">{reportState.batch.message}</p>
-						{:else if reportState.batch.status === 'applied'}
-							<p class="batch-feedback success">All supported fixes succeeded.</p>
-						{/if}
 						<div class="batch-entries" role="list" aria-label="Legality Fix outcomes">
 							{#each batchEntries as entry (entry.result.id)}
 								<article class:unfixable={entry.status === 'unfixable'} role="listitem">
@@ -345,7 +339,7 @@
 								type="button"
 								data-save-legality-control
 								data-pksx-control-category="small"
-								disabled={stale}
+								disabled={stale || batchBusy}
 								onfocus={(event) => (activeControl = controls().indexOf(event.currentTarget))}
 								onclick={() => void onOpenPokemonReport(result)}>Open report</button
 							>
@@ -353,7 +347,7 @@
 								type="button"
 								data-save-legality-control
 								data-pksx-control-category="small"
-								disabled={stale}
+								disabled={stale || batchBusy}
 								onfocus={(event) => (activeControl = controls().indexOf(event.currentTarget))}
 								onclick={() => void onJumpToSlot(result)}>Go to Slot</button
 							>
@@ -535,20 +529,6 @@
 	.batch-progress {
 		justify-items: center;
 		text-align: center;
-	}
-
-	.batch-feedback {
-		padding: var(--pksx-space-1) var(--pksx-space-2);
-		border-radius: var(--pksx-radius-small);
-		background: var(--pksx-color-surface-subtle);
-	}
-
-	.batch-feedback.error {
-		color: var(--pksx-color-feedback-danger);
-	}
-
-	.batch-feedback.success {
-		color: var(--pksx-color-feedback-success);
 	}
 
 	.batch-entries {

@@ -4,7 +4,11 @@ import {
 	createSaveFileLegalityReportHost,
 	type SaveFileLegalityReportProvider
 } from './host.svelte';
-import type { SaveFileLegalityScanResult } from '.';
+import type {
+	SaveFileLegalityFixBatchApplyResult,
+	SaveFileLegalityFixBatchPreview,
+	SaveFileLegalityScanResult
+} from '.';
 
 describe('Save File Legality Report host', () => {
 	it('marks results stale and reruns against a refreshed Workspace capture', async () => {
@@ -72,6 +76,7 @@ describe('Save File Legality Report host', () => {
 
 	it('previews and applies a batch while preserving per-Pokemon outcomes', async () => {
 		const workflow = workflowHost();
+		const toast = { success: vi.fn(), error: vi.fn() };
 		const previewFixes = vi.fn(async () => ({
 			status: 'complete' as const,
 			entries: [
@@ -96,7 +101,7 @@ describe('Save File Legality Report host', () => {
 					entry.status === 'fixable'
 			)
 		}));
-		const host = createSaveFileLegalityReportHost(workflow);
+		const host = createSaveFileLegalityReportHost(workflow, toast);
 		host.register(() => ({
 			...provider(1, () => true, []),
 			previewFixes,
@@ -125,6 +130,66 @@ describe('Save File Legality Report host', () => {
 		);
 		expect(previewFixes).toHaveBeenCalledOnce();
 		expect(applyFixes).toHaveBeenCalledOnce();
+		expect(toast.success).toHaveBeenCalledWith('All supported Legality Fixes succeeded.');
+	});
+
+	it('guards result navigation and hands Controller Focus to Cancel during batch work', async () => {
+		const preview = deferred<SaveFileLegalityFixBatchPreview>();
+		const apply = deferred<SaveFileLegalityFixBatchApplyResult>();
+		const jumpToSlot = vi.fn(async () => 'slot-1');
+		const openPokemonReport = vi.fn(async () => true);
+		const toast = { success: vi.fn(), error: vi.fn() };
+		document.body.innerHTML =
+			'<button id="other-control">Other</button><button id="save-legality-close">Cancel</button>';
+		const other = document.getElementById('other-control');
+		const cancel = document.getElementById('save-legality-close');
+		const host = createSaveFileLegalityReportHost(workflowHost(), toast);
+		host.register(() => ({
+			...provider(1, () => true, []),
+			previewFixes: () => preview.promise,
+			applyFixes: () => apply.promise,
+			jumpToSlot,
+			openPokemonReport
+		}));
+		host.open({ type: 'control', id: 'launcher' });
+		await vi.waitFor(() => expect(host.state.status).toBe('ready'));
+
+		other?.focus();
+		host.previewFixes();
+		await vi.waitFor(() => expect(document.activeElement).toBe(cancel));
+		await expect(host.jumpToSlot(reportResult('Pikachu'))).resolves.toBe(false);
+		await expect(host.openPokemonReport(reportResult('Pikachu'))).resolves.toBe(false);
+		expect(jumpToSlot).not.toHaveBeenCalled();
+		expect(openPokemonReport).not.toHaveBeenCalled();
+
+		preview.resolve({
+			status: 'complete',
+			entries: [
+				{
+					result: reportResult('Pikachu'),
+					status: 'fixable',
+					operation: { kind: 'legality-fix', choiceId: 'fix:1' },
+					changes: [{ field: 'Move 1', before: 'Splash', after: 'Thunder Shock' }]
+				}
+			]
+		});
+		await vi.waitFor(() =>
+			expect(host.state).toMatchObject({ batch: { status: 'preview-ready' } })
+		);
+		other?.focus();
+		host.applyFixes();
+		await vi.waitFor(() => expect(document.activeElement).toBe(cancel));
+		await expect(host.jumpToSlot(reportResult('Pikachu'))).resolves.toBe(false);
+		await expect(host.openPokemonReport(reportResult('Pikachu'))).resolves.toBe(false);
+		expect(jumpToSlot).not.toHaveBeenCalled();
+		expect(openPokemonReport).not.toHaveBeenCalled();
+
+		host.cancel();
+		expect(host.state).toMatchObject({ batch: { status: 'cancelled' } });
+		expect(toast.success).toHaveBeenCalledWith(
+			'Legality Fix batch cancelled. No Pokemon changes were committed.'
+		);
+		document.body.replaceChildren();
 	});
 
 	it('does not report cancellation after the final Workspace commit starts', async () => {
