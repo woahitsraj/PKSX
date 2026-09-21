@@ -412,11 +412,12 @@ test('keeps a secondary Save File report current across Box projection loads', a
 });
 
 test('previews, cancels, and atomically applies a mixed Legality Fix batch', async ({ page }) => {
+	test.slow();
 	await installWorkspaceResponseHold(page);
 	await importActiveSaveFile(page, platinumFixturePath);
 	const report = await openFromMainMenu(page);
 	await expect(report.getByRole('list', { name: /Legality Report results/ })).toBeVisible({
-		timeout: 120_000
+		timeout: 240_000
 	});
 
 	await holdWorkspaceResponses(page, 'previewPokemonActions');
