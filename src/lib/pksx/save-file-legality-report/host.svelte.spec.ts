@@ -4,6 +4,7 @@ import {
 	createSaveFileLegalityReportHost,
 	type SaveFileLegalityReportProvider
 } from './host.svelte';
+import type { SaveFileLegalityScanResult } from '.';
 
 describe('Save File Legality Report host', () => {
 	it('marks results stale and reruns against a refreshed Workspace capture', async () => {
@@ -34,6 +35,39 @@ describe('Save File Legality Report host', () => {
 		host.run();
 		await vi.waitFor(() => expect(runs).toEqual([1, 2]));
 		expect(host.state).toMatchObject({ status: 'ready', stale: false });
+	});
+
+	it('keeps the Workspace-changed error when an invalidated scan finishes', async () => {
+		let current = true;
+		let finish: ((result: SaveFileLegalityScanResult) => void) | undefined;
+		const workflow = {
+			active: null,
+			open: vi.fn(() => true),
+			openRelated: vi.fn(),
+			dismiss: vi.fn(() => null),
+			closeAll: vi.fn(),
+			subscribe: vi.fn(() => () => {})
+		} satisfies SummonedWorkflowHost;
+		const host = createSaveFileLegalityReportHost(workflow);
+		host.register(() => ({
+			...provider(1, () => current, []),
+			run: () => new Promise((resolve) => (finish = resolve))
+		}));
+
+		expect(host.open({ type: 'control', id: 'launcher' })).toBe(true);
+		current = false;
+		host.validate();
+		expect(host.state).toMatchObject({
+			status: 'error',
+			message: 'The Workspace changed. Run the report again.'
+		});
+
+		finish?.({ status: 'cancelled', checked: 0, total: 0, results: [] });
+		await Promise.resolve();
+		expect(host.state).toMatchObject({
+			status: 'error',
+			message: 'The Workspace changed. Run the report again.'
+		});
 	});
 });
 

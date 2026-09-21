@@ -28,6 +28,7 @@ Observed weights are 500 for body copy, 600-700 for metadata and controls, and 8
 - `--pksx-color-accent-ring`: stronger active borders.
 - `--pksx-color-accent-gold`: warm highlight accents.
 - `--pksx-color-feedback-success`: positive or available status.
+- `--pksx-color-feedback-warning`: warning or stale status.
 - `--pksx-color-feedback-danger`: error status.
 
 Dark mode overrides are defined with `:root:has(.app-shell.dark)` so global surfaces and app-local aliases stay synchronized with the active theme.

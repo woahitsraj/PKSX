@@ -127,6 +127,7 @@ export function createSaveFileLegalityReportHost(
 		},
 		validate() {
 			if (!captured || captured.isCurrent()) return;
+			if (state.status === 'loading') request += 1;
 			controller?.abort();
 			if (state.status === 'ready') state = { ...state, stale: true };
 			else if (state.status === 'loading') {

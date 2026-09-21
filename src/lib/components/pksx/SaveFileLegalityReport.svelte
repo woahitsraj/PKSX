@@ -340,7 +340,7 @@
 		justify-content: space-between;
 		gap: var(--pksx-space-2);
 		padding: var(--pksx-space-2);
-		border: var(--pksx-border-width) solid var(--pksx-color-warning, #a66b00);
+		border: var(--pksx-border-width) solid var(--pksx-color-feedback-warning);
 		border-radius: var(--pksx-radius-small);
 		font-size: var(--pksx-type-label);
 	}
@@ -387,15 +387,15 @@
 	}
 
 	article.legal {
-		border-left-color: var(--pksx-color-success, #39744c);
+		border-left-color: var(--pksx-color-feedback-success);
 	}
 
 	article.warning {
-		border-left-color: var(--pksx-color-warning, #a66b00);
+		border-left-color: var(--pksx-color-feedback-warning);
 	}
 
 	article.illegal {
-		border-left-color: var(--pksx-color-error, #a53d35);
+		border-left-color: var(--pksx-color-feedback-danger);
 	}
 
 	.classification {

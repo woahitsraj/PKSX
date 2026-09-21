@@ -130,6 +130,7 @@
 	--pksx-color-accent-ring: rgba(184, 88, 56, 0.35);
 	--pksx-color-accent-gold: #c89a3e;
 	--pksx-color-feedback-success: #7aa86a;
+	--pksx-color-feedback-warning: #a66b00;
 	--pksx-color-feedback-danger: #c93d3d;
 
 	--pksx-radius-xs: 4px;
@@ -229,6 +230,7 @@
 	--pksx-color-accent-ring: rgba(255, 138, 92, 0.55);
 	--pksx-color-accent-gold: #f0c060;
 	--pksx-color-feedback-success: #7ed99a;
+	--pksx-color-feedback-warning: #e0a43a;
 	--pksx-color-feedback-danger: #ff6f6a;
 	--pksx-shadow-raised:
 		0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 4px 12px -6px rgba(0, 0, 0, 0.7),
