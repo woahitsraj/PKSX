@@ -12,7 +12,14 @@ export default defineConfig({
 	projects: [
 		{
 			name: 'chromium',
-			grepInvert: /@mobile-touch/,
+			grepInvert: /@mobile-touch|@engine-exclusive/,
+			use: { ...devices['Desktop Chrome'] }
+		},
+		{
+			name: 'chromium-engine-exclusive',
+			dependencies: ['chromium'],
+			testMatch: '**/save-file-legality-report.e2e.ts',
+			grep: /@engine-exclusive/,
 			use: { ...devices['Desktop Chrome'] }
 		},
 		{
