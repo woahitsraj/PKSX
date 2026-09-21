@@ -383,17 +383,17 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		const names = catalogue.value.pockets.flatMap((pocket) =>
 			pocket.availableItems.map((item) => item.name)
 		);
-		expect(names).not.toEqual(
-			expect.arrayContaining([
-				'Pokémon Box Link (1)',
-				'Pokemon Box Link (1)',
-				'Catching Pocket',
-				'Power-Up Pocket',
-				'Ability Capsule',
-				'Dynamax Candy',
-				'Wishing Piece'
-			])
-		);
+		for (const excludedName of [
+			'Pokémon Box Link (1)',
+			'Pokemon Box Link (1)',
+			'Catching Pocket',
+			'Power-Up Pocket',
+			'Ability Capsule',
+			'Dynamax Candy',
+			'Wishing Piece'
+		]) {
+			expect(names).not.toContain(excludedName);
+		}
 		expect(availableFor('Items')).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ id: 13, name: 'Potion' }),
