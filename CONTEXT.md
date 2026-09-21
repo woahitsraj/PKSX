@@ -177,12 +177,16 @@ A live connection between two devices running PKSX, for sending Pokemon Entities
 _Avoid_: cloud sync, account sync
 
 **Cloud Sync**:
-An opt-in capability that makes Saves, including persisted Workspace changes, available to the same user across PKSX devices.
+An opt-in, provider-readable capability that makes Saves, including persisted Workspace changes, available to the same user across PKSX devices. Its Sync Provider can read synchronized Saves content and metadata.
 _Avoid_: Peer Transfer, TinyBase sync, Export
 
 **Sync Profile**:
 The provider-neutral owner of one synchronized Saves collection.
 _Avoid_: cloud account, provider account, device account
+
+**Sync Provider**:
+The service that stores and serves Cloud Sync data. It never receives PKSX credentials or device-local state.
+_Avoid_: cloud account, Sync Profile
 
 **Sync Object**:
 A durable object in Saves that Cloud Sync addresses and tracks independently.
@@ -448,6 +452,7 @@ _Avoid_: setting, option, config
 - A **Peer Transfer** sends **Pokemon Entities** or **Storage Boxes** between two devices running PKSX.
 - A **Pokemon Entity** received through **Peer Transfer** enters **Pokemon Storage** before it can be moved into a **Save File**.
 - **Cloud Sync** makes **Save Files**, **Backups**, **Pokemon Storage**, and persisted **Workspaces** available across a user's PKSX devices.
+- A **Sync Provider** may read all content and metadata that **Cloud Sync** synchronizes.
 - Metadata needed to interpret or present a **Sync Object** travels with that object.
 - Synced metadata belongs to exactly one **Sync Object** or **Sync Profile**; it does not exist as an unowned record.
 - The active **Save File**, **Controller Focus**, caches, validation output, credentials, enrollment state, and **Preferences** remain device-local.
