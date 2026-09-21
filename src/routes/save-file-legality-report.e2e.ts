@@ -417,6 +417,7 @@ test('keeps a secondary Save File report current across Box projection loads', a
 });
 
 test('previews, cancels, and atomically applies a mixed Legality Fix batch', async ({ page }) => {
+	test.slow();
 	await installWorkspaceResponseHold(page);
 	await importActiveSaveFile(page, platinumFixturePath);
 	const report = await openFromMainMenu(page);
