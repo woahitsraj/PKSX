@@ -208,11 +208,16 @@ async function failNextWorkspaceResponse(page: Page, method: string) {
 
 async function openFromMainMenu(page: Page) {
 	await page.getByRole('button', { name: 'Open Main Menu' }).click();
-	await page
+	const reportCommand = page
 		.getByRole('dialog', { name: 'Main Menu' })
-		.getByRole('button', { name: /^Legality Report/ })
-		.click();
-	return page.getByRole('dialog', { name: 'Save File Legality Report' });
+		.getByRole('button', { name: /^Legality Report/ });
+	await expect(reportCommand).toContainText('Check Party and every occupied Box Slot.', {
+		timeout: 30_000
+	});
+	await reportCommand.click();
+	const report = page.getByRole('dialog', { name: 'Save File Legality Report' });
+	await expect(report).toBeVisible();
+	return report;
 }
 
 function slotIdForLocation(location: string) {
@@ -412,12 +417,11 @@ test('keeps a secondary Save File report current across Box projection loads', a
 });
 
 test('previews, cancels, and atomically applies a mixed Legality Fix batch', async ({ page }) => {
-	test.slow();
 	await installWorkspaceResponseHold(page);
 	await importActiveSaveFile(page, platinumFixturePath);
 	const report = await openFromMainMenu(page);
 	await expect(report.getByRole('list', { name: /Legality Report results/ })).toBeVisible({
-		timeout: 240_000
+		timeout: 120_000
 	});
 
 	await holdWorkspaceResponses(page, 'previewPokemonActions');
