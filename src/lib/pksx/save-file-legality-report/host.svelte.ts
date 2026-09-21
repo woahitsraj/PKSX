@@ -71,6 +71,7 @@ export type SaveFileLegalityReportHost = {
 	register(
 		provider: (target: SaveFileLegalityReportTarget) => SaveFileLegalityReportProvider | null
 	): () => void;
+	canOpen(target?: SaveFileLegalityReportTarget): boolean;
 	open(launcher: SummonedWorkflowLauncher, target?: SaveFileLegalityReportTarget): boolean;
 	run(): void;
 	previewFixes(): void;
@@ -128,6 +129,9 @@ export function createSaveFileLegalityReportHost(
 			return () => {
 				if (provider === next) provider = null;
 			};
+		},
+		canOpen(nextTarget = 'active-save') {
+			return provider?.(nextTarget) != null;
 		},
 		open(launcher, nextTarget = 'active-save') {
 			if (!provider) return false;

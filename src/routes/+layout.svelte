@@ -129,9 +129,11 @@
 		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX + 1, 0, {
 			key: 'save-file-legality-report',
 			label: 'Legality Report',
-			description: hasActiveSaveFile
+			description: saveFileLegalityReport.canOpen()
 				? 'Check Party and every occupied Box Slot.'
-				: 'Import a Save File before running a report.'
+				: hasActiveSaveFile
+					? 'The active Save File is still loading.'
+					: 'Import a Save File before running a report.'
 		});
 		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX + 2, 0, ...entriesAfterReservedSearch);
 		return entries;

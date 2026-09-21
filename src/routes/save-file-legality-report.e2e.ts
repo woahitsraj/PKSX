@@ -228,6 +228,27 @@ function slotIdForLocation(location: string) {
 	throw new Error(`Unexpected Location: ${location}`);
 }
 
+test('advertises Main Menu report readiness only after its provider can open', async ({ page }) => {
+	await installWorkspaceResponseHold(page);
+	await importSaveFile(page);
+	await holdWorkspaceResponses(page, 'loadSaveWorkspace');
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	await page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: /^Boxes/ })
+		.click();
+	await waitForHeldWorkspaceResponse(page);
+
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	const reportCommand = page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: /^Legality Report/ });
+	await expect(reportCommand).toContainText('The active Save File is still loading.');
+
+	await releaseWorkspaceResponses(page);
+	await expect(reportCommand).toContainText('Check Party and every occupied Box Slot.');
+});
+
 test('runs, cancels, refreshes, filters, and navigates a Save File-wide Legality Report', async ({
 	page
 }) => {
@@ -416,9 +437,7 @@ test('keeps a secondary Save File report current across Box projection loads', a
 	await expect(reportCommand).toBeFocused();
 });
 
-test('previews, cancels, and atomically applies a mixed Legality Fix batch @engine-exclusive', async ({
-	page
-}) => {
+test('previews, cancels, and atomically applies a mixed Legality Fix batch', async ({ page }) => {
 	test.slow();
 	await installWorkspaceResponseHold(page);
 	await importActiveSaveFile(page, platinumFixturePath);

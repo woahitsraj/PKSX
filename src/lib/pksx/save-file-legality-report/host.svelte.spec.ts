@@ -11,6 +11,16 @@ import type {
 } from '.';
 
 describe('Save File Legality Report host', () => {
+	it('reports whether the registered provider can capture the requested Save File', () => {
+		let captured: SaveFileLegalityReportProvider | null = null;
+		const host = createSaveFileLegalityReportHost(workflowHost());
+		host.register(() => captured);
+
+		expect(host.canOpen()).toBe(false);
+		captured = provider(1, () => true, []);
+		expect(host.canOpen()).toBe(true);
+	});
+
 	it('marks results stale and reruns against a refreshed Workspace capture', async () => {
 		let version = 1;
 		let current = true;
