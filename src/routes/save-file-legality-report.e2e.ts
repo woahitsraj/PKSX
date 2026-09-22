@@ -244,17 +244,20 @@ test('advertises Main Menu report readiness only after its provider can open', a
 		.getByRole('dialog', { name: 'Main Menu' })
 		.getByRole('button', { name: /^Legality Report/ });
 	await expect(reportCommand).toContainText('The active Save File is still loading.');
-	await reportCommand.click();
-	await expect(page.getByRole('region', { name: 'Notifications' })).toContainText(
-		'The active Save File is still loading.'
-	);
+	await expect(reportCommand).toHaveAttribute('aria-disabled', 'true');
+	await reportCommand.dispatchEvent('click');
+	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeVisible();
+	await reportCommand.focus();
+	await pressController(page, 'Enter');
+	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Save File Legality Report' })).toHaveCount(0);
+	await expect(
+		page.getByText('The active Save File is still loading.', { exact: true })
+	).toHaveCount(1);
 
 	await releaseWorkspaceResponses(page);
-	await page.getByRole('button', { name: 'Open Main Menu' }).click();
-	const readyReportCommand = page
-		.getByRole('dialog', { name: 'Main Menu' })
-		.getByRole('button', { name: /^Legality Report/ });
-	await expect(readyReportCommand).toContainText('Check Party and every occupied Box Slot.');
+	await expect(reportCommand).toContainText('Check Party and every occupied Box Slot.');
+	await expect(reportCommand).not.toHaveAttribute('aria-disabled', 'true');
 });
 
 test('opens the globally scoped report from another destination', async ({ page }) => {

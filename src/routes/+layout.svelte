@@ -131,12 +131,15 @@
 			label: 'Search',
 			description: 'Find a Pokemon in the Active Save File.'
 		});
+		const reportAvailable =
+			activeRoute === 'boxes' ? saveFileLegalityReport.canOpen() : hasActiveSaveFile;
 		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX + 1, 0, {
 			key: 'save-file-legality-report',
 			label: 'Legality Report',
-			description: (activeRoute === 'boxes' ? saveFileLegalityReport.canOpen() : hasActiveSaveFile)
+			description: reportAvailable
 				? 'Check Party and every occupied Box Slot.'
-				: saveFileLegalityReportUnavailableReason
+				: saveFileLegalityReportUnavailableReason,
+			unavailableReason: reportAvailable ? undefined : saveFileLegalityReportUnavailableReason
 		});
 		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX + 2, 0, ...entriesAfterReservedSearch);
 		return entries;
@@ -249,7 +252,7 @@
 	}
 
 	async function selectMainMenuEntry(entry: MainMenuEntry) {
-		if (!mainMenuOpen) return;
+		if (!mainMenuOpen || entry.unavailableReason) return;
 		if (entry.key === 'search') {
 			const launcher = summonedWorkflow.active?.launcher;
 			summonedWorkflow.closeAll();
