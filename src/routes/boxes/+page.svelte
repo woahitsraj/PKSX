@@ -190,6 +190,8 @@
 	import { createSaveFileQuickSearchResults, type QuickSearchResult } from '$lib/pksx/quick-search';
 	import { getQuickSearchHost, type QuickSearchSaveFile } from '$lib/pksx/quick-search/host.svelte';
 	import {
+		applySaveFileLegalityFixBatch,
+		previewSaveFileLegalityFixBatch,
 		saveFileLegalityOpenControlId,
 		scanSaveFileLegality,
 		type SaveFileLegalityResult
@@ -4752,25 +4754,57 @@
 		const saveFileId = snapshot.file.id;
 		const source = saveFileSource(snapshot);
 		const paneId = pane?.id ?? primaryPaneId;
+		const activeBox = pane?.activeBox ?? paneWorkspace?.loadedBox ?? 0;
 		const activeEngine = engine;
+		const isCurrent = () => {
+			if (target === 'active-save') {
+				return loadedSave?.file.id === saveFileId && bytesEqual(loadedSave.bytes, snapshot.bytes);
+			}
+			const currentPane = workbenchPanes.find(({ id }) => id === paneId);
+			const currentWorkspace = savePaneWorkspaces[paneId]?.state;
+			return (
+				currentPane?.source.id === saveFileId &&
+				currentWorkspace?.file.id === saveFileId &&
+				bytesEqual(currentWorkspace.bytes, snapshot.bytes)
+			);
+		};
 
 		return {
 			saveFileId,
 			fileName: source.label,
-			isCurrent: () => {
-				if (target === 'active-save') {
-					return loadedSave?.file.id === saveFileId && bytesEqual(loadedSave.bytes, snapshot.bytes);
-				}
-				const currentPane = workbenchPanes.find(({ id }) => id === paneId);
-				const currentWorkspace = savePaneWorkspaces[paneId]?.state;
-				return (
-					currentPane?.source.id === saveFileId &&
-					currentWorkspace?.file.id === saveFileId &&
-					bytesEqual(currentWorkspace.bytes, snapshot.bytes)
-				);
-			},
+			isCurrent,
 			run: (signal, onProgress) =>
 				scanSaveFileLegality({ engine: activeEngine, workspace: snapshot, signal, onProgress }),
+			previewFixes: (results, signal) =>
+				previewSaveFileLegalityFixBatch({
+					engine: activeEngine,
+					workspace: snapshot,
+					results,
+					signal
+				}),
+			applyFixes: async (preview, signal, onCommitting) => {
+				const applied = await applySaveFileLegalityFixBatch({
+					engine: activeEngine,
+					workspace: snapshot,
+					preview,
+					activeBox,
+					signal,
+					isCurrent,
+					onCommitting,
+					prepareAutomaticBackup: (state) =>
+						prepareAutomaticBackup({ storage, state, reason: 'legality-fix' }),
+					persistWorkspace
+				});
+				if (applied.status === 'complete') {
+					if (loadedSave?.file.id === applied.workspace.file.id) {
+						loadedSave = applied.workspace;
+						setCachedActiveWorkspace(applied.workspace, activeBox);
+						invalidateSavesCache();
+					}
+					installMutatedSaveProjection(applied.workspace, activeBox);
+				}
+				return applied;
+			},
 			jumpToSlot: (result) => focusSaveFileLegalityResult(result, paneId, source, snapshot),
 			openPokemonReport: (result) => openSaveFileLegalityResult(result, paneId, source, snapshot)
 		};

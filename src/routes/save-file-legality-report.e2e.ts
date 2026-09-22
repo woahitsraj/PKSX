@@ -66,6 +66,7 @@ async function installWorkspaceResponseHold(page: Page) {
 			__pksxWorkspaceRequestsToSkip?: number;
 			__pksxHeldWorkspaceResponses?: number;
 			__pksxResponseMethodToHold?: string;
+			__pksxResponseMethodToFail?: string;
 			__pksxReleaseWorkspaceResponses?: () => void;
 		};
 		const testWindow = window as TestWindow;
@@ -76,6 +77,7 @@ async function installWorkspaceResponseHold(page: Page) {
 		testWindow.__pksxWorkspaceRequestsToSkip = 0;
 		testWindow.__pksxHeldWorkspaceResponses = 0;
 		testWindow.__pksxResponseMethodToHold = 'loadSaveWorkspace';
+		testWindow.__pksxResponseMethodToFail = undefined;
 		testWindow.__pksxReleaseWorkspaceResponses = () => {
 			heldRequestIds.clear();
 			for (const release of releases.splice(0)) release();
@@ -108,10 +110,31 @@ async function installWorkspaceResponseHold(page: Page) {
 						return;
 					}
 					addEventListener(type, (event: Event) => {
-						const message = (event as MessageEvent).data as { id?: string } | null;
+						const message = (event as MessageEvent).data as {
+							id?: string;
+							method?: string;
+							result?: unknown;
+						} | null;
+						let deliveredEvent = event;
+						if (message?.method === testWindow.__pksxResponseMethodToFail) {
+							testWindow.__pksxResponseMethodToFail = undefined;
+							deliveredEvent = new MessageEvent('message', {
+								data: {
+									...message,
+									result: {
+										ok: false,
+										value: null,
+										error: {
+											code: 'unknown-engine-error',
+											message: 'Injected batch failure.'
+										}
+									}
+								}
+							});
+						}
 						const invoke = () => {
-							if (typeof listener === 'function') listener.call(worker, event);
-							else listener.handleEvent(event);
+							if (typeof listener === 'function') listener.call(worker, deliveredEvent);
+							else listener.handleEvent(deliveredEvent);
 						};
 						if (!message?.id || !heldRequestIds.delete(message.id)) {
 							invoke();
@@ -173,13 +196,28 @@ async function releaseWorkspaceResponses(page: Page) {
 	});
 }
 
+async function failNextWorkspaceResponse(page: Page, method: string) {
+	await page.evaluate((responseMethod) => {
+		(
+			window as typeof window & {
+				__pksxResponseMethodToFail?: string;
+			}
+		).__pksxResponseMethodToFail = responseMethod;
+	}, method);
+}
+
 async function openFromMainMenu(page: Page) {
 	await page.getByRole('button', { name: 'Open Main Menu' }).click();
-	await page
+	const reportCommand = page
 		.getByRole('dialog', { name: 'Main Menu' })
-		.getByRole('button', { name: /^Legality Report/ })
-		.click();
-	return page.getByRole('dialog', { name: 'Save File Legality Report' });
+		.getByRole('button', { name: /^Legality Report/ });
+	await expect(reportCommand).toContainText('Check Party and every occupied Box Slot.', {
+		timeout: 30_000
+	});
+	await reportCommand.click();
+	const report = page.getByRole('dialog', { name: 'Save File Legality Report' });
+	await expect(report).toBeVisible({ timeout: 120_000 });
+	return report;
 }
 
 function slotIdForLocation(location: string) {
@@ -189,6 +227,72 @@ function slotIdForLocation(location: string) {
 	if (box) return `box-${Number(box[1]) - 1}-slot-${Number(box[2]) - 1}`;
 	throw new Error(`Unexpected Location: ${location}`);
 }
+
+test('advertises Main Menu report readiness only after its provider can open', async ({ page }) => {
+	await installWorkspaceResponseHold(page);
+	await importSaveFile(page);
+	await holdWorkspaceResponses(page, 'loadSaveWorkspace');
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	await page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: /^Boxes/ })
+		.click();
+	await waitForHeldWorkspaceResponse(page);
+
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	const reportCommand = page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: /^Legality Report/ });
+	await expect(reportCommand).toContainText('The active Save File is still loading.');
+	await expect(reportCommand).not.toHaveAttribute('aria-disabled', 'true');
+	await reportCommand.click();
+	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeHidden();
+	await expect(page.getByRole('dialog', { name: 'Save File Legality Report' })).toHaveCount(0);
+	await expect(
+		page.getByText('The active Save File is still loading.', { exact: true })
+	).toHaveCount(1);
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	await reportCommand.focus();
+	await pressController(page, 'Enter');
+	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeHidden();
+	await expect(page.getByRole('dialog', { name: 'Save File Legality Report' })).toHaveCount(0);
+
+	await releaseWorkspaceResponses(page);
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	await expect(reportCommand).toContainText('Check Party and every occupied Box Slot.');
+	await expect(reportCommand).not.toHaveAttribute('aria-disabled', 'true');
+});
+
+test('opens the globally scoped report from another destination', async ({ page }) => {
+	await installWorkspaceResponseHold(page);
+	await importSaveFile(page);
+	await page.goto('/settings');
+	await expect(page.locator('[data-destination-root="settings"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
+	await holdWorkspaceResponses(page, 'loadSaveWorkspace');
+
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	const reportCommand = page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: /^Legality Report/ });
+	await expect(reportCommand).toContainText('Check Party and every occupied Box Slot.');
+	await reportCommand.click();
+	await waitForHeldWorkspaceResponse(page);
+	await expect(page).toHaveURL(/\/boxes$/);
+	await expect(page.getByRole('dialog', { name: 'Save File Legality Report' })).toHaveCount(0);
+	await expect(page.getByRole('region', { name: 'Notifications' })).not.toContainText(
+		'The active Save File is still loading.'
+	);
+
+	await releaseWorkspaceResponses(page);
+	const report = page.getByRole('dialog', { name: 'Save File Legality Report' });
+	await expect(report).toBeVisible({ timeout: 120_000 });
+	await expect(report.getByRole('list', { name: /Legality Report results/ })).toBeVisible({
+		timeout: 120_000
+	});
+});
 
 test('runs, cancels, refreshes, filters, and navigates a Save File-wide Legality Report', async ({
 	page
@@ -377,3 +481,138 @@ test('keeps a secondary Save File report current across Box projection loads', a
 	await expect(boxMenu).toBeVisible();
 	await expect(reportCommand).toBeFocused();
 });
+
+test('previews, cancels, and atomically applies a mixed Legality Fix batch', async ({ page }) => {
+	test.slow();
+	await installWorkspaceResponseHold(page);
+	await importActiveSaveFile(page, platinumFixturePath);
+	const report = await openFromMainMenu(page);
+	await expect(report.getByRole('list', { name: /Legality Report results/ })).toBeVisible({
+		timeout: 120_000
+	});
+
+	await holdWorkspaceResponses(page, 'previewPokemonActions');
+	await report.getByRole('button', { name: 'Preview supported fixes' }).click();
+	await waitForHeldWorkspaceResponse(page);
+	await expect(report.getByRole('button', { name: 'Cancel batch' })).toBeFocused();
+	await expect(report.getByRole('button', { name: 'Open report' }).first()).toBeDisabled();
+	await expect(report.getByRole('button', { name: 'Go to Slot' }).first()).toBeDisabled();
+	await report.getByRole('button', { name: 'Open report' }).first().dispatchEvent('click');
+	await expect(report).toBeVisible();
+	await releaseWorkspaceResponses(page);
+	await expect(report.getByRole('heading', { name: 'Legality Fix preview' })).toBeVisible({
+		timeout: 120_000
+	});
+	await expect(report.getByRole('list', { name: 'Legality Fix outcomes' })).toContainText(
+		'fixable'
+	);
+	await expect(report.getByRole('list', { name: 'Legality Fix outcomes' })).toContainText(
+		'unfixable'
+	);
+	await expect(report).toContainText('Warnings and Fishy results stay unchanged.');
+
+	await holdWorkspaceResponses(page, 'applyPokemonAction');
+	await report.getByRole('button', { name: /Apply \d+ supported fixes?/ }).click();
+	await waitForHeldWorkspaceResponse(page);
+	await report.getByRole('button', { name: 'Cancel batch' }).click();
+	await releaseWorkspaceResponses(page);
+	await expect(page.getByRole('region', { name: 'Notifications' })).toContainText(
+		'Legality Fix batch cancelled. No Pokemon changes were committed.'
+	);
+	await expect
+		.poll(() => readBatchPersistence(page))
+		.toMatchObject({
+			dirty: false,
+			automaticBackupCreated: true,
+			backupCount: 1,
+			workspaceMatchesSave: true
+		});
+
+	await report.getByRole('button', { name: 'Preview again' }).click();
+	let apply = report.getByRole('button', { name: /Apply \d+ supported fixes?/ });
+	await expect(apply).toBeVisible({ timeout: 120_000 });
+	await failNextWorkspaceResponse(page, 'applyPokemonAction');
+	await apply.click();
+	await expect(page.getByRole('region', { name: 'Notifications' })).toContainText(
+		'Injected batch failure.'
+	);
+	await expect
+		.poll(() => readBatchPersistence(page))
+		.toMatchObject({
+			dirty: false,
+			automaticBackupCreated: true,
+			backupCount: 1,
+			workspaceMatchesSave: true
+		});
+
+	await report.getByRole('button', { name: 'Preview again' }).click();
+	apply = report.getByRole('button', { name: /Apply \d+ supported fixes?/ });
+	await expect(apply).toBeVisible({ timeout: 120_000 });
+	await apply.focus();
+	await pressController(page, 'Enter');
+	await expect(report.getByRole('heading', { name: 'Applied Legality Fixes' })).toBeVisible({
+		timeout: 120_000
+	});
+	await expect(page.getByRole('region', { name: 'Notifications' })).toContainText(
+		'All supported Legality Fixes succeeded.'
+	);
+	await expect(report.getByRole('list', { name: 'Legality Fix outcomes' })).toContainText(
+		'applied'
+	);
+	await expect
+		.poll(() => readBatchPersistence(page))
+		.toMatchObject({
+			dirty: true,
+			automaticBackupCreated: true,
+			backupCount: 1,
+			workspaceMatchesSave: false
+		});
+	await expect(report).toContainText('The Workspace changed. Run the report again.');
+});
+
+async function readBatchPersistence(page: Page) {
+	return page.evaluate(
+		() =>
+			new Promise<{
+				dirty: boolean | null;
+				automaticBackupCreated: boolean | null;
+				backupCount: number;
+				workspaceMatchesSave: boolean;
+			}>((resolve, reject) => {
+				const open = indexedDB.open('pksx-saves');
+				open.onerror = () => reject(open.error);
+				open.onsuccess = () => {
+					const database = open.result;
+					const transaction = database.transaction(
+						['workspaces', 'saveBytes', 'backups'],
+						'readonly'
+					);
+					const workspaceRequest = transaction.objectStore('workspaces').getAll();
+					const saveRequest = transaction.objectStore('saveBytes').getAll();
+					const backupRequest = transaction.objectStore('backups').getAll();
+					transaction.onerror = () => reject(transaction.error);
+					transaction.oncomplete = () => {
+						const workspace = workspaceRequest.result[0] as
+							| {
+									bytes: Uint8Array;
+									dirty: boolean;
+									automaticBackupCreated: boolean;
+							  }
+							| undefined;
+						const save = saveRequest.result[0] as { bytes: Uint8Array } | undefined;
+						const workspaceBytes = workspace?.bytes ?? new Uint8Array();
+						const saveBytes = save?.bytes ?? new Uint8Array();
+						resolve({
+							dirty: workspace?.dirty ?? null,
+							automaticBackupCreated: workspace?.automaticBackupCreated ?? null,
+							backupCount: backupRequest.result.length,
+							workspaceMatchesSave:
+								workspaceBytes.byteLength === saveBytes.byteLength &&
+								workspaceBytes.every((byte, index) => byte === saveBytes[index])
+						});
+						database.close();
+					};
+				};
+			})
+	);
+}

@@ -57,11 +57,11 @@
 
 	let { children } = $props();
 	const summonedWorkflow = setSummonedWorkflowHost(createSummonedWorkflowHost());
+	const toastHost = setToastHost(createToastHost());
 	const saveFileLegalityReport = setSaveFileLegalityReportHost(
-		createSaveFileLegalityReportHost(summonedWorkflow)
+		createSaveFileLegalityReportHost(summonedWorkflow, toastHost)
 	);
 	const quickSearchHost = setQuickSearchHost(createQuickSearchHost());
-	const toastHost = setToastHost(createToastHost());
 	const storage = getSavesStorage();
 	const destinationFocus = new SvelteMap<Destination, DestinationFocus>();
 	let routeBackHandler: (() => boolean) | null = null;
@@ -90,6 +90,11 @@
 	const quickSearchOpen = $derived(summonedWorkflow.active?.kind === 'quick-search');
 	const saveFileLegalityReportOpen = $derived(
 		summonedWorkflow.active?.kind === 'save-file-legality-report'
+	);
+	const saveFileLegalityReportUnavailableReason = $derived(
+		hasActiveSaveFile
+			? 'The active Save File is still loading.'
+			: 'Import a Save File before running a report.'
 	);
 	const mainMenuEntries = $derived.by<MainMenuEntry[]>(() => {
 		const entriesAfterReservedSearch: MainMenuEntry[] = [
@@ -126,12 +131,15 @@
 			label: 'Search',
 			description: 'Find a Pokemon in the Active Save File.'
 		});
+		const reportAvailable =
+			activeRoute === 'boxes' ? saveFileLegalityReport.canOpen() : hasActiveSaveFile;
 		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX + 1, 0, {
 			key: 'save-file-legality-report',
 			label: 'Legality Report',
-			description: hasActiveSaveFile
+			description: reportAvailable
 				? 'Check Party and every occupied Box Slot.'
-				: 'Import a Save File before running a report.'
+				: saveFileLegalityReportUnavailableReason,
+			unavailableReason: reportAvailable ? undefined : saveFileLegalityReportUnavailableReason
 		});
 		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX + 2, 0, ...entriesAfterReservedSearch);
 		return entries;
@@ -313,7 +321,7 @@
 		const launcherId =
 			reportLauncher?.id ?? rememberDestinationFocus() ?? ensureDestinationFocus('boxes');
 		if (!launcherId || !saveFileLegalityReport.open({ type: 'control', id: launcherId })) {
-			toastHost.error('Import a Save File before running a Legality Report.');
+			toastHost.error(saveFileLegalityReportUnavailableReason);
 			await restoreDestinationFocus('boxes');
 		}
 	}
@@ -815,6 +823,8 @@
 			fileName={saveFileLegalityReport.fileName}
 			state={saveFileLegalityReport.state}
 			onRun={saveFileLegalityReport.run}
+			onPreviewFixes={saveFileLegalityReport.previewFixes}
+			onApplyFixes={saveFileLegalityReport.applyFixes}
 			onCancel={saveFileLegalityReport.cancel}
 			onClose={saveFileLegalityReport.close}
 			onJumpToSlot={saveFileLegalityReport.jumpToSlot}

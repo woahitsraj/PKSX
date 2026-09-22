@@ -6,6 +6,10 @@ import {
 	type WorkspaceState
 } from '$lib/pksx/backup-workflow';
 import { applyPokemonAction } from '$lib/pksx/pokemon-actions';
+import {
+	applySaveFileLegalityFixBatch,
+	type SaveFileLegalityFixableEntry
+} from '$lib/pksx/save-file-legality-report';
 import { CapacitorSavesStorage, type NativeFileStore } from '$lib/pksx/saves/capacitor-storage';
 import { WorkspaceRevisionConflictError } from '$lib/pksx/saves';
 import { SaveFileEditCoordinator } from '$lib/pksx/save-file-edit-coordinator';
@@ -15,7 +19,6 @@ describe('automatic Backup mutation integration', () => {
 	it('repairs a stale cached marker from authoritative storage before Engine work', async () => {
 		const storage = createStorage();
 		const state = await importWorkspace(storage);
-
 		const prepared = await prepareAutomaticBackup({
 			storage,
 			state: { ...state, automaticBackupCreated: true },
@@ -224,7 +227,136 @@ describe('automatic Backup mutation integration', () => {
 		});
 		expect(await storage.listBackups(state.file.id)).toHaveLength(1);
 	});
+
+	it('keeps batch Legality Fix bytes uncommitted when a later Pokemon fails', async () => {
+		const storage = createStorage();
+		const state = await importWorkspace(storage);
+		const preview = legalityFixBatchPreview();
+		const applyPokemonAction = vi
+			.fn()
+			.mockResolvedValueOnce(successfulPokemonAction(state.workspace, 2))
+			.mockResolvedValueOnce({
+				ok: false,
+				value: null,
+				error: { code: 'stale-pokemon-action-preview', message: 'Second preview is stale.' }
+			});
+
+		const result = await applySaveFileLegalityFixBatch({
+			engine: createMockEngine({ applyPokemonAction }),
+			workspace: state,
+			preview,
+			activeBox: 0,
+			isCurrent: () => true,
+			prepareAutomaticBackup: (workspace) =>
+				prepareAutomaticBackup({ storage, state: workspace, reason: 'legality-fix' }),
+			persistWorkspace: (workspace, expectedUpdatedAt) =>
+				storage
+					.putWorkspace({
+						saveFileId: workspace.file.id,
+						bytes: workspace.bytes,
+						dirty: workspace.dirty,
+						automaticBackupCreated: workspace.automaticBackupCreated,
+						expectedUpdatedAt
+					})
+					.then(() => undefined)
+		});
+
+		expect(result).toMatchObject({ status: 'error', message: 'Second preview is stale.' });
+		expect(applyPokemonAction).toHaveBeenCalledTimes(2);
+		expect(await storage.getWorkspace(state.file.id)).toMatchObject({
+			bytes: new Uint8Array([1]),
+			dirty: false,
+			automaticBackupCreated: true
+		});
+		expect(await storage.listBackups(state.file.id)).toHaveLength(1);
+	});
+
+	it('rejects a reverse stale batch commit after a concurrent Workspace write', async () => {
+		const storage = createStorage();
+		const state = await importWorkspace(storage);
+		const started = deferred<void>();
+		const engineResult = deferred<ReturnType<typeof successfulPokemonAction>>();
+		const entry = legalityFixEntry('Pikachu', 0);
+		const engine = createMockEngine({
+			applyPokemonAction: vi.fn(async () => {
+				started.resolve();
+				return engineResult.promise;
+			})
+		});
+		const pending = applySaveFileLegalityFixBatch({
+			engine,
+			workspace: state,
+			preview: {
+				status: 'complete',
+				entries: [entry]
+			},
+			activeBox: 0,
+			isCurrent: () => true,
+			prepareAutomaticBackup: (workspace) =>
+				prepareAutomaticBackup({ storage, state: workspace, reason: 'legality-fix' }),
+			persistWorkspace: (workspace, expectedUpdatedAt) =>
+				storage
+					.putWorkspace({
+						saveFileId: workspace.file.id,
+						bytes: workspace.bytes,
+						dirty: workspace.dirty,
+						automaticBackupCreated: workspace.automaticBackupCreated,
+						expectedUpdatedAt
+					})
+					.then(() => undefined)
+		});
+		await started.promise;
+		const prepared = await storage.getWorkspace(state.file.id);
+		if (!prepared) throw new Error('Expected prepared Workspace.');
+		const concurrent = await storage.putWorkspace({
+			saveFileId: state.file.id,
+			bytes: new Uint8Array([9]),
+			dirty: true,
+			automaticBackupCreated: true,
+			expectedUpdatedAt: prepared.updatedAt
+		});
+		engineResult.resolve(successfulPokemonAction(state.workspace, 2));
+
+		await expect(pending).resolves.toMatchObject({
+			status: 'error',
+			message: 'The persisted Workspace changed before this write.'
+		});
+		expect(await storage.getWorkspace(state.file.id)).toEqual(concurrent);
+		expect(await storage.listBackups(state.file.id)).toHaveLength(1);
+	});
 });
+
+function legalityFixBatchPreview() {
+	return {
+		status: 'complete' as const,
+		entries: [legalityFixEntry('Pikachu', 0), legalityFixEntry('Mew', 1)]
+	};
+}
+
+function legalityFixEntry(pokemonLabel: string, slot: number): SaveFileLegalityFixableEntry {
+	return {
+		result: {
+			id: `party:${slot}`,
+			source: { zone: 'party', slot },
+			location: `Party, Slot ${slot + 1}`,
+			pokemonLabel,
+			speciesName: pokemonLabel,
+			classification: 'illegal',
+			firstIssue: 'Example issue.',
+			report: {
+				legal: false,
+				judgement: 'Illegal',
+				summary: 'This Pokemon has legality issues.',
+				fixableProblems: ['Move Set'],
+				warnings: [],
+				messages: []
+			}
+		},
+		status: 'fixable',
+		operation: { kind: 'legality-fix', choiceId: `fix:${slot}` },
+		changes: [{ field: 'Move 1', before: 'Splash', after: 'Thunder Shock' }]
+	};
+}
 
 async function importWorkspace(storage: CapacitorSavesStorage): Promise<WorkspaceState> {
 	const bytes = new Uint8Array([1]);
@@ -327,11 +459,11 @@ function saveWorkspace(): SaveWorkspace {
 	};
 }
 
-function successfulPokemonAction(workspace: SaveWorkspace) {
+function successfulPokemonAction(workspace: SaveWorkspace, byte = 2) {
 	return {
 		ok: true as const,
 		value: {
-			bytes: new Uint8Array([2]),
+			bytes: new Uint8Array([byte]),
 			workspace,
 			mutated: true,
 			changes: []

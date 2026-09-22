@@ -13,6 +13,7 @@
 			| 'backup-browser';
 		label: string;
 		description: string;
+		unavailableReason?: string;
 	};
 </script>
 

@@ -1,13 +1,19 @@
 import { getContext, setContext, tick } from 'svelte';
 import type { SummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 import type { SummonedWorkflowLauncher } from '$lib/pksx/summoned-workflow';
+import type { ToastHost } from '$lib/pksx/toast/host.svelte';
 import type {
+	SaveFileLegalityFixBatchApplyResult,
+	SaveFileLegalityFixBatchEntry,
+	SaveFileLegalityFixBatchPreview,
+	SaveFileLegalityFixableEntry,
 	SaveFileLegalityProgress,
 	SaveFileLegalityResult,
 	SaveFileLegalityScanResult
 } from '.';
 
 const hostKey = Symbol('pksx-save-file-legality-report-host');
+export const SAVE_FILE_LEGALITY_REPORT_DISMISS_CONTROL_ID = 'save-legality-close';
 
 export type SaveFileLegalityReportProvider = {
 	saveFileId: string;
@@ -17,16 +23,46 @@ export type SaveFileLegalityReportProvider = {
 		signal: AbortSignal,
 		onProgress: (progress: SaveFileLegalityProgress) => void
 	): Promise<SaveFileLegalityScanResult>;
+	previewFixes(
+		results: SaveFileLegalityResult[],
+		signal: AbortSignal
+	): Promise<SaveFileLegalityFixBatchPreview>;
+	applyFixes(
+		preview: Extract<SaveFileLegalityFixBatchPreview, { status: 'complete' }>,
+		signal: AbortSignal,
+		onCommitting: () => void
+	): Promise<SaveFileLegalityFixBatchApplyResult>;
 	jumpToSlot(result: SaveFileLegalityResult): Promise<string | null>;
 	openPokemonReport(result: SaveFileLegalityResult): Promise<boolean>;
 };
 
 export type SaveFileLegalityReportTarget = 'active-save' | 'active-collection';
 
+export type SaveFileLegalityFixBatchViewState =
+	| { status: 'idle' }
+	| { status: 'previewing' }
+	| { status: 'preview-ready'; entries: SaveFileLegalityFixBatchEntry[] }
+	| { status: 'applying'; entries: SaveFileLegalityFixBatchEntry[] }
+	| { status: 'committing'; entries: SaveFileLegalityFixBatchEntry[] }
+	| {
+			status: 'applied';
+			entries: Array<
+				| Exclude<SaveFileLegalityFixBatchEntry, SaveFileLegalityFixableEntry>
+				| (Omit<SaveFileLegalityFixableEntry, 'status'> & { status: 'applied' })
+			>;
+	  }
+	| { status: 'cancelled'; entries: SaveFileLegalityFixBatchEntry[] }
+	| { status: 'error'; message: string; entries: SaveFileLegalityFixBatchEntry[] };
+
 export type SaveFileLegalityReportViewState =
 	| { status: 'idle' }
 	| { status: 'loading'; progress: SaveFileLegalityProgress }
-	| { status: 'ready'; results: SaveFileLegalityResult[]; stale: boolean }
+	| {
+			status: 'ready';
+			results: SaveFileLegalityResult[];
+			stale: boolean;
+			batch: SaveFileLegalityFixBatchViewState;
+	  }
 	| { status: 'cancelled'; results: SaveFileLegalityResult[] }
 	| { status: 'error'; message: string; results: SaveFileLegalityResult[] };
 
@@ -36,8 +72,11 @@ export type SaveFileLegalityReportHost = {
 	register(
 		provider: (target: SaveFileLegalityReportTarget) => SaveFileLegalityReportProvider | null
 	): () => void;
+	canOpen(target?: SaveFileLegalityReportTarget): boolean;
 	open(launcher: SummonedWorkflowLauncher, target?: SaveFileLegalityReportTarget): boolean;
 	run(): void;
+	previewFixes(): void;
+	applyFixes(): void;
 	cancel(): void;
 	close(): void;
 	validate(): void;
@@ -45,8 +84,18 @@ export type SaveFileLegalityReportHost = {
 	openPokemonReport(result: SaveFileLegalityResult): Promise<boolean>;
 };
 
+export function isSaveFileLegalityFixBatchBusy(state: SaveFileLegalityReportViewState) {
+	return (
+		state.status === 'ready' &&
+		(state.batch.status === 'previewing' ||
+			state.batch.status === 'applying' ||
+			state.batch.status === 'committing')
+	);
+}
+
 export function createSaveFileLegalityReportHost(
-	workflow: SummonedWorkflowHost
+	workflow: SummonedWorkflowHost,
+	toast: Pick<ToastHost, 'success' | 'error'> = { success() {}, error() {} }
 ): SaveFileLegalityReportHost {
 	let provider = $state<
 		((target: SaveFileLegalityReportTarget) => SaveFileLegalityReportProvider | null) | null
@@ -91,6 +140,9 @@ export function createSaveFileLegalityReportHost(
 				if (provider === next) provider = null;
 			};
 		},
+		canOpen(nextTarget = 'active-save') {
+			return provider?.(nextTarget) != null;
+		},
 		open(launcher, nextTarget = 'active-save') {
 			if (!provider) return false;
 			target = nextTarget;
@@ -107,11 +159,100 @@ export function createSaveFileLegalityReportHost(
 			return true;
 		},
 		run,
+		previewFixes() {
+			const source = captured;
+			if (!source || state.status !== 'ready' || state.stale) return;
+			const results = state.results;
+			controller?.abort();
+			controller = new AbortController();
+			const currentRequest = ++request;
+			state = { ...state, batch: { status: 'previewing' } };
+			focusBatchDismissControl();
+			void source
+				.previewFixes(results, controller.signal)
+				.then((preview) => {
+					if (currentRequest !== request || state.status !== 'ready') return;
+					state = {
+						...state,
+						batch:
+							preview.status === 'cancelled'
+								? { status: 'cancelled', entries: preview.entries }
+								: { status: 'preview-ready', entries: preview.entries }
+					};
+					if (preview.status === 'cancelled') toast.success('Legality Fix preview cancelled.');
+				})
+				.catch((error: unknown) => failBatch(currentRequest, [], error));
+		},
+		applyFixes() {
+			const source = captured;
+			if (
+				!source ||
+				state.status !== 'ready' ||
+				state.stale ||
+				state.batch.status !== 'preview-ready'
+			)
+				return;
+			const entries = state.batch.entries;
+			const preview = { status: 'complete' as const, entries };
+			controller?.abort();
+			controller = new AbortController();
+			const currentRequest = ++request;
+			state = { ...state, batch: { status: 'applying', entries } };
+			focusBatchDismissControl();
+			void source
+				.applyFixes(preview, controller.signal, () => {
+					if (
+						currentRequest === request &&
+						state.status === 'ready' &&
+						state.batch.status === 'applying'
+					) {
+						state = { ...state, batch: { status: 'committing', entries } };
+					}
+				})
+				.then((result) => {
+					if (currentRequest !== request || state.status !== 'ready') return;
+					if (result.status === 'cancelled') {
+						state = { ...state, batch: { status: 'cancelled', entries } };
+						toast.success('Legality Fix batch cancelled. No Pokemon changes were committed.');
+						return;
+					}
+					if (result.status === 'error') {
+						state = { ...state, batch: { status: 'error', message: result.message, entries } };
+						toast.error(result.message);
+						return;
+					}
+					const appliedById = Object.fromEntries(
+						result.applied.map((entry) => [entry.result.id, entry])
+					);
+					state = {
+						...state,
+						stale: true,
+						batch: {
+							status: 'applied',
+							entries: entries.map((entry) => {
+								if (entry.status === 'unfixable') return entry;
+								const applied = appliedById[entry.result.id] ?? entry;
+								return { ...applied, status: 'applied' as const };
+							})
+						}
+					};
+					toast.success('All supported Legality Fixes succeeded.');
+				})
+				.catch((error: unknown) => failBatch(currentRequest, entries, error));
+		},
 		cancel() {
 			controller?.abort();
 			if (state.status === 'loading') {
 				request += 1;
 				state = { status: 'cancelled', results: [] };
+			} else if (
+				state.status === 'ready' &&
+				(state.batch.status === 'previewing' || state.batch.status === 'applying')
+			) {
+				const entries = state.batch.status === 'applying' ? state.batch.entries : [];
+				request += 1;
+				state = { ...state, batch: { status: 'cancelled', entries } };
+				toast.success('Legality Fix batch cancelled. No Pokemon changes were committed.');
 			}
 		},
 		close() {
@@ -139,6 +280,7 @@ export function createSaveFileLegalityReportHost(
 			}
 		},
 		async jumpToSlot(result) {
+			if (isSaveFileLegalityFixBatchBusy(state)) return false;
 			if (!captured || !captured.isCurrent()) {
 				if (state.status === 'ready') state = { ...state, stale: true };
 				return false;
@@ -157,6 +299,7 @@ export function createSaveFileLegalityReportHost(
 			return true;
 		},
 		async openPokemonReport(result) {
+			if (isSaveFileLegalityFixBatchBusy(state)) return false;
 			if (!captured || !captured.isCurrent()) {
 				if (state.status === 'ready') state = { ...state, stale: true };
 				return false;
@@ -169,13 +312,32 @@ export function createSaveFileLegalityReportHost(
 			return opened;
 		}
 	};
+
+	function failBatch(
+		currentRequest: number,
+		entries: SaveFileLegalityFixBatchEntry[],
+		error: unknown
+	) {
+		if (currentRequest !== request || state.status !== 'ready') return;
+		const message = error instanceof Error ? error.message : 'The Legality Fix batch failed.';
+		state = { ...state, batch: { status: 'error', message, entries } };
+		toast.error(message);
+	}
+}
+
+function focusBatchDismissControl() {
+	void tick().then(() =>
+		document.getElementById(SAVE_FILE_LEGALITY_REPORT_DISMISS_CONTROL_ID)?.focus()
+	);
 }
 
 function viewStateFor(
 	result: SaveFileLegalityScanResult,
 	stale: boolean
 ): SaveFileLegalityReportViewState {
-	if (result.status === 'complete') return { status: 'ready', results: result.results, stale };
+	if (result.status === 'complete') {
+		return { status: 'ready', results: result.results, stale, batch: { status: 'idle' } };
+	}
 	if (result.status === 'cancelled') return { status: 'cancelled', results: result.results };
 	return { status: 'error', message: result.message, results: result.results };
 }
