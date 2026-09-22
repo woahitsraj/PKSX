@@ -244,9 +244,48 @@ test('advertises Main Menu report readiness only after its provider can open', a
 		.getByRole('dialog', { name: 'Main Menu' })
 		.getByRole('button', { name: /^Legality Report/ });
 	await expect(reportCommand).toContainText('The active Save File is still loading.');
+	await reportCommand.click();
+	await expect(page.getByRole('region', { name: 'Notifications' })).toContainText(
+		'The active Save File is still loading.'
+	);
 
 	await releaseWorkspaceResponses(page);
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	const readyReportCommand = page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: /^Legality Report/ });
+	await expect(readyReportCommand).toContainText('Check Party and every occupied Box Slot.');
+});
+
+test('opens the globally scoped report from another destination', async ({ page }) => {
+	await installWorkspaceResponseHold(page);
+	await importSaveFile(page);
+	await page.goto('/settings');
+	await expect(page.locator('[data-destination-root="settings"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
+	await holdWorkspaceResponses(page, 'loadSaveWorkspace');
+
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	const reportCommand = page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: /^Legality Report/ });
 	await expect(reportCommand).toContainText('Check Party and every occupied Box Slot.');
+	await reportCommand.click();
+	await waitForHeldWorkspaceResponse(page);
+	await expect(page).toHaveURL(/\/boxes$/);
+	await expect(page.getByRole('dialog', { name: 'Save File Legality Report' })).toHaveCount(0);
+	await expect(page.getByRole('region', { name: 'Notifications' })).not.toContainText(
+		'The active Save File is still loading.'
+	);
+
+	await releaseWorkspaceResponses(page);
+	const report = page.getByRole('dialog', { name: 'Save File Legality Report' });
+	await expect(report).toBeVisible({ timeout: 120_000 });
+	await expect(report.getByRole('list', { name: /Legality Report results/ })).toBeVisible({
+		timeout: 120_000
+	});
 });
 
 test('runs, cancels, refreshes, filters, and navigates a Save File-wide Legality Report', async ({

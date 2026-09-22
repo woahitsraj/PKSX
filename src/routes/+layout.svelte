@@ -91,6 +91,11 @@
 	const saveFileLegalityReportOpen = $derived(
 		summonedWorkflow.active?.kind === 'save-file-legality-report'
 	);
+	const saveFileLegalityReportUnavailableReason = $derived(
+		hasActiveSaveFile
+			? 'The active Save File is still loading.'
+			: 'Import a Save File before running a report.'
+	);
 	const mainMenuEntries = $derived.by<MainMenuEntry[]>(() => {
 		const entriesAfterReservedSearch: MainMenuEntry[] = [
 			{
@@ -129,11 +134,9 @@
 		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX + 1, 0, {
 			key: 'save-file-legality-report',
 			label: 'Legality Report',
-			description: saveFileLegalityReport.canOpen()
+			description: (activeRoute === 'boxes' ? saveFileLegalityReport.canOpen() : hasActiveSaveFile)
 				? 'Check Party and every occupied Box Slot.'
-				: hasActiveSaveFile
-					? 'The active Save File is still loading.'
-					: 'Import a Save File before running a report.'
+				: saveFileLegalityReportUnavailableReason
 		});
 		entries.splice(MAIN_MENU_SEARCH_INSERTION_INDEX + 2, 0, ...entriesAfterReservedSearch);
 		return entries;
@@ -315,7 +318,7 @@
 		const launcherId =
 			reportLauncher?.id ?? rememberDestinationFocus() ?? ensureDestinationFocus('boxes');
 		if (!launcherId || !saveFileLegalityReport.open({ type: 'control', id: launcherId })) {
-			toastHost.error('Import a Save File before running a Legality Report.');
+			toastHost.error(saveFileLegalityReportUnavailableReason);
 			await restoreDestinationFocus('boxes');
 		}
 	}
