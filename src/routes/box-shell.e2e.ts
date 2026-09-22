@@ -1708,6 +1708,7 @@ test('Box Menu keeps fixed unavailable commands and X and Y preserve their conte
 	await expect(menu.locator('.box-menu-row strong')).toHaveText([
 		'Export',
 		'Save a backup',
+		'Legality Report',
 		'Switch',
 		'Open another collection',
 		'Close'
@@ -1878,7 +1879,7 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 	await page.keyboard.press('x');
 	menu = page.getByRole('dialog', { name: 'Box Menu' });
 	await expect(menu).toContainText('011020251345.sav');
-	await expect(menu.locator('#box-menu-command-3-reason')).toHaveText(
+	await expect(menu.locator('#box-menu-command-4-reason')).toHaveText(
 		'Two collections are already open.'
 	);
 
@@ -1920,7 +1921,7 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 	await page.keyboard.press('Escape');
 	await expect(menu).toBeVisible();
 	await expect(menu).toContainText('emerald-011020251345.sav');
-	await expect(page.locator('#box-menu-command-2')).toBeFocused();
+	await expect(page.locator('#box-menu-command-3')).toBeFocused();
 	await menu.getByRole('button', { name: 'Switch', exact: true }).click();
 	switchPicker = page.getByRole('dialog', { name: 'Switch collection' });
 	await switchPicker.getByRole('button', { name: /Pokemon Storage/ }).click();
@@ -2639,12 +2640,12 @@ test('Box Menu and related picker Cancel restore focus at both viewport floors',
 		await expect(page.getByRole('dialog', { name: 'Switch collection' })).toBeVisible();
 		await page.keyboard.press('Escape');
 		await expect(menu).toBeVisible();
-		await expect(page.locator('#box-menu-command-2')).toBeFocused();
+		await expect(page.locator('#box-menu-command-3')).toBeFocused();
 
 		await menu.getByRole('button', { name: 'Switch', exact: true }).click();
 		await page.locator('.source-picker-backdrop').click({ position: { x: 1, y: 1 } });
 		await expect(menu).toBeVisible();
-		await expect(page.locator('#box-menu-command-2')).toBeFocused();
+		await expect(page.locator('#box-menu-command-3')).toBeFocused();
 		await page.keyboard.press('x');
 		await expect(page.locator('#box-0-slot-2')).toBeFocused();
 	}

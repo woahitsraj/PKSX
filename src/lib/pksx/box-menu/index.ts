@@ -1,6 +1,12 @@
 import type { BoxSourceType } from '$lib/pksx/storage-workbench';
 
-export type BoxMenuCommandKey = 'export' | 'save-backup' | 'switch' | 'open-another' | 'close';
+export type BoxMenuCommandKey =
+	| 'export'
+	| 'save-backup'
+	| 'legality-report'
+	| 'switch'
+	| 'open-another'
+	| 'close';
 
 export type BoxMenuCommand = {
 	key: BoxMenuCommandKey;
@@ -40,6 +46,11 @@ export function createBoxMenuCommands(input: {
 			: input.workspaceReady
 				? available('save-backup', 'Save a backup')
 				: unavailable('save-backup', 'Save a backup', workspaceReason),
+		storage
+			? unavailable('legality-report', 'Legality Report', 'Legality Reports need a Save File.')
+			: input.workspaceReady
+				? available('legality-report', 'Legality Report')
+				: unavailable('legality-report', 'Legality Report', workspaceReason),
 		available('switch', 'Switch'),
 		input.paneCount >= 2
 			? unavailable('open-another', 'Open another collection', 'Two collections are already open.')
