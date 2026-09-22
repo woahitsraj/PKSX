@@ -51,11 +51,8 @@
 						type="button"
 						class:controller-focused={activeIndex === index}
 						aria-current={entry.key === activeDestination ? 'page' : undefined}
-						aria-disabled={entry.unavailableReason ? 'true' : undefined}
 						onfocus={() => onFocusEntry(index)}
-						onclick={() => {
-							if (!entry.unavailableReason) onSelectEntry(entry);
-						}}
+						onclick={() => onSelectEntry(entry)}
 					>
 						<strong>{entry.label}</strong>
 						<span>{entry.description}</span>
@@ -123,12 +120,8 @@
 		transition: transform 120ms var(--pksx-ease-out);
 	}
 
-	.main-menu-row button:active:not([aria-disabled='true']) {
+	.main-menu-row button:active {
 		transform: scale(0.97);
-	}
-
-	.main-menu-row button[aria-disabled='true'] {
-		cursor: not-allowed;
 	}
 
 	.main-menu-row button:hover,

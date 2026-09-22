@@ -4754,7 +4754,7 @@
 		const saveFileId = snapshot.file.id;
 		const source = saveFileSource(snapshot);
 		const paneId = pane?.id ?? primaryPaneId;
-		const activeBox = paneWorkspace?.loadedBox ?? 0;
+		const activeBox = pane?.activeBox ?? paneWorkspace?.loadedBox ?? 0;
 		const activeEngine = engine;
 		const isCurrent = () => {
 			if (target === 'active-save') {

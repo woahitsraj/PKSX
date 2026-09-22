@@ -76,6 +76,19 @@ describe('Save File Legality Report batch action', () => {
 		expect(document.body.textContent).toContain('Move 1: Splash to Thunder Shock');
 		expect(document.body.textContent).toContain('No supported Legality Fix is available.');
 	});
+
+	test('labels a cancelled preview without reporting zero completed outcomes', () => {
+		render({
+			status: 'ready',
+			results: [legalityResult('Pikachu', 0)],
+			stale: false,
+			batch: { status: 'cancelled', entries: [] }
+		});
+
+		expect(document.body.textContent).toContain('Preview cancelled');
+		expect(document.body.textContent).toContain('No Legality Fix preview was completed.');
+		expect(document.body.textContent).not.toContain('0 supported');
+	});
 });
 
 function render(

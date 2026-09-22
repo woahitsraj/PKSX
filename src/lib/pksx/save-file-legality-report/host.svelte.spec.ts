@@ -244,6 +244,37 @@ describe('Save File Legality Report host', () => {
 		finishCommit.resolve();
 		await vi.waitFor(() => expect(host.state).toMatchObject({ batch: { status: 'applied' } }));
 	});
+
+	it('reports rejected preview and apply requests without leaving the batch busy', async () => {
+		const toast = { success: vi.fn(), error: vi.fn() };
+		const previewFixes = vi
+			.fn()
+			.mockRejectedValueOnce(new Error('Preview failed.'))
+			.mockResolvedValue({ status: 'complete', entries: [] });
+		const applyFixes = vi.fn().mockRejectedValue(new Error('Apply failed.'));
+		const host = createSaveFileLegalityReportHost(workflowHost(), toast);
+		host.register(() => ({ ...provider(1, () => true, []), previewFixes, applyFixes }));
+
+		host.open({ type: 'control', id: 'launcher' });
+		await vi.waitFor(() => expect(host.state.status).toBe('ready'));
+		host.previewFixes();
+		await vi.waitFor(() =>
+			expect(host.state).toMatchObject({ batch: { status: 'error', message: 'Preview failed.' } })
+		);
+
+		host.run();
+		await vi.waitFor(() => expect(host.state).toMatchObject({ batch: { status: 'idle' } }));
+		host.previewFixes();
+		await vi.waitFor(() =>
+			expect(host.state).toMatchObject({ batch: { status: 'preview-ready' } })
+		);
+		host.applyFixes();
+		await vi.waitFor(() =>
+			expect(host.state).toMatchObject({ batch: { status: 'error', message: 'Apply failed.' } })
+		);
+		expect(toast.error).toHaveBeenNthCalledWith(1, 'Preview failed.');
+		expect(toast.error).toHaveBeenNthCalledWith(2, 'Apply failed.');
+	});
 });
 
 function workflowHost() {

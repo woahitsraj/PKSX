@@ -252,7 +252,7 @@
 	}
 
 	async function selectMainMenuEntry(entry: MainMenuEntry) {
-		if (!mainMenuOpen || entry.unavailableReason) return;
+		if (!mainMenuOpen) return;
 		if (entry.key === 'search') {
 			const launcher = summonedWorkflow.active?.launcher;
 			summonedWorkflow.closeAll();

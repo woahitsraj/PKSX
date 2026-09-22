@@ -7,7 +7,11 @@
 		type SaveFileLegalityFilter,
 		type SaveFileLegalityResult
 	} from '$lib/pksx/save-file-legality-report';
-	import type { SaveFileLegalityReportViewState } from '$lib/pksx/save-file-legality-report/host.svelte';
+	import {
+		isSaveFileLegalityFixBatchBusy,
+		SAVE_FILE_LEGALITY_REPORT_DISMISS_CONTROL_ID,
+		type SaveFileLegalityReportViewState
+	} from '$lib/pksx/save-file-legality-report/host.svelte';
 	import { keyboardAction } from '$lib/pksx/box-shell';
 	import type { NavigationAction } from '$lib/pksx/box-navigation';
 	import DelayedSpinner from './DelayedSpinner.svelte';
@@ -42,12 +46,7 @@
 	const counts = $derived(countSaveFileLegalityResults(results));
 	const filtered = $derived(filterSaveFileLegalityResults(results, filter));
 	const loading = $derived(reportState.status === 'loading');
-	const batchBusy = $derived(
-		reportState.status === 'ready' &&
-			(reportState.batch.status === 'previewing' ||
-				reportState.batch.status === 'applying' ||
-				reportState.batch.status === 'committing')
-	);
+	const batchBusy = $derived(isSaveFileLegalityFixBatchBusy(reportState));
 	const batchCancelable = $derived(
 		reportState.status === 'ready' &&
 			(reportState.batch.status === 'previewing' || reportState.batch.status === 'applying')
@@ -152,7 +151,7 @@
 				<p id="save-legality-description">Party and occupied Box Slots</p>
 			</div>
 			<button
-				id="save-legality-close"
+				id={SAVE_FILE_LEGALITY_REPORT_DISMISS_CONTROL_ID}
 				type="button"
 				class="close"
 				data-save-legality-control
@@ -263,9 +262,20 @@
 								<h3>
 									{reportState.batch.status === 'applied'
 										? 'Applied Legality Fixes'
-										: 'Legality Fix preview'}
+										: reportState.batch.status === 'cancelled'
+											? 'Preview cancelled'
+											: reportState.batch.status === 'error'
+												? 'Legality Fix failed'
+												: 'Legality Fix preview'}
 								</h3>
-								<p>{fixableCount} supported, {unfixableCount} could not be included.</p>
+								{#if reportState.batch.status === 'cancelled'}
+									<p>No Legality Fix preview was completed.</p>
+								{:else}
+									<p>{fixableCount} supported, {unfixableCount} could not be included.</p>
+								{/if}
+								{#if reportState.batch.status === 'error'}
+									<p>{reportState.batch.message}</p>
+								{/if}
 								<p>Warnings and Fishy results stay unchanged.</p>
 							</div>
 							{#if reportState.batch.status === 'preview-ready'}

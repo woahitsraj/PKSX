@@ -13,6 +13,7 @@ import type {
 } from '.';
 
 const hostKey = Symbol('pksx-save-file-legality-report-host');
+export const SAVE_FILE_LEGALITY_REPORT_DISMISS_CONTROL_ID = 'save-legality-close';
 
 export type SaveFileLegalityReportProvider = {
 	saveFileId: string;
@@ -82,6 +83,15 @@ export type SaveFileLegalityReportHost = {
 	jumpToSlot(result: SaveFileLegalityResult): Promise<boolean>;
 	openPokemonReport(result: SaveFileLegalityResult): Promise<boolean>;
 };
+
+export function isSaveFileLegalityFixBatchBusy(state: SaveFileLegalityReportViewState) {
+	return (
+		state.status === 'ready' &&
+		(state.batch.status === 'previewing' ||
+			state.batch.status === 'applying' ||
+			state.batch.status === 'committing')
+	);
+}
 
 export function createSaveFileLegalityReportHost(
 	workflow: SummonedWorkflowHost,
@@ -157,18 +167,21 @@ export function createSaveFileLegalityReportHost(
 			controller = new AbortController();
 			const currentRequest = ++request;
 			state = { ...state, batch: { status: 'previewing' } };
-			focusBatchCancel();
-			void source.previewFixes(results, controller.signal).then((preview) => {
-				if (currentRequest !== request || state.status !== 'ready') return;
-				state = {
-					...state,
-					batch:
-						preview.status === 'cancelled'
-							? { status: 'cancelled', entries: preview.entries }
-							: { status: 'preview-ready', entries: preview.entries }
-				};
-				if (preview.status === 'cancelled') toast.success('Legality Fix preview cancelled.');
-			});
+			focusBatchDismissControl();
+			void source
+				.previewFixes(results, controller.signal)
+				.then((preview) => {
+					if (currentRequest !== request || state.status !== 'ready') return;
+					state = {
+						...state,
+						batch:
+							preview.status === 'cancelled'
+								? { status: 'cancelled', entries: preview.entries }
+								: { status: 'preview-ready', entries: preview.entries }
+					};
+					if (preview.status === 'cancelled') toast.success('Legality Fix preview cancelled.');
+				})
+				.catch((error: unknown) => failBatch(currentRequest, [], error));
 		},
 		applyFixes() {
 			const source = captured;
@@ -185,7 +198,7 @@ export function createSaveFileLegalityReportHost(
 			controller = new AbortController();
 			const currentRequest = ++request;
 			state = { ...state, batch: { status: 'applying', entries } };
-			focusBatchCancel();
+			focusBatchDismissControl();
 			void source
 				.applyFixes(preview, controller.signal, () => {
 					if (
@@ -224,7 +237,8 @@ export function createSaveFileLegalityReportHost(
 						}
 					};
 					toast.success('All supported Legality Fixes succeeded.');
-				});
+				})
+				.catch((error: unknown) => failBatch(currentRequest, entries, error));
 		},
 		cancel() {
 			controller?.abort();
@@ -266,7 +280,7 @@ export function createSaveFileLegalityReportHost(
 			}
 		},
 		async jumpToSlot(result) {
-			if (batchIsBusy(state)) return false;
+			if (isSaveFileLegalityFixBatchBusy(state)) return false;
 			if (!captured || !captured.isCurrent()) {
 				if (state.status === 'ready') state = { ...state, stale: true };
 				return false;
@@ -285,7 +299,7 @@ export function createSaveFileLegalityReportHost(
 			return true;
 		},
 		async openPokemonReport(result) {
-			if (batchIsBusy(state)) return false;
+			if (isSaveFileLegalityFixBatchBusy(state)) return false;
 			if (!captured || !captured.isCurrent()) {
 				if (state.status === 'ready') state = { ...state, stale: true };
 				return false;
@@ -298,19 +312,23 @@ export function createSaveFileLegalityReportHost(
 			return opened;
 		}
 	};
+
+	function failBatch(
+		currentRequest: number,
+		entries: SaveFileLegalityFixBatchEntry[],
+		error: unknown
+	) {
+		if (currentRequest !== request || state.status !== 'ready') return;
+		const message = error instanceof Error ? error.message : 'The Legality Fix batch failed.';
+		state = { ...state, batch: { status: 'error', message, entries } };
+		toast.error(message);
+	}
 }
 
-function batchIsBusy(state: SaveFileLegalityReportViewState) {
-	return (
-		state.status === 'ready' &&
-		(state.batch.status === 'previewing' ||
-			state.batch.status === 'applying' ||
-			state.batch.status === 'committing')
+function focusBatchDismissControl() {
+	void tick().then(() =>
+		document.getElementById(SAVE_FILE_LEGALITY_REPORT_DISMISS_CONTROL_ID)?.focus()
 	);
-}
-
-function focusBatchCancel() {
-	void tick().then(() => document.getElementById('save-legality-close')?.focus());
 }
 
 function viewStateFor(
