@@ -200,6 +200,14 @@ _Avoid_: cloud source of truth, provider version, remote file
 A durable local change to a Sync Object that has not yet entered Shared Sync State.
 _Avoid_: unsaved change, Export
 
+**Conflict Resolution**:
+An explicit user decision that selects the next Shared Sync State from competing states.
+_Avoid_: last-write-wins, automatic merge
+
+**Conflict Recovery**:
+An immutable recovery copy of a competing state that was not selected during Conflict Resolution.
+_Avoid_: discarded state, active revision
+
 **Backup**:
 A restorable snapshot of save file bytes created before a risky operation.
 _Avoid_: copy, version, checkpoint, undo
@@ -327,9 +335,22 @@ _Avoid_: setting, option, config
 - **Shared Sync State** identifies the last complete, valid state accepted for cross-device distribution; it does not replace divergent local work.
 - A successfully persisted local change becomes a **Pending Sync Change** without blocking further local work.
 - Provider filenames, paths, timestamps, ordering, and object versions do not advance **Shared Sync State**.
-- A complete, valid incoming change replaces a clean, inactive local **Sync Object** automatically.
+- PKSX automatically accepts an incoming **Sync Object** state only when it descends from the exact **Shared Sync State** acknowledged by that **PKSX Installation** and either no **Pending Sync Change** exists or the incoming state causally includes every pending change.
+- Unknown or divergent ancestry never establishes authority; PKSX preserves every distinct competing state for explicit conflict resolution.
+- A complete, valid incoming change that satisfies the causal replacement rule replaces a clean, inactive local **Sync Object** automatically.
 - PKSX stages an incoming change while the user is working with its **Sync Object** and applies it at a safe reload boundary.
-- When local and incoming states have both changed from their acknowledged state, PKSX preserves both until the conflict is resolved.
+- A deletion follows the causal replacement rule; a concurrent deletion and local change become competing states.
+- PKSX collapses competing states only when their complete synchronized content and metadata are identical.
+- A change that affects multiple **Sync Objects** is accepted automatically only when every affected object satisfies the causal replacement rule; otherwise PKSX preserves both coherent sets of affected objects.
+- **Conflict Resolution** advances **Shared Sync State**, and a clean **PKSX Installation** accepts that resolution without another prompt.
+- New work that diverges from a **Conflict Resolution** creates another conflict.
+- Concurrent **Conflict Resolutions** are competing states and require another explicit **Conflict Resolution**.
+- PKSX retains every unchosen state from a **Conflict Resolution** as a **Conflict Recovery** until the user deletes it or the retention policy expires.
+- An incoming state that exactly matches acknowledged state is a duplicate and has no effect.
+- An incoming state that is a known ancestor of acknowledged state is stale and has no effect.
+- An incoming state that matches or causally includes a **Pending Sync Change** confirms that change, clears the covered pending work, and may advance **Shared Sync State**.
+- A user may continue editing a **Sync Object** during an unresolved conflict; each new edit advances the local competing head without discarding other heads.
+- PKSX presents only the newest state from each causal branch as a competing head, not every intermediate state in that branch.
 - Invalid or unsupported incoming state does not replace valid local state or advance **Shared Sync State**.
 - Enrolling an empty device in a **Sync Profile** materializes its **Shared Sync State** into local **Saves**.
 - A **Sync Object** keeps one permanent, opaque identifier across devices and providers.
