@@ -192,6 +192,18 @@ _Avoid_: cloud account, Sync Profile
 A durable object in Saves that Cloud Sync addresses and tracks independently.
 _Avoid_: cloud file, provider record, synced row
 
+**Sync Revision**:
+An immutable, complete state of one Sync Object, linked to the Sync Revisions it causally succeeds.
+_Avoid_: provider version, delta, timestamped version
+
+**Deletion Marker**:
+A Sync Revision that records a Sync Object's deletion without carrying its live payload.
+_Avoid_: missing object, hard delete, expired object
+
+**Save File Family**:
+A Save File and its owned Workspace and Backups, treated as one coherent group for Cloud Sync deletion and conflict handling.
+_Avoid_: unrelated sync objects, orphaned backup, provider folder
+
 **Shared Sync State**:
 The last complete, valid state for a Sync Object that its Sync Profile has accepted for distribution across enrolled devices.
 _Avoid_: cloud source of truth, provider version, remote file
@@ -331,6 +343,24 @@ _Avoid_: setting, option, config
 - A local **Saves** collection may exist without a **Sync Profile**.
 - A **Sync Profile** owns one synchronized **Saves** collection.
 - Every **Sync Object** belongs to exactly one **Sync Profile**.
+- Every **Sync Revision** belongs to exactly one **Sync Object** and has a permanent opaque identity.
+- A **Sync Revision** names zero or more parent **Sync Revisions**; those links, never clocks or timestamps, establish causal ancestry.
+- A **Sync Revision** carries a complete snapshot or manifest from which its **Sync Object** state can be reconstructed without applying deltas.
+- Missing causal ancestors make a **Sync Revision** incomplete until those ancestors are available.
+- An initial **Sync Revision** has no parents, an ordinary edit or deletion has one parent, and a **Conflict Resolution** has every competing head it supersedes as a parent.
+- PKSX may coalesce competing **Sync Revisions** automatically only when their complete synchronized content and metadata are identical.
+- Naming a parent means the child **Sync Revision** causally supersedes it; it does not imply that PKSX merged differing content automatically.
+- A **Deletion Marker** follows the same identity, ancestry, validation, and conflict rules as every other **Sync Revision**.
+- A **Deletion Marker** retains its **Sync Object** identity, type, ownership relationship, and last known user-facing label, but contains no live artifact payload.
+- A **Deletion Marker** remains the **Shared Sync State** while an older live state could return from an offline **PKSX Installation**.
+- A live state with unprovable ancestry conflicts with a **Deletion Marker**; it never silently resurrects the deleted **Sync Object**.
+- **Conflict Resolution** may restore a deleted **Sync Object** with a live multi-parent descendant; importing the same content anew creates a different **Sync Object** identity.
+- Deleting a **Save File** records one coherent change with a **Deletion Marker** for the **Save File**, its **Workspace** when one exists, and every **Backup** known to the deleting **PKSX Installation**.
+- The **Save File** deletion covers its entire **Save File Family**, including owned children discovered after the deletion.
+- A child revision created from an older live **Save File** cannot appear without its owner or restore the **Save File Family** silently.
+- A child change concurrent with its owning **Save File** deletion creates a conflict between the deleted **Save File Family** and the live family containing that child.
+- A deleted **Save File Family** remains deleted unless **Conflict Resolution** makes its **Save File** live again.
+- A **Conflict Resolution** that preserves a **Workspace** or **Backup** must also make its owning **Save File** live in the same coherent change.
 - Device-local **Saves** determines what that device opens and edits, including while offline.
 - **Shared Sync State** identifies the last complete, valid state accepted for cross-device distribution; it does not replace divergent local work.
 - A successfully persisted local change becomes a **Pending Sync Change** without blocking further local work.
