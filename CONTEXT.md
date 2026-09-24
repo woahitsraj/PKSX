@@ -196,6 +196,30 @@ _Avoid_: cloud file, provider record, synced row
 An immutable, complete state of one Sync Object, linked to the Sync Revisions it causally succeeds.
 _Avoid_: provider version, delta, timestamped version
 
+**Sync Envelope**:
+The common versioned metadata that identifies a Sync Revision, its Sync Object kind, and its causal parents independently of its Sync Payload.
+_Avoid_: provider record, app version, TinyBase schema
+
+**Sync Payload**:
+The versioned state or manifest that a live Sync Revision carries for one kind of Sync Object.
+_Avoid_: provider data, app schema, unversioned JSON
+
+**Unsupported Sync Revision**:
+A complete Sync Revision whose Sync Envelope or Sync Payload version a PKSX Installation cannot interpret safely.
+_Avoid_: invalid revision, corrupt revision
+
+**Invalid Sync Revision**:
+A Sync Revision whose recognized encoding, schema, digest, or integrity checks fail.
+_Avoid_: Unsupported Sync Revision, competing revision
+
+**Sync Migration**:
+A provider-neutral forward conversion that creates a current-format descendant from a supported older Sync Revision while preserving the source revision.
+_Avoid_: provider migration, in-place rewrite, downgrade
+
+**Sync Digest**:
+A SHA-256 digest of a Sync Revision's canonical synchronized meaning, independent of its provider representation and transport encoding.
+_Avoid_: provider checksum, entity fingerprint, Sync Object identity
+
 **Deletion Marker**:
 A Sync Revision that records a Sync Object's deletion without carrying its live payload.
 _Avoid_: missing object, hard delete, expired object
@@ -346,8 +370,27 @@ _Avoid_: setting, option, config
 - Every **Sync Revision** belongs to exactly one **Sync Object** and has a permanent opaque identity.
 - A **Sync Revision** names zero or more parent **Sync Revisions**; those links, never clocks or timestamps, establish causal ancestry.
 - A **Sync Revision** carries a complete snapshot or manifest from which its **Sync Object** state can be reconstructed without applying deltas.
+- Every **Sync Revision** has one **Sync Envelope** version; every live **Sync Revision** also has one kind-specific **Sync Payload** version.
+- **Sync Envelope** and **Sync Payload** versions are independent of app releases, provider versions, local storage versions, and embedded artifact format versions.
+- Each PKSX release reads and migrates every released **Sync Envelope** and **Sync Payload** version and writes only its current versions.
+- A **Sync Migration** runs in the provider-neutral sync coordinator after validating its source and creates a new immutable descendant without rewriting or removing the source.
+- **Sync Migration** converts complete candidate heads during reconciliation, not historical ancestors; each competing head migrates independently, and a **Conflict Recovery** migrates only if it becomes active again.
+- A validated **Sync Migration** preserves synchronized meaning; its descendant advances clean **Shared Sync State** automatically, while independently migrated competing heads remain in conflict.
+- When an older client edit and a **Sync Migration** share the same parent, PKSX may migrate the edit into a descendant of both heads only if it proves that the other head changed representation but not synchronized meaning; otherwise the heads remain in conflict.
+- Sync Provider adapters store and transport versioned records but never interpret, migrate, or downgrade them.
+- An embedded artifact format that PKSX cannot read makes its **Sync Revision** unsupported; **Sync Migration** never converts that artifact lossily.
+- **Sync Migration** validates its source, completes every forward step, validates and digests the result, and publishes only the complete result.
+- Unknown versions are unsupported, recognized data that fails schema or digest validation is an **Invalid Sync Revision**, and a migrator failure is an internal sync error.
+- Unsupported, invalid, and failed migrations preserve the original revision and local state, publish no partial result, and pause only the affected **Sync Object** or **Save File Family** until PKSX can retry safely.
+- PKSX encodes structured **Sync Envelopes** and **Sync Payloads** as RFC 8785 canonical JSON in UTF-8 and keeps binary artifacts as separately referenced raw bytes.
+- A **Sync Digest** uses lowercase hexadecimal in the form `sha256:<digest>` and covers the envelope and payload versions, **Sync Object** identity and kind, sorted parent identities, all synchronized content and metadata, and payload and artifact digests.
+- A **Sync Digest** excludes the **Sync Revision** identity, Sync Provider fields, transport encoding, and upload metadata.
+- A **Sync Revision** uses its **Sync Digest** as its identity, so independently created revisions with the same ancestry and canonical synchronized meaning have the same identity.
+- Each recognized **Sync Envelope** and **Sync Payload** version has a closed schema; an unknown field in a recognized version makes the revision invalid rather than safe to ignore.
+- Adding, removing, or reinterpreting a synchronized payload field increments that kind's **Sync Payload** version; changing common metadata or canonicalization increments the **Sync Envelope** version.
+- A new **Sync Object** kind begins its own **Sync Payload** version sequence at version 1 and is unsupported by clients that do not recognize the kind.
 - Missing causal ancestors make a **Sync Revision** incomplete until those ancestors are available.
-- An initial **Sync Revision** has no parents, an ordinary edit or deletion has one parent, and a **Conflict Resolution** has every competing head it supersedes as a parent.
+- An initial **Sync Revision** has no parents, an ordinary edit or deletion has one parent, an automatically migrated older-client edit has both the edit and schema-only head as parents, and a **Conflict Resolution** has every competing head it supersedes as parents.
 - PKSX may coalesce competing **Sync Revisions** automatically only when their complete synchronized content and metadata are identical.
 - Naming a parent means the child **Sync Revision** causally supersedes it; it does not imply that PKSX merged differing content automatically.
 - A **Deletion Marker** follows the same identity, ancestry, validation, and conflict rules as every other **Sync Revision**.
@@ -382,6 +425,8 @@ _Avoid_: setting, option, config
 - A user may continue editing a **Sync Object** during an unresolved conflict; each new edit advances the local competing head without discarding other heads.
 - PKSX presents only the newest state from each causal branch as a competing head, not every intermediate state in that branch.
 - Invalid or unsupported incoming state does not replace valid local state or advance **Shared Sync State**.
+- An **Unsupported Sync Revision** pauses Cloud Sync writes only for its **Sync Object**, or its **Save File Family** when family consistency is involved; unrelated **Sync Objects** continue syncing.
+- Device-local editing and **Export** remain available while an **Unsupported Sync Revision** pauses Cloud Sync writes, and new **Pending Sync Changes** wait for a compatible PKSX version.
 - Enrolling an empty device in a **Sync Profile** materializes its **Shared Sync State** into local **Saves**.
 - A **Sync Object** keeps one permanent, opaque identifier across devices and providers.
 - Filenames, provider keys, storage paths, timestamps, and content hashes do not determine **Sync Object** identity.

@@ -1,0 +1,3 @@
+# Use versioned content-addressed Cloud Sync revisions
+
+PKSX will version common Sync Envelopes separately from kind-specific Sync Payloads, encode structured records as RFC 8785 canonical JSON, and use a SHA-256 digest of the canonical synchronized meaning as the immutable Sync Revision identity. The provider-neutral sync coordinator will retain forward migrators for every released version and publish meaning-preserving migrations as new descendants instead of rewriting history. Unsupported, invalid, or failed migrations pause only the affected Sync Object or Save File Family, which prevents destructive downgrades while allowing identical concurrent migrations to converge.
