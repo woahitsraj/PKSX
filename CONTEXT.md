@@ -176,6 +176,26 @@ _Avoid_: raw gender value when no visible sprite difference exists
 A live connection between two devices running PKSX, for sending Pokemon Entities or Storage Boxes without cloud sync.
 _Avoid_: cloud sync, account sync
 
+**Link Trade**:
+An exchange of one Pokemon Entity between PKSX and a retail game through the game's own local trade flow.
+_Avoid_: Peer Transfer, Switch transfer
+
+**Trade Radio**:
+A user-owned USB devboard, running matching firmware, that provides the local wireless connection for a Link Trade.
+_Avoid_: dongle, adapter
+
+**Trade Offer**:
+The partner's Pokemon Entity shown during a Link Trade before the trade completes.
+_Avoid_: receipt, received Pokemon
+
+**Trade Receipt**:
+Evidence that a Link Trade completed, including the received Pokemon Entity bytes.
+_Avoid_: offer, Identity Fingerprint
+
+**Unknown Trade Outcome**:
+The state of an interrupted Link Trade that may or may not have completed.
+_Avoid_: failed trade, cancelled trade
+
 **Cloud Sync**:
 An opt-in, provider-readable capability that makes Saves, including persisted Workspace changes, available to the same user across PKSX devices. Its Sync Provider can read synchronized Saves content and metadata.
 _Avoid_: Peer Transfer, TinyBase sync, Export
@@ -547,6 +567,11 @@ _Avoid_: setting, option, config
 - A **Sprite Catalog** may or may not contain an asset for a **Sprite Identity**.
 - A **Peer Transfer** sends **Pokemon Entities** or **Storage Boxes** between two devices running PKSX.
 - A **Pokemon Entity** received through **Peer Transfer** enters **Pokemon Storage** before it can be moved into a **Save File**.
+- A **Link Trade** sends one **Pokemon Entity** and receives one **Pokemon Entity** from a retail game through a **Trade Radio**.
+- A **Link Trade** sends a copy; its source **Slot** or **Pokemon Storage** record stays unchanged.
+- A **Trade Offer** is not a **Trade Receipt**; only a **Trade Receipt** adds a **Pokemon Entity** to PKSX.
+- A **Pokemon Entity** received through a **Link Trade** enters **Pokemon Storage** once per **Trade Receipt**, with a new **Record ID**.
+- An **Unknown Trade Outcome** keeps its recovery evidence and never starts another **Link Trade** automatically.
 - **Cloud Sync** makes **Save Files**, **Backups**, **Pokemon Storage**, and persisted **Workspaces** available across a user's PKSX devices.
 - A **Sync Provider** may read all content and metadata that **Cloud Sync** synchronizes.
 - Metadata needed to interpret or present a **Sync Object** travels with that object.
