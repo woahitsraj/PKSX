@@ -184,6 +184,48 @@ async function installWorkspaceResponseHold(page: Page) {
 	});
 }
 
+async function installPreservationReadFailure(page: Page) {
+	await page.addInitScript(() => {
+		const NativeWorker = window.Worker;
+		const testWindow = window as typeof window & { __failNextPreservationRead?: boolean };
+		testWindow.__failNextPreservationRead = false;
+		window.Worker = new Proxy(NativeWorker, {
+			construct(Target, args: ConstructorParameters<typeof Worker>) {
+				const worker = new Target(...args);
+				const addEventListener = worker.addEventListener.bind(worker);
+				worker.addEventListener = ((type: string, listener: EventListenerOrEventListenerObject) => {
+					if (type !== 'message') return addEventListener(type, listener);
+					addEventListener(type, (event: Event) => {
+						const message = (event as MessageEvent).data as { method?: string } | null;
+						const failed =
+							message?.method === 'readPreservationPayload' &&
+							testWindow.__failNextPreservationRead;
+						if (failed) testWindow.__failNextPreservationRead = false;
+						const delivered = failed
+							? new MessageEvent('message', {
+									data: {
+										...(event as MessageEvent).data,
+										result: {
+											ok: false,
+											value: null,
+											error: {
+												code: 'unsupported-preservation-payload',
+												message: 'Injected projection failure.'
+											}
+										}
+									}
+								})
+							: event;
+						if (typeof listener === 'function') listener.call(worker, delivered);
+						else listener.handleEvent(delivered);
+					});
+				}) as typeof worker.addEventListener;
+				return worker;
+			}
+		}) as typeof Worker;
+	});
+}
+
 async function holdWorkspaceResponses(page: Page, count = -1, method = 'loadSaveWorkspace') {
 	await page.evaluate(
 		({ responses, responseMethod }) => {
@@ -2614,6 +2656,46 @@ test('Pokemon Storage opens as an independent second pane and persists copied Po
 	await page.getByRole('button', { name: 'Next Location' }).click();
 	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
 	await expect(page.locator('#box-1-slot-0')).toContainText('ARON');
+});
+
+test('a committed Storage move cannot be retried when its projection refresh fails', async ({
+	page
+}) => {
+	await installPreservationReadFailure(page);
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	const panes = page.locator('.box-pane');
+	const storagePane = panes.nth(1);
+	await panes.nth(0).locator('[id$="box-0-slot-0"]').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	await storagePane.locator('[id$="box-0-slot-0"]').click();
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await storagePane.locator('[id$="box-0-slot-0"]').click();
+	await page.getByRole('button', { name: 'Dismiss Slot actions' }).click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	await page.evaluate(() => {
+		(
+			window as typeof window & { __failNextPreservationRead?: boolean }
+		).__failNextPreservationRead = true;
+	});
+	await storagePane.locator('[id$="box-0-slot-1"]').click();
+	await expect(page.locator('.toast-error')).toContainText('Reload Boxes to refresh its Slots.');
+	await expect(page.locator('.carry-at-focus')).toHaveCount(0);
+	await storagePane.locator('[id$="box-0-slot-1"]').click();
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toHaveCount(0);
+	await page.goto('/?source=pokemon-storage');
+	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+	await expect(page.locator('#box-0-slot-1')).toContainText('ARON');
 });
 
 test('Save File Carry rejects an occupied Pokemon Storage destination', async ({ page }) => {

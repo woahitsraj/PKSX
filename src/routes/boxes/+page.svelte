@@ -406,6 +406,7 @@
 	let saveFiles = $state<StoredSaveFile[]>([]);
 	let savePaneWorkspaces = $state<Record<string, SavePaneWorkspace>>({});
 	let pokemonStorage = $state<StoredPokemonStorage | null>(null);
+	let catalogViewStale = $state(false);
 	let engine: EngineApi | null = null;
 	let workspaceLoadRequest = 0;
 	let paneSwitchRequest = 0;
@@ -1499,6 +1500,10 @@
 	}
 
 	function openSlotMenu(focus: SlotFocus, pane: BoxPaneState | undefined = activePane) {
+		if (catalogViewStale && pane?.source.type === 'pokemon-storage') {
+			toastHost.error('Reload Boxes before changing Pokemon Storage Slots.');
+			return;
+		}
 		if (!summonedWorkflow.open('slot-menu', slotLauncher(focus, pane))) return;
 		slotMenuPokemonActionRequest += 1;
 		slotMenuPokemonActionPreview = null;
@@ -2092,7 +2097,15 @@
 		destination: SaveSlotRef,
 		destinationPane: BoxPaneState | undefined = activePane
 	) {
-		if (!pendingSlotOperation) {
+		if (!pendingSlotOperation || busy) {
+			return;
+		}
+		if (
+			catalogViewStale &&
+			(carryState?.sourceOwner.type === 'pokemon-storage' ||
+				destinationPane?.source.type === 'pokemon-storage')
+		) {
+			toastHost.error('Reload Boxes before changing Pokemon Storage Slots.');
 			return;
 		}
 
@@ -2242,7 +2255,9 @@
 				const recordId = catalogRecordAt(pending.source);
 				if (!recordId) throw new Error('Pokemon Storage source changed.');
 				await getPokemonStorageCatalog().retire(recordId, 'moved-to-save', nextState.file.id);
-				await refreshCatalogView();
+				pendingSlotOperation = null;
+				carryState = null;
+				await refreshCommittedCatalogView();
 			}
 
 			if (loadedSave?.file.id === nextState.file.id) loadedSave = nextState;
@@ -2274,7 +2289,7 @@
 				pending.kind === 'move'
 					? `Moved ${sourceSlot.label} to ${locationForSlotRef(destination)}.`
 					: `Copied ${sourceSlot.label} to ${locationForSlotRef(destination)}.`;
-			toastHost.success(statusMessage);
+			if (!catalogViewStale) toastHost.success(statusMessage);
 			queueMicrotask(focusActiveControl);
 		} catch (error) {
 			const message = getErrorMessage(error);
@@ -2310,11 +2325,14 @@
 		}
 
 		if (destination.zone !== 'box') throw new Error('Pokemon Storage destination is unavailable.');
+		const storageSource = carryState?.sourceOwner.type === 'pokemon-storage';
+		const sourcePaneId = carryState?.source.paneId;
+		busy = true;
 		try {
 			const catalog = getPokemonStorageCatalog();
 			const placement = { storageBoxId: catalogBoxId(destination.box), slot: destination.slot };
 			const destinationId = catalogRecordAt(destination);
-			if (carryState?.sourceOwner.type === 'pokemon-storage') {
+			if (storageSource) {
 				const sourceId = catalogRecordAt(pending.source);
 				if (!sourceId) throw new Error('Pokemon Storage source changed.');
 				if (pending.kind === 'copy') {
@@ -2338,16 +2356,18 @@
 					placement
 				);
 			}
-			await refreshCatalogView();
+			pendingSlotOperation = null;
+			carryState = null;
 		} catch (error) {
 			statusMessage = 'Slot change failed.';
 			toastHost.error(getErrorMessage(error));
 			return;
+		} finally {
+			busy = false;
 		}
+		const refreshed = await refreshCommittedCatalogView();
 
-		if (carryState?.sourceOwner.type === 'pokemon-storage') {
-			pendingSlotOperation = null;
-			carryState = null;
+		if (storageSource) {
 			activePaneId = destinationPane.id;
 			if (destination.zone === 'box') {
 				workbenchPanes = setPaneActiveBox(workbenchPanes, destinationPane.id, destination.box);
@@ -2360,17 +2380,19 @@
 				locationFocus: destinationFocus
 			};
 			workbenchPanes = setPaneFocus(workbenchPanes, destinationPane.id, destinationFocus);
-			statusMessage =
-				pending.kind === 'move'
-					? `Moved ${sourceSlot.label} to Pokemon Storage.`
-					: `Copied ${sourceSlot.label} to Pokemon Storage.`;
-			toastHost.success(statusMessage);
+			if (refreshed) {
+				statusMessage =
+					pending.kind === 'move'
+						? `Moved ${sourceSlot.label} to Pokemon Storage.`
+						: `Copied ${sourceSlot.label} to Pokemon Storage.`;
+				toastHost.success(statusMessage);
+			}
 			queueMicrotask(focusActiveControl);
 			return;
 		}
 
 		if (pending.kind === 'move') {
-			const sourcePane = workbenchPanes.find((pane) => pane.id === carryState?.source.paneId);
+			const sourcePane = workbenchPanes.find((pane) => pane.id === sourcePaneId);
 			const sourceWorkspace = saveWorkspaceForPane(sourcePane)?.state;
 			if (!sourcePane || !sourceWorkspace) {
 				toastHost.error('The source Save File is no longer available.');
@@ -2384,10 +2406,10 @@
 			return;
 		}
 
-		pendingSlotOperation = null;
-		carryState = null;
-		statusMessage = `Copied ${sourceSlot.label} to Pokemon Storage.`;
-		toastHost.success(statusMessage);
+		if (refreshed) {
+			statusMessage = `Copied ${sourceSlot.label} to Pokemon Storage.`;
+			toastHost.success(statusMessage);
+		}
 		queueMicrotask(focusActiveControl);
 	}
 
@@ -2705,9 +2727,10 @@
 			const recordId = catalogRecordAt(pending.source);
 			if (!recordId) throw new Error('Pokemon Storage source changed.');
 			await getPokemonStorageCatalog().retire(recordId, 'cleared');
-			await refreshCatalogView();
-			statusMessage = `Cleared ${pending.pokemonLabel} from ${pending.location}.`;
-			toastHost.success(statusMessage);
+			if (await refreshCommittedCatalogView()) {
+				statusMessage = `Cleared ${pending.pokemonLabel} from ${pending.location}.`;
+				toastHost.success(statusMessage);
+			}
 			return true;
 		} catch (error) {
 			statusMessage = 'Slot change failed.';
@@ -3342,6 +3365,10 @@
 		if (!activeEngine || !context || pokemonAction.status !== 'ready') {
 			return;
 		}
+		if (catalogViewStale && context.target.owner === 'pokemon-storage') {
+			toastHost.error('Reload Boxes before changing Pokemon Storage Slots.');
+			return;
+		}
 
 		const operation = operationOverride ?? selectedPokemonActionOperation(pokemonAction);
 		if (!operation) {
@@ -3385,6 +3412,14 @@
 				installPokemonActionWorkspace(result.workspace, context.target);
 				refreshPokemonActionContextWorkspace(context, result.workspace);
 			} else {
+				if (catalogViewStale) {
+					pokemonActionRequest += 1;
+					pokemonAction = { status: 'idle' };
+					pokemonActionContext = null;
+					summonedWorkflow.closeAll();
+					queueMicrotask(focusActiveControl);
+					return;
+				}
 				refreshPokemonActionContextStored(context, result.result);
 			}
 
@@ -3657,7 +3692,7 @@
 			recordId,
 			base64ToBytes(result.entityBytesBase64)
 		);
-		await refreshCatalogView();
+		await refreshCommittedCatalogView();
 	}
 
 	function backPokemonActions() {
@@ -5189,10 +5224,29 @@
 	}
 
 	async function refreshCatalogView() {
-		pokemonStorage = await catalogLegacyView(getPokemonStorageCatalog(), getPkhexEngine());
+		try {
+			pokemonStorage = await catalogLegacyView(getPokemonStorageCatalog(), getPkhexEngine());
+			catalogViewStale = false;
+		} catch (error) {
+			catalogViewStale = true;
+			throw error;
+		}
+	}
+
+	async function refreshCommittedCatalogView(): Promise<boolean> {
+		catalogViewStale = true;
+		try {
+			await refreshCatalogView();
+			return true;
+		} catch {
+			statusMessage = 'Pokemon Storage changed. Reload Boxes to refresh its Slots.';
+			toastHost.error(statusMessage);
+			return false;
+		}
 	}
 
 	function catalogBoxId(index: number): string {
+		if (catalogViewStale) throw new Error('Reload Boxes before changing Pokemon Storage Slots.');
 		const box = getPokemonStorageCatalog().listBoxes()[index];
 		if (!box) throw new Error('Storage Box is unavailable.');
 		return box.id;
