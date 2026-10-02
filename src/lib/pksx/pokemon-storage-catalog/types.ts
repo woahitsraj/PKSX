@@ -32,7 +32,6 @@ export type PokemonRecord = {
 export type StorageBox = {
 	id: string;
 	name: string | null;
-	order: number;
 	revision: number;
 	createdAt: string;
 	updatedAt: string;
@@ -48,6 +47,9 @@ export type PokemonStorageManifest = {
 	schemaVersion: typeof POKEMON_STORAGE_CATALOG_VERSION;
 	storageId: string;
 	revision: number;
+	createdAt: string;
+	updatedAt: string;
+	boxOrder: string[];
 	boxes: StorageBox[];
 	records: PokemonRecord[];
 	tombstones: DeletionTombstone[];
@@ -104,7 +106,10 @@ export function emptyManifest(
 		schemaVersion: POKEMON_STORAGE_CATALOG_VERSION,
 		storageId,
 		revision: 0,
-		boxes: [{ id: boxId, name: null, order: 0, revision: 0, createdAt: now, updatedAt: now }],
+		createdAt: now,
+		updatedAt: now,
+		boxOrder: [boxId],
+		boxes: [{ id: boxId, name: null, revision: 0, createdAt: now, updatedAt: now }],
 		records: [],
 		tombstones: []
 	};
@@ -113,7 +118,9 @@ export function assertManifest(manifest: PokemonStorageManifest): void {
 	if (
 		manifest.schemaVersion !== POKEMON_STORAGE_CATALOG_VERSION ||
 		!manifest.storageId ||
-		!Number.isSafeInteger(manifest.revision)
+		!Number.isSafeInteger(manifest.revision) ||
+		!manifest.createdAt ||
+		!manifest.updatedAt
 	)
 		throw new Error('Unsupported Pokemon Storage catalog version.');
 	if (manifest.boxes.length < 1) throw new Error('Pokemon Storage requires one Storage Box.');
@@ -122,6 +129,13 @@ export function assertManifest(manifest: PokemonStorageManifest): void {
 		if (boxes.has(box.id)) throw new Error('Duplicate Storage Box ID.');
 		boxes.add(box.id);
 	}
+	if (
+		!Array.isArray(manifest.boxOrder) ||
+		manifest.boxOrder.length !== boxes.size ||
+		new Set(manifest.boxOrder).size !== boxes.size ||
+		manifest.boxOrder.some((id) => !boxes.has(id))
+	)
+		throw new Error('Storage root Box order is invalid.');
 	const records = new Set<string>();
 	for (const record of manifest.records) {
 		if (records.has(record.recordId)) throw new Error('Duplicate Pokemon Record ID.');
@@ -166,7 +180,7 @@ export type ResolvedPlacement = {
 	overflow: boolean;
 };
 export function resolvePlacements(manifest: PokemonStorageManifest): ResolvedPlacement[] {
-	const boxes = [...manifest.boxes].sort((a, b) => a.order - b.order);
+	const boxes = manifest.boxOrder.map((id) => manifest.boxes.find((box) => box.id === id)!);
 	const slots = boxes.flatMap((box) =>
 		Array.from({ length: 30 }, (_, slot) => ({ storageBoxId: box.id, slot }))
 	);

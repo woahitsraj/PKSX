@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EngineApi, PreservationPayloadSummary } from '$lib/engine';
+import { createMockEngine } from '$lib/engine/mock-engine';
 import { PokemonStorageService } from './service';
 import { referenceFor, type CatalogPersistence, type PokemonOrigin } from './types';
 
@@ -302,6 +303,50 @@ export function catalogContract(
 			const record = await service.add(bytes(3), origin);
 			await corrupt(persistence, record.payload.id);
 			await expect(service.readPayload(record.recordId)).rejects.toThrow();
+		});
+		it('keeps box order and timestamps on the Storage root', async () => {
+			const persistence = create();
+			let now = 'created';
+			const service = new PokemonStorageService(persistence, fakeEngine(), () => now);
+			await service.initialize();
+			const first = service.listBoxes()[0];
+			now = 'added';
+			const second = await service.addBox('Second');
+			const before = service.current!;
+			now = 'reordered';
+			await service.reorderBoxes([second.id, first.id]);
+			const after = service.current!;
+			expect(after.boxOrder).toEqual([second.id, first.id]);
+			expect(after.createdAt).toBe('created');
+			expect(after.updatedAt).toBe('reordered');
+			expect(after.revision).toBe(before.revision + 1);
+			expect(after.boxes).toEqual(before.boxes);
+			expect(service.listBoxes().map((box) => box.id)).toEqual(after.boxOrder);
+			expect((await persistence.read())?.boxOrder).toEqual(after.boxOrder);
+			await expect(
+				persistence.commit(
+					after.revision,
+					{ ...after, revision: after.revision + 1, boxOrder: [first.id, first.id] },
+					[]
+				)
+			).rejects.toThrow(/order/);
+		});
+		it('copies independent engine payloads with createMockEngine', async () => {
+			const engine = createMockEngine();
+			const service = new PokemonStorageService(create(), engine);
+			await service.initialize();
+			const first = await service.add(bytes(1, 2, 3), origin);
+			const copy = await service.copy(first.recordId);
+			expect(copy.recordId).not.toBe(first.recordId);
+			expect(copy.identityFingerprint).toBe(first.identityFingerprint);
+			expect(await service.readPayload(copy.recordId)).not.toEqual(
+				await service.readPayload(first.recordId)
+			);
+			const copied = await engine.readPreservationPayload(await service.readPayload(copy.recordId));
+			expect(copied).toMatchObject({
+				ok: true,
+				value: { summary: { recordId: copy.recordId }, entityBytes: bytes(1, 2, 3) }
+			});
 		});
 	});
 }
