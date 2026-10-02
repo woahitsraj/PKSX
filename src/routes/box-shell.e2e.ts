@@ -15,6 +15,8 @@ const scarletFixturePath = path.resolve(
 const letsGoEeveeFixturePath = path.resolve(
 	'test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-lets-go-eevee-2025-03-24-savedata.bin'
 );
+const aronEntityBytes =
+	'rVIoJRblSsu7zMnI/xUAAwQAAgK+w9LDv///AH8OAAB+AQAAfwYAAAAoAAAhAGoAvQAdACMeCg8AAAAAAAAAAAAAAAAAN4uhozfCnwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
 
 async function settleMotion(page: Page) {
 	await page.evaluate(() =>
@@ -545,31 +547,41 @@ async function showFirstBoxFromParty(page: Page) {
 	await expect(pane.getByRole('heading', { name: 'Box 01' })).toBeVisible({ timeout: 60000 });
 }
 
-// Seeds a Pokemon Storage shape the app never creates itself, so a later read proves persistence.
 async function seedPokemonStorageBoxes(page: Page, boxCount: number) {
 	await page.evaluate(
 		(boxes) =>
 			new Promise<void>((resolve, reject) => {
-				const open = indexedDB.open('pksx-saves');
-
-				open.onerror = () => reject(open.error ?? new Error('Could not open Saves.'));
+				const open = indexedDB.open('pksx-pokemon-storage-catalog');
+				open.onerror = () => reject(open.error ?? new Error('Could not open Pokemon Storage.'));
 				open.onsuccess = () => {
 					const database = open.result;
-					const transaction = database.transaction('pokemonStorage', 'readwrite');
-
-					transaction.objectStore('pokemonStorage').put({
-						id: 'pokemon-storage',
-						schemaVersion: 1,
-						boxCount: boxes,
-						boxSlotCount: 30,
-						updatedAt: '2026-05-16T12:00:00.000Z',
-						boxes: Array.from({ length: boxes }, (_, box) => ({
-							index: box,
-							name: `Box ${String(box + 1).padStart(2, '0')}`,
-							slots: Array.from({ length: 30 }, (_, slot) => ({ box, slot, pokemon: null }))
-						}))
-					});
-
+					const transaction = database.transaction('manifest', 'readwrite');
+					const store = transaction.objectStore('manifest');
+					const read = store.get('current');
+					read.onerror = () => reject(read.error ?? new Error('Could not read Pokemon Storage.'));
+					read.onsuccess = () => {
+						const manifest = read.result;
+						if (!manifest) {
+							transaction.abort();
+							reject(new Error('Pokemon Storage catalog is missing.'));
+							return;
+						}
+						const now = '2026-05-16T12:00:00.000Z';
+						for (let index = manifest.boxes.length; index < boxes; index += 1) {
+							const id = crypto.randomUUID();
+							manifest.boxes.push({
+								id,
+								name: `Box ${String(index + 1).padStart(2, '0')}`,
+								revision: 0,
+								createdAt: now,
+								updatedAt: now
+							});
+							manifest.boxOrder.push(id);
+						}
+						manifest.revision += 1;
+						manifest.updatedAt = now;
+						store.put(manifest, 'current');
+					};
 					transaction.onerror = () =>
 						reject(transaction.error ?? new Error('Could not seed Pokemon Storage.'));
 					transaction.oncomplete = () => {
@@ -583,9 +595,8 @@ async function seedPokemonStorageBoxes(page: Page, boxCount: number) {
 }
 
 async function seedOccupiedPokemonStorageSlot(page: Page) {
-	await seedPokemonStorageBoxes(page, 3);
 	await page.evaluate(
-		() =>
+		(entityBytesBase64) =>
 			new Promise<void>((resolve, reject) => {
 				const open = indexedDB.open('pksx-saves');
 				open.onerror = () => reject(open.error ?? new Error('Could not open Saves.'));
@@ -593,36 +604,49 @@ async function seedOccupiedPokemonStorageSlot(page: Page) {
 					const database = open.result;
 					const transaction = database.transaction('pokemonStorage', 'readwrite');
 					const store = transaction.objectStore('pokemonStorage');
-					const read = store.get('pokemon-storage');
-					read.onerror = () => reject(read.error ?? new Error('Could not read Pokemon Storage.'));
-					read.onsuccess = () => {
-						const storage = read.result;
-						storage.boxes[0].slots[0].pokemon = {
-							label: 'STORAGE ARON',
-							detail: 'Lv. 11',
-							level: 11,
-							experience: 1331,
-							speciesId: 304,
-							form: 0,
-							isEgg: false,
-							spriteIdentity: {
-								speciesId: 304,
-								form: 0,
-								isEgg: false,
-								isShiny: false,
-								displaySex: 'default'
-							},
-							origin: {
-								entryMode: 'imported',
-								originSaveFileName: null,
-								originGame: null,
-								originalTrainer: null,
-								trainerId: null,
-								enteredAt: '2026-09-08T12:00:00.000Z'
-							}
-						};
-						store.put(storage);
-					};
+					store.put({
+						id: 'pokemon-storage',
+						schemaVersion: 1,
+						boxCount: 3,
+						boxSlotCount: 30,
+						updatedAt: '2026-09-08T12:00:00.000Z',
+						boxes: Array.from({ length: 3 }, (_, box) => ({
+							index: box,
+							name: `Box ${String(box + 1).padStart(2, '0')}`,
+							slots: Array.from({ length: 30 }, (_, slot) => ({
+								box,
+								slot,
+								pokemon:
+									box === 0 && slot === 0
+										? {
+												label: 'ARON',
+												detail: 'Lv. 11',
+												level: 11,
+												experience: 1331,
+												speciesId: 304,
+												form: 0,
+												isEgg: false,
+												spriteIdentity: {
+													speciesId: 304,
+													form: 0,
+													isEgg: false,
+													isShiny: false,
+													displaySex: 'default'
+												},
+												entityBytesBase64,
+												origin: {
+													entryMode: 'imported',
+													originSaveFileName: null,
+													originGame: null,
+													originalTrainer: null,
+													trainerId: null,
+													enteredAt: '2026-09-08T12:00:00.000Z'
+												}
+											}
+										: null
+							}))
+						}))
+					});
 					transaction.onerror = () =>
 						reject(transaction.error ?? new Error('Could not seed Pokemon Storage.'));
 					transaction.oncomplete = () => {
@@ -630,6 +654,15 @@ async function seedOccupiedPokemonStorageSlot(page: Page) {
 						resolve();
 					};
 				};
+			}),
+		aronEntityBytes
+	);
+	await page.evaluate(
+		() =>
+			new Promise<void>((resolve, reject) => {
+				const deletion = indexedDB.deleteDatabase('pksx-pokemon-storage-catalog');
+				deletion.onsuccess = () => resolve();
+				deletion.onerror = () => reject(deletion.error);
 			})
 	);
 }
@@ -1198,6 +1231,8 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 	page
 }) => {
 	await openEmptySaves(page);
+	await seedPokemonStorageBoxes(page, 3);
+	await page.reload();
 	await page.locator('#box-grid').focus();
 
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
@@ -1836,6 +1871,8 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 	page
 }) => {
 	await openEmptySaves(page);
+	await seedPokemonStorageBoxes(page, 3);
+	await page.reload();
 	await importEmeraldThroughSaves(page);
 	await moveFirstEmeraldBoxSlotToThirdSlot(page);
 	await importScarletThroughSaves(page);
@@ -2487,6 +2524,8 @@ test('Pokemon Storage opens as an independent second pane and persists copied Po
 }) => {
 	await page.setViewportSize({ width: 1800, height: 900 });
 	await openEmptySaves(page);
+	await seedPokemonStorageBoxes(page, 3);
+	await page.reload();
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('x');
@@ -2599,7 +2638,7 @@ test('Save File Carry rejects an occupied Pokemon Storage destination', async ({
 	const savePane = panes.nth(0);
 	const storagePane = panes.nth(1);
 	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
-	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('STORAGE ARON');
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
 	const before = await persistedSavesStateSnapshot(page);
 
 	await savePane.locator('[id$="box-0-slot-0"]').click();
@@ -2612,7 +2651,7 @@ test('Save File Carry rejects an occupied Pokemon Storage destination', async ({
 		'Choose an empty Pokemon Storage Slot before moving from a Save File.'
 	);
 	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
-	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('STORAGE ARON');
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
 	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toBeFocused();
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
 	expect(await persistedSavesStateSnapshot(page)).toBe(before);
@@ -5729,7 +5768,7 @@ test('clear slot cancellation and confirmation use the in-app confirmation surfa
 
 	await page.goto('/?source=pokemon-storage');
 	await expect(page).toHaveURL(/\/boxes$/);
-	await expect(page.locator('#box-0-slot-0')).toContainText('STORAGE ARON');
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 });
 
 test('Clear uses its Pokemon Storage owner without mutating the loaded Save File or Backup state', async ({
@@ -5742,11 +5781,11 @@ test('Clear uses its Pokemon Storage owner without mutating the loaded Save File
 
 	await page.goto('/?source=pokemon-storage');
 	await expect(page).toHaveURL(/\/boxes$/);
-	await expect(page.locator('#box-0-slot-0')).toContainText('STORAGE ARON');
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Clear Slot' }).click();
-	await expect(page.getByRole('dialog', { name: 'Clear STORAGE ARON?' })).toContainText(
+	await expect(page.getByRole('dialog', { name: 'Clear ARON?' })).toContainText(
 		'This removes the Pokemon from Pokemon Storage.'
 	);
 	await page.getByRole('button', { name: 'Confirm Clear' }).click();
@@ -5822,7 +5861,7 @@ test('Saves uses one identity grid with internal scrolling at the landscape floo
 	await expect(grid).toHaveAttribute('aria-activedescendant', 'saves-target-import');
 	const storageCard = page.locator('#saves-target-pokemon-storage');
 	await expect(storageCard).toContainText('0 Pokemon');
-	await expect(storageCard).toContainText('3 Storage Boxes');
+	await expect(storageCard).toContainText('1 Storage Box');
 	await expect(storageCard).toContainText('Automatically saved by PKSX');
 
 	const fixture = await readFile(emeraldFixturePath);

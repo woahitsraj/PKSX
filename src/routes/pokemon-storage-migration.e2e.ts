@@ -75,7 +75,7 @@ test('migrates a legacy collection and retains its boxes and Pokemon after reloa
 	await expect(storage).toContainText('3 Storage');
 	await storage.click();
 	await expect(page.locator('#box-0-slot-4')).toContainText('ARON');
-	await expect(page.getByText('Favorites')).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Favorites, Box 01 of 3' })).toBeVisible();
 	await page.reload();
 	await expect(page.locator('#box-0-slot-4')).toContainText('ARON');
 	const state = await page.evaluate(async () => {
@@ -100,7 +100,8 @@ test('migrates a legacy collection and retains its boxes and Pokemon after reloa
 			catalog: await read('pksx-pokemon-storage-catalog', 'manifest', 'current')
 		};
 	});
-	expect(state.legacy).toMatchObject({ boxCount: 3, boxes: [{ name: 'Favorites' }] });
+	expect(state.legacy).toMatchObject({ boxCount: 3 });
+	expect(state.legacy).toHaveProperty('boxes.0.name', 'Favorites');
 	expect(state.catalog).toMatchObject({
 		boxes: [{ name: 'Favorites' }, { name: 'Empty collection' }, { name: 'Trade' }],
 		records: [{ origin: { originSaveFileName: 'source.sav' }, projection: { speciesId: 304 } }]
