@@ -121,6 +121,17 @@ export function catalogContract(
 			expect(reopened.listBoxes()[0].name).toBe('Favorites');
 			expect(reopened.current?.schemaVersion).toBe(1);
 		});
+		it('keeps resolved placement queries detached from the catalog', async () => {
+			const service = new PokemonStorageService(create(), fakeEngine());
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const record = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			service.listResolvedPlacements()[0].placement!.slot = 5;
+			expect(service.getRecord(record.recordId)?.placement).toEqual({
+				storageBoxId: boxId,
+				slot: 0
+			});
+		});
 		it('keeps the previous manifest on conflict and failed blob verification', async () => {
 			const persistence = create();
 			const engine = fakeEngine();
