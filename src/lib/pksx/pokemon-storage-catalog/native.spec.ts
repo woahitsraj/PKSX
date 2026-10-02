@@ -58,9 +58,10 @@ it('keeps a complete native manifest authoritative after a partial manifest writ
 		schemaVersion: 1 as const,
 		storageId: 'storage-id',
 		revision: 0,
-		boxes: [
-			{ id: 'box-id', name: null, order: 0, revision: 0, createdAt: 'now', updatedAt: 'now' }
-		],
+		createdAt: 'now',
+		updatedAt: 'now',
+		boxOrder: ['box-id'],
+		boxes: [{ id: 'box-id', name: null, revision: 0, createdAt: 'now', updatedAt: 'now' }],
 		records: [],
 		tombstones: []
 	};
@@ -81,9 +82,10 @@ it('serializes simultaneous native conditional commits', async () => {
 		schemaVersion: 1 as const,
 		storageId: 'storage-id',
 		revision: 0,
-		boxes: [
-			{ id: 'box-id', name: null, order: 0, revision: 0, createdAt: 'now', updatedAt: 'now' }
-		],
+		createdAt: 'now',
+		updatedAt: 'now',
+		boxOrder: ['box-id'],
+		boxes: [{ id: 'box-id', name: null, revision: 0, createdAt: 'now', updatedAt: 'now' }],
 		records: [],
 		tombstones: []
 	};
@@ -100,9 +102,10 @@ it('does not mistake a native read failure for an older authoritative generation
 		schemaVersion: 1 as const,
 		storageId: 'storage-id',
 		revision: 0,
-		boxes: [
-			{ id: 'box-id', name: null, order: 0, revision: 0, createdAt: 'now', updatedAt: 'now' }
-		],
+		createdAt: 'now',
+		updatedAt: 'now',
+		boxOrder: ['box-id'],
+		boxes: [{ id: 'box-id', name: null, revision: 0, createdAt: 'now', updatedAt: 'now' }],
 		records: [],
 		tombstones: []
 	};
@@ -123,9 +126,10 @@ it('does not sweep a staged blob while its native manifest commit is in flight',
 		schemaVersion: 1 as const,
 		storageId: 'storage-id',
 		revision: 0,
-		boxes: [
-			{ id: 'box-id', name: null, order: 0, revision: 0, createdAt: 'now', updatedAt: 'now' }
-		],
+		createdAt: 'now',
+		updatedAt: 'now',
+		boxOrder: ['box-id'],
+		boxes: [{ id: 'box-id', name: null, revision: 0, createdAt: 'now', updatedAt: 'now' }],
 		records: [],
 		tombstones: []
 	};

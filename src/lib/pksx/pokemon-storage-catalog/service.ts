@@ -46,7 +46,8 @@ export class PokemonStorageService {
 		return this.current?.records ?? [];
 	}
 	listBoxes(): StorageBox[] {
-		return this.current?.boxes.sort((a, b) => a.order - b.order) ?? [];
+		const manifest = this.current;
+		return manifest?.boxOrder.map((id) => manifest.boxes.find((box) => box.id === id)!) ?? [];
 	}
 	listResolvedPlacements() {
 		return this.#manifest ? resolvePlacements(this.#manifest) : [];
@@ -118,12 +119,12 @@ export class PokemonStorageService {
 			added = {
 				id: this.id(),
 				name,
-				order: manifest.boxes.length,
 				revision: 0,
 				createdAt: now,
 				updatedAt: now
 			};
 			manifest.boxes.push(added);
+			manifest.boxOrder.push(added.id);
 		});
 		return { ...added };
 	}
@@ -146,7 +147,7 @@ export class PokemonStorageService {
 				boxIds.some((id) => !manifest.boxes.some((box) => box.id === id))
 			)
 				throw new Error('Storage Box order is invalid.');
-			for (const box of manifest.boxes) box.order = boxIds.indexOf(box.id);
+			manifest.boxOrder = [...boxIds];
 		});
 	}
 
@@ -161,7 +162,7 @@ export class PokemonStorageService {
 			const index = manifest.boxes.findIndex((box) => box.id === boxId);
 			if (index < 0) throw new Error('Storage Box is unavailable.');
 			manifest.boxes.splice(index, 1);
-			manifest.boxes.sort((a, b) => a.order - b.order).forEach((box, order) => (box.order = order));
+			manifest.boxOrder = manifest.boxOrder.filter((id) => id !== boxId);
 		});
 	}
 
@@ -269,6 +270,7 @@ export class PokemonStorageService {
 		const next = cloneManifest(this.#manifest);
 		change(next);
 		next.revision += 1;
+		next.updatedAt = this.now();
 		assertManifest(next);
 		await this.persistence.commit(this.#manifest.revision, next, blobs);
 		this.#publish(next);
@@ -281,12 +283,14 @@ export class PokemonStorageService {
 			if (!manifest) return;
 			this.#store.setRow('catalog', manifest.storageId, {
 				schemaVersion: manifest.schemaVersion,
-				revision: manifest.revision
+				revision: manifest.revision,
+				createdAt: manifest.createdAt,
+				updatedAt: manifest.updatedAt,
+				boxOrder: JSON.stringify(manifest.boxOrder)
 			});
 			for (const box of manifest.boxes)
 				this.#store.setRow('boxes', box.id, {
 					name: box.name ?? '',
-					order: box.order,
 					revision: box.revision,
 					createdAt: box.createdAt,
 					updatedAt: box.updatedAt
