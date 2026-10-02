@@ -2872,6 +2872,125 @@ test('moves a Save File Pokemon into durable Storage and clears its source', asy
 	});
 });
 
+test('keeps both Pokemon recoverable when Save clearing fails after Storage commits', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	const [savePane, storagePane] = [
+		page.locator('.box-pane').nth(0),
+		page.locator('.box-pane').nth(1)
+	];
+	await page.evaluate(() => {
+		const original = IDBDatabase.prototype.transaction;
+		IDBDatabase.prototype.transaction = function (names, mode, options) {
+			if (
+				this.name === 'pksx-saves' &&
+				mode === 'readwrite' &&
+				Array.from(typeof names === 'string' ? [names] : names).includes('backups')
+			) {
+				throw new Error('Injected Backup failure');
+			}
+			return original.call(this, names, mode, options);
+		};
+	});
+	await savePane.locator('[id$="box-0-slot-0"]').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowRight');
+	await storagePane.locator('[id$="box-0-slot-0"]').focus();
+	await page.keyboard.press('Enter');
+	await expect(
+		page.locator('.toast-error', { hasText: 'Save File Slot was not cleared' })
+	).toBeVisible();
+	await expect(page.locator('.toast-success', { hasText: 'Moved ARON' })).toHaveCount(0);
+	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	expect(await backupCount(page)).toBe(0);
+
+	await page.reload();
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page
+		.getByRole('dialog', { name: 'Slot actions' })
+		.getByRole('button', { name: 'Clear Slot' })
+		.click();
+	await page.getByRole('button', { name: 'Confirm Clear' }).click();
+	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
+	expect((await backupRecords(page)).map(({ reason }) => reason)).toEqual(['pokemon-movement']);
+	await page.goto('/?source=pokemon-storage');
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+});
+
+test('retries a move after Pokemon Storage persistence fails without clearing the Save', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	const [savePane, storagePane] = [
+		page.locator('.box-pane').nth(0),
+		page.locator('.box-pane').nth(1)
+	];
+	await page.evaluate(() => {
+		const original = IDBDatabase.prototype.transaction;
+		IDBDatabase.prototype.transaction = function (names, mode, options) {
+			if (this.name === 'pksx-pokemon-storage-catalog' && mode === 'readwrite') {
+				throw new Error('Injected Storage failure');
+			}
+			return original.call(this, names, mode, options);
+		};
+	});
+	await savePane.locator('[id$="box-0-slot-0"]').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowRight');
+	await storagePane.locator('[id$="box-0-slot-0"]').focus();
+	await page.keyboard.press('Enter');
+	await expect(page.locator('.toast-error')).toContainText('Injected Storage failure');
+	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('Empty');
+	expect(await backupCount(page)).toBe(0);
+
+	await page.reload();
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	await savePane.locator('[id$="box-0-slot-0"]').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowRight');
+	await storagePane.locator('[id$="box-0-slot-0"]').focus();
+	await page.keyboard.press('Enter');
+	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('Empty');
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	expect((await backupRecords(page)).map(({ reason }) => reason)).toEqual(['pokemon-movement']);
+});
+
 test('Box Menu and related picker Cancel restore focus at both viewport floors', async ({
 	page
 }) => {
