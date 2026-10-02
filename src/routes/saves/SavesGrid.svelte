@@ -231,13 +231,17 @@
 	) {
 		const request = ++refreshRequest;
 		try {
-			const [snapshot, resolvedStorageSummary] = await Promise.all([
-				getSavesSnapshot({ force: options.force }),
-				ensurePokemonStorageCatalog()
-			]);
+			const storageSummary = ensurePokemonStorageCatalog().then(
+				(value) => ({ ok: true as const, value }),
+				(error: unknown) => ({ ok: false as const, error })
+			);
+			const snapshot = await getSavesSnapshot({ force: options.force });
 			if (request !== refreshRequest) return;
 			applySnapshot(snapshot, options.preferredTarget ?? rememberedTarget(), options.focus);
-			pokemonStorage = summarizePokemonStorage(resolvedStorageSummary);
+			const resolvedStorageSummary = await storageSummary;
+			if (request !== refreshRequest) return;
+			if (!resolvedStorageSummary.ok) throw resolvedStorageSummary.error;
+			pokemonStorage = summarizePokemonStorage(resolvedStorageSummary.value);
 		} catch (error) {
 			if (request !== refreshRequest) return;
 			catalogLoading = false;
