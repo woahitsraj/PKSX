@@ -2600,6 +2600,7 @@ test('Pokemon Storage opens as an independent second pane and persists copied Po
 	await savePane.locator('[id$="box-0-slot-0"]').click();
 	await expect(savePane).toHaveClass(/active-pane/);
 	await expect(storagePane).toHaveAttribute('data-location', 'box-1');
+	const saveBeforeCopy = await persistedSavesStateSnapshot(page);
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
 	for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowRight');
 	await expect(storagePane).toHaveClass(/active-pane/);
@@ -2633,6 +2634,57 @@ test('Pokemon Storage opens as an independent second pane and persists copied Po
 	await expect(storagePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON', {
 		timeout: 15000
 	});
+	expect(await persistedSavesStateSnapshot(page)).toBe(saveBeforeCopy);
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await savePane.locator('[id$="box-0-slot-0"]').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowRight');
+	await storagePane.locator('[id$="box-1-slot-1"]').focus();
+	await page.keyboard.press('Enter');
+	await expect(storagePane.locator('[id$="box-1-slot-1"]')).toContainText('ARON', {
+		timeout: 15000
+	});
+	expect(await persistedSavesStateSnapshot(page)).toBe(saveBeforeCopy);
+	const records = await page.evaluate(async () => {
+		const database = await new Promise<IDBDatabase>((resolve, reject) => {
+			const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+			opening.onsuccess = () => resolve(opening.result);
+			opening.onerror = () => reject(opening.error);
+		});
+		try {
+			return await new Promise<
+				Array<{
+					recordId: string;
+					identityFingerprint: string;
+					origin: {
+						entryMode: string;
+						originSaveFileId: string | null;
+						originSaveFileName: string | null;
+						originSaveSlot: { zone: string; box: number; slot: number };
+						enteredAt: string;
+					};
+				}>
+			>((resolve, reject) => {
+				const request = database.transaction('manifest').objectStore('manifest').get('current');
+				request.onsuccess = () => resolve(request.result.records);
+				request.onerror = () => reject(request.error);
+			});
+		} finally {
+			database.close();
+		}
+	});
+	expect(records).toHaveLength(2);
+	expect(records[0].recordId).not.toBe(records[1].recordId);
+	expect(records[0].identityFingerprint).toBe(records[1].identityFingerprint);
+	for (const record of records) {
+		expect(record.origin).toMatchObject({
+			entryMode: 'copied-in',
+			originSaveFileId: expect.any(String),
+			originSaveFileName: 'emerald-011020251345.sav',
+			originSaveSlot: { zone: 'box', box: 0, slot: 0 },
+			enteredAt: expect.any(String)
+		});
+	}
 	await savePane.getByRole('button', { name: 'Previous Location' }).click();
 	await expect(savePane).toHaveAttribute('data-location', 'party');
 	await storagePane.locator('[id$="box-1-slot-0"]').focus();
@@ -2656,6 +2708,7 @@ test('Pokemon Storage opens as an independent second pane and persists copied Po
 	await page.getByRole('button', { name: 'Next Location' }).click();
 	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
 	await expect(page.locator('#box-1-slot-0')).toContainText('ARON');
+	await expect(page.locator('#box-1-slot-1')).toContainText('ARON');
 });
 
 test('a committed Storage move cannot be retried when its projection refresh fails', async ({
