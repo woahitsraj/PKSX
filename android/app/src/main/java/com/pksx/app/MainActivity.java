@@ -1,8 +1,10 @@
 package com.pksx.app;
 
+import android.os.Bundle;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -16,6 +18,12 @@ public class MainActivity extends BridgeActivity {
 
     private final Set<String> motionDirections = new HashSet<>();
     private final Set<String> dispatchedDirections = new HashSet<>();
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (getPackageName().endsWith(".profile")) WebView.setWebContentsDebuggingEnabled(true);
+    }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
