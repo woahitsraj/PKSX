@@ -439,7 +439,7 @@ export class CapacitorSavesStorage implements SavesStorage {
 	}
 }
 
-function createCapacitorFileStore(rootPath = 'pksx-saves'): NativeFileStore {
+export function createCapacitorFileStore(rootPath = 'pksx-saves'): NativeFileStore {
 	const path = (relativePath: string) => `${rootPath}/${relativePath}`;
 	return {
 		async readText(relativePath) {

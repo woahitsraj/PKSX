@@ -1,0 +1,231 @@
+import { describe, expect, it } from 'vitest';
+import type { EngineApi, PreservationPayloadSummary } from '$lib/engine';
+import { PokemonStorageService } from './service';
+import { referenceFor, type CatalogPersistence, type PokemonOrigin } from './types';
+
+const origin: PokemonOrigin = {
+	entryMode: 'imported',
+	originSaveFileId: null,
+	originSaveFileName: null,
+	originGame: null,
+	originalTrainer: null,
+	trainerId: null,
+	enteredAt: '2026-10-02T00:00:00Z'
+};
+const bytes = (...values: number[]) => new Uint8Array(values);
+function fakeEngine(): Pick<
+	EngineApi,
+	'createPreservationPayload' | 'forkPreservationPayload' | 'readPreservationPayload'
+> & {
+	editPayload(recordId: string, entity: Uint8Array): Uint8Array;
+} {
+	let sequence = 0;
+	const payloads = new Map<string, { entity: Uint8Array; summary: PreservationPayloadSummary }>();
+	const create = async (entity: Uint8Array) => {
+		const id = `record-${++sequence}`;
+		const payload = bytes(sequence, ...entity);
+		const summary = {
+			version: 1,
+			recordId: id,
+			identityFingerprint: `fingerprint-${entity[0]}`,
+			identityBaseSpeciesId: 1,
+			originalEntityFormat: 'PK9',
+			originalFormat: 9,
+			originalContext: 'PK9',
+			currentEntityFormat: 'PK9',
+			currentFormat: 9,
+			currentContext: 'PK9',
+			originalByteLength: entity.length,
+			currentByteLength: entity.length,
+			originalEntitySha256: 'test'
+		};
+		payloads.set([...payload].join(','), { entity: new Uint8Array(entity), summary });
+		return { ok: true as const, value: { bytes: payload, summary }, error: null };
+	};
+	return {
+		editPayload(recordId, entity) {
+			const existing = [...payloads.values()].find((item) => item.summary.recordId === recordId);
+			if (!existing) throw new Error('Unknown Record ID');
+			const payload = bytes(++sequence, ...entity);
+			payloads.set([...payload].join(','), {
+				entity: new Uint8Array(entity),
+				summary: existing.summary
+			});
+			return payload;
+		},
+		createPreservationPayload: create,
+		forkPreservationPayload: async (payload) => {
+			const found = payloads.get([...payload].join(','));
+			if (!found) throw new Error('Unknown preservation payload');
+			const id = `record-${++sequence}`;
+			const forked = bytes(sequence, ...found.entity);
+			const summary = { ...found.summary, recordId: id };
+			payloads.set([...forked].join(','), { entity: new Uint8Array(found.entity), summary });
+			return { ok: true as const, value: { bytes: forked, summary }, error: null };
+		},
+		readPreservationPayload: async (payload) => {
+			const found = payloads.get([...payload].join(','));
+			if (!found)
+				return {
+					ok: false as const,
+					value: null,
+					error: { code: 'malformed-preservation-payload' as const, message: 'Invalid payload' }
+				};
+			return {
+				ok: true as const,
+				value: {
+					entityBytes: new Uint8Array(found.entity),
+					summary: found.summary,
+					projection: { slot: 0, box: 0, speciesName: 'Test', entityBytesBase64: 'AQID' } as never
+				},
+				error: null
+			};
+		}
+	};
+}
+export function catalogContract(
+	name: string,
+	create: () => CatalogPersistence,
+	corrupt: (persistence: CatalogPersistence, id: string) => Promise<void>
+) {
+	describe(`${name} Pokemon Storage contract`, () => {
+		it('persists engine Record IDs, independent copies, origin, boxes and placements', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(
+				persistence,
+				fakeEngine(),
+				() => '2026-10-02T00:00:00Z',
+				() => 'new-id'
+			);
+			await service.initialize('storage-id');
+			let changes = 0;
+			const unsubscribe = service.subscribe(() => {
+				changes += 1;
+			});
+			const box = service.listBoxes()[0];
+			const first = await service.add(bytes(1, 2), origin, { storageBoxId: box.id, slot: 0 });
+			const copy = await service.copy(first.recordId);
+			expect(copy.recordId).not.toBe(first.recordId);
+			expect(copy.identityFingerprint).toBe(first.identityFingerprint);
+			expect(copy.origin).toEqual(first.origin);
+			expect(copy.placement).toBeNull();
+			await service.place(first.recordId, { storageBoxId: box.id, slot: 1 });
+			await service.renameBox(box.id, 'Favorites');
+			expect(changes).toBeGreaterThan(0);
+			unsubscribe();
+			expect(JSON.stringify(service.current)).not.toContain('entityBytesBase64');
+			const reopened = new PokemonStorageService(persistence, fakeEngine());
+			await reopened.load();
+			expect(reopened.getRecord(first.recordId)?.placement?.slot).toBe(1);
+			expect(reopened.listBoxes()[0].name).toBe('Favorites');
+			expect(reopened.current?.schemaVersion).toBe(1);
+		});
+		it('keeps the previous manifest on conflict and failed blob verification', async () => {
+			const persistence = create();
+			const engine = fakeEngine();
+			const first = new PokemonStorageService(persistence, engine);
+			await first.initialize();
+			const stale = new PokemonStorageService(persistence, engine);
+			await stale.load();
+			await first.add(bytes(1), origin);
+			await expect(stale.add(bytes(2), origin)).rejects.toThrow();
+			expect((await persistence.read())?.records).toHaveLength(1);
+			const reference = await referenceFor(bytes(9), 1);
+			await expect(
+				persistence.commit(
+					(await persistence.read())!.revision,
+					{ ...(await persistence.read())!, revision: 2 },
+					[{ reference, bytes: bytes(8) }]
+				)
+			).rejects.toThrow();
+			expect((await persistence.read())?.records).toHaveLength(1);
+		});
+		it('keeps at least one box and deletes only an empty box', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const first = service.listBoxes()[0];
+			await expect(service.removeBox(first.id)).rejects.toThrow();
+			const second = await service.addBox();
+			const record = await service.add(bytes(4), origin, { storageBoxId: second.id, slot: 0 });
+			await expect(service.removeBox(second.id)).rejects.toThrow();
+			await service.place(record.recordId, null);
+			await service.removeBox(second.id);
+			expect(service.listBoxes()).toHaveLength(1);
+		});
+		it('derives collisions and overflow without changing record placement', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const first = await service.add(bytes(8), origin);
+			const boxId = service.listBoxes()[0].id;
+			const manifest = service.current!;
+			manifest.records = Array.from({ length: 31 }, (_, index) => ({
+				...structuredClone(first),
+				recordId: `record-${String(index).padStart(2, '0')}`,
+				placement: { storageBoxId: boxId, slot: 0 }
+			}));
+			manifest.revision += 1;
+			await persistence.commit(service.current!.revision, manifest, []);
+			await service.load();
+			const resolved = service.listResolvedPlacements();
+			expect(resolved.filter((item) => item.overflow)).toHaveLength(1);
+			expect(resolved[0].placement).toEqual({ storageBoxId: boxId, slot: 0 });
+			expect(resolved[1].placement).toEqual({ storageBoxId: boxId, slot: 1 });
+			expect(service.getRecord('record-01')?.placement).toEqual({ storageBoxId: boxId, slot: 0 });
+			await expect(service.add(bytes(9), origin)).rejects.toThrow(/overflow/);
+			await expect(
+				service.place('record-01', { storageBoxId: 'missing-box', slot: 0 })
+			).rejects.toThrow(/unavailable/);
+			const extra = await service.addBox();
+			expect(
+				service.listResolvedPlacements().some((item) => item.placement?.storageBoxId === extra.id)
+			).toBe(true);
+			await expect(service.removeBox(extra.id)).rejects.toThrow(/empty/);
+		});
+		it('replaces a payload immutably without changing origin or independent copies', async () => {
+			const persistence = create();
+			const engine = fakeEngine();
+			const service = new PokemonStorageService(persistence, engine);
+			await service.initialize();
+			const first = await service.add(bytes(5), origin);
+			const copy = await service.copy(first.recordId);
+			const updated = await service.replace(
+				first.recordId,
+				engine.editPayload(first.recordId, bytes(6))
+			);
+			expect(updated.payload.id).not.toBe(first.payload.id);
+			expect(updated.recordId).toBe(first.recordId);
+			expect(updated.origin).toEqual(first.origin);
+			expect(service.getRecord(copy.recordId)?.payload.id).toBe(copy.payload.id);
+			expect(await persistence.readBlob(first.payload)).not.toBeNull();
+			expect(await service.readPayload(first.recordId)).not.toEqual(
+				await persistence.readBlob(first.payload)
+			);
+		});
+		it('sweeps only uncommitted blobs after a conditional conflict', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const record = await service.add(bytes(7), origin);
+			const orphan = bytes(9, 9);
+			const reference = await referenceFor(orphan, 1);
+			await expect(
+				persistence.commit(0, { ...service.current!, revision: service.current!.revision + 1 }, [
+					{ reference, bytes: orphan }
+				])
+			).rejects.toThrow();
+			expect(await service.sweep()).toBe(name === 'browser' ? 1 : 0);
+			expect(await persistence.readBlob(reference)).toBeNull();
+			expect(await service.readPayload(record.recordId)).toBeTruthy();
+		});
+		it('rejects corrupted blob reads and sweeps unreferenced staged blobs', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const record = await service.add(bytes(3), origin);
+			await corrupt(persistence, record.payload.id);
+			await expect(service.readPayload(record.recordId)).rejects.toThrow();
+		});
+	});
+}

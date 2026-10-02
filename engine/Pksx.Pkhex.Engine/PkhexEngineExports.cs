@@ -44,6 +44,23 @@ public static partial class PkhexEngineExports
     }
 
     [JSExport]
+    public static string ForkPreservationPayloadJson(byte[] payloadBytes)
+    {
+        try
+        {
+            return SerializePreservationPayload(PokemonPreservationPayload.Parse(payloadBytes).Fork());
+        }
+        catch (PokemonPreservationException ex)
+        {
+            return PreservationFailure(ex);
+        }
+        catch (Exception ex)
+        {
+            return UnknownFailure(ex);
+        }
+    }
+
+    [JSExport]
     public static string ReadPreservationPayloadJson(byte[] payloadBytes)
     {
         try
