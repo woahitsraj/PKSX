@@ -2792,6 +2792,86 @@ test('Save File Carry rejects an occupied Pokemon Storage destination', async ({
 	expect(await persistedSavesStateSnapshot(page)).toBe(before);
 });
 
+test('moves a Save File Pokemon into durable Storage and clears its source', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	const originalHash = await workspaceBytesHashForFile(page, 'emerald-011020251345.sav');
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	const [savePane, storagePane] = [
+		page.locator('.box-pane').nth(0),
+		page.locator('.box-pane').nth(1)
+	];
+	await savePane.locator('[id$="box-0-slot-0"]').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowRight');
+	await storagePane.locator('[id$="box-0-slot-0"]').focus();
+	await page.keyboard.press('Enter');
+	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('Empty');
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await expect(savePane.locator('[id$="box-0-slot-0"]')).toBeFocused();
+	await expect(page.locator('.toast-success')).toContainText('Moved ARON to Pokemon Storage.');
+	await expect
+		.poll(() => workspaceBytesHashForFile(page, 'emerald-011020251345.sav'))
+		.not.toBe(originalHash);
+	expect((await backupRecords(page)).map(({ reason }) => reason)).toEqual(['pokemon-movement']);
+
+	await page.reload();
+	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('Empty');
+	await page.goto('/?source=pokemon-storage');
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+	const persisted = await page.evaluate(async () => {
+		const saves = await new Promise<IDBDatabase>((resolve, reject) => {
+			const request = indexedDB.open('pksx-saves');
+			request.onsuccess = () => resolve(request.result);
+			request.onerror = () => reject(request.error);
+		});
+		const workspace = await new Promise<Array<{ dirty: boolean }>>((resolve, reject) => {
+			const request = saves.transaction('workspaces').objectStore('workspaces').getAll();
+			request.onsuccess = () => resolve(request.result);
+			request.onerror = () => reject(request.error);
+		});
+		saves.close();
+		const db = await new Promise<IDBDatabase>((resolve, reject) => {
+			const request = indexedDB.open('pksx-pokemon-storage-catalog');
+			request.onsuccess = () => resolve(request.result);
+			request.onerror = () => reject(request.error);
+		});
+		try {
+			const records = await new Promise<
+				Array<{
+					recordId: string;
+					origin: {
+						entryMode: string;
+						originSaveSlot: { zone: string; box: number; slot: number };
+					};
+				}>
+			>((resolve, reject) => {
+				const request = db.transaction('manifest').objectStore('manifest').get('current');
+				request.onsuccess = () => resolve(request.result.records);
+				request.onerror = () => reject(request.error);
+			});
+			return { workspace, records };
+		} finally {
+			db.close();
+		}
+	});
+	expect(persisted.workspace).toMatchObject([{ dirty: true }]);
+	expect(persisted.records).toHaveLength(1);
+	expect(persisted.records[0]).toMatchObject({
+		recordId: expect.any(String),
+		origin: { entryMode: 'moved-in', originSaveSlot: { zone: 'box', box: 0, slot: 0 } }
+	});
+});
+
 test('Box Menu and related picker Cancel restore focus at both viewport floors', async ({
 	page
 }) => {

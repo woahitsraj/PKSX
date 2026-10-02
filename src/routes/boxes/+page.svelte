@@ -2342,6 +2342,13 @@
 		if (destination.zone !== 'box') throw new Error('Pokemon Storage destination is unavailable.');
 		const storageSource = carryState?.sourceOwner.type === 'pokemon-storage';
 		const sourcePaneId = carryState?.source.paneId;
+		const sourcePane = workbenchPanes.find((pane) => pane.id === sourcePaneId);
+		const sourceWorkspace = storageSource ? null : saveWorkspaceForPane(sourcePane)?.state;
+		if (!storageSource && (!sourcePane || !sourceWorkspace || !engine)) {
+			toastHost.error('The source Save File is no longer available.');
+			statusMessage = 'Slot change failed.';
+			return;
+		}
 		busy = true;
 		try {
 			const catalog = getPokemonStorageCatalog();
@@ -2394,10 +2401,7 @@
 				};
 				workbenchPanes = setPaneFocus(workbenchPanes, destinationPane.id, destinationFocus);
 				if (refreshed) {
-					statusMessage =
-						pending.kind === 'move'
-							? `Moved ${sourceSlot.label} to Pokemon Storage.`
-							: `Copied ${sourceSlot.label} to Pokemon Storage.`;
+					statusMessage = `${pending.kind === 'move' ? 'Moved' : 'Copied'} ${sourceSlot.label} to Pokemon Storage.`;
 					toastHost.success(statusMessage);
 				}
 				queueMicrotask(focusActiveControl);
@@ -2405,17 +2409,26 @@
 			}
 
 			if (pending.kind === 'move') {
-				const sourcePane = workbenchPanes.find((pane) => pane.id === sourcePaneId);
-				const sourceWorkspace = saveWorkspaceForPane(sourcePane)?.state;
 				if (!sourcePane || !sourceWorkspace) {
-					toastHost.error('The source Save File is no longer available.');
+					statusMessage =
+						'Pokemon Storage saved the Pokemon, but its Save File Slot was not cleared. Clear the source Slot to finish.';
+					toastHost.error(statusMessage);
 					return;
 				}
-				await applySlotOperation(
+				const cleared = await applySlotOperation(
 					{ kind: 'clear', source: pending.source },
 					{ state: sourceWorkspace, paneId: sourcePane.id }
 				);
-				statusMessage = `Moved ${sourceSlot.label} to Pokemon Storage.`;
+				if (!cleared) {
+					statusMessage =
+						'Pokemon Storage saved the Pokemon, but its Save File Slot was not cleared. Clear the source Slot to finish.';
+					toastHost.error(statusMessage);
+					return;
+				}
+				if (refreshed) {
+					statusMessage = `Moved ${sourceSlot.label} to Pokemon Storage.`;
+					toastHost.success(statusMessage);
+				}
 				return;
 			}
 
