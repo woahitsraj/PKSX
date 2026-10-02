@@ -12,6 +12,9 @@
 	}
 
 	let { saveFile, onSelect, onClose }: Props = $props();
+	const searchScope = $derived(
+		saveFile.fileName === 'Pokemon Storage' ? 'Pokemon Storage' : 'Active Save File'
+	);
 	let query = $state('');
 	let results = $state<QuickSearchResult[]>([]);
 	let loading = $state(true);
@@ -105,7 +108,7 @@
 	onBack={onClose}
 >
 	<div class="quick-search">
-		<h2 id="quick-search-title" class="visually-hidden">Search Active Save File</h2>
+		<h2 id="quick-search-title" class="visually-hidden">Search {searchScope}</h2>
 		<p id="quick-search-description" class="visually-hidden">
 			Find a Pokemon by species, nickname, or location.
 		</p>
@@ -114,7 +117,7 @@
 			<input
 				{@attach searchInput}
 				type="search"
-				aria-label="Search Active Save File"
+				aria-label={`Search ${searchScope}`}
 				aria-activedescendant={activeResultId ? `quick-search-result-${activeResultId}` : undefined}
 				placeholder="Species, nickname, or location"
 				value={query}
@@ -133,13 +136,13 @@
 
 		<div class="results" aria-live="polite">
 			{#if loading}
-				<p class="state">Reading Active Save File...</p>
+				<p class="state">Reading {searchScope}...</p>
 			{:else if unavailable}
-				<p class="state">The Active Save File is no longer available.</p>
+				<p class="state">{searchScope} is no longer available.</p>
 			{:else if error}
-				<p class="state">Search could not read the Active Save File.</p>
+				<p class="state">Search could not read {searchScope}.</p>
 			{:else if results.length === 0}
-				<p class="state">The Active Save File has no Pokemon to search.</p>
+				<p class="state">{searchScope} has no Pokemon to search.</p>
 			{:else if query.trim().length === 0}
 				<p class="state">Search by species, nickname, or location.</p>
 			{:else if matches.length === 0}

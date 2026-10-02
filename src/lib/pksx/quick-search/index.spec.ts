@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { BoxSlotSummary, PartySlotSummary } from '$lib/engine';
-import { createSaveFileQuickSearchResults, filterQuickSearchResults } from '.';
+import type { PokemonRecord } from '$lib/pksx/pokemon-storage-catalog';
+import {
+	createSaveFileQuickSearchResults,
+	createVirtualQuickSearchResults,
+	filterQuickSearchResults
+} from '.';
 
 const slotProjection = {
 	form: 0,
@@ -37,6 +42,22 @@ const slotProjection = {
 };
 
 describe('Search', () => {
+	it('keys virtual results by Record ID across placement changes', () => {
+		const record = {
+			recordId: 'stable-id',
+			projection: { speciesName: 'Eevee', nickname: 'Eevee' },
+			placement: { storageBoxId: 'box', slot: 1 }
+		} as PokemonRecord;
+		const before = createVirtualQuickSearchResults([record], 'storage-pane', 'all-pokemon');
+		const after = createVirtualQuickSearchResults(
+			[{ ...record, placement: null }],
+			'storage-pane',
+			'unfiled'
+		);
+		expect(before[0].id).toBe('stable-id');
+		expect(after[0].id).toBe(before[0].id);
+		expect(after[0].locationLabel).toBe('Unfiled');
+	});
 	it('matches Save File species, nicknames, and visible Location labels', () => {
 		const party = [
 			{

@@ -2872,6 +2872,55 @@ test('moves a Save File Pokemon into durable Storage and clears its source', asy
 	});
 });
 
+test('keeps a virtual Storage source after Save commits but retirement fails', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	const [savePane, storagePane] = [
+		page.locator('.box-pane').nth(0),
+		page.locator('.box-pane').nth(1)
+	];
+	await savePane.locator('[id$="box-0-slot-0"]').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	await storagePane.locator('[id$="box-0-slot-0"]').click();
+	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('Empty');
+	await storagePane.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /All Pokemon: All Pokemon/ }).click();
+	await storagePane.locator('.carry-actions').getByRole('button', { name: 'Move' }).click();
+	await page.keyboard.press('Escape');
+	await page.evaluate(() => {
+		const original = IDBDatabase.prototype.transaction;
+		IDBDatabase.prototype.transaction = function (names, mode, options) {
+			if (this.name === 'pksx-pokemon-storage-catalog' && mode === 'readwrite') {
+				throw new Error('Injected retirement failure');
+			}
+			return original.call(this, names, mode, options);
+		};
+	});
+	await savePane.locator('[id$="box-0-slot-0"]').click();
+	await expect(page.locator('.toast-error')).toContainText('remains in Pokemon Storage');
+	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await expect(
+		storagePane.getByRole('grid', { name: 'All Pokemon' }).getByRole('gridcell')
+	).toHaveCount(1);
+	await expect(page.locator('.carry-at-focus')).toHaveCount(0);
+	await page.reload();
+	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await page.goto('/?source=pokemon-storage');
+	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /Box 01: Box 01/ }).click();
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+});
+
 test('moves a Party Pokemon into an empty Storage Slot and keeps focus on its source Slot', async ({
 	page
 }) => {

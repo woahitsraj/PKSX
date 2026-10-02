@@ -1,4 +1,6 @@
 import type { BoxSlotSummary, PartySlotSummary } from '$lib/engine';
+import type { PokemonRecord } from '$lib/pksx/pokemon-storage-catalog';
+import type { VirtualLocation } from '$lib/pksx/pokemon-storage-catalog/virtual-views';
 
 export type QuickSearchResult = {
 	id: string;
@@ -11,7 +13,30 @@ export type QuickSearchResult = {
 	zone: 'party' | 'box';
 	box: number | null;
 	slot: number;
+	recordId?: string;
+	virtualLocation?: VirtualLocation;
 };
+
+export function createVirtualQuickSearchResults(
+	records: PokemonRecord[],
+	paneId: string,
+	location: VirtualLocation
+): QuickSearchResult[] {
+	return records.map((record) => ({
+		id: record.recordId,
+		recordId: record.recordId,
+		virtualLocation: location,
+		saveFileId: 'pokemon-storage',
+		saveFileName: 'Pokemon Storage',
+		paneId,
+		speciesName: record.projection.speciesName ?? '',
+		nickname: record.projection.nickname ?? '',
+		locationLabel: location === 'unfiled' ? 'Unfiled' : 'All Pokemon',
+		zone: 'box',
+		box: null,
+		slot: 0
+	}));
+}
 
 type SaveFileSearchInput = {
 	saveFileId: string;

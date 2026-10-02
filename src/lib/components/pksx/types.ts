@@ -97,5 +97,5 @@ export type BoxSourceView = {
 	boxCount: number;
 	occupied: number;
 	capacity: number;
-	location: 'party' | 'box';
+	location: 'party' | 'box' | 'virtual';
 };
