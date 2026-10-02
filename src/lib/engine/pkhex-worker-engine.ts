@@ -13,6 +13,8 @@ import type {
 	PokemonSpeciesFormEditProjection,
 	PreservationPayload,
 	PreservedPokemon,
+	OutgoingLinkTrade,
+	LinkTradePartnerPokemon,
 	SaveFileEditOperationResult,
 	SaveFileInventoryCatalogue,
 	SaveWorkspace,
@@ -452,6 +454,32 @@ export function createPkhexWorkerEngine(
 				},
 				[buffer]
 			);
+		},
+		prepareOutgoingLinkTrade: (sourceBytes, request) => {
+			const buffer = copyBytesToArrayBuffer(sourceBytes);
+			return sendRequest(
+				'prepareOutgoingLinkTrade',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'prepareOutgoingLinkTrade',
+					payload: { bytes: buffer, ...request }
+				},
+				[buffer]
+			);
+		},
+		readLinkTradePartnerPokemon: (partnerBytes, destinationGame) => {
+			const buffer = copyBytesToArrayBuffer(partnerBytes);
+			return sendRequest(
+				'readLinkTradePartnerPokemon',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'readLinkTradePartnerPokemon',
+					payload: { bytes: buffer, destinationGame }
+				},
+				[buffer]
+			);
 		}
 	};
 
@@ -565,6 +593,16 @@ export function createPkhexWorkerEngine(
 		transfer: Transferable[]
 	): Promise<EngineResult<PreservationPayload>>;
 	async function sendRequest(
+		method: 'prepareOutgoingLinkTrade',
+		request: Extract<EngineWorkerRequest, { method: 'prepareOutgoingLinkTrade' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<OutgoingLinkTrade>>;
+	async function sendRequest(
+		method: 'readLinkTradePartnerPokemon',
+		request: Extract<EngineWorkerRequest, { method: 'readLinkTradePartnerPokemon' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<LinkTradePartnerPokemon>>;
+	async function sendRequest(
 		method: EngineWorkerMethod,
 		request: EngineWorkerRequest = { type: 'request', id: createRequestId(), method: 'getVersion' },
 		transfer: Transferable[] = []
@@ -634,10 +672,33 @@ function normalizeWorkerResult(response: EngineWorkerResponse): EngineResult<unk
 			response.method !== 'applyPokemonAction' &&
 			response.method !== 'createPreservationPayload' &&
 			response.method !== 'readPreservationPayload' &&
-			response.method !== 'projectPreservationPayload') ||
+			response.method !== 'projectPreservationPayload' &&
+			response.method !== 'prepareOutgoingLinkTrade' &&
+			response.method !== 'readLinkTradePartnerPokemon') ||
 		!response.result.ok
 	) {
 		return response.result;
+	}
+
+	if (response.method === 'prepareOutgoingLinkTrade') {
+		const { outgoingBytes } = response.result.value;
+		return {
+			ok: true,
+			value: {
+				...response.result.value,
+				outgoingBytes: outgoingBytes && new Uint8Array(outgoingBytes)
+			},
+			error: null
+		};
+	}
+
+	if (response.method === 'readLinkTradePartnerPokemon') {
+		const { entityBytes } = response.result.value;
+		return {
+			ok: true,
+			value: { ...response.result.value, entityBytes: entityBytes && new Uint8Array(entityBytes) },
+			error: null
+		};
 	}
 
 	if (response.method === 'readPreservationPayload') {

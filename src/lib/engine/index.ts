@@ -64,6 +64,12 @@ export type {
 	PokemonOriginalTrainerEdit,
 	PokemonOriginalTrainerEditConstraints,
 	PokemonOriginalTrainerOption,
+	LinkTradeBlockingReason,
+	LinkTradeDestinationGame,
+	OutgoingLinkTrade,
+	OutgoingLinkTradeRequest,
+	OutgoingLinkTradeSourceKind,
+	LinkTradePartnerPokemon,
 	PreservationPayload,
 	PreservationPayloadSummary,
 	PreservedPokemon,
@@ -111,5 +117,7 @@ export type {
 	EngineWorkerStatusMessage,
 	EngineWorkerSummarizeSaveRequest,
 	EngineWorkerProjectPreservationPayloadRequest,
+	EngineWorkerPrepareOutgoingLinkTradeRequest,
+	EngineWorkerReadLinkTradePartnerPokemonRequest,
 	ProtocolParseResult
 } from './worker-protocol';

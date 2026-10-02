@@ -13,6 +13,8 @@ import type {
 	PreservationPayload,
 	PreservationPayloadSummary,
 	PreservedPokemon,
+	OutgoingLinkTrade,
+	LinkTradePartnerPokemon,
 	SaveFileEditOperationResult,
 	SaveFileInventoryCatalogue,
 	SaveSummary,
@@ -45,6 +47,8 @@ import {
 	type EngineWorkerCreatePreservationPayloadRequest,
 	type EngineWorkerReadPreservationPayloadRequest,
 	type EngineWorkerProjectPreservationPayloadRequest,
+	type EngineWorkerPrepareOutgoingLinkTradeRequest,
+	type EngineWorkerReadLinkTradePartnerPokemonRequest,
 	type EngineWorkerLoadSaveWorkspaceRequest,
 	type EngineWorkerListBoxSlotsRequest,
 	type EngineWorkerMessage,
@@ -119,6 +123,8 @@ export type DotnetPkhexEngineExports = {
 	CreatePreservationPayloadJson(entityBytes: Uint8Array): string;
 	ReadPreservationPayloadJson(payloadBytes: Uint8Array): string;
 	ProjectPreservationPayloadJson(payloadBytes: Uint8Array, targetFormat: number): string;
+	PrepareOutgoingLinkTradeJson(sourceBytes: Uint8Array, requestJson: string): string;
+	ReadLinkTradePartnerPokemonJson(partnerBytes: Uint8Array, destinationGame: string): string;
 };
 
 type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes'> & {
@@ -149,6 +155,14 @@ type RawPreservationPayloadResult = {
 	payloadBytesBase64: string;
 	payloadByteLength: number;
 	summary: PreservationPayloadSummary;
+};
+type RawOutgoingLinkTradeResult = Omit<OutgoingLinkTrade, 'outgoingBytes'> & {
+	outgoingBytesBase64: string | null;
+	outgoingByteLength: number;
+};
+type RawLinkTradePartnerPokemonResult = Omit<LinkTradePartnerPokemon, 'entityBytes'> & {
+	entityBytesBase64: string | null;
+	entityByteLength: number;
 };
 type RawPreservedPokemonResult = {
 	entityBytesBase64: string;
@@ -340,6 +354,20 @@ export function createPkhexEngineWorkerRuntime({
 					postMessage,
 					request,
 					projectPreservationPayload(engine, request)
+				);
+				return;
+			case 'prepareOutgoingLinkTrade':
+				postOutgoingLinkTradeResponse(
+					postMessage,
+					request,
+					prepareOutgoingLinkTrade(engine, request)
+				);
+				return;
+			case 'readLinkTradePartnerPokemon':
+				postLinkTradePartnerPokemonResponse(
+					postMessage,
+					request,
+					readLinkTradePartnerPokemon(engine, request)
 				);
 				return;
 		}
@@ -832,6 +860,76 @@ function postPokemonActionResponse(
 	postMessage(response, [bytes]);
 }
 
+function prepareOutgoingLinkTrade(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerPrepareOutgoingLinkTradeRequest
+): EngineResult<RawOutgoingLinkTradeResult> {
+	const { bytes, ...outgoingRequest } = request.payload;
+	return parseEngineResult<RawOutgoingLinkTradeResult>(
+		engine.PrepareOutgoingLinkTradeJson(new Uint8Array(bytes), JSON.stringify(outgoingRequest))
+	);
+}
+
+function readLinkTradePartnerPokemon(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerReadLinkTradePartnerPokemonRequest
+): EngineResult<RawLinkTradePartnerPokemonResult> {
+	return parseEngineResult<RawLinkTradePartnerPokemonResult>(
+		engine.ReadLinkTradePartnerPokemonJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.destinationGame
+		)
+	);
+}
+
+function postOutgoingLinkTradeResponse(
+	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
+	request: EngineWorkerPrepareOutgoingLinkTradeRequest,
+	result: EngineResult<RawOutgoingLinkTradeResult>
+) {
+	if (!result.ok) {
+		postMessage(createEngineWorkerResponse(request, result));
+		return;
+	}
+
+	const { outgoingBytesBase64, outgoingByteLength, ...outgoing } = result.value;
+	const outgoingBytes = outgoingBytesBase64
+		? base64ToArrayBuffer(outgoingBytesBase64, outgoingByteLength)
+		: null;
+	postMessage(
+		createEngineWorkerResponse(request, {
+			ok: true,
+			value: { ...outgoing, outgoingBytes },
+			error: null
+		}),
+		outgoingBytes ? [outgoingBytes] : []
+	);
+}
+
+function postLinkTradePartnerPokemonResponse(
+	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
+	request: EngineWorkerReadLinkTradePartnerPokemonRequest,
+	result: EngineResult<RawLinkTradePartnerPokemonResult>
+) {
+	if (!result.ok) {
+		postMessage(createEngineWorkerResponse(request, result));
+		return;
+	}
+
+	const { entityBytesBase64, entityByteLength, ...partner } = result.value;
+	const entityBytes = entityBytesBase64
+		? base64ToArrayBuffer(entityBytesBase64, entityByteLength)
+		: null;
+	postMessage(
+		createEngineWorkerResponse(request, {
+			ok: true,
+			value: { ...partner, entityBytes },
+			error: null
+		}),
+		entityBytes ? [entityBytes] : []
+	);
+}
+
 function postPreservationPayloadResponse(
 	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
 	request:
@@ -940,6 +1038,10 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<PreservationPayload>;
 		case 'readPreservationPayload':
 			return result satisfies EngineResult<PreservedPokemon>;
+		case 'prepareOutgoingLinkTrade':
+			return result satisfies EngineResult<OutgoingLinkTrade>;
+		case 'readLinkTradePartnerPokemon':
+			return result satisfies EngineResult<LinkTradePartnerPokemon>;
 	}
 }
 
