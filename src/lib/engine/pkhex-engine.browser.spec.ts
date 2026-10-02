@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest';
-import type { BoxSlotSummary, PokemonActionChange, SaveSlotRef } from './types';
+import type {
+	BoxSlotSummary,
+	EngineApi,
+	PartySlotSummary,
+	PokemonActionChange,
+	SaveSlotRef
+} from './types';
 import colosseumFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/colosseum/011020251345.gci?url';
 import fixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav?url';
 import moonFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/moon/011020252257.sav?url';
@@ -220,7 +226,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			fetch(fixture.url)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
-		const loaded = await engine.loadSaveWorkspace(fixtureBytes, fixture.fileName, 0);
+		const loaded = await loadEditableWorkspace(engine, fixtureBytes, fixture.fileName, 0);
 
 		expect(loaded.ok, JSON.stringify(loaded.error)).toBe(true);
 		if (!loaded.ok) throw new Error(`Expected ${fixture.name} workspace to load.`);
@@ -289,7 +295,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(content(exportedFirst.value.boxSlots)).toEqual(content(originalSecond.value.boxSlots));
 		expect(content(exportedSecond.value.boxSlots)).toEqual(content(originalFirst.value.boxSlots));
 
-		const original = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
+		const original = await loadEditableWorkspace(engine, fixtureBytes, '011020251345.sav', 0);
 		expect(original.ok && original.value.boxNames.names.slice(0, 2)).toEqual(['BOX1', 'BOX2']);
 	});
 
@@ -323,7 +329,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			error: { code: 'invalid-save-file-edit' }
 		});
 
-		const original = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
+		const original = await loadEditableWorkspace(engine, fixtureBytes, '011020251345.sav', 0);
 		expect(original.ok && original.value.boxNames.names[0]).toBe('BOX1');
 	});
 
@@ -552,7 +558,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(legality.value.messages[0].message).toContain(': ');
 		expect(legality.value.messages[0].message).not.toMatch(/CheckResult\\s*\\{|Result\\s*=/);
 
-		const workspace = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
+		const workspace = await loadEditableWorkspace(engine, fixtureBytes, '011020251345.sav', 0);
 		expect(workspace).toMatchObject({
 			ok: true,
 			value: {
@@ -583,7 +589,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			fetch(fixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
-		const loaded = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
+		const loaded = await loadEditableWorkspace(engine, fixtureBytes, '011020251345.sav', 0);
 		if (!loaded.ok || !loaded.value.saveFile) throw new Error('Expected Save File projection.');
 
 		const projection = loaded.value.saveFile;
@@ -719,7 +725,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			expect(summary.value.boxCount).toBeGreaterThan(0);
 			expect(summary.value.generation).toBeGreaterThan(0);
 
-			const workspace = await engine.loadSaveWorkspace(fixtureBytes, fixture.fileName, 0);
+			const workspace = await loadEditableWorkspace(engine, fixtureBytes, fixture.fileName, 0);
 			expect(workspace.ok, JSON.stringify(workspace.error)).toBe(true);
 			if (!workspace.ok) {
 				throw new Error(`Expected ${fixture.name} workspace load to succeed.`);
@@ -729,13 +735,61 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		}
 	);
 
+	test('counts Save card Pokemon across the Party and every Box', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(heartGoldFixtureUrl)
+		]);
+		const bytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+		const fileName = 'pokemon-heartgold.sav';
+
+		const card = await engine.summarizeSaveCard(bytes, fileName);
+		if (!card.ok) throw new Error(card.error.message);
+		let count = card.value.summary.partyCount;
+		for (let box = 0; box < card.value.summary.boxCount; box += 1) {
+			const slots = await engine.listBoxSlots(bytes, fileName, box);
+			if (!slots.ok) throw new Error(slots.error.message);
+			count += slots.value.filter((slot) => !slot.isEmpty).length;
+		}
+
+		expect(card.value.pokemonCount).toBe(count);
+		expect(count).toBeGreaterThan(card.value.summary.partyCount);
+	});
+
+	test('leaves edit data out of Workspace loads and loads it per slot', async () => {
+		const [engine, fixtureResponse] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			fetch(fixtureUrl)
+		]);
+		const bytes = new Uint8Array(await fixtureResponse.arrayBuffer());
+
+		const workspace = await engine.loadSaveWorkspace(bytes, '011020251345.sav', 0);
+		if (!workspace.ok) throw new Error(workspace.error.message);
+		const slot = await engine.loadSlotEditData(bytes, '011020251345.sav', {
+			zone: 'box',
+			box: 0,
+			slot: 0
+		});
+
+		expect(workspace.value.boxSlots[0]).not.toHaveProperty('moveSetEditConstraints');
+		expect(slot).toMatchObject({
+			ok: true,
+			value: {
+				box: 0,
+				slot: 0,
+				speciesId: workspace.value.boxSlots[0]?.speciesId,
+				moveSetEditConstraints: { supported: true }
+			}
+		});
+	});
+
 	test('projects and applies Affection only for a supporting Pokemon format', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
 			fetch(xFixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
-		const workspace = await engine.loadSaveWorkspace(fixtureBytes, '011020252224', 0);
+		const workspace = await loadEditableWorkspace(engine, fixtureBytes, '011020252224', 0);
 		expect(workspace.ok, JSON.stringify(workspace.error)).toBe(true);
 		if (!workspace.ok) throw new Error('Expected Pokemon X workspace to load.');
 
@@ -764,7 +818,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		const updatedSlot = partySlot
 			? edited.value.workspace.partySlots[partySlot.slot]
 			: edited.value.workspace.boxSlots[boxSlot!.slot];
-		expect(updatedSlot?.friendshipEditConstraints.fields).toEqual(
+		expect(updatedSlot?.friendshipEditConstraints?.fields).toEqual(
 			expect.arrayContaining([expect.objectContaining({ key: 'affection', value })])
 		);
 	});
@@ -788,7 +842,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			expect(summary.value.boxCount).toBeGreaterThan(0);
 			expect(summary.value.boxSlotCount).toBeGreaterThan(0);
 
-			const workspace = await engine.loadSaveWorkspace(fixtureBytes, fixture.fileName, 0);
+			const workspace = await loadEditableWorkspace(engine, fixtureBytes, fixture.fileName, 0);
 			expect(workspace.ok, JSON.stringify(workspace.error)).toBe(true);
 			if (!workspace.ok) {
 				throw new Error(`Expected ${fixture.name} workspace load to succeed.`);
@@ -922,7 +976,8 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		);
 		expect(laironPayload.value.summary.recordId).not.toBe(aronPayload.value.summary.recordId);
 
-		const scarlet = await engine.loadSaveWorkspace(
+		const scarlet = await loadEditableWorkspace(
+			engine,
 			scarletBytes,
 			'pokemon-scarlet-2025-03-24-main.sav',
 			0
@@ -968,7 +1023,8 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(restored.value.summary.recordId).toBe(firstCopy.value.summary.recordId);
 		expect(restoredEntity.value.entityBytes).toEqual(sourceBytes);
 		expect(
-			restoredEntity.value.projection.battleFields.find((field) => field.key === 'tera-type')?.value
+			restoredEntity.value.projection.battleFields?.find((field) => field.key === 'tera-type')
+				?.value
 		).toBe(sourceTeraType);
 
 		const malformed = firstCopy.value.bytes.slice(0, 12);
@@ -1004,7 +1060,12 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 		const originalBytes = copyBytes(fixtureBytes);
 		const source = { zone: 'box' as const, box: 2, slot: 18 };
-		const workspace = await engine.loadSaveWorkspace(fixtureBytes, 'pokemon-platinum-eu.sav', 2);
+		const workspace = await loadEditableWorkspace(
+			engine,
+			fixtureBytes,
+			'pokemon-platinum-eu.sav',
+			2
+		);
 		expect(workspace.ok, JSON.stringify(workspace.error)).toBe(true);
 		if (!workspace.ok) throw new Error('Expected Platinum workspace to load.');
 		const original = workspace.value.boxSlots[18];
@@ -1173,7 +1234,12 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			fetch(platinumEuFixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
-		const workspace = await engine.loadSaveWorkspace(fixtureBytes, 'pokemon-platinum-eu.sav', 2);
+		const workspace = await loadEditableWorkspace(
+			engine,
+			fixtureBytes,
+			'pokemon-platinum-eu.sav',
+			2
+		);
 		if (!workspace.ok) throw new Error('Expected Platinum workspace to load.');
 		const mew = workspace.value.boxSlots[18]?.entityBytesBase64;
 		if (!mew) throw new Error('Expected the Platinum MEW entity bytes.');
@@ -1225,7 +1291,12 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			fetch(platinumEuFixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
-		const workspace = await engine.loadSaveWorkspace(fixtureBytes, 'pokemon-platinum-eu.sav', 2);
+		const workspace = await loadEditableWorkspace(
+			engine,
+			fixtureBytes,
+			'pokemon-platinum-eu.sav',
+			2
+		);
 		if (!workspace.ok) throw new Error('Expected Platinum workspace to load.');
 		const mew = workspace.value.boxSlots[18]?.entityBytesBase64;
 		if (!mew) throw new Error('Expected the Platinum MEW entity bytes.');
@@ -1786,7 +1857,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		});
 
 		const friendshipField =
-			edited.value.workspace.boxSlots[0]?.friendshipEditConstraints.fields.find(
+			edited.value.workspace.boxSlots[0]?.friendshipEditConstraints?.fields.find(
 				(field) => field.key === 'friendship'
 			);
 		if (!friendshipField) throw new Error('Expected Friendship Editing to be supported.');
@@ -1803,7 +1874,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(friendshipEdited.ok).toBe(true);
 		if (!friendshipEdited.ok) throw new Error('Expected Friendship edit to succeed.');
 		expect(friendshipEdited.value.mutated).toBe(true);
-		expect(friendshipEdited.value.workspace.boxSlots[0]?.friendshipEditConstraints.fields).toEqual(
+		expect(friendshipEdited.value.workspace.boxSlots[0]?.friendshipEditConstraints?.fields).toEqual(
 			expect.arrayContaining([expect.objectContaining({ key: 'friendship', value: friendship })])
 		);
 
@@ -1919,7 +1990,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			fetch(fixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
-		const workspace = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
+		const workspace = await loadEditableWorkspace(engine, fixtureBytes, '011020251345.sav', 0);
 		expect(workspace.ok).toBe(true);
 		if (!workspace.ok) throw new Error('Expected Emerald workspace to load.');
 
@@ -1988,7 +2059,8 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			fetch(scarletFixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
-		const workspace = await engine.loadSaveWorkspace(
+		const workspace = await loadEditableWorkspace(
+			engine,
 			fixtureBytes,
 			'pokemon-scarlet-2025-03-24-main.sav',
 			0
@@ -2046,7 +2118,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 				: edited.value.workspace.boxSlots.find(
 						(candidate) => candidate.box === source.box && candidate.slot === source.slot
 					);
-		expect(editedSlot?.metDataEditConstraints.currentOriginGameId).toBe(
+		expect(editedSlot?.metDataEditConstraints?.currentOriginGameId).toBe(
 			alternateOrigin.originGameId
 		);
 		expect(editedSlot?.heldItemSpriteIdentity).toMatchObject({
@@ -2072,7 +2144,8 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		]);
 		const scarletBytes = new Uint8Array(await scarletResponse.arrayBuffer());
 		const emeraldBytes = new Uint8Array(await emeraldResponse.arrayBuffer());
-		const scarlet = await engine.loadSaveWorkspace(
+		const scarlet = await loadEditableWorkspace(
+			engine,
 			scarletBytes,
 			'pokemon-scarlet-2025-03-24-main.sav',
 			0
@@ -2153,7 +2226,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			fetch(fixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
-		const workspace = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
+		const workspace = await loadEditableWorkspace(engine, fixtureBytes, '011020251345.sav', 0);
 		expect(workspace.ok).toBe(true);
 		if (!workspace.ok) throw new Error('Expected Emerald workspace to load.');
 
@@ -2188,7 +2261,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		expect(edited.ok, JSON.stringify(edited.error)).toBe(true);
 		if (!edited.ok) throw new Error('Expected Met Data edit to succeed.');
 		expect(edited.value.mutated).toBe(true);
-		expect(edited.value.workspace.boxSlots[0]?.metDataEditConstraints.currentBallId).toBe(
+		expect(edited.value.workspace.boxSlots[0]?.metDataEditConstraints?.currentBallId).toBe(
 			nextBall.id
 		);
 
@@ -2243,7 +2316,8 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			| undefined;
 
 		for (let box = 0; box < summary.value.boxCount && !primarina; box += 1) {
-			const workspace = await engine.loadSaveWorkspace(
+			const workspace = await loadEditableWorkspace(
+				engine,
 				fixtureBytes,
 				'pokemon-sword-2025-03-24-main.sav',
 				box
@@ -2277,7 +2351,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 
 		expect(primarina, 'Expected Sword fixture to include Primarina.').toBeDefined();
 		if (!primarina) return;
-		expect(primarina.abilityEditConstraints.options).toEqual(
+		expect(primarina.abilityEditConstraints?.options).toEqual(
 			expect.arrayContaining([expect.objectContaining({ hidden: true })])
 		);
 		const iceBeamSlot = primarina.moves.findIndex((move) => move.id === 58);
@@ -2358,6 +2432,42 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 });
 
+type EditDataKey =
+	| 'natureEditConstraints'
+	| 'heldItemEditConstraints'
+	| 'abilityEditConstraints'
+	| 'metDataEditConstraints'
+	| 'originalTrainerEditConstraints'
+	| 'statEditConstraints'
+	| 'moveSetEditConstraints'
+	| 'friendshipEditConstraints'
+	| 'battleFields';
+type Editable<T> = T & Required<Pick<BoxSlotSummary, EditDataKey>>;
+
+// Workspace loads omit edit data, so fill each occupied slot the way the Pokemon Editor does.
+async function loadEditableWorkspace(
+	engine: EngineApi,
+	bytes: Uint8Array,
+	fileName: string | undefined,
+	box: number
+) {
+	const result = await engine.loadSaveWorkspace(bytes, fileName, box);
+	if (!result.ok) return result;
+	const fill = async <T extends PartySlotSummary>(slot: T, source: SaveSlotRef) => {
+		if (slot.isEmpty) return slot as Editable<T>;
+		const loaded = await engine.loadSlotEditData(bytes, fileName, source);
+		if (!loaded.ok) throw new Error(loaded.error.message);
+		return { ...slot, ...loaded.value } as Editable<T>;
+	};
+	const partySlots = await Promise.all(
+		result.value.partySlots.map((slot) => fill(slot, { zone: 'party', slot: slot.slot }))
+	);
+	const boxSlots = await Promise.all(
+		result.value.boxSlots.map((slot) => fill(slot, { zone: 'box', box: slot.box, slot: slot.slot }))
+	);
+	return { ...result, value: { ...result.value, partySlots, boxSlots } };
+}
+
 function copyBytes(bytes: Uint8Array): Uint8Array {
 	const copy = new Uint8Array(bytes.byteLength);
 	copy.set(bytes);
@@ -2410,7 +2520,7 @@ function pokemonActionUnrelatedProjection(slot: BoxSlotSummary | undefined) {
 		heldItem: slot.heldItem,
 		types: slot.types,
 		stats: slot.stats,
-		ballId: slot.metDataEditConstraints.currentBallId,
+		ballId: slot.metDataEditConstraints?.currentBallId,
 		metLabel: slot.metLabel,
 		originalTrainer: slot.originalTrainer,
 		spriteIdentity: slot.spriteIdentity

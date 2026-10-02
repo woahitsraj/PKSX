@@ -6,6 +6,7 @@ import type {
 	EngineResult,
 	EngineVersion,
 	LegalityReport,
+	PartySlotSummary,
 	PokemonActionOperation,
 	PokemonActionPreview,
 	PokemonActionResult,
@@ -54,6 +55,7 @@ type RawDotnetModule = {
 type DotnetPkhexEngineExports = {
 	GetVersionJson(): string;
 	ParseSaveSmoke(bytes: Uint8Array, fileName?: string): string;
+	SummarizeSaveCardJson(bytes: Uint8Array, fileName?: string): string;
 	ListBoxSmoke(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	LoadSaveWorkspaceJson(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	SerializeSaveJson(bytes: Uint8Array, fileName?: string): string;
@@ -96,6 +98,7 @@ type DotnetPkhexEngineExports = {
 		fileName: string | undefined,
 		importJson: string
 	): string;
+	LoadSlotEditDataJson(bytes: Uint8Array, fileName: string | undefined, sourceJson: string): string;
 	CheckSlotLegalityJson(
 		bytes: Uint8Array,
 		fileName: string | undefined,
@@ -167,6 +170,17 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 			normalizeSaveSummaryResult(
 				parseEngineResult<RawSaveSummary>(engine.ParseSaveSmoke(bytes, fileName))
 			),
+		summarizeSaveCard: async (bytes, fileName) => {
+			const result = parseEngineResult<{ summary: RawSaveSummary; pokemonCount: number }>(
+				engine.SummarizeSaveCardJson(bytes, fileName)
+			);
+			if (!result.ok) return result;
+			return {
+				ok: true,
+				value: { ...result.value, summary: normalizeSaveSummary(result.value.summary) },
+				error: null
+			};
+		},
 		listBoxSlots: async (bytes, fileName, box) =>
 			parseEngineResult<BoxSlotSummary[]>(engine.ListBoxSmoke(bytes, fileName, box)),
 		loadSaveWorkspace: async (bytes, fileName, box) =>
@@ -300,6 +314,10 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 						} satisfies RawStoredPokemonImportRequest)
 					)
 				)
+			),
+		loadSlotEditData: async (bytes, fileName, source) =>
+			parseEngineResult<BoxSlotSummary | PartySlotSummary>(
+				engine.LoadSlotEditDataJson(bytes, fileName, JSON.stringify(source))
 			),
 		checkSlotLegality: async (bytes, fileName, source) =>
 			parseEngineResult<LegalityReport>(

@@ -70,14 +70,13 @@ export class ActiveWorkspaceService {
 	}
 
 	async load(saveFileId: SaveFileId, activeBox = 0) {
-		const [file, saveBytes, persisted] = await Promise.all([
+		const [file, persisted] = await Promise.all([
 			this.options.storage.getSave(saveFileId),
-			this.options.storage.getSaveBytes(saveFileId),
 			this.options.storage.getWorkspace(saveFileId)
 		]);
-		if (!file || !saveBytes) return null;
+		const bytes = persisted?.bytes ?? (await this.options.storage.getSaveBytes(saveFileId));
+		if (!file || !bytes) return null;
 
-		const bytes = persisted?.bytes ?? saveBytes;
 		const result = await this.engine.loadSaveWorkspace(
 			bytes,
 			file.originalFileName ?? undefined,

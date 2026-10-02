@@ -91,6 +91,23 @@ describe('ActiveWorkspaceService', () => {
 		expect(service.current).toBeNull();
 	});
 
+	it('loads a persisted Workspace without reading the imported Save File bytes', async () => {
+		const storage = createStorage();
+		vi.mocked(storage.getWorkspace).mockResolvedValue({
+			saveFileId: file.id,
+			bytes: new Uint8Array([9]),
+			dirty: true,
+			automaticBackupCreated: true,
+			updatedAt: file.updatedAt
+		});
+		const service = new ActiveWorkspaceService({ storage, engine: createMockEngine() });
+
+		const loaded = await service.load(file.id);
+
+		expect(loaded).toMatchObject({ bytes: new Uint8Array([9]), dirty: true });
+		expect(storage.getSaveBytes).not.toHaveBeenCalled();
+	});
+
 	it('round-trips every SaveWorkspace projection field', async () => {
 		const service = createService();
 		const loaded = await service.load(file.id);

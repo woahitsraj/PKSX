@@ -222,21 +222,17 @@ export class NativeCatalogJournal {
 	}
 
 	async #sweepOrphans(): Promise<void> {
-		const references = await this.#catalogReferences();
+		const snapshot = await this.#resolve();
+		const references = new Set<string>();
+		collectCatalogReferences(snapshot.catalog, references, snapshot.modern);
 		await Promise.all([
 			this.#sweepFlatDirectory('saves', references),
-			this.#sweepFlatDirectory('backups', references),
+			this.#sweepFlatDirectory('backups', references, () =>
+				this.#collectPendingAutomaticBackupReferences(snapshot, references)
+			),
 			this.#sweepLegacyWorkspaces(references),
 			this.#sweepWorkspaceRevisions(references)
 		]);
-	}
-
-	async #catalogReferences(): Promise<Set<string>> {
-		const references = new Set<string>();
-		const snapshot = await this.#resolve();
-		collectCatalogReferences(snapshot.catalog, references, snapshot.modern);
-		await this.#collectPendingAutomaticBackupReferences(snapshot, references);
-		return references;
 	}
 
 	async #collectPendingAutomaticBackupReferences(
@@ -260,15 +256,20 @@ export class NativeCatalogJournal {
 		}
 	}
 
-	async #sweepFlatDirectory(directory: 'saves' | 'backups', references: Set<string>) {
+	async #sweepFlatDirectory(
+		directory: 'saves' | 'backups',
+		references: Set<string>,
+		collectMoreReferences?: () => Promise<void>
+	) {
 		const names = await this.#fileStore.list(directory);
-		await Promise.all(
+		const unreferenced = () =>
 			names
 				.filter((name) => /^[^/]+\.bin$/.test(name))
 				.map((name) => `${directory}/${name}`)
-				.filter((path) => !references.has(path))
-				.map((path) => this.#fileStore.delete(path))
-		);
+				.filter((path) => !references.has(path));
+		// Reading Save File bytes is costly, so only do it when an orphan candidate exists.
+		if (collectMoreReferences && unreferenced().length > 0) await collectMoreReferences();
+		await Promise.all(unreferenced().map((path) => this.#fileStore.delete(path)));
 	}
 
 	async #sweepWorkspaceRevisions(references: Set<string>) {

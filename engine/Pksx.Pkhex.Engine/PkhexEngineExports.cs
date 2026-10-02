@@ -11,6 +11,8 @@ public static partial class PkhexEngineExports
     private static readonly TimeSpan LegalityFixPreviewLifetime = TimeSpan.FromMinutes(30);
     private static readonly Lock LegalityFixPreviewCacheLock = new();
     private static readonly Dictionary<string, LegalityFixPreview> LegalityFixPreviewCache = [];
+    private static readonly Lock ReadOnlySaveCacheLock = new();
+    private static (byte[] Bytes, string? FileName, SaveFile Save)? readOnlySaveCache;
 
     [JSExport]
     public static string GetVersionJson()
@@ -95,7 +97,7 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = GetReadOnlySave(bytes, fileName, remember: true);
 
             if (save is null)
             {
@@ -121,7 +123,7 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = GetReadOnlySave(bytes, fileName, remember: true);
 
             if (save is null)
             {
@@ -139,7 +141,7 @@ public static partial class PkhexEngineExports
 
             var slots = new List<BoxSlotSummary>(save.BoxSlotCount);
             for (var slot = 0; slot < save.BoxSlotCount; slot++)
-                slots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), save, box, slot));
+                slots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), save, box, slot, includeEditData: false));
 
             return EngineJson.Serialize(EngineResult.Ok(slots), EngineJsonContext.Default.EngineResultListBoxSlotSummary);
         }
@@ -156,7 +158,7 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = GetReadOnlySave(bytes, fileName, remember: true);
 
             if (save is null)
             {
@@ -173,8 +175,100 @@ public static partial class PkhexEngineExports
             }
 
             return EngineJson.Serialize(
-                EngineResult.Ok(CreateWorkspace(save, fileName, box)),
+                EngineResult.Ok(CreateWorkspace(save, fileName, box, includeEditData: false)),
                 EngineJsonContext.Default.EngineResultSaveWorkspace);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
+    public static string SummarizeSaveCardJson(byte[] bytes, string? fileName)
+    {
+        try
+        {
+            var save = GetReadOnlySave(bytes, fileName, remember: false);
+
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var pokemonCount = save.PartyCount;
+            for (var box = 0; box < save.BoxCount; box++)
+            {
+                for (var slot = 0; slot < save.BoxSlotCount; slot++)
+                {
+                    if (save.GetBoxSlotAtIndex(box, slot).Species != 0)
+                        pokemonCount++;
+                }
+            }
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(new SaveCardSummary(SaveSummary.From(save, fileName), pokemonCount)),
+                EngineJsonContext.Default.EngineResultSaveCardSummary);
+        }
+        catch (Exception ex)
+        {
+            return EngineJson.Serialize(
+                EngineResult.Fail("unknown-engine-error", ex.Message),
+                EngineJsonContext.Default.EngineResultObject);
+        }
+    }
+
+    [JSExport]
+    public static string LoadSlotEditDataJson(byte[] bytes, string? fileName, string sourceJson)
+    {
+        try
+        {
+            var save = GetReadOnlySave(bytes, fileName, remember: true);
+
+            if (save is null)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            var reference = System.Text.Json.JsonSerializer.Deserialize(
+                sourceJson,
+                EngineJsonContext.Default.SaveSlotRef);
+            // Party slots are read like CreateWorkspace lists them, including saves without a native party.
+            if (reference?.Zone == "party")
+            {
+                if (reference.Slot < 0 || reference.Slot >= save.PartyCount)
+                {
+                    return EngineJson.Serialize(
+                        EngineResult.Fail("invalid-slot", "Party Slot is outside the save's party range."),
+                        EngineJsonContext.Default.EngineResultObject);
+                }
+
+                return EngineJson.Serialize(
+                    EngineResult.Ok(PartySlotSummary.From(save.GetPartySlotAtIndex(reference.Slot), save, reference.Slot)),
+                    EngineJsonContext.Default.EngineResultPartySlotSummary);
+            }
+
+            var source = SlotRef.From(save, reference);
+            if (!source.Ok)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail(source.Code, source.Message),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
+
+            return EngineJson.Serialize(
+                EngineResult.Ok(BoxSlotSummary.From(
+                    source.Value.Get(save),
+                    save,
+                    source.Value.Box,
+                    source.Value.Slot)),
+                EngineJsonContext.Default.EngineResultBoxSlotSummary);
         }
         catch (Exception ex)
         {
@@ -949,15 +1043,36 @@ public static partial class PkhexEngineExports
         }
     }
 
-    private static SaveWorkspace CreateWorkspace(SaveFile save, string? fileName, int box)
+    // Read-only requests share the last parsed Save File; requests that mutate always parse their own.
+    private static SaveFile? GetReadOnlySave(byte[] bytes, string? fileName, bool remember)
+    {
+        lock (ReadOnlySaveCacheLock)
+        {
+            if (readOnlySaveCache is { } cached &&
+                cached.FileName == fileName &&
+                cached.Bytes.AsSpan().SequenceEqual(bytes))
+            {
+                return cached.Save;
+            }
+
+            // Some formats decrypt the input in place, so keep an untouched copy as the key.
+            var key = remember ? bytes.ToArray() : bytes;
+            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            if (save is not null && remember)
+                readOnlySaveCache = (key, fileName, save);
+            return save;
+        }
+    }
+
+    private static SaveWorkspace CreateWorkspace(SaveFile save, string? fileName, int box, bool includeEditData = true)
     {
         var partySlots = new List<PartySlotSummary>(save.PartyCount);
         for (var slot = 0; slot < save.PartyCount; slot++)
-            partySlots.Add(PartySlotSummary.From(save.GetPartySlotAtIndex(slot), save, slot));
+            partySlots.Add(PartySlotSummary.From(save.GetPartySlotAtIndex(slot), save, slot, includeEditData));
 
         var boxSlots = new List<BoxSlotSummary>(save.BoxSlotCount);
         for (var slot = 0; slot < save.BoxSlotCount; slot++)
-            boxSlots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), save, box, slot));
+            boxSlots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), save, box, slot, includeEditData));
 
         return new SaveWorkspace(
             SaveSummary.From(save, fileName),

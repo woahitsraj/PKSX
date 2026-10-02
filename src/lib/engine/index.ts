@@ -87,6 +87,7 @@ export type {
 	SlotOperation,
 	SlotOperationResult,
 	SerializedSave,
+	SaveCardSummary,
 	SaveSummary,
 	SpriteIdentity,
 	StoredPokemonActionOperation,

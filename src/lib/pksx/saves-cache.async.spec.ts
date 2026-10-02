@@ -7,12 +7,13 @@ const fakes = vi.hoisted(() => ({
 	storage: {
 		getActiveSaveFileId: vi.fn(),
 		listSaves: vi.fn(),
+		getSave: vi.fn(),
 		getSaveBytes: vi.fn(),
 		getWorkspace: vi.fn()
 	},
 	engine: {
-		loadSaveWorkspace: vi.fn(),
-		listBoxSlots: vi.fn()
+		summarizeSaveCard: vi.fn(),
+		loadSaveWorkspace: vi.fn()
 	}
 }));
 
@@ -31,6 +32,7 @@ import {
 	getSavesSnapshot,
 	invalidateActiveWorkspaceCache,
 	invalidateSavesCache,
+	loadWorkspaceForOpening,
 	setCachedActiveWorkspace,
 	subscribeSavesSnapshot
 } from './saves-cache';
@@ -90,12 +92,12 @@ describe('Saves cache async settlement', () => {
 		fakes.storage.listSaves.mockResolvedValue([file]);
 		fakes.storage.getSaveBytes.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
 		fakes.storage.getWorkspace.mockResolvedValue(null);
-		fakes.engine.loadSaveWorkspace
+		fakes.engine.summarizeSaveCard
 			.mockReturnValueOnce(older.promise)
 			.mockReturnValueOnce(newer.promise);
 
 		await getSavesSnapshot({ force: true });
-		await vi.waitFor(() => expect(fakes.engine.loadSaveWorkspace).toHaveBeenCalledTimes(1));
+		await vi.waitFor(() => expect(fakes.engine.summarizeSaveCard).toHaveBeenCalledTimes(1));
 		const updates: Array<ReturnType<typeof getCachedSavesSnapshot>> = [];
 		const unsubscribe = subscribeSavesSnapshot((snapshot) => updates.push(snapshot));
 		setCachedActiveWorkspace(
@@ -106,7 +108,7 @@ describe('Saves cache async settlement', () => {
 			})
 		);
 		invalidateSavesCache();
-		await vi.waitFor(() => expect(fakes.engine.loadSaveWorkspace).toHaveBeenCalledTimes(2));
+		await vi.waitFor(() => expect(fakes.engine.summarizeSaveCard).toHaveBeenCalledTimes(2));
 		expect(fakes.storage.listSaves).toHaveBeenCalledTimes(1);
 
 		older.resolve(success('OLD'));
@@ -133,13 +135,13 @@ describe('Saves cache async settlement', () => {
 		fakes.storage.listSaves.mockResolvedValue([file]);
 		fakes.storage.getSaveBytes.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
 		fakes.storage.getWorkspace.mockResolvedValue(null);
-		fakes.engine.loadSaveWorkspace.mockImplementation((bytes: Uint8Array) =>
+		fakes.engine.summarizeSaveCard.mockImplementation((bytes: Uint8Array) =>
 			bytes[0] === 1 ? older.promise : Promise.resolve(success('NEW'))
 		);
 
 		const unsubscribe = subscribeSavesSnapshot(() => undefined);
 		await getSavesSnapshot({ force: true });
-		await vi.waitFor(() => expect(fakes.engine.loadSaveWorkspace).toHaveBeenCalledTimes(1));
+		await vi.waitFor(() => expect(fakes.engine.summarizeSaveCard).toHaveBeenCalledTimes(1));
 		unsubscribe();
 		setCachedActiveWorkspace(
 			createCleanWorkspaceState({
@@ -173,9 +175,9 @@ describe('Saves cache async settlement', () => {
 		fakes.storage.listSaves.mockResolvedValue([file]);
 		fakes.storage.getSaveBytes.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
 		fakes.storage.getWorkspace.mockResolvedValue(null);
-		fakes.engine.loadSaveWorkspace.mockReturnValue(details.promise);
+		fakes.engine.summarizeSaveCard.mockReturnValue(details.promise);
 		await getSavesSnapshot({ force: true });
-		await vi.waitFor(() => expect(fakes.engine.loadSaveWorkspace).toHaveBeenCalledTimes(1));
+		await vi.waitFor(() => expect(fakes.engine.summarizeSaveCard).toHaveBeenCalledTimes(1));
 		const updates = vi.fn();
 		const unsubscribe = subscribeSavesSnapshot(updates);
 		updates.mockClear();
@@ -205,9 +207,9 @@ describe('Saves cache async settlement', () => {
 		fakes.storage.listSaves.mockResolvedValue([file]);
 		fakes.storage.getSaveBytes.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
 		fakes.storage.getWorkspace.mockResolvedValue(null);
-		fakes.engine.loadSaveWorkspace.mockReturnValue(details.promise);
+		fakes.engine.summarizeSaveCard.mockReturnValue(details.promise);
 		await getSavesSnapshot({ force: true });
-		await vi.waitFor(() => expect(fakes.engine.loadSaveWorkspace).toHaveBeenCalledTimes(1));
+		await vi.waitFor(() => expect(fakes.engine.summarizeSaveCard).toHaveBeenCalledTimes(1));
 		const updates = vi.fn();
 		const unsubscribe = subscribeSavesSnapshot(updates);
 		fakes.storage.listSaves.mockReturnValue(nextCatalog.promise);
@@ -238,7 +240,7 @@ describe('Saves cache async settlement', () => {
 			.mockReturnValueOnce(secondList.promise);
 		fakes.storage.getSaveBytes.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
 		fakes.storage.getWorkspace.mockResolvedValue(null);
-		fakes.engine.loadSaveWorkspace.mockResolvedValue(success('NEW'));
+		fakes.engine.summarizeSaveCard.mockResolvedValue(success('NEW'));
 
 		const firstRequest = getSavesSnapshot({ force: true });
 		const secondRequest = getSavesSnapshot({ force: true });
@@ -248,6 +250,53 @@ describe('Saves cache async settlement', () => {
 		const [firstSnapshot, secondSnapshot] = await Promise.all([firstRequest, secondRequest]);
 		expect(firstSnapshot).toBe(secondSnapshot);
 		expect(firstSnapshot.saveFiles).toEqual([newest]);
+	});
+
+	it('loads a Workspace for opening once and then reuses the published one', async () => {
+		const file = saveFile('opening');
+		fakes.storage.getSave.mockResolvedValue(file);
+		fakes.storage.getSaveBytes.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
+		fakes.storage.getWorkspace.mockResolvedValue(null);
+		fakes.engine.loadSaveWorkspace.mockResolvedValue({
+			ok: true,
+			value: workspace('OPEN'),
+			error: null
+		});
+
+		const first = await loadWorkspaceForOpening(file.id);
+		expect(first).toMatchObject({ published: false, state: { file } });
+		setCachedActiveWorkspace(first!.state, 0);
+		const second = await loadWorkspaceForOpening(file.id);
+
+		expect(second).toMatchObject({ published: true, state: { file } });
+		expect(fakes.engine.loadSaveWorkspace).toHaveBeenCalledTimes(1);
+	});
+
+	it('keeps card details when the active Workspace is republished with the same bytes', async () => {
+		const file = saveFile('box-switch');
+		fakes.storage.getActiveSaveFileId.mockResolvedValue(file.id);
+		fakes.storage.listSaves.mockResolvedValue([file]);
+		fakes.storage.getWorkspace.mockResolvedValue(null);
+		fakes.engine.summarizeSaveCard.mockResolvedValue(success('ACTIVE'));
+		const unsubscribe = subscribeSavesSnapshot(() => undefined);
+		const state = createCleanWorkspaceState({
+			file,
+			bytes: new Uint8Array([5, 6, 7, 8]),
+			workspace: workspace('ACTIVE')
+		});
+		await getSavesSnapshot({ force: true });
+		setCachedActiveWorkspace(state, 0);
+		await vi.waitFor(() =>
+			expect(getCachedSavesSnapshot()?.detailsBySaveFileId[file.id]?.status).toBe('ready')
+		);
+		fakes.engine.summarizeSaveCard.mockClear();
+
+		setCachedActiveWorkspace({ ...state, bytes: new Uint8Array([5, 6, 7, 8]) }, 1);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(getCachedSavesSnapshot()?.detailsBySaveFileId[file.id]?.status).toBe('ready');
+		expect(fakes.engine.summarizeSaveCard).not.toHaveBeenCalled();
+		unsubscribe();
 	});
 
 	it('keeps another card settling when the active Workspace is republished', async () => {
@@ -260,7 +309,7 @@ describe('Saves cache async settlement', () => {
 		fakes.storage.listSaves.mockResolvedValue([active, other]);
 		fakes.storage.getSaveBytes.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
 		fakes.storage.getWorkspace.mockResolvedValue(null);
-		fakes.engine.loadSaveWorkspace.mockImplementation((bytes: Uint8Array, fileName: string) =>
+		fakes.engine.summarizeSaveCard.mockImplementation((bytes: Uint8Array, fileName: string) =>
 			fileName === other.originalFileName
 				? otherDetails.promise
 				: bytes[0] === 1
@@ -269,7 +318,7 @@ describe('Saves cache async settlement', () => {
 		);
 
 		await getSavesSnapshot({ force: true });
-		await vi.waitFor(() => expect(fakes.engine.loadSaveWorkspace).toHaveBeenCalledTimes(2));
+		await vi.waitFor(() => expect(fakes.engine.summarizeSaveCard).toHaveBeenCalledTimes(2));
 		const unsubscribe = subscribeSavesSnapshot(() => undefined);
 		setCachedActiveWorkspace(
 			createCleanWorkspaceState({
@@ -278,7 +327,7 @@ describe('Saves cache async settlement', () => {
 				workspace: workspace('ACTIVE NEW')
 			})
 		);
-		await vi.waitFor(() => expect(fakes.engine.loadSaveWorkspace).toHaveBeenCalledTimes(3));
+		await vi.waitFor(() => expect(fakes.engine.summarizeSaveCard).toHaveBeenCalledTimes(3));
 
 		otherDetails.resolve(success('OTHER'));
 		await vi.waitFor(() =>
@@ -308,5 +357,9 @@ describe('Saves cache async settlement', () => {
 });
 
 function success(trainerName: string) {
-	return { ok: true as const, value: workspace(trainerName), error: null };
+	return {
+		ok: true as const,
+		value: { summary: workspace(trainerName).summary, pokemonCount: 0 },
+		error: null
+	};
 }

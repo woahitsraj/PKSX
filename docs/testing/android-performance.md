@@ -17,6 +17,12 @@ pnpm android:build:profile
 adb install -r android/app/build/outputs/apk/profile/app-profile.apk
 ```
 
+An update install keeps the service worker of the previous build, and it serves the previous
+engine files until the update is accepted. With the app running and its DevTools socket
+forwarded, run `node scripts/android-perf/clear-cache.ts` after each install. Then leave the app
+open until the new service worker has cached its files, which takes about a minute. A force-stop
+during that time restarts the download and slows every cold launch.
+
 ## Fixtures
 
 Import these Save Files into the profile app. With the app running and its DevTools socket
@@ -99,6 +105,27 @@ Engine calls in a fresh worker, p50 of three runs:
 | Sword     | 241             | 1035 (3.8 MB)              | 336 (0.4 MB)                |
 | HeartGold | 8               | 581 (2.7 MB)               | 1170 (5.5 MB)               |
 | XD        | 23              | 633 (3.1 MB)               | 377 (1.8 MB)                |
+
+## After #372
+
+Same device, fixtures and procedure. Profile build of the #372 branch, 2026-10-02, after
+`clear-cache.ts` and a completed service worker install. p50 / p90, five runs.
+
+| Scenario                                    | Scarlet     | Sword     | HeartGold | XD        |
+| ------------------------------------------- | ----------- | --------- | --------- | --------- |
+| Cold launch to cards visible (all saves)    | 319 / 325   |           |           |           |
+| Cold launch to all card details (all saves) | 3696 / 3856 |           |           |           |
+| Cold open, from tap (active Save File)      | 1210 / 1278 |           |           |           |
+| Warm open                                   | 1349 / 1404 | 742 / 810 | 428 / 446 | 390 / 415 |
+| Boxes to Saves, card details ready (all)    | 279 / 407   |           |           |           |
+| Main Menu to Boxes                          | 260 / 303   |           |           |           |
+| Main Menu to Saves                          | 357 / 362   |           |           |           |
+
+- Cold cards visible is now the paint time of the first card from Element Timing. The baseline
+  value polled the DOM after DevTools connected, at about 1.8 s, so it is not comparable.
+- The longest main-thread task during a warm open is 106 ms.
+- Main Menu to Bag is unchanged at 2156 to 2412 ms, with a long task of about 1.3 s while the
+  inventory catalogue loads.
 
 ## Bottlenecks
 

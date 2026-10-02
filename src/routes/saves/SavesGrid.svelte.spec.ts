@@ -11,12 +11,12 @@ import {
 	invalidateSavesCache
 } from '$lib/pksx/saves-cache';
 
-type LoadSaveResult = Awaited<ReturnType<EngineApi['loadSaveWorkspace']>>;
+type CardResult = Awaited<ReturnType<EngineApi['summarizeSaveCard']>>;
 
 const fakes = vi.hoisted(() => ({
 	databaseName: 'pksx-grid-test-' + crypto.randomUUID(),
 	host: null as ReturnType<typeof createSummonedWorkflowHost> | null,
-	detailsRequest: null as Promise<LoadSaveResult> | null,
+	detailsRequest: null as Promise<CardResult> | null,
 	toastHost: {
 		success: vi.fn(),
 		error: vi.fn()
@@ -41,9 +41,7 @@ vi.mock('$lib/pksx/toast/host.svelte', () => ({
 vi.mock('$lib/engine', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/engine')>()),
 	createPkhexWorkerEngine: () => ({
-		loadSaveWorkspace: () =>
-			fakes.detailsRequest ?? Promise.resolve({ ok: false } as LoadSaveResult),
-		listBoxSlots: async () => ({ ok: true, value: [], error: null })
+		summarizeSaveCard: () => fakes.detailsRequest ?? Promise.resolve({ ok: false } as CardResult)
 	})
 }));
 
@@ -132,7 +130,7 @@ it('includes Pokemon Storage in grid navigation', async () => {
 });
 
 it('marks a Save File card busy only while its details are loading', async () => {
-	let resolveDetails!: (result: LoadSaveResult) => void;
+	let resolveDetails!: (result: CardResult) => void;
 	fakes.detailsRequest = new Promise((resolve) => (resolveDetails = resolve));
 	fakes.host = createSummonedWorkflowHost();
 	await getSavesStorage().importSave({
@@ -166,10 +164,9 @@ it('marks a Save File card busy only while its details are loading', async () =>
 				partyCount: 0,
 				boxCount: 1
 			},
-			partySlots: [],
-			boxSlots: []
+			pokemonCount: 0
 		}
-	} as unknown as LoadSaveResult);
+	} as unknown as CardResult);
 
 	await expect.poll(() => card.getAttribute('aria-busy')).toBe('false');
 	expect(card.querySelector('[role="status"]')).toBeNull();

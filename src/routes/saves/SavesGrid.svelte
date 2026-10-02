@@ -33,6 +33,8 @@
 		invalidateActiveWorkspaceCache,
 		invalidateSavesCache,
 		isCachedSavesSnapshotSeeded,
+		loadWorkspaceForOpening,
+		setCachedActiveWorkspace,
 		subscribeSavesSnapshot,
 		type SaveCardDetailsState,
 		type SavesSnapshot
@@ -440,32 +442,20 @@
 		if (busyTarget) return;
 		busyTarget = saveFile.id;
 		try {
-			const [current, importedBytes, persistedWorkspace] = await Promise.all([
-				storage.getSave(saveFile.id),
-				storage.getSaveBytes(saveFile.id),
-				storage.getWorkspace(saveFile.id)
-			]);
-			if (!current || !importedBytes) {
-				throw new Error('The selected Save File is no longer available.');
-			}
-			const bytes = persistedWorkspace?.bytes ?? importedBytes;
-			const validation = await getPkhexEngine().loadSaveWorkspace(
-				bytes,
-				current.originalFileName ?? undefined,
-				0
-			);
-			if (!validation.ok) throw validation.error;
+			const opening = await loadWorkspaceForOpening(saveFile.id);
+			if (!opening) throw new Error('The selected Save File is no longer available.');
+			const current = opening.state.file;
 
 			if (current.id !== activeSaveFileId) {
 				await storage.setActiveSaveFileId(current.id);
-				invalidateActiveWorkspaceCache();
 				invalidateSavesCache();
 			}
+			if (!opening.published) setCachedActiveWorkspace(opening.state, 0);
 			boxesSession.selectPrimary({
 				type: 'save-file',
 				id: current.id,
 				label: current.originalFileName ?? 'Save File',
-				dirty: persistedWorkspace?.dirty ?? false
+				dirty: opening.state.dirty
 			});
 			chooseTarget({ kind: 'save-file', id: current.id }, false);
 			summonedWorkflow.closeAll();
@@ -753,14 +743,18 @@
 												<span class="trainer"
 													>{details.details.summary.trainerName ?? 'Unknown Trainer'}</span
 												>
-												<span class="file-name">{displayName(saveFile)}</span>
+												<span class="file-name" elementtiming="save-card"
+													>{displayName(saveFile)}</span
+												>
 												<span class="card-stats">
 													<b>{details.details.summary.boxCount}</b> boxes
 													<i aria-hidden="true"></i>
 													<b>{details.details.creatureCount}</b> Pokemon
 												</span>
 											{:else}
-												<span class="file-name">{displayName(saveFile)}</span>
+												<span class="file-name" elementtiming="save-card"
+													>{displayName(saveFile)}</span
+												>
 												<span class="detail-state">
 													{#if details.status === 'loading'}
 														<DelayedSpinner active label={`Reading ${displayName(saveFile)}`} />

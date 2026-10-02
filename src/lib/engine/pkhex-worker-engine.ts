@@ -5,6 +5,7 @@ import type {
 	EngineResult,
 	EngineVersion,
 	LegalityReport,
+	PartySlotSummary,
 	PokemonActionPreview,
 	PokemonActionResult,
 	PokemonCreationCatalogue,
@@ -17,6 +18,7 @@ import type {
 	LinkTradePartnerPokemon,
 	SaveFileEditOperationResult,
 	SaveFileInventoryCatalogue,
+	SaveCardSummary,
 	SaveWorkspace,
 	SlotOperationResult,
 	StoredPokemonImportResult,
@@ -137,6 +139,20 @@ export function createPkhexWorkerEngine(
 					type: 'request',
 					id: createRequestId(),
 					method: 'summarizeSave',
+					payload: { bytes: buffer, fileName }
+				},
+				[buffer]
+			);
+		},
+		summarizeSaveCard: (bytes, fileName) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'summarizeSaveCard',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'summarizeSaveCard',
 					payload: { bytes: buffer, fileName }
 				},
 				[buffer]
@@ -355,6 +371,20 @@ export function createPkhexWorkerEngine(
 				[buffer]
 			);
 		},
+		loadSlotEditData: (bytes, fileName, source) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'loadSlotEditData',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'loadSlotEditData',
+					payload: { bytes: buffer, fileName, source: cloneSlotRef(source) }
+				},
+				[buffer]
+			);
+		},
 		checkSlotLegality: (bytes, fileName, source) => {
 			const buffer = copyBytesToArrayBuffer(bytes);
 
@@ -490,6 +520,11 @@ export function createPkhexWorkerEngine(
 		transfer: Transferable[]
 	): Promise<EngineResult<SaveSummary>>;
 	async function sendRequest(
+		method: 'summarizeSaveCard',
+		request: Extract<EngineWorkerRequest, { method: 'summarizeSaveCard' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<SaveCardSummary>>;
+	async function sendRequest(
 		method: 'listBoxSlots',
 		request: Extract<EngineWorkerRequest, { method: 'listBoxSlots' }>,
 		transfer: Transferable[]
@@ -554,6 +589,11 @@ export function createPkhexWorkerEngine(
 		request: Extract<EngineWorkerRequest, { method: 'importStoredPokemon' }>,
 		transfer: Transferable[]
 	): Promise<EngineResult<StoredPokemonImportResult>>;
+	async function sendRequest(
+		method: 'loadSlotEditData',
+		request: Extract<EngineWorkerRequest, { method: 'loadSlotEditData' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<BoxSlotSummary | PartySlotSummary>>;
 	async function sendRequest(
 		method: 'checkSlotLegality',
 		request: Extract<EngineWorkerRequest, { method: 'checkSlotLegality' }>,

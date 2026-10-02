@@ -772,6 +772,20 @@ describe('CapacitorSavesStorage', () => {
 		expect([...files.keys()].filter((path) => path.startsWith('backups/'))).toEqual([]);
 	});
 
+	it('lists Saves without reading Save File bytes when every Backup file is catalogued', async () => {
+		await storage.importSave({ bytes: new Uint8Array([1, 2, 3]), originalFileName: null });
+		const reads: string[] = [];
+		const recreated = new CapacitorSavesStorage({
+			fileStore: {
+				...fileStore,
+				readBytes: (path) => (reads.push(path), fileStore.readBytes(path))
+			}
+		});
+
+		await expect(recreated.listSaves()).resolves.toHaveLength(1);
+		expect(reads).toEqual([]);
+	});
+
 	it('does not overwrite mismatched bytes for a catalogued automatic Backup identity', async () => {
 		const baseline = new Uint8Array([1, 2, 3]);
 		const saveFile = await storage.importSave({ bytes: baseline, originalFileName: null });

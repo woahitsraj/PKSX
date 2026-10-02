@@ -646,7 +646,8 @@ describe('Save File Bag with a real public fixture', () => {
 		expect(loadSaveWorkspace.mock.calls[0][0]).toEqual(recoveryBytes);
 		expect(loadSaveWorkspace.mock.calls[0][0]).not.toBe(recoveryBasis.bytes);
 		expect(harness.currentWorkspace().bytes).toEqual(recoveryBytes);
-		expect(harness.currentWorkspace().workspace).toEqual(recoveryBasis.workspace);
+		// The edit result carries slot edit data that a Workspace load leaves out.
+		expect(recoveryBasis.workspace).toMatchObject(harness.currentWorkspace().workspace);
 		expect(subscribePending).toHaveBeenCalledTimes(2);
 		await vi.waitFor(() =>
 			expect(harness.currentLedgerProps().catalogues?.[pocket.key]?.status).toBe('ready')

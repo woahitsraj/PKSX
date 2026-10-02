@@ -370,6 +370,11 @@ export function createMockEngine(
 	return {
 		getVersion: async () => success(mockVersion),
 		summarizeSave: async (_bytes, fileName) => success({ ...mockSaveSummary, fileName }),
+		summarizeSaveCard: async (_bytes, fileName) =>
+			success({
+				summary: { ...mockSaveSummary, fileName },
+				pokemonCount: mockPartySlots.length + mockBoxSlots.filter((slot) => !slot.isEmpty).length
+			}),
 		listBoxSlots: async (_bytes, _fileName, box) => {
 			if (box !== 0) {
 				return {
@@ -523,6 +528,15 @@ export function createMockEngine(
 					boxNames
 				}
 			}),
+		loadSlotEditData: async (_bytes, _fileName, source) => {
+			const slot =
+				source.zone === 'party'
+					? mockPartySlots.find((candidate) => candidate.slot === source.slot)
+					: mockBoxSlots.find((candidate) => candidate.slot === source.slot);
+			return slot
+				? success(slot)
+				: { ok: false, value: null, error: { code: 'invalid-slot', message: 'No mock slot.' } };
+		},
 		checkSlotLegality: async () =>
 			success<LegalityReport>({
 				legal: true,

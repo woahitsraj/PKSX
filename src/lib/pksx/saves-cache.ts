@@ -1,14 +1,12 @@
-import {
-	createPkhexWorkerEngine,
-	type BoxSlotSummary,
-	type EngineApi,
-	type EngineResult,
-	type PartySlotSummary,
-	type SaveSummary
-} from '$lib/engine';
+import { createPkhexWorkerEngine, type EngineApi, type SaveSummary } from '$lib/engine';
 import type { WorkspaceState } from '$lib/pksx/backup-workflow';
 import { SaveFileEditCoordinator } from '$lib/pksx/save-file-edit-coordinator';
-import { createSavesStorage, type SaveFileId, type StoredSaveFile } from '$lib/pksx/saves';
+import {
+	bytesEqual,
+	createSavesStorage,
+	type SaveFileId,
+	type StoredSaveFile
+} from '$lib/pksx/saves';
 import {
 	ActiveWorkspaceService,
 	LocalStorageWorkspacePersistence
@@ -16,7 +14,6 @@ import {
 
 export type SaveCardDetails = {
 	summary: SaveSummary;
-	partySlots: PartySlotSummary[];
 	creatureCount: number;
 };
 
@@ -54,6 +51,7 @@ let snapshotGeneration = 0;
 let workspaceService: ActiveWorkspaceService | null = null;
 let workspaceServiceStart: Promise<void> | null = null;
 let activeWorkspaceBox = 0;
+let publishedBytes: { saveFileId: SaveFileId; bytes: Uint8Array } | null = null;
 let pendingActiveSaveAdoption: SaveFileId | null = null;
 let saveFileEditCoordinator: SaveFileEditCoordinator | null = null;
 
@@ -201,7 +199,17 @@ export function setCachedActiveWorkspace(
 	pendingActiveSaveAdoption = workspace && options.adoptAsActiveSave ? workspace.file.id : null;
 	activeWorkspaceBox = box;
 	getActiveWorkspaceService().set(workspace, box);
+	const previousBytes = publishedBytes;
+	publishedBytes = workspace ? { saveFileId: workspace.file.id, bytes: workspace.bytes } : null;
 	if (!workspace) return;
+	if (
+		previousBytes?.saveFileId === workspace.file.id &&
+		detailsCache.has(workspace.file.id) &&
+		savesSnapshot?.activeSaveFileId === workspace.file.id &&
+		bytesEqual(previousBytes.bytes, workspace.bytes)
+	) {
+		return;
+	}
 	detailsCache.delete(workspace.file.id);
 	const detailGeneration = supersedeSaveCardDetails(workspace.file.id);
 	if (!savesSnapshot) return;
@@ -224,6 +232,7 @@ export function invalidateActiveWorkspaceCache(saveFileId?: SaveFileId) {
 	if (!saveFileId || workspaceService?.current?.file.id === saveFileId) {
 		workspaceService?.set(null);
 		activeWorkspaceBox = 0;
+		publishedBytes = null;
 	}
 }
 
@@ -264,6 +273,15 @@ export async function loadActiveWorkspaceFromSaves() {
 	const workspace = await service.hydrate(fallbackSaveFile.id, 0);
 	activeWorkspaceBox = 0;
 	return workspace;
+}
+
+/** Loads the Workspace that opening a Save File uses; `published` is true when it is already active. */
+export async function loadWorkspaceForOpening(saveFileId: SaveFileId) {
+	const service = await startActiveWorkspaceService();
+	const current = service.current;
+	if (current?.file.id === saveFileId) return { state: current, published: true };
+	const state = await service.load(saveFileId, 0);
+	return state ? { state, published: false } : null;
 }
 
 function supersedeSaveCardDetails(saveFileId: SaveFileId) {
@@ -345,51 +363,21 @@ function ensureSaveFileIncluded(saveFiles: StoredSaveFile[], saveFile: StoredSav
 }
 
 async function loadSaveCardDetails(saveFile: StoredSaveFile): Promise<SaveCardDetails | null> {
-	const [storedBytes, persistedWorkspace] = await Promise.all([
-		storage.getSaveBytes(saveFile.id),
-		storage.getWorkspace(saveFile.id)
-	]);
 	const activeWorkspace = getCachedActiveWorkspace();
-	const bytes =
-		activeWorkspace?.file.id === saveFile.id
-			? activeWorkspace.bytes
-			: (persistedWorkspace?.bytes ?? storedBytes);
+	let bytes = activeWorkspace?.file.id === saveFile.id ? activeWorkspace.bytes : null;
+	if (!bytes) {
+		// These details describe other bytes than the published ones.
+		if (publishedBytes?.saveFileId === saveFile.id) publishedBytes = null;
+		bytes =
+			(await storage.getWorkspace(saveFile.id))?.bytes ?? (await storage.getSaveBytes(saveFile.id));
+	}
 	if (!bytes) return null;
 
-	const activeEngine = getPkhexEngine();
-	const workspace = await activeEngine.loadSaveWorkspace(
+	const card = await getPkhexEngine().summarizeSaveCard(
 		bytes,
-		saveFile.originalFileName ?? undefined,
-		0
+		saveFile.originalFileName ?? undefined
 	);
-	if (!workspace.ok) return null;
-
-	const creatureCount = await countSavePokemon(
-		workspace.value.summary,
-		workspace.value.boxSlots,
-		(box) => activeEngine.listBoxSlots(bytes, saveFile.originalFileName ?? undefined, box)
-	);
-	if (creatureCount === null) return null;
-
-	return {
-		summary: workspace.value.summary,
-		partySlots: workspace.value.partySlots,
-		creatureCount
-	};
-}
-
-export async function countSavePokemon(
-	summary: SaveSummary,
-	firstBoxSlots: BoxSlotSummary[],
-	loadBoxSlots: (box: number) => Promise<EngineResult<BoxSlotSummary[]>>
-) {
-	let count = summary.partyCount + firstBoxSlots.filter((slot) => !slot.isEmpty).length;
-	for (let box = 1; box < summary.boxCount; box += 1) {
-		const slots = await loadBoxSlots(box);
-		if (!slots.ok) return null;
-		count += slots.value.filter((slot) => !slot.isEmpty).length;
-	}
-	return count;
+	return card.ok ? { summary: card.value.summary, creatureCount: card.value.pokemonCount } : null;
 }
 
 function createSaveFileFingerprint(saveFile: StoredSaveFile) {
