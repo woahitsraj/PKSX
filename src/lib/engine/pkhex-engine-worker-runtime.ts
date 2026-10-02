@@ -52,6 +52,7 @@ import {
 	type EngineWorkerPrepareOutgoingLinkTradeRequest,
 	type EngineWorkerReadLinkTradePartnerPokemonRequest,
 	type EngineWorkerLoadSaveWorkspaceRequest,
+	type EngineWorkerLoadSlotEditDataRequest,
 	type EngineWorkerListBoxSlotsRequest,
 	type EngineWorkerMessage,
 	type EngineWorkerRequest,
@@ -215,7 +216,10 @@ export function createPkhexEngineWorkerRuntime({
 			return;
 		}
 
-		const lane = request.value.method === 'summarizeSaveCard' ? 'background' : 'user';
+		const background =
+			request.value.method === 'summarizeSaveCard' ||
+			(request.value.method === 'loadSaveWorkspace' && request.value.payload.background);
+		const lane = background ? 'background' : 'user';
 		queues[lane].push(request.value);
 		void drainQueues();
 	}
@@ -348,20 +352,7 @@ export function createPkhexEngineWorkerRuntime({
 				postStoredPokemonImportResponse(postMessage, request, importStoredPokemon(engine, request));
 				return;
 			case 'loadSlotEditData':
-				postMessage(
-					createEngineWorkerResponse(
-						request,
-						engine.LoadSlotEditDataJson
-							? parseEngineResult<BoxSlotSummary | PartySlotSummary>(
-									engine.LoadSlotEditDataJson(
-										new Uint8Array(request.payload.bytes),
-										request.payload.fileName,
-										JSON.stringify(request.payload.source)
-									)
-								)
-							: unavailableResult(request)
-					)
-				);
+				postMessage(createEngineWorkerResponse(request, loadSlotEditData(engine, request)));
 				return;
 			case 'checkSlotLegality':
 				postMessage(createEngineWorkerResponse(request, checkSlotLegality(engine, request)));
@@ -466,6 +457,21 @@ function summarizeSaveCard(
 		pokemonCount += slots.value.filter((slot) => !slot.isEmpty).length;
 	}
 	return { ok: true, value: { summary: summary.value, pokemonCount }, error: null };
+}
+
+function loadSlotEditData(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerLoadSlotEditDataRequest
+): EngineResult<BoxSlotSummary | PartySlotSummary> {
+	// Engines without this export always return edit data with the Workspace.
+	if (!engine.LoadSlotEditDataJson) return unavailableResult(request);
+	return parseEngineResult<BoxSlotSummary | PartySlotSummary>(
+		engine.LoadSlotEditDataJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			JSON.stringify(request.payload.source)
+		)
+	);
 }
 
 function listBoxSlots(

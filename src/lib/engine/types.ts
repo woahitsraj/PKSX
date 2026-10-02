@@ -730,17 +730,18 @@ export type LinkTradePartnerPokemon = {
 export type EngineApi = {
 	getVersion(): Promise<EngineResult<EngineVersion>>;
 	summarizeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SaveSummary>>;
-	/** The worker engine runs this after every other queued request. */
 	summarizeSaveCard(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SaveCardSummary>>;
 	listBoxSlots(
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		box: number
 	): Promise<EngineResult<BoxSlotSummary[]>>;
+	/** `background` lets requests without it go first. */
 	loadSaveWorkspace(
 		bytes: Uint8Array,
 		fileName: string | undefined,
-		box: number
+		box: number,
+		options?: { background?: boolean }
 	): Promise<EngineResult<SaveWorkspace>>;
 	serializeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SerializedSave>>;
 	applySlotOperation(

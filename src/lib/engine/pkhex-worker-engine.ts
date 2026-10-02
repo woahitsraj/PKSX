@@ -172,7 +172,7 @@ export function createPkhexWorkerEngine(
 				[buffer]
 			);
 		},
-		loadSaveWorkspace: (bytes, fileName, box) => {
+		loadSaveWorkspace: (bytes, fileName, box, options) => {
 			const buffer = copyBytesToArrayBuffer(bytes);
 
 			return sendRequest(
@@ -181,7 +181,7 @@ export function createPkhexWorkerEngine(
 					type: 'request',
 					id: createRequestId(),
 					method: 'loadSaveWorkspace',
-					payload: { bytes: buffer, fileName, box }
+					payload: { bytes: buffer, fileName, box, background: options?.background }
 				},
 				[buffer]
 			);

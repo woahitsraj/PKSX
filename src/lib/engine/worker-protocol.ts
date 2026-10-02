@@ -931,7 +931,8 @@ export const engineWorkerLoadSaveWorkspaceRequestSchema = z.object({
 	payload: z.object({
 		bytes: z.instanceof(ArrayBuffer),
 		fileName: z.string().optional(),
-		box: z.number().int()
+		box: z.number().int(),
+		background: z.boolean().optional()
 	})
 });
 
@@ -1463,6 +1464,10 @@ export type EngineWorkerSummarizeSaveRequest = z.infer<
 
 export type EngineWorkerSummarizeSaveCardRequest = z.infer<
 	typeof engineWorkerSummarizeSaveCardRequestSchema
+>;
+
+export type EngineWorkerLoadSlotEditDataRequest = z.infer<
+	typeof engineWorkerLoadSlotEditDataRequestSchema
 >;
 
 export type EngineWorkerListBoxSlotsRequest = z.infer<typeof engineWorkerListBoxSlotsRequestSchema>;

@@ -3,7 +3,7 @@
 </script>
 
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, preloadCode } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount, tick } from 'svelte';
 	import SavesIntroduction from '$lib/components/pksx/SavesIntroduction.svelte';
@@ -134,6 +134,8 @@
 		});
 
 		void refreshSaves({ force: !cached || seeded }).then(() => focusGrid());
+		// Opening a Save File goes to Boxes, so load that route's code ahead of the first open.
+		void preloadCode(resolve('/boxes')).catch(() => undefined);
 		return unsubscribe;
 	});
 
@@ -749,7 +751,7 @@
 												<span class="card-stats">
 													<b>{details.details.summary.boxCount}</b> boxes
 													<i aria-hidden="true"></i>
-													<b>{details.details.creatureCount}</b> Pokemon
+													<b>{details.details.pokemonCount}</b> Pokemon
 												</span>
 											{:else}
 												<span class="file-name" elementtiming="save-card"

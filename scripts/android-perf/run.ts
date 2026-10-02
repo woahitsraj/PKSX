@@ -125,7 +125,12 @@ async function goSaves() {
 	await probeFromStart();
 	await closeDialogs();
 	if ((await cdp.evaluate('location.pathname')) !== '/') await chooseDestination('Saves');
-	await measure('', 'return P.cardsSettled()', 300000);
+	// Stored card details can be ready before the engine is, so wait for both.
+	await measure(
+		'',
+		`return P.cardsSettled() && P.worker.some((call) => call.method === 'msg:status:ready') && P.worker.every((call) => call.received)`,
+		300000
+	);
 }
 
 const openSave = (label: string) =>

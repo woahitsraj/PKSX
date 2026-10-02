@@ -97,7 +97,7 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = GetReadOnlySave(bytes, fileName, remember: true);
+            var save = GetReadOnlySave(bytes, fileName, cache: true);
 
             if (save is null)
             {
@@ -123,7 +123,7 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = GetReadOnlySave(bytes, fileName, remember: true);
+            var save = GetReadOnlySave(bytes, fileName, cache: true);
 
             if (save is null)
             {
@@ -158,7 +158,7 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = GetReadOnlySave(bytes, fileName, remember: true);
+            var save = GetReadOnlySave(bytes, fileName, cache: true);
 
             if (save is null)
             {
@@ -191,7 +191,7 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = GetReadOnlySave(bytes, fileName, remember: false);
+            var save = GetReadOnlySave(bytes, fileName, cache: false);
 
             if (save is null)
             {
@@ -227,7 +227,7 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = GetReadOnlySave(bytes, fileName, remember: true);
+            var save = GetReadOnlySave(bytes, fileName, cache: true);
 
             if (save is null)
             {
@@ -1044,7 +1044,7 @@ public static partial class PkhexEngineExports
     }
 
     // Read-only requests share the last parsed Save File; requests that mutate always parse their own.
-    private static SaveFile? GetReadOnlySave(byte[] bytes, string? fileName, bool remember)
+    private static SaveFile? GetReadOnlySave(byte[] bytes, string? fileName, bool cache)
     {
         lock (ReadOnlySaveCacheLock)
         {
@@ -1056,9 +1056,9 @@ public static partial class PkhexEngineExports
             }
 
             // Some formats decrypt the input in place, so keep an untouched copy as the key.
-            var key = remember ? bytes.ToArray() : bytes;
+            var key = cache ? bytes.ToArray() : bytes;
             var save = SaveUtil.GetSaveFile(bytes, fileName);
-            if (save is not null && remember)
+            if (save is not null && cache)
                 readOnlySaveCache = (key, fileName, save);
             return save;
         }

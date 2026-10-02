@@ -14,7 +14,7 @@ import {
 
 export type SaveCardDetails = {
 	summary: SaveSummary;
-	creatureCount: number;
+	pokemonCount: number;
 };
 
 export type SaveCardDetailsState =
@@ -33,10 +33,13 @@ type SaveDetailsCacheEntry = {
 	state: Exclude<SaveCardDetailsState, { status: 'loading' }>;
 };
 
+type StoredCardDetails = Record<SaveFileId, { digest: string; details: SaveCardDetails }>;
+
 type SavesSnapshotOptions = {
 	force?: boolean;
 };
 
+const storedCardDetailsKey = 'pksx-save-card-details-v1';
 const storage = createSavesStorage();
 const detailsCache = new Map<SaveFileId, SaveDetailsCacheEntry>();
 const snapshotListeners = new Set<(snapshot: SavesSnapshot) => void>();
@@ -51,6 +54,8 @@ let snapshotGeneration = 0;
 let workspaceService: ActiveWorkspaceService | null = null;
 let workspaceServiceStart: Promise<void> | null = null;
 let activeWorkspaceBox = 0;
+let engineWarmedUp = false;
+let storedCardDetails: StoredCardDetails | null = null;
 let publishedBytes: { saveFileId: SaveFileId; bytes: Uint8Array } | null = null;
 let pendingActiveSaveAdoption: SaveFileId | null = null;
 let saveFileEditCoordinator: SaveFileEditCoordinator | null = null;
@@ -128,6 +133,8 @@ export function getSavesSnapshot(options: SavesSnapshotOptions = {}): Promise<Sa
 }
 
 async function loadSavesSnapshot(generation: number): Promise<SavesSnapshot> {
+	// Start the engine now, so the first open does not wait for it.
+	getPkhexEngine();
 	const [activeSaveFileId, saveFiles] = await Promise.all([
 		storage.getActiveSaveFileId(),
 		storage.listSaves()
@@ -136,6 +143,12 @@ async function loadSavesSnapshot(generation: number): Promise<SavesSnapshot> {
 
 	for (const saveFileId of detailsCache.keys()) {
 		if (!activeIds.has(saveFileId)) detailsCache.delete(saveFileId);
+	}
+	const stored = readStoredCardDetails();
+	if (Object.keys(stored).some((saveFileId) => !activeIds.has(saveFileId))) {
+		writeStoredCardDetails(
+			Object.fromEntries(Object.entries(stored).filter(([saveFileId]) => activeIds.has(saveFileId)))
+		);
 	}
 
 	const snapshot: SavesSnapshot = {
@@ -373,11 +386,51 @@ async function loadSaveCardDetails(saveFile: StoredSaveFile): Promise<SaveCardDe
 	}
 	if (!bytes) return null;
 
-	const card = await getPkhexEngine().summarizeSaveCard(
-		bytes,
-		saveFile.originalFileName ?? undefined
-	);
-	return card.ok ? { summary: card.value.summary, creatureCount: card.value.pokemonCount } : null;
+	// Unchanged bytes keep their stored details, so cards rarely need the engine.
+	const digest = await digestBytes(bytes);
+	const stored = readStoredCardDetails()[saveFile.id];
+	const fileName = saveFile.originalFileName ?? undefined;
+	if (!engineWarmedUp && saveFile.id === savesSnapshot?.activeSaveFileId) {
+		// The first Workspace load of a session is slow. Do it now, for the likeliest open.
+		engineWarmedUp = true;
+		void getPkhexEngine().loadSaveWorkspace(bytes, fileName, 0, { background: true });
+	}
+	if (stored?.digest === digest) return stored.details;
+
+	const card = await getPkhexEngine().summarizeSaveCard(bytes, fileName);
+	if (!card.ok) return null;
+	const details = { summary: card.value.summary, pokemonCount: card.value.pokemonCount };
+	writeStoredCardDetails({ ...readStoredCardDetails(), [saveFile.id]: { digest, details } });
+	return details;
+}
+
+async function digestBytes(bytes: Uint8Array) {
+	const digest = await crypto.subtle.digest('SHA-256', new Uint8Array(bytes));
+	return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function readStoredCardDetails(): StoredCardDetails {
+	if (storedCardDetails) return storedCardDetails;
+	try {
+		storedCardDetails = JSON.parse(globalThis.localStorage?.getItem(storedCardDetailsKey) ?? '{}');
+	} catch {
+		storedCardDetails = {};
+	}
+	return (storedCardDetails ??= {});
+}
+
+function writeStoredCardDetails(next: StoredCardDetails) {
+	storedCardDetails = next;
+	try {
+		globalThis.localStorage?.setItem(storedCardDetailsKey, JSON.stringify(next));
+	} catch {
+		// Stored details are an optimization; the in-memory copy still serves this session.
+	}
+}
+
+/** Drops the in-memory card details, as a new app session does. */
+export function forgetSaveCardDetails() {
+	detailsCache.clear();
 }
 
 function createSaveFileFingerprint(saveFile: StoredSaveFile) {

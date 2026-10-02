@@ -28,6 +28,7 @@ vi.mock('$lib/engine', async (importOriginal) => ({
 }));
 
 import {
+	forgetSaveCardDetails,
 	getCachedSavesSnapshot,
 	getSavesSnapshot,
 	invalidateActiveWorkspaceCache,
@@ -270,6 +271,38 @@ describe('Saves cache async settlement', () => {
 
 		expect(second).toMatchObject({ published: true, state: { file } });
 		expect(fakes.engine.loadSaveWorkspace).toHaveBeenCalledTimes(1);
+	});
+
+	it('reuses stored card details for unchanged bytes without the engine', async () => {
+		const file = saveFile('stored-details');
+		fakes.storage.getActiveSaveFileId.mockResolvedValue(null);
+		fakes.storage.listSaves.mockResolvedValue([file]);
+		fakes.storage.getSaveBytes.mockResolvedValue(new Uint8Array([9, 9, 9, 9]));
+		fakes.storage.getWorkspace.mockResolvedValue(null);
+		fakes.engine.summarizeSaveCard.mockResolvedValue(success('STORED'));
+		const ready = () =>
+			vi.waitFor(() =>
+				expect(getCachedSavesSnapshot()?.detailsBySaveFileId[file.id]).toMatchObject({
+					status: 'ready',
+					details: { summary: { trainerName: 'STORED' } }
+				})
+			);
+		const unsubscribe = subscribeSavesSnapshot(() => undefined);
+		await getSavesSnapshot({ force: true });
+		await ready();
+
+		// A new app session has no in-memory details.
+		forgetSaveCardDetails();
+		await getSavesSnapshot({ force: true });
+		await ready();
+
+		// Earlier tests can still settle their own cards, so count only this Save File.
+		expect(
+			fakes.engine.summarizeSaveCard.mock.calls.filter(
+				([, fileName]) => fileName === file.originalFileName
+			)
+		).toHaveLength(1);
+		unsubscribe();
 	});
 
 	it('keeps card details when the active Workspace is republished with the same bytes', async () => {

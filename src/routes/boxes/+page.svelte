@@ -4663,7 +4663,6 @@
 			};
 		}
 
-		pokemonEditorOpenedSlot = updatedSlot;
 		return {
 			ok: true,
 			slot: updatedSlot,
@@ -4680,6 +4679,11 @@
 			setCachedActiveWorkspace(nextState, editorBox);
 		}
 		invalidateSavesCache();
+		// Cancel resets to this slot if the pane later reloads without edit data.
+		if (pokemonEditor?.source.owner === 'save-file') {
+			const slot = slotViewForRefFromWorkspace(nextState.workspace, pokemonEditor.source.slotRef);
+			if (slot && hasSlotEditData(slot)) pokemonEditorOpenedSlot = slot;
+		}
 	}
 
 	function settlePokemonEditorApply(

@@ -384,7 +384,7 @@ describe('createPkhexEngineWorkerRuntime', () => {
 		]);
 	});
 
-	test('answers queued user requests before queued save card requests', async () => {
+	test('answers queued user requests before queued background requests', async () => {
 		const startup = createDeferred<DotnetPkhexEngineExports>();
 		const posted: PostedWorkerMessage[] = [];
 		const runtime = createPkhexEngineWorkerRuntime({
@@ -395,13 +395,20 @@ describe('createPkhexEngineWorkerRuntime', () => {
 
 		runtime.handleMessage({ type: 'init', basePath: '/pkhex-engine' });
 		runtime.handleMessage({ type: 'request', id: 'card', method: 'summarizeSaveCard', payload });
+		runtime.handleMessage({
+			type: 'request',
+			id: 'warm-up',
+			method: 'loadSaveWorkspace',
+			payload: { ...payload, box: 0, background: true }
+		});
 		runtime.handleMessage({ type: 'request', id: 'open', method: 'summarizeSave', payload });
 		startup.resolve(createEngineExports());
 		await flushPromises();
 
 		expect(posted.flatMap((message) => ('id' in message ? [message.id] : []))).toEqual([
 			'open',
-			'card'
+			'card',
+			'warm-up'
 		]);
 	});
 
