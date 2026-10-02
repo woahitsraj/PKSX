@@ -24,6 +24,29 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # Only a pull request that changes nothing but Markdown skips the builds.
+      - name: Classify changed files
+        id: diff
+        run: |
+          code=true
+          if [ "$GITHUB_EVENT_NAME" = pull_request ] &&
+            ! git diff --name-only "origin/$GITHUB_BASE_REF...HEAD" | grep -qv '\.md$'; then
+            code=false
+          fi
+          printf 'code=%s\n' "$code" >>"$GITHUB_OUTPUT"
+
   svelte-checks:
     name: Svelte checks
     runs-on: ubuntu-latest
@@ -60,6 +83,9 @@ jobs:
 
   pkhex-engine:
     name: PKHeX Engine publish
+    needs:
+      - changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
 
     steps:
