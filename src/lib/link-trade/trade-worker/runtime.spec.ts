@@ -302,6 +302,7 @@ describe('installing Trade Radio firmware', { timeout: 60_000 }, () => {
 
 	it.each([
 		['esp32-s3', /not verified for Link Trade yet/],
+		['esp32-c3', /not verified for Link Trade yet/],
 		['esp32-c6', /not supported/]
 	])('does not write to an %s', async (flash, message) => {
 		const h = harness();

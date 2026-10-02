@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The esptool-js bootloader, after pokeldn v0.4.0 `gui/board.py` (`flash`). See ./NOTICE.md.
 
-import { ESPLoader, Transport } from 'esptool-js';
+import { ESPLoader, Transport, UnexpectedChipIdError, UnexpectedChipMagicError } from 'esptool-js';
 import SparkMD5 from 'spark-md5';
 import { FirmwareError, type Bootloader } from './firmware';
 import { PortBusyError } from './serial-port';
@@ -30,8 +30,7 @@ export async function openEsptoolBootloader(port: WebSerialPortLike): Promise<Bo
 				'the board did not enter its bootloader; hold the BOOT button and try again'
 			);
 		}
-		// esptool-js leaves `chip` unset when it does not know the chip.
-		if (!loader.chip) {
+		if (error instanceof UnexpectedChipIdError || error instanceof UnexpectedChipMagicError) {
 			throw new FirmwareError('unsupported-chip', 'the board is not a supported ESP32');
 		}
 		throw new FirmwareError('internal-error', `the installer did not start (${message})`);

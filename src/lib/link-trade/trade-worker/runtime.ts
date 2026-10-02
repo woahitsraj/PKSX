@@ -5,6 +5,7 @@ import {
 	TRADE_WORKER_CONTRACT_VERSION,
 	tradeWorkerCommandSchema,
 	type Board,
+	type FirmwareInstallStage,
 	type LinkTradeGame,
 	type RadioPort,
 	type RecoveredSession,
@@ -256,7 +257,7 @@ export class TradeWorkerRuntime {
 				'disconnect the Trade Radio before installing firmware'
 			);
 		}
-		const emitStage = (stage: 'detecting' | 'writing' | 'restarting', written = 0, total = 0) =>
+		const emitStage = (stage: FirmwareInstallStage, written = 0, total = 0) =>
 			this.emit({ type: 'firmware-install', stage, written, total });
 		const image = await this.options.loadFirmware();
 		await checkImage(image);

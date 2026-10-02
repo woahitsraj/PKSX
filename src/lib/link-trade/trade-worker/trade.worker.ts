@@ -55,7 +55,7 @@ async function openBootloader(port: RadioPort) {
 async function loadFirmware() {
 	const response = await fetch(PINNED_FIRMWARE_IMAGE.url);
 	if (!response.ok)
-		throw new FirmwareError('firmware-image-invalid', 'the firmware image did not download');
+		throw new FirmwareError('internal-error', 'the firmware image did not download');
 	return new Uint8Array(await response.arrayBuffer());
 }
 

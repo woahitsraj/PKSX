@@ -6,7 +6,7 @@
 	} from '$lib/link-trade/install-firmware';
 
 	interface Props {
-		/** True when the board already has firmware, so the user must confirm the overwrite. */
+		/** The caller sets this when the board answers HELLO, so the user confirms the overwrite. */
 		overwrite: boolean;
 		install: (
 			onProgress: (progress: FirmwareInstallProgress) => void
@@ -35,7 +35,7 @@
 				: 'Checking the board'
 	);
 
-	function failure(error: TradeError): string {
+	function failureMessage(error: TradeError): string {
 		switch (error.code) {
 			case 'bootloader-not-entered':
 				return 'The board did not start its installer.';
@@ -115,7 +115,7 @@
 		</div>
 	{:else if error}
 		<h2 id="install-firmware-title">Firmware was not installed</h2>
-		<p role="alert">{failure(error)}</p>
+		<p role="alert">{failureMessage(error)}</p>
 		{#if error.code === 'bootloader-not-entered'}
 			<p>
 				Hold the BOOT button on the board and select Try again. Release the button when the

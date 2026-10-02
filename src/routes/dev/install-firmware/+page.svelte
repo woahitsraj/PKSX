@@ -1,10 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import InstallFirmware from '$lib/components/pksx/InstallFirmware.svelte';
-	import { radioPortSchema, type Board, type RadioPort } from '$lib/link-trade/contract';
+	import {
+		fakeFlashSchema,
+		radioPortSchema,
+		type Board,
+		type RadioPort
+	} from '$lib/link-trade/contract';
 	import { installFirmware } from '$lib/link-trade/install-firmware';
 
-	const fakeFlashes = ['installs', 'needs-boot-button', 'esp32-s3', 'esp32-c6', 'write-fails'];
+	const fakeFlashes = fakeFlashSchema.options;
 
 	let worker: Worker | null = null;
 	let port = $state.raw<RadioPort | null>(null);

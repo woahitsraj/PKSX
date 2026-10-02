@@ -48,6 +48,20 @@ export type TradeErrorCode = z.infer<typeof tradeErrorCodeSchema>;
 export const tradeErrorSchema = z.object({ code: tradeErrorCodeSchema, message: z.string() });
 export type TradeError = z.infer<typeof tradeErrorSchema>;
 
+export const fakeFlashSchema = z.enum([
+	'installs',
+	'needs-boot-button',
+	'esp32-s3',
+	'esp32-c3',
+	'esp32-c6',
+	'write-fails'
+]);
+
+export type FakeFlash = z.infer<typeof fakeFlashSchema>;
+
+export const firmwareInstallStageSchema = z.enum(['detecting', 'writing', 'restarting']);
+export type FirmwareInstallStage = z.infer<typeof firmwareInstallStageSchema>;
+
 export const radioPortSchema = z.discriminatedUnion('kind', [
 	z.object({
 		kind: z.literal('web-serial'),
@@ -59,9 +73,7 @@ export const radioPortSchema = z.discriminatedUnion('kind', [
 		kind: z.literal('fake'),
 		script: z.enum(['trade', 'cancel', 'not-ready', 'drop-after-ladder']),
 		/** How a simulated `install-firmware` goes; `installs` when absent. */
-		flash: z
-			.enum(['installs', 'needs-boot-button', 'esp32-s3', 'esp32-c6', 'write-fails'])
-			.optional()
+		flash: fakeFlashSchema.optional()
 	})
 ]);
 export type RadioPort = z.infer<typeof radioPortSchema>;
@@ -211,7 +223,7 @@ export const tradeWorkerEventSchema = z.discriminatedUnion('type', [
 	/** `written` and `total` give the progress while `stage` is `writing`, and are 0 otherwise. */
 	z.object({
 		type: z.literal('firmware-install'),
-		stage: z.enum(['detecting', 'writing', 'restarting']),
+		stage: firmwareInstallStageSchema,
 		written: z.number().int().nonnegative(),
 		total: z.number().int().nonnegative()
 	}),
