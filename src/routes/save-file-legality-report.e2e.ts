@@ -43,6 +43,11 @@ async function importSaveFile(page: Page, fixturePath = emeraldFixturePath) {
 			})
 	);
 	await page.reload();
+	// The prerendered input ignores a file chosen before hydration.
+	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
 	await page.getByLabel('Import Save File').setInputFiles(fixturePath);
 	await expect(
 		page.getByText(`${path.basename(fixturePath)} imported and made active.`)
