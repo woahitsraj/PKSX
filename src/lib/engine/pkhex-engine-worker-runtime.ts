@@ -47,6 +47,7 @@ import {
 	type EngineWorkerPreviewStoredPokemonActionsRequest,
 	type EngineWorkerApplyStoredPokemonActionRequest,
 	type EngineWorkerCreatePreservationPayloadRequest,
+	type EngineWorkerForkPreservationPayloadRequest,
 	type EngineWorkerReadPreservationPayloadRequest,
 	type EngineWorkerProjectPreservationPayloadRequest,
 	type EngineWorkerPrepareOutgoingLinkTradeRequest,
@@ -131,6 +132,7 @@ export type DotnetPkhexEngineExports = {
 	PreviewStoredPokemonActionsJson(entityBytesBase64: string): string;
 	ApplyStoredPokemonActionJson(entityBytesBase64: string, actionJson: string): string;
 	CreatePreservationPayloadJson(entityBytes: Uint8Array): string;
+	ForkPreservationPayloadJson(payloadBytes: Uint8Array): string;
 	ReadPreservationPayloadJson(payloadBytes: Uint8Array): string;
 	ProjectPreservationPayloadJson(payloadBytes: Uint8Array, targetFormat: number): string;
 	PrepareOutgoingLinkTradeJson(sourceBytes: Uint8Array, requestJson: string): string;
@@ -376,6 +378,13 @@ export function createPkhexEngineWorkerRuntime({
 					postMessage,
 					request,
 					createPreservationPayload(engine, request)
+				);
+				return;
+			case 'forkPreservationPayload':
+				postPreservationPayloadResponse(
+					postMessage,
+					request,
+					forkPreservationPayload(engine, request)
 				);
 				return;
 			case 'readPreservationPayload':
@@ -765,6 +774,15 @@ function createPreservationPayload(
 	);
 }
 
+function forkPreservationPayload(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerForkPreservationPayloadRequest
+): EngineResult<RawPreservationPayloadResult> {
+	return parseEngineResult<RawPreservationPayloadResult>(
+		engine.ForkPreservationPayloadJson(new Uint8Array(request.payload.bytes))
+	);
+}
+
 function readPreservationPayload(
 	engine: DotnetPkhexEngineExports,
 	request: EngineWorkerReadPreservationPayloadRequest
@@ -1007,6 +1025,7 @@ function postPreservationPayloadResponse(
 	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
 	request:
 		| EngineWorkerCreatePreservationPayloadRequest
+		| EngineWorkerForkPreservationPayloadRequest
 		| EngineWorkerProjectPreservationPayloadRequest,
 	result: EngineResult<RawPreservationPayloadResult>
 ) {
@@ -1111,6 +1130,7 @@ function unavailableResult(request: EngineWorkerRequest) {
 		case 'applyStoredPokemonAction':
 			return result satisfies EngineResult<StoredPokemonActionResult>;
 		case 'createPreservationPayload':
+		case 'forkPreservationPayload':
 		case 'projectPreservationPayload':
 			return result satisfies EngineResult<PreservationPayload>;
 		case 'readPreservationPayload':

@@ -289,6 +289,7 @@ function createEngineExports(): DotnetPkhexEngineExports {
 				error: { code: 'unsupported-pokemon-action', message: 'Unavailable in this fixture.' }
 			}),
 		CreatePreservationPayloadJson: () => unavailableInTestEngine(),
+		ForkPreservationPayloadJson: () => unavailableInTestEngine(),
 		ReadPreservationPayloadJson: () => unavailableInTestEngine(),
 		ProjectPreservationPayloadJson: () => unavailableInTestEngine(),
 		PrepareOutgoingLinkTradeJson: () => unavailableInTestEngine(),

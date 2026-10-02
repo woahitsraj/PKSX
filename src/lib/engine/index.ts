@@ -102,6 +102,7 @@ export type {
 	EngineWorkerApplySaveFileEditOperationRequest,
 	EngineWorkerCreatePokemonRequest,
 	EngineWorkerCreatePreservationPayloadRequest,
+	EngineWorkerForkPreservationPayloadRequest,
 	EngineWorkerCheckSlotLegalityRequest,
 	EngineWorkerLoadSaveWorkspaceRequest,
 	EngineWorkerListBoxSlotsRequest,

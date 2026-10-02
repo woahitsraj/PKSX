@@ -115,6 +115,9 @@ internal sealed class PokemonPreservationPayload
             new PokemonEntitySnapshot(currentFormat, currentContext, currentBytes, currentPokemon));
     }
 
+    public PokemonPreservationPayload Fork() =>
+        new(Guid.NewGuid(), Identity, Original.Copy(), Current.Copy());
+
     public PokemonPreservationPayload Project(byte targetFormat)
     {
         PKM projected;

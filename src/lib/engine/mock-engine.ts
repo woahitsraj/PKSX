@@ -367,6 +367,29 @@ export function createMockEngine(
 	options: { boxNames?: SaveFileBoxNameProjection } = {}
 ): EngineApi {
 	const boxNames = options.boxNames ?? mockBoxNames;
+	const preservationPayloads = new Map<
+		string,
+		{ entityBytes: Uint8Array; summary: PreservationPayloadSummary }
+	>();
+	const encodePayload = (recordId: string) => new TextEncoder().encode(recordId);
+	const storedPayload = (bytes: Uint8Array) => {
+		const stored = preservationPayloads.get(new TextDecoder().decode(bytes));
+		if (!stored) throw new Error('Unknown mock preservation payload.');
+		return stored;
+	};
+	const createPayload = (entityBytes: Uint8Array, source?: PreservationPayloadSummary) => {
+		const recordId = crypto.randomUUID();
+		const summary = source
+			? { ...source, recordId }
+			: {
+					...mockPreservationSummary(),
+					recordId,
+					originalByteLength: entityBytes.byteLength,
+					currentByteLength: entityBytes.byteLength
+				};
+		preservationPayloads.set(recordId, { entityBytes: copyBytes(entityBytes), summary });
+		return success<PreservationPayload>({ bytes: encodePayload(recordId), summary });
+	};
 	return {
 		getVersion: async () => success(mockVersion),
 		summarizeSave: async (_bytes, fileName) => success({ ...mockSaveSummary, fileName }),
@@ -573,22 +596,26 @@ export function createMockEngine(
 				},
 				changes: [{ field: 'Species', before: 'Pikachu', after: 'Raichu' }]
 			}),
-		createPreservationPayload: async (entityBytes) =>
-			success<PreservationPayload>({
-				bytes: copyBytes(entityBytes),
-				summary: mockPreservationSummary()
-			}),
-		readPreservationPayload: async (payloadBytes) =>
-			success<PreservedPokemon>({
-				entityBytes: copyBytes(payloadBytes),
-				summary: mockPreservationSummary(),
+		createPreservationPayload: async (entityBytes) => createPayload(entityBytes),
+		forkPreservationPayload: async (payloadBytes) => {
+			const stored = storedPayload(payloadBytes);
+			return createPayload(stored.entityBytes, stored.summary);
+		},
+		readPreservationPayload: async (payloadBytes) => {
+			const stored = storedPayload(payloadBytes);
+			return success<PreservedPokemon>({
+				entityBytes: copyBytes(stored.entityBytes),
+				summary: stored.summary,
 				projection: mockBoxSlots[0]
-			}),
-		projectPreservationPayload: async (payloadBytes) =>
-			success<PreservationPayload>({
+			});
+		},
+		projectPreservationPayload: async (payloadBytes) => {
+			const stored = storedPayload(payloadBytes);
+			return success<PreservationPayload>({
 				bytes: copyBytes(payloadBytes),
-				summary: mockPreservationSummary()
-			}),
+				summary: stored.summary
+			});
+		},
 		prepareOutgoingLinkTrade: async () => linkTradeUnavailable(),
 		readLinkTradePartnerPokemon: async () => linkTradeUnavailable(),
 		...overrides
