@@ -36,6 +36,14 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+        // Release code with an inspectable WebView, installed beside the store app.
+        profile {
+            initWith release
+            applicationIdSuffix ".profile"
+            versionNameSuffix "-profile"
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['release']
+        }
     }
     sourceSets {
         androidTest.assets.srcDirs += ['../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves']

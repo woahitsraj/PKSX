@@ -21,6 +21,7 @@
 		"android:open": "cap open android",
 		"android:build": "pnpm native:sync:android && cd android && ./gradlew :app:assembleDebug --no-daemon",
 		"android:run": "bash scripts/run-android.sh",
+		"android:build:profile": "pnpm native:sync:android && cd android && ./gradlew :app:assembleProfile --no-daemon",
 		"test:android": "pnpm native:sync:android && bash scripts/run-android-acceptance.sh",
 		"engine:sync": "node scripts/sync-pkhex-engine.ts",
 		"legal:sync": "node scripts/sync-legal-files.ts",
