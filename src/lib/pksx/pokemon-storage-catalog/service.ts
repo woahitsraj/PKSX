@@ -87,7 +87,7 @@ export class PokemonStorageService {
 
 	async replace(recordId: string, payloadBytes: Uint8Array): Promise<PokemonRecord> {
 		const source = this.#required(recordId);
-		return this.#putPayload(payloadBytes, source.origin, source.placement, recordId);
+		return this.#putPayload(payloadBytes, source.origin, null, recordId, source.payload.id);
 	}
 
 	async readPayload(recordId: string): Promise<Uint8Array> {
@@ -198,7 +198,8 @@ export class PokemonStorageService {
 		bytes: Uint8Array,
 		origin: PokemonOrigin,
 		placement: Placement,
-		replacing: string | null
+		replacing: string | null,
+		expectedPayloadId: string | null = null
 	): Promise<PokemonRecord> {
 		const parsed = await this.engine.readPreservationPayload(bytes);
 		if (!parsed.ok) throw parsed.error;
@@ -217,11 +218,17 @@ export class PokemonStorageService {
 					manifest.tombstones.some((item) => item.recordId === summary.recordId)
 				)
 					throw new Error('Pokemon Record ID already exists or is retired.');
+				if (previous && previous.payload.id !== expectedPayloadId)
+					throw new Error('Pokemon preservation payload changed. Reload before retrying.');
 				if (!previous && resolvePlacements(manifest).some((item) => item.overflow))
 					throw new Error('Resolve Pokemon Storage overflow before adding a Pokemon.');
 				if (!previous && manifest.records.length >= manifest.boxes.length * 30)
 					throw new Error('Pokemon Storage is at capacity.');
-				if (placement && !manifest.boxes.some((box) => box.id === placement.storageBoxId))
+				if (
+					!previous &&
+					placement &&
+					!manifest.boxes.some((box) => box.id === placement.storageBoxId)
+				)
 					throw new Error('Storage Box is unavailable.');
 				if (!previous && placement && this.#occupied(manifest, placement, summary.recordId))
 					throw new Error('Storage Slot is occupied.');
@@ -232,7 +239,7 @@ export class PokemonStorageService {
 					identityFingerprint: summary.identityFingerprint,
 					projection: structuredProjection,
 					origin: previous?.origin ?? structuredClone(origin),
-					placement,
+					placement: previous ? previous.placement : placement,
 					revision: (previous?.revision ?? -1) + 1,
 					createdAt: previous?.createdAt ?? now,
 					updatedAt: now
