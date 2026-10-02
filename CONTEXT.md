@@ -5,7 +5,7 @@ PKSX is an offline-first Pokemon save management app that uses PKHeX-compatible 
 ## Language
 
 **Save File**:
-A Pokemon save file loaded into PKSX to inspect, back up, edit, and export.
+A Pokemon save file imported into PKSX with immutable baseline bytes, to inspect, back up, edit, and export.
 _Avoid_: ROM, game file
 
 **Supported Save File**:
@@ -257,7 +257,7 @@ A durable local change to a Sync Object that has not yet entered Shared Sync Sta
 _Avoid_: unsaved change, Export
 
 **Conflict Resolution**:
-An explicit user decision that selects the next Shared Sync State from competing states.
+An explicit user decision that creates the next Shared Sync State from every competing state while choosing one state's contents.
 _Avoid_: last-write-wins, automatic merge
 
 **Conflict Recovery**:
@@ -265,7 +265,7 @@ An immutable recovery copy of a competing state that was not selected during Con
 _Avoid_: discarded state, active revision
 
 **Backup**:
-A restorable snapshot of save file bytes created before a risky operation.
+An immutable, restorable snapshot of save file bytes created before a risky operation. Equal bytes do not merge distinct Backup identities.
 _Avoid_: copy, version, checkpoint, undo
 
 **Backup Reason**:
@@ -277,15 +277,23 @@ A user action that changes Save File bytes or Pokemon Entity bytes in a Workspac
 _Avoid_: navigation, inspection, export, Legality Check
 
 **Backup Restore**:
-A user-confirmed recovery action that opens a Backup as the active Workspace.
+A user-confirmed recovery action that creates a new Workspace state from a Backup without changing the Backup. The source Backup ID remains historical provenance if the Backup is later deleted.
 _Avoid_: overwrite, rollback, import when referring to opening backup bytes for recovery
 
 **Workspace**:
-The in-app editing state for a loaded Save File before it is exported back to user-controlled storage.
+The single in-app editing state a Save File may own before it is exported back to user-controlled storage.
 _Avoid_: open file, session when referring to editable save state
 
+**Workspace Protection**:
+The relationship in which a Workspace revision references the live Backup that preserves its state before its first Risky Change. Deleting that Backup leaves the Workspace usable but unprotected.
+_Avoid_: automaticBackupCreated, protected flag
+
+**Workspace Discard**:
+An explicit user action that removes a Save File's persisted Workspace so it next opens from its immutable baseline bytes. It preserves the Save File and its Backups.
+_Avoid_: close, reset, delete Save File
+
 **Dirty Workspace**:
-A Workspace containing user-applied changes that have not yet been exported.
+A Workspace whose current bytes differ from its Save File's immutable baseline bytes.
 _Avoid_: unsaved file
 
 **Export**:
