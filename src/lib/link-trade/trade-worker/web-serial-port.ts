@@ -42,10 +42,7 @@ export class WebSerialTradePort implements TradeSerialPort {
 
 	constructor(private port: WebSerialPortLike) {}
 
-	/**
-	 * Releases RTS, then DTR. Releasing DTR first, or both in one call, resets a CP2102 ESP32 board,
-	 * which then returns to the base baud rate (measured on hardware for #367).
-	 */
+	/** RTS first: releasing DTR first, or both at once, resets a CP2102 ESP32 board (#367). */
 	private async releaseSignals(): Promise<void> {
 		await this.port.setSignals({ requestToSend: false }).catch(() => undefined);
 		await this.port.setSignals({ dataTerminalReady: false }).catch(() => undefined);
@@ -62,7 +59,9 @@ export class WebSerialTradePort implements TradeSerialPort {
 		} catch (error) {
 			const name = (error as { name?: string }).name;
 			if (name === 'InvalidStateError' || name === 'NetworkError') {
-				throw new PortBusyError('the Trade Radio port is in use by another tab or app');
+				throw new PortBusyError(
+					'the Trade Radio port did not open; it may be unplugged or in use by another tab or app'
+				);
 			}
 			throw error;
 		}
@@ -74,6 +73,7 @@ export class WebSerialTradePort implements TradeSerialPort {
 		const reading = (async () => {
 			let fatal: Error | null = null;
 			while (this.port.readable && !closing) {
+				fatal = null;
 				reader = this.port.readable.getReader();
 				try {
 					for (;;) {

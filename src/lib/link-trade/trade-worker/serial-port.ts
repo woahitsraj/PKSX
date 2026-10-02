@@ -7,11 +7,7 @@ export interface SerialConnection {
 	close(): Promise<void>;
 }
 
-/**
- * A Trade Radio port. Web Serial is the first implementation; Android USB serial or BLE ports can
- * implement this without changing the protocol code. `open` may be called again after a close,
- * at another baud rate.
- */
+/** A Trade Radio port; `open` may be called again after a close, at another baud rate. */
 export interface TradeSerialPort {
 	readonly simulated: boolean;
 	open(

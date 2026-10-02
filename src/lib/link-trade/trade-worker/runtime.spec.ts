@@ -78,7 +78,7 @@ function harness(fake: Partial<FakeRadioOptions> = {}, storedKeys: SwitchKeys | 
 const start = (sessionId = 'trade-1', bytes: Uint8Array = offer) => ({
 	type: 'start-session',
 	sessionId,
-	game: 'sword-shield',
+	game: 'sword',
 	outgoingPokemon: new Uint8Array(bytes).buffer
 });
 
@@ -130,7 +130,8 @@ describe('the trade worker', { timeout: 60_000 }, () => {
 	it('never starts a second trade for a repeated start', async () => {
 		const h = harness();
 		await h.send({ type: 'connect-radio', port: { kind: 'fake', script: 'trade' } });
-		await h.send(start());
+		const racing = await Promise.all([h.send(start()), h.send(start('trade-2'))]);
+		expect(racing).toMatchObject([{ ok: true }, { ok: false, error: { code: 'session-active' } }]);
 		expect(await h.send(start())).toMatchObject({ ok: true, result: { sessionId: 'trade-1' } });
 		expect(await h.send(start('trade-2'))).toMatchObject({
 			ok: false,
@@ -150,8 +151,11 @@ describe('the trade worker', { timeout: 60_000 }, () => {
 		const end = await h.ended();
 		expect(end).toMatchObject({ outcome: 'cancelled', receipt: null });
 		const actions = h.events().flatMap((e) => (e.type === 'console-action' ? [e.action] : []));
-		expect(actions).toEqual(['offer-shown', 'confirmed', 'withdrew', 'left']);
-		expect(h.events().some((e) => e.type === 'trade-offer')).toBe(true);
+		expect(actions).toEqual(['offer-shown', 'confirmed', 'withdrew', 'offer-shown', 'left']);
+		const offers = h.events().flatMap((e) => (e.type === 'trade-offer' ? [e.pokemon] : []));
+		expect(offers.map((o) => toHex(new Uint8Array(o)))).toEqual(
+			[fakePk8(2), fakePk8(3)].map(toHex)
+		);
 	});
 
 	it('keeps a USB loss after phase 4 as an Unknown Trade Outcome with the offer as evidence', async () => {
@@ -236,12 +240,8 @@ describe('the trade worker', { timeout: 60_000 }, () => {
 				contractVersion: 1,
 				fakePort: true,
 				games: [
-					{
-						game: 'sword-shield',
-						role: 'joiner',
-						hostConfirmation: false,
-						outgoingByteLength: 0x158
-					}
+					{ game: 'sword', hardwareVerified: true, hostConfirmation: false },
+					{ game: 'shield', hardwareVerified: false, outgoingByteLength: 0x158 }
 				]
 			}
 		});

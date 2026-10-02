@@ -13,18 +13,18 @@ The page sends commands with `postMessage`. Each command has a `requestId`. The 
 
 Every message from the worker carries `contractVersion: 1`. Bytes are `ArrayBuffer`s.
 
-| Command            | Result                                          | Notes                                                                                                                                                                                                               |
-| ------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `get-capabilities` | supported games, firmware, ports, `keysPresent` | `fakePort` is true only in dev builds.                                                                                                                                                                              |
-| `import-keys`      | `{ keysPresent: true }`                         | `prodKeys` is the text of a `prod.keys` file. Errors name missing keys, never values.                                                                                                                               |
-| `forget-keys`      | `{ keysPresent: false }`                        | Deletes the stored keys.                                                                                                                                                                                            |
-| `connect-radio`    | `{ board }`                                     | `port` is `{ kind: 'web-serial', usbVendorId?, usbProductId? }`. The page calls `navigator.serial.requestPort()` first; the worker opens the granted port.                                                          |
-| `disconnect-radio` | `{}`                                            | Refused while a session runs.                                                                                                                                                                                       |
-| `start-session`    | the session status                              | `sessionId`, `game: 'sword-shield'`, and `outgoingPokemon`: the encrypted 0x158-byte party PK8 from the Engine's `prepareOutgoingLinkTrade` (#366). This is the wire form; the worker does not encrypt or parse it. |
-| `confirm-offer`    | error `confirmation-not-supported`              | The player confirms Sword/Shield trades on the Switch. PKSX has no pause before that point.                                                                                                                         |
-| `cancel-session`   | the session status                              | The outcome follows as `session-ended`.                                                                                                                                                                             |
-| `get-status`       | keys, board, active session                     |                                                                                                                                                                                                                     |
-| `recover-session`  | `{ status, receipt, unknown }`                  | Returns any session this worker has run since it started. #368 keeps the durable journal.                                                                                                                           |
+| Command            | Result                                          | Notes                                                                                                                                                                                                                                                                |
+| ------------------ | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get-capabilities` | supported games, firmware, ports, `keysPresent` | `fakePort` is true only in dev builds.                                                                                                                                                                                                                               |
+| `import-keys`      | `{ keysPresent: true }`                         | `prodKeys` is the text of a `prod.keys` file. Errors name missing keys, never values.                                                                                                                                                                                |
+| `forget-keys`      | `{ keysPresent: false }`                        | Deletes the stored keys.                                                                                                                                                                                                                                             |
+| `connect-radio`    | `{ board }`                                     | `port` is `{ kind: 'web-serial', usbVendorId?, usbProductId? }`. The page calls `navigator.serial.requestPort()` first; the worker opens the granted port.                                                                                                           |
+| `disconnect-radio` | `{}`                                            | Refused while a session runs.                                                                                                                                                                                                                                        |
+| `start-session`    | the session status                              | `sessionId`, `game: 'sword'` or `'shield'` (the Engine's `LinkTradeDestinationGame`), and `outgoingPokemon`: the encrypted 0x158-byte party PK8 from the Engine's `prepareOutgoingLinkTrade` (#366). This is the wire form; the worker does not encrypt or parse it. |
+| `confirm-offer`    | error `confirmation-not-supported`              | The player confirms Sword/Shield trades on the Switch. PKSX has no pause before that point.                                                                                                                                                                          |
+| `cancel-session`   | the session status                              | The outcome follows as `session-ended`.                                                                                                                                                                                                                              |
+| `get-status`       | keys, board, active session                     |                                                                                                                                                                                                                                                                      |
+| `recover-session`  | `{ status, receipt, unknown }`                  | Returns any session this worker has run since it started. #368 keeps the durable journal.                                                                                                                                                                            |
 
 Session IDs are chosen by the caller: 1 to 64 characters from `A-Z a-z 0-9 _ -`. Every event of a session carries the ID and a `sequence` that starts at 0 and has no gaps, so a consumer can drop repeated events.
 
@@ -51,15 +51,15 @@ Then the worker switches the board to 921600 baud. A trade's traffic does not fi
 
 ## Events
 
-| Event                   | Meaning                                                                                                              |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `radio-connected`       | The board passed its checks. `board.simulated` is true only for the dev fake port, which is never a supported board. |
-| `radio-disconnected`    | `error.code` is `radio-lost` when the USB link dropped.                                                              |
-| `session-phase`         | `scanning`, `joining`, `waiting-for-console`, `in-trade-room`, `offer-received`, `confirming` or `finishing`.        |
-| `trade-offer`           | The console's Trade Offer: the Pokemon its player selected. **This is not a Trade Receipt.**                         |
-| `console-action`        | Box sync commands from #365: 1 `offer-shown`, 4 `confirmed`, 5 `withdrew`, 3 `left`.                                 |
-| `confirmation-progress` | The confirmation ladder phase, from 0 to 4.                                                                          |
-| `session-ended`         | `outcome`, plus a `receipt`, `unknown` evidence or an `error`.                                                       |
+| Event                   | Meaning                                                                                                                                |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `radio-connected`       | The board passed its checks. `board.simulated` is true only for the dev fake port, which is never a supported board.                   |
+| `radio-disconnected`    | `error.code` is `radio-lost` when the USB link dropped.                                                                                |
+| `session-phase`         | `scanning`, `joining`, `waiting-for-console`, `in-trade-room`, `offer-received`, `confirming` or `finishing`.                          |
+| `trade-offer`           | The console's Trade Offer: the Pokemon its player selected. Sent again if the player selects another. **This is not a Trade Receipt.** |
+| `console-action`        | Box sync commands from #365: 1 `offer-shown`, 4 `confirmed`, 5 `withdrew`, 3 `left`.                                                   |
+| `confirmation-progress` | The confirmation ladder phase, from 0 to 4.                                                                                            |
+| `session-ended`         | `outcome`, plus a `receipt`, `unknown` evidence or an `error`.                                                                         |
 
 ## Outcomes
 
@@ -70,7 +70,7 @@ These rules use the signals recorded in #365:
   - The confirmation ladder reached phase 4.
   - The session then ended gracefully. Either the console left Link Trade (box command 3, then host migration), or it offered again for a next trade.
 
-  `receipt` holds the received Pokemon's bytes, the digests of the sent and received bytes, and the completion evidence.
+  `receipt` holds the received Pokemon's bytes, the digests of the sent and received bytes, and the completion evidence. The "offered again" ending follows pokeldn; the hardware runs so far ended with box command 3.
 
 - **`cancelled`**: the session ended before the console confirmed. This covers the player cancelling in PKSX, and the console backing out (command 5) and leaving. The console keeps its Pokemon.
 - **`failed`**: no trade could have happened. The error is one of these:
@@ -83,6 +83,12 @@ These rules use the signals recorded in #365:
 - **`outcome-unknown`**: an Unknown Trade Outcome. The session stopped after the console confirmed or the ladder started, but without a graceful end. A connection loss near or after phase 4 is always this outcome. `unknown` keeps the console's offered bytes, the ladder phase and the reason. Never retry the trade automatically.
 
 A received offer alone never makes a receipt.
+
+## Byte forms
+
+`outgoingPokemon`, `trade-offer.pokemon`, `receipt.receivedPokemon` and `unknown.offeredPokemon` are all encrypted PK8 bytes, as the game sends them. The outgoing Pokemon is the 0x158-byte party form from `prepareOutgoingLinkTrade`. The partner's Pokemon is 0x148 or 0x158 bytes and goes to `readLinkTradePartnerPokemon` unchanged. The worker never decrypts or parses a Pokemon.
+
+Capabilities list `sword` and `shield`. `hardwareVerified` is true only for Sword so far.
 
 ## Keys
 

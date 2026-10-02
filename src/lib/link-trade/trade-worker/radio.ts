@@ -27,7 +27,7 @@ export const MSG_LINK = 0x86;
 export const MSG_CREDIT = 0x8b;
 
 const BASE_BAUD = 115200;
-export const FAST_BAUD = 921600;
+const FAST_BAUD = 921600;
 const FLOW_WINDOW = 8192;
 const FLOW_STALL_MS = 300;
 const FLOW_BLIND_MS = 5000;
@@ -124,6 +124,7 @@ export class Radio {
 	private creditSeen = 0;
 	private flow = false;
 	private closed = false;
+	private generation = 0;
 	private lost: ((error: Error | null) => void) | null = null;
 
 	constructor(
@@ -246,8 +247,6 @@ export class Radio {
 			}
 		);
 	}
-
-	private generation = 0;
 
 	private async reconnect(baud: number): Promise<void> {
 		await this.waitDrained();

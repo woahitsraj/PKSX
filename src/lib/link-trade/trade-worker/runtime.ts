@@ -64,6 +64,8 @@ interface SessionRecord {
 	session: SwshJoinSession | null;
 }
 
+const MAX_SESSIONS = 16;
+
 const fail = (code: TradeErrorCode, message: string): TradeError => ({ code, message });
 
 function buffer(data: Uint8Array): ArrayBuffer {
@@ -77,7 +79,15 @@ export class TradeWorkerRuntime {
 
 	constructor(private options: TradeWorkerRuntimeOptions) {}
 
-	async handle(message: unknown): Promise<void> {
+	private queue: Promise<void> = Promise.resolve();
+
+	/** Commands run one at a time, so two starts or connects cannot interleave. */
+	handle(message: unknown): Promise<void> {
+		this.queue = this.queue.then(() => this.dispatch(message));
+		return this.queue;
+	}
+
+	private async dispatch(message: unknown): Promise<void> {
 		const parsed = tradeWorkerCommandSchema.safeParse(message);
 		const requestId =
 			typeof (message as { requestId?: unknown })?.requestId === 'string'
@@ -181,12 +191,13 @@ export class TradeWorkerRuntime {
 				targets: SUPPORTED_TARGETS
 			},
 			games: [
-				{
-					game: 'sword-shield',
-					role: 'joiner',
+				...(['sword', 'shield'] as const).map((game) => ({
+					game,
+					role: 'joiner' as const,
+					hardwareVerified: game === 'sword',
 					hostConfirmation: false,
 					outgoingByteLength: PK8_PARTY_SIZE
-				}
+				}))
 			]
 		};
 	}
@@ -282,19 +293,33 @@ export class TradeWorkerRuntime {
 			trace: this.options.trace
 		});
 		this.sessions.set(sessionId, record);
+		// Keep the last few sessions for recovery; #368 holds the durable journal.
+		for (const id of [...this.sessions.keys()].slice(0, -MAX_SESSIONS)) this.sessions.delete(id);
 		this.active = record;
-		void this.run(record, bytes, base);
+		void this.run(record, bytes, base).catch((error) => {
+			record.outcome = 'failed';
+			record.session = null;
+			if (this.active === record) this.active = null;
+			this.emit({
+				type: 'session-ended',
+				...base(),
+				outcome: 'failed',
+				receipt: null,
+				unknown: null,
+				error: toTradeError(error)
+			});
+		});
 		return this.statusOf(record);
 	}
 
 	private async run(
 		record: SessionRecord,
-		offer: Bytes,
+		outgoing: Bytes,
 		base: () => { sessionId: string; sequence: number }
 	) {
 		const result = await record.session!.start();
 		const verdict = classify(result.end, result.evidence);
-		const sentDigest = toHex(await sha256(offer));
+		const sentDigest = toHex(await sha256(outgoing));
 		let error: TradeError | null = null;
 		if (verdict.outcome === 'completed') {
 			const received = result.evidence.offered!;
@@ -319,7 +344,7 @@ export class TradeWorkerRuntime {
 		} else if (verdict.outcome === 'failed') {
 			error = result.error
 				? fail(result.error.code, result.error.message)
-				: fail(verdict.code, verdict.code);
+				: fail(verdict.code, 'the Link Trade ended before any exchange');
 		}
 		record.outcome = verdict.outcome;
 		record.session = null;

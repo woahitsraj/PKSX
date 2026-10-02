@@ -3,7 +3,8 @@ import { z } from 'zod/v4';
 /** Bump on any incompatible change to the commands, responses or events below. */
 export const TRADE_WORKER_CONTRACT_VERSION = 1;
 
-export const linkTradeGameSchema = z.enum(['sword-shield']);
+/** The same names as the Engine's `LinkTradeDestinationGame`. */
+export const linkTradeGameSchema = z.enum(['sword', 'shield']);
 export type LinkTradeGame = z.infer<typeof linkTradeGameSchema>;
 
 /** Stable, caller-chosen; every event of a session carries it. */
@@ -116,6 +117,8 @@ export const capabilitiesSchema = z.object({
 		z.object({
 			game: linkTradeGameSchema,
 			role: z.literal('joiner'),
+			/** True once a real exchange with this game has completed through the worker. */
+			hardwareVerified: z.boolean(),
 			/** False: the player confirms on the Switch and PKSX follows; there is no PKSX pause. */
 			hostConfirmation: z.boolean(),
 			outgoingByteLength: z.number().int()

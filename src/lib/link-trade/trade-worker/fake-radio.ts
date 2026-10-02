@@ -661,6 +661,9 @@ export class FakeTradeRadio implements TradeSerialPort {
 			await this.sleep(2000);
 			a.push(boxSyncState(5));
 			await this.sleep(2000);
+			a.push(pokemonTrade(fakePk8(3)));
+			a.push(boxSyncState(1));
+			await this.sleep(2000);
 			return this.leave(a);
 		}
 		await this.sleep(1000);

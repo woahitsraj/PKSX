@@ -189,11 +189,7 @@ export type Classification =
 	| { outcome: 'failed'; code: TradeErrorCode }
 	| { outcome: 'outcome-unknown'; reason: SessionEnd };
 
-/**
- * A Trade Receipt needs the console's confirmation, the ladder through phase 4 and a graceful end.
- * A received offer alone is never one, and a loss near or after phase 4 is an Unknown Trade
- * Outcome (#365).
- */
+/** A Trade Receipt needs the console's confirmation, phase 4 and a graceful end (#365). */
 export function classify(end: SessionEnd, evidence: TradeEvidence): Classification {
 	const committed = evidence.consoleConfirmed || evidence.ladderStarted || evidence.ladderFinished;
 	if (
@@ -248,7 +244,7 @@ export class SwshJoinSession {
 	constructor(
 		private radio: Radio,
 		private keys: SwitchKeys,
-		private offer: Bytes,
+		private outgoing: Bytes,
 		private clock: Clock,
 		private callbacks: SessionCallbacks,
 		private identity: SnapshotIdentity = DEFAULT_IDENTITY
@@ -609,8 +605,8 @@ export class SwshJoinSession {
 	/** @internal */ get events(): SessionCallbacks {
 		return this.callbacks;
 	}
-	/** @internal */ get offerBytes(): Bytes {
-		return this.offer;
+	/** @internal */ get outgoingBytes(): Bytes {
+		return this.outgoing;
 	}
 	/** @internal */ get snapshotIdentity(): SnapshotIdentity {
 		return this.identity;
@@ -916,6 +912,17 @@ class PiaJoiner {
 			st.offeredAgain = true;
 			this.session.end('console-offered-again');
 		}
+		// A reselection before the ladder replaces the Trade Offer; the receipt must hold the last one.
+		const reselected =
+			offered &&
+			fresh &&
+			!this.ev.ladderStarted &&
+			this.ev.offered &&
+			!equal(offered, this.ev.offered);
+		if (offered && reselected) {
+			this.ev.offered = offered;
+			this.session.events.offer(offered);
+		}
 		if (offered && st.offeredPk8 === null) {
 			st.offeredPk8 = offered;
 			this.ev.offered = offered;
@@ -1174,7 +1181,7 @@ class PiaJoiner {
 		}
 	}
 
-	/** Our 0x84 snapshot: the console's own, with our identity and our offer in slot 1. */
+	/** Our 0x84 snapshot: the console's own, with our identity and our Pokemon in slot 1. */
 	private async snapshotSender(): Promise<void> {
 		const st = this.st;
 		while (this.live) {
@@ -1186,8 +1193,12 @@ class PiaJoiner {
 			...[...Array(SNAPSHOT_FRAGMENTS).keys()].map((i) => st.snapshotBodies.get(i)!)
 		);
 		if (theirs.length !== SNAPSHOT_LENGTH) return;
-		const ours = buildOurSnapshot(theirs, this.session.offerBytes, this.session.snapshotIdentity);
-		st.ourPk8 = this.session.offerBytes;
+		const ours = buildOurSnapshot(
+			theirs,
+			this.session.outgoingBytes,
+			this.session.snapshotIdentity
+		);
+		st.ourPk8 = this.session.outgoingBytes;
 		const sender = new SnapshotSender();
 		st.snapshotFragments = snapshotFragmentCount(ours.length);
 		while (this.live && !st.snapshotDoneSent) {
