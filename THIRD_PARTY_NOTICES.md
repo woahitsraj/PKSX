@@ -27,6 +27,24 @@ The trade worker in `src/lib/link-trade/trade-worker` is a TypeScript port of th
 
 The app links to the corresponding PKSX source at `/legal/SOURCE.txt`.
 
+## Trade Radio firmware
+
+PKSX serves `static/firmware/pokeldn-radio.bin` and installs it on a Trade Radio when the user selects Install firmware. The file is the unchanged classic ESP32 radio firmware from the pokeldn v0.4.0 release, SHA256 `b96e102c01a29b5b7e8cb4a686654fe6d41ce7fb9c81ed1a378629a35a378ff9`.
+
+- Copyright Decryptu and pokeldn contributors
+- License: GNU Affero General Public License version 3
+- Download: https://github.com/Decryptu/pokeldn/releases/tag/v0.4.0
+- Source: https://github.com/Decryptu/pokeldn/tree/f52f3db6211bf81aa2bcea5f4f38d4ecff9a8691/firmware
+
+`/legal/SOURCE.txt` links to this source.
+
+## esptool-js
+
+PKSX uses esptool-js to install the Trade Radio firmware.
+
+- License: Apache License 2.0
+- Source: https://github.com/espressif/esptool-js
+
 ## PokemonDB sprite images
 
 The Pokemon sprite images under `static/sprites/pokemon` come from the PokemonDB sprite gallery:

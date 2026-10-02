@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import {
 	tradeWorkerMessageSchema,
@@ -8,7 +9,9 @@ import {
 import { memoryKeyStore, type SwitchKeys } from '../switch-keys';
 import { fromHex, toHex } from './bytes';
 import { sha256 } from './crypto';
+import { fakeBootloader } from './fake-bootloader';
 import { FakeTradeRadio, fakePk8, type FakeRadioOptions } from './fake-radio';
+import { checkBootloader } from './firmware';
 import { PortError, TradeWorkerRuntime } from './runtime';
 import type { Clock } from './serial-port';
 import vectors from './test-vectors.json';
@@ -36,17 +39,29 @@ const keys = Object.fromEntries(
 ) as unknown as SwitchKeys;
 const offer = fakePk8(1);
 
-function harness(fake: Partial<FakeRadioOptions> = {}, storedKeys: SwitchKeys | null = keys) {
+const firmware = new Uint8Array(await readFile('static/firmware/pokeldn-radio.bin'));
+
+function harness(
+	fake: Partial<FakeRadioOptions> = {},
+	storedKeys: SwitchKeys | null = keys,
+	image: Uint8Array = firmware
+) {
 	const clock = scaledClock(10);
 	const keyStore = memoryKeyStore(storedKeys);
 	const messages: TradeWorkerMessage[] = [];
 	let radio: FakeTradeRadio | null = null;
+	const written: Uint8Array[] = [];
 	const runtime = new TradeWorkerRuntime({
 		post: (message) => messages.push(tradeWorkerMessageSchema.parse(message)),
 		keyStore,
 		webSerial: false,
 		fakePort: true,
 		clock,
+		loadFirmware: async () => image,
+		openBootloader: async (port: RadioPort) => {
+			if (port.kind !== 'fake') throw new PortError('port-not-found', 'no Web Serial in tests');
+			return fakeBootloader(port.flash ?? 'installs', clock, (data) => written.push(data));
+		},
 		openPort: async (port: RadioPort) => {
 			if (port.kind !== 'fake') throw new PortError('port-not-found', 'no Web Serial in tests');
 			radio = new FakeTradeRadio({
@@ -72,7 +87,7 @@ function harness(fake: Partial<FakeRadioOptions> = {}, storedKeys: SwitchKeys | 
 			await new Promise((resolve) => setTimeout(resolve, 20));
 		}
 	};
-	return { send, events, ended, radio: () => radio!, keyStore };
+	return { send, events, ended, radio: () => radio!, keyStore, written };
 }
 
 const start = (sessionId = 'trade-1', bytes: Uint8Array = offer) => ({
@@ -248,6 +263,85 @@ describe('the trade worker', { timeout: 60_000 }, () => {
 		expect(await h.send({ type: 'confirm-offer', sessionId: 'none' })).toMatchObject({
 			ok: false,
 			error: { code: 'session-not-found' }
+		});
+	});
+});
+
+describe('installing Trade Radio firmware', { timeout: 60_000 }, () => {
+	const install = (flash?: string) => ({
+		type: 'install-firmware',
+		port: { kind: 'fake', script: 'trade', ...(flash ? { flash } : {}) }
+	});
+	const stages = (h: ReturnType<typeof harness>) =>
+		h.events().flatMap((e) => (e.type === 'firmware-install' ? [e.stage] : []));
+
+	it('writes the pinned image to a classic ESP32 and then passes the board checks', async () => {
+		const h = harness();
+		expect(await h.send(install())).toMatchObject({
+			ok: true,
+			result: { board: { protocolVersion: 1, firmwareVersion: '1.0.0', target: 'esp32' } }
+		});
+		expect(h.written).toHaveLength(1);
+		expect(toHex(await sha256(h.written[0]))).toBe(
+			'b96e102c01a29b5b7e8cb4a686654fe6d41ce7fb9c81ed1a378629a35a378ff9'
+		);
+		expect([...new Set(stages(h))]).toEqual(['detecting', 'writing', 'restarting']);
+		expect(h.events().at(-1)).toMatchObject({ type: 'radio-connected' });
+	});
+
+	it('rejects an image that does not match the pinned SHA256 before it opens the board', async () => {
+		const changed = firmware.slice();
+		changed[0x2000] ^= 1;
+		const h = harness({}, keys, changed);
+		expect(await h.send(install())).toMatchObject({
+			ok: false,
+			error: { code: 'firmware-image-invalid' }
+		});
+		expect([h.written, stages(h)]).toEqual([[], []]);
+	});
+
+	it.each([
+		['esp32-s3', /not verified for Link Trade yet/],
+		['esp32-c6', /not supported/]
+	])('does not write to an %s', async (flash, message) => {
+		const h = harness();
+		const response = await h.send(install(flash));
+		expect(response).toMatchObject({ ok: false, error: { code: 'unsupported-chip' } });
+		expect(response.type === 'response' && !response.ok && response.error.message).toMatch(message);
+		expect(h.written).toEqual([]);
+	});
+
+	it('reports a board that does not enter its bootloader, and a failed write', async () => {
+		const h = harness();
+		expect(await h.send(install('needs-boot-button'))).toMatchObject({
+			ok: false,
+			error: { code: 'bootloader-not-entered' }
+		});
+		expect(await h.send(install('write-fails'))).toMatchObject({
+			ok: false,
+			error: { code: 'firmware-write-failed' }
+		});
+	});
+
+	it('refuses to install while a Trade Radio is connected', async () => {
+		const h = harness();
+		await h.send({ type: 'connect-radio', port: { kind: 'fake', script: 'trade' } });
+		expect(await h.send(install())).toMatchObject({
+			ok: false,
+			error: { code: 'radio-connected' }
+		});
+		expect(h.written).toEqual([]);
+	});
+
+	it('accepts the bundled bootloader and rejects a damaged one', async () => {
+		await expect(checkBootloader(firmware)).resolves.toBeUndefined();
+		const damaged = firmware.slice();
+		damaged[0x1000 + 0x40] ^= 1;
+		await expect(checkBootloader(damaged)).rejects.toMatchObject({
+			code: 'firmware-image-invalid'
+		});
+		await expect(checkBootloader(firmware.subarray(0x1000))).rejects.toMatchObject({
+			code: 'firmware-image-invalid'
 		});
 	});
 });

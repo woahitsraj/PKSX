@@ -87,6 +87,7 @@ function isSkippedAsset(file: string): boolean {
 
 	return (
 		debugAssetPattern.test(file) ||
+		file.includes('/firmware/') ||
 		fileName.startsWith('.') ||
 		fileName === '_headers' ||
 		fileName === '_redirects'

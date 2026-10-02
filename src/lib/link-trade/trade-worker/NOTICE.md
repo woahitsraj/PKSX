@@ -9,6 +9,7 @@ The files in this directory port the Sword/Shield Link Trade joiner from third-p
 - Copyright: Decryptu and pokeldn contributors
 - License: GNU Affero General Public License version 3 (AGPL-3.0)
 - Ported: `bin/swsh_connect.py` (the `trade` preset, joiner role), `pokeldn/ldn/{esp32,esp32_wlan,userspace_ip,sead,pia4,pia5,reliable4,reliable5,broadcast4,station4,station_protocol,mesh_protocol,local_protocol,rtt_protocol}.py` and `pokeldn/swsh/{session,trade,trade_payload}.py`.
+- Also ported: the checks of `gui/board.py` (`flash`) in `firmware.ts` and `esptool-bootloader.ts`.
 - Not ported: the trainer rewrite of the offered Pokemon and the PID/EC re-roll. PKSX sends the offer it prepared, unchanged.
 
 ## LDN
@@ -22,6 +23,6 @@ Each file names its source and license in its header. The full license texts are
 
 ## Changes
 
-The code is a TypeScript port for a browser Web Worker: WebCrypto replaces PyCryptodome, the browser's `DecompressionStream` replaces zlib, and an injected serial port replaces pyserial and trio. `test-vectors.json` comes from `scripts/link-trade/generate_vectors.py` run against the revision above, with synthetic keys. `fake-radio.ts` is a scripted test double for tests and dev builds only.
+The code is a TypeScript port for a browser Web Worker: WebCrypto replaces PyCryptodome, the browser's `DecompressionStream` replaces zlib, and an injected serial port replaces pyserial and trio. `test-vectors.json` comes from `scripts/link-trade/generate_vectors.py` run against the revision above, with synthetic keys. `fake-radio.ts` and `fake-bootloader.ts` are scripted test doubles for tests and dev builds only.
 
 This notice is not legal advice.

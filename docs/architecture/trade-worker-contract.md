@@ -20,6 +20,7 @@ Every message from the worker carries `contractVersion: 1`. Bytes are `ArrayBuff
 | `forget-keys`      | `{ keysPresent: false }`                        | Deletes the stored keys.                                                                                                                                                                                                                                             |
 | `connect-radio`    | `{ board }`                                     | `port` is `{ kind: 'web-serial', usbVendorId?, usbProductId? }`. The page calls `navigator.serial.requestPort()` first; the worker opens the granted port.                                                                                                           |
 | `disconnect-radio` | `{}`                                            | Refused while a session runs.                                                                                                                                                                                                                                        |
+| `install-firmware` | `{ board }`                                     | `port` as for `connect-radio`. Installs the pinned firmware, then runs the `connect-radio` checks and leaves the radio connected. Send it only when the user selects Install firmware (#404).                                                                        |
 | `start-session`    | the session status                              | `sessionId`, `game: 'sword'` or `'shield'` (the Engine's `LinkTradeDestinationGame`), and `outgoingPokemon`: the encrypted 0x158-byte party PK8 from the Engine's `prepareOutgoingLinkTrade` (#366). This is the wire form; the worker does not encrypt or parse it. |
 | `confirm-offer`    | error `confirmation-not-supported`              | The player confirms Sword/Shield trades on the Switch. PKSX has no pause before that point.                                                                                                                                                                          |
 | `cancel-session`   | the session status                              | The outcome follows as `session-ended`.                                                                                                                                                                                                                              |
@@ -42,6 +43,17 @@ A `start-session` for a session ID that the worker already knows does not start 
 
 Then the worker switches the board to 921600 baud. A trade's traffic does not fit in 115200 baud, so a board that does not hold the fast rate is refused with `unsupported-board`. A board keeps the fast rate until it loses power, so the worker also tries that rate when the base rate is silent.
 
+## Installing firmware
+
+`install-firmware` writes the pinned pokeldn v0.4.0 `pokeldn-radio.bin` with esptool-js through the granted port. It is refused with `radio-connected` while a radio is connected, and with `session-active` while a session runs. The steps are:
+
+1. Load the image from `/firmware/pokeldn-radio.bin`. Check its SHA256 against the pinned value and check its bootloader at `0x1000`. A failure is `firmware-image-invalid`, and nothing is written.
+2. Reset the board into its ROM bootloader and detect the chip. A board that does not answer is `bootloader-not-entered`; the user holds the BOOT button and tries again. Only a classic ESP32 is accepted. Any other chip is `unsupported-chip`; the message says that ESP32-S3 and ESP32-C3 are not verified for Link Trade yet.
+3. Write the merged image at `0x0` and compare the MD5 of the written flash. A failure is `firmware-write-failed`.
+4. Reset the board and run the `connect-radio` checks. The install succeeds only when the board reports the pinned protocol, target and firmware version.
+
+The `firmware-install` event reports the stage: `detecting`, `writing` (with `written` and `total` bytes) or `restarting`. The dev fake port takes an optional `flash` value that simulates each result.
+
 `start-session` fails with these errors before any radio work starts:
 
 - `keys-missing`
@@ -55,6 +67,7 @@ Then the worker switches the board to 921600 baud. A trade's traffic does not fi
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `radio-connected`       | The board passed its checks. `board.simulated` is true only for the dev fake port, which is never a supported board.                   |
 | `radio-disconnected`    | `error.code` is `radio-lost` when the USB link dropped.                                                                                |
+| `firmware-install`      | The stage of an `install-firmware` command.                                                                                            |
 | `session-phase`         | `scanning`, `joining`, `waiting-for-console`, `in-trade-room`, `offer-received`, `confirming` or `finishing`.                          |
 | `trade-offer`           | The console's Trade Offer: the Pokemon its player selected. Sent again if the player selects another. **This is not a Trade Receipt.** |
 | `console-action`        | Box sync commands from #365: 1 `offer-shown`, 4 `confirmed`, 5 `withdrew`, 3 `left`.                                                   |
@@ -121,5 +134,6 @@ Sword/Shield's Pia version 4 compresses with zlib only, so the worker uses the b
   - cancellation
   - malformed serial frames
   - each refused board
+  - firmware installation: the written image, a changed image, refused chips, a board that does not enter its bootloader, a failed write, and refusal while a radio is connected
 - The fake port is loaded only when `import.meta.env.DEV` is true, so production builds do not include it.
 - A real exchange through the worker with the Trade Radio is a separate hardware check.
