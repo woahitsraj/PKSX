@@ -150,6 +150,12 @@ export function assertManifest(manifest: PokemonStorageManifest): void {
 	for (const tombstone of manifest.tombstones) {
 		if (records.has(tombstone.recordId) || deleted.has(tombstone.recordId))
 			throw new Error('Invalid Pokemon deletion tombstone.');
+		if (
+			(tombstone.reason === 'moved-to-save' && !tombstone.destinationSaveFileId?.trim()) ||
+			(tombstone.reason === 'cleared' && tombstone.destinationSaveFileId !== null) ||
+			(tombstone.reason !== 'moved-to-save' && tombstone.reason !== 'cleared')
+		)
+			throw new Error('Pokemon deletion destination does not match its reason.');
 		deleted.add(tombstone.recordId);
 	}
 }

@@ -103,15 +103,7 @@ export class PokemonStorageService {
 			if (!record) throw new Error('Pokemon Record ID is unavailable.');
 			if (placement && !manifest.boxes.some((box) => box.id === placement.storageBoxId))
 				throw new Error('Storage Box is unavailable.');
-			if (
-				placement &&
-				manifest.records.some(
-					(item) =>
-						item.recordId !== recordId &&
-						item.placement?.storageBoxId === placement.storageBoxId &&
-						item.placement.slot === placement.slot
-				)
-			)
+			if (placement && this.#occupied(manifest, placement, recordId))
 				throw new Error('Storage Slot is occupied.');
 			record.placement = placement;
 			record.revision += 1;
@@ -178,6 +170,11 @@ export class PokemonStorageService {
 		reason: 'cleared' | 'moved-to-save',
 		destinationSaveFileId: string | null = null
 	): Promise<void> {
+		if (
+			(reason === 'moved-to-save' && !destinationSaveFileId?.trim()) ||
+			(reason === 'cleared' && destinationSaveFileId !== null)
+		)
+			throw new Error('Pokemon deletion destination does not match its reason.');
 		await this.#mutate((manifest) => {
 			const index = manifest.records.findIndex((record) => record.recordId === recordId);
 			if (index < 0) throw new Error('Pokemon Record ID is unavailable.');
@@ -221,17 +218,11 @@ export class PokemonStorageService {
 					throw new Error('Pokemon Record ID already exists or is retired.');
 				if (!previous && resolvePlacements(manifest).some((item) => item.overflow))
 					throw new Error('Resolve Pokemon Storage overflow before adding a Pokemon.');
+				if (!previous && manifest.records.length >= manifest.boxes.length * 30)
+					throw new Error('Pokemon Storage is at capacity.');
 				if (placement && !manifest.boxes.some((box) => box.id === placement.storageBoxId))
 					throw new Error('Storage Box is unavailable.');
-				if (
-					placement &&
-					manifest.records.some(
-						(item) =>
-							item.recordId !== summary.recordId &&
-							item.placement?.storageBoxId === placement.storageBoxId &&
-							item.placement.slot === placement.slot
-					)
-				)
+				if (!previous && placement && this.#occupied(manifest, placement, summary.recordId))
 					throw new Error('Storage Slot is occupied.');
 				const now = this.now();
 				saved = {
@@ -257,6 +248,17 @@ export class PokemonStorageService {
 		const record = this.#manifest?.records.find((item) => item.recordId === recordId);
 		if (!record) throw new Error('Pokemon Record ID is unavailable.');
 		return record;
+	}
+
+	#occupied(manifest: PokemonStorageManifest, placement: NonNullable<Placement>, except: string) {
+		const matches = (candidate: Placement) =>
+			candidate?.storageBoxId === placement.storageBoxId && candidate.slot === placement.slot;
+		return (
+			manifest.records.some((record) => record.recordId !== except && matches(record.placement)) ||
+			resolvePlacements(manifest).some(
+				(record) => record.recordId !== except && matches(record.placement)
+			)
+		);
 	}
 
 	async #mutate(
