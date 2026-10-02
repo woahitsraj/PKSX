@@ -40,7 +40,7 @@ A `start-session` for a session ID that the worker already knows does not start 
 - `port-busy`: another tab or app has the port open.
 - `port-not-found`
 
-Then the worker tries to switch the board to 921600 baud. If the board does not answer at that rate, the worker stays at 115200. `board.baudRate` reports the result.
+Then the worker switches the board to 921600 baud. A trade's traffic does not fit in 115200 baud, so a board that does not hold the fast rate is refused with `unsupported-board`. A board keeps the fast rate until it loses power, so the worker also tries that rate when the base rate is silent.
 
 `start-session` fails with these errors before any radio work starts:
 

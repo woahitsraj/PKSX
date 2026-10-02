@@ -754,7 +754,9 @@ class PiaJoiner {
 			station,
 			nonce8
 		);
-		if (this.live) this.stack.sendUdp(packet, to, PIA_PORT, PIA_PORT);
+		if (!this.live) return;
+		this.stats.sent++;
+		this.stack.sendUdp(packet, to, PIA_PORT, PIA_PORT);
 	}
 
 	// --- The receiver ---
@@ -777,7 +779,11 @@ class PiaJoiner {
 
 	private async receive(datagram: Datagram): Promise<void> {
 		const opened = await openPacket(this.keys, this.hostMac, datagram.payload);
-		if (!opened) return;
+		this.stats.packets++;
+		if (!opened) {
+			this.stats.unreadable++;
+			return;
+		}
 		const st = this.st;
 		const now = this.now() - this.t0;
 		for (const f of await parsePacket(opened.plain)) {
@@ -1276,14 +1282,25 @@ class PiaJoiner {
 	}
 
 	/** pokeldn's hold loop, plus PKSX's end conditions. */
+	private stats = { packets: 0, unreadable: 0, sent: 0 };
+
 	private async monitor(): Promise<void> {
 		const st = this.st;
 		const holdUntil = this.now() + TIMING.hold;
+		let traced = 0;
 		while (this.live) {
 			await this.sleep(TIMING.monitorPeriod);
 			if (!this.live) return;
 			const now = this.now();
 			const elapsed = now - this.t0;
+			if (now - traced >= 5000) {
+				traced = now;
+				this.session.events.trace?.(
+					`pia: in ${this.stats.packets} unreadable ${this.stats.unreadable} out ${this.stats.sent} ` +
+						`updates ${st.updates} station ${st.stationReplies} accepted ${this.accepted} ` +
+						`joined ${st.joinResponse !== null}`
+				);
+			}
 			if (this.disconnected()) return this.session.end('connection-lost');
 			if (st.hostLeaving !== null) {
 				// Only box command 3 says the player left; a closed network alone may be a lost link.

@@ -143,30 +143,30 @@ export class Radio {
 	/** Opens the port, checks HELLO, then switches to the fast baud rate when the board allows. */
 	async open(): Promise<Board> {
 		await this.connect(BASE_BAUD);
-		let info: Info;
+		let info: Info | null = null;
 		let baud = BASE_BAUD;
-		try {
-			info = await this.hello(5, 1000);
-		} catch {
-			// A board left at the fast rate by an earlier connection does not reset on open.
-			await this.reconnect(FAST_BAUD);
-			info = await this.hello(5, 500);
-			baud = FAST_BAUD;
+		// A board keeps the fast rate until it loses power, and some boards reboot when the port opens.
+		for (const [rate, attempts, timeoutMs] of [
+			[BASE_BAUD, 1, 700],
+			[FAST_BAUD, 2, 500],
+			[BASE_BAUD, 5, 1000]
+		] as const) {
+			if (rate !== baud) await this.reconnect(rate);
+			baud = rate;
+			info = await this.hello(attempts, timeoutMs).catch(() => null);
+			if (info) break;
 		}
+		if (!info) throw new RadioError('unsupported-board', 'no pokeldn radio answered HELLO');
 		checkBoard(info, baud, this.port.simulated);
 		if (baud === BASE_BAUD) {
-			try {
-				await this.request(CMD_BAUD, u32le(FAST_BAUD), MSG_RESULT);
-				await this.reconnect(FAST_BAUD);
-				await this.hello(5, 500);
-				baud = FAST_BAUD;
-			} catch {
-				// The board reset on reopen and is back at the base rate.
-				await this.reconnect(BASE_BAUD);
-				await this.hello(5, 1000);
-			}
+			await this.request(CMD_BAUD, u32le(FAST_BAUD), MSG_RESULT);
+			await this.reconnect(FAST_BAUD);
+			// The base rate cannot carry a trade's traffic, so a board that falls back is refused.
+			await this.hello(5, 500).catch(() => {
+				throw new RadioError('unsupported-board', 'the board did not hold 921600 baud');
+			});
 		}
-		this.board = checkBoard(info, baud, this.port.simulated);
+		this.board = checkBoard(info, FAST_BAUD, this.port.simulated);
 		return this.board;
 	}
 
