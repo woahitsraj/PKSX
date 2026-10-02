@@ -153,6 +153,82 @@ export function catalogContract(
 			await service.removeBox(second.id);
 			expect(service.listBoxes()).toHaveLength(1);
 		});
+		it('counts unfiled Pokemon toward local capacity', async () => {
+			const service = new PokemonStorageService(create(), fakeEngine());
+			await service.initialize();
+			const first = await service.add(bytes(4), origin);
+			for (let index = 1; index < 30; index += 1) await service.copy(first.recordId);
+			expect(service.listRecords()).toHaveLength(30);
+			await expect(service.add(bytes(5), origin)).rejects.toThrow(/capacity/);
+			await expect(service.copy(first.recordId)).rejects.toThrow(/capacity/);
+			await service.addBox();
+			await service.copy(first.recordId);
+			expect(service.listRecords()).toHaveLength(31);
+		});
+		it('protects resolved slots held by displaced records', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const first = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			const displaced = await service.add(bytes(2), origin);
+			const moving = await service.add(bytes(3), origin);
+			const manifest = service.current!;
+			manifest.records.find((record) => record.recordId === displaced.recordId)!.placement = {
+				storageBoxId: boxId,
+				slot: 0
+			};
+			manifest.revision += 1;
+			await persistence.commit(service.current!.revision, manifest, []);
+			await service.load();
+			expect(
+				service.listResolvedPlacements().find((item) => item.recordId === displaced.recordId)
+					?.placement
+			).toEqual({ storageBoxId: boxId, slot: 1 });
+			await expect(
+				service.place(moving.recordId, { storageBoxId: boxId, slot: 1 })
+			).rejects.toThrow(/occupied/);
+			await expect(service.add(bytes(4), origin, { storageBoxId: boxId, slot: 1 })).rejects.toThrow(
+				/occupied/
+			);
+			await service.place(moving.recordId, { storageBoxId: boxId, slot: 2 });
+			expect(service.getRecord(first.recordId)?.placement?.slot).toBe(0);
+		});
+		it('validates deletion reasons and destinations on mutation and persistence', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const record = await service.add(bytes(1), origin);
+			await expect(service.retire(record.recordId, 'moved-to-save')).rejects.toThrow(/destination/);
+			await expect(service.retire(record.recordId, 'cleared', 'save-id')).rejects.toThrow(
+				/destination/
+			);
+			const manifest = service.current!;
+			manifest.records = [];
+			manifest.tombstones = [
+				{
+					recordId: record.recordId,
+					reason: 'moved-to-save',
+					destinationSaveFileId: null,
+					deletedAt: 'now',
+					revision: 1
+				}
+			];
+			manifest.revision += 1;
+			await expect(persistence.commit(service.current!.revision, manifest, [])).rejects.toThrow(
+				/destination/
+			);
+			manifest.tombstones[0] = {
+				...manifest.tombstones[0],
+				reason: 'cleared',
+				destinationSaveFileId: 'save-id'
+			};
+			await expect(persistence.commit(service.current!.revision, manifest, [])).rejects.toThrow(
+				/destination/
+			);
+			await service.retire(record.recordId, 'moved-to-save', 'save-id');
+			expect(service.listTombstones()[0].destinationSaveFileId).toBe('save-id');
+		});
 		it('derives collisions and overflow without changing record placement', async () => {
 			const persistence = create();
 			const service = new PokemonStorageService(persistence, fakeEngine());
