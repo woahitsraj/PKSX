@@ -2428,6 +2428,8 @@
 				if (refreshed) {
 					statusMessage = `Moved ${sourceSlot.label} to Pokemon Storage.`;
 					toastHost.success(statusMessage);
+				} else {
+					statusMessage = 'Pokemon Storage changed. Reload Boxes to refresh its Slots.';
 				}
 				return;
 			}
