@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { EngineApi, PreservationPayloadSummary } from '$lib/engine';
 import { createMockEngine } from '$lib/engine/mock-engine';
 import { PokemonStorageService } from './service';
+import { createEmptyPokemonStorage } from '$lib/pksx/saves';
 import { referenceFor, type CatalogPersistence, type PokemonOrigin } from './types';
 
 const origin: PokemonOrigin = {
@@ -90,6 +91,113 @@ export function catalogContract(
 	corrupt: (persistence: CatalogPersistence, id: string) => Promise<void>
 ) {
 	describe(`${name} Pokemon Storage contract`, () => {
+		it('keeps legacy empty boxes and gives only a new library one box', async () => {
+			const legacy = createEmptyPokemonStorage(3);
+			const migrated = await new PokemonStorageService(create(), fakeEngine()).loadOrMigrate(
+				async () => legacy
+			);
+			expect(migrated.boxes.map((box) => box.name)).toEqual(['Box 01', 'Box 02', 'Box 03']);
+			expect(migrated.records).toEqual([]);
+			const fresh = await new PokemonStorageService(create(), fakeEngine()).loadOrMigrate(
+				async () => null
+			);
+			expect(fresh.boxes).toHaveLength(1);
+			expect(fresh.boxes[0].name).toBeNull();
+		});
+		it('migrates occupied and empty boxes with names, order, origins and engine projections', async () => {
+			const persistence = create();
+			const legacy = createEmptyPokemonStorage(3, 30, () => origin.enteredAt);
+			legacy.boxes[0].name = 'Favorites';
+			legacy.boxes[1].name = 'Empty collection';
+			legacy.boxes[2].name = 'Favorites';
+			legacy.boxes[0].slots[4].pokemon = {
+				label: 'Old label',
+				detail: '',
+				level: null,
+				experience: null,
+				speciesId: null,
+				form: null,
+				isEgg: false,
+				spriteIdentity: null,
+				entityBytesBase64: 'AQID',
+				origin: {
+					entryMode: 'moved-in',
+					originSaveFileName: 'source.sav',
+					originGame: 'SV',
+					originalTrainer: 'Trainer',
+					trainerId: '123',
+					enteredAt: origin.enteredAt
+				}
+			};
+			legacy.boxes[2].slots[29].pokemon = {
+				...structuredClone(legacy.boxes[0].slots[4].pokemon!),
+				entityBytesBase64: 'BAUG',
+				origin: { ...legacy.boxes[0].slots[4].pokemon!.origin, entryMode: 'copied-in' }
+			};
+			const before = structuredClone(legacy);
+			const service = new PokemonStorageService(
+				persistence,
+				fakeEngine(),
+				() => origin.enteredAt,
+				(() => {
+					let id = 0;
+					return () => `id-${++id}`;
+				})()
+			);
+			const migrated = await service.migrateLegacy(legacy);
+			expect(legacy).toEqual(before);
+			expect(migrated.boxes.map((box) => box.name)).toEqual([
+				'Favorites',
+				'Empty collection',
+				'Favorites'
+			]);
+			expect(migrated.records.map((record) => record.placement)).toEqual([
+				{ storageBoxId: migrated.boxes[0].id, slot: 4 },
+				{ storageBoxId: migrated.boxes[2].id, slot: 29 }
+			]);
+			expect(migrated.records[0].origin).toMatchObject(before.boxes[0].slots[4].pokemon!.origin);
+			expect(migrated.records[0].projection.speciesName).toBe('Test');
+			expect(JSON.stringify(migrated)).not.toContain('entityBytesBase64');
+			expect(await service.readPayload(migrated.records[0].recordId)).toBeTruthy();
+			const reopened = new PokemonStorageService(persistence, fakeEngine());
+			expect(await reopened.migrateLegacy(legacy)).toEqual(migrated);
+		});
+		it('leaves legacy readable and retries after a failed catalog commit', async () => {
+			const persistence = create();
+			const legacy = createEmptyPokemonStorage(1);
+			legacy.boxes[0].slots[0].pokemon = {
+				label: 'Stored',
+				detail: '',
+				level: 1,
+				experience: null,
+				speciesId: 1,
+				form: 0,
+				isEgg: false,
+				spriteIdentity: null,
+				entityBytesBase64: 'AQID',
+				origin: { ...origin, entryMode: 'imported' }
+			};
+			const source = structuredClone(legacy);
+			let fail = true;
+			const failing: CatalogPersistence = {
+				...persistence,
+				read: () => persistence.read(),
+				readBlob: (ref) => persistence.readBlob(ref),
+				commit: async (revision, manifest, blobs) => {
+					if (fail) {
+						fail = false;
+						throw new Error('Injected migration failure');
+					}
+					await persistence.commit(revision, manifest, blobs);
+				},
+				sweep: () => persistence.sweep()
+			};
+			const service = new PokemonStorageService(failing, fakeEngine());
+			await expect(service.migrateLegacy(legacy)).rejects.toThrow('Injected migration failure');
+			expect(legacy).toEqual(source);
+			expect(await persistence.read()).toBeNull();
+			expect((await service.migrateLegacy(legacy)).records).toHaveLength(1);
+		});
 		it('persists engine Record IDs, independent copies, origin, boxes and placements', async () => {
 			const persistence = create();
 			const service = new PokemonStorageService(

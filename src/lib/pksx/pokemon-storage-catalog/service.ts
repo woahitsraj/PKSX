@@ -1,4 +1,5 @@
-import type { EngineApi } from '$lib/engine';
+import { base64ToBytes, type EngineApi } from '$lib/engine';
+import type { StoredPokemonStorage } from '$lib/pksx/saves';
 import { createStore, type Store } from 'tinybase';
 import {
 	assertManifest,
@@ -63,6 +64,97 @@ export class PokemonStorageService {
 	async initialize(storageId: string = this.id()): Promise<PokemonStorageManifest> {
 		const manifest = emptyManifest(storageId, this.now(), this.id());
 		await this.persistence.commit(null, manifest, []);
+		this.#publish(manifest);
+		return cloneManifest(manifest);
+	}
+
+	async loadOrMigrate(
+		readLegacy: () => Promise<StoredPokemonStorage | null>
+	): Promise<PokemonStorageManifest> {
+		const catalog = await this.load();
+		if (catalog) return catalog;
+		const legacy = await readLegacy();
+		return legacy ? this.migrateLegacy(legacy) : this.initialize();
+	}
+
+	async migrateLegacy(legacy: StoredPokemonStorage): Promise<PokemonStorageManifest> {
+		if (
+			legacy.schemaVersion !== 1 ||
+			legacy.boxes.length < 1 ||
+			legacy.boxes.length !== legacy.boxCount ||
+			legacy.boxSlotCount !== 30 ||
+			new Set(legacy.boxes.map((box) => box.index)).size !== legacy.boxCount ||
+			legacy.boxes.some(
+				(box) =>
+					box.index < 0 ||
+					box.index >= legacy.boxCount ||
+					box.slots.length !== 30 ||
+					new Set(box.slots.map((slot) => slot.slot)).size !== 30 ||
+					box.slots.some((slot) => slot.box !== box.index || slot.slot < 0 || slot.slot >= 30)
+			)
+		)
+			throw new Error('Unsupported legacy Pokemon Storage layout.');
+		const existing = await this.persistence.read();
+		if (existing) {
+			this.#publish(existing);
+			return cloneManifest(existing);
+		}
+		const now = this.now();
+		const boxes = [...legacy.boxes]
+			.sort((a, b) => a.index - b.index)
+			.map((box, order) => ({
+				id: this.id(),
+				name: box.name,
+				order,
+				revision: 0,
+				createdAt: now,
+				updatedAt: now
+			}));
+		const records: PokemonRecord[] = [];
+		const blobs: StagedBlob[] = [];
+		for (const [order, box] of [...legacy.boxes].sort((a, b) => a.index - b.index).entries()) {
+			for (const slot of box.slots) {
+				const pokemon = slot.pokemon;
+				if (!pokemon) continue;
+				if (!pokemon.entityBytesBase64)
+					throw new Error('Legacy Pokemon preservation bytes are unavailable.');
+				const entityBytes = base64ToBytes(pokemon.entityBytesBase64);
+				const payload = await this.engine.createPreservationPayload(entityBytes);
+				if (!payload.ok) throw payload.error;
+				const read = await this.engine.readPreservationPayload(payload.value.bytes);
+				if (!read.ok) throw read.error;
+				if (
+					read.value.entityBytes.length !== entityBytes.length ||
+					read.value.entityBytes.some((byte, index) => byte !== entityBytes[index])
+				)
+					throw new Error('Migrated Pokemon content differs from its legacy source.');
+				const projection = { ...read.value.projection };
+				delete projection.entityBytesBase64;
+				const reference = await referenceFor(payload.value.bytes, read.value.summary.version);
+				records.push({
+					recordId: read.value.summary.recordId,
+					payload: reference,
+					identityFingerprint: read.value.summary.identityFingerprint,
+					projection,
+					origin: { ...pokemon.origin, originSaveFileId: null },
+					placement: { storageBoxId: boxes[order].id, slot: slot.slot },
+					revision: 0,
+					createdAt: pokemon.origin.enteredAt,
+					updatedAt: now
+				});
+				blobs.push({ reference, bytes: payload.value.bytes });
+			}
+		}
+		const manifest: PokemonStorageManifest = {
+			schemaVersion: 1,
+			storageId: this.id(),
+			revision: 0,
+			boxes,
+			records,
+			tombstones: []
+		};
+		assertManifest(manifest);
+		await this.persistence.commit(null, manifest, blobs);
 		this.#publish(manifest);
 		return cloneManifest(manifest);
 	}
