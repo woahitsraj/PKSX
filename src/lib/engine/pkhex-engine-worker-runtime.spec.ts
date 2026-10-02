@@ -270,21 +270,21 @@ function createEngineExports(): DotnetPkhexEngineExports {
 				value: null,
 				error: { code: 'unsupported-pokemon-action', message: 'Unavailable in this fixture.' }
 			}),
-		CreatePreservationPayloadJson: () => preservationUnavailable(),
-		ReadPreservationPayloadJson: () => preservationUnavailable(),
-		ProjectPreservationPayloadJson: () => preservationUnavailable(),
-		PrepareOutgoingLinkTradeJson: () => preservationUnavailable(),
-		ReadLinkTradePartnerPokemonJson: () => preservationUnavailable()
+		CreatePreservationPayloadJson: () => unavailableInTestEngine(),
+		ReadPreservationPayloadJson: () => unavailableInTestEngine(),
+		ProjectPreservationPayloadJson: () => unavailableInTestEngine(),
+		PrepareOutgoingLinkTradeJson: () => unavailableInTestEngine(),
+		ReadLinkTradePartnerPokemonJson: () => unavailableInTestEngine()
 	};
 }
 
-function preservationUnavailable() {
+function unavailableInTestEngine() {
 	return JSON.stringify({
 		ok: false,
 		value: null,
 		error: {
 			code: 'unsupported-preservation-payload',
-			message: 'Preservation is unavailable in this test engine.'
+			message: 'This call is unavailable in this test engine.'
 		}
 	});
 }

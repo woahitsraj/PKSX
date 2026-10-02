@@ -367,12 +367,7 @@ export function createPkhexEngineWorkerRuntime({
 				postLinkTradePartnerPokemonResponse(
 					postMessage,
 					request,
-					parseEngineResult<RawLinkTradePartnerPokemonResult>(
-						engine.ReadLinkTradePartnerPokemonJson(
-							new Uint8Array(request.payload.bytes),
-							request.payload.destinationGame
-						)
-					)
+					readLinkTradePartnerPokemon(engine, request)
 				);
 				return;
 		}
@@ -872,6 +867,18 @@ function prepareOutgoingLinkTrade(
 	const { bytes, ...outgoingRequest } = request.payload;
 	return parseEngineResult<RawOutgoingLinkTradeResult>(
 		engine.PrepareOutgoingLinkTradeJson(new Uint8Array(bytes), JSON.stringify(outgoingRequest))
+	);
+}
+
+function readLinkTradePartnerPokemon(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerReadLinkTradePartnerPokemonRequest
+): EngineResult<RawLinkTradePartnerPokemonResult> {
+	return parseEngineResult<RawLinkTradePartnerPokemonResult>(
+		engine.ReadLinkTradePartnerPokemonJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.destinationGame
+		)
 	);
 }
 
