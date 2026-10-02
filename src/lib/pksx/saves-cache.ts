@@ -2,11 +2,10 @@ import { createPkhexWorkerEngine, type EngineApi, type SaveSummary } from '$lib/
 import type { WorkspaceState } from '$lib/pksx/backup-workflow';
 import { SaveFileEditCoordinator } from '$lib/pksx/save-file-edit-coordinator';
 import {
-	bytesEqual,
-	createSavesStorage,
-	type SaveFileId,
-	type StoredSaveFile
-} from '$lib/pksx/saves';
+	createPokemonStorageService,
+	type PokemonStorageService
+} from '$lib/pksx/pokemon-storage-catalog';
+import { bytesEqual, createSavesStorage, type SaveFileId, type StoredSaveFile } from '$lib/pksx/saves';
 import {
 	ActiveWorkspaceService,
 	LocalStorageWorkspacePersistence
@@ -59,6 +58,8 @@ let storedCardDetails: StoredCardDetails | null = null;
 let publishedBytes: { saveFileId: SaveFileId; bytes: Uint8Array } | null = null;
 let pendingActiveSaveAdoption: SaveFileId | null = null;
 let saveFileEditCoordinator: SaveFileEditCoordinator | null = null;
+let pokemonStorageCatalog: PokemonStorageService | null = null;
+let pokemonStorageCatalogLoad: ReturnType<PokemonStorageService['loadOrMigrate']> | null = null;
 
 export function getSavesStorage() {
 	return storage;
@@ -67,6 +68,22 @@ export function getSavesStorage() {
 export function getPkhexEngine() {
 	engine ??= createPkhexWorkerEngine('/pkhex-engine');
 	return engine;
+}
+
+export function getPokemonStorageCatalog() {
+	pokemonStorageCatalog ??= createPokemonStorageService(getPkhexEngine());
+	return pokemonStorageCatalog;
+}
+
+export async function ensurePokemonStorageCatalog() {
+	const loading = (pokemonStorageCatalogLoad ??= getPokemonStorageCatalog().loadOrMigrate(() =>
+		storage.getPokemonStorage()
+	));
+	try {
+		return await loading;
+	} finally {
+		if (pokemonStorageCatalogLoad === loading) pokemonStorageCatalogLoad = null;
+	}
 }
 
 export function getActiveWorkspaceService() {

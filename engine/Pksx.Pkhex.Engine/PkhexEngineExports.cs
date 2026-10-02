@@ -61,6 +61,24 @@ public static partial class PkhexEngineExports
     }
 
     [JSExport]
+    public static string ReplacePreservationPayloadCurrentJson(byte[] payloadBytes, byte[] entityBytes)
+    {
+        try
+        {
+            var payload = PokemonPreservationPayload.Parse(payloadBytes).ReplaceCurrent(entityBytes);
+            return SerializePreservationPayload(payload);
+        }
+        catch (PokemonPreservationException ex)
+        {
+            return PreservationFailure(ex);
+        }
+        catch (Exception ex)
+        {
+            return UnknownFailure(ex);
+        }
+    }
+
+    [JSExport]
     public static string ReadPreservationPayloadJson(byte[] payloadBytes)
     {
         try

@@ -290,6 +290,7 @@ function createEngineExports(): DotnetPkhexEngineExports {
 			}),
 		CreatePreservationPayloadJson: () => unavailableInTestEngine(),
 		ForkPreservationPayloadJson: () => unavailableInTestEngine(),
+		ReplacePreservationPayloadCurrentJson: () => unavailableInTestEngine(),
 		ReadPreservationPayloadJson: () => unavailableInTestEngine(),
 		ProjectPreservationPayloadJson: () => unavailableInTestEngine(),
 		PrepareOutgoingLinkTradeJson: () => unavailableInTestEngine(),
@@ -315,6 +316,35 @@ async function flushPromises() {
 }
 
 describe('createPkhexEngineWorkerRuntime', () => {
+	test('passes both snapshots to the preservation update facade', async () => {
+		const posted: PostedWorkerMessage[] = [];
+		let received: [number[], number[]] | null = null;
+		const runtime = createPkhexEngineWorkerRuntime({
+			loadEngine: async () => ({
+				...createEngineExports(),
+				ReplacePreservationPayloadCurrentJson: (payload, entity) => {
+					received = [[...payload], [...entity]];
+					return unavailableInTestEngine();
+				}
+			}),
+			postMessage: (message) => posted.push(message)
+		});
+		runtime.handleMessage({ type: 'init', basePath: '/pkhex-engine' });
+		await flushPromises();
+		runtime.handleMessage({
+			type: 'request',
+			id: 'replace-1',
+			method: 'replacePreservationPayloadCurrent',
+			payload: { bytes: new Uint8Array([1, 2]).buffer, entityBytes: new Uint8Array([3]).buffer }
+		});
+		await flushPromises();
+		expect(received).toEqual([[1, 2], [3]]);
+		expect(posted.at(-1)).toMatchObject({
+			type: 'response',
+			method: 'replacePreservationPayloadCurrent',
+			result: { ok: false, error: { code: 'unsupported-preservation-payload' } }
+		});
+	});
 	test('returns engine-unavailable responses for requests received while idle', async () => {
 		expect.assertions(1);
 
