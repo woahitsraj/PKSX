@@ -2,7 +2,27 @@ import { expect, it } from 'vitest';
 import type { NativeFileStore } from '$lib/pksx/saves';
 import { catalogContract } from './contract-tests';
 import { NativeCatalogPersistence } from './native';
-import { referenceFor } from './types';
+import { referenceFor, type BlobReference } from './types';
+
+const recordFor = (payload: BlobReference) => ({
+	recordId: 'engine-record-id',
+	payload,
+	identityFingerprint: 'fingerprint',
+	projection: {} as never,
+	origin: {
+		entryMode: 'imported' as const,
+		originSaveFileId: null,
+		originSaveFileName: null,
+		originGame: null,
+		originalTrainer: null,
+		trainerId: null,
+		enteredAt: 'now'
+	},
+	placement: null,
+	revision: 0,
+	createdAt: 'now',
+	updatedAt: 'now'
+});
 
 function fixture() {
 	const files = new Map<string, string | Uint8Array>();
@@ -76,6 +96,69 @@ it('keeps a complete native manifest authoritative after a partial manifest writ
 	await expect(failing.commit(0, { ...first, revision: 1 }, [])).rejects.toThrow('disk full');
 	expect((await persistence.read())?.revision).toBe(0);
 });
+it('ignores valid JSON candidates without a verified completion', async () => {
+	const { files, persistence } = fixture();
+	const first = {
+		schemaVersion: 1 as const,
+		storageId: 'storage-id',
+		revision: 0,
+		createdAt: 'now',
+		updatedAt: 'now',
+		boxOrder: ['box-id'],
+		boxes: [{ id: 'box-id', name: null, revision: 0, createdAt: 'now', updatedAt: 'now' }],
+		records: [],
+		tombstones: []
+	};
+	await persistence.commit(null, first, []);
+	const candidatePath = 'pokemon-storage-catalog/manifests/1.json';
+	files.set(candidatePath, JSON.stringify({ ...first, revision: 2 }));
+	expect((await persistence.read())?.revision).toBe(0);
+	const missing = await referenceFor(new Uint8Array([7]), 1);
+	files.set(
+		candidatePath,
+		JSON.stringify({ ...first, revision: 1, records: [recordFor(missing)] })
+	);
+	expect((await persistence.read())?.revision).toBe(0);
+	expect(await persistence.sweep()).toBe(0);
+});
+it('keeps the previous manifest when completion publication fails', async () => {
+	const { files, store, persistence } = fixture();
+	const first = {
+		schemaVersion: 1 as const,
+		storageId: 'storage-id',
+		revision: 0,
+		createdAt: 'now',
+		updatedAt: 'now',
+		boxOrder: ['box-id'],
+		boxes: [{ id: 'box-id', name: null, revision: 0, createdAt: 'now', updatedAt: 'now' }],
+		records: [],
+		tombstones: []
+	};
+	await persistence.commit(null, first, []);
+	const payload = new Uint8Array([7]);
+	const reference = await referenceFor(payload, 1);
+	const failing = new NativeCatalogPersistence({
+		...store,
+		async writeText(path, value) {
+			if (path.endsWith('/1.complete')) {
+				files.set(path, JSON.stringify({ revision: 1, manifestSha256: 'a'.repeat(64) }));
+				throw new Error('publication interrupted');
+			}
+			await store.writeText(path, value);
+		}
+	});
+	await expect(
+		failing.commit(0, { ...first, revision: 1, records: [recordFor(reference)] }, [
+			{ reference, bytes: payload }
+		])
+	).rejects.toThrow('publication interrupted');
+	expect(JSON.parse(files.get('pokemon-storage-catalog/manifests/1.json') as string).revision).toBe(
+		1
+	);
+	expect((await persistence.read())?.revision).toBe(0);
+	expect(await persistence.sweep()).toBe(1);
+	expect(await persistence.readBlob(reference)).toBeNull();
+});
 it('serializes simultaneous native conditional commits', async () => {
 	const { persistence } = fixture();
 	const first = {
@@ -121,7 +204,7 @@ it('does not mistake a native read failure for an older authoritative generation
 	await expect(failing.read()).rejects.toThrow('media unavailable');
 });
 it('does not sweep a staged blob while its native manifest commit is in flight', async () => {
-	const { store, persistence } = fixture();
+	const { files, store, persistence } = fixture();
 	const first = {
 		schemaVersion: 1 as const,
 		storageId: 'storage-id',
@@ -139,27 +222,7 @@ it('does not sweep a staged blob while its native manifest commit is in flight',
 	const manifest = {
 		...first,
 		revision: 1,
-		records: [
-			{
-				recordId: 'engine-record-id',
-				payload: reference,
-				identityFingerprint: 'fingerprint',
-				projection: {} as never,
-				origin: {
-					entryMode: 'imported' as const,
-					originSaveFileId: null,
-					originSaveFileName: null,
-					originGame: null,
-					originalTrainer: null,
-					trainerId: null,
-					enteredAt: 'now'
-				},
-				placement: null,
-				revision: 0,
-				createdAt: 'now',
-				updatedAt: 'now'
-			}
-		]
+		records: [recordFor(reference)]
 	};
 	let announce!: () => void;
 	let release!: () => void;
@@ -187,4 +250,10 @@ it('does not sweep a staged blob while its native manifest commit is in flight',
 	await expect(sweeping).resolves.toBe(0);
 	expect(await persistence.readBlob(reference)).toEqual(payload);
 	expect((await persistence.read())?.records[0]?.recordId).toBe('engine-record-id');
+	files.set(`pokemon-storage-catalog/blobs/${reference.id}.bin`, new Uint8Array([0]));
+	await expect(persistence.read()).rejects.toThrow(/checksum/);
+	files.set(`pokemon-storage-catalog/blobs/${reference.id}.bin`, payload);
+	await persistence.commit(1, { ...manifest, revision: 2, records: [] }, []);
+	expect(await persistence.sweep()).toBe(0);
+	expect(await persistence.readBlob(reference)).toEqual(payload);
 });
