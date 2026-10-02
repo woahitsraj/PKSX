@@ -219,6 +219,8 @@ export interface SessionCallbacks {
 	offer(pokemon: Bytes): void;
 	consoleAction(action: ConsoleAction): void;
 	ladder(phase: number): void;
+	/** Developer diagnostics only; never part of the contract and never carries keys. */
+	trace?(line: string): void;
 }
 
 export interface SessionResult {
@@ -361,6 +363,9 @@ export class SwshJoinSession {
 			stop();
 		}
 		await Promise.all(pending);
+		this.callbacks.trace?.(
+			`scan: ${[...counts].map(([at, n]) => `${at}=${n}`).join(' ') || 'nothing heard'}`
+		);
 		return order.map((address) => best.get(address)!);
 	}
 
@@ -463,6 +468,10 @@ export class SwshJoinSession {
 		};
 
 		const ssidHex = toHex(network.ssid);
+		this.callbacks.trace?.(
+			`join: channel ${network.channel} protocol ${network.protocol} version ${network.version} ` +
+				`seats ${network.numParticipants}/${network.maxParticipants} security ${network.securityMode}`
+		);
 		let joined = false;
 		const unlinked = this.radio.subscribe((type, payload) => {
 			if (type === MSG_LINK && parseLink(payload).up) joined = true;

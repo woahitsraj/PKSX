@@ -143,18 +143,28 @@ export class Radio {
 	/** Opens the port, checks HELLO, then switches to the fast baud rate when the board allows. */
 	async open(): Promise<Board> {
 		await this.connect(BASE_BAUD);
-		const info = await this.hello(5, 1000);
-		checkBoard(info, BASE_BAUD, this.port.simulated);
+		let info: Info;
 		let baud = BASE_BAUD;
 		try {
-			await this.request(CMD_BAUD, u32le(FAST_BAUD), MSG_RESULT);
-			await this.reconnect(FAST_BAUD);
-			await this.hello(5, 500);
-			baud = FAST_BAUD;
+			info = await this.hello(5, 1000);
 		} catch {
-			// The board reset on reopen and is back at the base rate.
-			await this.reconnect(BASE_BAUD);
-			await this.hello(5, 1000);
+			// A board left at the fast rate by an earlier connection does not reset on open.
+			await this.reconnect(FAST_BAUD);
+			info = await this.hello(5, 500);
+			baud = FAST_BAUD;
+		}
+		checkBoard(info, baud, this.port.simulated);
+		if (baud === BASE_BAUD) {
+			try {
+				await this.request(CMD_BAUD, u32le(FAST_BAUD), MSG_RESULT);
+				await this.reconnect(FAST_BAUD);
+				await this.hello(5, 500);
+				baud = FAST_BAUD;
+			} catch {
+				// The board reset on reopen and is back at the base rate.
+				await this.reconnect(BASE_BAUD);
+				await this.hello(5, 1000);
+			}
 		}
 		this.board = checkBoard(info, baud, this.port.simulated);
 		return this.board;

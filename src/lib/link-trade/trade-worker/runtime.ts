@@ -49,6 +49,8 @@ export interface TradeWorkerRuntimeOptions {
 	webSerial: boolean;
 	fakePort: boolean;
 	clock: Clock;
+	/** Developer diagnostics; not wired in the worker entry. */
+	trace?(line: string): void;
 }
 
 interface SessionRecord {
@@ -273,7 +275,8 @@ export class TradeWorkerRuntime {
 			},
 			offer: (pokemon) => this.emit({ type: 'trade-offer', ...base(), pokemon: buffer(pokemon) }),
 			consoleAction: (action) => this.emit({ type: 'console-action', ...base(), action }),
-			ladder: (phase) => this.emit({ type: 'confirmation-progress', ...base(), phase })
+			ladder: (phase) => this.emit({ type: 'confirmation-progress', ...base(), phase }),
+			trace: this.options.trace
 		});
 		this.sessions.set(sessionId, record);
 		this.active = record;
