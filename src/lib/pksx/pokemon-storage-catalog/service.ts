@@ -189,10 +189,12 @@ export class PokemonStorageService {
 
 	async replaceCurrent(recordId: string, entityBytes: Uint8Array): Promise<PokemonRecord> {
 		const source = this.#required(recordId);
-		const payloadBytes = await this.readPayload(recordId);
+		const payloadBytes = await this.persistence.readBlob(source.payload);
+		if (!payloadBytes) throw new Error('Pokemon preservation payload is missing.');
+		await verifyBlob(source.payload, payloadBytes);
 		const result = await this.engine.replacePreservationPayloadCurrent(payloadBytes, entityBytes);
 		if (!result.ok) throw result.error;
-		return this.#putPayload(result.value.bytes, source.origin, source.placement, recordId);
+		return this.#putPayload(result.value.bytes, source.origin, null, recordId, source.payload.id);
 	}
 
 	async readPayload(recordId: string): Promise<Uint8Array> {
