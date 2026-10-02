@@ -280,6 +280,66 @@ export function catalogContract(
 				await persistence.readBlob(first.payload)
 			);
 		});
+		it.each([1, null])('keeps the latest placement after a move to %s', async (slot) => {
+			const engine = fakeEngine();
+			let resume!: () => void;
+			let parsing!: () => void;
+			const paused = new Promise<void>((resolve) => (resume = resolve));
+			const started = new Promise<void>((resolve) => (parsing = resolve));
+			const edited = { payload: null as Uint8Array | null };
+			const service = new PokemonStorageService(create(), {
+				...engine,
+				async readPreservationPayload(payload) {
+					if (payload === edited.payload) {
+						parsing();
+						await paused;
+					}
+					return engine.readPreservationPayload(payload);
+				}
+			});
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const record = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			edited.payload = engine.editPayload(record.recordId, bytes(2));
+			const replacement = service.replace(record.recordId, edited.payload);
+			await started;
+			const placement = slot === null ? null : { storageBoxId: boxId, slot };
+			await service.place(record.recordId, placement);
+			await service.add(bytes(3), origin, { storageBoxId: boxId, slot: 0 });
+			resume();
+			expect((await replacement).placement).toEqual(placement);
+			expect(service.listResolvedPlacements().every((item) => !item.displaced)).toBe(true);
+		});
+		it('rejects an edit based on a superseded payload', async () => {
+			const engine = fakeEngine();
+			let resume!: () => void;
+			let parsing!: () => void;
+			const paused = new Promise<void>((resolve) => (resume = resolve));
+			const started = new Promise<void>((resolve) => (parsing = resolve));
+			const delayed = { payload: null as Uint8Array | null };
+			const service = new PokemonStorageService(create(), {
+				...engine,
+				async readPreservationPayload(payload) {
+					if (payload === delayed.payload) {
+						parsing();
+						await paused;
+					}
+					return engine.readPreservationPayload(payload);
+				}
+			});
+			await service.initialize();
+			const record = await service.add(bytes(1), origin);
+			delayed.payload = engine.editPayload(record.recordId, bytes(2));
+			const stale = service.replace(record.recordId, delayed.payload);
+			await started;
+			const latest = await service.replace(
+				record.recordId,
+				engine.editPayload(record.recordId, bytes(3))
+			);
+			resume();
+			await expect(stale).rejects.toThrow(/payload changed/);
+			expect(service.getRecord(record.recordId)?.payload.id).toBe(latest.payload.id);
+		});
 		it('sweeps only uncommitted blobs after a conditional conflict', async () => {
 			const persistence = create();
 			const service = new PokemonStorageService(persistence, fakeEngine());
