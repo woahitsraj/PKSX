@@ -44,7 +44,7 @@ describe('LDN advertisements', () => {
 				ipAddress: '169.254.100.1',
 				connected: true
 			});
-			expect(toHex(network!.applicationData.slice(0, 4))).toBe('953b9bb7');
+			expect(toHex(network!.applicationData.slice(0, 4))).toBe('0a0b0c0d');
 			expect(toHex(await encodeAdvertisement({ ...network!, channel: 11 }, keys))).toBe(v.action);
 		});
 	}

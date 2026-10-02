@@ -46,8 +46,8 @@ for msg_type, payload in ((0x01, b""), (0x81, bytes([1]) + bytes(range(13)) + b"
                           (0x08, bytes(300)), (0x85, bytes(range(256)) * 2), (0x82, bytes([0x04, 0, 0, 0, 0]))):
     frames.append({"type": msg_type, "payload": h(payload), "frame": h(esp32.encode_frame(msg_type, payload))})
 out["frames"] = frames
-out["sta_join"] = h(esp32.sta_join_payload(11, bytes.fromhex("98e2553c83f5"), "3ef05a52857c3d6c025368191d4cfd82",
-                                           pattern("data key"), bytes.fromhex("2211785494bc")))
+out["sta_join"] = h(esp32.sta_join_payload(11, bytes.fromhex("02a1b2c3d4e5"), "00112233445566778899aabbccddeeff",
+                                           pattern("data key"), bytes.fromhex("02f1e2d3c4b5")))
 
 # Key derivation and the LDN frames.
 network_id = NetworkId(0x0100ABF008968000, 60001, pattern("ssid"))
@@ -63,7 +63,7 @@ out["derivation"] = {"network_id": h(network_id.encode(">")), "network_id_le": h
                      "server_random": h(pattern("server random")), "client_random": h(pattern("client random")),
                      "password": h(PASSPHRASE), "keys": derivation}
 
-host = ParticipantInfo("169.254.100.1", MACAddress("98:e2:55:3c:83:f5"), True, b"Host", 7, 0)
+host = ParticipantInfo("169.254.100.1", MACAddress("02:a1:b2:c3:d4:e5"), True, b"Host", 7, 0)
 adverts = []
 for protocol, fmt in ((1, ADVERTISE_FORMAT_AES_CTR), (3, ADVERTISE_FORMAT_AES_GCM)):
     frame = AdvertisementFrame(KeyDerivation(KEYS, protocol), protocol)
@@ -79,7 +79,7 @@ for protocol, fmt in ((1, ADVERTISE_FORMAT_AES_CTR), (3, ADVERTISE_FORMAT_AES_GC
     info.max_participants = 2
     info.num_participants = 1
     info.participants = [host] + [ParticipantInfo() for _ in range(7)]
-    info.application_data = bytes.fromhex("953b9bb700000000000000008381 5f9b".replace(" ", "")) + bytes(8)
+    info.application_data = bytes.fromhex("0a0b0c0d00000000000000000403 0201".replace(" ", "")) + bytes(8)
     info.challenge = 0x1122334455667788
     frame.payload = info
     adverts.append({"protocol": protocol, "action": h(frame.encode())})
@@ -112,7 +112,7 @@ out["challenge_request"] = h(ChallengeRequest(0, 0x1122334455667788, 0x010203040
                                               0x8877665544332211).encode(CHALLENGE_KEY))
 
 # Pia version 4 session crypto and messages.
-app = bytes.fromhex("953b9bb7") + bytes(8) + bytes.fromhex("83815f9b") + bytes(8)
+app = bytes.fromhex("0a0b0c0d") + bytes(8) + bytes.fromhex("04030201") + bytes(8)
 
 
 class Net:
@@ -120,14 +120,14 @@ class Net:
 
 
 keys = session_keys(Net())
-our_mac, host_mac = bytes.fromhex("2211785494bc"), bytes.fromhex("98e2553c83f5")
+our_mac, host_mac = bytes.fromhex("02f1e2d3c4b5"), bytes.fromhex("02a1b2c3d4e5")
 our_constant = stp.ldn_constant_id(our_mac)
 nonce8 = bytes.fromhex("0011223344556677")
 message = pia4.build_message(lp.build_ack(42), lp.PROTOCOL, our_constant)
 iv = packet_iv(keys, our_mac, nonce8, source_id=0)
 out["pia"] = {
     "application_data": h(app), "game_key": h(GAME_KEY),
-    "sead_seed": 0x9B5F8183, "sead_bytes": h(Sead(seed=0x9B5F8183).bytes(16)),
+    "sead_seed": 0x01020304, "sead_bytes": h(Sead(seed=0x01020304).bytes(16)),
     "session_key": h(keys.session_key), "network_id_le": h(keys.network_id_le),
     "our_mac": h(our_mac), "host_mac": h(host_mac),
     "our_constant": str(our_constant), "host_constant": str(stp.ldn_constant_id(host_mac)),
@@ -142,15 +142,15 @@ location = stp.station_location("169.254.100.2", 12345, our_constant, 0x01020304
                                 stp.ldn_service_variable_id(our_mac))
 out["protocols"] = {
     "local_ack": h(lp.build_ack(0x01020304)),
-    "update_session": h(lp.build_update_session(7, 0x11223344, 0x55667788, 0x99AABBCC, 0x5583F53CE2980000,
+    "update_session": h(lp.build_update_session(7, 0x11223344, 0x55667788, 0x99AABBCC, 0xB2D4E5C3A1020000,
                                                 [("169.254.100.1", 12345, 0)], host_migration_state=1)),
     "location": h(location),
-    "connection_request": h(station4.build_connection_request(0x5583F53CE2980000, 0x4CD34C2E, location,
+    "connection_request": h(station4.build_connection_request(0xB2D4E5C3A1020000, 0x0A0B0C0D, location,
                                                               nat_flags=0, nat_location=0, platform=9,
                                                               with_variable_id=False)),
-    "connection_response": h(station4.build_connection_response(0, 0x5583F53CE2980000, 0x4CD34C2E)),
-    "station_ack": h(station4.build_ack(0x857F363A)),
-    "join_request": h(mesh.build_join_request(0x97FE95AC)),
+    "connection_response": h(station4.build_connection_response(0, 0xB2D4E5C3A1020000, 0x0A0B0C0D)),
+    "station_ack": h(station4.build_ack(0x11112222)),
+    "join_request": h(mesh.build_join_request(0x33334444)),
     "migration_finish": h(mesh.build_migration_finish(1)),
     "migration_response": h(mesh.build_migration_response(1)),
     "update_mesh": h(mesh.build_update_mesh_v4(0, [(location, 0)], 5)),
@@ -158,7 +158,7 @@ out["protocols"] = {
     "rtt_response": h(rtt.response_for_v4(bytes([0]) + bytes(7) + bytes.fromhex("0000000102030405"))),
     "data_first": h(reliable4.build_data_message(bytes.fromhex("610000000a00"))),
     "data_later": h(reliable4.build_data_message(bytes.fromhex("610000001200"), sequence_id=7,
-                                                 destinations=[0x5583F53CE2980000])),
+                                                 destinations=[0xB2D4E5C3A1020000])),
     "ack_all_slots": h(reliable4.build_ack_message(8)),
     "broadcast_control": h(broadcast4.build_control(0, 3456)),
     "broadcast_fragment": h(broadcast4.build_fragment(1, 0, bytes(range(40)), compress=False)[0]),
@@ -172,7 +172,7 @@ out["protocols"] = {
 pk8 = pattern("pk8", 32) * 10 + bytes(24)
 assert len(pk8) == 0x158
 pair = trade.build_rpc_pair(trade.OFFER_OFFSET, our_constant, 2348)
-console_status = bytes.fromhex("729c00000a19083210a09c01188080e094cea7fdc15520a0222a0400000100")
+console_status = trade.build_rpc(50, 20000, 0x0102030405060708, 4256, bytes.fromhex("00000100"))
 out["swsh"] = {
     "pk8": h(pk8),
     "sync_ping": h(trade.sync(97, trade.PING)),

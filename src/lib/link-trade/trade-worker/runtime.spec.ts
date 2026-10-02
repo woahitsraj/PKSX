@@ -121,7 +121,7 @@ describe('the trade worker', { timeout: 60_000 }, () => {
 		expect(toHex(seen.offer!)).toBe(toHex(offer));
 		expect(toHex(seen.snapshot!.subarray(0, 0x158))).toBe(toHex(offer));
 		expect(toHex(seen.staJoinKey!)).toBe(toHex(seen.expectedDataKey!));
-		expect(await h.send({ type: 'recover-receipt', sessionId: 'trade-1' })).toMatchObject({
+		expect(await h.send({ type: 'recover-session', sessionId: 'trade-1' })).toMatchObject({
 			ok: true,
 			result: { status: { outcome: 'completed' }, unknown: null }
 		});

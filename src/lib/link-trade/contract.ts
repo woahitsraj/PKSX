@@ -68,7 +68,7 @@ export const tradeWorkerCommandSchema = z.discriminatedUnion('type', [
 		requestId: requestIdSchema,
 		sessionId: tradeSessionIdSchema,
 		game: linkTradeGameSchema,
-		/** The exact bytes prepared and reviewed for this game (#366); sent unchanged. */
+		/** The encrypted 0x158-byte party PK8 (the wire form) prepared and reviewed in #366; sent unchanged. */
 		offer: bytesSchema
 	}),
 	z.object({
@@ -83,7 +83,7 @@ export const tradeWorkerCommandSchema = z.discriminatedUnion('type', [
 	}),
 	z.object({ type: z.literal('get-status'), requestId: requestIdSchema }),
 	z.object({
-		type: z.literal('recover-receipt'),
+		type: z.literal('recover-session'),
 		requestId: requestIdSchema,
 		sessionId: tradeSessionIdSchema
 	})

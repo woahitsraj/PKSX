@@ -35,7 +35,6 @@ export const AUTH_FORMAT_PLAIN = 0;
 export const AUTH_FORMAT_AES_GCM = 1;
 export const SECURITY_MODE_PROD = 1;
 export const ETHERTYPE_LDN = 0x88b7;
-export const DISCONNECT_CONNECTION_LOST = 6;
 
 /** A public constant of the LDN challenge, not a console key. */
 export const CHALLENGE_KEY = fromHex(

@@ -285,11 +285,3 @@ export function buildOurSnapshot(
 	out.set(offer, 0);
 	return out;
 }
-
-export function snapshotFromFragments(fragments: Uint8Array[]): Bytes {
-	const payload = concat(...fragments);
-	if (payload.length !== SNAPSHOT_LENGTH) {
-		throw new Error(`reassembled ${payload.length} bytes, expected ${SNAPSHOT_LENGTH}`);
-	}
-	return payload;
-}

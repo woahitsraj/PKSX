@@ -160,7 +160,7 @@ const CONFIRM_COMMANDS = [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3];
 const OPENING_BODIES = ['00000000', '000018fc'];
 const DATA_DESTINATION = 1n;
 const LDN_NAME = new TextEncoder().encode('PKSX');
-export const DEFAULT_IDENTITY: SnapshotIdentity = {
+const DEFAULT_IDENTITY: SnapshotIdentity = {
 	trainerName: 'PKSX',
 	trainerId: 12345,
 	secretId: 54321
@@ -198,6 +198,7 @@ export function classify(end: SessionEnd, evidence: TradeEvidence): Classificati
 	const committed = evidence.consoleConfirmed || evidence.ladderStarted || evidence.ladderFinished;
 	if (
 		(end === 'console-left' || end === 'console-offered-again') &&
+		evidence.consoleConfirmed &&
 		evidence.ladderFinished &&
 		evidence.offered
 	) {
@@ -225,8 +226,6 @@ export interface SessionResult {
 	evidence: TradeEvidence;
 	error: SessionError | null;
 }
-
-type Network = NetworkInfo;
 
 const key = (...parts: (number | string)[]) => parts.join(':');
 
@@ -299,7 +298,7 @@ export class SwshJoinSession {
 
 	// --- Scanning (`ldn.scan` through `EspMonitor`) ---
 
-	private async scan(): Promise<Network | null> {
+	private async scan(): Promise<NetworkInfo | null> {
 		this.callbacks.phase('scanning');
 		const deadline = this.clock.now() + TIMING.consoleReady;
 		while (!this.ended) {
@@ -321,8 +320,8 @@ export class SwshJoinSession {
 		return null;
 	}
 
-	private async scanOnce(): Promise<Network[]> {
-		const best = new Map<string, Network>();
+	private async scanOnce(): Promise<NetworkInfo[]> {
+		const best = new Map<string, NetworkInfo>();
 		const counts = new Map<string, number>();
 		const order: string[] = [];
 		const pending: Promise<void>[] = [];
@@ -335,7 +334,7 @@ export class SwshJoinSession {
 			pending.push(
 				this.readAdvertisement(action.action).then((info) => {
 					if (!info) return;
-					const network: Network = { ...info, address: action.source, channel };
+					const network: NetworkInfo = { ...info, address: action.source, channel };
 					const address = toHex(action.source);
 					const at = key(address, channel);
 					counts.set(at, (counts.get(at) ?? 0) + 1);
@@ -365,7 +364,10 @@ export class SwshJoinSession {
 		return order.map((address) => best.get(address)!);
 	}
 
-	private advertKeyCache = new Map<string, Promise<Omit<Network, 'address' | 'channel'> | null>>();
+	private advertKeyCache = new Map<
+		string,
+		Promise<Omit<NetworkInfo, 'address' | 'channel'> | null>
+	>();
 
 	private readAdvertisement(action: Uint8Array) {
 		if (action.length < 52 || action[0] !== 0x7f) return Promise.resolve(null);
@@ -387,7 +389,7 @@ export class SwshJoinSession {
 
 	// --- Joining (`ldn.connect`, `EspStation`, `STANetwork`) ---
 
-	private async connect(network: Network): Promise<void> {
+	private async connect(network: NetworkInfo): Promise<void> {
 		this.callbacks.phase('joining');
 		const keys = await sessionKeys(network.applicationData);
 		if (network.securityMode !== SECURITY_MODE_PROD) {
@@ -403,7 +405,7 @@ export class SwshJoinSession {
 		ourMac[0] = (ourMac[0] & 0xfc) | 0x02;
 
 		const control: Bytes[] = [];
-		const adverts: Network[] = [];
+		const adverts: NetworkInfo[] = [];
 		const waiters = new Set<() => void>();
 		const notify = () => {
 			for (const wake of waiters) wake();
@@ -523,7 +525,7 @@ export class SwshJoinSession {
 	}
 
 	private async authenticate(
-		network: Network,
+		network: NetworkInfo,
 		control: Bytes[],
 		waitFor: <T>(check: () => T | null, ms: number) => Promise<T | null>,
 		lost: () => boolean,
@@ -1274,7 +1276,10 @@ class PiaJoiner {
 			const now = this.now();
 			const elapsed = now - this.t0;
 			if (this.disconnected()) return this.session.end('connection-lost');
-			if (st.hostLeaving !== null) return this.session.end('console-left');
+			if (st.hostLeaving !== null) {
+				// Only box command 3 says the player left; a closed network alone may be a lost link.
+				return this.session.end(st.leftAt !== null ? 'console-left' : 'connection-lost');
+			}
 			if (st.leftAt !== null && elapsed - st.leftAt > TIMING.leaveGrace) {
 				return this.session.end('console-left');
 			}

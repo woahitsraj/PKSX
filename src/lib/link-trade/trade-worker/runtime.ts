@@ -127,7 +127,7 @@ export class TradeWorkerRuntime {
 				}
 				case 'get-status':
 					return this.respond(requestId, null, await this.status());
-				case 'recover-receipt': {
+				case 'recover-session': {
 					const record = this.sessions.get(command.sessionId);
 					if (!record) return this.respond(requestId, fail('session-not-found', 'no such session'));
 					const recovered: RecoveredSession = {

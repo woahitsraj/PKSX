@@ -23,7 +23,10 @@ describe('the trade outcome', () => {
 		expect(classify('cancelled', received)).toEqual({ outcome: 'cancelled' });
 	});
 
-	it('completes only after phase 4 and a graceful end', () => {
+	it('completes only after confirmation, phase 4 and a graceful end', () => {
+		expect(classify('console-left', { ...finished, consoleConfirmed: false })).toMatchObject({
+			outcome: 'outcome-unknown'
+		});
 		expect(classify('console-left', finished)).toEqual({
 			outcome: 'completed',
 			endedBy: 'console-left'

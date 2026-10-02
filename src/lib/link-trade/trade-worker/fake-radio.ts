@@ -93,6 +93,7 @@ import {
 import {
 	boxSyncState,
 	buildRpc,
+	buildRpcPair,
 	imReady,
 	message,
 	parseRpc,
@@ -123,7 +124,7 @@ export interface FakeObservations {
 	syncCommands: number[];
 }
 
-const CONSOLE_MAC = fromHex('98e2553c83f5');
+const CONSOLE_MAC = fromHex('02a1b2c3d4e5');
 const CONSOLE_IP = '169.254.100.1';
 const JOINER_IP = '169.254.100.2';
 const BROADCAST_IP = '169.254.100.255';
@@ -557,7 +558,7 @@ export class FakeTradeRadio implements TradeSerialPort {
 				const update = new Uint8Array(0x30 + 73);
 				update.set([1, 0x11, 73, 0], 0);
 				update.set(u32le(sequence++), 0x0c);
-				update.set(u32le(0x4cd34c2e), 0x14);
+				update.set(u32le(0x0a0b0c0d), 0x14);
 				update.set(u64le(ldnConstantId(CONSOLE_MAC)), 0x20);
 				if (!this.flags.localAcked) this.sendPia(update, LOCAL_PROTOCOL, 0, 0x11, BROADCAST_IP);
 			}
@@ -586,7 +587,7 @@ export class FakeTradeRadio implements TradeSerialPort {
 			CONSOLE_IP,
 			PIA_PORT,
 			ldnConstantId(CONSOLE_MAC),
-			0x4cd34c2e,
+			0x0a0b0c0d,
 			0x11223344
 		);
 		const request = concat(
@@ -595,7 +596,7 @@ export class FakeTradeRadio implements TradeSerialPort {
 			u32be(0),
 			Uint8Array.of(1),
 			location,
-			u32be(0x857f363a)
+			u32be(0x11112222)
 		);
 		while (this.live && !this.flags.responded) {
 			this.sendPia(request, STATION_PROTOCOL);
@@ -604,7 +605,7 @@ export class FakeTradeRadio implements TradeSerialPort {
 		const response = concat(
 			Uint8Array.of(CONNECTION_RESPONSE, 0, 9),
 			new Uint8Array(0x40),
-			u32be(0x64ea6e10)
+			u32be(0x55556666)
 		);
 		while (this.live && !this.flags.stationAcked) {
 			this.sendPia(response, STATION_PROTOCOL);
@@ -696,8 +697,7 @@ export class FakeTradeRadio implements TradeSerialPort {
 		station: bigint,
 		clock: bigint
 	): Promise<boolean> {
-		rpc.push(buildRpc(offset, 10000, station, clock, fromHex('00000000')));
-		rpc.push(buildRpc(offset, 20000, station, clock, fromHex('000018fc')));
+		for (const member of buildRpcPair(offset, station, clock)) rpc.push(member);
 		return this.until(() => {
 			const answers = this.joinerSaid
 				.filter((m) => m.protocol === RELIABLE_PROTOCOL && m.port === 1)

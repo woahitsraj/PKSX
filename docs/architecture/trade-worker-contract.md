@@ -13,18 +13,18 @@ The page sends commands with `postMessage`. Each command has a `requestId`. The 
 
 Every message from the worker carries `contractVersion: 1`. Bytes are `ArrayBuffer`s.
 
-| Command            | Result                                          | Notes                                                                                                                                                      |
-| ------------------ | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `get-capabilities` | supported games, firmware, ports, `keysPresent` | `fakePort` is true only in dev builds.                                                                                                                     |
-| `import-keys`      | `{ keysPresent: true }`                         | `prodKeys` is the text of a `prod.keys` file. Errors name missing keys, never values.                                                                      |
-| `forget-keys`      | `{ keysPresent: false }`                        | Deletes the stored keys.                                                                                                                                   |
-| `connect-radio`    | `{ board }`                                     | `port` is `{ kind: 'web-serial', usbVendorId?, usbProductId? }`. The page calls `navigator.serial.requestPort()` first; the worker opens the granted port. |
-| `disconnect-radio` | `{}`                                            | Refused while a session runs.                                                                                                                              |
-| `start-session`    | the session status                              | `sessionId`, `game: 'sword-shield'`, and `offer`: the exact 0x158-byte party PK8 that #366 prepared.                                                       |
-| `confirm-offer`    | error `confirmation-not-supported`              | The player confirms Sword/Shield trades on the Switch. PKSX has no pause before that point.                                                                |
-| `cancel-session`   | the session status                              | The outcome follows as `session-ended`.                                                                                                                    |
-| `get-status`       | keys, board, active session                     |                                                                                                                                                            |
-| `recover-receipt`  | `{ status, receipt, unknown }`                  | Returns any session this worker has run since it started. #368 keeps the durable journal.                                                                  |
+| Command            | Result                                          | Notes                                                                                                                                                                    |
+| ------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `get-capabilities` | supported games, firmware, ports, `keysPresent` | `fakePort` is true only in dev builds.                                                                                                                                   |
+| `import-keys`      | `{ keysPresent: true }`                         | `prodKeys` is the text of a `prod.keys` file. Errors name missing keys, never values.                                                                                    |
+| `forget-keys`      | `{ keysPresent: false }`                        | Deletes the stored keys.                                                                                                                                                 |
+| `connect-radio`    | `{ board }`                                     | `port` is `{ kind: 'web-serial', usbVendorId?, usbProductId? }`. The page calls `navigator.serial.requestPort()` first; the worker opens the granted port.               |
+| `disconnect-radio` | `{}`                                            | Refused while a session runs.                                                                                                                                            |
+| `start-session`    | the session status                              | `sessionId`, `game: 'sword-shield'`, and `offer`: the encrypted 0x158-byte party PK8 that #366 prepared. This is the wire form; the worker does not encrypt or parse it. |
+| `confirm-offer`    | error `confirmation-not-supported`              | The player confirms Sword/Shield trades on the Switch. PKSX has no pause before that point.                                                                              |
+| `cancel-session`   | the session status                              | The outcome follows as `session-ended`.                                                                                                                                  |
+| `get-status`       | keys, board, active session                     |                                                                                                                                                                          |
+| `recover-session`  | `{ status, receipt, unknown }`                  | Returns any session this worker has run since it started. #368 keeps the durable journal.                                                                                |
 
 Session IDs are chosen by the caller: 1 to 64 characters from `A-Z a-z 0-9 _ -`. Every event of a session carries the ID and a `sequence` that starts at 0 and has no gaps, so a consumer can drop repeated events.
 

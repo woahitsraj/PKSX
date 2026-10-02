@@ -89,18 +89,18 @@ describe('Pia protocols', () => {
 		);
 		expect(toHex(buildLocalAck(0x01020304))).toBe(p.local_ack);
 		expect(toHex(location)).toBe(p.location);
-		expect(toHex(buildConnectionRequest(0x5583f53ce2980000n, 0x4cd34c2e, location))).toBe(
+		expect(toHex(buildConnectionRequest(0xb2d4e5c3a1020000n, 0x0a0b0c0d, location))).toBe(
 			p.connection_request
 		);
-		expect(toHex(buildConnectionResponse(0, 0x5583f53ce2980000n, 0x4cd34c2e))).toBe(
+		expect(toHex(buildConnectionResponse(0, 0xb2d4e5c3a1020000n, 0x0a0b0c0d))).toBe(
 			p.connection_response
 		);
-		expect(toHex(buildStationAck(0x857f363a))).toBe(p.station_ack);
-		expect(toHex(buildJoinRequest(0x97fe95ac))).toBe(p.join_request);
+		expect(toHex(buildStationAck(0x11112222))).toBe(p.station_ack);
+		expect(toHex(buildJoinRequest(0x33334444))).toBe(p.join_request);
 		expect(toHex(buildMigrationFinish(1))).toBe(p.migration_finish);
 		expect(toHex(buildMigrationResponse(1))).toBe(p.migration_response);
 		expect(toHex(buildDataMessage(fromHex('610000000a00')))).toBe(p.data_first);
-		expect(toHex(buildDataMessage(fromHex('610000001200'), 7, [0x5583f53ce2980000n]))).toBe(
+		expect(toHex(buildDataMessage(fromHex('610000001200'), 7, [0xb2d4e5c3a1020000n]))).toBe(
 			p.data_later
 		);
 		expect(toHex(buildAckMessage(8))).toBe(p.ack_all_slots);
@@ -130,7 +130,7 @@ describe('Pia protocols', () => {
 		expect(parseUpdateSession(fromHex(p.update_session))).toEqual({
 			sequenceId: 7,
 			hostVariableId: 0x55667788,
-			hostConstantId: 0x5583f53ce2980000n,
+			hostConstantId: 0xb2d4e5c3a1020000n,
 			hostMigrationState: 1
 		});
 		expect(toHex(rewriteUpdateMesh(fromHex(p.update_mesh), 1, 6))).toBe(p.update_mesh_rewrite);
