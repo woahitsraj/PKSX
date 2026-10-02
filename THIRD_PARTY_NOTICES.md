@@ -14,6 +14,19 @@ PKSX links and distributes `PKHeX.Core`, copyright Kaphotics and PKHeX contribut
 
 The full GNU General Public License appears in [`LICENSE`](./LICENSE).
 
+## pokeldn and LDN (the trade worker)
+
+The trade worker in `src/lib/link-trade/trade-worker` is a TypeScript port of the Sword/Shield Link Trade joiner from pokeldn, which includes code from LDN. That module keeps their licenses. Its own notice is `src/lib/link-trade/trade-worker/NOTICE.md`.
+
+- pokeldn v0.4.0, revision `f52f3db6211bf81aa2bcea5f4f38d4ecff9a8691`, copyright Decryptu and pokeldn contributors
+- License: GNU Affero General Public License version 3
+- Source: https://github.com/Decryptu/pokeldn/tree/f52f3db6211bf81aa2bcea5f4f38d4ecff9a8691
+- LDN revision `39d0b2060c7932ff2766726db7af4fb640cfa9ef` as vendored by pokeldn, copyright Yannik Marchand
+- License: GNU General Public License version 3 only
+- Source: https://github.com/kinnay/LDN/tree/39d0b2060c7932ff2766726db7af4fb640cfa9ef
+
+The app links to the corresponding PKSX source at `/legal/SOURCE.txt`.
+
 ## PokemonDB sprite images
 
 The Pokemon sprite images under `static/sprites/pokemon` come from the PokemonDB sprite gallery:

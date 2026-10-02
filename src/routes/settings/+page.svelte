@@ -5,6 +5,7 @@
 
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { asset } from '$app/paths';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
 	import { appCommands } from '$lib/pksx/app-commands';
 	import { appPlatformLabel, getAppMetadata } from '$lib/pksx/app-metadata';
@@ -154,7 +155,8 @@
 		}
 		if (event.key === 'Enter' || event.key === ' ') {
 			event.preventDefault();
-			if (active instanceof HTMLButtonElement) active.click();
+			if (active instanceof HTMLButtonElement || active instanceof HTMLAnchorElement)
+				active.click();
 			return;
 		}
 		if (!event.key.startsWith('Arrow')) return;
@@ -285,7 +287,7 @@
 						>
 							About <DelayedSpinner active={aboutLoading} label="Loading version details" />
 						</h2>
-						<p>Version and platform details.</p>
+						<p>Version, platform and source details.</p>
 					</div>
 				</div>
 				<dl>
@@ -300,6 +302,13 @@
 					<div>
 						<dt>Platform</dt>
 						<dd data-testid="app-platform">{platform ?? ''}</dd>
+					</div>
+					<div>
+						<dt>Source</dt>
+						<dd>
+							<a href={asset('/legal/SOURCE.txt')} data-settings-control>Source code and licenses</a
+							>
+						</dd>
 					</div>
 				</dl>
 			</section>
