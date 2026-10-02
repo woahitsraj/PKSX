@@ -833,6 +833,10 @@ export type EngineApi = {
 	): Promise<EngineResult<StoredPokemonActionResult>>;
 	createPreservationPayload(entityBytes: Uint8Array): Promise<EngineResult<PreservationPayload>>;
 	forkPreservationPayload(payloadBytes: Uint8Array): Promise<EngineResult<PreservationPayload>>;
+	replacePreservationPayloadCurrent(
+		payloadBytes: Uint8Array,
+		entityBytes: Uint8Array
+	): Promise<EngineResult<PreservationPayload>>;
 	readPreservationPayload(payloadBytes: Uint8Array): Promise<EngineResult<PreservedPokemon>>;
 	projectPreservationPayload(
 		payloadBytes: Uint8Array,

@@ -24,7 +24,10 @@ export class PokemonStorageService {
 		private readonly persistence: CatalogPersistence,
 		private readonly engine: Pick<
 			EngineApi,
-			'createPreservationPayload' | 'forkPreservationPayload' | 'readPreservationPayload'
+			| 'createPreservationPayload'
+			| 'forkPreservationPayload'
+			| 'readPreservationPayload'
+			| 'replacePreservationPayloadCurrent'
 		>,
 		private readonly now = () => new Date().toISOString(),
 		private readonly id: () => string = () => crypto.randomUUID()
@@ -102,10 +105,9 @@ export class PokemonStorageService {
 		const now = this.now();
 		const boxes = [...legacy.boxes]
 			.sort((a, b) => a.index - b.index)
-			.map((box, order) => ({
+			.map((box) => ({
 				id: this.id(),
 				name: box.name,
-				order,
 				revision: 0,
 				createdAt: now,
 				updatedAt: now
@@ -149,6 +151,9 @@ export class PokemonStorageService {
 			schemaVersion: 1,
 			storageId: this.id(),
 			revision: 0,
+			createdAt: now,
+			updatedAt: now,
+			boxOrder: boxes.map((box) => box.id),
 			boxes,
 			records,
 			tombstones: []
@@ -182,6 +187,14 @@ export class PokemonStorageService {
 		return this.#putPayload(payloadBytes, source.origin, null, recordId, source.payload.id);
 	}
 
+	async replaceCurrent(recordId: string, entityBytes: Uint8Array): Promise<PokemonRecord> {
+		const source = this.#required(recordId);
+		const payloadBytes = await this.readPayload(recordId);
+		const result = await this.engine.replacePreservationPayloadCurrent(payloadBytes, entityBytes);
+		if (!result.ok) throw result.error;
+		return this.#putPayload(result.value.bytes, source.origin, source.placement, recordId);
+	}
+
 	async readPayload(recordId: string): Promise<Uint8Array> {
 		const record = this.#required(recordId);
 		const bytes = await this.persistence.readBlob(record.payload);
@@ -201,6 +214,23 @@ export class PokemonStorageService {
 			record.placement = placement;
 			record.revision += 1;
 			record.updatedAt = this.now();
+		});
+	}
+
+	async swap(firstId: string, secondId: string): Promise<void> {
+		await this.#mutate((manifest) => {
+			const first = manifest.records.find((record) => record.recordId === firstId);
+			const second = manifest.records.find((record) => record.recordId === secondId);
+			const placements = resolvePlacements(manifest);
+			const firstPlacement = placements.find((item) => item.recordId === firstId)?.placement;
+			const secondPlacement = placements.find((item) => item.recordId === secondId)?.placement;
+			if (!first || !second || !firstPlacement || !secondPlacement || firstId === secondId)
+				throw new Error('Storage Slot swap is unavailable.');
+			first.placement = secondPlacement;
+			second.placement = firstPlacement;
+			first.revision += 1;
+			second.revision += 1;
+			first.updatedAt = second.updatedAt = this.now();
 		});
 	}
 
@@ -300,6 +330,16 @@ export class PokemonStorageService {
 		delete structuredProjection.entityBytesBase64;
 		if (replacing && summary.recordId !== replacing)
 			throw new Error('Edited payload changed its Record ID.');
+		if (replacing) {
+			const previousPayload = await this.readPayload(replacing);
+			const previous = await this.engine.readPreservationPayload(previousPayload);
+			if (!previous.ok) throw previous.error;
+			if (
+				previous.value.summary.originalEntitySha256 !== summary.originalEntitySha256 ||
+				previous.value.summary.identityFingerprint !== summary.identityFingerprint
+			)
+				throw new Error('Edited payload changed its preserved Pokemon identity or original bytes.');
+		}
 		const reference = await referenceFor(bytes, summary.version);
 		let saved!: PokemonRecord;
 		await this.#mutate(

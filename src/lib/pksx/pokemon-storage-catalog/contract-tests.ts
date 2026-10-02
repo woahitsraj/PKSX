@@ -17,7 +17,10 @@ const origin: PokemonOrigin = {
 const bytes = (...values: number[]) => new Uint8Array(values);
 function fakeEngine(): Pick<
 	EngineApi,
-	'createPreservationPayload' | 'forkPreservationPayload' | 'readPreservationPayload'
+	| 'createPreservationPayload'
+	| 'forkPreservationPayload'
+	| 'readPreservationPayload'
+	| 'replacePreservationPayloadCurrent'
 > & {
 	editPayload(recordId: string, entity: Uint8Array): Uint8Array;
 } {
@@ -64,6 +67,16 @@ function fakeEngine(): Pick<
 			const summary = { ...found.summary, recordId: id };
 			payloads.set([...forked].join(','), { entity: new Uint8Array(found.entity), summary });
 			return { ok: true as const, value: { bytes: forked, summary }, error: null };
+		},
+		replacePreservationPayloadCurrent: async (payload, entity) => {
+			const found = payloads.get([...payload].join(','));
+			if (!found) throw new Error('Unknown preservation payload');
+			const updated = bytes(++sequence, ...entity);
+			payloads.set([...updated].join(','), {
+				entity: new Uint8Array(entity),
+				summary: found.summary
+			});
+			return { ok: true as const, value: { bytes: updated, summary: found.summary }, error: null };
 		},
 		readPreservationPayload: async (payload) => {
 			const found = payloads.get([...payload].join(','));
@@ -349,6 +362,24 @@ export function catalogContract(
 			await service.retire(record.recordId, 'moved-to-save', 'save-id');
 			expect(service.listTombstones()[0].destinationSaveFileId).toBe('save-id');
 		});
+		it('swaps two occupied physical placements without replacing either record', async () => {
+			const service = new PokemonStorageService(create(), fakeEngine());
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const first = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			const second = await service.add(bytes(2), origin, { storageBoxId: boxId, slot: 1 });
+			await service.swap(first.recordId, second.recordId);
+			expect(service.getRecord(first.recordId)?.placement).toEqual({
+				storageBoxId: boxId,
+				slot: 1
+			});
+			expect(service.getRecord(second.recordId)?.placement).toEqual({
+				storageBoxId: boxId,
+				slot: 0
+			});
+			expect(service.getRecord(first.recordId)?.payload).toEqual(first.payload);
+			expect(service.getRecord(second.recordId)?.payload).toEqual(second.payload);
+		});
 		it('derives collisions and overflow without changing record placement', async () => {
 			const persistence = create();
 			const service = new PokemonStorageService(persistence, fakeEngine());
@@ -398,6 +429,11 @@ export function catalogContract(
 			expect(await service.readPayload(first.recordId)).not.toEqual(
 				await persistence.readBlob(first.payload)
 			);
+			const current = await service.replaceCurrent(first.recordId, bytes(8));
+			expect(current.recordId).toBe(first.recordId);
+			expect(current.origin).toEqual(origin);
+			expect(current.payload.id).not.toBe(updated.payload.id);
+			expect(service.getRecord(copy.recordId)?.payload.id).toBe(copy.payload.id);
 		});
 		it.each([1, null])('keeps the latest placement after a move to %s', async (slot) => {
 			const engine = fakeEngine();

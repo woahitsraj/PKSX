@@ -103,6 +103,7 @@ export type {
 	EngineWorkerCreatePokemonRequest,
 	EngineWorkerCreatePreservationPayloadRequest,
 	EngineWorkerForkPreservationPayloadRequest,
+	EngineWorkerReplacePreservationPayloadCurrentRequest,
 	EngineWorkerCheckSlotLegalityRequest,
 	EngineWorkerLoadSaveWorkspaceRequest,
 	EngineWorkerListBoxSlotsRequest,

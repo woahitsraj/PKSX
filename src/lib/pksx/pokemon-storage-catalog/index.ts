@@ -7,6 +7,7 @@ import { NativeCatalogPersistence } from './native';
 import { PokemonStorageService } from './service';
 
 export { PokemonStorageService } from './service';
+export { catalogLegacyView } from './legacy-view';
 export { BrowserCatalogPersistence, deleteBrowserCatalog } from './browser';
 export { NativeCatalogPersistence } from './native';
 export { CatalogConflictError, POKEMON_STORAGE_CATALOG_VERSION } from './types';

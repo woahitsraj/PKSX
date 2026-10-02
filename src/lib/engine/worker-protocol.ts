@@ -27,6 +27,7 @@ export const engineWorkerMethodSchema = z.enum([
 	'applyStoredPokemonAction',
 	'createPreservationPayload',
 	'forkPreservationPayload',
+	'replacePreservationPayloadCurrent',
 	'readPreservationPayload',
 	'projectPreservationPayload',
 	'prepareOutgoingLinkTrade',
@@ -1143,6 +1144,13 @@ export const engineWorkerForkPreservationPayloadRequestSchema = z.object({
 	payload: z.object({ bytes: z.instanceof(ArrayBuffer) })
 });
 
+export const engineWorkerReplacePreservationPayloadCurrentRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('replacePreservationPayloadCurrent'),
+	payload: z.object({ bytes: z.instanceof(ArrayBuffer), entityBytes: z.instanceof(ArrayBuffer) })
+});
+
 export const engineWorkerReadPreservationPayloadRequestSchema = z.object({
 	type: z.literal('request'),
 	id: engineWorkerRequestIdSchema,
@@ -1206,6 +1214,7 @@ export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerApplyStoredPokemonActionRequestSchema,
 	engineWorkerCreatePreservationPayloadRequestSchema,
 	engineWorkerForkPreservationPayloadRequestSchema,
+	engineWorkerReplacePreservationPayloadCurrentRequestSchema,
 	engineWorkerReadPreservationPayloadRequestSchema,
 	engineWorkerProjectPreservationPayloadRequestSchema,
 	engineWorkerPrepareOutgoingLinkTradeRequestSchema,
@@ -1380,6 +1389,13 @@ export const engineWorkerForkPreservationPayloadResponseSchema = z.object({
 	result: preservationPayloadResultSchema
 });
 
+export const engineWorkerReplacePreservationPayloadCurrentResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('replacePreservationPayloadCurrent'),
+	result: preservationPayloadResultSchema
+});
+
 export const engineWorkerReadPreservationPayloadResponseSchema = z.object({
 	type: z.literal('response'),
 	id: engineWorkerRequestIdSchema,
@@ -1433,6 +1449,7 @@ export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerApplyStoredPokemonActionResponseSchema,
 	engineWorkerCreatePreservationPayloadResponseSchema,
 	engineWorkerForkPreservationPayloadResponseSchema,
+	engineWorkerReplacePreservationPayloadCurrentResponseSchema,
 	engineWorkerReadPreservationPayloadResponseSchema,
 	engineWorkerProjectPreservationPayloadResponseSchema,
 	engineWorkerPrepareOutgoingLinkTradeResponseSchema,
@@ -1563,6 +1580,10 @@ export type EngineWorkerCreatePreservationPayloadRequest = z.infer<
 
 export type EngineWorkerForkPreservationPayloadRequest = z.infer<
 	typeof engineWorkerForkPreservationPayloadRequestSchema
+>;
+
+export type EngineWorkerReplacePreservationPayloadCurrentRequest = z.infer<
+	typeof engineWorkerReplacePreservationPayloadCurrentRequestSchema
 >;
 
 export type EngineWorkerReadPreservationPayloadRequest = z.infer<
