@@ -2872,6 +2872,37 @@ test('moves a Save File Pokemon into durable Storage and clears its source', asy
 	});
 });
 
+test('moves a Party Pokemon into an empty Storage Slot and keeps focus on its source Slot', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await showPartyFromFirstBox(page);
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	const [savePane, storagePane] = [
+		page.locator('.box-pane').nth(0),
+		page.locator('.box-pane').nth(1)
+	];
+	await savePane.locator('[id$="party-slot-0"]').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowRight');
+	await storagePane.locator('[id$="box-0-slot-1"]').focus();
+	await page.keyboard.press('Enter');
+	await expect(storagePane.locator('[id$="box-0-slot-1"]')).toContainText('1-UP');
+	await expect(savePane.locator('[id$="party-slot-0"]')).not.toContainText('1-UP');
+	await expect(savePane.locator('[id$="party-slot-0"]')).toBeFocused();
+	expect((await backupRecords(page)).map(({ reason }) => reason)).toEqual(['pokemon-movement']);
+});
+
 test('keeps both Pokemon recoverable when Save clearing fails after Storage commits', async ({
 	page
 }) => {
