@@ -15,7 +15,11 @@ describe('Outgoing Link Trades through the browser-wasm bundle', () => {
 	test('offers a native Sword/Shield Pokemon as its exact encrypted party bytes', async () => {
 		const engine = await createPkhexEngine('/pkhex-engine');
 		const slots = await loadSlots(engine, swordFixtureUrl, 'pokemon-sword-2025-03-24-main.sav');
-		const { source, offer } = await findOffer(engine, slots, (offer) => offer.ready);
+		const { source, offer } = await findOffer(
+			engine,
+			slots,
+			(offer) => offer.ready && offer.legality?.legal === true
+		);
 		const sourceCopy = source.slice();
 
 		expect(offer).toMatchObject({
@@ -26,7 +30,6 @@ describe('Outgoing Link Trades through the browser-wasm bundle', () => {
 			blockingReasons: [],
 			sourceSha256: await sha256(source)
 		});
-		expect(offer.legality?.legal).toBe(true);
 		expect(source).toEqual(sourceCopy);
 		const outgoingBytes = offer.outgoingBytes!;
 		expect(outgoingBytes.byteLength).toBe(partySize);
@@ -68,24 +71,23 @@ describe('Outgoing Link Trades through the browser-wasm bundle', () => {
 		});
 	});
 
-	test('converts a Scarlet Pokemon without fixing legality and rejects Scarlet-only species', async () => {
+	test('converts a Scarlet Pokemon to a sendable PK8 without fixing legality', async () => {
 		const engine = await createPkhexEngine('/pkhex-engine');
 		const slots = await loadSlots(engine, scarletFixtureUrl, 'pokemon-scarlet-2025-03-24-main.sav');
 
-		const { offer } = await findOffer(engine, slots, (offer) =>
-			offer.blockingReasons.every((reason) => reason.kind === 'legality')
-		);
-		expect(offer).toMatchObject({
-			entityFormat: 'PK8',
-			converted: true,
-			ready: false,
-			outgoingBytes: null,
-			blockingReasons: [{ kind: 'legality' }]
-		});
+		const { offer } = await findOffer(engine, slots, (offer) => offer.ready);
+		expect(offer).toMatchObject({ entityFormat: 'PK8', converted: true, blockingReasons: [] });
 		expect(offer.changes).toContainEqual({ field: 'Format', before: 'PK9', after: 'PK8' });
 		expect(offer.legality?.warnings.map((line) => line.message)).toContain(
 			'Invalid: Pokémon HOME Transfer Tracker is missing.'
 		);
+		expect(offer.outgoingSha256).toBe(await sha256(offer.outgoingBytes!));
+		const sent = await engine.readLinkTradePartnerPokemon(offer.outgoingBytes!, 'sword');
+		expect(sent.ok && sent.value).toMatchObject({
+			parsed: true,
+			entityFormat: 'PK8',
+			projection: { speciesId: offer.projection!.speciesId }
+		});
 
 		const scarletOnly = slots.find((slot) => slot.speciesId > 898)!;
 		const rejected = await engine.prepareOutgoingLinkTrade(entityBytes(scarletOnly), {

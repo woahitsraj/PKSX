@@ -693,7 +693,7 @@ export type OutgoingLinkTradeRequest = {
 };
 
 export type LinkTradeBlockingReason = {
-	kind: 'unsupported-conversion' | 'unavailable-in-game' | 'trade-restriction' | 'legality';
+	kind: 'unsupported-conversion' | 'unavailable-in-game' | 'trade-restriction';
 	message: string;
 };
 

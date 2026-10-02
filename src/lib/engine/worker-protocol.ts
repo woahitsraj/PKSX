@@ -917,12 +917,7 @@ export const outgoingLinkTradeSchema = z.object({
 	legality: legalityReportSchema.nullable(),
 	blockingReasons: z.array(
 		z.object({
-			kind: z.enum([
-				'unsupported-conversion',
-				'unavailable-in-game',
-				'trade-restriction',
-				'legality'
-			]),
+			kind: z.enum(['unsupported-conversion', 'unavailable-in-game', 'trade-restriction']),
 			message: z.string().min(1)
 		})
 	),

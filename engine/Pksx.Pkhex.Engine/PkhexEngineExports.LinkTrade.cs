@@ -133,11 +133,8 @@ public static partial class PkhexEngineExports
         }
 
         AddSwordShieldTradeBlocks(offer, blocking);
+        // Legality is reported for review but never blocks or gets fixed.
         var legality = CreateLegalityReport(offer, StorageSlotType.Box);
-        if (!legality.Legal)
-            blocking.Add(new LinkTradeBlockingReason(
-                "legality",
-                "PKHeX reports legality issues. Review the Legality Check and fix the Pokemon before you trade it."));
 
         var converted = native.Pokemon is not PK8;
         var changes = converted ? DescribeLinkTradeConversion(native.Pokemon, offer) : [];
