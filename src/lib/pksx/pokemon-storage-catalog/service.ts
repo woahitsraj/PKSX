@@ -50,7 +50,7 @@ export class PokemonStorageService {
 		return manifest?.boxOrder.map((id) => manifest.boxes.find((box) => box.id === id)!) ?? [];
 	}
 	listResolvedPlacements() {
-		return this.#manifest ? resolvePlacements(this.#manifest) : [];
+		return this.#manifest ? structuredClone(resolvePlacements(this.#manifest)) : [];
 	}
 	listTombstones() {
 		return this.current?.tombstones ?? [];
