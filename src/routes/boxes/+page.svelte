@@ -171,6 +171,7 @@
 		createBoxSlotViews,
 		createPartySlotViews,
 		createSlotView,
+		hasSlotEditData,
 		isNativeEditorActivation,
 		keyboardAction,
 		pokemonEditorDraftResetKey,
@@ -348,6 +349,8 @@
 	let navigation = $state<BoxNavigationState>(createInitialNavigationState(placeholderBoxCount));
 	let loadedSave = $state<WorkspaceState | null>(null);
 	let pokemonEditorPaneId = $state<string | null>(null);
+	let pokemonEditorOpenedSlot: SlotView | null = null;
+	let openingPokemonEditor = false;
 	let importError = $state<string | null>(null);
 	let statusMessage = $state('Import a Save File to begin.');
 	let busy = $state(false);
@@ -3179,7 +3182,7 @@
 				openPokemonCreation();
 				break;
 			case 'pokemon-action':
-				openPokemonEditor();
+				void openPokemonEditor();
 				break;
 			case 'move':
 				beginPendingSlotOperation('move');
@@ -3840,20 +3843,44 @@
 		);
 	}
 
-	function openPokemonEditor() {
-		if (activeSummonedWorkflow?.kind !== 'slot-menu' || focusedSlot.kind !== 'pokemon') {
+	async function openPokemonEditor() {
+		if (
+			openingPokemonEditor ||
+			activeSummonedWorkflow?.kind !== 'slot-menu' ||
+			focusedSlot.kind !== 'pokemon'
+		) {
 			return;
 		}
 
+		const launchingWorkflow = activeSummonedWorkflow;
 		const paneWorkspace = saveWorkspaceForPane(focusedSlotPane);
+		const slotRef = slotRefForFocus();
+		let slot = focusedSlot;
+		if (paneWorkspace && engine && !hasSlotEditData(slot)) {
+			openingPokemonEditor = true;
+			const loaded = await engine
+				.loadSlotEditData(
+					paneWorkspace.state.bytes,
+					paneWorkspace.state.file.originalFileName ?? undefined,
+					slotRef
+				)
+				.finally(() => (openingPokemonEditor = false));
+			if (activeSummonedWorkflow !== launchingWorkflow) return;
+			if (!loaded.ok) {
+				statusMessage = loaded.error.message;
+				toastHost.error(loaded.error.message);
+				return;
+			}
+			slot = createSlotView(loaded.value);
+		}
 		const result = createPokemonEditorState(
 			{
 				owner: 'save-file',
 				saveFileId: paneWorkspace?.state.file.id ?? null,
-				slotRef: slotRefForFocus(),
+				slotRef,
 				location: activeSlotPositionLabel
 			},
-			focusedSlot
+			slot
 		);
 
 		if (!result.ok) {
@@ -3863,6 +3890,7 @@
 
 		pokemonEditorApplyRequest += 1;
 		pokemonEditor = result.state;
+		pokemonEditorOpenedSlot = slot;
 		pokemonEditorPaneId = focusedSlotPane?.id ?? null;
 		pokemonEditorFeedback = null;
 		pokemonEditorSession = createPokemonEditorSession();
@@ -4259,10 +4287,14 @@
 
 		const editorPane = workbenchPanes.find((pane) => pane.id === pokemonEditorPaneId);
 		const resetWorkspace = pokemonCreation?.workspace ?? saveWorkspaceForPane(editorPane)?.state;
-		const resetSlot =
+		const paneSlot =
 			resetWorkspace && pokemonEditor.source.owner === 'save-file'
 				? slotViewForRefFromWorkspace(resetWorkspace.workspace, pokemonEditor.source.slotRef)
 				: null;
+		const resetSlot =
+			paneSlot && !hasSlotEditData(paneSlot) && !pokemonCreation
+				? pokemonEditorOpenedSlot
+				: paneSlot;
 		const resetEditor = resetSlot
 			? createPokemonEditorState(pokemonEditor.source, resetSlot)
 			: null;
@@ -4647,6 +4679,11 @@
 			setCachedActiveWorkspace(nextState, editorBox);
 		}
 		invalidateSavesCache();
+		// Cancel resets to this slot if the pane later reloads without edit data.
+		if (pokemonEditor?.source.owner === 'save-file') {
+			const slot = slotViewForRefFromWorkspace(nextState.workspace, pokemonEditor.source.slotRef);
+			if (slot && hasSlotEditData(slot)) pokemonEditorOpenedSlot = slot;
+		}
 	}
 
 	function settlePokemonEditorApply(
@@ -5079,7 +5116,11 @@
 					if (pane.source.type !== 'save-file' || !pane.source.id) return;
 					const request = beginPaneWorkspaceRequest(pane.id, true);
 					try {
-						const state = await loadWorkspaceStateForSaveFile(pane.source.id, pane.activeBox);
+						const state =
+							restoredActiveSave?.file.id === pane.source.id &&
+							pane.activeBox === getCachedActiveWorkspaceBox()
+								? restoredActiveSave
+								: await loadWorkspaceStateForSaveFile(pane.source.id, pane.activeBox);
 						if (state) {
 							installPaneWorkspace(pane.id, pane.source.id, pane.activeBox, state, request);
 						}
@@ -5292,17 +5333,16 @@
 		saveFileId: string,
 		box: number
 	): Promise<WorkspaceState | null> {
-		const [saveFile, saveBytes, persistedWorkspace] = await Promise.all([
+		const [saveFile, persistedWorkspace] = await Promise.all([
 			storage.getSave(saveFileId),
-			storage.getSaveBytes(saveFileId),
 			storage.getWorkspace(saveFileId)
 		]);
+		const bytes = persistedWorkspace?.bytes ?? (await storage.getSaveBytes(saveFileId));
 
-		if (!saveFile || !saveBytes) {
+		if (!saveFile || !bytes) {
 			return null;
 		}
 
-		const bytes = persistedWorkspace?.bytes ?? saveBytes;
 		const workspace = await loadWorkspace(bytes, saveFile.originalFileName ?? undefined, box);
 
 		return persistedWorkspace

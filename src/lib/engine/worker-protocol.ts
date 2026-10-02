@@ -5,6 +5,7 @@ export const engineWorkerRequestIdSchema = z.string().min(1);
 export const engineWorkerMethodSchema = z.enum([
 	'getVersion',
 	'summarizeSave',
+	'summarizeSaveCard',
 	'listBoxSlots',
 	'loadSaveWorkspace',
 	'serializeSave',
@@ -19,6 +20,7 @@ export const engineWorkerMethodSchema = z.enum([
 	'getSaveFileInventoryCatalogue',
 	'importStoredPokemon',
 	'checkSlotLegality',
+	'loadSlotEditData',
 	'previewPokemonActions',
 	'applyPokemonAction',
 	'previewStoredPokemonActions',
@@ -402,81 +404,16 @@ const slotSummaryFields = {
 	types: z.array(slotTypeSummarySchema).default([]),
 	stats: z.array(slotStatSummarySchema).default([]),
 	moves: z.array(slotMoveSummarySchema).default([]),
-	natureEditConstraints: pokemonNatureEditConstraintsSchema.default({
-		supported: false,
-		currentNatureId: -1,
-		originalNatureId: -1,
-		statNatureId: -1,
-		usesStatNature: false,
-		options: [],
-		unsupportedReason: 'Nature Editing is not available for this Pokemon projection.'
-	}),
-	heldItemEditConstraints: pokemonHeldItemEditConstraintsSchema.default({
-		supported: false,
-		currentItemId: 0,
-		options: [],
-		unsupportedReason: 'Held Item Editing is not available for this Pokemon projection.'
-	}),
-	abilityEditConstraints: pokemonAbilityEditConstraintsSchema.default({
-		supported: false,
-		currentAbilityIndex: -1,
-		options: [],
-		unsupportedReason: 'Ability Editing is not available for this Pokemon projection.'
-	}),
-	metDataEditConstraints: pokemonMetDataEditConstraintsSchema.default({
-		supported: false,
-		currentLocationId: 0,
-		currentMetLevel: 0,
-		currentOriginGameId: 0,
-		currentBallId: 0,
-		minMetLevel: 0,
-		maxMetLevel: 100,
-		supportsMetDate: false,
-		supportsOriginGame: false,
-		supportsBall: false,
-		locationGroups: [],
-		originGames: [],
-		balls: [],
-		unsupportedReason: 'Met Data Editing is not available for this Pokemon projection.'
-	}),
-	originalTrainerEditConstraints: pokemonOriginalTrainerEditConstraintsSchema.default({
-		supported: false,
-		currentName: '',
-		currentTrainerId: 0,
-		currentSecretId: 0,
-		currentGenderId: 0,
-		currentLanguageId: 0,
-		maxNameLength: 0,
-		minTrainerId: 0,
-		maxTrainerId: 65535,
-		supportsSecretId: false,
-		supportsGender: false,
-		supportsLanguage: false,
-		genders: [],
-		languages: [],
-		unsupportedReason: 'Original Trainer Data Editing is not available for this projection.'
-	}),
-	statEditConstraints: pokemonStatEditConstraintsSchema.default({
-		supported: false,
-		minIv: 0,
-		maxIv: 31,
-		minEv: 0,
-		maxEv: 255,
-		maxTotalEv: 510,
-		unsupportedReason: 'IV and EV Editing is not available for this Pokemon projection.'
-	}),
-	moveSetEditConstraints: pokemonMoveSetEditConstraintsSchema.default({
-		supported: false,
-		maxMoveSlots: 4,
-		availableMoves: [],
-		unsupportedReason: 'Move Set Editing is not available for this Pokemon projection.'
-	}),
-	friendshipEditConstraints: pokemonFriendshipEditConstraintsSchema.default({
-		supported: false,
-		fields: [],
-		unsupportedReason: 'Friendship Editing is not available for this Pokemon projection.'
-	}),
-	battleFields: z.array(pokemonBattleFieldProjectionSchema).default([]),
+	// Workspace loads omit edit data; the Pokemon Editor loads it per slot.
+	natureEditConstraints: pokemonNatureEditConstraintsSchema.optional(),
+	heldItemEditConstraints: pokemonHeldItemEditConstraintsSchema.optional(),
+	abilityEditConstraints: pokemonAbilityEditConstraintsSchema.optional(),
+	metDataEditConstraints: pokemonMetDataEditConstraintsSchema.optional(),
+	originalTrainerEditConstraints: pokemonOriginalTrainerEditConstraintsSchema.optional(),
+	statEditConstraints: pokemonStatEditConstraintsSchema.optional(),
+	moveSetEditConstraints: pokemonMoveSetEditConstraintsSchema.optional(),
+	friendshipEditConstraints: pokemonFriendshipEditConstraintsSchema.optional(),
+	battleFields: z.array(pokemonBattleFieldProjectionSchema).optional(),
 	originalTrainer: z.string().nullable().optional(),
 	metLabel: z.string().nullable().optional(),
 	spriteIdentity: spriteIdentitySchema.optional(),
@@ -857,6 +794,10 @@ export const engineVersionResultSchema = engineResultSchema(engineVersionSchema)
 
 export const saveSummaryResultSchema = engineResultSchema(saveSummarySchema);
 
+export const saveCardSummaryResultSchema = engineResultSchema(
+	z.object({ summary: saveSummarySchema, pokemonCount: z.number().int() })
+);
+
 export const boxSlotSummaryListResultSchema = engineResultSchema(z.array(boxSlotSummarySchema));
 
 export const saveWorkspaceResultSchema = engineResultSchema(saveWorkspaceSchema);
@@ -962,6 +903,16 @@ export const engineWorkerSummarizeSaveRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerSummarizeSaveCardRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('summarizeSaveCard'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional()
+	})
+});
+
 export const engineWorkerListBoxSlotsRequestSchema = z.object({
 	type: z.literal('request'),
 	id: engineWorkerRequestIdSchema,
@@ -980,7 +931,8 @@ export const engineWorkerLoadSaveWorkspaceRequestSchema = z.object({
 	payload: z.object({
 		bytes: z.instanceof(ArrayBuffer),
 		fileName: z.string().optional(),
-		box: z.number().int()
+		box: z.number().int(),
+		background: z.boolean().optional()
 	})
 });
 
@@ -1112,6 +1064,17 @@ export const engineWorkerImportStoredPokemonRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerLoadSlotEditDataRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('loadSlotEditData'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional(),
+		source: saveSlotRefSchema
+	})
+});
+
 export const engineWorkerCheckSlotLegalityRequestSchema = z.object({
 	type: z.literal('request'),
 	id: engineWorkerRequestIdSchema,
@@ -1213,6 +1176,7 @@ export const engineWorkerReadLinkTradePartnerPokemonRequestSchema = z.object({
 export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionRequestSchema,
 	engineWorkerSummarizeSaveRequestSchema,
+	engineWorkerSummarizeSaveCardRequestSchema,
 	engineWorkerListBoxSlotsRequestSchema,
 	engineWorkerLoadSaveWorkspaceRequestSchema,
 	engineWorkerSerializeSaveRequestSchema,
@@ -1227,6 +1191,7 @@ export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerGetSaveFileInventoryCatalogueRequestSchema,
 	engineWorkerImportStoredPokemonRequestSchema,
 	engineWorkerCheckSlotLegalityRequestSchema,
+	engineWorkerLoadSlotEditDataRequestSchema,
 	engineWorkerPreviewPokemonActionsRequestSchema,
 	engineWorkerApplyPokemonActionRequestSchema,
 	engineWorkerPreviewStoredPokemonActionsRequestSchema,
@@ -1250,6 +1215,13 @@ export const engineWorkerSummarizeSaveResponseSchema = z.object({
 	id: engineWorkerRequestIdSchema,
 	method: z.literal('summarizeSave'),
 	result: saveSummaryResultSchema
+});
+
+export const engineWorkerSummarizeSaveCardResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('summarizeSaveCard'),
+	result: saveCardSummaryResultSchema
 });
 
 export const engineWorkerListBoxSlotsResponseSchema = z.object({
@@ -1343,6 +1315,13 @@ export const engineWorkerImportStoredPokemonResponseSchema = z.object({
 	result: storedPokemonImportResultResultSchema
 });
 
+export const engineWorkerLoadSlotEditDataResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('loadSlotEditData'),
+	result: engineResultSchema(z.union([boxSlotSummarySchema, partySlotSummarySchema]))
+});
+
 export const engineWorkerCheckSlotLegalityResponseSchema = z.object({
 	type: z.literal('response'),
 	id: engineWorkerRequestIdSchema,
@@ -1416,6 +1395,7 @@ export const engineWorkerReadLinkTradePartnerPokemonResponseSchema = z.object({
 export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionResponseSchema,
 	engineWorkerSummarizeSaveResponseSchema,
+	engineWorkerSummarizeSaveCardResponseSchema,
 	engineWorkerListBoxSlotsResponseSchema,
 	engineWorkerLoadSaveWorkspaceResponseSchema,
 	engineWorkerSerializeSaveResponseSchema,
@@ -1430,6 +1410,7 @@ export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerGetSaveFileInventoryCatalogueResponseSchema,
 	engineWorkerImportStoredPokemonResponseSchema,
 	engineWorkerCheckSlotLegalityResponseSchema,
+	engineWorkerLoadSlotEditDataResponseSchema,
 	engineWorkerPreviewPokemonActionsResponseSchema,
 	engineWorkerApplyPokemonActionResponseSchema,
 	engineWorkerPreviewStoredPokemonActionsResponseSchema,
@@ -1479,6 +1460,14 @@ export type EngineWorkerGetVersionRequest = z.infer<typeof engineWorkerGetVersio
 
 export type EngineWorkerSummarizeSaveRequest = z.infer<
 	typeof engineWorkerSummarizeSaveRequestSchema
+>;
+
+export type EngineWorkerSummarizeSaveCardRequest = z.infer<
+	typeof engineWorkerSummarizeSaveCardRequestSchema
+>;
+
+export type EngineWorkerLoadSlotEditDataRequest = z.infer<
+	typeof engineWorkerLoadSlotEditDataRequestSchema
 >;
 
 export type EngineWorkerListBoxSlotsRequest = z.infer<typeof engineWorkerListBoxSlotsRequestSchema>;

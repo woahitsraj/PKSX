@@ -59,6 +59,11 @@ export type SaveSummary = {
 	boxSlotCount: number;
 };
 
+export type SaveCardSummary = {
+	summary: SaveSummary;
+	pokemonCount: number;
+};
+
 export type SpriteIdentity = {
 	speciesId: number;
 	form: number;
@@ -98,15 +103,15 @@ export type BoxSlotSummary = {
 	types: SlotTypeSummary[];
 	stats: SlotStatSummary[];
 	moves: SlotMoveSummary[];
-	natureEditConstraints: PokemonNatureEditConstraints;
-	heldItemEditConstraints: PokemonHeldItemEditConstraints;
-	abilityEditConstraints: PokemonAbilityEditConstraints;
-	metDataEditConstraints: PokemonMetDataEditConstraints;
-	originalTrainerEditConstraints: PokemonOriginalTrainerEditConstraints;
-	statEditConstraints: PokemonStatEditConstraints;
-	moveSetEditConstraints: PokemonMoveSetEditConstraints;
-	friendshipEditConstraints: PokemonFriendshipEditConstraints;
-	battleFields: PokemonBattleFieldProjection[];
+	natureEditConstraints?: PokemonNatureEditConstraints;
+	heldItemEditConstraints?: PokemonHeldItemEditConstraints;
+	abilityEditConstraints?: PokemonAbilityEditConstraints;
+	metDataEditConstraints?: PokemonMetDataEditConstraints;
+	originalTrainerEditConstraints?: PokemonOriginalTrainerEditConstraints;
+	statEditConstraints?: PokemonStatEditConstraints;
+	moveSetEditConstraints?: PokemonMoveSetEditConstraints;
+	friendshipEditConstraints?: PokemonFriendshipEditConstraints;
+	battleFields?: PokemonBattleFieldProjection[];
 	originalTrainer?: string | null;
 	metLabel?: string | null;
 	spriteIdentity: SpriteIdentity;
@@ -725,15 +730,18 @@ export type LinkTradePartnerPokemon = {
 export type EngineApi = {
 	getVersion(): Promise<EngineResult<EngineVersion>>;
 	summarizeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SaveSummary>>;
+	summarizeSaveCard(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SaveCardSummary>>;
 	listBoxSlots(
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		box: number
 	): Promise<EngineResult<BoxSlotSummary[]>>;
+	/** `background` lets requests without it go first. */
 	loadSaveWorkspace(
 		bytes: Uint8Array,
 		fileName: string | undefined,
-		box: number
+		box: number,
+		options?: { background?: boolean }
 	): Promise<EngineResult<SaveWorkspace>>;
 	serializeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SerializedSave>>;
 	applySlotOperation(
@@ -794,6 +802,12 @@ export type EngineApi = {
 		operation: StoredPokemonImportOperation,
 		activeBox: number
 	): Promise<EngineResult<StoredPokemonImportResult>>;
+	/** Loads one slot with the edit data that Workspace loads leave out. */
+	loadSlotEditData(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		source: SaveSlotRef
+	): Promise<EngineResult<BoxSlotSummary | PartySlotSummary>>;
 	checkSlotLegality(
 		bytes: Uint8Array,
 		fileName: string | undefined,

@@ -97,6 +97,11 @@ export function createBoxSlotViews(slots: BoxSlotSummary[]): SlotView[] {
 	return slots.map(createSlotView);
 }
 
+/** Workspace loads leave edit data out; the Pokemon Editor loads it per slot. */
+export function hasSlotEditData(slot: SlotView) {
+	return slot.natureEditConstraints !== undefined;
+}
+
 export function createSlotView(slot: PartySlotSummary | BoxSlotSummary): SlotView {
 	const details = {
 		gender: slot.gender ?? undefined,

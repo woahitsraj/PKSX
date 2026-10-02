@@ -52,6 +52,24 @@ function createEngineExports(): DotnetPkhexEngineExports {
 				},
 				error: null
 			}),
+		SummarizeSaveCardJson: () =>
+			JSON.stringify({
+				ok: true,
+				value: {
+					summary: {
+						saveType: 'SAV9SV',
+						gameVersion: 'SV',
+						gameVersionId: 45,
+						generation: 9,
+						partyCount: 1,
+						boxCount: 32,
+						boxSlotCount: 30
+					},
+					pokemonCount: 3
+				},
+				error: null
+			}),
+		LoadSlotEditDataJson: () => JSON.stringify({ ok: true, value: null, error: null }),
 		ListBoxSmoke: () =>
 			JSON.stringify({
 				ok: true,
@@ -364,6 +382,60 @@ describe('createPkhexEngineWorkerRuntime', () => {
 				}
 			}
 		]);
+	});
+
+	test('answers queued user requests before queued background requests', async () => {
+		const startup = createDeferred<DotnetPkhexEngineExports>();
+		const posted: PostedWorkerMessage[] = [];
+		const runtime = createPkhexEngineWorkerRuntime({
+			loadEngine: () => startup.promise,
+			postMessage: (message) => posted.push(message)
+		});
+		const payload = { bytes: new ArrayBuffer(1) };
+
+		runtime.handleMessage({ type: 'init', basePath: '/pkhex-engine' });
+		runtime.handleMessage({ type: 'request', id: 'card', method: 'summarizeSaveCard', payload });
+		runtime.handleMessage({
+			type: 'request',
+			id: 'warm-up',
+			method: 'loadSaveWorkspace',
+			payload: { ...payload, box: 0, background: true }
+		});
+		runtime.handleMessage({ type: 'request', id: 'open', method: 'summarizeSave', payload });
+		startup.resolve(createEngineExports());
+		await flushPromises();
+
+		expect(posted.flatMap((message) => ('id' in message ? [message.id] : []))).toEqual([
+			'open',
+			'card',
+			'warm-up'
+		]);
+	});
+
+	test('counts Save card Pokemon with an engine that lacks the card export', async () => {
+		const posted: PostedWorkerMessage[] = [];
+		const engine = createEngineExports();
+		delete (engine as Partial<DotnetPkhexEngineExports>).SummarizeSaveCardJson;
+		engine.ListBoxSmoke = (_bytes, _fileName, box) =>
+			JSON.stringify({ ok: true, value: box === 0 ? [{ isEmpty: false }, { isEmpty: true }] : [] });
+		const runtime = createPkhexEngineWorkerRuntime({
+			loadEngine: async () => engine,
+			postMessage: (message) => posted.push(message)
+		});
+
+		runtime.handleMessage({ type: 'init', basePath: '/pkhex-engine' });
+		runtime.handleMessage({
+			type: 'request',
+			id: 'card',
+			method: 'summarizeSaveCard',
+			payload: { bytes: new ArrayBuffer(1) }
+		});
+		await flushPromises();
+
+		expect(posted.at(-1)).toMatchObject({
+			id: 'card',
+			result: { ok: true, value: { summary: { boxCount: 32 }, pokemonCount: 2 } }
+		});
 	});
 
 	test('posts failed startup status and makes later calls engine-unavailable when runtime import fails', async () => {

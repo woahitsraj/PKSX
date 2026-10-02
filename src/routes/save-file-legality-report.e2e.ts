@@ -89,9 +89,14 @@ async function installWorkspaceResponseHold(page: Page) {
 				const postMessage = worker.postMessage.bind(worker);
 				worker.postMessage = new Proxy(postMessage, {
 					apply(target, thisArg, args) {
-						const request = args[0] as { id?: string; method?: string } | null;
+						const request = args[0] as {
+							id?: string;
+							method?: string;
+							payload?: { background?: boolean };
+						} | null;
 						const method = testWindow.__pksxResponseMethodToHold ?? 'loadSaveWorkspace';
-						if (request?.id && request.method === method) {
+						// The launch warm-up is not a load that any pane waits for.
+						if (request?.id && request.method === method && !request.payload?.background) {
 							const skipped = testWindow.__pksxWorkspaceRequestsToSkip ?? 0;
 							const remaining = testWindow.__pksxWorkspaceRequestsToHold ?? 0;
 							if (skipped > 0) testWindow.__pksxWorkspaceRequestsToSkip = skipped - 1;

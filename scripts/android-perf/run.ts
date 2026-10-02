@@ -125,7 +125,12 @@ async function goSaves() {
 	await probeFromStart();
 	await closeDialogs();
 	if ((await cdp.evaluate('location.pathname')) !== '/') await chooseDestination('Saves');
-	await measure('', 'return P.cardsSettled()', 300000);
+	// Stored card details can be ready before the engine is, so wait for both.
+	await measure(
+		'',
+		`return P.cardsSettled() && P.worker.some((call) => call.method === 'msg:status:ready') && P.worker.every((call) => call.received)`,
+		300000
+	);
 }
 
 const openSave = (label: string) =>
@@ -150,11 +155,11 @@ const scenarios: Record<string, () => Promise<void>> = {
 	async coldCards() {
 		for (let i = 0; i < runs; i++) {
 			record('cold:activity-start', { ms: await coldStart() });
-			record('cold:cards-visible', {
-				ms: await poll<number>(
-					`document.querySelector('button[aria-label$=" in Boxes"]') && Math.round(performance.now())`
-				)
-			});
+			// Element Timing gives the paint time even when DevTools connects after the cards appear.
+			await cdp.evaluate(
+				`window.__cardPaint = 0; new PerformanceObserver((list) => { window.__cardPaint ||= Math.round(list.getEntries()[0].renderTime || list.getEntries()[0].loadTime); }).observe({ type: 'element', buffered: true })`
+			);
+			record('cold:cards-visible', { ms: await poll<number>(`window.__cardPaint`) });
 			record('cold:cards-all-ready', {
 				ms: await poll<number>(`window.__perf.cardsSettled() && Math.round(performance.now())`)
 			});

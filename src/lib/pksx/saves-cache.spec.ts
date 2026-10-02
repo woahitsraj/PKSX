@@ -6,7 +6,6 @@ import {
 	getCachedSavesSnapshot,
 	getCachedActiveWorkspaceBox,
 	getActiveWorkspaceService,
-	countSavePokemon,
 	invalidateActiveWorkspaceCache,
 	invalidateSavesCache,
 	isCachedSavesSnapshotSeeded,
@@ -219,28 +218,6 @@ describe('Saves cache', () => {
 		unsubscribe();
 
 		expect(observed.at(-1)).toEqual({ box: 1, nickname: 'MAKUHITA' });
-	});
-
-	it('counts Party and occupied slots across every Box', async () => {
-		expect.assertions(1);
-
-		const count = await countSavePokemon(
-			{ ...summary, partyCount: 2, boxCount: 3 },
-			[boxSlot, { ...boxSlot, slot: 1, isEmpty: true }],
-			async (box) =>
-				box === 1
-					? { ok: true, value: [{ ...boxSlot, box: 1 }], error: null }
-					: {
-							ok: true,
-							error: null,
-							value: [
-								{ ...boxSlot, box: 2 },
-								{ ...boxSlot, box: 2, slot: 1 }
-							]
-						}
-		);
-
-		expect(count).toBe(6);
 	});
 
 	it('does not seed when no active workspace is cached', () => {

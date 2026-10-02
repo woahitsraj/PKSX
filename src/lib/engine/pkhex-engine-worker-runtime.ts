@@ -4,6 +4,7 @@ import type {
 	EngineResult,
 	EngineVersion,
 	LegalityReport,
+	PartySlotSummary,
 	PokemonActionPreview,
 	PokemonActionResult,
 	PokemonCreationCatalogue,
@@ -17,6 +18,7 @@ import type {
 	LinkTradePartnerPokemon,
 	SaveFileEditOperationResult,
 	SaveFileInventoryCatalogue,
+	SaveCardSummary,
 	SaveSummary,
 	SaveWorkspace,
 	SlotOperationResult,
@@ -50,17 +52,20 @@ import {
 	type EngineWorkerPrepareOutgoingLinkTradeRequest,
 	type EngineWorkerReadLinkTradePartnerPokemonRequest,
 	type EngineWorkerLoadSaveWorkspaceRequest,
+	type EngineWorkerLoadSlotEditDataRequest,
 	type EngineWorkerListBoxSlotsRequest,
 	type EngineWorkerMessage,
 	type EngineWorkerRequest,
 	type EngineWorkerSerializeSaveRequest,
 	type EngineWorkerStatusMessage,
-	type EngineWorkerSummarizeSaveRequest
+	type EngineWorkerSummarizeSaveRequest,
+	type EngineWorkerSummarizeSaveCardRequest
 } from './worker-protocol';
 
 export type DotnetPkhexEngineExports = {
 	GetVersionJson(): string;
 	ParseSaveSmoke(bytes: Uint8Array, fileName?: string): string;
+	SummarizeSaveCardJson?(bytes: Uint8Array, fileName?: string): string;
 	ListBoxSmoke(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	LoadSaveWorkspaceJson(bytes: Uint8Array, fileName: string | undefined, box: number): string;
 	SerializeSaveJson(bytes: Uint8Array, fileName?: string): string;
@@ -102,6 +107,11 @@ export type DotnetPkhexEngineExports = {
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		importJson: string
+	): string;
+	LoadSlotEditDataJson?(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		sourceJson: string
 	): string;
 	CheckSlotLegalityJson(
 		bytes: Uint8Array,
@@ -190,7 +200,8 @@ export function createPkhexEngineWorkerRuntime({
 	let startup: Promise<DotnetPkhexEngineExports> | undefined;
 	let ready = false;
 	let failed = false;
-	let callQueue = Promise.resolve();
+	const queues = { user: [] as EngineWorkerRequest[], background: [] as EngineWorkerRequest[] };
+	let draining = false;
 
 	function handleMessage(message: unknown) {
 		const init = parseEngineWorkerInitMessage(message);
@@ -205,11 +216,30 @@ export function createPkhexEngineWorkerRuntime({
 			return;
 		}
 
-		callQueue = callQueue
-			.then(() => handleRequest(request.value))
-			.catch((error: unknown) => {
-				postFailedStatus(error);
-			});
+		const background =
+			request.value.method === 'summarizeSaveCard' ||
+			(request.value.method === 'loadSaveWorkspace' && request.value.payload.background);
+		const lane = background ? 'background' : 'user';
+		queues[lane].push(request.value);
+		void drainQueues();
+	}
+
+	async function drainQueues() {
+		if (draining) return;
+		draining = true;
+		try {
+			if (!ready && startup && !failed) {
+				await startup.catch(() => undefined);
+				// The failed status already answers requests that waited on startup.
+				if (failed) queues.user.length = queues.background.length = 0;
+			}
+			let next: EngineWorkerRequest | undefined;
+			while ((next = queues.user.shift() ?? queues.background.shift())) {
+				await handleRequest(next).catch((error: unknown) => postFailedStatus(error));
+			}
+		} finally {
+			draining = false;
+		}
 	}
 
 	function startEngine(basePath: string) {
@@ -258,6 +288,9 @@ export function createPkhexEngineWorkerRuntime({
 				return;
 			case 'summarizeSave':
 				postMessage(createEngineWorkerResponse(request, summarizeSave(engine, request)));
+				return;
+			case 'summarizeSaveCard':
+				postMessage(createEngineWorkerResponse(request, summarizeSaveCard(engine, request)));
 				return;
 			case 'listBoxSlots':
 				postMessage(createEngineWorkerResponse(request, listBoxSlots(engine, request)));
@@ -317,6 +350,9 @@ export function createPkhexEngineWorkerRuntime({
 				return;
 			case 'importStoredPokemon':
 				postStoredPokemonImportResponse(postMessage, request, importStoredPokemon(engine, request));
+				return;
+			case 'loadSlotEditData':
+				postMessage(createEngineWorkerResponse(request, loadSlotEditData(engine, request)));
 				return;
 			case 'checkSlotLegality':
 				postMessage(createEngineWorkerResponse(request, checkSlotLegality(engine, request)));
@@ -398,6 +434,43 @@ function summarizeSave(
 ): EngineResult<SaveSummary> {
 	return parseEngineResult<SaveSummary>(
 		engine.ParseSaveSmoke(new Uint8Array(request.payload.bytes), request.payload.fileName)
+	);
+}
+
+function summarizeSaveCard(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerSummarizeSaveCardRequest
+): EngineResult<SaveCardSummary> {
+	const bytes = new Uint8Array(request.payload.bytes);
+	const { fileName } = request.payload;
+	if (engine.SummarizeSaveCardJson) {
+		return parseEngineResult<SaveCardSummary>(engine.SummarizeSaveCardJson(bytes, fileName));
+	}
+
+	// An older service worker can still serve an engine without the card export.
+	const summary = parseEngineResult<SaveSummary>(engine.ParseSaveSmoke(bytes, fileName));
+	if (!summary.ok) return summary;
+	let pokemonCount = summary.value.partyCount;
+	for (let box = 0; box < summary.value.boxCount; box += 1) {
+		const slots = parseEngineResult<BoxSlotSummary[]>(engine.ListBoxSmoke(bytes, fileName, box));
+		if (!slots.ok) return slots;
+		pokemonCount += slots.value.filter((slot) => !slot.isEmpty).length;
+	}
+	return { ok: true, value: { summary: summary.value, pokemonCount }, error: null };
+}
+
+function loadSlotEditData(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerLoadSlotEditDataRequest
+): EngineResult<BoxSlotSummary | PartySlotSummary> {
+	// Engines without this export always return edit data with the Workspace.
+	if (!engine.LoadSlotEditDataJson) return unavailableResult(request);
+	return parseEngineResult<BoxSlotSummary | PartySlotSummary>(
+		engine.LoadSlotEditDataJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			JSON.stringify(request.payload.source)
+		)
 	);
 }
 
@@ -999,6 +1072,8 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<EngineVersion>;
 		case 'summarizeSave':
 			return result satisfies EngineResult<SaveSummary>;
+		case 'summarizeSaveCard':
+			return result satisfies EngineResult<SaveCardSummary>;
 		case 'listBoxSlots':
 			return result satisfies EngineResult<BoxSlotSummary[]>;
 		case 'loadSaveWorkspace':
@@ -1024,6 +1099,8 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<SaveFileInventoryCatalogue>;
 		case 'importStoredPokemon':
 			return result satisfies EngineResult<StoredPokemonImportResult>;
+		case 'loadSlotEditData':
+			return result satisfies EngineResult<BoxSlotSummary | PartySlotSummary>;
 		case 'checkSlotLegality':
 			return result satisfies EngineResult<LegalityReport>;
 		case 'previewPokemonActions':
