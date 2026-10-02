@@ -24,6 +24,11 @@ import letsGoEeveeFixtureUrl from '../../../test-fixtures/save-files/raj-pokemon
 import scarletFixtureUrl from '../../../test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-scarlet-2025-03-24-main.sav?url';
 import swordFixtureUrl from '../../../test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-sword-2025-03-24-main.sav?url';
 import { createPkhexEngine } from './pkhex-engine';
+import {
+	BrowserCatalogPersistence,
+	deleteBrowserCatalog,
+	PokemonStorageService
+} from '$lib/pksx/pokemon-storage-catalog';
 
 const supportedFixtureCases = [
 	{ name: 'Emerald', fileName: '011020251345.sav', url: fixtureUrl, byteLength: 131088 },
@@ -1015,6 +1020,41 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		if (!olderEntity.ok) throw new Error('Expected the PK8 preservation payload to parse.');
 		expect(olderEntity.value.entityBytes).not.toEqual(sourceBytes);
 		expect(olderEntity.value.projection.battleFields).toEqual([]);
+		const catalogName = `preserved-copy-${crypto.randomUUID()}`;
+		try {
+			const catalog = new PokemonStorageService(new BrowserCatalogPersistence(catalogName), engine);
+			await catalog.initialize();
+			const original = await catalog.add(sourceBytes, {
+				entryMode: 'imported',
+				originSaveFileId: null,
+				originSaveFileName: null,
+				originGame: null,
+				originalTrainer: null,
+				trainerId: null,
+				enteredAt: '2026-10-02T00:00:00Z'
+			});
+			const originalPayload = await catalog.readPayload(original.recordId);
+			const projected = await engine.projectPreservationPayload(originalPayload, 8);
+			if (!projected.ok) throw new Error('Expected catalog PK8 projection.');
+			const projectedEntity = await engine.readPreservationPayload(projected.value.bytes);
+			if (!projectedEntity.ok) throw new Error('Expected projected catalog payload.');
+			await catalog.replace(original.recordId, projected.value.bytes);
+			const copied = await catalog.copy(original.recordId);
+			const copiedPayload = await engine.readPreservationPayload(
+				await catalog.readPayload(copied.recordId)
+			);
+			if (!copiedPayload.ok) throw new Error('Expected copied preservation payload.');
+			expect(copied.recordId).not.toBe(original.recordId);
+			expect(copiedPayload.value.summary).toMatchObject({
+				originalEntitySha256: projected.value.summary.originalEntitySha256,
+				originalEntityFormat: 'PK9',
+				originalByteLength: sourceBytes.byteLength,
+				currentEntityFormat: 'PK8'
+			});
+			expect(copiedPayload.value.entityBytes).toEqual(projectedEntity.value.entityBytes);
+		} finally {
+			await deleteBrowserCatalog(catalogName);
+		}
 
 		const restored = await engine.projectPreservationPayload(older.value.bytes, 9);
 		if (!restored.ok) throw new Error('Expected the PK9 restoration.');

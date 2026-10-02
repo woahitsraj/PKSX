@@ -578,6 +578,11 @@ export function createMockEngine(
 				bytes: copyBytes(entityBytes),
 				summary: mockPreservationSummary()
 			}),
+		forkPreservationPayload: async (payloadBytes) =>
+			success<PreservationPayload>({
+				bytes: copyBytes(payloadBytes),
+				summary: mockPreservationSummary()
+			}),
 		readPreservationPayload: async (payloadBytes) =>
 			success<PreservedPokemon>({
 				entityBytes: copyBytes(payloadBytes),
