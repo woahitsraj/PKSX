@@ -7,4 +7,4 @@ PKSX will port the pokeldn Sword/Shield host protocol (serial framing, LDN sessi
 - The first release supports desktop Chrome and Edge through Web Serial. The Android app needs a native USB serial plugin. Safari, iOS, and Android Chrome cannot reach a USB Trade Radio and show Link Trade as unavailable.
 - The ported module keeps pokeldn's AGPL-3.0 and vendored LDN's GPL-3.0-only terms, so the served app links to its source and `THIRD_PARTY_NOTICES.md` lists the module.
 - Users supply their own Switch keys. PKSX stores only the values the protocol needs, on the device, outside Cloud Sync, Backups, Export, logs, and Trade Receipts. The Trade Radio receives only derived session keys.
-- Users flash pinned firmware manually. PKSX checks the firmware's protocol version before a Link Trade.
+- PKSX installs pinned firmware through the same serial port with esptool-js, only when the user asks, and checks the firmware's protocol version before a Link Trade. The served firmware images are AGPL-3.0 and covered by the source link.
