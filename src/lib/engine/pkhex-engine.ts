@@ -117,7 +117,7 @@ type DotnetPkhexEngineExports = {
 	ReadPreservationPayloadJson(payloadBytes: Uint8Array): string;
 	ProjectPreservationPayloadJson(payloadBytes: Uint8Array, targetFormat: number): string;
 	PrepareOutgoingLinkTradeJson(sourceBytes: Uint8Array, requestJson: string): string;
-	ReadLinkTradePartnerPokemonJson(receivedBytes: Uint8Array, destinationGame: string): string;
+	ReadLinkTradePartnerPokemonJson(partnerBytes: Uint8Array, destinationGame: string): string;
 };
 
 const knownEngineErrorCodes = new Set<EngineErrorCode>([
@@ -353,11 +353,11 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 				engine.PrepareOutgoingLinkTradeJson(sourceBytes, JSON.stringify(request))
 			);
 			if (!result.ok) return result;
-			const { outgoingBytesBase64, outgoingByteLength, ...offer } = result.value;
+			const { outgoingBytesBase64, outgoingByteLength, ...outgoing } = result.value;
 			return {
 				ok: true,
 				value: {
-					...offer,
+					...outgoing,
 					outgoingBytes: outgoingBytesBase64
 						? base64ToBytes(outgoingBytesBase64, outgoingByteLength)
 						: null
@@ -365,16 +365,16 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 				error: null
 			};
 		},
-		readLinkTradePartnerPokemon: async (receivedBytes, destinationGame) => {
+		readLinkTradePartnerPokemon: async (partnerBytes, destinationGame) => {
 			const result = parseEngineResult<RawLinkTradePartnerPokemonResult>(
-				engine.ReadLinkTradePartnerPokemonJson(receivedBytes, destinationGame)
+				engine.ReadLinkTradePartnerPokemonJson(partnerBytes, destinationGame)
 			);
 			if (!result.ok) return result;
-			const { entityBytesBase64, entityByteLength, ...received } = result.value;
+			const { entityBytesBase64, entityByteLength, ...partner } = result.value;
 			return {
 				ok: true,
 				value: {
-					...received,
+					...partner,
 					entityBytes: entityBytesBase64 ? base64ToBytes(entityBytesBase64, entityByteLength) : null
 				},
 				error: null

@@ -124,7 +124,7 @@ export type DotnetPkhexEngineExports = {
 	ReadPreservationPayloadJson(payloadBytes: Uint8Array): string;
 	ProjectPreservationPayloadJson(payloadBytes: Uint8Array, targetFormat: number): string;
 	PrepareOutgoingLinkTradeJson(sourceBytes: Uint8Array, requestJson: string): string;
-	ReadLinkTradePartnerPokemonJson(receivedBytes: Uint8Array, destinationGame: string): string;
+	ReadLinkTradePartnerPokemonJson(partnerBytes: Uint8Array, destinationGame: string): string;
 };
 
 type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes'> & {
@@ -869,9 +869,9 @@ function prepareOutgoingLinkTrade(
 	engine: DotnetPkhexEngineExports,
 	request: EngineWorkerPrepareOutgoingLinkTradeRequest
 ): EngineResult<RawOutgoingLinkTradeResult> {
-	const { bytes, ...offerRequest } = request.payload;
+	const { bytes, ...outgoingRequest } = request.payload;
 	return parseEngineResult<RawOutgoingLinkTradeResult>(
-		engine.PrepareOutgoingLinkTradeJson(new Uint8Array(bytes), JSON.stringify(offerRequest))
+		engine.PrepareOutgoingLinkTradeJson(new Uint8Array(bytes), JSON.stringify(outgoingRequest))
 	);
 }
 
@@ -885,14 +885,14 @@ function postOutgoingLinkTradeResponse(
 		return;
 	}
 
-	const { outgoingBytesBase64, outgoingByteLength, ...offer } = result.value;
+	const { outgoingBytesBase64, outgoingByteLength, ...outgoing } = result.value;
 	const outgoingBytes = outgoingBytesBase64
 		? base64ToArrayBuffer(outgoingBytesBase64, outgoingByteLength)
 		: null;
 	postMessage(
 		createEngineWorkerResponse(request, {
 			ok: true,
-			value: { ...offer, outgoingBytes },
+			value: { ...outgoing, outgoingBytes },
 			error: null
 		}),
 		outgoingBytes ? [outgoingBytes] : []
@@ -909,14 +909,14 @@ function postLinkTradePartnerPokemonResponse(
 		return;
 	}
 
-	const { entityBytesBase64, entityByteLength, ...received } = result.value;
+	const { entityBytesBase64, entityByteLength, ...partner } = result.value;
 	const entityBytes = entityBytesBase64
 		? base64ToArrayBuffer(entityBytesBase64, entityByteLength)
 		: null;
 	postMessage(
 		createEngineWorkerResponse(request, {
 			ok: true,
-			value: { ...received, entityBytes },
+			value: { ...partner, entityBytes },
 			error: null
 		}),
 		entityBytes ? [entityBytes] : []

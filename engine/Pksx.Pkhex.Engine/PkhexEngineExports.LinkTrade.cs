@@ -45,22 +45,22 @@ public static partial class PkhexEngineExports
     }
 
     [JSExport]
-    public static string ReadLinkTradePartnerPokemonJson(byte[] receivedBytes, string destinationGame)
+    public static string ReadLinkTradePartnerPokemonJson(byte[] partnerBytes, string destinationGame)
     {
         try
         {
             if (!LinkTradeDestinations.Contains(destinationGame))
                 return UnsupportedLinkTradeDestination(destinationGame);
 
-            var receivedSha256 = Sha256Hex(receivedBytes);
-            var reason = TryParseReceivedPK8(receivedBytes, out var pokemon);
+            var partnerSha256 = Sha256Hex(partnerBytes);
+            var reason = TryParsePartnerPK8(partnerBytes, out var pokemon);
             if (reason is not null)
             {
                 return EngineJson.Serialize(
                     EngineResult.Ok(new LinkTradePartnerPokemonResult(
                         destinationGame,
                         Parsed: false,
-                        receivedSha256,
+                        partnerSha256,
                         EntityBytesBase64: null,
                         EntityByteLength: 0,
                         EntityFormat: null,
@@ -75,7 +75,7 @@ public static partial class PkhexEngineExports
                 EngineResult.Ok(new LinkTradePartnerPokemonResult(
                     destinationGame,
                     true,
-                    receivedSha256,
+                    partnerSha256,
                     Convert.ToBase64String(entityBytes),
                     entityBytes.Length,
                     nameof(PK8),
@@ -95,28 +95,31 @@ public static partial class PkhexEngineExports
         PokemonPreservationPayload source,
         string sourceSha256)
     {
-        var native = source.Original.Pokemon is PK8 ? source.Original : source.Current;
+        // A non-PK8 original is converted from Current so Storage edits survive, like Project.
+        var original = source.Original.Pokemon;
+        var converted = original is not PK8;
+        var from = converted ? source.Current.Pokemon : original;
         var blocking = new List<LinkTradeBlockingReason>();
-        PK8 offer;
-        if (native.Pokemon is PK8 pk8)
+        PK8 outgoing;
+        if (from is PK8 pk8)
         {
-            offer = (PK8)pk8.Clone();
+            outgoing = (PK8)pk8.Clone();
         }
-        else if (EntityConverter.TryMakePKMCompatible(native.Pokemon, new PK8(), out var result, out var convertedPokemon)
+        else if (EntityConverter.TryMakePKMCompatible(from, new PK8(), out var result, out var convertedPokemon)
             && convertedPokemon is PK8 convertedPk8
             && source.Identity.Matches(convertedPk8))
         {
-            offer = convertedPk8;
-            offer.RefreshChecksum();
+            outgoing = convertedPk8;
+            outgoing.RefreshChecksum();
         }
         else
         {
             var detail = result == EntityConverterResult.Success
                 ? "The conversion would change the Pokemon's identity."
-                : result.GetDisplayString(native.Pokemon, typeof(PK8));
+                : result.GetDisplayString(from, typeof(PK8));
             blocking.Add(new LinkTradeBlockingReason(
                 "unsupported-conversion",
-                $"{native.Pokemon.GetType().Name} cannot become a Sword/Shield PK8. {detail}"));
+                $"{from.GetType().Name} cannot become a Sword/Shield PK8. {detail}"));
             return new OutgoingLinkTradeResult(
                 destinationGame,
                 Ready: false,
@@ -125,21 +128,19 @@ public static partial class PkhexEngineExports
                 OutgoingByteLength: 0,
                 sourceSha256,
                 OutgoingSha256: null,
-                Converted: false,
+                converted,
                 Changes: [],
                 Legality: null,
                 blocking,
                 Projection: null);
         }
 
-        AddSwordShieldTradeBlocks(offer, blocking);
+        AddSwordShieldTradeBlocks(outgoing, blocking);
         // Legality is reported for review but never blocks or gets fixed.
-        var legality = CreateLegalityReport(offer, StorageSlotType.Box);
-
-        var converted = native.Pokemon is not PK8;
-        var changes = converted ? DescribeLinkTradeConversion(native.Pokemon, offer) : [];
+        var legality = CreateLegalityReport(outgoing, StorageSlotType.Box);
+        var changes = converted ? DescribeLinkTradeConversion(original, outgoing) : [];
         var ready = blocking.Count == 0;
-        var outgoingBytes = ready ? EncryptedParty(offer) : null;
+        var outgoingBytes = ready ? EncryptedParty(outgoing) : null;
         return new OutgoingLinkTradeResult(
             destinationGame,
             ready,
@@ -152,23 +153,23 @@ public static partial class PkhexEngineExports
             changes,
             legality,
             blocking,
-            BoxSlotSummary.From(offer, BlankSaveForStoredPokemon(offer), 0, 0));
+            BoxSlotSummary.From(outgoing, BlankSaveForStoredPokemon(outgoing), 0, 0));
     }
 
-    private static void AddSwordShieldTradeBlocks(PK8 offer, List<LinkTradeBlockingReason> blocking)
+    private static void AddSwordShieldTradeBlocks(PK8 outgoing, List<LinkTradeBlockingReason> blocking)
     {
-        if (!PersonalTable.SWSH.IsPresentInGame(offer.Species, offer.Form))
+        if (!PersonalTable.SWSH.IsPresentInGame(outgoing.Species, outgoing.Form))
             blocking.Add(new LinkTradeBlockingReason(
                 "unavailable-in-game",
-                $"{SpeciesName(offer.Species)} in form {offer.Form} is not available in Sword/Shield."));
-        if (TradeRestrictions.IsUntradable(offer.Species, offer.Form, offer.FormArgument, offer.Format))
+                $"{SpeciesName(outgoing.Species)} in form {outgoing.Form} is not available in Sword/Shield."));
+        if (TradeRestrictions.IsUntradable(outgoing.Species, outgoing.Form, outgoing.FormArgument, outgoing.Format))
             blocking.Add(new LinkTradeBlockingReason(
                 "trade-restriction",
-                $"{SpeciesName(offer.Species)} cannot be traded in this form. Change its form in the game first."));
-        if (offer.HeldItem != 0 && !ItemRestrictions.IsHeldItemAllowed(offer.HeldItem, EntityContext.Gen8))
+                $"{SpeciesName(outgoing.Species)} cannot be traded in this form. Change its form in the game first."));
+        if (outgoing.HeldItem != 0 && !ItemRestrictions.IsHeldItemAllowed(outgoing.HeldItem, EntityContext.Gen8))
             blocking.Add(new LinkTradeBlockingReason(
                 "trade-restriction",
-                $"Sword/Shield cannot hold {GameInfo.Strings.Item[offer.HeldItem]}. Remove the Held Item first."));
+                $"Sword/Shield cannot hold {GameInfo.Strings.Item[outgoing.HeldItem]}. Remove the Held Item first."));
     }
 
     private static List<PokemonActionChange> DescribeLinkTradeConversion(PKM before, PK8 after)
@@ -181,17 +182,17 @@ public static partial class PkhexEngineExports
         return changes;
     }
 
-    private static string? TryParseReceivedPK8(byte[] receivedBytes, out PK8? pokemon)
+    private static string? TryParsePartnerPK8(byte[] partnerBytes, out PK8? pokemon)
     {
         pokemon = null;
-        if (receivedBytes.Length is not (0x148 or 0x158))
-            return $"Sword/Shield sends 328 or 344 bytes, not {receivedBytes.Length}.";
+        if (partnerBytes.Length is not (0x148 or 0x158))
+            return $"Sword/Shield sends 328 or 344 bytes, not {partnerBytes.Length}.";
 
-        var parsed = new PK8(receivedBytes.ToArray());
+        var parsed = new PK8(partnerBytes.ToArray());
         if (!parsed.Valid || parsed.Species == 0 || parsed.Species > parsed.MaxSpeciesID)
-            return "The received bytes are not a valid Sword/Shield Pokemon.";
+            return "The partner bytes are not a valid Sword/Shield Pokemon.";
         if (EntityFormat.GetFromBytes(parsed.Data[..parsed.SIZE_PARTY].ToArray()) is not PK8)
-            return "The received bytes do not identify as a Sword/Shield Pokemon.";
+            return "The partner bytes do not identify as a Sword/Shield Pokemon.";
 
         pokemon = parsed;
         return null;

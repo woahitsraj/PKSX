@@ -47,7 +47,7 @@ describe('Outgoing Link Trades through the browser-wasm bundle', () => {
 			const parsed = await engine.readLinkTradePartnerPokemon(received, 'sword');
 			if (!parsed.ok || !parsed.value.parsed) throw new Error('Expected the offer to parse.');
 			expect(parsed.value.entityFormat).toBe('PK8');
-			expect(parsed.value.receivedSha256).toBe(await sha256(received));
+			expect(parsed.value.partnerSha256).toBe(await sha256(received));
 			expect(parsed.value.entityBytes!.slice(0, received.byteLength)).toEqual(
 				sourceParty.slice(0, received.byteLength)
 			);
@@ -75,7 +75,7 @@ describe('Outgoing Link Trades through the browser-wasm bundle', () => {
 		const engine = await createPkhexEngine('/pkhex-engine');
 		const slots = await loadSlots(engine, scarletFixtureUrl, 'pokemon-scarlet-2025-03-24-main.sav');
 
-		const { offer } = await findOffer(engine, slots, (offer) => offer.ready);
+		const { source, offer } = await findOffer(engine, slots, (offer) => offer.ready);
 		expect(offer).toMatchObject({ entityFormat: 'PK8', converted: true, blockingReasons: [] });
 		expect(offer.changes).toContainEqual({ field: 'Format', before: 'PK9', after: 'PK8' });
 		expect(offer.legality?.warnings.map((line) => line.message)).toContain(
@@ -87,6 +87,21 @@ describe('Outgoing Link Trades through the browser-wasm bundle', () => {
 			parsed: true,
 			entityFormat: 'PK8',
 			projection: { speciesId: offer.projection!.speciesId }
+		});
+
+		const stored = await engine.createPreservationPayload(source);
+		if (!stored.ok) throw new Error('Expected the Scarlet preservation payload.');
+		const projected = await engine.projectPreservationPayload(stored.value.bytes, 8);
+		if (!projected.ok) throw new Error('Expected the PK8 projection.');
+		const fromStorage = await engine.prepareOutgoingLinkTrade(projected.value.bytes, {
+			destinationGame: 'sword',
+			sourceKind: 'preservation-payload'
+		});
+		expect(fromStorage.ok && fromStorage.value.converted).toBe(true);
+		expect(fromStorage.ok && fromStorage.value.changes).toContainEqual({
+			field: 'Format',
+			before: 'PK9',
+			after: 'PK8'
 		});
 
 		const scarletOnly = slots.find((slot) => slot.speciesId > 898)!;
@@ -157,7 +172,7 @@ describe('Outgoing Link Trades through the browser-wasm bundle', () => {
 			expect(parsed.ok && parsed.value).toMatchObject({
 				parsed: false,
 				entityBytes: null,
-				receivedSha256: await sha256(received),
+				partnerSha256: await sha256(received),
 				unparseableReason: expect.any(String)
 			});
 		}

@@ -927,7 +927,7 @@ export const outgoingLinkTradeSchema = z.object({
 export const linkTradePartnerPokemonSchema = z.object({
 	destinationGame: linkTradeDestinationGameSchema,
 	parsed: z.boolean(),
-	receivedSha256: z.string().min(1),
+	partnerSha256: z.string().min(1),
 	entityBytes: z.instanceof(ArrayBuffer).nullable(),
 	entityFormat: z.string().min(1).nullable(),
 	unparseableReason: z.string().min(1).nullable(),
@@ -1195,7 +1195,7 @@ export const engineWorkerPrepareOutgoingLinkTradeRequestSchema = z.object({
 	method: z.literal('prepareOutgoingLinkTrade'),
 	payload: z.object({
 		bytes: z.instanceof(ArrayBuffer),
-		destinationGame: z.string().min(1),
+		destinationGame: linkTradeDestinationGameSchema,
 		sourceKind: z.enum(['entity', 'preservation-payload'])
 	})
 });
@@ -1206,7 +1206,7 @@ export const engineWorkerReadLinkTradePartnerPokemonRequestSchema = z.object({
 	method: z.literal('readLinkTradePartnerPokemon'),
 	payload: z.object({
 		bytes: z.instanceof(ArrayBuffer),
-		destinationGame: z.string().min(1)
+		destinationGame: linkTradeDestinationGameSchema
 	})
 });
 

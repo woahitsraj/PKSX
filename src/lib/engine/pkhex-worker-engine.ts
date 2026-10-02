@@ -468,8 +468,8 @@ export function createPkhexWorkerEngine(
 				[buffer]
 			);
 		},
-		readLinkTradePartnerPokemon: (receivedBytes, destinationGame) => {
-			const buffer = copyBytesToArrayBuffer(receivedBytes);
+		readLinkTradePartnerPokemon: (partnerBytes, destinationGame) => {
+			const buffer = copyBytesToArrayBuffer(partnerBytes);
 			return sendRequest(
 				'readLinkTradePartnerPokemon',
 				{

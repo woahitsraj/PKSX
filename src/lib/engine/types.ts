@@ -714,7 +714,7 @@ export type OutgoingLinkTrade = {
 export type LinkTradePartnerPokemon = {
 	destinationGame: LinkTradeDestinationGame;
 	parsed: boolean;
-	receivedSha256: string;
+	partnerSha256: string;
 	entityBytes: Uint8Array | null;
 	entityFormat: string | null;
 	unparseableReason: string | null;
@@ -828,7 +828,7 @@ export type EngineApi = {
 		request: OutgoingLinkTradeRequest
 	): Promise<EngineResult<OutgoingLinkTrade>>;
 	readLinkTradePartnerPokemon(
-		receivedBytes: Uint8Array,
+		partnerBytes: Uint8Array,
 		destinationGame: LinkTradeDestinationGame
 	): Promise<EngineResult<LinkTradePartnerPokemon>>;
 };

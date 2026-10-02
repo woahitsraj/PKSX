@@ -1059,7 +1059,7 @@ public sealed record OutgoingLinkTradeResult(
 public sealed record LinkTradePartnerPokemonResult(
     string DestinationGame,
     bool Parsed,
-    string ReceivedSha256,
+    string PartnerSha256,
     string? EntityBytesBase64,
     int EntityByteLength,
     string? EntityFormat,
