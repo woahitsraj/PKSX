@@ -25,7 +25,9 @@ export const engineWorkerMethodSchema = z.enum([
 	'applyStoredPokemonAction',
 	'createPreservationPayload',
 	'readPreservationPayload',
-	'projectPreservationPayload'
+	'projectPreservationPayload',
+	'prepareLinkTradeOffer',
+	'readLinkTradeReceivedPokemon'
 ]);
 
 export const engineWorkerStatusSchema = z.enum(['idle', 'loading', 'ready', 'failed']);
@@ -53,6 +55,7 @@ export const engineErrorCodeSchema = z.enum([
 	'unknown-preservation-version',
 	'unsupported-preservation-payload',
 	'unsupported-preservation-projection',
+	'unsupported-link-trade-destination',
 	'engine-unavailable',
 	'invalid-engine-response',
 	'invalid-worker-message',
@@ -900,6 +903,49 @@ export const preservationPayloadResultSchema = engineResultSchema(preservationPa
 
 export const preservedPokemonResultSchema = engineResultSchema(preservedPokemonSchema);
 
+const linkTradeDestinationGameSchema = z.enum(['sword', 'shield']);
+
+export const linkTradeOfferSchema = z.object({
+	destinationGame: linkTradeDestinationGameSchema,
+	ready: z.boolean(),
+	entityFormat: z.string().min(1),
+	offerBytes: z.instanceof(ArrayBuffer).nullable(),
+	sourceSha256: z.string().min(1),
+	offerSha256: z.string().min(1).nullable(),
+	converted: z.boolean(),
+	changes: z.array(pokemonActionChangeSchema),
+	legality: legalityReportSchema.nullable(),
+	blockingReasons: z.array(
+		z.object({
+			kind: z.enum([
+				'unsupported-conversion',
+				'unavailable-in-game',
+				'trade-restriction',
+				'legality'
+			]),
+			message: z.string().min(1)
+		})
+	),
+	projection: boxSlotSummarySchema.nullable()
+});
+
+export const linkTradeReceivedPokemonSchema = z.object({
+	destinationGame: linkTradeDestinationGameSchema,
+	parsed: z.boolean(),
+	receivedSha256: z.string().min(1),
+	entityBytes: z.instanceof(ArrayBuffer).nullable(),
+	entityFormat: z.string().min(1).nullable(),
+	unparseableReason: z.string().min(1).nullable(),
+	legality: legalityReportSchema.nullable(),
+	projection: boxSlotSummarySchema.nullable()
+});
+
+export const linkTradeOfferResultSchema = engineResultSchema(linkTradeOfferSchema);
+
+export const linkTradeReceivedPokemonResultSchema = engineResultSchema(
+	linkTradeReceivedPokemonSchema
+);
+
 export const engineWorkerInitMessageSchema = z.object({
 	type: z.literal('init'),
 	basePath: z.string().min(1)
@@ -1148,6 +1194,27 @@ export const engineWorkerProjectPreservationPayloadRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerPrepareLinkTradeOfferRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('prepareLinkTradeOffer'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		destinationGame: z.string().min(1),
+		sourceKind: z.enum(['entity', 'preservation-payload'])
+	})
+});
+
+export const engineWorkerReadLinkTradeReceivedPokemonRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('readLinkTradeReceivedPokemon'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		destinationGame: z.string().min(1)
+	})
+});
+
 export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionRequestSchema,
 	engineWorkerSummarizeSaveRequestSchema,
@@ -1171,7 +1238,9 @@ export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerApplyStoredPokemonActionRequestSchema,
 	engineWorkerCreatePreservationPayloadRequestSchema,
 	engineWorkerReadPreservationPayloadRequestSchema,
-	engineWorkerProjectPreservationPayloadRequestSchema
+	engineWorkerProjectPreservationPayloadRequestSchema,
+	engineWorkerPrepareLinkTradeOfferRequestSchema,
+	engineWorkerReadLinkTradeReceivedPokemonRequestSchema
 ]);
 
 export const engineWorkerGetVersionResponseSchema = z.object({
@@ -1335,6 +1404,20 @@ export const engineWorkerProjectPreservationPayloadResponseSchema = z.object({
 	result: preservationPayloadResultSchema
 });
 
+export const engineWorkerPrepareLinkTradeOfferResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('prepareLinkTradeOffer'),
+	result: linkTradeOfferResultSchema
+});
+
+export const engineWorkerReadLinkTradeReceivedPokemonResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('readLinkTradeReceivedPokemon'),
+	result: linkTradeReceivedPokemonResultSchema
+});
+
 export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerGetVersionResponseSchema,
 	engineWorkerSummarizeSaveResponseSchema,
@@ -1358,7 +1441,9 @@ export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerApplyStoredPokemonActionResponseSchema,
 	engineWorkerCreatePreservationPayloadResponseSchema,
 	engineWorkerReadPreservationPayloadResponseSchema,
-	engineWorkerProjectPreservationPayloadResponseSchema
+	engineWorkerProjectPreservationPayloadResponseSchema,
+	engineWorkerPrepareLinkTradeOfferResponseSchema,
+	engineWorkerReadLinkTradeReceivedPokemonResponseSchema
 ]);
 
 export const engineWorkerProtocolErrorSchema = z.object({
@@ -1481,6 +1566,14 @@ export type EngineWorkerReadPreservationPayloadRequest = z.infer<
 
 export type EngineWorkerProjectPreservationPayloadRequest = z.infer<
 	typeof engineWorkerProjectPreservationPayloadRequestSchema
+>;
+
+export type EngineWorkerPrepareLinkTradeOfferRequest = z.infer<
+	typeof engineWorkerPrepareLinkTradeOfferRequestSchema
+>;
+
+export type EngineWorkerReadLinkTradeReceivedPokemonRequest = z.infer<
+	typeof engineWorkerReadLinkTradeReceivedPokemonRequestSchema
 >;
 
 export type EngineWorkerRequest = z.infer<typeof engineWorkerRequestSchema>;

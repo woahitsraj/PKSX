@@ -18,6 +18,8 @@ import type {
 	PreservationPayload,
 	PreservationPayloadSummary,
 	PreservedPokemon,
+	LinkTradeOffer,
+	LinkTradeReceivedPokemon,
 	PokemonSpeciesFormEditProjection,
 	SaveFileEditOperation,
 	SaveFileEditOperationResult,
@@ -114,6 +116,8 @@ type DotnetPkhexEngineExports = {
 	CreatePreservationPayloadJson(entityBytes: Uint8Array): string;
 	ReadPreservationPayloadJson(payloadBytes: Uint8Array): string;
 	ProjectPreservationPayloadJson(payloadBytes: Uint8Array, targetFormat: number): string;
+	PrepareLinkTradeOfferJson(sourceBytes: Uint8Array, requestJson: string): string;
+	ReadLinkTradeReceivedPokemonJson(receivedBytes: Uint8Array, destinationGame: string): string;
 };
 
 const knownEngineErrorCodes = new Set<EngineErrorCode>([
@@ -139,6 +143,7 @@ const knownEngineErrorCodes = new Set<EngineErrorCode>([
 	'unknown-preservation-version',
 	'unsupported-preservation-payload',
 	'unsupported-preservation-projection',
+	'unsupported-link-trade-destination',
 	'engine-unavailable',
 	'invalid-engine-response',
 	'invalid-worker-message',
@@ -342,7 +347,37 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 				parseEngineResult<RawPreservationPayloadResult>(
 					engine.ProjectPreservationPayloadJson(payloadBytes, targetFormat)
 				)
-			)
+			),
+		prepareLinkTradeOffer: async (sourceBytes, request) => {
+			const result = parseEngineResult<RawLinkTradeOfferResult>(
+				engine.PrepareLinkTradeOfferJson(sourceBytes, JSON.stringify(request))
+			);
+			if (!result.ok) return result;
+			const { offerBytesBase64, offerByteLength, ...offer } = result.value;
+			return {
+				ok: true,
+				value: {
+					...offer,
+					offerBytes: offerBytesBase64 ? base64ToBytes(offerBytesBase64, offerByteLength) : null
+				},
+				error: null
+			};
+		},
+		readLinkTradeReceivedPokemon: async (receivedBytes, destinationGame) => {
+			const result = parseEngineResult<RawLinkTradeReceivedPokemonResult>(
+				engine.ReadLinkTradeReceivedPokemonJson(receivedBytes, destinationGame)
+			);
+			if (!result.ok) return result;
+			const { entityBytesBase64, entityByteLength, ...received } = result.value;
+			return {
+				ok: true,
+				value: {
+					...received,
+					entityBytes: entityBytesBase64 ? base64ToBytes(entityBytesBase64, entityByteLength) : null
+				},
+				error: null
+			};
+		}
 	};
 }
 
@@ -395,6 +430,14 @@ type RawPreservationPayloadResult = {
 	payloadBytesBase64: string;
 	payloadByteLength: number;
 	summary: PreservationPayloadSummary;
+};
+type RawLinkTradeOfferResult = Omit<LinkTradeOffer, 'offerBytes'> & {
+	offerBytesBase64: string | null;
+	offerByteLength: number;
+};
+type RawLinkTradeReceivedPokemonResult = Omit<LinkTradeReceivedPokemon, 'entityBytes'> & {
+	entityBytesBase64: string | null;
+	entityByteLength: number;
 };
 type RawPreservedPokemonResult = {
 	entityBytesBase64: string;

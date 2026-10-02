@@ -575,6 +575,8 @@ export function createMockEngine(
 				bytes: copyBytes(payloadBytes),
 				summary: mockPreservationSummary()
 			}),
+		prepareLinkTradeOffer: async () => linkTradeUnavailable(),
+		readLinkTradeReceivedPokemon: async () => linkTradeUnavailable(),
 		...overrides
 	};
 }
@@ -634,6 +636,14 @@ function mockPokemonActionPreview(): PokemonActionPreview {
 				fixes: []
 			}
 		]
+	};
+}
+
+function linkTradeUnavailable(): EngineResult<never> {
+	return {
+		ok: false,
+		value: null,
+		error: { code: 'engine-unavailable', message: 'Link Trade needs the PKHeX Engine.' }
 	};
 }
 

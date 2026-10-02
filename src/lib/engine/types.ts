@@ -21,6 +21,7 @@ export type EngineErrorCode =
 	| 'unknown-preservation-version'
 	| 'unsupported-preservation-payload'
 	| 'unsupported-preservation-projection'
+	| 'unsupported-link-trade-destination'
 	| 'engine-unavailable'
 	| 'invalid-engine-response'
 	| 'invalid-worker-message'
@@ -682,6 +683,45 @@ export type PreservedPokemon = {
 	projection: BoxSlotSummary;
 };
 
+export type LinkTradeDestinationGame = 'sword' | 'shield';
+
+export type LinkTradeOfferSourceKind = 'entity' | 'preservation-payload';
+
+export type LinkTradeOfferRequest = {
+	destinationGame: LinkTradeDestinationGame;
+	sourceKind: LinkTradeOfferSourceKind;
+};
+
+export type LinkTradeBlockingReason = {
+	kind: 'unsupported-conversion' | 'unavailable-in-game' | 'trade-restriction' | 'legality';
+	message: string;
+};
+
+export type LinkTradeOffer = {
+	destinationGame: LinkTradeDestinationGame;
+	ready: boolean;
+	entityFormat: string;
+	offerBytes: Uint8Array | null;
+	sourceSha256: string;
+	offerSha256: string | null;
+	converted: boolean;
+	changes: PokemonActionChange[];
+	legality: LegalityReport | null;
+	blockingReasons: LinkTradeBlockingReason[];
+	projection: BoxSlotSummary | null;
+};
+
+export type LinkTradeReceivedPokemon = {
+	destinationGame: LinkTradeDestinationGame;
+	parsed: boolean;
+	receivedSha256: string;
+	entityBytes: Uint8Array | null;
+	entityFormat: string | null;
+	unparseableReason: string | null;
+	legality: LegalityReport | null;
+	projection: BoxSlotSummary | null;
+};
+
 export type EngineApi = {
 	getVersion(): Promise<EngineResult<EngineVersion>>;
 	summarizeSave(bytes: Uint8Array, fileName?: string): Promise<EngineResult<SaveSummary>>;
@@ -783,4 +823,12 @@ export type EngineApi = {
 		payloadBytes: Uint8Array,
 		targetFormat: number
 	): Promise<EngineResult<PreservationPayload>>;
+	prepareLinkTradeOffer(
+		sourceBytes: Uint8Array,
+		request: LinkTradeOfferRequest
+	): Promise<EngineResult<LinkTradeOffer>>;
+	readLinkTradeReceivedPokemon(
+		receivedBytes: Uint8Array,
+		destinationGame: LinkTradeDestinationGame
+	): Promise<EngineResult<LinkTradeReceivedPokemon>>;
 };
