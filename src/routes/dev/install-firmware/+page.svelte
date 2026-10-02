@@ -10,6 +10,7 @@
 	let port = $state.raw<RadioPort | null>(null);
 	let overwrite = $state(false);
 	let result = $state('');
+	let lastPort = $state.raw<RadioPort | null>(null);
 
 	onMount(() => {
 		worker = new Worker(
@@ -31,6 +32,21 @@
 		).serial;
 		if (!serial) return void (result = 'This browser has no Web Serial.');
 		port = { kind: 'web-serial', ...(await serial.requestPort()).getInfo() };
+		lastPort = port;
+	}
+
+	/** Runs the connect-radio checks alone and shows the raw response. */
+	function checkBoard() {
+		const requestId = `check-${Date.now()}`;
+		result = 'Checking...';
+		const listen = (event: MessageEvent) => {
+			if (event.data?.requestId !== requestId) return;
+			worker!.removeEventListener('message', listen);
+			result = JSON.stringify(event.data.ok ? event.data.result : event.data.error);
+			worker!.postMessage({ type: 'disconnect-radio', requestId: `${requestId}-off` });
+		};
+		worker!.addEventListener('message', listen);
+		worker!.postMessage({ type: 'connect-radio', requestId, port: lastPort });
 	}
 
 	function done(board: Board) {
@@ -44,13 +60,20 @@
 	{#if port}
 		<InstallFirmware
 			{overwrite}
-			install={(onProgress) => installFirmware(worker!, port!, onProgress)}
+			install={async (onProgress) => {
+				const outcome = await installFirmware(worker!, port!, onProgress);
+				result = JSON.stringify(outcome.ok ? outcome.board : outcome.error);
+				return outcome;
+			}}
 			onDone={done}
 			onCancel={() => (port = null)}
 		/>
 	{:else}
 		<label><input type="checkbox" bind:checked={overwrite} /> The board has firmware</label>
 		<button type="button" onclick={chooseBoard}>Choose a real board</button>
+		{#if lastPort}
+			<button type="button" onclick={checkBoard}>Check the board again</button>
+		{/if}
 		{#each fakeFlashes as flash (flash)}
 			<button
 				type="button"
@@ -58,8 +81,8 @@
 				>Simulated board: {flash}</button
 			>
 		{/each}
-		<p>{result}</p>
 	{/if}
+	<p>{result}</p>
 </main>
 
 <style>

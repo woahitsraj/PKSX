@@ -24,13 +24,17 @@ export async function openEsptoolBootloader(port: WebSerialPortLike): Promise<Bo
 			);
 		}
 		const message = error instanceof Error ? error.message : String(error);
-		if (!message.includes('Failed to connect')) {
-			throw new FirmwareError('unsupported-chip', `the board is not supported (${message})`);
+		if (message.includes('Failed to connect')) {
+			throw new FirmwareError(
+				'bootloader-not-entered',
+				'the board did not enter its bootloader; hold the BOOT button and try again'
+			);
 		}
-		throw new FirmwareError(
-			'bootloader-not-entered',
-			'the board did not enter its bootloader; hold the BOOT button and try again'
-		);
+		// esptool-js leaves `chip` unset when it does not know the chip.
+		if (!loader.chip) {
+			throw new FirmwareError('unsupported-chip', 'the board is not a supported ESP32');
+		}
+		throw new FirmwareError('internal-error', `the installer did not start (${message})`);
 	}
 	return {
 		chip: loader.chip.CHIP_NAME,
@@ -47,10 +51,16 @@ export async function openEsptoolBootloader(port: WebSerialPortLike): Promise<Bo
 				calculateMD5Hash: (data) => SparkMD5.ArrayBuffer.hash(new Uint8Array(data).buffer)
 			}),
 		close: async () => {
-			// esptool-js only releases RTS; assert it first so EN gets a pulse, as esptool.py does.
-			await transport.setRTS(true).catch(() => undefined);
-			await loader.after('hard_reset').catch(() => undefined);
-			await transport.disconnect().catch(() => undefined);
+			// esptool.py's hard reset: pulse EN through RTS with IO0 released. esptool-js `after()`
+			// only releases RTS, and it queries the chip first, which fails while EN is held low.
+			try {
+				await transport.setDTR(false);
+				await transport.setRTS(true);
+				await new Promise((resolve) => setTimeout(resolve, 100));
+				await transport.setRTS(false);
+			} finally {
+				await transport.disconnect().catch(() => undefined);
+			}
 		}
 	};
 }
