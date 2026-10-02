@@ -490,6 +490,23 @@ _Avoid_: setting, option, config
 - A **Storage Box** contains zero or more **Slots**.
 - A **Slot** in **Pokemon Storage** is identified by its Storage Box ID and slot index; it is not a **Sync Object**.
 - A **Pokemon Storage**-owned **Pokemon Entity** is a **Sync Object** identified by the Record ID in its **Preservation Payload**.
+- A **Pokemon Storage**-owned **Pokemon Entity** carries its own placement, the Storage Box ID and slot index of its **Slot**; a **Storage Box** does not list its contents.
+- Moving a **Pokemon Entity** within **Pokemon Storage** changes only that entity's **Sync Object**, so moves of different entities never conflict.
+- When **Cloud Sync** leaves two **Pokemon Entities** with the same **Pokemon Storage** placement, the lowest **Record ID** keeps the **Slot** and PKSX shows the other in the nearest empty **Slot**; this is not a conflict and needs no **Conflict Resolution**.
+- PKSX derives a displaced entity's shown **Slot** the same way on every device and records a new placement only when the user moves that entity.
+- The **Pokemon Storage** capacity limit applies to user actions on one device; **Cloud Sync** may exceed it and never drops a **Pokemon Entity** to satisfy it.
+- PKSX shows each **Pokemon Entity** that has no empty **Slot** in a derived overflow area after the last **Storage Box**, ordered by **Record ID**; the overflow area is not a **Storage Box** or a **Sync Object**.
+- PKSX refuses new additions to **Pokemon Storage** while the overflow area holds a **Pokemon Entity**.
+- When one competing head of a **Pokemon Storage**-owned **Pokemon Entity** changed only its placement and the other changed only its content, PKSX creates a descendant of both with the new placement and the new content; this is the only automatic merge of differing **Pokemon Storage** content.
+- Competing content edits of one **Pokemon Entity**, and competing moves of it to different **Slots**, are conflicts that need **Conflict Resolution**.
+- A **Deletion Marker** for a **Pokemon Storage**-owned **Pokemon Entity** records why it left: the user cleared it, or moved it into a named **Save File**.
+- That **Deletion Marker** supersedes a competing head that changed only placement without a prompt; a competing content edit is a conflict that needs **Conflict Resolution**.
+- Keeping an edited **Pokemon Entity** in **Pokemon Storage** after another device moved it into a **Save File** is a user-chosen copy, not a duplicate.
+- Moving a **Pokemon Entity** between a **Save File** and **Pokemon Storage** is one coherent change; its **Workspace** revision and its **Pokemon Storage** change enter **Shared Sync State** only together.
+- While that **Workspace** is in conflict, the **Pokemon Storage** change belongs to its **Workspace** head and becomes a **Conflict Recovery** with it when another head is selected.
+- A **Storage Box** revision carries only the box name; the **Pokemon Storage** root revision carries the order of its **Storage Boxes**.
+- A user may delete a **Storage Box** only when it is empty on that device; deleting a **Storage Box** never deletes a **Pokemon Entity**.
+- A **Pokemon Entity** whose placement names a deleted or unknown **Storage Box** is displaced like an entity that lost its **Slot**.
 - A **Record ID** identifies a live **Preservation Payload**, not a **Pokemon Entity** after it enters **Save File** bytes.
 - Moving a **Pokemon Entity** within **Pokemon Storage** preserves its **Record ID**.
 - Copying a **Pokemon Entity** within **Pokemon Storage** creates a new **Record ID** and preserves its **Pokemon Origin**.
