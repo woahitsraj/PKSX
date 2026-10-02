@@ -350,6 +350,9 @@ export function catalogContract(
 			const record = await service.add(bytes(4), origin, { storageBoxId: second.id, slot: 0 });
 			await expect(service.removeBox(second.id)).rejects.toThrow();
 			await service.place(record.recordId, null);
+			const view = await catalogLegacyView(service, fakeEngine());
+			expect(view.boxes[1].slots[0].pokemon).toBeNull();
+			expect(service.getRecord(record.recordId)?.placement).toBeNull();
 			await service.removeBox(second.id);
 			expect(service.listBoxes()).toHaveLength(1);
 		});
