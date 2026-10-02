@@ -13,8 +13,8 @@ import type {
 	PokemonSpeciesFormEditProjection,
 	PreservationPayload,
 	PreservedPokemon,
-	LinkTradeOffer,
-	LinkTradeReceivedPokemon,
+	OutgoingLinkTrade,
+	LinkTradePartnerPokemon,
 	SaveFileEditOperationResult,
 	SaveFileInventoryCatalogue,
 	SaveWorkspace,
@@ -455,27 +455,27 @@ export function createPkhexWorkerEngine(
 				[buffer]
 			);
 		},
-		prepareLinkTradeOffer: (sourceBytes, request) => {
+		prepareOutgoingLinkTrade: (sourceBytes, request) => {
 			const buffer = copyBytesToArrayBuffer(sourceBytes);
 			return sendRequest(
-				'prepareLinkTradeOffer',
+				'prepareOutgoingLinkTrade',
 				{
 					type: 'request',
 					id: createRequestId(),
-					method: 'prepareLinkTradeOffer',
+					method: 'prepareOutgoingLinkTrade',
 					payload: { bytes: buffer, ...request }
 				},
 				[buffer]
 			);
 		},
-		readLinkTradeReceivedPokemon: (receivedBytes, destinationGame) => {
+		readLinkTradePartnerPokemon: (receivedBytes, destinationGame) => {
 			const buffer = copyBytesToArrayBuffer(receivedBytes);
 			return sendRequest(
-				'readLinkTradeReceivedPokemon',
+				'readLinkTradePartnerPokemon',
 				{
 					type: 'request',
 					id: createRequestId(),
-					method: 'readLinkTradeReceivedPokemon',
+					method: 'readLinkTradePartnerPokemon',
 					payload: { bytes: buffer, destinationGame }
 				},
 				[buffer]
@@ -593,15 +593,15 @@ export function createPkhexWorkerEngine(
 		transfer: Transferable[]
 	): Promise<EngineResult<PreservationPayload>>;
 	async function sendRequest(
-		method: 'prepareLinkTradeOffer',
-		request: Extract<EngineWorkerRequest, { method: 'prepareLinkTradeOffer' }>,
+		method: 'prepareOutgoingLinkTrade',
+		request: Extract<EngineWorkerRequest, { method: 'prepareOutgoingLinkTrade' }>,
 		transfer: Transferable[]
-	): Promise<EngineResult<LinkTradeOffer>>;
+	): Promise<EngineResult<OutgoingLinkTrade>>;
 	async function sendRequest(
-		method: 'readLinkTradeReceivedPokemon',
-		request: Extract<EngineWorkerRequest, { method: 'readLinkTradeReceivedPokemon' }>,
+		method: 'readLinkTradePartnerPokemon',
+		request: Extract<EngineWorkerRequest, { method: 'readLinkTradePartnerPokemon' }>,
 		transfer: Transferable[]
-	): Promise<EngineResult<LinkTradeReceivedPokemon>>;
+	): Promise<EngineResult<LinkTradePartnerPokemon>>;
 	async function sendRequest(
 		method: EngineWorkerMethod,
 		request: EngineWorkerRequest = { type: 'request', id: createRequestId(), method: 'getVersion' },
@@ -673,23 +673,26 @@ function normalizeWorkerResult(response: EngineWorkerResponse): EngineResult<unk
 			response.method !== 'createPreservationPayload' &&
 			response.method !== 'readPreservationPayload' &&
 			response.method !== 'projectPreservationPayload' &&
-			response.method !== 'prepareLinkTradeOffer' &&
-			response.method !== 'readLinkTradeReceivedPokemon') ||
+			response.method !== 'prepareOutgoingLinkTrade' &&
+			response.method !== 'readLinkTradePartnerPokemon') ||
 		!response.result.ok
 	) {
 		return response.result;
 	}
 
-	if (response.method === 'prepareLinkTradeOffer') {
-		const { offerBytes } = response.result.value;
+	if (response.method === 'prepareOutgoingLinkTrade') {
+		const { outgoingBytes } = response.result.value;
 		return {
 			ok: true,
-			value: { ...response.result.value, offerBytes: offerBytes && new Uint8Array(offerBytes) },
+			value: {
+				...response.result.value,
+				outgoingBytes: outgoingBytes && new Uint8Array(outgoingBytes)
+			},
 			error: null
 		};
 	}
 
-	if (response.method === 'readLinkTradeReceivedPokemon') {
+	if (response.method === 'readLinkTradePartnerPokemon') {
 		const { entityBytes } = response.result.value;
 		return {
 			ok: true,

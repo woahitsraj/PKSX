@@ -685,11 +685,11 @@ export type PreservedPokemon = {
 
 export type LinkTradeDestinationGame = 'sword' | 'shield';
 
-export type LinkTradeOfferSourceKind = 'entity' | 'preservation-payload';
+export type OutgoingLinkTradeSourceKind = 'entity' | 'preservation-payload';
 
-export type LinkTradeOfferRequest = {
+export type OutgoingLinkTradeRequest = {
 	destinationGame: LinkTradeDestinationGame;
-	sourceKind: LinkTradeOfferSourceKind;
+	sourceKind: OutgoingLinkTradeSourceKind;
 };
 
 export type LinkTradeBlockingReason = {
@@ -697,13 +697,13 @@ export type LinkTradeBlockingReason = {
 	message: string;
 };
 
-export type LinkTradeOffer = {
+export type OutgoingLinkTrade = {
 	destinationGame: LinkTradeDestinationGame;
 	ready: boolean;
 	entityFormat: string;
-	offerBytes: Uint8Array | null;
+	outgoingBytes: Uint8Array | null;
 	sourceSha256: string;
-	offerSha256: string | null;
+	outgoingSha256: string | null;
 	converted: boolean;
 	changes: PokemonActionChange[];
 	legality: LegalityReport | null;
@@ -711,7 +711,7 @@ export type LinkTradeOffer = {
 	projection: BoxSlotSummary | null;
 };
 
-export type LinkTradeReceivedPokemon = {
+export type LinkTradePartnerPokemon = {
 	destinationGame: LinkTradeDestinationGame;
 	parsed: boolean;
 	receivedSha256: string;
@@ -823,12 +823,12 @@ export type EngineApi = {
 		payloadBytes: Uint8Array,
 		targetFormat: number
 	): Promise<EngineResult<PreservationPayload>>;
-	prepareLinkTradeOffer(
+	prepareOutgoingLinkTrade(
 		sourceBytes: Uint8Array,
-		request: LinkTradeOfferRequest
-	): Promise<EngineResult<LinkTradeOffer>>;
-	readLinkTradeReceivedPokemon(
+		request: OutgoingLinkTradeRequest
+	): Promise<EngineResult<OutgoingLinkTrade>>;
+	readLinkTradePartnerPokemon(
 		receivedBytes: Uint8Array,
 		destinationGame: LinkTradeDestinationGame
-	): Promise<EngineResult<LinkTradeReceivedPokemon>>;
+	): Promise<EngineResult<LinkTradePartnerPokemon>>;
 };

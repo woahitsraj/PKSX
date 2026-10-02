@@ -575,8 +575,8 @@ export function createMockEngine(
 				bytes: copyBytes(payloadBytes),
 				summary: mockPreservationSummary()
 			}),
-		prepareLinkTradeOffer: async () => linkTradeUnavailable(),
-		readLinkTradeReceivedPokemon: async () => linkTradeUnavailable(),
+		prepareOutgoingLinkTrade: async () => linkTradeUnavailable(),
+		readLinkTradePartnerPokemon: async () => linkTradeUnavailable(),
 		...overrides
 	};
 }

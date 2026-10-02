@@ -10,13 +10,13 @@ public static partial class PkhexEngineExports
     private static readonly HashSet<string> LinkTradeDestinations = new(StringComparer.Ordinal) { "sword", "shield" };
 
     [JSExport]
-    public static string PrepareLinkTradeOfferJson(byte[] sourceBytes, string requestJson)
+    public static string PrepareOutgoingLinkTradeJson(byte[] sourceBytes, string requestJson)
     {
         try
         {
             var request = System.Text.Json.JsonSerializer.Deserialize(
                 requestJson,
-                EngineJsonContext.Default.LinkTradeOfferRequest);
+                EngineJsonContext.Default.OutgoingLinkTradeRequest);
             if (request is null || !LinkTradeDestinations.Contains(request.DestinationGame))
                 return UnsupportedLinkTradeDestination(request?.DestinationGame);
 
@@ -31,8 +31,8 @@ public static partial class PkhexEngineExports
             };
 
             return EngineJson.Serialize(
-                EngineResult.Ok(PrepareSwordShieldOffer(request.DestinationGame, source, sourceSha256)),
-                EngineJsonContext.Default.EngineResultLinkTradeOfferResult);
+                EngineResult.Ok(PrepareSwordShieldOutgoing(request.DestinationGame, source, sourceSha256)),
+                EngineJsonContext.Default.EngineResultOutgoingLinkTradeResult);
         }
         catch (PokemonPreservationException ex)
         {
@@ -45,7 +45,7 @@ public static partial class PkhexEngineExports
     }
 
     [JSExport]
-    public static string ReadLinkTradeReceivedPokemonJson(byte[] receivedBytes, string destinationGame)
+    public static string ReadLinkTradePartnerPokemonJson(byte[] receivedBytes, string destinationGame)
     {
         try
         {
@@ -57,14 +57,22 @@ public static partial class PkhexEngineExports
             if (reason is not null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Ok(new LinkTradeReceivedPokemonResult(
-                        destinationGame, false, receivedSha256, null, 0, null, reason, null, null)),
-                    EngineJsonContext.Default.EngineResultLinkTradeReceivedPokemonResult);
+                    EngineResult.Ok(new LinkTradePartnerPokemonResult(
+                        destinationGame,
+                        Parsed: false,
+                        receivedSha256,
+                        EntityBytesBase64: null,
+                        EntityByteLength: 0,
+                        EntityFormat: null,
+                        UnparseableReason: reason,
+                        Legality: null,
+                        Projection: null)),
+                    EngineJsonContext.Default.EngineResultLinkTradePartnerPokemonResult);
             }
 
             var entityBytes = pokemon!.Data[..pokemon.SIZE_PARTY].ToArray();
             return EngineJson.Serialize(
-                EngineResult.Ok(new LinkTradeReceivedPokemonResult(
+                EngineResult.Ok(new LinkTradePartnerPokemonResult(
                     destinationGame,
                     true,
                     receivedSha256,
@@ -74,7 +82,7 @@ public static partial class PkhexEngineExports
                     null,
                     CreateLegalityReport(pokemon, StorageSlotType.Box),
                     BoxSlotSummary.From(pokemon, BlankSaveForStoredPokemon(pokemon), 0, 0))),
-                EngineJsonContext.Default.EngineResultLinkTradeReceivedPokemonResult);
+                EngineJsonContext.Default.EngineResultLinkTradePartnerPokemonResult);
         }
         catch (Exception ex)
         {
@@ -82,7 +90,7 @@ public static partial class PkhexEngineExports
         }
     }
 
-    private static LinkTradeOfferResult PrepareSwordShieldOffer(
+    private static OutgoingLinkTradeResult PrepareSwordShieldOutgoing(
         string destinationGame,
         PokemonPreservationPayload source,
         string sourceSha256)
@@ -109,8 +117,19 @@ public static partial class PkhexEngineExports
             blocking.Add(new LinkTradeBlockingReason(
                 "unsupported-conversion",
                 $"{native.Pokemon.GetType().Name} cannot become a Sword/Shield PK8. {detail}"));
-            return new LinkTradeOfferResult(
-                destinationGame, false, nameof(PK8), null, 0, sourceSha256, null, false, [], null, blocking, null);
+            return new OutgoingLinkTradeResult(
+                destinationGame,
+                Ready: false,
+                nameof(PK8),
+                OutgoingBytesBase64: null,
+                OutgoingByteLength: 0,
+                sourceSha256,
+                OutgoingSha256: null,
+                Converted: false,
+                Changes: [],
+                Legality: null,
+                blocking,
+                Projection: null);
         }
 
         AddSwordShieldTradeBlocks(offer, blocking);
@@ -123,15 +142,15 @@ public static partial class PkhexEngineExports
         var converted = native.Pokemon is not PK8;
         var changes = converted ? DescribeLinkTradeConversion(native.Pokemon, offer) : [];
         var ready = blocking.Count == 0;
-        var offerBytes = ready ? EncryptedParty(offer) : null;
-        return new LinkTradeOfferResult(
+        var outgoingBytes = ready ? EncryptedParty(offer) : null;
+        return new OutgoingLinkTradeResult(
             destinationGame,
             ready,
             nameof(PK8),
-            offerBytes is null ? null : Convert.ToBase64String(offerBytes),
-            offerBytes?.Length ?? 0,
+            outgoingBytes is null ? null : Convert.ToBase64String(outgoingBytes),
+            outgoingBytes?.Length ?? 0,
             sourceSha256,
-            offerBytes is null ? null : Sha256Hex(offerBytes),
+            outgoingBytes is null ? null : Sha256Hex(outgoingBytes),
             converted,
             changes,
             legality,

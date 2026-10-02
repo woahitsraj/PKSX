@@ -13,8 +13,8 @@ import type {
 	PreservationPayload,
 	PreservationPayloadSummary,
 	PreservedPokemon,
-	LinkTradeOffer,
-	LinkTradeReceivedPokemon,
+	OutgoingLinkTrade,
+	LinkTradePartnerPokemon,
 	SaveFileEditOperationResult,
 	SaveFileInventoryCatalogue,
 	SaveSummary,
@@ -47,8 +47,8 @@ import {
 	type EngineWorkerCreatePreservationPayloadRequest,
 	type EngineWorkerReadPreservationPayloadRequest,
 	type EngineWorkerProjectPreservationPayloadRequest,
-	type EngineWorkerPrepareLinkTradeOfferRequest,
-	type EngineWorkerReadLinkTradeReceivedPokemonRequest,
+	type EngineWorkerPrepareOutgoingLinkTradeRequest,
+	type EngineWorkerReadLinkTradePartnerPokemonRequest,
 	type EngineWorkerLoadSaveWorkspaceRequest,
 	type EngineWorkerListBoxSlotsRequest,
 	type EngineWorkerMessage,
@@ -123,8 +123,8 @@ export type DotnetPkhexEngineExports = {
 	CreatePreservationPayloadJson(entityBytes: Uint8Array): string;
 	ReadPreservationPayloadJson(payloadBytes: Uint8Array): string;
 	ProjectPreservationPayloadJson(payloadBytes: Uint8Array, targetFormat: number): string;
-	PrepareLinkTradeOfferJson(sourceBytes: Uint8Array, requestJson: string): string;
-	ReadLinkTradeReceivedPokemonJson(receivedBytes: Uint8Array, destinationGame: string): string;
+	PrepareOutgoingLinkTradeJson(sourceBytes: Uint8Array, requestJson: string): string;
+	ReadLinkTradePartnerPokemonJson(receivedBytes: Uint8Array, destinationGame: string): string;
 };
 
 type RawSlotOperationResult = Omit<SlotOperationResult, 'bytes'> & {
@@ -156,11 +156,11 @@ type RawPreservationPayloadResult = {
 	payloadByteLength: number;
 	summary: PreservationPayloadSummary;
 };
-type RawLinkTradeOfferResult = Omit<LinkTradeOffer, 'offerBytes'> & {
-	offerBytesBase64: string | null;
-	offerByteLength: number;
+type RawOutgoingLinkTradeResult = Omit<OutgoingLinkTrade, 'outgoingBytes'> & {
+	outgoingBytesBase64: string | null;
+	outgoingByteLength: number;
 };
-type RawLinkTradeReceivedPokemonResult = Omit<LinkTradeReceivedPokemon, 'entityBytes'> & {
+type RawLinkTradePartnerPokemonResult = Omit<LinkTradePartnerPokemon, 'entityBytes'> & {
 	entityBytesBase64: string | null;
 	entityByteLength: number;
 };
@@ -356,15 +356,19 @@ export function createPkhexEngineWorkerRuntime({
 					projectPreservationPayload(engine, request)
 				);
 				return;
-			case 'prepareLinkTradeOffer':
-				postLinkTradeOfferResponse(postMessage, request, prepareLinkTradeOffer(engine, request));
-				return;
-			case 'readLinkTradeReceivedPokemon':
-				postLinkTradeReceivedPokemonResponse(
+			case 'prepareOutgoingLinkTrade':
+				postOutgoingLinkTradeResponse(
 					postMessage,
 					request,
-					parseEngineResult<RawLinkTradeReceivedPokemonResult>(
-						engine.ReadLinkTradeReceivedPokemonJson(
+					prepareOutgoingLinkTrade(engine, request)
+				);
+				return;
+			case 'readLinkTradePartnerPokemon':
+				postLinkTradePartnerPokemonResponse(
+					postMessage,
+					request,
+					parseEngineResult<RawLinkTradePartnerPokemonResult>(
+						engine.ReadLinkTradePartnerPokemonJson(
 							new Uint8Array(request.payload.bytes),
 							request.payload.destinationGame
 						)
@@ -861,40 +865,44 @@ function postPokemonActionResponse(
 	postMessage(response, [bytes]);
 }
 
-function prepareLinkTradeOffer(
+function prepareOutgoingLinkTrade(
 	engine: DotnetPkhexEngineExports,
-	request: EngineWorkerPrepareLinkTradeOfferRequest
-): EngineResult<RawLinkTradeOfferResult> {
+	request: EngineWorkerPrepareOutgoingLinkTradeRequest
+): EngineResult<RawOutgoingLinkTradeResult> {
 	const { bytes, ...offerRequest } = request.payload;
-	return parseEngineResult<RawLinkTradeOfferResult>(
-		engine.PrepareLinkTradeOfferJson(new Uint8Array(bytes), JSON.stringify(offerRequest))
+	return parseEngineResult<RawOutgoingLinkTradeResult>(
+		engine.PrepareOutgoingLinkTradeJson(new Uint8Array(bytes), JSON.stringify(offerRequest))
 	);
 }
 
-function postLinkTradeOfferResponse(
+function postOutgoingLinkTradeResponse(
 	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
-	request: EngineWorkerPrepareLinkTradeOfferRequest,
-	result: EngineResult<RawLinkTradeOfferResult>
+	request: EngineWorkerPrepareOutgoingLinkTradeRequest,
+	result: EngineResult<RawOutgoingLinkTradeResult>
 ) {
 	if (!result.ok) {
 		postMessage(createEngineWorkerResponse(request, result));
 		return;
 	}
 
-	const { offerBytesBase64, offerByteLength, ...offer } = result.value;
-	const offerBytes = offerBytesBase64
-		? base64ToArrayBuffer(offerBytesBase64, offerByteLength)
+	const { outgoingBytesBase64, outgoingByteLength, ...offer } = result.value;
+	const outgoingBytes = outgoingBytesBase64
+		? base64ToArrayBuffer(outgoingBytesBase64, outgoingByteLength)
 		: null;
 	postMessage(
-		createEngineWorkerResponse(request, { ok: true, value: { ...offer, offerBytes }, error: null }),
-		offerBytes ? [offerBytes] : []
+		createEngineWorkerResponse(request, {
+			ok: true,
+			value: { ...offer, outgoingBytes },
+			error: null
+		}),
+		outgoingBytes ? [outgoingBytes] : []
 	);
 }
 
-function postLinkTradeReceivedPokemonResponse(
+function postLinkTradePartnerPokemonResponse(
 	postMessage: PkhexEngineWorkerRuntimeOptions['postMessage'],
-	request: EngineWorkerReadLinkTradeReceivedPokemonRequest,
-	result: EngineResult<RawLinkTradeReceivedPokemonResult>
+	request: EngineWorkerReadLinkTradePartnerPokemonRequest,
+	result: EngineResult<RawLinkTradePartnerPokemonResult>
 ) {
 	if (!result.ok) {
 		postMessage(createEngineWorkerResponse(request, result));
@@ -1023,10 +1031,10 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<PreservationPayload>;
 		case 'readPreservationPayload':
 			return result satisfies EngineResult<PreservedPokemon>;
-		case 'prepareLinkTradeOffer':
-			return result satisfies EngineResult<LinkTradeOffer>;
-		case 'readLinkTradeReceivedPokemon':
-			return result satisfies EngineResult<LinkTradeReceivedPokemon>;
+		case 'prepareOutgoingLinkTrade':
+			return result satisfies EngineResult<OutgoingLinkTrade>;
+		case 'readLinkTradePartnerPokemon':
+			return result satisfies EngineResult<LinkTradePartnerPokemon>;
 	}
 }
 

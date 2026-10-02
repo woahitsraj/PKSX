@@ -1038,25 +1038,25 @@ public sealed record PreservationPayloadResult(
     int PayloadByteLength,
     PreservationPayloadSummary Summary);
 
-public sealed record LinkTradeOfferRequest(string DestinationGame, string SourceKind);
+public sealed record OutgoingLinkTradeRequest(string DestinationGame, string SourceKind);
 
 public sealed record LinkTradeBlockingReason(string Kind, string Message);
 
-public sealed record LinkTradeOfferResult(
+public sealed record OutgoingLinkTradeResult(
     string DestinationGame,
     bool Ready,
     string EntityFormat,
-    string? OfferBytesBase64,
-    int OfferByteLength,
+    string? OutgoingBytesBase64,
+    int OutgoingByteLength,
     string SourceSha256,
-    string? OfferSha256,
+    string? OutgoingSha256,
     bool Converted,
     List<PokemonActionChange> Changes,
     LegalityReport? Legality,
     List<LinkTradeBlockingReason> BlockingReasons,
     BoxSlotSummary? Projection);
 
-public sealed record LinkTradeReceivedPokemonResult(
+public sealed record LinkTradePartnerPokemonResult(
     string DestinationGame,
     bool Parsed,
     string ReceivedSha256,

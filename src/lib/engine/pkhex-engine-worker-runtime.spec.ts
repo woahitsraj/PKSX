@@ -273,8 +273,8 @@ function createEngineExports(): DotnetPkhexEngineExports {
 		CreatePreservationPayloadJson: () => preservationUnavailable(),
 		ReadPreservationPayloadJson: () => preservationUnavailable(),
 		ProjectPreservationPayloadJson: () => preservationUnavailable(),
-		PrepareLinkTradeOfferJson: () => preservationUnavailable(),
-		ReadLinkTradeReceivedPokemonJson: () => preservationUnavailable()
+		PrepareOutgoingLinkTradeJson: () => preservationUnavailable(),
+		ReadLinkTradePartnerPokemonJson: () => preservationUnavailable()
 	};
 }
 

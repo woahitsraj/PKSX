@@ -4,14 +4,14 @@ import legendsArceusFixtureUrl from '../../../test-fixtures/save-files/raj-pokem
 import scarletFixtureUrl from '../../../test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-scarlet-2025-03-24-main.sav?url';
 import swordFixtureUrl from '../../../test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-sword-2025-03-24-main.sav?url';
 import { createPkhexEngine } from './pkhex-engine';
-import type { EngineApi, LinkTradeDestinationGame, LinkTradeOffer } from './types';
+import type { EngineApi, LinkTradeDestinationGame, OutgoingLinkTrade } from './types';
 
 type Slot = { speciesId: number; form: number; entityBytesBase64?: string | null };
 
 const partySize = 0x158;
 const storedSize = 0x148;
 
-describe('Link Trade offers through the browser-wasm bundle', () => {
+describe('Outgoing Link Trades through the browser-wasm bundle', () => {
 	test('offers a native Sword/Shield Pokemon as its exact encrypted party bytes', async () => {
 		const engine = await createPkhexEngine('/pkhex-engine');
 		const slots = await loadSlots(engine, swordFixtureUrl, 'pokemon-sword-2025-03-24-main.sav');
@@ -28,20 +28,20 @@ describe('Link Trade offers through the browser-wasm bundle', () => {
 		});
 		expect(offer.legality?.legal).toBe(true);
 		expect(source).toEqual(sourceCopy);
-		const offerBytes = offer.offerBytes!;
-		expect(offerBytes.byteLength).toBe(partySize);
-		expect(offer.offerSha256).toBe(await sha256(offerBytes));
+		const outgoingBytes = offer.outgoingBytes!;
+		expect(outgoingBytes.byteLength).toBe(partySize);
+		expect(offer.outgoingSha256).toBe(await sha256(outgoingBytes));
 
-		const again = await engine.prepareLinkTradeOffer(source, {
+		const again = await engine.prepareOutgoingLinkTrade(source, {
 			destinationGame: 'shield',
 			sourceKind: 'entity'
 		});
-		expect(again.ok && again.value.offerSha256).toBe(offer.offerSha256);
+		expect(again.ok && again.value.outgoingSha256).toBe(offer.outgoingSha256);
 
 		const sourceParty = new Uint8Array(partySize);
 		sourceParty.set(source);
-		for (const received of [offerBytes, offerBytes.slice(0, storedSize)]) {
-			const parsed = await engine.readLinkTradeReceivedPokemon(received, 'sword');
+		for (const received of [outgoingBytes, outgoingBytes.slice(0, storedSize)]) {
+			const parsed = await engine.readLinkTradePartnerPokemon(received, 'sword');
 			if (!parsed.ok || !parsed.value.parsed) throw new Error('Expected the offer to parse.');
 			expect(parsed.value.entityFormat).toBe('PK8');
 			expect(parsed.value.receivedSha256).toBe(await sha256(received));
@@ -57,13 +57,13 @@ describe('Link Trade offers through the browser-wasm bundle', () => {
 		if (!stored.ok) throw new Error('Expected the Sword Pokemon preservation payload.');
 		const newer = await engine.projectPreservationPayload(stored.value.bytes, 9);
 		if (!newer.ok) throw new Error('Expected the PK9 projection.');
-		const restored = await engine.prepareLinkTradeOffer(newer.value.bytes, {
+		const restored = await engine.prepareOutgoingLinkTrade(newer.value.bytes, {
 			destinationGame: 'sword',
 			sourceKind: 'preservation-payload'
 		});
 		expect(restored.ok && restored.value).toMatchObject({
 			converted: false,
-			offerSha256: offer.offerSha256,
+			outgoingSha256: offer.outgoingSha256,
 			sourceSha256: await sha256(newer.value.bytes)
 		});
 	});
@@ -79,7 +79,7 @@ describe('Link Trade offers through the browser-wasm bundle', () => {
 			entityFormat: 'PK8',
 			converted: true,
 			ready: false,
-			offerBytes: null,
+			outgoingBytes: null,
 			blockingReasons: [{ kind: 'legality' }]
 		});
 		expect(offer.changes).toContainEqual({ field: 'Format', before: 'PK9', after: 'PK8' });
@@ -88,7 +88,7 @@ describe('Link Trade offers through the browser-wasm bundle', () => {
 		);
 
 		const scarletOnly = slots.find((slot) => slot.speciesId > 898)!;
-		const rejected = await engine.prepareLinkTradeOffer(entityBytes(scarletOnly), {
+		const rejected = await engine.prepareOutgoingLinkTrade(entityBytes(scarletOnly), {
 			destinationGame: 'sword',
 			sourceKind: 'entity'
 		});
@@ -105,14 +105,14 @@ describe('Link Trade offers through the browser-wasm bundle', () => {
 			'pokemon-lets-go-eevee-2025-03-24-savedata.bin'
 		);
 		const starter = slots.find((slot) => slot.speciesId === 133 && slot.form === 1)!;
-		const rejected = await engine.prepareLinkTradeOffer(entityBytes(starter), {
+		const rejected = await engine.prepareOutgoingLinkTrade(entityBytes(starter), {
 			destinationGame: 'sword',
 			sourceKind: 'entity'
 		});
 		expect(rejected.ok && rejected.value).toMatchObject({
 			ready: false,
-			offerBytes: null,
-			offerSha256: null,
+			outgoingBytes: null,
+			outgoingSha256: null,
 			legality: null,
 			blockingReasons: [{ kind: 'unsupported-conversion' }]
 		});
@@ -129,19 +129,19 @@ describe('Link Trade offers through the browser-wasm bundle', () => {
 
 		for (const destinationGame of ['legends-arceus', 'brilliant-diamond', 'scarlet']) {
 			expect(
-				await engine.prepareLinkTradeOffer(source, {
+				await engine.prepareOutgoingLinkTrade(source, {
 					destinationGame: destinationGame as LinkTradeDestinationGame,
 					sourceKind: 'entity'
 				})
 			).toMatchObject({ ok: false, error: { code: 'unsupported-link-trade-destination' } });
 		}
 
-		const offer = await engine.prepareLinkTradeOffer(source, {
+		const offer = await engine.prepareOutgoingLinkTrade(source, {
 			destinationGame: 'sword',
 			sourceKind: 'entity'
 		});
 		if (!offer.ok) throw new Error(`Expected a Link Trade offer: ${offer.error.message}`);
-		expect(offer.value).toMatchObject({ converted: true, ready: false, offerBytes: null });
+		expect(offer.value).toMatchObject({ converted: true, ready: false, outgoingBytes: null });
 		expect(offer.value.changes).toContainEqual({ field: 'Format', before: 'PA8', after: 'PK8' });
 		expect(offer.value.blockingReasons).toContainEqual(
 			expect.objectContaining({ kind: 'unavailable-in-game' })
@@ -151,7 +151,7 @@ describe('Link Trade offers through the browser-wasm bundle', () => {
 	test('keeps malformed received bytes as an unparseable result', async () => {
 		const engine = await createPkhexEngine('/pkhex-engine');
 		for (const received of [new Uint8Array(partySize).fill(0x5a), new Uint8Array(12)]) {
-			const parsed = await engine.readLinkTradeReceivedPokemon(received, 'sword');
+			const parsed = await engine.readLinkTradePartnerPokemon(received, 'sword');
 			expect(parsed.ok && parsed.value).toMatchObject({
 				parsed: false,
 				entityBytes: null,
@@ -174,11 +174,11 @@ async function loadSlots(engine: EngineApi, url: string, fileName: string) {
 async function findOffer(
 	engine: EngineApi,
 	slots: Slot[],
-	matches: (offer: LinkTradeOffer) => boolean
+	matches: (offer: OutgoingLinkTrade) => boolean
 ) {
 	for (const slot of slots) {
 		const source = entityBytes(slot);
-		const result = await engine.prepareLinkTradeOffer(source, {
+		const result = await engine.prepareOutgoingLinkTrade(source, {
 			destinationGame: 'sword',
 			sourceKind: 'entity'
 		});
