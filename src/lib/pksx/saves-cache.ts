@@ -5,7 +5,12 @@ import {
 	createPokemonStorageService,
 	type PokemonStorageService
 } from '$lib/pksx/pokemon-storage-catalog';
-import { bytesEqual, createSavesStorage, type SaveFileId, type StoredSaveFile } from '$lib/pksx/saves';
+import {
+	bytesEqual,
+	createSavesStorage,
+	type SaveFileId,
+	type StoredSaveFile
+} from '$lib/pksx/saves';
 import {
 	ActiveWorkspaceService,
 	LocalStorageWorkspacePersistence
