@@ -5,6 +5,7 @@ import {
 	TRADE_WORKER_CONTRACT_VERSION,
 	tradeWorkerCommandSchema,
 	type Board,
+	type FirmwareInstallStage,
 	type LinkTradeGame,
 	type RadioPort,
 	type RecoveredSession,
@@ -21,6 +22,7 @@ import {
 import { IncompleteKeysError, parseProdKeys, type SwitchKeyStore } from '../switch-keys';
 import { toHex, type Bytes } from './bytes';
 import { sha256 } from './crypto';
+import { checkChip, checkImage, FirmwareError, type Bootloader } from './firmware';
 import {
 	PINNED_FIRMWARE_VERSION,
 	Radio,
@@ -46,6 +48,10 @@ export interface TradeWorkerRuntimeOptions {
 	keyStore: SwitchKeyStore;
 	/** -> the port to open; throws `PortError` when it cannot be used. */
 	openPort(port: RadioPort): Promise<TradeSerialPort>;
+	/** -> the board in its ROM bootloader; throws `FirmwareError` when it does not enter it. */
+	openBootloader(port: RadioPort): Promise<Bootloader>;
+	/** -> the bundled firmware image, unchecked. */
+	loadFirmware(): Promise<Uint8Array>;
 	webSerial: boolean;
 	fakePort: boolean;
 	clock: Clock;
@@ -117,6 +123,8 @@ export class TradeWorkerRuntime {
 						return this.respond(requestId, fail('session-active', 'cancel the session first'));
 					await this.closeRadio(null);
 					return this.respond(requestId, null, {});
+				case 'install-firmware':
+					return this.respond(requestId, null, { board: await this.installFirmware(command.port) });
 				case 'start-session':
 					return this.respond(
 						requestId,
@@ -241,6 +249,38 @@ export class TradeWorkerRuntime {
 		}
 	}
 
+	private async installFirmware(port: RadioPort): Promise<Board> {
+		if (this.active) throw new PortError('session-active', 'a Link Trade is in progress');
+		if (this.radio) {
+			throw new PortError(
+				'radio-connected',
+				'disconnect the Trade Radio before installing firmware'
+			);
+		}
+		const emitStage = (stage: FirmwareInstallStage, written = 0, total = 0) =>
+			this.emit({ type: 'firmware-install', stage, written, total });
+		const image = await this.options.loadFirmware();
+		await checkImage(image);
+		emitStage('detecting');
+		const bootloader = await this.options.openBootloader(port);
+		try {
+			checkChip(bootloader.chip);
+			await bootloader
+				.write(image, (written, total) => emitStage('writing', written, total))
+				.catch((error) => {
+					throw new FirmwareError(
+						'firmware-write-failed',
+						`the firmware was not installed (${error instanceof Error ? error.message : String(error)})`
+					);
+				});
+		} finally {
+			await bootloader.close().catch(() => undefined);
+		}
+		emitStage('restarting');
+		// The usual board checks decide whether the install worked.
+		return this.connectRadio(port);
+	}
+
 	private async closeRadio(error: TradeError | null): Promise<void> {
 		const radio = this.radio;
 		if (!radio) return;
@@ -363,6 +403,7 @@ export class TradeWorkerRuntime {
 function toTradeError(error: unknown): TradeError {
 	if (error instanceof IncompleteKeysError) return fail('keys-incomplete', error.message);
 	if (error instanceof PortBusyError) return fail('port-busy', error.message);
+	if (error instanceof FirmwareError) return fail(error.code, error.message);
 	if (error instanceof PortError) return fail(error.code, error.message);
 	if (error instanceof RadioError) {
 		return fail(error.code === 'command-failed' ? 'unsupported-board' : error.code, error.message);

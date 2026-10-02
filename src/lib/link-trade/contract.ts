@@ -25,6 +25,11 @@ export const tradeErrorCodeSchema = z.enum([
 	'unsupported-board',
 	'protocol-mismatch',
 	'firmware-mismatch',
+	'radio-connected',
+	'unsupported-chip',
+	'bootloader-not-entered',
+	'firmware-image-invalid',
+	'firmware-write-failed',
 	'radio-not-connected',
 	'radio-lost',
 	'session-active',
@@ -43,6 +48,20 @@ export type TradeErrorCode = z.infer<typeof tradeErrorCodeSchema>;
 export const tradeErrorSchema = z.object({ code: tradeErrorCodeSchema, message: z.string() });
 export type TradeError = z.infer<typeof tradeErrorSchema>;
 
+export const fakeFlashSchema = z.enum([
+	'installs',
+	'needs-boot-button',
+	'esp32-s3',
+	'esp32-c3',
+	'esp32-c6',
+	'write-fails'
+]);
+
+export type FakeFlash = z.infer<typeof fakeFlashSchema>;
+
+export const firmwareInstallStageSchema = z.enum(['detecting', 'writing', 'restarting']);
+export type FirmwareInstallStage = z.infer<typeof firmwareInstallStageSchema>;
+
 export const radioPortSchema = z.discriminatedUnion('kind', [
 	z.object({
 		kind: z.literal('web-serial'),
@@ -52,7 +71,9 @@ export const radioPortSchema = z.discriminatedUnion('kind', [
 	/** Dev builds and tests only: a scripted console behind a simulated board. */
 	z.object({
 		kind: z.literal('fake'),
-		script: z.enum(['trade', 'cancel', 'not-ready', 'drop-after-ladder'])
+		script: z.enum(['trade', 'cancel', 'not-ready', 'drop-after-ladder']),
+		/** How a simulated `install-firmware` goes; `installs` when absent. */
+		flash: fakeFlashSchema.optional()
 	})
 ]);
 export type RadioPort = z.infer<typeof radioPortSchema>;
@@ -64,6 +85,12 @@ export const tradeWorkerCommandSchema = z.discriminatedUnion('type', [
 	z.object({ type: z.literal('forget-keys'), requestId: requestIdSchema }),
 	z.object({ type: z.literal('connect-radio'), requestId: requestIdSchema, port: radioPortSchema }),
 	z.object({ type: z.literal('disconnect-radio'), requestId: requestIdSchema }),
+	/** Only when the user selects Install firmware; overwrites the board's firmware. */
+	z.object({
+		type: z.literal('install-firmware'),
+		requestId: requestIdSchema,
+		port: radioPortSchema
+	}),
 	z.object({
 		type: z.literal('start-session'),
 		requestId: requestIdSchema,
@@ -193,6 +220,13 @@ const sessionEventBase = {
 export const tradeWorkerEventSchema = z.discriminatedUnion('type', [
 	z.object({ type: z.literal('radio-connected'), board: boardSchema }),
 	z.object({ type: z.literal('radio-disconnected'), error: tradeErrorSchema.nullable() }),
+	/** `written` and `total` give the progress while `stage` is `writing`, and are 0 otherwise. */
+	z.object({
+		type: z.literal('firmware-install'),
+		stage: firmwareInstallStageSchema,
+		written: z.number().int().nonnegative(),
+		total: z.number().int().nonnegative()
+	}),
 	z.object({ type: z.literal('session-phase'), ...sessionEventBase, phase: sessionPhaseSchema }),
 	/** The partner's Trade Offer. Not a Trade Receipt. */
 	z.object({ type: z.literal('trade-offer'), ...sessionEventBase, pokemon: bytesSchema }),

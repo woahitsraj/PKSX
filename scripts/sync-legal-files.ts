@@ -36,6 +36,9 @@ The trade worker (src/lib/link-trade/trade-worker) ports AGPL-3.0 pokeldn and GP
 https://github.com/Decryptu/pokeldn/tree/f52f3db6211bf81aa2bcea5f4f38d4ecff9a8691
 https://github.com/kinnay/LDN/tree/39d0b2060c7932ff2766726db7af4fb640cfa9ef
 
+The Trade Radio firmware (/firmware/pokeldn-radio.bin) is the AGPL-3.0 pokeldn v0.4.0 radio firmware, unchanged:
+https://github.com/Decryptu/pokeldn/tree/f52f3db6211bf81aa2bcea5f4f38d4ecff9a8691/firmware
+
 Build instructions and required scripts are included in the PKSX source repository.
 The PKSX license is available at /legal/LICENSE.txt.
 Third-party notices are available at /legal/THIRD_PARTY_NOTICES.md.

@@ -3,6 +3,7 @@
 
 import type { RadioPort } from '../contract';
 import { indexedDbKeyStore } from '../switch-keys';
+import { FirmwareError, PINNED_FIRMWARE_IMAGE } from './firmware';
 import { PortError, TradeWorkerRuntime } from './runtime';
 import { realClock } from './serial-port';
 import { findWebSerialPort, webSerial, WebSerialTradePort } from './web-serial-port';
@@ -10,6 +11,7 @@ import { findWebSerialPort, webSerial, WebSerialTradePort } from './web-serial-p
 const keyStore = indexedDbKeyStore();
 // Vite replaces `import.meta.env.DEV` with false in production builds, which drops the fake.
 const loadFake = import.meta.env.DEV ? () => import('./fake-radio') : null;
+const loadFakeBootloader = import.meta.env.DEV ? () => import('./fake-bootloader') : null;
 
 async function openPort(port: RadioPort) {
 	if (port.kind === 'fake') {
@@ -22,6 +24,10 @@ async function openPort(port: RadioPort) {
 			clock: realClock
 		});
 	}
+	return new WebSerialTradePort(await grantedPort(port));
+}
+
+async function grantedPort(port: Extract<RadioPort, { kind: 'web-serial' }>) {
 	const serial = webSerial();
 	if (!serial)
 		throw new PortError(
@@ -31,13 +37,34 @@ async function openPort(port: RadioPort) {
 	const found = await findWebSerialPort(serial, port);
 	if (!found)
 		throw new PortError('port-not-found', 'choose the Trade Radio in the browser prompt first');
-	return new WebSerialTradePort(found);
+	return found;
+}
+
+async function openBootloader(port: RadioPort) {
+	if (port.kind === 'fake') {
+		if (!loadFakeBootloader)
+			throw new PortError('fake-port-unavailable', 'the simulated radio is for dev builds');
+		const { fakeBootloader } = await loadFakeBootloader();
+		return fakeBootloader(port.flash ?? 'installs', realClock);
+	}
+	const found = await grantedPort(port);
+	const { openEsptoolBootloader } = await import('./esptool-bootloader');
+	return openEsptoolBootloader(found);
+}
+
+async function loadFirmware() {
+	const response = await fetch(PINNED_FIRMWARE_IMAGE.url);
+	if (!response.ok)
+		throw new FirmwareError('internal-error', 'the firmware image did not download');
+	return new Uint8Array(await response.arrayBuffer());
 }
 
 const runtime = new TradeWorkerRuntime({
 	post: (message) => self.postMessage(message),
 	keyStore,
 	openPort,
+	openBootloader,
+	loadFirmware,
 	webSerial: webSerial() !== null,
 	fakePort: loadFake !== null,
 	clock: realClock
