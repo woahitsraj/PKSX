@@ -23,6 +23,10 @@ export async function openEsptoolBootloader(port: WebSerialPortLike): Promise<Bo
 				'the Trade Radio port did not open; it may be unplugged or in use by another tab or app'
 			);
 		}
+		const message = error instanceof Error ? error.message : String(error);
+		if (!message.includes('Failed to connect')) {
+			throw new FirmwareError('unsupported-chip', `the board is not supported (${message})`);
+		}
 		throw new FirmwareError(
 			'bootloader-not-entered',
 			'the board did not enter its bootloader; hold the BOOT button and try again'
@@ -43,6 +47,8 @@ export async function openEsptoolBootloader(port: WebSerialPortLike): Promise<Bo
 				calculateMD5Hash: (data) => SparkMD5.ArrayBuffer.hash(new Uint8Array(data).buffer)
 			}),
 		close: async () => {
+			// esptool-js only releases RTS; assert it first so EN gets a pulse, as esptool.py does.
+			await transport.setRTS(true).catch(() => undefined);
 			await loader.after('hard_reset').catch(() => undefined);
 			await transport.disconnect().catch(() => undefined);
 		}

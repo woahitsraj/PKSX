@@ -208,7 +208,7 @@ const sessionEventBase = {
 export const tradeWorkerEventSchema = z.discriminatedUnion('type', [
 	z.object({ type: z.literal('radio-connected'), board: boardSchema }),
 	z.object({ type: z.literal('radio-disconnected'), error: tradeErrorSchema.nullable() }),
-	/** `written` and `total` count bytes while `stage` is `writing`, and are 0 otherwise. */
+	/** `written` and `total` give the progress while `stage` is `writing`, and are 0 otherwise. */
 	z.object({
 		type: z.literal('firmware-install'),
 		stage: z.enum(['detecting', 'writing', 'restarting']),

@@ -256,16 +256,16 @@ export class TradeWorkerRuntime {
 				'disconnect the Trade Radio before installing firmware'
 			);
 		}
-		const stage = (stage: 'detecting' | 'writing' | 'restarting', written = 0, total = 0) =>
+		const emitStage = (stage: 'detecting' | 'writing' | 'restarting', written = 0, total = 0) =>
 			this.emit({ type: 'firmware-install', stage, written, total });
 		const image = await this.options.loadFirmware();
 		await checkImage(image);
-		stage('detecting');
+		emitStage('detecting');
 		const bootloader = await this.options.openBootloader(port);
 		try {
 			checkChip(bootloader.chip);
 			await bootloader
-				.write(image, (written, total) => stage('writing', written, total))
+				.write(image, (written, total) => emitStage('writing', written, total))
 				.catch((error) => {
 					throw new FirmwareError(
 						'firmware-write-failed',
@@ -275,7 +275,7 @@ export class TradeWorkerRuntime {
 		} finally {
 			await bootloader.close().catch(() => undefined);
 		}
-		stage('restarting');
+		emitStage('restarting');
 		// The usual board checks decide whether the install worked.
 		return this.connectRadio(port);
 	}

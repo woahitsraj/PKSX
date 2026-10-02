@@ -1,4 +1,5 @@
 import {
+	boardSchema,
 	tradeWorkerMessageSchema,
 	type Board,
 	type RadioPort,
@@ -29,7 +30,7 @@ export function installFirmware(
 			worker.removeEventListener('message', listen);
 			resolve(
 				message.ok
-					? { ok: true, board: (message.result as { board: Board }).board }
+					? { ok: true, board: boardSchema.parse((message.result as { board: unknown }).board) }
 					: { ok: false, error: message.error }
 			);
 		};

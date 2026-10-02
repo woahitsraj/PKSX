@@ -52,7 +52,7 @@ Then the worker switches the board to 921600 baud. A trade's traffic does not fi
 3. Write the merged image at `0x0` and compare the MD5 of the written flash. A failure is `firmware-write-failed`.
 4. Reset the board and run the `connect-radio` checks. The install succeeds only when the board reports the pinned protocol, target and firmware version.
 
-The `firmware-install` event reports the stage: `detecting`, `writing` (with `written` and `total` bytes) or `restarting`. The dev fake port takes an optional `flash` value that simulates each result.
+The `firmware-install` event reports the stage: `detecting`, `writing` (with `written` and `total` as progress counts, not image bytes) or `restarting`. The dev fake port takes an optional `flash` value that simulates each result.
 
 `start-session` fails with these errors before any radio work starts:
 
