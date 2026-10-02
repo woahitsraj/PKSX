@@ -197,16 +197,24 @@ The state of an interrupted Link Trade that may or may not have completed.
 _Avoid_: failed trade, cancelled trade
 
 **Cloud Sync**:
-An opt-in, provider-readable capability that makes Saves, including persisted Workspace changes, available to the same user across PKSX devices. Its Sync Provider can read synchronized Saves content and metadata.
+An opt-in, provider-readable capability that makes Saves, including persisted Workspace changes, available to the same user across PKSX Installations. Its Sync Provider can read synchronized Saves content and metadata.
 _Avoid_: Peer Transfer, TinyBase sync, Export
 
+**User Account**:
+The identity a person uses to authenticate to Cloud Sync and recover access to a personal Sync Profile.
+_Avoid_: Sync Profile, PKSX Installation, cloud account
+
 **Sync Profile**:
-The provider-neutral owner of one synchronized Saves collection.
-_Avoid_: cloud account, provider account, device account
+The provider-neutral owner of one synchronized Saves collection. It belongs to one User Account and is never shared with another account.
+_Avoid_: User Account, provider account, PKSX Installation
+
+**PKSX Installation**:
+An isolated PKSX app instance with its own local Saves and Cloud Sync enrollment state, such as one browser storage context or installed native app instance.
+_Avoid_: physical device, browser tab, session
 
 **Sync Provider**:
-The service that stores and serves Cloud Sync data. It never receives PKSX credentials or device-local state.
-_Avoid_: cloud account, Sync Profile
+The service that authenticates User Accounts and stores and serves Cloud Sync data. It never receives installation-local state.
+_Avoid_: cloud account, Sync Profile, identity provider
 
 **Sync Object**:
 A durable object in Saves that Cloud Sync addresses and tracks independently.
@@ -607,11 +615,28 @@ _Avoid_: setting, option, config
 - A **Trade Offer** is not a **Trade Receipt**; only a **Trade Receipt** adds a **Pokemon Entity** to PKSX.
 - A **Pokemon Entity** received through a **Link Trade** enters **Pokemon Storage** once per **Trade Receipt**, with a new **Record ID**.
 - An **Unknown Trade Outcome** keeps its recovery evidence and never starts another **Link Trade** automatically.
-- **Cloud Sync** makes **Save Files**, **Backups**, **Pokemon Storage**, and persisted **Workspaces** available across a user's PKSX devices.
+- **Cloud Sync** makes **Save Files**, **Backups**, **Pokemon Storage**, and persisted **Workspaces** available across a user's PKSX Installations.
+- A **User Account** owns zero or one **Sync Profile**.
+- A **Sync Profile** belongs to exactly one **User Account** and cannot be shared with another account.
+- A **PKSX Installation** enrolls in at most one **Sync Profile** at a time.
+- Authenticating a **User Account** is sufficient to enroll a **PKSX Installation** in its **Sync Profile**; another Installation does not approve it.
+- Multiple **PKSX Installations** may enroll in one **Sync Profile** concurrently.
+- The **Sync Provider** authenticates the **User Account** and issues the session; a **User Account** has no password.
+- A **User Account** has one verified email address; every sign-in method resolves to the account of that address, and access to the address is sufficient to recover the account.
+- Signing out removes an Installation's credentials and enrollment state but retains its local **Saves** as local-only data.
+- Removing local **Saves** after sign-out is a separate, user-confirmed action.
+- Formerly synchronized data retains its **Sync Profile** association after sign-out.
+- Signing back into the same **User Account** re-enrolls the Installation and reconciles its retained local **Saves** with that account's **Sync Profile**.
+- Signing into another **User Account** never uploads data associated with the previous account's **Sync Profile** without explicit adoption.
+- Revoking an Installation's authentication blocks future **Sync Provider** access after the Installation reconnects but cannot erase its local **Saves**.
+- Signing out everywhere ends every session of a **User Account**, including the session of the **PKSX Installation** that requests it; account recovery does the same.
+- Deleting a **User Account** erases its **Sync Profile** and all of its **Cloud Sync** data and cannot be undone; each **PKSX Installation** retains its local **Saves** as local-only data.
+- A **User Account** created after a deletion is a different account with a new **Sync Profile**, even when it uses the same email address.
+- The first Cloud Sync release has no PKSX-managed Installation directory, per-Installation revocation, or product-level Installation limit.
 - A **Sync Provider** may read all content and metadata that **Cloud Sync** synchronizes.
 - Metadata needed to interpret or present a **Sync Object** travels with that object.
 - Synced metadata belongs to exactly one **Sync Object** or **Sync Profile**; it does not exist as an unowned record.
-- The active **Save File**, **Controller Focus**, caches, validation output, credentials, enrollment state, and **Preferences** remain device-local.
+- The active **Save File**, **Controller Focus**, caches, validation output, credentials, enrollment state, and **Preferences** remain local to the **PKSX Installation**.
 - A **Dirty Workspace** received through **Cloud Sync** can be opened and **Exported** on another device.
 - **Cloud Sync** never writes to the original user-controlled file; **Export** does.
 - The **PKHeX Engine** provides a **Facade** that the Svelte app uses.
