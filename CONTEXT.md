@@ -264,6 +264,10 @@ _Avoid_: last-write-wins, automatic merge
 An immutable recovery copy of a competing state that was not selected during Conflict Resolution.
 _Avoid_: discarded state, active revision
 
+**Sync Adoption**:
+The explicit user decision that brings the local Saves of an enrolling PKSX Installation into its Sync Profile.
+_Avoid_: merge, upload, import, content matching
+
 **Backup**:
 A restorable snapshot of save file bytes created before a risky operation.
 _Avoid_: copy, version, checkpoint, undo
@@ -448,6 +452,12 @@ _Avoid_: setting, option, config
 - An **Unsupported Sync Revision** pauses Cloud Sync writes only for its **Sync Object**, or its **Save File Family** when family consistency is involved; unrelated **Sync Objects** continue syncing.
 - Device-local editing and **Export** remain available while an **Unsupported Sync Revision** pauses Cloud Sync writes, and new **Pending Sync Changes** wait for a compatible PKSX version.
 - Enrolling an empty device in a **Sync Profile** materializes its **Shared Sync State** into local **Saves**.
+- A **PKSX Installation** that holds local **Saves** enrolls only through **Sync Adoption**; nothing uploads or changes locally before the user confirms, and a cancelled adoption leaves the installation signed out and unchanged.
+- **Sync Adoption** covers every local **Sync Object**, so an enrolled **PKSX Installation** synchronizes all of its **Saves**.
+- **Sync Adoption** never matches by content; a local-only **Sync Object** keeps its identity and enters the **Sync Profile** as an initial **Sync Revision**.
+- A **Sync Object** retained from the same **Sync Profile** is not adopted again; it reconciles by the causal replacement rule, and divergence goes to **Conflict Resolution**.
+- A **Sync Object** associated with another **Sync Profile** enters the target profile only as a copy with a new identity, after the user either confirms that copy or erases the local **Saves**.
+- **Sync Adoption** appends each occupied local **Storage Box** to the profile's **Pokemon Storage** with a new Storage Box ID and unchanged layout; when the profile's **Pokemon Storage** has no content, the local boxes become its boxes as they are.
 - A **Sync Object** keeps one permanent, opaque identifier across devices and providers.
 - Filenames, provider keys, storage paths, timestamps, and content hashes do not determine **Sync Object** identity.
 - Importing or copying a durable object creates a new identity; editing it or moving it within the same object boundary preserves its identity.
