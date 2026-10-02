@@ -28,7 +28,7 @@ export const tradeErrorCodeSchema = z.enum([
 	'radio-lost',
 	'session-active',
 	'session-not-found',
-	'invalid-offer',
+	'invalid-outgoing-pokemon',
 	'console-not-ready',
 	'session-full',
 	'join-failed',
@@ -69,7 +69,7 @@ export const tradeWorkerCommandSchema = z.discriminatedUnion('type', [
 		sessionId: tradeSessionIdSchema,
 		game: linkTradeGameSchema,
 		/** The encrypted 0x158-byte party PK8 (the wire form) prepared and reviewed in #366; sent unchanged. */
-		offer: bytesSchema
+		outgoingPokemon: bytesSchema
 	}),
 	z.object({
 		type: z.literal('confirm-offer'),
@@ -118,7 +118,7 @@ export const capabilitiesSchema = z.object({
 			role: z.literal('joiner'),
 			/** False: the player confirms on the Switch and PKSX follows; there is no PKSX pause. */
 			hostConfirmation: z.boolean(),
-			offerByteLength: z.number().int()
+			outgoingByteLength: z.number().int()
 		})
 	)
 });

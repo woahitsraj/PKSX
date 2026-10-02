@@ -79,7 +79,7 @@ const start = (sessionId = 'trade-1', bytes: Uint8Array = offer) => ({
 	type: 'start-session',
 	sessionId,
 	game: 'sword-shield',
-	offer: new Uint8Array(bytes).buffer
+	outgoingPokemon: new Uint8Array(bytes).buffer
 });
 
 describe('the trade worker', { timeout: 60_000 }, () => {
@@ -184,7 +184,7 @@ describe('the trade worker', { timeout: 60_000 }, () => {
 		const h = harness({}, null);
 		expect(await h.send(start('bad', new Uint8Array(10)))).toMatchObject({
 			ok: false,
-			error: { code: 'invalid-offer' }
+			error: { code: 'invalid-outgoing-pokemon' }
 		});
 		expect(await h.send(start('a', offer))).toMatchObject({
 			ok: false,
@@ -236,7 +236,12 @@ describe('the trade worker', { timeout: 60_000 }, () => {
 				contractVersion: 1,
 				fakePort: true,
 				games: [
-					{ game: 'sword-shield', role: 'joiner', hostConfirmation: false, offerByteLength: 0x158 }
+					{
+						game: 'sword-shield',
+						role: 'joiner',
+						hostConfirmation: false,
+						outgoingByteLength: 0x158
+					}
 				]
 			}
 		});

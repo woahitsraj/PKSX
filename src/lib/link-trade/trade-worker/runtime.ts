@@ -111,7 +111,7 @@ export class TradeWorkerRuntime {
 					return this.respond(
 						requestId,
 						null,
-						await this.start(command.sessionId, command.game, command.offer)
+						await this.start(command.sessionId, command.game, command.outgoingPokemon)
 					);
 				case 'confirm-offer': {
 					const record = this.sessions.get(command.sessionId);
@@ -185,7 +185,7 @@ export class TradeWorkerRuntime {
 					game: 'sword-shield',
 					role: 'joiner',
 					hostConfirmation: false,
-					offerByteLength: PK8_PARTY_SIZE
+					outgoingByteLength: PK8_PARTY_SIZE
 				}
 			]
 		};
@@ -241,15 +241,18 @@ export class TradeWorkerRuntime {
 	private async start(
 		sessionId: string,
 		game: LinkTradeGame,
-		offer: ArrayBuffer
+		outgoingPokemon: ArrayBuffer
 	): Promise<TradeSessionStatus> {
 		const existing = this.sessions.get(sessionId);
 		// A repeated start never trades again: it reports the session as it stands.
 		if (existing) return this.statusOf(existing);
 		if (this.active) throw new PortError('session-active', 'another Link Trade is in progress');
-		const bytes = new Uint8Array(offer.slice(0));
+		const bytes = new Uint8Array(outgoingPokemon.slice(0));
 		if (bytes.length !== PK8_PARTY_SIZE) {
-			throw new PortError('invalid-offer', `a Sword/Shield offer is ${PK8_PARTY_SIZE} bytes`);
+			throw new PortError(
+				'invalid-outgoing-pokemon',
+				`a Sword/Shield outgoing Pokemon is ${PK8_PARTY_SIZE} bytes`
+			);
 		}
 		const keys = await this.options.keyStore.load();
 		if (!keys) throw new PortError('keys-missing', 'import Switch keys before a Link Trade');
