@@ -2327,6 +2327,13 @@
 		if (destination.zone !== 'box') throw new Error('Pokemon Storage destination is unavailable.');
 		const storageSource = carryState?.sourceOwner.type === 'pokemon-storage';
 		const sourcePaneId = carryState?.source.paneId;
+		const sourcePane = workbenchPanes.find((pane) => pane.id === sourcePaneId);
+		const sourceWorkspace = storageSource ? null : saveWorkspaceForPane(sourcePane)?.state;
+		if (!storageSource && (!sourcePane || !sourceWorkspace || !engine)) {
+			toastHost.error('The source Save File is no longer available.');
+			statusMessage = 'Slot change failed.';
+			return;
+		}
 		busy = true;
 		try {
 			const catalog = getPokemonStorageCatalog();
@@ -2364,58 +2371,66 @@
 			pendingSlotOperation = null;
 			carryState = null;
 		} catch (error) {
+			busy = false;
 			statusMessage = 'Slot change failed.';
 			toastHost.error(getErrorMessage(error));
 			return;
-		} finally {
-			busy = false;
 		}
-		const refreshed = await refreshCommittedCatalogView();
-
-		if (storageSource) {
-			activePaneId = destinationPane.id;
-			if (destination.zone === 'box') {
+		try {
+			const refreshed = await refreshCommittedCatalogView();
+			if (storageSource) {
+				activePaneId = destinationPane.id;
 				workbenchPanes = setPaneActiveBox(workbenchPanes, destinationPane.id, destination.box);
+				const destinationFocus = focusBoxSlot(destination.slot);
+				navigation = {
+					...navigation,
+					activeBox: destination.box,
+					focus: destinationFocus,
+					locationFocus: destinationFocus
+				};
+				workbenchPanes = setPaneFocus(workbenchPanes, destinationPane.id, destinationFocus);
+				if (refreshed) {
+					statusMessage = `${pending.kind === 'move' ? 'Moved' : 'Copied'} ${sourceSlot.label} to Pokemon Storage.`;
+					toastHost.success(statusMessage);
+				}
+				queueMicrotask(focusActiveControl);
+				return;
 			}
-			const destinationFocus = focusBoxSlot(destination.slot);
-			navigation = {
-				...navigation,
-				activeBox: destination.zone === 'box' ? destination.box : activePaneBox,
-				focus: destinationFocus,
-				locationFocus: destinationFocus
-			};
-			workbenchPanes = setPaneFocus(workbenchPanes, destinationPane.id, destinationFocus);
+
+			if (pending.kind === 'move') {
+				if (!sourcePane || !sourceWorkspace) {
+					statusMessage =
+						'Pokemon Storage saved the Pokemon, but its Save File Slot was not cleared. Clear the source Slot to finish.';
+					toastHost.error(statusMessage);
+					return;
+				}
+				const cleared = await applySlotOperation(
+					{ kind: 'clear', source: pending.source },
+					{ state: sourceWorkspace, paneId: sourcePane.id }
+				);
+				if (!cleared) {
+					statusMessage =
+						'Pokemon Storage saved the Pokemon, but its Save File Slot was not cleared. Clear the source Slot to finish.';
+					toastHost.error(statusMessage);
+					return;
+				}
+				if (refreshed) {
+					statusMessage = `Moved ${sourceSlot.label} to Pokemon Storage.`;
+					toastHost.success(statusMessage);
+				} else {
+					statusMessage = 'Pokemon Storage changed. Reload Boxes to refresh its Slots.';
+				}
+				return;
+			}
+
 			if (refreshed) {
-				statusMessage =
-					pending.kind === 'move'
-						? `Moved ${sourceSlot.label} to Pokemon Storage.`
-						: `Copied ${sourceSlot.label} to Pokemon Storage.`;
+				statusMessage = `Copied ${sourceSlot.label} to Pokemon Storage.`;
 				toastHost.success(statusMessage);
 			}
 			queueMicrotask(focusActiveControl);
-			return;
+		} finally {
+			busy = false;
 		}
-
-		if (pending.kind === 'move') {
-			const sourcePane = workbenchPanes.find((pane) => pane.id === sourcePaneId);
-			const sourceWorkspace = saveWorkspaceForPane(sourcePane)?.state;
-			if (!sourcePane || !sourceWorkspace) {
-				toastHost.error('The source Save File is no longer available.');
-				return;
-			}
-			await applySlotOperation(
-				{ kind: 'clear', source: pending.source },
-				{ state: sourceWorkspace, paneId: sourcePane.id }
-			);
-			statusMessage = `Moved ${sourceSlot.label} to Pokemon Storage.`;
-			return;
-		}
-
-		if (refreshed) {
-			statusMessage = `Copied ${sourceSlot.label} to Pokemon Storage.`;
-			toastHost.success(statusMessage);
-		}
-		queueMicrotask(focusActiveControl);
 	}
 
 	async function applySlotOperation(
