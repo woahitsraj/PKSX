@@ -130,6 +130,7 @@
 	import SlotActionMenu from '$lib/components/pksx/SlotActionMenu.svelte';
 	import StorageSlot from '$lib/components/pksx/StorageSlot.svelte';
 	import VirtualPokemonGrid from '$lib/components/pksx/VirtualPokemonGrid.svelte';
+	import { VIRTUAL_POKEMON_ROW_HEIGHT } from '$lib/components/pksx/virtual-pokemon-grid-layout';
 	import TakeoverFrame from '$lib/components/pksx/TakeoverFrame.svelte';
 	import type { SlotView } from '$lib/components/pksx/types';
 	import {
@@ -1174,10 +1175,10 @@
 		const index = activeVirtualRecords.findIndex((record) => record.recordId === recordId);
 		const viewport = document.querySelector<HTMLElement>('.active-pane .virtual-browser .viewport');
 		if (viewport && index >= 0) {
-			const top = Math.floor(index / virtualColumns) * 128;
+			const top = Math.floor(index / virtualColumns) * VIRTUAL_POKEMON_ROW_HEIGHT;
 			if (top < viewport.scrollTop) viewport.scrollTop = top;
-			else if (top + 128 > viewport.scrollTop + viewport.clientHeight)
-				viewport.scrollTop = top + 128 - viewport.clientHeight;
+			else if (top + VIRTUAL_POKEMON_ROW_HEIGHT > viewport.scrollTop + viewport.clientHeight)
+				viewport.scrollTop = top + VIRTUAL_POKEMON_ROW_HEIGHT - viewport.clientHeight;
 			viewport.dispatchEvent(new Event('scroll'));
 		}
 		void tick().then(() => document.getElementById(`virtual-record-${recordId}`)?.focus());

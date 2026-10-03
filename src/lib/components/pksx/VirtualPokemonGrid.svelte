@@ -3,6 +3,7 @@
 	import type { VirtualViewPreferences } from '$lib/pksx/pokemon-storage-catalog/virtual-views';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 	import { asset } from '$app/paths';
+	import { VIRTUAL_POKEMON_ROW_HEIGHT } from './virtual-pokemon-grid-layout';
 
 	type Props = {
 		records: PokemonRecord[];
@@ -34,7 +35,7 @@
 	let width = $state(600);
 	const minWidth = 116;
 	const gap = 8;
-	const rowHeight = 128;
+	const rowHeight = VIRTUAL_POKEMON_ROW_HEIGHT;
 	const columns = $derived(Math.max(1, Math.floor((width + gap) / (minWidth + gap))));
 	const rows = $derived(Math.ceil(records.length / columns));
 	const startRow = $derived(Math.max(0, Math.floor(scrollTop / rowHeight) - 2));
@@ -77,7 +78,7 @@
 	}
 </script>
 
-<div class="virtual-browser">
+<div class="virtual-browser" style:--row-height={`${rowHeight}px`}>
 	<div class="filters" aria-label="Pokemon filters and sort">
 		<input
 			type="search"
@@ -217,8 +218,8 @@
 		gap: 5px;
 	}
 	.filters input[type='search'] {
-		min-width: 130px;
-		flex: 1;
+		min-width: 160px;
+		flex: 1 1 220px;
 	}
 	.filters select,
 	.filters input {
@@ -230,13 +231,29 @@
 		font: inherit;
 	}
 	.filters select {
+		min-width: 110px;
 		max-width: 130px;
+		flex: 1 1 110px;
+	}
+	.filters select[aria-label='Sort Pokemon'] {
+		min-width: 160px;
+		max-width: none;
+		flex: 0 0 160px;
 	}
 	.shiny {
 		display: flex;
 		align-items: center;
 		gap: 3px;
+		flex: 0 0 auto;
+		white-space: nowrap;
 		font-size: var(--pksx-type-caption);
+	}
+	.shiny input {
+		width: 16px;
+		height: 16px;
+		min-height: 0;
+		margin: 0;
+		flex: none;
 	}
 	.viewport {
 		min-height: 0;
@@ -256,7 +273,7 @@
 	}
 	.card {
 		min-width: 0;
-		height: 120px;
+		height: calc(var(--row-height) - 8px);
 		position: relative;
 	}
 	.card > button:first-child {
@@ -266,12 +283,17 @@
 		justify-items: center;
 		align-content: center;
 		gap: 2px;
+		box-sizing: border-box;
+		padding: 8px 4px 39px;
 		border: 1px solid var(--rule);
 		border-radius: 8px;
 		background: var(--paper);
 		color: var(--ink);
 		font: inherit;
 		cursor: pointer;
+	}
+	.card:has(.unfile) > button:first-child {
+		padding-top: 39px;
 	}
 	.card > button:first-child.focused,
 	.card > button:first-child:focus-visible {
