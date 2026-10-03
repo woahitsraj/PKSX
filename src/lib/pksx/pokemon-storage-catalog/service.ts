@@ -322,6 +322,83 @@ export class PokemonStorageService {
 		});
 	}
 
+	async prepareSaveDeletion(
+		entityBytes: Uint8Array,
+		origin: PokemonOrigin
+	): Promise<{
+		expectedRevision: number;
+		recordId: string;
+		manifest: PokemonStorageManifest;
+		payload: StagedBlob;
+	}> {
+		if (!this.#manifest) throw new Error('Pokemon Storage catalog is not initialized.');
+		const created = await this.engine.createPreservationPayload(entityBytes);
+		if (!created.ok) throw created.error;
+		const read = await this.engine.readPreservationPayload(created.value.bytes);
+		if (!read.ok) throw read.error;
+		if (
+			read.value.entityBytes.length !== entityBytes.length ||
+			read.value.entityBytes.some((byte, index) => byte !== entityBytes[index])
+		)
+			throw new Error('Preserved Pokemon bytes differ from the Save File Slot.');
+		const { summary, projection } = read.value;
+		const cleanProjection = { ...projection };
+		delete cleanProjection.entityBytesBase64;
+		const reference = await referenceFor(created.value.bytes, summary.version);
+		const manifest = cloneManifest(this.#manifest);
+		if (
+			manifest.records.some((record) => record.recordId === summary.recordId) ||
+			manifest.tombstones.some((item) => item.recordId === summary.recordId)
+		)
+			throw new Error('Pokemon Record ID already exists or is retired.');
+		const now = this.now();
+		const recovery: PokemonRecord = {
+			recordId: summary.recordId,
+			payload: reference,
+			identityFingerprint: summary.identityFingerprint,
+			projection: cleanProjection,
+			origin: {
+				...origin,
+				originSaveSlot: origin.originSaveSlot ? { ...origin.originSaveSlot } : null
+			},
+			placement: null,
+			revision: 0,
+			createdAt: now,
+			updatedAt: now
+		};
+		manifest.tombstones.push({
+			recordId: summary.recordId,
+			reason: 'cleared',
+			destinationSaveFileId: null,
+			deletedAt: now,
+			revision: 1,
+			recovery
+		});
+		manifest.revision += 1;
+		manifest.updatedAt = now;
+		assertManifest(manifest);
+		return {
+			expectedRevision: this.#manifest.revision,
+			recordId: summary.recordId,
+			manifest,
+			payload: { reference, bytes: created.value.bytes }
+		};
+	}
+
+	async readPersistedSaveDeletion(recordId: string): Promise<PokemonStorageManifest | null> {
+		const manifest = await this.persistence.read();
+		const recovery = manifest?.tombstones.find((item) => item.recordId === recordId)?.recovery;
+		if (!recovery) return null;
+		const bytes = await this.persistence.readBlob(recovery.payload);
+		if (!bytes) throw new Error('Committed Pokemon preservation payload is missing.');
+		await verifyBlob(recovery.payload, bytes);
+		return manifest;
+	}
+
+	publishCommittedDeletion(manifest: PokemonStorageManifest): void {
+		this.#publish(manifest);
+	}
+
 	async restore(recordId: string): Promise<PokemonRecord> {
 		const recovery = this.#manifest?.tombstones.find(
 			(item) => item.recordId === recordId

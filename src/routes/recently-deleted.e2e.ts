@@ -12,9 +12,18 @@ async function seedStorage(page: Page, slots = [0]) {
 	await page.evaluate(
 		async ({ entityBytesBase64, occupied }) => {
 			await new Promise<void>((resolve, reject) => {
-				const deletion = indexedDB.deleteDatabase('pksx-pokemon-storage-catalog');
-				deletion.onsuccess = () => resolve();
-				deletion.onerror = () => reject(deletion.error);
+				const opening = indexedDB.open('pksx-saves');
+				opening.onerror = () => reject(opening.error);
+				opening.onsuccess = () => {
+					const db = opening.result;
+					const transaction = db.transaction('manifest', 'readwrite');
+					transaction.objectStore('manifest').delete('current');
+					transaction.oncomplete = () => {
+						db.close();
+						resolve();
+					};
+					transaction.onerror = () => reject(transaction.error);
+				};
 			});
 			await new Promise<void>((resolve, reject) => {
 				const opening = indexedDB.open('pksx-saves');
@@ -177,7 +186,7 @@ test('expired recovery leaves a lightweight tombstone and disappears after reloa
 	await clearSlot(page, 0);
 	await page.evaluate(async () => {
 		const db = await new Promise<IDBDatabase>((resolve, reject) => {
-			const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+			const opening = indexedDB.open('pksx-saves');
 			opening.onsuccess = () => resolve(opening.result);
 			opening.onerror = () => reject(opening.error);
 		});
@@ -202,7 +211,7 @@ test('expired recovery leaves a lightweight tombstone and disappears after reloa
 	).toHaveCount(0);
 	const tombstone = await page.evaluate(async () => {
 		const db = await new Promise<IDBDatabase>((resolve, reject) => {
-			const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+			const opening = indexedDB.open('pksx-saves');
 			opening.onsuccess = () => resolve(opening.result);
 			opening.onerror = () => reject(opening.error);
 		});

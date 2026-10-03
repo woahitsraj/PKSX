@@ -1,4 +1,9 @@
-import type { NativeFileStore } from '$lib/pksx/saves';
+import {
+	cloneCatalog,
+	NativeCatalogJournal,
+	runNativeJournalOperation,
+	type NativeFileStore
+} from '$lib/pksx/saves/native-catalog-journal';
 import {
 	assertManifest,
 	CatalogConflictError,
@@ -12,7 +17,6 @@ import {
 } from './types';
 
 const directory = 'pokemon-storage-catalog';
-let catalogQueue = Promise.resolve();
 const manifestPath = (revision: number) => `${directory}/manifests/${revision}.json`;
 const completionPath = (revision: number) => `${directory}/manifests/${revision}.complete`;
 const blobPath = (id: string) => `${directory}/blobs/${id}.bin`;
@@ -22,17 +26,23 @@ const digest = async (value: string) =>
 		.join('');
 type Completion = { revision: number; manifestSha256: string; checksum: string };
 
-async function completionFor(revision: number, manifestSha256: string): Promise<Completion> {
-	return {
-		revision,
-		manifestSha256,
-		checksum: await digest(`${revision}:${manifestSha256}`)
-	};
-}
-
 export class NativeCatalogPersistence implements CatalogPersistence {
 	constructor(private readonly files: NativeFileStore) {}
 	async read(): Promise<PokemonStorageManifest | null> {
+		const joint = (await new NativeCatalogJournal(this.files).read()).catalog
+			.pokemonStorageManifest;
+		if (joint) {
+			assertManifest(joint);
+			for (const record of [
+				...joint.records,
+				...joint.tombstones.flatMap((item) => (item.recovery ? [item.recovery] : []))
+			]) {
+				const bytes = await this.readBlob(record.payload);
+				if (!bytes) throw new Error('Required Pokemon preservation payload is missing.');
+				await verifyBlob(record.payload, bytes);
+			}
+			return cloneManifest(joint);
+		}
 		const completions = await this.#completions();
 		return completions[0] ? this.#readCompleted(completions[0]) : null;
 	}
@@ -89,12 +99,7 @@ export class NativeCatalogPersistence implements CatalogPersistence {
 		manifest: PokemonStorageManifest,
 		blobs: StagedBlob[]
 	): Promise<void> {
-		const operation = catalogQueue.then(() => this.#commit(expectedRevision, manifest, blobs));
-		catalogQueue = operation.then(
-			() => undefined,
-			() => undefined
-		);
-		return operation;
+		return runNativeJournalOperation(() => this.#commit(expectedRevision, manifest, blobs));
 	}
 	async #commit(
 		expectedRevision: number | null,
@@ -124,30 +129,19 @@ export class NativeCatalogPersistence implements CatalogPersistence {
 			if (!bytes) throw new Error('Required Pokemon preservation payload is missing.');
 			await verifyBlob(reference, bytes);
 		}
-		if ((await this.read())?.revision !== expectedRevision && expectedRevision !== null)
+		const journal = new NativeCatalogJournal(this.files);
+		const snapshot = await journal.read();
+		if (
+			(snapshot.catalog.pokemonStorageManifest?.revision ?? current?.revision ?? null) !==
+			expectedRevision
+		)
 			throw new CatalogConflictError();
-		const text = JSON.stringify(manifest);
-		await this.files.writeText(manifestPath(manifest.revision), text);
-		if ((await this.files.readText(manifestPath(manifest.revision))) !== text)
-			throw new Error('Staged Pokemon Storage manifest did not verify.');
-		const completion = await completionFor(manifest.revision, await digest(text));
-		try {
-			await this.files.writeText(completionPath(manifest.revision), JSON.stringify(completion));
-		} catch (error) {
-			const saved = await this.read();
-			if (saved?.revision !== manifest.revision) throw error;
-		}
-		const saved = await this.read();
-		if (saved?.revision !== manifest.revision)
-			throw new Error('Pokemon Storage manifest commit did not complete.');
+		const catalog = cloneCatalog(snapshot.catalog);
+		catalog.pokemonStorageManifest = cloneManifest(manifest);
+		await journal.commit(snapshot, catalog);
 	}
 	sweep(): Promise<number> {
-		const operation = catalogQueue.then(() => this.#sweep());
-		catalogQueue = operation.then(
-			() => undefined,
-			() => undefined
-		);
-		return operation;
+		return runNativeJournalOperation(() => this.#sweep());
 	}
 	async #sweep(): Promise<number> {
 		const manifest = await this.read();

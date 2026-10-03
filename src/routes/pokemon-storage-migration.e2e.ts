@@ -11,9 +11,18 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	);
 	await page.evaluate(async (entityBytesBase64) => {
 		await new Promise<void>((resolve, reject) => {
-			const deletion = indexedDB.deleteDatabase('pksx-pokemon-storage-catalog');
-			deletion.onsuccess = () => resolve();
-			deletion.onerror = () => reject(deletion.error);
+			const opening = indexedDB.open('pksx-saves');
+			opening.onerror = () => reject(opening.error);
+			opening.onsuccess = () => {
+				const db = opening.result;
+				const transaction = db.transaction('manifest', 'readwrite');
+				transaction.objectStore('manifest').delete('current');
+				transaction.oncomplete = () => {
+					db.close();
+					resolve();
+				};
+				transaction.onerror = () => reject(transaction.error);
+			};
 		});
 		await new Promise<void>((resolve, reject) => {
 			const opening = indexedDB.open('pksx-saves');
@@ -127,7 +136,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		};
 		return {
 			legacy: await read('pksx-saves', 'pokemonStorage', 'pokemon-storage'),
-			catalog: await read('pksx-pokemon-storage-catalog', 'manifest', 'current')
+			catalog: await read('pksx-saves', 'manifest', 'current')
 		};
 	});
 	expect(state.legacy).toMatchObject({ boxCount: 3 });
@@ -156,7 +165,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 
 	await page.evaluate(async () => {
 		const db = await new Promise<IDBDatabase>((resolve, reject) => {
-			const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+			const opening = indexedDB.open('pksx-saves');
 			opening.onsuccess = () => resolve(opening.result);
 			opening.onerror = () => reject(opening.error);
 		});

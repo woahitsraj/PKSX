@@ -593,7 +593,7 @@ async function seedPokemonStorageBoxes(page: Page, boxCount: number) {
 	await page.evaluate(
 		(boxes) =>
 			new Promise<void>((resolve, reject) => {
-				const open = indexedDB.open('pksx-pokemon-storage-catalog');
+				const open = indexedDB.open('pksx-saves');
 				open.onerror = () => reject(open.error ?? new Error('Could not open Pokemon Storage.'));
 				open.onsuccess = () => {
 					const database = open.result;
@@ -702,9 +702,18 @@ async function seedOccupiedPokemonStorageSlot(page: Page) {
 	await page.evaluate(
 		() =>
 			new Promise<void>((resolve, reject) => {
-				const deletion = indexedDB.deleteDatabase('pksx-pokemon-storage-catalog');
-				deletion.onsuccess = () => resolve();
-				deletion.onerror = () => reject(deletion.error);
+				const opening = indexedDB.open('pksx-saves');
+				opening.onerror = () => reject(opening.error);
+				opening.onsuccess = () => {
+					const db = opening.result;
+					const transaction = db.transaction('manifest', 'readwrite');
+					transaction.objectStore('manifest').delete('current');
+					transaction.oncomplete = () => {
+						db.close();
+						resolve();
+					};
+					transaction.onerror = () => reject(transaction.error);
+				};
 			})
 	);
 }
@@ -2648,7 +2657,7 @@ test('Pokemon Storage opens as an independent second pane and persists copied Po
 	expect(await persistedSavesStateSnapshot(page)).toBe(saveBeforeCopy);
 	const records = await page.evaluate(async () => {
 		const database = await new Promise<IDBDatabase>((resolve, reject) => {
-			const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+			const opening = indexedDB.open('pksx-saves');
 			opening.onsuccess = () => resolve(opening.result);
 			opening.onerror = () => reject(opening.error);
 		});
@@ -2842,7 +2851,7 @@ test('moves a Save File Pokemon into durable Storage and clears its source', asy
 		});
 		saves.close();
 		const db = await new Promise<IDBDatabase>((resolve, reject) => {
-			const request = indexedDB.open('pksx-pokemon-storage-catalog');
+			const request = indexedDB.open('pksx-saves');
 			request.onsuccess = () => resolve(request.result);
 			request.onerror = () => reject(request.error);
 		});
@@ -2908,7 +2917,11 @@ test('keeps a virtual Storage source after Save commits but retirement fails', a
 	await page.evaluate(() => {
 		const original = IDBDatabase.prototype.transaction;
 		IDBDatabase.prototype.transaction = function (names, mode, options) {
-			if (this.name === 'pksx-pokemon-storage-catalog' && mode === 'readwrite') {
+			if (
+				this.name === 'pksx-saves' &&
+				mode === 'readwrite' &&
+				(typeof names === 'string' ? names === 'manifest' : Array.from(names).includes('manifest'))
+			) {
 				throw new Error('Injected retirement failure');
 			}
 			return original.call(this, names, mode, options);
@@ -2966,7 +2979,7 @@ test('shared Carry and arrows use the focused virtual record in a Save and Stora
 	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
 	await page.evaluate(async () => {
 		const db = await new Promise<IDBDatabase>((resolve, reject) => {
-			const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+			const opening = indexedDB.open('pksx-saves');
 			opening.onsuccess = () => resolve(opening.result);
 			opening.onerror = () => reject(opening.error);
 		});
@@ -3030,7 +3043,7 @@ test('shared Carry and arrows use the focused virtual record in a Save and Stora
 	await expect(storagePane.locator('[id$="box-0-slot-1"]')).toContainText('ARON');
 	const placements = await page.evaluate(async () => {
 		const db = await new Promise<IDBDatabase>((resolve, reject) => {
-			const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+			const opening = indexedDB.open('pksx-saves');
 			opening.onsuccess = () => resolve(opening.result);
 			opening.onerror = () => reject(opening.error);
 		});
@@ -3188,7 +3201,11 @@ test('retries a move after Pokemon Storage persistence fails without clearing th
 	await page.evaluate(() => {
 		const original = IDBDatabase.prototype.transaction;
 		IDBDatabase.prototype.transaction = function (names, mode, options) {
-			if (this.name === 'pksx-pokemon-storage-catalog' && mode === 'readwrite') {
+			if (
+				this.name === 'pksx-saves' &&
+				mode === 'readwrite' &&
+				(typeof names === 'string' ? names === 'manifest' : Array.from(names).includes('manifest'))
+			) {
 				throw new Error('Injected Storage failure');
 			}
 			return original.call(this, names, mode, options);
@@ -6337,6 +6354,20 @@ test('clear slot cancellation and confirmation use the in-app confirmation surfa
 	await page.goto('/?source=pokemon-storage');
 	await expect(page).toHaveURL(/\/boxes$/);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /Recently Deleted: Recently Deleted/ }).click();
+	const deleted = page.getByRole('grid', { name: 'Recently Deleted Pokemon' });
+	await expect(deleted.getByRole('gridcell')).toHaveCount(1);
+	await deleted.getByRole('gridcell').click();
+	await page
+		.getByRole('dialog', { name: 'Recently Deleted actions' })
+		.getByRole('button', { name: 'Restore' })
+		.click();
+	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /Unfiled: Unfiled/ }).click();
+	await expect(
+		page.getByRole('grid', { name: 'Unfiled Pokemon' }).getByRole('gridcell')
+	).toHaveCount(1);
 });
 
 test('Clear uses its Pokemon Storage owner without mutating the loaded Save File or Backup state', async ({
