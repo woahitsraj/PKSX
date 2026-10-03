@@ -15,6 +15,7 @@ export type SummonedWorkflowKind =
 	| 'save-file-delete'
 	| 'source-picker'
 	| 'box-picker'
+	| 'storage-box-organizer'
 	| 'clear-slot-confirmation'
 	| 'pokemon-editor'
 	| 'pokemon-actions'

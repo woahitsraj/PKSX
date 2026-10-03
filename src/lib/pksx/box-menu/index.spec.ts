@@ -30,6 +30,7 @@ describe('Box Menu commands', () => {
 		expect(
 			commands.map(({ key, availability, reason }) => ({ key, availability, reason }))
 		).toEqual([
+			{ key: 'organize-storage-boxes', availability: 'available', reason: null },
 			{
 				key: 'export',
 				availability: 'unavailable',

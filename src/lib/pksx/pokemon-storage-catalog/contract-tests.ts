@@ -615,6 +615,19 @@ export function catalogContract(
 			await corrupt(persistence, record.payload.id);
 			await expect(service.readPayload(record.recordId)).rejects.toThrow();
 		});
+		it('reorders boxes without changing record identity or placement', async () => {
+			const service = new PokemonStorageService(create(), fakeEngine());
+			await service.initialize();
+			const first = service.listBoxes()[0];
+			const second = await service.addBox('Favorites');
+			await service.renameBox(first.id, 'Favorites');
+			const record = await service.add(bytes(3), origin, { storageBoxId: first.id, slot: 4 });
+			const before = service.getRecord(record.recordId);
+			await service.reorderBoxes([second.id, first.id]);
+			expect(service.listBoxes().map((box) => box.name)).toEqual(['Favorites', 'Favorites']);
+			expect(service.getRecord(record.recordId)).toEqual(before);
+		});
+
 		it('keeps box order and timestamps on the Storage root', async () => {
 			const persistence = create();
 			let now = 'created';

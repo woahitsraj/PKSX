@@ -78,65 +78,75 @@
 	}
 </script>
 
-<div class="virtual-browser" style:--row-height={`${rowHeight}px`}>
-	<div class="filters" aria-label="Pokemon filters and sort">
-		<input
-			type="search"
-			data-pksx-control-category="composition"
-			aria-label="Filter Pokemon"
-			placeholder="Species, nickname, trainer"
-			value={preferences.filters.query}
-			oninput={(event) => updateFilters({ query: event.currentTarget.value })}
-		/>
-		<select
-			data-pksx-control-category="composition"
-			aria-label="Sort Pokemon"
-			value={preferences.sort}
-			onchange={(event) =>
-				onPreferences({
-					...preferences,
-					sort: event.currentTarget.value as VirtualViewPreferences['sort']
-				})}
-		>
-			<option value="recent">Recently added</option>
-			<option value="oldest">Oldest first</option>
-			<option value="species">Species</option>
-			<option value="level">Highest level</option>
-		</select>
-		<select
-			data-pksx-control-category="composition"
-			aria-label="Origin game"
-			value={preferences.filters.originGame}
-			onchange={(event) => updateFilters({ originGame: event.currentTarget.value })}
-		>
-			<option value="">All games</option>
-			{#each games as game (game)}<option value={game}>{game}</option>{/each}
-		</select>
-		<select
-			data-pksx-control-category="composition"
-			aria-label="Entry mode"
-			value={preferences.filters.entryMode}
-			onchange={(event) => updateFilters({ entryMode: event.currentTarget.value })}
-		>
-			<option value="">All origins</option>
-			{#each modes as mode (mode)}<option value={mode}
-					>{mode.replace('-in', '').replace('-', ' ')}</option
-				>{/each}
-		</select>
-		<label class="shiny"
-			><input
-				type="checkbox"
+<div
+	class="virtual-browser"
+	class:overflow={preferences.location === 'overflow'}
+	style:--row-height={`${rowHeight}px`}
+>
+	{#if preferences.location !== 'overflow'}
+		<div class="filters" aria-label="Pokemon filters and sort">
+			<input
+				type="search"
 				data-pksx-control-category="composition"
-				checked={preferences.filters.shinyOnly}
-				onchange={(event) => updateFilters({ shinyOnly: event.currentTarget.checked })}
-			/> Shiny</label
-		>
-	</div>
+				aria-label="Filter Pokemon"
+				placeholder="Species, nickname, trainer"
+				value={preferences.filters.query}
+				oninput={(event) => updateFilters({ query: event.currentTarget.value })}
+			/>
+			<select
+				data-pksx-control-category="composition"
+				aria-label="Sort Pokemon"
+				value={preferences.sort}
+				onchange={(event) =>
+					onPreferences({
+						...preferences,
+						sort: event.currentTarget.value as VirtualViewPreferences['sort']
+					})}
+			>
+				<option value="recent">Recently added</option>
+				<option value="oldest">Oldest first</option>
+				<option value="species">Species</option>
+				<option value="level">Highest level</option>
+			</select>
+			<select
+				data-pksx-control-category="composition"
+				aria-label="Origin game"
+				value={preferences.filters.originGame}
+				onchange={(event) => updateFilters({ originGame: event.currentTarget.value })}
+			>
+				<option value="">All games</option>
+				{#each games as game (game)}<option value={game}>{game}</option>{/each}
+			</select>
+			<select
+				data-pksx-control-category="composition"
+				aria-label="Entry mode"
+				value={preferences.filters.entryMode}
+				onchange={(event) => updateFilters({ entryMode: event.currentTarget.value })}
+			>
+				<option value="">All origins</option>
+				{#each modes as mode (mode)}<option value={mode}
+						>{mode.replace('-in', '').replace('-', ' ')}</option
+					>{/each}
+			</select>
+			<label class="shiny"
+				><input
+					type="checkbox"
+					data-pksx-control-category="composition"
+					checked={preferences.filters.shinyOnly}
+					onchange={(event) => updateFilters({ shinyOnly: event.currentTarget.checked })}
+				/> Shiny</label
+			>
+		</div>
+	{/if}
 	<div
 		class="viewport"
 		{@attach measure}
 		role="grid"
-		aria-label={preferences.location === 'unfiled' ? 'Unfiled Pokemon' : 'All Pokemon'}
+		aria-label={preferences.location === 'unfiled'
+			? 'Unfiled Pokemon'
+			: preferences.location === 'overflow'
+				? 'Overflow Pokemon'
+				: 'All Pokemon'}
 		aria-rowcount={rows}
 		aria-colcount={columns}
 		onscroll={(event) => (scrollTop = event.currentTarget.scrollTop)}
@@ -211,6 +221,9 @@
 		grid-template-rows: auto minmax(0, 1fr) auto;
 		gap: 6px;
 		padding: 8px;
+	}
+	.virtual-browser.overflow {
+		grid-template-rows: minmax(0, 1fr) auto;
 	}
 	.filters {
 		display: flex;
