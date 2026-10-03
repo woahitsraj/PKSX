@@ -5,6 +5,7 @@ import { decodeStorageArchive, encodeStorageArchive } from './archive';
 import {
 	assertManifest,
 	cloneManifest,
+	CatalogOutcomeUnknownError,
 	emptyManifest,
 	referenceFor,
 	recoveryAvailable,
@@ -31,6 +32,7 @@ export type CatalogCarrySource = {
 export class PokemonStorageService {
 	readonly #store: Store = createStore();
 	#manifest: PokemonStorageManifest | null = null;
+	#pendingReplacement = false;
 	constructor(
 		private readonly persistence: CatalogPersistence,
 		private readonly engine: Pick<
@@ -47,6 +49,7 @@ export class PokemonStorageService {
 	async load(): Promise<PokemonStorageManifest | null> {
 		const manifest = await this.persistence.read();
 		if (manifest) assertManifest(manifest);
+		this.#pendingReplacement = false;
 		this.#publish(manifest);
 		return manifest ? cloneManifest(manifest) : null;
 	}
@@ -55,6 +58,7 @@ export class PokemonStorageService {
 		return this.#manifest ? cloneManifest(this.#manifest) : null;
 	}
 	async exportArchive(): Promise<Uint8Array> {
+		this.#assertReady();
 		if (!this.#manifest) throw new Error('Pokemon Storage catalog is not initialized.');
 		return encodeStorageArchive(
 			this.#manifest,
@@ -88,6 +92,7 @@ export class PokemonStorageService {
 		await this.#replaceCollection(recovery.manifest, blobs);
 	}
 	async #replaceCollection(source: PokemonStorageManifest, blobs: StagedBlob[]) {
+		this.#assertReady();
 		const current = this.#manifest;
 		if (!current) throw new Error('Pokemon Storage catalog is not initialized.');
 		await this.#collectBlobs(current);
@@ -96,11 +101,19 @@ export class PokemonStorageService {
 		next.revision = current.revision + 1;
 		next.createdAt = current.createdAt;
 		next.updatedAt = this.now();
-		await this.persistence.replace(current.revision, next, blobs, {
-			createdAt: this.now(),
-			manifest: cloneManifest(current)
-		});
+		try {
+			await this.persistence.replace(current.revision, next, blobs, {
+				createdAt: this.now(),
+				manifest: cloneManifest(current)
+			});
+		} catch (error) {
+			if (error instanceof CatalogOutcomeUnknownError) this.#pendingReplacement = true;
+			throw error;
+		}
 		this.#publish(next);
+	}
+	#assertReady() {
+		if (this.#pendingReplacement) throw new CatalogOutcomeUnknownError();
 	}
 	async #collectBlobs(manifest: PokemonStorageManifest): Promise<StagedBlob[]> {
 		const references = new Map(referencedPayloads(manifest).map((item) => [item.id, item]));
@@ -696,6 +709,7 @@ export class PokemonStorageService {
 		expectedPayloadId: string | null = null,
 		guard?: (manifest: PokemonStorageManifest) => void
 	): Promise<PokemonRecord> {
+		this.#assertReady();
 		const parsed = await this.engine.readPreservationPayload(bytes);
 		if (!parsed.ok) throw parsed.error;
 		const { summary, projection } = parsed.value;
@@ -779,6 +793,7 @@ export class PokemonStorageService {
 		change: (manifest: PokemonStorageManifest) => void,
 		blobs: StagedBlob[] = []
 	): Promise<void> {
+		this.#assertReady();
 		if (!this.#manifest) throw new Error('Pokemon Storage catalog is not initialized.');
 		const next = cloneManifest(this.#manifest);
 		change(next);

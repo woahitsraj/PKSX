@@ -24,7 +24,10 @@
 		type SavesTarget
 	} from '$lib/pksx/saves-navigation';
 	import type { SaveFileId, StoredSaveFile } from '$lib/pksx/saves';
-	import type { PokemonStorageManifest } from '$lib/pksx/pokemon-storage-catalog';
+	import {
+		CatalogOutcomeUnknownError,
+		type PokemonStorageManifest
+	} from '$lib/pksx/pokemon-storage-catalog';
 	import {
 		getCachedActiveWorkspace,
 		getCachedSavesSnapshot,
@@ -422,10 +425,19 @@
 
 	function dismissStorageBackup() {
 		if (busyTarget) return;
+		if (storageConfirmOpen) {
+			storageBackupIndex = recoveryRequested ? 2 : 1;
+			pendingStorageArchive = null;
+			storageConfirmation = null;
+			recoveryRequested = false;
+			summonedWorkflow.dismiss();
+			void focusStorageBackupCommand();
+			return;
+		}
 		pendingStorageArchive = null;
 		storageConfirmation = null;
 		recoveryRequested = false;
-		summonedWorkflow.closeAll();
+		summonedWorkflow.dismiss();
 		void focusGrid();
 	}
 
@@ -498,29 +510,50 @@
 	async function confirmStorageReplacement() {
 		if (busyTarget) return;
 		busyTarget = 'pokemon-storage';
+		const catalog = getPokemonStorageCatalog();
+		const previousRevision = catalog.current?.revision;
 		try {
-			const catalog = getPokemonStorageCatalog();
 			if (recoveryRequested) await catalog.recoverPreRestore();
 			else if (pendingStorageArchive) await catalog.restoreArchive(pendingStorageArchive);
 			else throw new Error('The selected backup is no longer available.');
-			storageRecoveryAvailable = true;
-			pendingStorageArchive = null;
-			storageConfirmation = null;
-			recoveryRequested = false;
-			summonedWorkflow.closeAll();
-			await refreshSaves({
-				force: true,
-				preferredTarget: { kind: 'pokemon-storage' },
-				focus: true
-			});
-			toastHost.success(
-				'Pokemon Storage replaced. Previous Storage is recoverable from its Backup Menu.'
-			);
+			await finishStorageReplacement();
 		} catch (error) {
-			toastHost.error('Could not replace Pokemon Storage. ' + getErrorMessage(error));
+			if (error instanceof CatalogOutcomeUnknownError) {
+				try {
+					const settled = await catalog.load();
+					if (settled && settled.revision === (previousRevision ?? -1) + 1) {
+						await finishStorageReplacement();
+						return;
+					}
+					summonedWorkflow.closeAll();
+					await refreshSaves({
+						force: true,
+						preferredTarget: { kind: 'pokemon-storage' },
+						focus: true
+					});
+					toastHost.error('Pokemon Storage was not replaced. The current collection is unchanged.');
+				} catch {
+					summonedWorkflow.closeAll();
+					toastHost.error(
+						'Pokemon Storage replacement is unconfirmed. Reload before changing Storage.'
+					);
+				}
+			} else toastHost.error('Could not replace Pokemon Storage. ' + getErrorMessage(error));
 		} finally {
 			busyTarget = null;
 		}
+	}
+
+	async function finishStorageReplacement() {
+		storageRecoveryAvailable = true;
+		pendingStorageArchive = null;
+		storageConfirmation = null;
+		recoveryRequested = false;
+		summonedWorkflow.closeAll();
+		await refreshSaves({ force: true, preferredTarget: { kind: 'pokemon-storage' }, focus: true });
+		toastHost.success(
+			'Pokemon Storage replaced. Previous Storage is recoverable from its Backup Menu.'
+		);
 	}
 
 	function handleStorageBackupKeydown(event: KeyboardEvent) {

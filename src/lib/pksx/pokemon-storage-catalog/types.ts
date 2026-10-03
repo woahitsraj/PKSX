@@ -94,6 +94,11 @@ export class CatalogConflictError extends Error {
 		super('Pokemon Storage changed. Reload before retrying.');
 	}
 }
+export class CatalogOutcomeUnknownError extends Error {
+	constructor() {
+		super('Pokemon Storage replacement is awaiting confirmation. Reload before changing Storage.');
+	}
+}
 export async function referenceFor(
 	bytes: Uint8Array,
 	schemaVersion: number

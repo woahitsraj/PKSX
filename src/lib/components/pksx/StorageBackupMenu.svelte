@@ -81,6 +81,11 @@
 					onfocus={() => onFocusCommand(2)}
 					onclick={onRecover}>Recover Previous Storage</button
 				>
+				{#if !canRecover}
+					<p class="recovery-note">
+						A previous collection becomes available after restoring a backup.
+					</p>
+				{/if}
 			{/if}
 			<DelayedSpinner active={busy} label="Working with Pokemon Storage Backup" />
 		</div>
@@ -142,5 +147,10 @@
 	.commands button:disabled {
 		cursor: not-allowed;
 		opacity: 0.58;
+	}
+	.recovery-note {
+		margin: 0;
+		color: var(--ink-soft);
+		font-size: var(--pksx-type-caption);
 	}
 </style>
