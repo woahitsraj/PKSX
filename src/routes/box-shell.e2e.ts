@@ -2895,7 +2895,14 @@ test('keeps a virtual Storage source after Save commits but retirement fails', a
 	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('Empty');
 	await storagePane.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: /All Pokemon: All Pokemon/ }).click();
+	await savePane.locator('[id$="box-0-slot-0"]').click();
+	await expect(savePane).toHaveClass(/active-pane/);
+	await page.setViewportSize({ width: 1400, height: 900 });
+	await expect(savePane.locator('[id$="box-0-slot-0"]')).toBeFocused();
+	await storagePane.getByRole('gridcell', { name: 'ARON, level 11' }).click();
+	await expect(storagePane).toHaveClass(/active-pane/);
 	await storagePane.locator('.carry-actions').getByRole('button', { name: 'Move' }).click();
+	await expect(page.getByRole('dialog', { name: 'Choose a Box' })).toBeVisible();
 	await page.keyboard.press('Escape');
 	await page.evaluate(() => {
 		const original = IDBDatabase.prototype.transaction;
