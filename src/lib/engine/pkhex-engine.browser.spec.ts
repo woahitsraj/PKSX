@@ -1000,6 +1000,22 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		const firstCopy = await engine.createPreservationPayload(sourceBytes);
 		const secondCopy = await engine.createPreservationPayload(sourceBytes);
 		if (!firstCopy.ok || !secondCopy.ok) throw new Error('Expected preservation payloads.');
+		const updated = await engine.replacePreservationPayloadCurrent(
+			aronPayload.value.bytes,
+			base64ToBytes(evolved.value.entityBytesBase64)
+		);
+		if (!updated.ok) throw new Error(`Expected preserved evolution: ${updated.error.message}`);
+		expect(updated.value.summary).toMatchObject({
+			recordId: aronPayload.value.summary.recordId,
+			identityFingerprint: aronPayload.value.summary.identityFingerprint,
+			originalEntitySha256: aronPayload.value.summary.originalEntitySha256
+		});
+		const updatedEntity = await engine.readPreservationPayload(updated.value.bytes);
+		if (!updatedEntity.ok) throw new Error('Expected updated preservation payload to parse.');
+		expect(updatedEntity.value.projection.speciesId).toBe(305);
+		expect(
+			await engine.replacePreservationPayloadCurrent(aronPayload.value.bytes, sourceBytes)
+		).toMatchObject({ ok: false, error: { code: 'unsupported-preservation-payload' } });
 		expect(firstCopy.value.summary.identityFingerprint).toBe(
 			secondCopy.value.summary.identityFingerprint
 		);

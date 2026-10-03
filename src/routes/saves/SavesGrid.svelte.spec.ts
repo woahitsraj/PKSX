@@ -4,6 +4,7 @@ import type { EngineApi } from '$lib/engine';
 import SavesGrid from './SavesGrid.svelte';
 import { createSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 import { createEmptyPokemonStorage, deleteIndexedDbSaves } from '$lib/pksx/saves';
+import { deleteBrowserCatalog } from '$lib/pksx/pokemon-storage-catalog';
 import {
 	getSaveFileEditCoordinator,
 	getSavesSnapshot,
@@ -54,6 +55,7 @@ afterEach(async () => {
 	container?.remove();
 	fakes.detailsRequest = null;
 	await deleteIndexedDbSaves(fakes.databaseName);
+	await deleteBrowserCatalog('pksx-pokemon-storage-catalog');
 	invalidateSavesCache();
 	vi.useRealTimers();
 });

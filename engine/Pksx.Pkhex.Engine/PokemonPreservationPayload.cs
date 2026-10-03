@@ -118,6 +118,21 @@ internal sealed class PokemonPreservationPayload
     public PokemonPreservationPayload Fork() =>
         new(Guid.NewGuid(), Identity, Original.Copy(), Current.Copy());
 
+    public PokemonPreservationPayload ReplaceCurrent(byte[] entityBytes)
+    {
+        var pokemon = ParseEntity(entityBytes, Current.Context, "edited Pokemon Entity");
+        if (!Identity.Matches(pokemon))
+            throw new PokemonPreservationException(
+                "unsupported-preservation-payload",
+                "The edited Pokemon Entity changed the preserved identity fingerprint.");
+
+        return new PokemonPreservationPayload(
+            RecordId,
+            Identity,
+            Original.Copy(),
+            new PokemonEntitySnapshot(pokemon.Format, pokemon.Context, entityBytes.ToArray(), pokemon));
+    }
+
     public PokemonPreservationPayload Project(byte targetFormat)
     {
         PKM projected;

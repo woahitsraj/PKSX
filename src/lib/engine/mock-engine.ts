@@ -371,7 +371,7 @@ export function createMockEngine(
 		string,
 		{ entityBytes: Uint8Array; summary: PreservationPayloadSummary }
 	>();
-	const encodePayload = (recordId: string) => new TextEncoder().encode(recordId);
+	const encodePayload = (payloadId: string) => new TextEncoder().encode(payloadId);
 	const storedPayload = (bytes: Uint8Array) => {
 		const stored = preservationPayloads.get(new TextDecoder().decode(bytes));
 		if (!stored) throw new Error('Unknown mock preservation payload.');
@@ -387,8 +387,9 @@ export function createMockEngine(
 					originalByteLength: entityBytes.byteLength,
 					currentByteLength: entityBytes.byteLength
 				};
-		preservationPayloads.set(recordId, { entityBytes: copyBytes(entityBytes), summary });
-		return success<PreservationPayload>({ bytes: encodePayload(recordId), summary });
+		const payloadId = crypto.randomUUID();
+		preservationPayloads.set(payloadId, { entityBytes: copyBytes(entityBytes), summary });
+		return success<PreservationPayload>({ bytes: encodePayload(payloadId), summary });
 	};
 	return {
 		getVersion: async () => success(mockVersion),
@@ -600,6 +601,13 @@ export function createMockEngine(
 		forkPreservationPayload: async (payloadBytes) => {
 			const stored = storedPayload(payloadBytes);
 			return createPayload(stored.entityBytes, stored.summary);
+		},
+		replacePreservationPayloadCurrent: async (payloadBytes, entityBytes) => {
+			const stored = storedPayload(payloadBytes);
+			const payloadId = crypto.randomUUID();
+			const summary = { ...stored.summary, currentByteLength: entityBytes.byteLength };
+			preservationPayloads.set(payloadId, { entityBytes: copyBytes(entityBytes), summary });
+			return success<PreservationPayload>({ bytes: encodePayload(payloadId), summary });
 		},
 		readPreservationPayload: async (payloadBytes) => {
 			const stored = storedPayload(payloadBytes);

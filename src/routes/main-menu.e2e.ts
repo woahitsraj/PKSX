@@ -396,6 +396,14 @@ test('stored Pokemon keeps the default entry on Saves with a compact introductio
 	await page.evaluate(
 		() =>
 			new Promise<void>((resolve, reject) => {
+				const deletion = indexedDB.deleteDatabase('pksx-pokemon-storage-catalog');
+				deletion.onsuccess = () => resolve();
+				deletion.onerror = () => reject(deletion.error);
+			})
+	);
+	await page.evaluate(
+		() =>
+			new Promise<void>((resolve, reject) => {
 				const open = indexedDB.open('pksx-saves');
 				open.onerror = () => reject(open.error ?? new Error('Could not open Saves.'));
 				open.onsuccess = () => {
@@ -424,6 +432,8 @@ test('stored Pokemon keeps the default entry on Saves with a compact introductio
 												form: 0,
 												isEgg: false,
 												spriteIdentity: null,
+												entityBytesBase64:
+													'rVIoJRblSsu7zMnI/xUAAwQAAgK+w9LDv///AH8OAAB+AQAAfwYAAAAoAAAhAGoAvQAdACMeCg8AAAAAAAAAAAAAAAAAN4uhozfCnwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
 												origin: {
 													entryMode: 'imported',
 													originSaveFileName: null,

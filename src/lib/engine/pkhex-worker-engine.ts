@@ -472,6 +472,20 @@ export function createPkhexWorkerEngine(
 				[buffer]
 			);
 		},
+		replacePreservationPayloadCurrent: (payloadBytes, entityBytes) => {
+			const buffer = copyBytesToArrayBuffer(payloadBytes);
+			const entityBuffer = copyBytesToArrayBuffer(entityBytes);
+			return sendRequest(
+				'replacePreservationPayloadCurrent',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'replacePreservationPayloadCurrent',
+					payload: { bytes: buffer, entityBytes: entityBuffer }
+				},
+				[buffer, entityBuffer]
+			);
+		},
 		readPreservationPayload: (payloadBytes) => {
 			const buffer = copyBytesToArrayBuffer(payloadBytes);
 			return sendRequest(
@@ -641,6 +655,11 @@ export function createPkhexWorkerEngine(
 		transfer: Transferable[]
 	): Promise<EngineResult<PreservationPayload>>;
 	async function sendRequest(
+		method: 'replacePreservationPayloadCurrent',
+		request: Extract<EngineWorkerRequest, { method: 'replacePreservationPayloadCurrent' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<PreservationPayload>>;
+	async function sendRequest(
 		method: 'readPreservationPayload',
 		request: Extract<EngineWorkerRequest, { method: 'readPreservationPayload' }>,
 		transfer: Transferable[]
@@ -730,6 +749,7 @@ function normalizeWorkerResult(response: EngineWorkerResponse): EngineResult<unk
 			response.method !== 'applyPokemonAction' &&
 			response.method !== 'createPreservationPayload' &&
 			response.method !== 'forkPreservationPayload' &&
+			response.method !== 'replacePreservationPayloadCurrent' &&
 			response.method !== 'readPreservationPayload' &&
 			response.method !== 'projectPreservationPayload' &&
 			response.method !== 'prepareOutgoingLinkTrade' &&
