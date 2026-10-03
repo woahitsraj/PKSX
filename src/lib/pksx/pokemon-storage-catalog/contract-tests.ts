@@ -401,6 +401,27 @@ export function catalogContract(
 				})
 			).rejects.toThrow(/occupied/);
 		});
+		it('swaps occupied Slots when the Carry source placement is a proxy', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const first = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			const second = await service.add(bytes(2), origin, { storageBoxId: boxId, slot: 1 });
+			const source = service.carrySource(first.recordId);
+			source.placement = new Proxy(source.placement!, {});
+			await service.commitCarry(source, 'move', { storageBoxId: boxId, slot: 1 });
+			const records = (await persistence.read())!.records;
+			expect(records).toHaveLength(2);
+			expect(records.find((record) => record.recordId === first.recordId)).toMatchObject({
+				payload: first.payload,
+				placement: { storageBoxId: boxId, slot: 1 }
+			});
+			expect(records.find((record) => record.recordId === second.recordId)).toMatchObject({
+				payload: second.payload,
+				placement: { storageBoxId: boxId, slot: 0 }
+			});
+		});
 		it('rejects stale Carry source identity without changing the catalog', async () => {
 			const service = new PokemonStorageService(create(), fakeEngine());
 			await service.initialize();

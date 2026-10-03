@@ -255,7 +255,7 @@ export class PokemonStorageService {
 				if (!source.placement) throw new Error('Choose an empty destination Slot.');
 				const other = manifest.records.find((item) => item.recordId === occupant.recordId)!;
 				if (!other.placement) throw new Error('Storage Slot swap is unavailable.');
-				other.placement = source.placement;
+				other.placement = { ...source.placement };
 				other.revision += 1;
 				other.updatedAt = this.now();
 			}
