@@ -29,10 +29,36 @@ export type CatalogCarrySource = {
 	placement: Placement;
 };
 
+type RecordUndo = {
+	recordId: string;
+	before: Placement;
+	after: Placement;
+	beforeRevision: number;
+	expectedRevision: number;
+};
+type UndoEntry =
+	| { kind: 'placement'; records: RecordUndo[] }
+	| {
+			kind: 'rename';
+			boxId: string;
+			before: string | null;
+			after: string | null;
+			beforeRevision: number;
+			expectedRevision: number;
+	  }
+	| { kind: 'order'; before: string[]; after: string[] }
+	| { kind: 'delete-box'; box: StorageBox; before: string[]; after: string[] };
+
+const samePlacement = (a: Placement, b: Placement) =>
+	a?.storageBoxId === b?.storageBoxId && a?.slot === b?.slot;
+const sameOrder = (a: string[], b: string[]) =>
+	a.length === b.length && a.every((id, index) => id === b[index]);
+
 export class PokemonStorageService {
 	readonly #store: Store = createStore();
 	#manifest: PokemonStorageManifest | null = null;
 	#pendingReplacement = false;
+	#undo: UndoEntry[] = [];
 	constructor(
 		private readonly persistence: CatalogPersistence,
 		private readonly engine: Pick<
@@ -50,12 +76,16 @@ export class PokemonStorageService {
 		const manifest = await this.persistence.read();
 		if (manifest) assertManifest(manifest);
 		this.#pendingReplacement = false;
+		if (this.#manifest?.storageId !== manifest?.storageId) this.#undo = [];
 		this.#publish(manifest);
 		return manifest ? cloneManifest(manifest) : null;
 	}
 
 	get current(): PokemonStorageManifest | null {
 		return this.#manifest ? cloneManifest(this.#manifest) : null;
+	}
+	get canUndo(): boolean {
+		return !this.#pendingReplacement && this.#undo.length > 0;
 	}
 	async exportArchive(): Promise<Uint8Array> {
 		this.#assertReady();
@@ -107,10 +137,14 @@ export class PokemonStorageService {
 				manifest: cloneManifest(current)
 			});
 		} catch (error) {
-			if (error instanceof CatalogOutcomeUnknownError) this.#pendingReplacement = true;
+			if (error instanceof CatalogOutcomeUnknownError) {
+				this.#pendingReplacement = true;
+				this.#undo = [];
+			}
 			throw error;
 		}
 		this.#publish(next);
+		this.#undo = [];
 	}
 	#assertReady() {
 		if (this.#pendingReplacement) throw new CatalogOutcomeUnknownError();
@@ -171,6 +205,7 @@ export class PokemonStorageService {
 	async initialize(storageId: string = this.id()): Promise<PokemonStorageManifest> {
 		const manifest = emptyManifest(storageId, this.now(), this.id());
 		await this.persistence.commit(null, manifest, []);
+		this.#undo = [];
 		this.#publish(manifest);
 		return cloneManifest(manifest);
 	}
@@ -267,6 +302,7 @@ export class PokemonStorageService {
 		};
 		assertManifest(manifest);
 		await this.persistence.commit(null, manifest, blobs);
+		this.#undo = [];
 		this.#publish(manifest);
 		return cloneManifest(manifest);
 	}
@@ -385,17 +421,24 @@ export class PokemonStorageService {
 	}
 
 	async place(recordId: string, placement: Placement): Promise<void> {
-		await this.#mutate((manifest) => {
-			const record = manifest.records.find((item) => item.recordId === recordId);
-			if (!record) throw new Error('Pokemon Record ID is unavailable.');
-			if (placement && !manifest.boxes.some((box) => box.id === placement.storageBoxId))
-				throw new Error('Storage Box is unavailable.');
-			if (placement && this.#occupied(manifest, placement, recordId))
-				throw new Error('Storage Slot is occupied.');
-			record.placement = placement;
-			record.revision += 1;
-			record.updatedAt = this.now();
-		});
+		await this.#mutate(
+			(manifest) => {
+				const record = manifest.records.find((item) => item.recordId === recordId);
+				if (!record) throw new Error('Pokemon Record ID is unavailable.');
+				if (placement && !manifest.boxes.some((box) => box.id === placement.storageBoxId))
+					throw new Error('Storage Box is unavailable.');
+				if (placement && this.#occupied(manifest, placement, recordId))
+					throw new Error('Storage Slot is occupied.');
+				record.placement = placement;
+				record.revision += 1;
+				record.updatedAt = this.now();
+			},
+			[],
+			(before, after) => ({
+				kind: 'placement',
+				records: [this.#recordUndo(before, after, recordId)]
+			})
+		);
 	}
 
 	async storeAutomatically(
@@ -449,20 +492,30 @@ export class PokemonStorageService {
 	}
 
 	async swap(firstId: string, secondId: string): Promise<void> {
-		await this.#mutate((manifest) => {
-			const first = manifest.records.find((record) => record.recordId === firstId);
-			const second = manifest.records.find((record) => record.recordId === secondId);
-			const placements = resolvePlacements(manifest);
-			const firstPlacement = placements.find((item) => item.recordId === firstId)?.placement;
-			const secondPlacement = placements.find((item) => item.recordId === secondId)?.placement;
-			if (!first || !second || !firstPlacement || !secondPlacement || firstId === secondId)
-				throw new Error('Storage Slot swap is unavailable.');
-			first.placement = secondPlacement;
-			second.placement = firstPlacement;
-			first.revision += 1;
-			second.revision += 1;
-			first.updatedAt = second.updatedAt = this.now();
-		});
+		await this.#mutate(
+			(manifest) => {
+				const first = manifest.records.find((record) => record.recordId === firstId);
+				const second = manifest.records.find((record) => record.recordId === secondId);
+				const placements = resolvePlacements(manifest);
+				const firstPlacement = placements.find((item) => item.recordId === firstId)?.placement;
+				const secondPlacement = placements.find((item) => item.recordId === secondId)?.placement;
+				if (!first || !second || !firstPlacement || !secondPlacement || firstId === secondId)
+					throw new Error('Storage Slot swap is unavailable.');
+				first.placement = secondPlacement;
+				second.placement = firstPlacement;
+				first.revision += 1;
+				second.revision += 1;
+				first.updatedAt = second.updatedAt = this.now();
+			},
+			[],
+			(before, after) => ({
+				kind: 'placement',
+				records: [
+					this.#recordUndo(before, after, firstId),
+					this.#recordUndo(before, after, secondId)
+				]
+			})
+		);
 	}
 
 	async addBox(name: string | null = null): Promise<StorageBox> {
@@ -483,40 +536,69 @@ export class PokemonStorageService {
 	}
 
 	async renameBox(boxId: string, name: string | null): Promise<void> {
-		await this.#mutate((manifest) => {
-			const box = manifest.boxes.find((item) => item.id === boxId);
-			if (!box) throw new Error('Storage Box is unavailable.');
-			box.name = name;
-			box.revision += 1;
-			box.updatedAt = this.now();
-		});
+		await this.#mutate(
+			(manifest) => {
+				const box = manifest.boxes.find((item) => item.id === boxId);
+				if (!box) throw new Error('Storage Box is unavailable.');
+				box.name = name;
+				box.revision += 1;
+				box.updatedAt = this.now();
+			},
+			[],
+			(before, after) => {
+				const previous = before.boxes.find((box) => box.id === boxId)!;
+				const current = after.boxes.find((box) => box.id === boxId)!;
+				return {
+					kind: 'rename',
+					boxId,
+					before: previous.name,
+					after: current.name,
+					beforeRevision: previous.revision,
+					expectedRevision: current.revision
+				};
+			}
+		);
 	}
 
 	async reorderBoxes(boxIds: string[]): Promise<void> {
-		await this.#mutate((manifest) => {
-			if (
-				boxIds.length !== manifest.boxes.length ||
-				new Set(boxIds).size !== boxIds.length ||
-				boxIds.some((id) => !manifest.boxes.some((box) => box.id === id))
-			)
-				throw new Error('Storage Box order is invalid.');
-			manifest.boxOrder = [...boxIds];
-		});
+		await this.#mutate(
+			(manifest) => {
+				if (
+					boxIds.length !== manifest.boxes.length ||
+					new Set(boxIds).size !== boxIds.length ||
+					boxIds.some((id) => !manifest.boxes.some((box) => box.id === id))
+				)
+					throw new Error('Storage Box order is invalid.');
+				manifest.boxOrder = [...boxIds];
+			},
+			[],
+			(before, after) => ({ kind: 'order', before: before.boxOrder, after: after.boxOrder })
+		);
 	}
 
 	async removeBox(boxId: string): Promise<void> {
-		await this.#mutate((manifest) => {
-			if (manifest.boxes.length === 1) throw new Error('Pokemon Storage requires one Storage Box.');
-			if (
-				manifest.records.some((record) => record.placement?.storageBoxId === boxId) ||
-				resolvePlacements(manifest).some((item) => item.placement?.storageBoxId === boxId)
-			)
-				throw new Error('Storage Box must be empty.');
-			const index = manifest.boxes.findIndex((box) => box.id === boxId);
-			if (index < 0) throw new Error('Storage Box is unavailable.');
-			manifest.boxes.splice(index, 1);
-			manifest.boxOrder = manifest.boxOrder.filter((id) => id !== boxId);
-		});
+		await this.#mutate(
+			(manifest) => {
+				if (manifest.boxes.length === 1)
+					throw new Error('Pokemon Storage requires one Storage Box.');
+				if (
+					manifest.records.some((record) => record.placement?.storageBoxId === boxId) ||
+					resolvePlacements(manifest).some((item) => item.placement?.storageBoxId === boxId)
+				)
+					throw new Error('Storage Box must be empty.');
+				const index = manifest.boxes.findIndex((box) => box.id === boxId);
+				if (index < 0) throw new Error('Storage Box is unavailable.');
+				manifest.boxes.splice(index, 1);
+				manifest.boxOrder = manifest.boxOrder.filter((id) => id !== boxId);
+			},
+			[],
+			(before, after) => ({
+				kind: 'delete-box',
+				box: before.boxes.find((box) => box.id === boxId)!,
+				before: before.boxOrder,
+				after: after.boxOrder
+			})
+		);
 	}
 
 	async retire(
@@ -778,6 +860,143 @@ export class PokemonStorageService {
 		return record;
 	}
 
+	#recordUndo(
+		before: PokemonStorageManifest,
+		after: PokemonStorageManifest,
+		recordId: string
+	): RecordUndo {
+		const previous = before.records.find((record) => record.recordId === recordId)!;
+		const current = after.records.find((record) => record.recordId === recordId)!;
+		return {
+			recordId,
+			before: previous.placement,
+			after: current.placement,
+			beforeRevision: previous.revision,
+			expectedRevision: current.revision
+		};
+	}
+
+	async undo(): Promise<void> {
+		const entry = this.#undo.at(-1);
+		if (!entry) throw new Error('There is no Pokemon Storage change to undo.');
+		await this.#mutate((manifest) => {
+			const stale = () => {
+				throw new Error('Pokemon Storage changed. This undo is no longer available.');
+			};
+			if (entry.kind === 'placement') {
+				const affected = new Set(entry.records.map((item) => item.recordId));
+				for (const item of entry.records) {
+					const record = manifest.records.find((candidate) => candidate.recordId === item.recordId);
+					if (
+						!record ||
+						record.revision !== item.expectedRevision ||
+						!samePlacement(record.placement, item.after)
+					)
+						stale();
+					if (item.before && !manifest.boxes.some((box) => box.id === item.before?.storageBoxId))
+						stale();
+				}
+				const resolved = resolvePlacements(manifest);
+				for (const item of entry.records) {
+					if (!item.before) continue;
+					if (
+						manifest.records.some(
+							(record) =>
+								!affected.has(record.recordId) && samePlacement(record.placement, item.before)
+						) ||
+						resolved.some(
+							(record) =>
+								!affected.has(record.recordId) && samePlacement(record.placement, item.before)
+						)
+					)
+						throw new Error('The former Storage Slot is occupied.');
+				}
+				for (const item of entry.records) {
+					const record = manifest.records.find(
+						(candidate) => candidate.recordId === item.recordId
+					)!;
+					record.placement = item.before;
+					record.revision += 1;
+					record.updatedAt = this.now();
+				}
+			} else if (entry.kind === 'rename') {
+				const box = manifest.boxes.find((item) => item.id === entry.boxId);
+				if (!box || box.revision !== entry.expectedRevision || box.name !== entry.after)
+					throw new Error('Pokemon Storage changed. This undo is no longer available.');
+				box.name = entry.before;
+				box.revision += 1;
+				box.updatedAt = this.now();
+			} else if (entry.kind === 'order') {
+				const ids = new Set(entry.after);
+				if (
+					!sameOrder(
+						manifest.boxOrder.filter((id) => ids.has(id)),
+						entry.after
+					)
+				)
+					stale();
+				let index = 0;
+				manifest.boxOrder = manifest.boxOrder.map((id) =>
+					ids.has(id) ? entry.before[index++] : id
+				);
+			} else {
+				if (
+					manifest.boxes.some((box) => box.id === entry.box.id) ||
+					manifest.records.some((record) => record.placement?.storageBoxId === entry.box.id)
+				)
+					stale();
+				const ids = new Set(entry.after);
+				if (
+					!sameOrder(
+						manifest.boxOrder.filter((id) => ids.has(id)),
+						entry.after
+					)
+				)
+					stale();
+				const nextId = entry.before[entry.before.indexOf(entry.box.id) + 1];
+				const previousId = entry.before[entry.before.indexOf(entry.box.id) - 1];
+				const insertAt = nextId
+					? manifest.boxOrder.indexOf(nextId)
+					: manifest.boxOrder.indexOf(previousId) + 1;
+				if (insertAt < 0) stale();
+				manifest.boxes.push(structuredClone(entry.box));
+				manifest.boxOrder.splice(insertAt, 0, entry.box.id);
+			}
+		});
+		this.#undo.pop();
+		if (entry.kind === 'placement') {
+			for (const item of entry.records) {
+				for (let index = this.#undo.length - 1; index >= 0; index -= 1) {
+					const older = this.#undo[index];
+					if (older.kind !== 'placement') continue;
+					const record = older.records.find((candidate) => candidate.recordId === item.recordId);
+					if (
+						record?.expectedRevision === item.beforeRevision &&
+						samePlacement(record.after, item.before)
+					) {
+						record.expectedRevision = this.#required(item.recordId).revision;
+						break;
+					}
+				}
+			}
+		} else if (entry.kind === 'rename') {
+			for (let index = this.#undo.length - 1; index >= 0; index -= 1) {
+				const older = this.#undo[index];
+				if (
+					older.kind === 'rename' &&
+					older.boxId === entry.boxId &&
+					older.expectedRevision === entry.beforeRevision &&
+					older.after === entry.before
+				) {
+					older.expectedRevision = this.#manifest!.boxes.find(
+						(box) => box.id === entry.boxId
+					)!.revision;
+					break;
+				}
+			}
+		}
+	}
+
 	#occupied(manifest: PokemonStorageManifest, placement: NonNullable<Placement>, except: string) {
 		const matches = (candidate: Placement) =>
 			candidate?.storageBoxId === placement.storageBoxId && candidate.slot === placement.slot;
@@ -791,16 +1010,19 @@ export class PokemonStorageService {
 
 	async #mutate(
 		change: (manifest: PokemonStorageManifest) => void,
-		blobs: StagedBlob[] = []
+		blobs: StagedBlob[] = [],
+		undo?: (before: PokemonStorageManifest, after: PokemonStorageManifest) => UndoEntry
 	): Promise<void> {
 		this.#assertReady();
 		if (!this.#manifest) throw new Error('Pokemon Storage catalog is not initialized.');
-		const next = cloneManifest(this.#manifest);
+		const before = this.#manifest;
+		const next = cloneManifest(before);
 		change(next);
 		next.revision += 1;
 		next.updatedAt = this.now();
 		assertManifest(next);
-		await this.persistence.commit(this.#manifest.revision, next, blobs);
+		await this.persistence.commit(before.revision, next, blobs);
+		if (undo) this.#undo.push(undo(before, next));
 		this.#publish(next);
 	}
 

@@ -5,6 +5,7 @@ export type BoxMenuCommandKey =
 	| 'save-backup'
 	| 'legality-report'
 	| 'organize-storage-boxes'
+	| 'undo-storage-organization'
 	| 'switch'
 	| 'open-another'
 	| 'close';
@@ -20,6 +21,7 @@ export function createBoxMenuCommands(input: {
 	source: { type: BoxSourceType; label: string };
 	workspaceReady: boolean;
 	paneCount: number;
+	undoAvailable: boolean;
 }): BoxMenuCommand[] {
 	const unavailable = (key: BoxMenuCommandKey, label: string, reason: string): BoxMenuCommand => ({
 		key,
@@ -59,6 +61,17 @@ export function createBoxMenuCommands(input: {
 			: available('open-another', 'Open another collection'),
 		input.paneCount <= 1
 			? unavailable('close', 'Close', 'Keep at least one collection open.')
-			: available('close', 'Close')
+			: available('close', 'Close'),
+		...(storage
+			? [
+					input.undoAvailable
+						? available('undo-storage-organization', 'Undo Storage organization')
+						: unavailable(
+								'undo-storage-organization',
+								'Undo Storage organization',
+								'No completed Storage organization change is available to undo.'
+							)
+				]
+			: [])
 	];
 }

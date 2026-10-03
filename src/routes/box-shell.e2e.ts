@@ -1798,7 +1798,8 @@ test('Box Menu keeps fixed unavailable commands and X and Y preserve their conte
 		'Legality Report',
 		'Switch',
 		'Open another collection',
-		'Close'
+		'Close',
+		'Undo Storage organization'
 	]);
 	await expect(menu.getByRole('button', { name: 'Export' })).toHaveAttribute(
 		'aria-disabled',
@@ -6839,6 +6840,34 @@ test('Store Automatically restores virtual focus after a failed write and focuse
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	await expect(page.getByRole('grid', { name: 'Unfiled' })).toHaveCount(0);
+});
+
+test('Box Menu undoes a Storage Box rename in the session', async ({ page }) => {
+	await openEmptySaves(page);
+	await page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' }).click();
+	const menu = page.getByRole('dialog', { name: 'Box Menu' });
+	const undo = menu.getByRole('button', { name: 'Undo Storage organization' });
+	await expect(undo).toHaveAttribute('aria-disabled', 'true');
+	await menu.getByRole('button', { name: 'Organize Storage Boxes' }).click();
+	const organizer = page.locator('.organizer');
+	await organizer.locator('.row').first().getByRole('button', { name: 'Rename' }).click();
+	await organizer.getByRole('textbox', { name: /Name for Box 01/ }).fill('Favorites');
+	await organizer.getByRole('button', { name: 'Save name' }).click();
+	await expect(organizer.locator('.row').first()).toContainText('Favorites');
+	await organizer.getByRole('button', { name: 'Close' }).click();
+	await menu.getByRole('button', { name: 'Undo Storage organization' }).click();
+	await expect(menu).toBeHidden();
+	await page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' }).click();
+	await expect(menu.getByRole('button', { name: 'Undo Storage organization' })).toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
+	await page.reload();
+	await page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' }).click();
+	await expect(menu.getByRole('button', { name: 'Undo Storage organization' })).toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
 });
 
 test('organizes physical Storage Boxes without mixing navigation and editing', async ({ page }) => {
