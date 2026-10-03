@@ -202,6 +202,18 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 			).toBeFocused();
 		}
 		expect(await grid.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+		if (width === 1280) {
+			const focusedId = await page.evaluate(() => document.activeElement?.id);
+			await page.setViewportSize({ width: 360, height: 800 });
+			await expect(grid).not.toHaveAttribute('aria-colcount', String(columns));
+			await expect(page.locator(`#${focusedId}`)).toBeFocused();
+			await expect(page.locator(`#${focusedId}`)).toBeVisible();
+			expect(await grid.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+		}
 	}
 	expect(columnCounts[0]).not.toBe(columnCounts[1]);
+	const filter = page.getByRole('searchbox', { name: 'Filter Pokemon' });
+	await filter.focus();
+	await page.setViewportSize({ width: 900, height: 800 });
+	await expect(filter).toBeFocused();
 });

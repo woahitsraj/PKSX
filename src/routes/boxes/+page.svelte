@@ -1056,10 +1056,10 @@
 			?.focus();
 	}
 
-	function focusVirtualRecord(recordId: string | null) {
+	function focusVirtualRecord(recordId: string | null, restoreAfterResize = false) {
 		virtualFocusedId = recordId;
 		if (!recordId) return;
-		if (document.activeElement?.id === `virtual-record-${recordId}`) return;
+		if (!restoreAfterResize && document.activeElement?.id === `virtual-record-${recordId}`) return;
 		const index = activeVirtualRecords.findIndex((record) => record.recordId === recordId);
 		const viewport = document.querySelector<HTMLElement>('.active-pane .virtual-browser .viewport');
 		if (viewport && index >= 0) {
@@ -3406,7 +3406,7 @@
 		savePaneWorkspaces = remaining;
 	}
 
-	function activatePane(pane: BoxPaneState) {
+	function activatePane(pane: BoxPaneState, restoreFocus = true) {
 		activePaneId = pane.id;
 		navigation = selectActiveBox(
 			{
@@ -3417,7 +3417,7 @@
 			},
 			Math.min(pane.activeBox, Math.max(1, pane.boxCount) - 1)
 		);
-		queueMicrotask(focusActiveControl);
+		if (restoreFocus) queueMicrotask(focusActiveControl);
 	}
 
 	function sourceForCard(card: SourcePickerCard): BoxSourceType {
@@ -6197,11 +6197,38 @@
 							preferences={virtualPreferences}
 							focusedId={paneActive ? virtualFocusedId : null}
 							{busy}
-							onPreferences={setVirtualPreferences}
-							onFocus={focusVirtualRecord}
-							onMoveToUnfiled={(id) => void moveToUnfiled(id)}
-							onCarry={beginVirtualCarry}
-							onColumns={(columns) => (virtualColumns = columns)}
+							onPreferences={(preferences) => {
+								activatePane(pane, false);
+								setVirtualPreferences(preferences);
+							}}
+							onFocus={(id) => {
+								activatePane(pane, false);
+								focusVirtualRecord(id);
+							}}
+							onMoveToUnfiled={(id) => {
+								activatePane(pane, false);
+								void moveToUnfiled(id);
+							}}
+							onCarry={(id, mode) => {
+								activatePane(pane, false);
+								beginVirtualCarry(id, mode);
+							}}
+							onColumns={(columns) => {
+								const restoreRecord =
+									paneActive && document.activeElement?.id === `virtual-record-${virtualFocusedId}`
+										? virtualFocusedId
+										: null;
+								virtualColumns = columns;
+								if (restoreRecord)
+									void tick().then(() => {
+										if (
+											pane.id === activePaneId &&
+											(document.activeElement === document.body ||
+												document.activeElement?.id === `virtual-record-${restoreRecord}`)
+										)
+											focusVirtualRecord(restoreRecord, true);
+									});
+							}}
 						/>
 					{:else}
 						<div
