@@ -417,6 +417,20 @@ export function catalogContract(
 			).rejects.toThrow(/source changed/);
 			expect(service.current).toEqual(before);
 		});
+		it('checks a Carry source against changes committed by another instance', async () => {
+			const persistence = create();
+			const engine = fakeEngine();
+			const firstTab = new PokemonStorageService(persistence, engine);
+			const secondTab = new PokemonStorageService(persistence, engine);
+			await firstTab.initialize();
+			const boxId = firstTab.listBoxes()[0].id;
+			const record = await firstTab.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			const source = firstTab.carrySource(record.recordId);
+			await secondTab.load();
+			await secondTab.place(record.recordId, { storageBoxId: boxId, slot: 1 });
+			firstTab.assertCarrySource(source);
+			await expect(firstTab.assertDurableCarrySource(source)).rejects.toThrow(/source changed/);
+		});
 		it('protects resolved slots held by displaced records', async () => {
 			const persistence = create();
 			const service = new PokemonStorageService(persistence, fakeEngine());

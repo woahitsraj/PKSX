@@ -2882,6 +2882,109 @@ test('moves a Save File Pokemon into durable Storage and clears its source', asy
 	});
 });
 
+test('Storage-to-Save Move and Duplicate reject source changes from another tab before writing', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await seedOccupiedPokemonStorageSlot(page);
+	await page.reload();
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	const savePane = page.locator('.box-pane').nth(0);
+	const storagePane = page.locator('.box-pane').nth(1);
+	const destination = savePane.locator('.box-slot.empty').first();
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await expect(destination).toContainText('Empty');
+	const secondTab = await page.context().newPage();
+	await secondTab.goto('/settings');
+	for (const mode of ['Move', 'Duplicate'] as const) {
+		await storagePane.locator('[id$="box-0-slot-0"]').click();
+		await page
+			.getByRole('dialog', { name: 'Slot actions' })
+			.getByRole('button', { name: mode })
+			.click();
+		await secondTab.evaluate(
+			() =>
+				new Promise<void>((resolve, reject) => {
+					const open = indexedDB.open('pksx-pokemon-storage-catalog');
+					open.onerror = () => reject(open.error);
+					open.onsuccess = () => {
+						const db = open.result;
+						const transaction = db.transaction('manifest', 'readwrite');
+						const store = transaction.objectStore('manifest');
+						const read = store.get('current');
+						read.onsuccess = () => {
+							const manifest = read.result;
+							manifest.records[0].revision += 1;
+							manifest.revision += 1;
+							store.put(manifest, 'current');
+						};
+						transaction.oncomplete = () => {
+							db.close();
+							resolve();
+						};
+						transaction.onerror = () => reject(transaction.error);
+					};
+				})
+		);
+		const before = await persistedSavesStateSnapshot(page);
+		await destination.click();
+		await expect(page.locator('.toast-error').last()).toContainText(
+			'Pokemon Storage source changed.'
+		);
+		await expect(destination).toContainText('Empty');
+		expect(await persistedSavesStateSnapshot(page)).toBe(before);
+		await page.keyboard.press('Escape');
+	}
+	await secondTab.close();
+});
+
+test('virtual Carry keeps Save Box locations available but blocks Box edits', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await seedOccupiedPokemonStorageSlot(page);
+	await page.reload();
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	const savePane = page.locator('.box-pane').nth(0);
+	const storagePane = page.locator('.box-pane').nth(1);
+	await storagePane.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /All Pokemon: All Pokemon/ }).click();
+	await storagePane.getByRole('gridcell', { name: 'ARON, level 11' }).click();
+	await storagePane.locator('.carry-actions').getByRole('button', { name: 'Move' }).click();
+	await page.keyboard.press('Escape');
+	await savePane.locator('.box-slot.empty').first().focus();
+	await expect(savePane).toHaveClass(/active-pane/);
+	await savePane
+		.getByRole('button', { name: 'Open Box Picker for emerald-011020251345.sav' })
+		.click();
+	const picker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await expect(picker).toContainText('Finish or cancel Carry before renaming a Box.');
+	await expect(picker).toContainText('Finish or cancel Carry before moving a Box.');
+	await expect(picker.getByRole('button', { name: 'Rename Box' })).toHaveCount(0);
+	await expect(picker.getByRole('button', { name: 'Move Box' })).toHaveCount(0);
+	await picker.getByRole('button', { name: /^Box 02:/ }).click();
+	await expect(savePane).toHaveAttribute('data-location', 'box-1');
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
+});
+
 test('keeps a virtual Storage source after Save commits but retirement fails', async ({ page }) => {
 	await page.setViewportSize({ width: 1800, height: 900 });
 	await openEmptySaves(page);

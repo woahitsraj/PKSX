@@ -307,4 +307,28 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	await panes.nth(0).getByRole('searchbox', { name: 'Filter Pokemon' }).fill('NO MATCH');
 	await expect(panes.nth(0).getByRole('gridcell')).toHaveCount(0);
 	await expect(panes.nth(1).getByRole('gridcell').first()).toBeVisible();
+	await panes.nth(0).getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page
+		.getByRole('dialog', { name: 'Choose a Box' })
+		.getByRole('button', { name: /Box 01: Favorites/ })
+		.click();
+	await panes.nth(1).getByRole('searchbox', { name: 'Filter Pokemon' }).fill('ARON');
+	await panes.nth(1).getByRole('gridcell').first().focus();
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	await page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: /^Settings/ })
+		.click();
+	await expect(page).toHaveURL(/\/settings$/);
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	await page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: /^Boxes/ })
+		.click();
+	await expect(page).toHaveURL(/\/boxes$/);
+	await expect(panes).toHaveCount(2);
+	await expect(panes.nth(0)).toHaveAttribute('data-location', 'box-0');
+	await expect(panes.nth(1)).toHaveAttribute('data-location', 'unfiled');
+	await expect(panes.nth(1).getByRole('searchbox', { name: 'Filter Pokemon' })).toHaveValue('ARON');
+	await expect(panes.nth(1).getByRole('gridcell').first()).toBeFocused();
 });

@@ -64,7 +64,7 @@
 		type PendingStorageSlotOperation
 	} from '$lib/pksx/storage-operations';
 	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
-	import { getBoxesSession } from '$lib/pksx/boxes-session';
+	import { getBoxesSession, type BoxesVirtualPaneView } from '$lib/pksx/boxes-session';
 	import { preserveAndClearSaveSlot, SaveDeletionPendingError } from '$lib/pksx/save-deletion';
 	import {
 		addBoxPane,
@@ -433,17 +433,12 @@
 	let savePaneWorkspaces = $state<Record<string, SavePaneWorkspace>>({});
 	let pokemonStorage = $state<StoredPokemonStorage | null>(null);
 	let catalogManifest = $state<PokemonStorageManifest | null>(null);
-	type VirtualPaneView = {
-		preferences: VirtualViewPreferences;
-		focusedId: string | null;
-		columns: number;
-	};
-	let virtualPaneViews = $state<Record<string, VirtualPaneView>>({});
+	let virtualPaneViews = $state<Record<string, BoxesVirtualPaneView>>({});
 	let virtualPaneIds = $state<string[]>([]);
 	const virtualPreferences = $derived(virtualViewFor(activePaneId).preferences);
 	const virtualFocusedId = $derived(virtualViewFor(activePaneId).focusedId);
 	const virtualColumns = $derived(virtualViewFor(activePaneId).columns);
-	function virtualViewFor(paneId: string): VirtualPaneView {
+	function virtualViewFor(paneId: string): BoxesVirtualPaneView {
 		return (
 			virtualPaneViews[paneId] ?? {
 				preferences: defaultVirtualViewPreferences,
@@ -452,7 +447,7 @@
 			}
 		);
 	}
-	function updateVirtualView(paneId: string, change: Partial<VirtualPaneView>) {
+	function updateVirtualView(paneId: string, change: Partial<BoxesVirtualPaneView>) {
 		virtualPaneViews = { ...virtualPaneViews, [paneId]: { ...virtualViewFor(paneId), ...change } };
 	}
 	function virtualRecordsFor(paneId: string) {
@@ -614,10 +609,13 @@
 				'Box Name editing is not supported for this Save File format.'
 			);
 		}
-		return pendingSlotOperation ? 'Finish or cancel Carry before renaming a Box.' : null;
+		return pendingSlotOperation || virtualCarry
+			? 'Finish or cancel Carry before renaming a Box.'
+			: null;
 	});
 	const boxPickerRenameProjection = $derived.by(() => {
-		if (boxPickerPane?.source.type !== 'save-file' || pendingSlotOperation) return null;
+		if (boxPickerPane?.source.type !== 'save-file' || pendingSlotOperation || virtualCarry)
+			return null;
 		const boxNames = saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames;
 		return boxNames?.renameSupported ? boxNames : null;
 	});
@@ -630,10 +628,13 @@
 				'Box reordering is not supported for this Save File format.'
 			);
 		}
-		return pendingSlotOperation ? 'Finish or cancel Carry before moving a Box.' : null;
+		return pendingSlotOperation || virtualCarry
+			? 'Finish or cancel Carry before moving a Box.'
+			: null;
 	});
 	const boxPickerReorderAvailable = $derived.by(() => {
-		if (boxPickerPane?.source.type !== 'save-file' || pendingSlotOperation) return false;
+		if (boxPickerPane?.source.type !== 'save-file' || pendingSlotOperation || virtualCarry)
+			return false;
 		return saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames.reorderSupported === true;
 	});
 	const activePaneBox = $derived(activePane?.activeBox ?? navigation.activeBox);
@@ -796,7 +797,7 @@
 
 	function syncBoxesSession() {
 		if (!initialStateReady) return;
-		boxesSession.set({ panes: workbenchPanes, activePaneId });
+		boxesSession.set({ panes: workbenchPanes, activePaneId, virtualPaneIds, virtualPaneViews });
 	}
 
 	function dispatch(action: NavigationAction) {
@@ -2469,6 +2470,8 @@
 	}
 
 	async function renameBoxPickerLocation(location: BoxPickerLocation, name: string) {
+		if (pendingSlotOperation || virtualCarry)
+			return 'Finish or cancel Carry before renaming a Box.';
 		const target = boxPickerTarget;
 		const pane = boxPickerPane;
 		const paneWorkspace = saveWorkspaceForPane(pane);
@@ -2498,6 +2501,7 @@
 		source: BoxPickerLocation,
 		destination: BoxPickerLocation
 	) {
+		if (pendingSlotOperation || virtualCarry) return 'Finish or cancel Carry before moving a Box.';
 		const target = boxPickerTarget;
 		const pane = boxPickerPane;
 		const paneWorkspace = saveWorkspaceForPane(pane);
@@ -3095,7 +3099,7 @@
 			if (!result.ok) {
 				throw result.error;
 			}
-			getPokemonStorageCatalog().assertCarrySource(carrySource);
+			await getPokemonStorageCatalog().assertDurableCarrySource(carrySource);
 			const prepared = await prepareAutomaticBackup({
 				storage,
 				state: destinationWorkspace,
@@ -3111,7 +3115,7 @@
 				dirty: workingState.dirty || result.value.mutated,
 				restoredFromBackup: null
 			};
-			getPokemonStorageCatalog().assertCarrySource(carrySource);
+			await getPokemonStorageCatalog().assertDurableCarrySource(carrySource);
 			if (nextState.dirty) {
 				await persistWorkspace(nextState, prepared.revision);
 			}
@@ -6156,17 +6160,24 @@
 					});
 			workbenchPanes = session.panes;
 			activePaneId = session.activePaneId;
-			updateVirtualView(session.panes[0].id, { preferences: restoredPreferences });
-			virtualPaneIds = ['all-pokemon', 'unfiled', 'overflow', 'recently-deleted'].includes(
-				localStorage.getItem('pksx-last-storage-location-v1') ?? ''
-			)
-				? session.panes
-						.filter((pane) => pane.source.type === 'pokemon-storage')
-						.map((pane) => pane.id)
-				: [];
-			updateVirtualView(session.activePaneId, {
-				focusedId: virtualRecordsFor(session.activePaneId)[0]?.recordId ?? null
-			});
+			virtualPaneViews = session.virtualPaneViews;
+			virtualPaneIds = session.virtualPaneIds;
+			if (
+				!session.virtualPaneIds.length &&
+				!session.virtualPaneViews[session.panes[0].id] &&
+				session.panes.length === 1 &&
+				session.panes[0].source.type === 'pokemon-storage' &&
+				['all-pokemon', 'unfiled', 'overflow', 'recently-deleted'].includes(
+					localStorage.getItem('pksx-last-storage-location-v1') ?? ''
+				)
+			) {
+				const paneId = session.panes[0].id;
+				virtualPaneIds = [paneId];
+				updateVirtualView(paneId, {
+					preferences: restoredPreferences,
+					focusedId: virtualRecords(catalogManifest, restoredPreferences)[0]?.recordId ?? null
+				});
+			}
 
 			await Promise.all(
 				workbenchPanes.map(async (pane) => {

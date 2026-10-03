@@ -19,6 +19,7 @@ import {
 } from './types';
 
 export type CatalogCarrySource = {
+	storageId: string;
 	recordId: string;
 	revision: number;
 	payloadId: string;
@@ -200,12 +201,24 @@ export class PokemonStorageService {
 		const record = this.#required(recordId);
 		const placement =
 			this.listResolvedPlacements().find((item) => item.recordId === recordId)?.placement ?? null;
-		return { recordId, revision: record.revision, payloadId: record.payload.id, placement };
+		return {
+			storageId: this.#manifest!.storageId,
+			recordId,
+			revision: record.revision,
+			payloadId: record.payload.id,
+			placement
+		};
 	}
 
 	assertCarrySource(source: CatalogCarrySource): void {
 		if (!this.#manifest) throw new Error('Pokemon Storage catalog is not initialized.');
 		this.#checkCarrySource(this.#manifest, source);
+	}
+
+	async assertDurableCarrySource(source: CatalogCarrySource): Promise<void> {
+		const manifest = await this.persistence.read();
+		if (!manifest) throw new Error('Pokemon Storage source changed.');
+		this.#checkCarrySource(manifest, source);
 	}
 
 	async commitCarry(
@@ -258,6 +271,7 @@ export class PokemonStorageService {
 			resolvePlacements(manifest).find((item) => item.recordId === source.recordId)?.placement ??
 			null;
 		if (
+			manifest.storageId !== source.storageId ||
 			!record ||
 			record.revision !== source.revision ||
 			record.payload.id !== source.payloadId ||
