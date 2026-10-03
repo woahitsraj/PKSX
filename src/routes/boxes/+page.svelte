@@ -1879,7 +1879,7 @@
 			storageBoxOrganizerOpen &&
 			event.target instanceof HTMLInputElement &&
 			!isControllerKeyboardEvent(event) &&
-			action !== 'back'
+			event.key !== 'Escape'
 		)
 			return;
 		if (

@@ -6378,17 +6378,38 @@ test('organizes physical Storage Boxes without mixing navigation and editing', a
 	await organizer.getByRole('button', { name: 'Add Storage Box' }).click();
 	await expect(organizer.locator('.row')).toHaveCount(2);
 	await organizer.locator('.row').nth(1).getByRole('button', { name: 'Rename' }).click();
+	const nameInput = organizer.getByRole('textbox', { name: /Name for Box 02/ });
+	await expect(nameInput).toBeFocused();
+	await nameInput.fill('FavoritesX');
+	await page.keyboard.press('Backspace');
+	await expect(nameInput).toHaveValue('Favorites');
+	await expect(nameInput).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(
+		organizer.locator('.row').nth(1).getByRole('button', { name: 'Rename' })
+	).toBeFocused();
+	await organizer.locator('.row').nth(1).getByRole('button', { name: 'Rename' }).click();
 	await organizer.getByRole('textbox', { name: /Name for Box 02/ }).fill('Favorites');
 	await organizer.getByRole('button', { name: 'Save name' }).click();
 	await expect(organizer.locator('.row').nth(1)).toContainText('Favorites');
+	await expect(
+		organizer.locator('.row').nth(1).getByRole('button', { name: 'Rename' })
+	).toBeFocused();
 	await organizer.locator('.row').nth(1).getByRole('button', { name: 'Move up' }).click();
 	await expect(organizer.locator('.row').first()).toContainText('Favorites');
 	await expect(
 		page.locator('.box-pane.active-pane').getByRole('heading', { name: /Box 02/ })
 	).toBeVisible();
 	await organizer.getByRole('button', { name: 'Delete Box 02' }).click();
+	await expect(organizer.getByRole('button', { name: 'Cancel' })).toBeFocused();
+	await pressController(page, 'Escape');
+	await expect(organizer.getByRole('button', { name: 'Delete Box 02' })).toBeFocused();
+	await organizer.getByRole('button', { name: 'Delete Box 02' }).click();
 	await organizer.getByRole('button', { name: 'Delete Storage Box' }).click();
 	await expect(organizer.locator('.row')).toHaveCount(1);
+	await expect(
+		organizer.locator('.row').first().getByRole('button', { name: 'Rename' })
+	).toBeFocused();
 	await expect(organizer.getByRole('button', { name: 'Delete Favorites' })).toBeDisabled();
 	await organizer.getByRole('button', { name: 'Close' }).click();
 	await page.keyboard.press('Escape');
