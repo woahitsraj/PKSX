@@ -13,7 +13,7 @@
 
 	let { saveFile, onSelect, onClose }: Props = $props();
 	const searchScope = $derived(
-		saveFile.fileName === 'Pokemon Storage' ? 'Pokemon Storage' : 'Active Save File'
+		saveFile.scope === 'pokemon-storage' ? 'Pokemon Storage' : 'Active Save File'
 	);
 	let query = $state('');
 	let results = $state<QuickSearchResult[]>([]);
@@ -170,7 +170,7 @@
 		</div>
 
 		<footer>
-			<span><strong>Active Save File</strong> · {saveFile.fileName}</span>
+			<span><strong>{searchScope}</strong> · {saveFile.fileName}</span>
 			<span class="hints"><kbd>↑↓</kbd> Navigate <kbd>↵</kbd> Open</span>
 		</footer>
 	</div>
