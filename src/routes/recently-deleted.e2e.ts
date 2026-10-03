@@ -5,7 +5,7 @@ const aron =
 	'rVIoJRblSsu7zMnI/xUAAwQAAgK+w9LDv///AH8OAAB+AQAAfwYAAAAoAAAhAGoAvQAdACMeCg8AAAAAAAAAAAAAAAAAN4uhozfCnwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
 
 async function waitForStorageBoxesReady(page: Page) {
-	await expect(page).toHaveURL(/\/boxes$/);
+	await expect(page).toHaveURL((url) => url.pathname === '/boxes');
 	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
 		'data-initial-state',
 		'ready'
