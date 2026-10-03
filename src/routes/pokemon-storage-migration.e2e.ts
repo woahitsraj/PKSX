@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { waitForPokemonStorageRoot } from './pokemon-storage-seed.e2e-helper';
 
 const aron =
 	'rVIoJRblSsu7zMnI/xUAAwQAAgK+w9LDv///AH8OAAB+AQAAfwYAAAAoAAAhAGoAvQAdACMeCg8AAAAAAAAAAAAAAAAAN4uhozfCnwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
@@ -9,6 +10,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		'data-initial-state',
 		'ready'
 	);
+	await waitForPokemonStorageRoot(page);
 	await page.evaluate(async (entityBytesBase64) => {
 		await new Promise<void>((resolve, reject) => {
 			const opening = indexedDB.open('pksx-saves');

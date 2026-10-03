@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import path from 'node:path';
+import { waitForPokemonStorageRoot } from './pokemon-storage-seed.e2e-helper';
 
 const emeraldFixturePath = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
@@ -393,6 +394,7 @@ test('stored Pokemon keeps the default entry on Saves with a compact introductio
 	page
 }) => {
 	await resetEmptyStorage(page);
+	await waitForPokemonStorageRoot(page);
 	await page.evaluate(
 		() =>
 			new Promise<void>((resolve, reject) => {
