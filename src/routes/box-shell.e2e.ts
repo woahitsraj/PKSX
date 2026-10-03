@@ -1783,6 +1783,7 @@ test('Box Menu keeps fixed unavailable commands and X and Y preserve their conte
 	const menu = page.getByRole('dialog', { name: 'Box Menu' });
 	await expect(menu).toBeVisible();
 	await expect(menu.locator('.box-menu-row strong')).toHaveText([
+		'Organize Storage Boxes',
 		'Export',
 		'Save a backup',
 		'Legality Report',
@@ -2923,8 +2924,20 @@ test('keeps a virtual Storage source after Save commits but retirement fails', a
 	await page.reload();
 	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
 	await page.goto('/?source=pokemon-storage');
+	await expect(page.locator('.box-pane.active-pane')).toHaveAttribute(
+		'data-source-id',
+		'pokemon-storage'
+	);
+	await expect(
+		page.getByRole('grid', { name: 'All Pokemon' }).getByRole('gridcell', {
+			name: 'ARON, level 11'
+		})
+	).toBeVisible();
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
-	await page.getByRole('button', { name: /Box 01: Box 01/ }).click();
+	await page
+		.getByRole('dialog', { name: 'Choose a Box' })
+		.getByRole('button', { name: /^Box 01: Box 01, 1 of 1$/ })
+		.click();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 });
 
@@ -3234,12 +3247,12 @@ test('Box Menu and related picker Cancel restore focus at both viewport floors',
 		await expect(page.getByRole('dialog', { name: 'Switch collection' })).toBeVisible();
 		await page.keyboard.press('Escape');
 		await expect(menu).toBeVisible();
-		await expect(page.locator('#box-menu-command-3')).toBeFocused();
+		await expect(menu.getByRole('button', { name: 'Switch', exact: true })).toBeFocused();
 
 		await menu.getByRole('button', { name: 'Switch', exact: true }).click();
 		await page.locator('.source-picker-backdrop').click({ position: { x: 1, y: 1 } });
 		await expect(menu).toBeVisible();
-		await expect(page.locator('#box-menu-command-3')).toBeFocused();
+		await expect(menu.getByRole('button', { name: 'Switch', exact: true })).toBeFocused();
 		await page.keyboard.press('x');
 		await expect(page.locator('#box-0-slot-2')).toBeFocused();
 	}

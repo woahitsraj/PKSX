@@ -99,7 +99,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		page.getByRole('grid', { name: 'Unfiled Pokemon' }).getByRole('gridcell')
 	).toHaveCount(1);
 	await page.keyboard.press('x');
-	await page.getByRole('button', { name: /Box 01: Box 01/ }).click();
+	await page.getByRole('button', { name: /^Box 01: Favorites, 1 of 3$/ }).click();
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
 	await page.keyboard.press('y');
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
