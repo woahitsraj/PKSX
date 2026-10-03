@@ -1,4 +1,4 @@
-import type { BoxSlotSummary } from '$lib/engine';
+import type { BoxSlotSummary, SaveSlotRef } from '$lib/engine';
 
 export const POKEMON_STORAGE_CATALOG_VERSION = 1;
 export type BlobReference = {
@@ -11,6 +11,7 @@ export type BlobReference = {
 export type PokemonOrigin = {
 	entryMode: 'moved-in' | 'copied-in' | 'imported' | 'transferred-in';
 	originSaveFileId: string | null;
+	originSaveSlot?: SaveSlotRef | null;
 	originSaveFileName: string | null;
 	originGame: string | null;
 	originalTrainer: string | null;

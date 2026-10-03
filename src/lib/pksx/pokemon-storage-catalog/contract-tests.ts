@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { EngineApi, PreservationPayloadSummary } from '$lib/engine';
 import { createMockEngine } from '$lib/engine/mock-engine';
 import { PokemonStorageService } from './service';
+import { catalogLegacyView } from './legacy-view';
 import { createEmptyPokemonStorage } from '$lib/pksx/saves';
 import { referenceFor, type CatalogPersistence, type PokemonOrigin } from './types';
 
@@ -252,6 +253,72 @@ export function catalogContract(
 				storageBoxId: boxId,
 				slot: 0
 			});
+		});
+		it('records a Save copy source and leaves Storage unchanged when payload creation or commit fails', async () => {
+			const persistence = create();
+			const engine = fakeEngine();
+			const service = new PokemonStorageService(persistence, engine);
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const sourceOrigin: PokemonOrigin = {
+				...origin,
+				entryMode: 'copied-in',
+				originSaveFileId: 'save-id',
+				originSaveFileName: 'source.sav',
+				originSaveSlot: { zone: 'party', slot: 1 }
+			};
+			const sourceBytes = bytes(7, 8, 9);
+			const saved = await service.add(sourceBytes, sourceOrigin, { storageBoxId: boxId, slot: 0 });
+			const copied = await service.copy(saved.recordId, { storageBoxId: boxId, slot: 1 });
+			expect(copied.recordId).not.toBe(saved.recordId);
+			expect(copied.identityFingerprint).toBe(saved.identityFingerprint);
+			expect(copied.origin).toEqual(sourceOrigin);
+			expect(await service.readPayload(saved.recordId)).not.toEqual(
+				await service.readPayload(copied.recordId)
+			);
+			const reopened = new PokemonStorageService(persistence, engine);
+			await reopened.load();
+			const view = await catalogLegacyView(reopened, engine);
+			expect(view.boxes[0].slots[0].pokemon).toMatchObject({
+				speciesName: 'Test',
+				entityBytesBase64: 'BwgJ',
+				origin: sourceOrigin
+			});
+			expect(view.boxes[0].slots[1].pokemon).toMatchObject({
+				speciesName: 'Test',
+				entityBytesBase64: 'BwgJ',
+				origin: sourceOrigin
+			});
+			const before = service.current;
+			const failedEngine = new PokemonStorageService(persistence, {
+				...engine,
+				createPreservationPayload: async () => {
+					throw new Error('Payload creation failed');
+				}
+			});
+			await failedEngine.load();
+			await expect(
+				failedEngine.add(sourceBytes, sourceOrigin, { storageBoxId: boxId, slot: 2 })
+			).rejects.toThrow('Payload creation failed');
+			expect(failedEngine.current).toEqual(before);
+			const failedCommit = new PokemonStorageService(
+				{
+					read: () => persistence.read(),
+					readBlob: (reference) => persistence.readBlob(reference),
+					commit: async () => {
+						throw new Error('Catalog commit failed');
+					},
+					sweep: () => persistence.sweep()
+				},
+				engine
+			);
+			await failedCommit.load();
+			await expect(
+				failedCommit.add(sourceBytes, sourceOrigin, { storageBoxId: boxId, slot: 2 })
+			).rejects.toThrow('Catalog commit failed');
+			expect(failedCommit.current).toEqual(before);
+			expect(await persistence.read()).toEqual(before);
+			expect(sourceBytes).toEqual(bytes(7, 8, 9));
 		});
 		it('keeps the previous manifest on conflict and failed blob verification', async () => {
 			const persistence = create();

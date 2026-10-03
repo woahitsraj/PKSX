@@ -2351,7 +2351,12 @@
 					{
 						...sourcePokemon.origin,
 						entryMode: pending.kind === 'move' ? 'moved-in' : 'copied-in',
-						originSaveFileId: carryState?.sourceOwner.id ?? null
+						originSaveFileId: carryState?.sourceOwner.id ?? null,
+						originSaveSlot:
+							pending.source.zone === 'party'
+								? { zone: 'party', slot: pending.source.slot }
+								: { zone: 'box', box: pending.source.box, slot: pending.source.slot },
+						enteredAt: new Date().toISOString()
 					},
 					placement
 				);
