@@ -306,6 +306,56 @@ export class PokemonStorageService {
 		});
 	}
 
+	async storeAutomatically(
+		recordId: string,
+		lastUsedBoxId: string | null,
+		expectedRevision: number
+	): Promise<NonNullable<Placement>> {
+		let destination!: NonNullable<Placement>;
+		await this.#mutate((manifest) => {
+			const record = manifest.records.find((item) => item.recordId === recordId);
+			if (!record) throw new Error('Pokemon Record ID is unavailable.');
+			if (record.revision !== expectedRevision)
+				throw new Error('Pokemon record changed. Reload before retrying.');
+			const occupied = new Set(
+				[
+					...manifest.records.map((item) => item.placement),
+					...resolvePlacements(manifest).map((item) => item.placement)
+				]
+					.filter((placement): placement is NonNullable<Placement> => placement !== null)
+					.map((placement) => `${placement.storageBoxId}:${placement.slot}`)
+			);
+			const start = Math.max(0, manifest.boxOrder.indexOf(lastUsedBoxId ?? ''));
+			for (let offset = 0; offset < manifest.boxOrder.length && !destination; offset += 1) {
+				const storageBoxId = manifest.boxOrder[(start + offset) % manifest.boxOrder.length];
+				for (let slot = 0; slot < 30; slot += 1) {
+					const candidate = { storageBoxId, slot };
+					if (!occupied.has(`${storageBoxId}:${slot}`)) {
+						destination = candidate;
+						break;
+					}
+				}
+			}
+			if (!destination) {
+				const now = this.now();
+				const storageBoxId = this.id();
+				manifest.boxes.push({
+					id: storageBoxId,
+					name: null,
+					revision: 0,
+					createdAt: now,
+					updatedAt: now
+				});
+				manifest.boxOrder.push(storageBoxId);
+				destination = { storageBoxId, slot: 0 };
+			}
+			record.placement = destination;
+			record.revision += 1;
+			record.updatedAt = this.now();
+		});
+		return destination;
+	}
+
 	async swap(firstId: string, secondId: string): Promise<void> {
 		await this.#mutate((manifest) => {
 			const first = manifest.records.find((record) => record.recordId === firstId);

@@ -6,6 +6,7 @@ export type SlotMenuCommandKey =
 	| 'create-pokemon'
 	| 'move'
 	| 'copy'
+	| 'store-automatically'
 	| 'clear'
 	| 'export'
 	| 'legality-check';
@@ -20,7 +21,7 @@ export type SlotMenuCommand = {
 export function createSlotMenuCommands(
 	slot: SlotView,
 	createPokemonReason: string | null,
-	capabilities: { edit: boolean; legality: boolean; evolve: boolean }
+	capabilities: { edit: boolean; legality: boolean; evolve: boolean; storage?: boolean }
 ): SlotMenuCommand[] {
 	if (slot.kind === 'empty') {
 		return createPokemonReason
@@ -43,6 +44,16 @@ export function createSlotMenuCommands(
 			: []),
 		{ key: 'move', label: 'Move', availability: 'available', reason: null },
 		{ key: 'copy', label: 'Copy', availability: 'available', reason: null },
+		...(capabilities.storage
+			? ([
+					{
+						key: 'store-automatically',
+						label: 'Store Automatically',
+						availability: 'available',
+						reason: null
+					}
+				] as const)
+			: []),
 		{ key: 'clear', label: 'Clear Slot', availability: 'available', reason: null },
 		...(capabilities.legality
 			? ([

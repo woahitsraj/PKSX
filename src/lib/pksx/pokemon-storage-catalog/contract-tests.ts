@@ -452,6 +452,85 @@ export function catalogContract(
 			firstTab.assertCarrySource(source);
 			await expect(firstTab.assertDurableCarrySource(source)).rejects.toThrow(/source changed/);
 		});
+		it('starts at the last-used box, wraps once, and keeps the Record ID', async () => {
+			const service = new PokemonStorageService(create(), fakeEngine());
+			await service.initialize();
+			const [first] = service.listBoxes();
+			const second = await service.addBox();
+			const third = await service.addBox();
+			const moving = await service.add(bytes(1), origin, { storageBoxId: second.id, slot: 0 });
+			await service.add(bytes(2), origin, { storageBoxId: second.id, slot: 1 });
+			const firstDestination = await service.storeAutomatically(
+				moving.recordId,
+				second.id,
+				moving.revision
+			);
+			expect(firstDestination).toEqual({ storageBoxId: second.id, slot: 2 });
+			await service.add(bytes(3), origin, { storageBoxId: second.id, slot: 0 });
+			for (let slot = 3; slot < 30; slot += 1)
+				await service.add(bytes(slot), origin, { storageBoxId: second.id, slot });
+			for (let slot = 0; slot < 30; slot += 1)
+				await service.add(bytes(slot), origin, { storageBoxId: third.id, slot });
+			const unfiled = await service.add(bytes(99), origin);
+			const wrapped = await service.storeAutomatically(
+				unfiled.recordId,
+				second.id,
+				unfiled.revision
+			);
+			expect(wrapped).toEqual({ storageBoxId: first.id, slot: 0 });
+			expect(service.getRecord(unfiled.recordId)?.recordId).toBe(unfiled.recordId);
+			const another = await service.add(bytes(98), origin);
+			expect(
+				await service.storeAutomatically(another.recordId, 'deleted-box', another.revision)
+			).toEqual({ storageBoxId: first.id, slot: 1 });
+			expect(service.listBoxes()).toHaveLength(3);
+		});
+		it('adds one box when all existing slots, including the source, are occupied', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const source = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			for (let slot = 1; slot < 30; slot += 1)
+				await service.add(bytes(slot), origin, { storageBoxId: boxId, slot });
+			const before = service.current!;
+			await expect(
+				service.storeAutomatically(source.recordId, boxId, source.revision + 1)
+			).rejects.toThrow(/changed/);
+			expect(service.current).toEqual(before);
+			const destination = await service.storeAutomatically(source.recordId, boxId, source.revision);
+			expect(service.listBoxes()).toHaveLength(2);
+			expect(destination).toEqual({ storageBoxId: service.listBoxes()[1].id, slot: 0 });
+			expect(service.getRecord(source.recordId)?.placement).toEqual(destination);
+			expect((await persistence.read())?.records).toHaveLength(30);
+		});
+		it('keeps the catalog unchanged when automatic storage cannot commit', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const source = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			for (let slot = 1; slot < 30; slot += 1)
+				await service.add(bytes(slot), origin, { storageBoxId: boxId, slot });
+			const before = service.current!;
+			const failing = new PokemonStorageService(
+				{
+					read: () => persistence.read(),
+					readBlob: (reference) => persistence.readBlob(reference),
+					commit: async () => {
+						throw new Error('Quota exceeded');
+					},
+					sweep: () => persistence.sweep()
+				},
+				fakeEngine()
+			);
+			await failing.load();
+			await expect(
+				failing.storeAutomatically(source.recordId, boxId, source.revision)
+			).rejects.toThrow(/Quota/);
+			expect(failing.current).toEqual(before);
+			expect(await persistence.read()).toEqual(before);
+		});
 		it('protects resolved slots held by displaced records', async () => {
 			const persistence = create();
 			const service = new PokemonStorageService(persistence, fakeEngine());
