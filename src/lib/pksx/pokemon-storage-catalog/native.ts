@@ -13,6 +13,7 @@ import {
 	type BlobReference,
 	type CatalogPersistence,
 	type PokemonStorageManifest,
+	type StorageRecovery,
 	type StagedBlob
 } from './types';
 
@@ -28,6 +29,23 @@ type Completion = { revision: number; manifestSha256: string; checksum: string }
 
 export class NativeCatalogPersistence implements CatalogPersistence {
 	constructor(private readonly files: NativeFileStore) {}
+	async readRecovery(): Promise<StorageRecovery | null> {
+		const recovery = (await new NativeCatalogJournal(this.files).read()).catalog
+			.pokemonStorageRecovery;
+		if (recovery) assertManifest(recovery.manifest);
+		return recovery ? structuredClone(recovery) : null;
+	}
+	replace(
+		expectedRevision: number,
+		manifest: PokemonStorageManifest,
+		blobs: StagedBlob[],
+		recovery: StorageRecovery
+	): Promise<void> {
+		assertManifest(recovery.manifest);
+		return runNativeJournalOperation(() =>
+			this.#commit(expectedRevision, manifest, blobs, recovery)
+		);
+	}
 	async read(): Promise<PokemonStorageManifest | null> {
 		const joint = (await new NativeCatalogJournal(this.files).read()).catalog
 			.pokemonStorageManifest;
@@ -104,7 +122,8 @@ export class NativeCatalogPersistence implements CatalogPersistence {
 	async #commit(
 		expectedRevision: number | null,
 		manifest: PokemonStorageManifest,
-		blobs: StagedBlob[]
+		blobs: StagedBlob[],
+		recovery?: StorageRecovery
 	): Promise<void> {
 		assertManifest(manifest);
 		const current = await this.read();
@@ -137,6 +156,16 @@ export class NativeCatalogPersistence implements CatalogPersistence {
 		)
 			throw new CatalogConflictError();
 		const catalog = cloneCatalog(snapshot.catalog);
+		if (recovery) {
+			if (JSON.stringify(recovery.manifest) !== JSON.stringify(current))
+				throw new CatalogConflictError();
+			for (const reference of referencedPayloads(recovery.manifest)) {
+				const bytes = await this.files.readBytes(blobPath(reference.id));
+				if (!bytes) throw new Error('Pre-restore Pokemon preservation payload is missing.');
+				await verifyBlob(reference, bytes);
+			}
+			catalog.pokemonStorageRecovery = structuredClone(recovery);
+		}
 		catalog.pokemonStorageManifest = cloneManifest(manifest);
 		await journal.commit(snapshot, catalog);
 	}
@@ -145,9 +174,11 @@ export class NativeCatalogPersistence implements CatalogPersistence {
 	}
 	async #sweep(): Promise<number> {
 		const manifest = await this.read();
-		const keep = new Set(
-			manifest ? referencedPayloads(manifest).map((item) => `${item.id}.bin`) : []
-		);
+		const recovery = await this.readRecovery();
+		const keep = new Set([
+			...(manifest ? referencedPayloads(manifest).map((item) => `${item.id}.bin`) : []),
+			...(recovery ? referencedPayloads(recovery.manifest).map((item) => `${item.id}.bin`) : [])
+		]);
 		const names = await this.files.list(`${directory}/blobs`);
 		const orphans = names.filter((name) => /^[a-f0-9]{64}\.bin$/.test(name) && !keep.has(name));
 		for (const name of orphans) await this.files.delete(`${directory}/blobs/${name}`);

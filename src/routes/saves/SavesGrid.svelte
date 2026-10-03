@@ -9,6 +9,7 @@
 	import SavesIntroduction from '$lib/components/pksx/SavesIntroduction.svelte';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
+	import StorageBackupMenu from '$lib/components/pksx/StorageBackupMenu.svelte';
 	import type { EngineError } from '$lib/engine';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import { getBoxesSession } from '$lib/pksx/boxes-session';
@@ -28,6 +29,7 @@
 		getCachedActiveWorkspace,
 		getCachedSavesSnapshot,
 		getPkhexEngine,
+		getPokemonStorageCatalog,
 		getSaveFileEditCoordinator,
 		getSavesSnapshot,
 		getSavesStorage,
@@ -89,11 +91,16 @@
 	let gridList = $state<HTMLElement>();
 	let columnCount = $state(1);
 	let catalogLoading = $state(true);
-	let busyTarget = $state<SaveFileId | 'import' | null>(null);
+	let busyTarget = $state<SaveFileId | 'import' | 'pokemon-storage' | null>(null);
 	let menuSaveFileId = $state<SaveFileId | null>(null);
 	let menuReturnTarget = $state<SavesTarget | null>(null);
 	let menuIndex = $state(0);
 	let deleteDescription = $state<string | null>(null);
+	let storageBackupIndex = $state(0);
+	let storageRecoveryAvailable = $state(false);
+	let pendingStorageArchive = $state<Uint8Array | null>(null);
+	let storageConfirmation = $state<string | null>(null);
+	let recoveryRequested = $state(false);
 	let refreshRequest = 0;
 
 	const targets = $derived<SavesTarget[]>([
@@ -106,6 +113,10 @@
 	);
 	const menuOpen = $derived(summonedWorkflow.active?.kind === 'save-file-menu');
 	const deleteOpen = $derived(summonedWorkflow.active?.kind === 'save-file-delete');
+	const storageBackupOpen = $derived(summonedWorkflow.active?.kind === 'storage-backup-menu');
+	const storageConfirmOpen = $derived(
+		summonedWorkflow.active?.kind === 'storage-backup-confirmation'
+	);
 	const activeTargetId = $derived(targetDomId(target));
 	const rowCount = $derived(Math.max(1, Math.ceil(targets.length / columnCount)));
 	const gridEntries = $derived<SavesGridEntry[]>([
@@ -295,6 +306,10 @@
 		) {
 			return;
 		}
+		if (storageBackupOpen || storageConfirmOpen) {
+			handleStorageBackupKeydown(event);
+			return;
+		}
 		if (menuOpen || deleteOpen) {
 			handleMenuKeydown(event);
 			return;
@@ -384,6 +399,164 @@
 			pokemonStorage.boxCount
 		);
 		await goto(resolve('/boxes'));
+	}
+
+	async function openStorageBackupMenu() {
+		if (
+			busyTarget ||
+			!summonedWorkflow.open('storage-backup-menu', {
+				type: 'control',
+				id: 'saves-target-pokemon-storage'
+			})
+		)
+			return;
+		chooseTarget({ kind: 'pokemon-storage' }, false);
+		storageBackupIndex = 0;
+		try {
+			storageRecoveryAvailable = Boolean(await getPokemonStorageCatalog().preRestoreRecovery());
+		} catch (error) {
+			toastHost.error(getErrorMessage(error));
+		}
+		void focusStorageBackupCommand();
+	}
+
+	function dismissStorageBackup() {
+		if (busyTarget) return;
+		pendingStorageArchive = null;
+		storageConfirmation = null;
+		recoveryRequested = false;
+		summonedWorkflow.closeAll();
+		void focusGrid();
+	}
+
+	async function exportStorageBackup() {
+		busyTarget = 'pokemon-storage';
+		try {
+			const bytes = await getPokemonStorageCatalog().exportArchive();
+			const copy = new Uint8Array(bytes);
+			const url = URL.createObjectURL(
+				new Blob([copy.buffer], { type: 'application/octet-stream' })
+			);
+			const link = document.createElement('a');
+			link.href = url;
+			link.download = `pokemon-storage-${new Date().toISOString().slice(0, 10)}.pksx-storage`;
+			link.click();
+			setTimeout(() => URL.revokeObjectURL(url), 1000);
+			toastHost.success('Pokemon Storage backup exported.');
+		} catch (error) {
+			toastHost.error('Could not export Pokemon Storage. ' + getErrorMessage(error));
+		} finally {
+			busyTarget = null;
+		}
+	}
+
+	async function handleStorageArchive(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		busyTarget = 'pokemon-storage';
+		try {
+			const bytes = new Uint8Array(await file.arrayBuffer());
+			const summary = await getPokemonStorageCatalog().inspectArchive(bytes);
+			pendingStorageArchive = bytes;
+			recoveryRequested = false;
+			storageConfirmation = `This replaces the entire current Pokemon Storage with ${summary.pokemonCount} Pokemon in ${summary.boxCount} Storage Boxes from ${new Date(summary.exportedAt).toLocaleString()}. Recently Deleted records are included. PKSX saves a recoverable snapshot of the current collection first.`;
+			summonedWorkflow.openRelated('storage-backup-confirmation', {
+				type: 'control',
+				id: 'storage-backup-command-1'
+			});
+			storageBackupIndex = 0;
+			void focusStorageBackupCommand();
+		} catch (error) {
+			toastHost.error(
+				'Backup was rejected. Current Pokemon Storage was not changed. ' + getErrorMessage(error)
+			);
+		} finally {
+			busyTarget = null;
+		}
+	}
+
+	async function requestStorageRecovery() {
+		try {
+			const recovery = await getPokemonStorageCatalog().preRestoreRecovery();
+			if (!recovery) throw new Error('No pre-restore snapshot is available.');
+			pendingStorageArchive = null;
+			recoveryRequested = true;
+			storageConfirmation = `This replaces the entire current Pokemon Storage with the snapshot saved ${new Date(recovery.createdAt).toLocaleString()}. PKSX saves the current collection as the next recoverable snapshot.`;
+			summonedWorkflow.openRelated('storage-backup-confirmation', {
+				type: 'control',
+				id: 'storage-backup-command-2'
+			});
+			storageBackupIndex = 0;
+			void focusStorageBackupCommand();
+		} catch (error) {
+			toastHost.error(getErrorMessage(error));
+		}
+	}
+
+	async function confirmStorageReplacement() {
+		if (busyTarget) return;
+		busyTarget = 'pokemon-storage';
+		try {
+			const catalog = getPokemonStorageCatalog();
+			if (recoveryRequested) await catalog.recoverPreRestore();
+			else if (pendingStorageArchive) await catalog.restoreArchive(pendingStorageArchive);
+			else throw new Error('The selected backup is no longer available.');
+			storageRecoveryAvailable = true;
+			pendingStorageArchive = null;
+			storageConfirmation = null;
+			recoveryRequested = false;
+			summonedWorkflow.closeAll();
+			await refreshSaves({
+				force: true,
+				preferredTarget: { kind: 'pokemon-storage' },
+				focus: true
+			});
+			toastHost.success(
+				'Pokemon Storage replaced. Previous Storage is recoverable from its Backup Menu.'
+			);
+		} catch (error) {
+			toastHost.error('Could not replace Pokemon Storage. ' + getErrorMessage(error));
+		} finally {
+			busyTarget = null;
+		}
+	}
+
+	function handleStorageBackupKeydown(event: KeyboardEvent) {
+		if (
+			!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Escape'].includes(
+				event.key
+			)
+		)
+			return;
+		event.preventDefault();
+		if (event.key === 'Escape') {
+			dismissStorageBackup();
+			return;
+		}
+		if (event.key === 'Enter' || event.key === ' ') {
+			if (storageConfirmOpen) {
+				if (storageBackupIndex === 0) dismissStorageBackup();
+				else void confirmStorageReplacement();
+			} else if (storageBackupIndex === 0) void exportStorageBackup();
+			else if (storageBackupIndex === 1) document.getElementById('storage-backup-input')?.click();
+			else if (storageRecoveryAvailable) void requestStorageRecovery();
+			return;
+		}
+		storageBackupIndex = Math.max(
+			0,
+			Math.min(
+				storageConfirmOpen ? 1 : storageRecoveryAvailable ? 2 : 1,
+				storageBackupIndex + (event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1)
+			)
+		);
+		void focusStorageBackupCommand();
+	}
+
+	async function focusStorageBackupCommand() {
+		await tick();
+		document.getElementById(`storage-backup-command-${storageBackupIndex}`)?.focus();
 	}
 
 	function openImportPicker() {
@@ -682,6 +855,14 @@
 				onchange={handleImport}
 				oncancel={handleImportCancel}
 			/>
+			<input
+				id="storage-backup-input"
+				data-pksx-control-category="composition"
+				type="file"
+				accept=".pksx-storage"
+				aria-label="Choose Pokemon Storage backup"
+				onchange={handleStorageArchive}
+			/>
 		</header>
 
 		<div class="saves-scrollport">
@@ -810,6 +991,14 @@
 												{pokemonStorage.boxCount === 1 ? 'Box' : 'Boxes'}
 											</span>
 										</button>
+										<button
+											type="button"
+											class="save-menu-control"
+											data-pksx-control-category="small"
+											aria-label="Open Pokemon Storage Backup Menu"
+											onpointerdown={(event) => event.preventDefault()}
+											onclick={() => void openStorageBackupMenu()}>•••</button
+										>
 									</div>
 								{:else}
 									<div
@@ -860,6 +1049,21 @@
 		onDelete={() => (deleteOpen ? void confirmDelete() : void requestDelete())}
 		onCancelDelete={cancelDelete}
 		onClose={dismissSaveFileWorkflow}
+	/>
+{/if}
+
+{#if storageBackupOpen || storageConfirmOpen}
+	<StorageBackupMenu
+		confirmation={storageConfirmOpen ? storageConfirmation : null}
+		canRecover={storageRecoveryAvailable}
+		activeIndex={storageBackupIndex}
+		busy={busyTarget === 'pokemon-storage'}
+		onFocusCommand={(index) => (storageBackupIndex = index)}
+		onExport={() => void exportStorageBackup()}
+		onRestore={() => document.getElementById('storage-backup-input')?.click()}
+		onRecover={() => void requestStorageRecovery()}
+		onConfirm={() => void confirmStorageReplacement()}
+		onClose={dismissStorageBackup}
 	/>
 {/if}
 
@@ -917,7 +1121,8 @@
 		line-height: 1;
 	}
 
-	#save-file-input {
+	#save-file-input,
+	#storage-backup-input {
 		position: absolute;
 		width: 1px;
 		height: 1px;
@@ -1006,7 +1211,7 @@
 	}
 
 	.card-main.storage-main {
-		padding-right: calc(var(--pksx-space-3) + 5px);
+		padding-right: calc(var(--pksx-control-height) + var(--pksx-space-2));
 	}
 
 	.card-main:hover,

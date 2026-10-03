@@ -7,6 +7,7 @@ import {
 	type BlobReference,
 	type CatalogPersistence,
 	type PokemonStorageManifest,
+	type StorageRecovery,
 	type StagedBlob
 } from './types';
 import { openSavesDatabase } from '$lib/pksx/saves/indexed-db-storage';
@@ -132,6 +133,72 @@ export class BrowserCatalogPersistence implements CatalogPersistence {
 			db.close();
 		}
 	}
+	async readRecovery(): Promise<StorageRecovery | null> {
+		const db = await this.#open();
+		try {
+			const transaction = db.transaction(manifestStore);
+			const recovery = await request<StorageRecovery | undefined>(
+				transaction.objectStore(manifestStore).get('pre-restore')
+			);
+			await done(transaction);
+			if (recovery) assertManifest(recovery.manifest);
+			return recovery ? structuredClone(recovery) : null;
+		} finally {
+			db.close();
+		}
+	}
+	async replace(
+		expectedRevision: number,
+		manifest: PokemonStorageManifest,
+		blobs: StagedBlob[],
+		recovery: StorageRecovery
+	): Promise<void> {
+		assertManifest(manifest);
+		assertManifest(recovery.manifest);
+		for (const blob of blobs) await verifyBlob(blob.reference, blob.bytes);
+		const staged = new Map(blobs.map((blob) => [blob.reference.id, blob]));
+		const db = await this.#open();
+		try {
+			const transaction = db.transaction([manifestStore, blobStore], 'readwrite');
+			const completion = done(transaction);
+			try {
+				const manifests = transaction.objectStore(manifestStore);
+				const current = await request<PokemonStorageManifest | undefined>(manifests.get('current'));
+				if (
+					!current ||
+					current.revision !== expectedRevision ||
+					manifest.storageId !== current.storageId ||
+					manifest.revision !== expectedRevision + 1 ||
+					JSON.stringify(recovery.manifest) !== JSON.stringify(current)
+				)
+					throw new CatalogConflictError();
+				const stored = transaction.objectStore(blobStore);
+				for (const reference of referencedPayloads(recovery.manifest)) {
+					if (!(await request(stored.get(reference.id))))
+						throw new Error('Pre-restore Pokemon preservation payload is missing.');
+				}
+				for (const blob of staged.values())
+					stored.put(new Uint8Array(blob.bytes), blob.reference.id);
+				for (const reference of referencedPayloads(manifest)) {
+					if (!staged.has(reference.id) && !(await request(stored.get(reference.id))))
+						throw new Error('Required Pokemon preservation payload is missing.');
+				}
+				manifests.put(structuredClone(recovery), 'pre-restore');
+				manifests.put(cloneManifest(manifest), 'current');
+				await completion;
+			} catch (error) {
+				try {
+					transaction.abort();
+				} catch {
+					/* closed */
+				}
+				await completion.catch(() => undefined);
+				throw error;
+			}
+		} finally {
+			db.close();
+		}
+	}
 	async commit(
 		expectedRevision: number | null,
 		manifest: PokemonStorageManifest,
@@ -197,9 +264,14 @@ export class BrowserCatalogPersistence implements CatalogPersistence {
 				transaction.objectStore(manifestStore).get('current')
 			);
 			if (manifest) assertManifest(manifest);
-			const referenced = new Set(
-				manifest ? referencedPayloads(manifest).map((item) => item.id) : []
+			const recovery = await request<StorageRecovery | undefined>(
+				transaction.objectStore(manifestStore).get('pre-restore')
 			);
+			if (recovery) assertManifest(recovery.manifest);
+			const referenced = new Set([
+				...(manifest ? referencedPayloads(manifest).map((item) => item.id) : []),
+				...(recovery ? referencedPayloads(recovery.manifest).map((item) => item.id) : [])
+			]);
 			const keys = await request<IDBValidKey[]>(transaction.objectStore(blobStore).getAllKeys());
 			const orphans = keys.filter((key) => !referenced.has(String(key)));
 			for (const key of orphans) transaction.objectStore(blobStore).delete(key);

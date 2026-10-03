@@ -136,6 +136,40 @@ it('keeps a complete native manifest authoritative after a partial manifest writ
 	await expect(failing.commit(0, { ...first, revision: 1 }, [])).rejects.toThrow('disk full');
 	expect((await persistence.read())?.revision).toBe(0);
 });
+
+it('native replacement leaves the current collection unchanged on a failed journal write', async () => {
+	const { files, store, persistence } = fixture();
+	const first = {
+		schemaVersion: 1 as const,
+		storageId: 'storage-id',
+		revision: 0,
+		createdAt: 'now',
+		updatedAt: 'now',
+		boxOrder: ['box-id'],
+		boxes: [{ id: 'box-id', name: null, revision: 0, createdAt: 'now', updatedAt: 'now' }],
+		records: [],
+		tombstones: []
+	};
+	await persistence.commit(null, first, []);
+	const failing = new NativeCatalogPersistence({
+		...store,
+		async writeText(path, value) {
+			if (path.startsWith('catalog.')) {
+				files.set(path, value.slice(0, 12));
+				throw new Error('disk full');
+			}
+			await store.writeText(path, value);
+		}
+	});
+	await expect(
+		failing.replace(0, { ...first, revision: 1 }, [], {
+			createdAt: 'later',
+			manifest: first
+		})
+	).rejects.toThrow('disk full');
+	expect(await persistence.read()).toEqual(first);
+	expect(await persistence.readRecovery()).toBeNull();
+});
 it('ignores valid JSON candidates without a verified completion', async () => {
 	const { files, persistence } = fixture();
 	const first = {
