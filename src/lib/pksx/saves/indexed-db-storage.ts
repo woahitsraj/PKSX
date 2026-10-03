@@ -2,11 +2,18 @@ import { stableAutomaticBackupId } from './automatic-backup';
 import { bytesEqual, copyBytes } from './bytes';
 import { clonePokemonStorage } from './pokemon-storage';
 import { nextWorkspaceRevision, WorkspaceRevisionConflictError } from './workspace-revision';
+import {
+	assertManifest,
+	cloneManifest,
+	verifyBlob,
+	CatalogConflictError
+} from '$lib/pksx/pokemon-storage-catalog/types';
 import type {
 	BackupId,
 	BackupMetadata,
 	CommitRiskyWorkspaceMutationInput,
 	CommitRiskyWorkspaceMutationResult,
+	CommitPreservedSaveDeletionInput,
 	CreateBackupInput,
 	EnsureAutomaticBackupInput,
 	EnsureAutomaticBackupResult,
@@ -19,7 +26,7 @@ import type {
 	StoredWorkspace
 } from './types';
 
-const databaseVersion = 4;
+const databaseVersion = 5;
 const saveFilesStore = 'saveFiles';
 const saveBytesStore = 'saveBytes';
 const workspacesStore = 'workspaces';
@@ -549,6 +556,121 @@ export class IndexedDbSavesStorage implements SavesStorage {
 		}
 	}
 
+	async commitPreservedSaveDeletion(
+		input: CommitPreservedSaveDeletionInput
+	): Promise<CommitRiskyWorkspaceMutationResult> {
+		assertManifest(input.manifest);
+		await verifyBlob(input.payload.reference, input.payload.bytes);
+		if (input.manifest.revision !== input.expectedCatalogRevision + 1)
+			throw new CatalogConflictError();
+		const database = await openSavesDatabase(this.#databaseName);
+		const transaction = database.transaction(
+			[
+				saveFilesStore,
+				saveBytesStore,
+				workspacesStore,
+				backupsStore,
+				backupBytesStore,
+				'manifest',
+				'blobs'
+			],
+			'readwrite'
+		);
+		try {
+			const saveFile = await requestToPromise<StoredSaveFile | undefined>(
+				transaction.objectStore(saveFilesStore).get(input.saveFileId)
+			);
+			if (!saveFile || saveFile.importedAt !== input.importedAt)
+				throw new Error('The selected Save File is no longer available.');
+			const workspaceStore = transaction.objectStore(workspacesStore);
+			const previous = await requestToPromise<WorkspaceRecord | undefined>(
+				workspaceStore.get(input.saveFileId)
+			);
+			if ((previous?.updatedAt ?? null) !== input.expectedUpdatedAt)
+				throw new WorkspaceRevisionConflictError();
+			const baselineBytes =
+				previous?.bytes ??
+				(
+					await requestToPromise<SaveBytesRecord | undefined>(
+						transaction.objectStore(saveBytesStore).get(input.saveFileId)
+					)
+				)?.bytes;
+			if (
+				!baselineBytes ||
+				!bytesEqual(baselineBytes, input.expectedBytes) ||
+				(previous?.dirty ?? false) !== input.expectedDirty
+			)
+				throw new WorkspaceRevisionConflictError();
+			const manifestStore = transaction.objectStore('manifest');
+			const current = await requestToPromise<
+				import('$lib/pksx/pokemon-storage-catalog/types').PokemonStorageManifest | undefined
+			>(manifestStore.get('current'));
+			if (
+				current?.revision !== input.expectedCatalogRevision ||
+				current.storageId !== input.manifest.storageId
+			)
+				throw new CatalogConflictError();
+			const backupEstablished = !previous?.automaticBackupCreated;
+			if (backupEstablished) {
+				const backupId = stableAutomaticBackupId({
+					saveFileId: input.saveFileId,
+					importedAt: input.importedAt,
+					persistedRevision: previous?.updatedAt ?? saveFile.importedAt,
+					bytes: baselineBytes
+				});
+				const backups = transaction.objectStore(backupsStore);
+				const backupBytes = transaction.objectStore(backupBytesStore);
+				const existing = await requestToPromise<BackupMetadata | undefined>(backups.get(backupId));
+				const existingBytes = await requestToPromise<BackupBytesRecord | undefined>(
+					backupBytes.get(backupId)
+				);
+				if (
+					(existing &&
+						(existing.saveFileId !== input.saveFileId ||
+							existing.byteLength !== baselineBytes.length)) ||
+					(existingBytes && !bytesEqual(existingBytes.bytes, baselineBytes))
+				)
+					throw new Error('The automatic Backup identity belongs to different content.');
+				if (!existingBytes)
+					backupBytes.put({
+						backupId,
+						bytes: copyBytes(baselineBytes)
+					} satisfies BackupBytesRecord);
+				if (!existing)
+					backups.put({
+						id: backupId,
+						saveFileId: input.saveFileId,
+						reason: input.reason,
+						byteLength: baselineBytes.length,
+						createdAt: this.#now()
+					} satisfies BackupMetadata);
+			}
+			const workspace: StoredWorkspace = {
+				saveFileId: input.saveFileId,
+				bytes: copyBytes(input.bytes),
+				dirty: input.dirty,
+				automaticBackupCreated: true,
+				updatedAt: nextWorkspaceRevision(previous?.updatedAt, this.#now())
+			};
+			workspaceStore.put(workspace);
+			transaction
+				.objectStore('blobs')
+				.put(new Uint8Array(input.payload.bytes), input.payload.reference.id);
+			manifestStore.put(cloneManifest(input.manifest), 'current');
+			await transactionDone(transaction);
+			return { workspace: cloneWorkspace(workspace), backupEstablished };
+		} catch (error) {
+			try {
+				transaction.abort();
+			} catch {
+				/* closed */
+			}
+			throw error;
+		} finally {
+			database.close();
+		}
+	}
+
 	async listBackups(saveFileId: SaveFileId): Promise<BackupMetadata[]> {
 		const database = await openSavesDatabase(this.#databaseName);
 		try {
@@ -607,7 +729,7 @@ export function deleteIndexedDbSaves(databaseName: string): Promise<void> {
 	});
 }
 
-function openSavesDatabase(databaseName: string): Promise<IDBDatabase> {
+export function openSavesDatabase(databaseName: string): Promise<IDBDatabase> {
 	const request = indexedDB.open(databaseName, databaseVersion);
 
 	return new Promise((resolve, reject) => {
@@ -646,6 +768,8 @@ function migrateDatabase(database: IDBDatabase): void {
 	if (!database.objectStoreNames.contains(appStateStore)) {
 		database.createObjectStore(appStateStore, { keyPath: 'key' });
 	}
+	if (!database.objectStoreNames.contains('manifest')) database.createObjectStore('manifest');
+	if (!database.objectStoreNames.contains('blobs')) database.createObjectStore('blobs');
 }
 
 function requestToPromise<T>(request: IDBRequest): Promise<T> {

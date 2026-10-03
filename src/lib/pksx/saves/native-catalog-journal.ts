@@ -1,4 +1,6 @@
 import { stableAutomaticBackupId } from './automatic-backup';
+import { bytesEqual } from './bytes';
+import type { PokemonStorageManifest } from '$lib/pksx/pokemon-storage-catalog/types';
 import type {
 	BackupId,
 	BackupMetadata,
@@ -32,7 +34,18 @@ export type NativeCatalog = {
 	backups: BackupMetadata[];
 	workspaces: Record<SaveFileId, NativeWorkspaceMetadata>;
 	activeSaveFileId: SaveFileId | null;
+	pokemonStorageManifest?: PokemonStorageManifest;
 };
+
+let nativeJournalQueue = Promise.resolve();
+export function runNativeJournalOperation<T>(operation: () => Promise<T>): Promise<T> {
+	const result = nativeJournalQueue.then(operation, operation);
+	nativeJournalQueue = result.then(
+		() => undefined,
+		() => undefined
+	);
+	return result;
+}
 
 type NativeCatalogEnvelope = {
 	envelopeVersion: typeof envelopeVersion;
@@ -64,12 +77,13 @@ export class NativeCatalogJournal {
 	}
 
 	async read(): Promise<NativeCatalogSnapshot> {
-		const snapshot = await this.#resolve();
-		if (!this.#swept) {
-			this.#swept = true;
-			await this.#sweepOrphans().catch(() => undefined);
-		}
-		return snapshot;
+		return this.#resolve();
+	}
+
+	async sweepOnce(): Promise<void> {
+		if (this.#swept) return;
+		this.#swept = true;
+		await this.#sweepOrphans().catch(() => undefined);
 	}
 
 	async commit(
@@ -117,6 +131,9 @@ export class NativeCatalogJournal {
 			for (const entry of staged) {
 				if (!(await this.#fileStore.readBytes(entry.path))) createdPaths.push(entry.path);
 				await this.#fileStore.writeBytes(entry.path, entry.bytes);
+				const verified = await this.#fileStore.readBytes(entry.path);
+				if (!verified || !bytesEqual(verified, entry.bytes))
+					throw new Error(`Staged Saves bytes did not verify: ${entry.path}`);
 			}
 		} catch (error) {
 			throw (await this.#cleanupFailedCandidate(createdPaths)) ?? error;
@@ -342,7 +359,10 @@ export function cloneCatalog(catalog: NativeCatalog): NativeCatalog {
 				{ ...workspace }
 			])
 		),
-		activeSaveFileId: catalog.activeSaveFileId
+		activeSaveFileId: catalog.activeSaveFileId,
+		pokemonStorageManifest: catalog.pokemonStorageManifest
+			? structuredClone(catalog.pokemonStorageManifest)
+			: undefined
 	};
 }
 

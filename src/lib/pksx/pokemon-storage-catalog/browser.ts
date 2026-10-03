@@ -9,10 +9,10 @@ import {
 	type PokemonStorageManifest,
 	type StagedBlob
 } from './types';
+import { openSavesDatabase } from '$lib/pksx/saves/indexed-db-storage';
 
 const manifestStore = 'manifest';
 const blobStore = 'blobs';
-const databaseVersion = 1;
 const request = <T>(value: IDBRequest<T>): Promise<T> =>
 	new Promise((resolve, reject) => {
 		value.onsuccess = () => resolve(value.result);
@@ -28,14 +28,82 @@ const done = (transaction: IDBTransaction): Promise<void> =>
 	});
 
 export class BrowserCatalogPersistence implements CatalogPersistence {
-	constructor(private readonly databaseName = 'pksx-pokemon-storage-catalog') {}
+	constructor(
+		private readonly databaseName = 'pksx-saves',
+		private readonly legacyDatabaseName = databaseName === 'pksx-saves'
+			? 'pksx-pokemon-storage-catalog'
+			: null
+	) {}
 	async #open(): Promise<IDBDatabase> {
-		const opening = indexedDB.open(this.databaseName, databaseVersion);
-		opening.onupgradeneeded = () => {
-			opening.result.createObjectStore(manifestStore);
-			opening.result.createObjectStore(blobStore);
-		};
-		return request(opening);
+		const db = await openSavesDatabase(this.databaseName);
+		try {
+			if (this.legacyDatabaseName) await this.#migrateLegacy(db);
+			return db;
+		} catch (error) {
+			db.close();
+			throw error;
+		}
+	}
+	async #migrateLegacy(db: IDBDatabase): Promise<void> {
+		const existing = db.transaction(manifestStore);
+		const existingDone = done(existing);
+		const current = await request<PokemonStorageManifest | undefined>(
+			existing.objectStore(manifestStore).get('current')
+		);
+		await existingDone;
+		if (current) return;
+		const opening = indexedDB.open(this.legacyDatabaseName!);
+		const legacy = await new Promise<IDBDatabase | null>((resolve, reject) => {
+			opening.onupgradeneeded = () => opening.transaction?.abort();
+			opening.onsuccess = () => resolve(opening.result);
+			opening.onerror = () =>
+				opening.error?.name === 'AbortError' ? resolve(null) : reject(opening.error);
+		});
+		if (!legacy) return;
+		try {
+			const old = legacy.transaction([manifestStore, blobStore]);
+			const oldDone = done(old);
+			const manifest = await request<PokemonStorageManifest | undefined>(
+				old.objectStore(manifestStore).get('current')
+			);
+			if (!manifest) {
+				await oldDone;
+				return;
+			}
+			assertManifest(manifest);
+			const blobs = await Promise.all(
+				referencedPayloads(manifest).map(async (reference) => {
+					const bytes = await request<Uint8Array | undefined>(
+						old.objectStore(blobStore).get(reference.id)
+					);
+					if (!bytes) throw new Error('Legacy Pokemon preservation payload is missing.');
+					await verifyBlob(reference, bytes);
+					return { reference, bytes };
+				})
+			);
+			await oldDone;
+			const next = db.transaction([manifestStore, blobStore], 'readwrite');
+			const nextDone = done(next);
+			try {
+				const store = next.objectStore(manifestStore);
+				if (!(await request(store.get('current')))) {
+					for (const blob of blobs)
+						next.objectStore(blobStore).put(new Uint8Array(blob.bytes), blob.reference.id);
+					store.put(cloneManifest(manifest), 'current');
+				}
+				await nextDone;
+			} catch (error) {
+				try {
+					next.abort();
+				} catch {
+					/* closed */
+				}
+				await nextDone.catch(() => undefined);
+				throw error;
+			}
+		} finally {
+			legacy.close();
+		}
 	}
 	async read(): Promise<PokemonStorageManifest | null> {
 		const db = await this.#open();

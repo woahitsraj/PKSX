@@ -295,29 +295,37 @@ final class ControllerNavigationTests: XCTestCase {
             window.__pksxSeedStorageBox = 'pending';
             (async () => {
                 const files = Capacitor.Plugins.Filesystem, directory = 'DATA';
-                const root = 'pksx-saves/pokemon-storage-catalog/manifests/';
-                const names = (await files.readdir({path: root, directory})).files.map(file => file.name);
-                const revision = Math.max(...names.filter(name => /^\\d+\\.complete$/.test(name))
-                    .map(name => Number(name.slice(0, -9))));
-                const manifest = JSON.parse((await files.readFile({
-                    path: root + revision + '.json', directory, encoding: 'utf8'
-                })).data);
+                const root = 'pksx-saves/';
+                const read = async slot => {
+                    try {
+                        return JSON.parse((await files.readFile({
+                            path: root + 'catalog.' + slot + '.json', directory, encoding: 'utf8'
+                        })).data);
+                    } catch { return null; }
+                };
+                const current = (await Promise.all([read(0), read(1)]))
+                    .filter(Boolean).sort((a, b) => b.generation - a.generation)[0];
+                if (!current?.catalog?.pokemonStorageManifest) throw Error('Storage manifest missing');
+                const manifest = current.catalog.pokemonStorageManifest;
                 if (manifest.boxes.length > 1) return;
                 const now = new Date().toISOString(), id = crypto.randomUUID();
                 manifest.boxes.push({id, name: null, revision: 0, createdAt: now, updatedAt: now});
                 manifest.boxOrder.push(id);
-                manifest.revision = revision + 1;
+                manifest.revision += 1;
                 manifest.updatedAt = now;
-                const hash = async value => [...new Uint8Array(await crypto.subtle.digest(
-                    'SHA-256', new TextEncoder().encode(value)
-                ))].map(byte => byte.toString(16).padStart(2, '0')).join('');
-                const text = JSON.stringify(manifest), manifestSha256 = await hash(text);
-                await files.writeFile({path: root + manifest.revision + '.json', directory,
-                    data: text, encoding: 'utf8', recursive: true});
-                await files.writeFile({path: root + manifest.revision + '.complete', directory,
-                    data: JSON.stringify({revision: manifest.revision, manifestSha256,
-                        checksum: await hash(manifest.revision + ':' + manifestSha256)}),
-                    encoding: 'utf8', recursive: true});
+                current.generation += 1;
+                delete current.checksum;
+                const checksum = value => {
+                    let hash = 0x811c9dc5;
+                    for (let index = 0; index < value.length; index++) {
+                        hash ^= value.charCodeAt(index);
+                        hash = Math.imul(hash, 0x01000193);
+                    }
+                    return (hash >>> 0).toString(16).padStart(8, '0');
+                };
+                current.checksum = checksum(JSON.stringify(current));
+                await files.writeFile({path: root + 'catalog.' + (current.generation % 2) + '.json',
+                    directory, data: JSON.stringify(current), encoding: 'utf8', recursive: true});
             })().then(() => window.__pksxSeedStorageBox = 'ready',
                 error => window.__pksxSeedStorageBox = String(error));
             true

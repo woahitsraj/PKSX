@@ -9,7 +9,7 @@ export type BlobReference = {
 	schemaVersion: number;
 };
 export type PokemonOrigin = {
-	entryMode: 'moved-in' | 'copied-in' | 'imported' | 'transferred-in';
+	entryMode: 'moved-in' | 'copied-in' | 'imported' | 'transferred-in' | 'deleted-from-save';
 	originSaveFileId: string | null;
 	originSaveSlot?: SaveSlotRef | null;
 	originSaveFileName: string | null;

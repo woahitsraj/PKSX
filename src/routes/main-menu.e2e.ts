@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import path from 'node:path';
+import { waitForPokemonStorageRoot } from './pokemon-storage-seed.e2e-helper';
 
 const emeraldFixturePath = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
@@ -240,7 +241,7 @@ test('a second fresh Start closes Main Menu while Save File availability is stil
 	await resetEmptyStorage(page);
 	await page.evaluate(async () => {
 		const database = await new Promise<IDBDatabase>((resolve, reject) => {
-			const request = indexedDB.open('pksx-saves', 4);
+			const request = indexedDB.open('pksx-saves');
 			request.onerror = () => reject(request.error);
 			request.onsuccess = () => resolve(request.result);
 		});
@@ -393,12 +394,22 @@ test('stored Pokemon keeps the default entry on Saves with a compact introductio
 	page
 }) => {
 	await resetEmptyStorage(page);
+	await waitForPokemonStorageRoot(page);
 	await page.evaluate(
 		() =>
 			new Promise<void>((resolve, reject) => {
-				const deletion = indexedDB.deleteDatabase('pksx-pokemon-storage-catalog');
-				deletion.onsuccess = () => resolve();
-				deletion.onerror = () => reject(deletion.error);
+				const opening = indexedDB.open('pksx-saves');
+				opening.onerror = () => reject(opening.error);
+				opening.onsuccess = () => {
+					const db = opening.result;
+					const transaction = db.transaction('manifest', 'readwrite');
+					transaction.objectStore('manifest').delete('current');
+					transaction.oncomplete = () => {
+						db.close();
+						resolve();
+					};
+					transaction.onerror = () => reject(transaction.error);
+				};
 			})
 	);
 	await page.evaluate(

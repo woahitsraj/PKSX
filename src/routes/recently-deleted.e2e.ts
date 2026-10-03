@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { waitForPokemonStorageRoot } from './pokemon-storage-seed.e2e-helper';
 
 const aron =
 	'rVIoJRblSsu7zMnI/xUAAwQAAgK+w9LDv///AH8OAAB+AQAAfwYAAAAoAAAhAGoAvQAdACMeCg8AAAAAAAAAAAAAAAAAN4uhozfCnwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
@@ -9,12 +10,22 @@ async function seedStorage(page: Page, slots = [0]) {
 		'data-initial-state',
 		'ready'
 	);
+	await waitForPokemonStorageRoot(page);
 	await page.evaluate(
 		async ({ entityBytesBase64, occupied }) => {
 			await new Promise<void>((resolve, reject) => {
-				const deletion = indexedDB.deleteDatabase('pksx-pokemon-storage-catalog');
-				deletion.onsuccess = () => resolve();
-				deletion.onerror = () => reject(deletion.error);
+				const opening = indexedDB.open('pksx-saves');
+				opening.onerror = () => reject(opening.error);
+				opening.onsuccess = () => {
+					const db = opening.result;
+					const transaction = db.transaction('manifest', 'readwrite');
+					transaction.objectStore('manifest').delete('current');
+					transaction.oncomplete = () => {
+						db.close();
+						resolve();
+					};
+					transaction.onerror = () => reject(transaction.error);
+				};
 			});
 			await new Promise<void>((resolve, reject) => {
 				const opening = indexedDB.open('pksx-saves');
@@ -71,6 +82,9 @@ async function seedStorage(page: Page, slots = [0]) {
 		{ entityBytesBase64: aron, occupied: slots }
 	);
 	await page.reload();
+	await expect(page.getByRole('button', { name: 'Open Pokemon Storage in Boxes' })).toContainText(
+		`${slots.length} Pokemon`
+	);
 	await page.goto('/?source=pokemon-storage');
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 }
@@ -177,7 +191,7 @@ test('expired recovery leaves a lightweight tombstone and disappears after reloa
 	await clearSlot(page, 0);
 	await page.evaluate(async () => {
 		const db = await new Promise<IDBDatabase>((resolve, reject) => {
-			const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+			const opening = indexedDB.open('pksx-saves');
 			opening.onsuccess = () => resolve(opening.result);
 			opening.onerror = () => reject(opening.error);
 		});
@@ -202,7 +216,7 @@ test('expired recovery leaves a lightweight tombstone and disappears after reloa
 	).toHaveCount(0);
 	const tombstone = await page.evaluate(async () => {
 		const db = await new Promise<IDBDatabase>((resolve, reject) => {
-			const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+			const opening = indexedDB.open('pksx-saves');
 			opening.onsuccess = () => resolve(opening.result);
 			opening.onerror = () => reject(opening.error);
 		});
