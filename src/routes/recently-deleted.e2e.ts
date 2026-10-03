@@ -82,6 +82,9 @@ async function seedStorage(page: Page, slots = [0]) {
 		{ entityBytesBase64: aron, occupied: slots }
 	);
 	await page.reload();
+	await expect(page.getByRole('button', { name: 'Open Pokemon Storage in Boxes' })).toContainText(
+		`${slots.length} Pokemon`
+	);
 	await page.goto('/?source=pokemon-storage');
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 }
