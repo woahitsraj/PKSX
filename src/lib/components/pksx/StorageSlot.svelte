@@ -5,7 +5,6 @@
 		id: string;
 		slot: SlotView;
 		zone: 'party' | 'box';
-		focused: boolean;
 		dualType: boolean;
 		style: string;
 		rowIndex: number;
@@ -22,7 +21,6 @@
 		id,
 		slot,
 		zone,
-		focused,
 		dualType,
 		style,
 		rowIndex,
@@ -50,12 +48,23 @@
 	);
 	let focusedAtPointerDown: boolean | null = null;
 
-	function handlePointerDown() {
-		focusedAtPointerDown = focused;
+	function handlePointerDown(event: PointerEvent) {
+		const slot = event.currentTarget as HTMLButtonElement;
+		focusedAtPointerDown = document.activeElement === slot;
+	}
+
+	function handleFocus(event: FocusEvent) {
+		const slot = event.currentTarget as HTMLButtonElement;
+		slot
+			.closest('[role="grid"]')
+			?.querySelector('[aria-selected="true"]')
+			?.setAttribute('aria-selected', 'false');
+		slot.setAttribute('aria-selected', 'true');
+		onFocusSlot();
 	}
 
 	function handleClick(event: MouseEvent) {
-		const wasFocused = focusedAtPointerDown ?? focused;
+		const wasFocused = focusedAtPointerDown ?? event.currentTarget === document.activeElement;
 		focusedAtPointerDown = null;
 		onFocusSlot();
 
@@ -79,21 +88,20 @@
 		zoneClass,
 		slot.kind,
 		dualType && 'dual-type',
-		focused && 'focused',
 		destinationState && `destination-${destinationState}`
 	]}
 	type="button"
 	role="gridcell"
 	tabindex="-1"
 	{style}
-	aria-selected={focused}
+	aria-selected="false"
 	aria-label={accessibleLabel}
 	aria-rowindex={rowIndex}
 	aria-colindex={colIndex}
 	data-destination-state={destinationState ?? undefined}
 	onpointerdown={handlePointerDown}
 	onpointercancel={() => (focusedAtPointerDown = null)}
-	onfocus={onFocusSlot}
+	onfocus={handleFocus}
 	onclick={handleClick}
 >
 	<span class="slot-number">{slotNumber}</span>
@@ -132,7 +140,6 @@
 		--slot-fill: oklch(0.9 var(--slot-chroma) var(--slot-hue));
 		--slot-fill-2: oklch(0.9 var(--slot-chroma-2) var(--slot-hue-2));
 		position: relative;
-		container-type: size;
 		width: 100%;
 		height: 100%;
 		min-width: 0;
@@ -145,7 +152,8 @@
 		background: var(--slot-fill);
 		box-shadow: var(--shadow-sm);
 		color: var(--ink);
-		outline: none;
+		outline: 2px solid transparent;
+		outline-offset: -2px;
 		overflow: visible;
 		touch-action: manipulation;
 		transition:
@@ -190,13 +198,17 @@
 		);
 	}
 
-	.slot.pokemon:hover,
-	.slot.focused {
+	.slot.pokemon:hover {
 		transform: translateY(-1px);
 		box-shadow:
 			inset 0 0 0 2px var(--rust),
 			inset 0 0 0 1px color-mix(in srgb, white, transparent 38%),
 			var(--shadow);
+	}
+
+	.slot:focus,
+	:global(button.slot[aria-selected='true']) {
+		outline-color: var(--rust);
 	}
 
 	.slot.empty {
@@ -206,12 +218,9 @@
 		color: var(--ink-soft);
 	}
 
-	.slot.empty.focused {
+	.slot.empty:focus {
 		border-style: solid;
 		border-color: var(--rust);
-		box-shadow:
-			inset 0 0 0 2px var(--rust),
-			var(--shadow);
 	}
 
 	.slot.destination-invalid {
@@ -231,7 +240,7 @@
 			var(--shadow-sm);
 	}
 
-	.slot.destination-invalid.focused {
+	.slot.destination-invalid:focus {
 		opacity: 0.72;
 		box-shadow:
 			inset 0 0 0 2px color-mix(in srgb, var(--err), transparent 18%),
@@ -426,30 +435,27 @@
 		font: 800 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
 	}
 
-	@container (min-width: 46px) and (min-height: 46px) {
-		.slot-number {
-			display: block;
-		}
-
-		img.slot-sprite {
-			width: 88%;
-			height: 88%;
-			max-width: 88%;
-			max-height: 88%;
-		}
+	:global(.boxes-route[data-slot-density='number']) .slot-number,
+	:global(.boxes-route[data-slot-density='full']) .slot-number {
+		display: block;
 	}
 
-	@container (min-width: 66px) and (min-height: 66px) {
-		.box-slot .slot-label,
-		.party-slot .slot-label {
-			display: flex;
-		}
+	:global(.boxes-route[data-slot-density='number']) img.slot-sprite {
+		width: 88%;
+		height: 88%;
+		max-width: 88%;
+		max-height: 88%;
+	}
 
-		img.slot-sprite {
-			width: 79%;
-			height: 79%;
-			max-width: 79%;
-			max-height: 79%;
-		}
+	:global(.boxes-route[data-slot-density='full']) .box-slot .slot-label,
+	:global(.boxes-route[data-slot-density='full']) .party-slot .slot-label {
+		display: flex;
+	}
+
+	:global(.boxes-route[data-slot-density='full']) img.slot-sprite {
+		width: 79%;
+		height: 79%;
+		max-width: 79%;
+		max-height: 79%;
 	}
 </style>

@@ -636,6 +636,7 @@
 		let frame = 0;
 		const repeatDelay = 280;
 		const repeatInterval = 110;
+		const repeatFrameLead = 5;
 		const nativePlatform = Capacitor.isNativePlatform();
 
 		const dispatchKey = dispatchControllerKey;
@@ -664,7 +665,7 @@
 			if (!nativeHeld.has(detail.key)) {
 				nativeHeld.add(detail.key);
 				previousPressed.add(detail.key);
-				repeatAt.set(detail.key, performance.now() + repeatDelay);
+				repeatAt.set(detail.key, performance.now() + repeatDelay - repeatFrameLead);
 				dispatchKey(detail.key);
 			}
 		};
@@ -702,7 +703,13 @@
 				const nextRepeat = repeatAt.get(key) ?? 0;
 				if (firstPress || (isRepeatable(key) && time >= nextRepeat)) {
 					dispatchKey(key);
-					repeatAt.set(key, time + (firstPress ? repeatDelay : repeatInterval));
+					const followingRepeat = nextRepeat + repeatInterval;
+					repeatAt.set(
+						key,
+						firstPress || followingRepeat <= time
+							? time + (firstPress ? repeatDelay - repeatFrameLead : repeatInterval)
+							: followingRepeat
+					);
 				}
 			}
 

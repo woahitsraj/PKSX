@@ -12,7 +12,8 @@ public static partial class PkhexEngineExports
     private static readonly Lock LegalityFixPreviewCacheLock = new();
     private static readonly Dictionary<string, LegalityFixPreview> LegalityFixPreviewCache = [];
     private static readonly Lock ReadOnlySaveCacheLock = new();
-    private static (byte[] Bytes, string? FileName, SaveFile Save)? readOnlySaveCache;
+    private const int ReadOnlySaveCacheCapacity = 2;
+    private static readonly List<(byte[] Bytes, string? FileName, SaveFile Save)> ReadOnlySaveCache = [];
 
     [JSExport]
     public static string GetVersionJson()
@@ -1043,15 +1044,18 @@ public static partial class PkhexEngineExports
         }
     }
 
-    // Read-only requests share the last parsed Save File; requests that mutate always parse their own.
+    // Read-only requests share the Save Files shown in the two Box panes; mutations parse their own.
     private static SaveFile? GetReadOnlySave(byte[] bytes, string? fileName, bool cache)
     {
         lock (ReadOnlySaveCacheLock)
         {
-            if (readOnlySaveCache is { } cached &&
-                cached.FileName == fileName &&
-                cached.Bytes.AsSpan().SequenceEqual(bytes))
+            var cachedIndex = ReadOnlySaveCache.FindIndex(cached =>
+                cached.FileName == fileName && cached.Bytes.AsSpan().SequenceEqual(bytes));
+            if (cachedIndex >= 0)
             {
+                var cached = ReadOnlySaveCache[cachedIndex];
+                ReadOnlySaveCache.RemoveAt(cachedIndex);
+                ReadOnlySaveCache.Add(cached);
                 return cached.Save;
             }
 
@@ -1059,7 +1063,12 @@ public static partial class PkhexEngineExports
             var key = cache ? bytes.ToArray() : bytes;
             var save = SaveUtil.GetSaveFile(bytes, fileName);
             if (save is not null && cache)
-                readOnlySaveCache = (key, fileName, save);
+            {
+                ReadOnlySaveCache.RemoveAll(cached => cached.FileName == fileName);
+                ReadOnlySaveCache.Add((key, fileName, save));
+                if (ReadOnlySaveCache.Count > ReadOnlySaveCacheCapacity)
+                    ReadOnlySaveCache.RemoveAt(0);
+            }
             return save;
         }
     }
