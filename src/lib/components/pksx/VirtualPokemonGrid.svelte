@@ -236,9 +236,9 @@
 		flex: 1 1 110px;
 	}
 	.filters select[aria-label='Sort Pokemon'] {
-		min-width: 160px;
+		min-width: 180px;
 		max-width: none;
-		flex: 0 0 160px;
+		flex: 0 0 180px;
 	}
 	.shiny {
 		display: flex;
@@ -249,6 +249,8 @@
 		font-size: var(--pksx-type-caption);
 	}
 	.shiny input {
+		appearance: auto;
+		accent-color: var(--rust);
 		width: 16px;
 		height: 16px;
 		min-height: 0;

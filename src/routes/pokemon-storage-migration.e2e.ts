@@ -190,17 +190,31 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	const columnCounts: number[] = [];
 	async function expectReadableVirtualCard() {
 		const card = page.getByRole('grid', { name: 'All Pokemon' }).locator('.card').first();
-		const bounds = await card.evaluate((node) => {
-			const label = node.querySelector('small')!.getBoundingClientRect();
-			const actions = node.querySelector('.carry-actions')!.getBoundingClientRect();
-			return { labelBottom: label.bottom, actionsTop: actions.top };
+		await expect
+			.poll(() =>
+				card.evaluate((node) => {
+					const label = node.querySelector('small')!.getBoundingClientRect();
+					const actions = node.querySelector('.carry-actions')!.getBoundingClientRect();
+					return actions.top - label.bottom;
+				})
+			)
+			.toBeGreaterThan(0);
+		const sort = await page.getByRole('combobox', { name: 'Sort Pokemon' }).evaluate((node) => {
+			const style = getComputedStyle(node);
+			const label = document.createElement('span');
+			label.style.font = style.font;
+			label.textContent = (node as HTMLSelectElement).selectedOptions[0].textContent;
+			document.body.append(label);
+			const textWidth = label.getBoundingClientRect().width;
+			label.remove();
+			return {
+				available:
+					node.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+				textWidth
+			};
 		});
-		expect(bounds.labelBottom).toBeLessThan(bounds.actionsTop);
-		expect(
-			await page
-				.getByRole('combobox', { name: 'Sort Pokemon' })
-				.evaluate((node) => node.getBoundingClientRect().width)
-		).toBeGreaterThanOrEqual(160);
+		expect(sort.available).toBeGreaterThanOrEqual(sort.textWidth);
+		await expect(page.getByRole('checkbox', { name: 'Shiny' })).toHaveCSS('appearance', 'auto');
 		const shiny = await page.getByRole('checkbox', { name: 'Shiny' }).evaluate((node) => {
 			const bounds = node.getBoundingClientRect();
 			return { width: bounds.width, height: bounds.height, right: bounds.right };
