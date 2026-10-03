@@ -2882,31 +2882,31 @@ test('moves a Save File Pokemon into durable Storage and clears its source', asy
 	});
 });
 
-test('Storage-to-Save Move and Duplicate reject source changes from another tab before writing', async ({
-	page
-}) => {
-	await page.setViewportSize({ width: 1800, height: 900 });
-	await openEmptySaves(page);
-	await importEmeraldThroughSaves(page);
-	await seedOccupiedPokemonStorageSlot(page);
-	await page.reload();
-	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
-	await page
-		.getByRole('dialog', { name: 'Box Menu' })
-		.getByRole('button', { name: 'Open another collection', exact: true })
-		.click();
-	await page
-		.getByRole('dialog', { name: 'Open another collection' })
-		.getByRole('button', { name: /Pokemon Storage/ })
-		.click();
-	const savePane = page.locator('.box-pane').nth(0);
-	const storagePane = page.locator('.box-pane').nth(1);
-	const destination = savePane.locator('.box-slot.empty').first();
-	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
-	await expect(destination).toContainText('Empty');
-	const secondTab = await page.context().newPage();
-	await secondTab.goto('/settings');
-	for (const mode of ['Move', 'Duplicate'] as const) {
+for (const mode of ['Move', 'Duplicate'] as const) {
+	test(`Storage-to-Save ${mode} rejects source changes from another tab before writing`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width: 1800, height: 900 });
+		await openEmptySaves(page);
+		await importEmeraldThroughSaves(page);
+		await seedOccupiedPokemonStorageSlot(page);
+		await page.reload();
+		await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+		await page
+			.getByRole('dialog', { name: 'Box Menu' })
+			.getByRole('button', { name: 'Open another collection', exact: true })
+			.click();
+		await page
+			.getByRole('dialog', { name: 'Open another collection' })
+			.getByRole('button', { name: /Pokemon Storage/ })
+			.click();
+		const savePane = page.locator('.box-pane').nth(0);
+		const storagePane = page.locator('.box-pane').nth(1);
+		const destination = savePane.locator('.box-slot.empty').first();
+		await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+		await expect(destination).toContainText('Empty');
+		const secondTab = await page.context().newPage();
+		await secondTab.goto('/settings');
 		await storagePane.locator('[id$="box-0-slot-0"]').click();
 		await page
 			.getByRole('dialog', { name: 'Slot actions' })
@@ -2915,7 +2915,7 @@ test('Storage-to-Save Move and Duplicate reject source changes from another tab 
 		await secondTab.evaluate(
 			() =>
 				new Promise<void>((resolve, reject) => {
-					const open = indexedDB.open('pksx-pokemon-storage-catalog');
+					const open = indexedDB.open('pksx-saves');
 					open.onerror = () => reject(open.error);
 					open.onsuccess = () => {
 						const db = open.result;
@@ -2943,10 +2943,9 @@ test('Storage-to-Save Move and Duplicate reject source changes from another tab 
 		);
 		await expect(destination).toContainText('Empty');
 		expect(await persistedSavesStateSnapshot(page)).toBe(before);
-		await page.keyboard.press('Escape');
-	}
-	await secondTab.close();
-});
+		await secondTab.close();
+	});
+}
 
 test('virtual Carry keeps Save Box locations available but blocks Box edits', async ({ page }) => {
 	await page.setViewportSize({ width: 1800, height: 900 });
@@ -2970,7 +2969,9 @@ test('virtual Carry keeps Save Box locations available but blocks Box edits', as
 	await storagePane.getByRole('gridcell', { name: 'ARON, level 11' }).click();
 	await storagePane.locator('.carry-actions').getByRole('button', { name: 'Move' }).click();
 	await page.keyboard.press('Escape');
-	await savePane.locator('.box-slot.empty').first().focus();
+	await expect(page.getByRole('dialog', { name: 'Choose a Box' })).toHaveCount(0);
+	await storagePane.getByRole('gridcell', { name: 'ARON, level 11' }).focus();
+	await page.keyboard.press('ArrowLeft');
 	await expect(savePane).toHaveClass(/active-pane/);
 	await savePane
 		.getByRole('button', { name: 'Open Box Picker for emerald-011020251345.sav' })

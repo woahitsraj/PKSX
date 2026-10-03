@@ -97,6 +97,9 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	}));
 	expect(filedBounds.unfileBottom).toBeLessThan(filedBounds.nameTop);
 	await page.getByRole('button', { name: 'Move to Unfiled' }).click();
+	await expect(page.getByRole('button', { name: 'Move to Unfiled' })).toHaveCount(0, {
+		timeout: 30_000
+	});
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: /Unfiled: Unfiled/ }).click();
 	await expect(

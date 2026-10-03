@@ -266,20 +266,7 @@ export class PokemonStorageService {
 	}
 
 	#checkCarrySource(manifest: PokemonStorageManifest, source: CatalogCarrySource): PokemonRecord {
-		const record = manifest.records.find((item) => item.recordId === source.recordId);
-		const placement =
-			resolvePlacements(manifest).find((item) => item.recordId === source.recordId)?.placement ??
-			null;
-		if (
-			manifest.storageId !== source.storageId ||
-			!record ||
-			record.revision !== source.revision ||
-			record.payload.id !== source.payloadId ||
-			placement?.storageBoxId !== source.placement?.storageBoxId ||
-			placement?.slot !== source.placement?.slot
-		)
-			throw new Error('Pokemon Storage source changed.');
-		return record;
+		return requireCarrySource(manifest, source);
 	}
 
 	async replace(recordId: string, payloadBytes: Uint8Array): Promise<PokemonRecord> {
@@ -717,4 +704,24 @@ export class PokemonStorageService {
 				});
 		});
 	}
+}
+
+export function requireCarrySource(
+	manifest: PokemonStorageManifest,
+	source: CatalogCarrySource
+): PokemonRecord {
+	const record = manifest.records.find((item) => item.recordId === source.recordId);
+	const placement =
+		resolvePlacements(manifest).find((item) => item.recordId === source.recordId)?.placement ??
+		null;
+	if (
+		manifest.storageId !== source.storageId ||
+		!record ||
+		record.revision !== source.revision ||
+		record.payload.id !== source.payloadId ||
+		placement?.storageBoxId !== source.placement?.storageBoxId ||
+		placement?.slot !== source.placement?.slot
+	)
+		throw new Error('Pokemon Storage source changed.');
+	return record;
 }

@@ -184,7 +184,15 @@ function cloneState(state: BoxesSessionState): BoxesSessionState {
 }
 
 function cloneVirtualView(view: BoxesVirtualPaneView): BoxesVirtualPaneView {
-	return structuredClone(view);
+	return {
+		preferences: {
+			location: view.preferences.location,
+			sort: view.preferences.sort,
+			filters: { ...view.preferences.filters }
+		},
+		focusedId: view.focusedId,
+		columns: view.columns
+	};
 }
 
 function clonePane(pane: BoxPaneState): BoxPaneState {

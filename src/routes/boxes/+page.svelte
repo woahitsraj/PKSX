@@ -67,6 +67,10 @@
 	import { getBoxesSession, type BoxesVirtualPaneView } from '$lib/pksx/boxes-session';
 	import { preserveAndClearSaveSlot, SaveDeletionPendingError } from '$lib/pksx/save-deletion';
 	import {
+		commitStorageToSaveCarry,
+		StorageCarryPendingError
+	} from '$lib/pksx/storage-to-save-carry';
+	import {
 		addBoxPane,
 		closeBoxPane,
 		createBoxPane,
@@ -1496,7 +1500,7 @@
 			if (!(await refreshCommittedCatalogView())) return false;
 			const remaining = virtualRecords(catalogManifest, virtualPreferences);
 			const nextId = remaining[Math.min(previousIndex, remaining.length - 1)]?.recordId ?? null;
-			virtualFocusedId = nextId;
+			updateVirtualView(activePaneId, { focusedId: nextId });
 			summonedWorkflow.closeAll();
 			deletedMenuRecordId = null;
 			statusMessage = message;
@@ -3084,6 +3088,7 @@
 			destination.zone === 'box' ? destination.box : (destinationPane?.activeBox ?? 0);
 		busy = true;
 		importError = null;
+		let pendingReconciliation = false;
 
 		try {
 			const result = await activeEngine.importStoredPokemon(
@@ -3099,26 +3104,13 @@
 			if (!result.ok) {
 				throw result.error;
 			}
-			await getPokemonStorageCatalog().assertDurableCarrySource(carrySource);
-			const prepared = await prepareAutomaticBackup({
+			const nextState = await commitStorageToSaveCarry({
 				storage,
 				state: destinationWorkspace,
-				reason: 'pokemon-movement'
-			});
-			const workingState = prepared.state;
-			if (loadedSave?.file.id === workingState.file.id) loadedSave = workingState;
-
-			const nextState: WorkspaceState = {
-				...workingState,
+				source: carrySource,
 				bytes: result.value.bytes,
-				workspace: result.value.workspace,
-				dirty: workingState.dirty || result.value.mutated,
-				restoredFromBackup: null
-			};
-			await getPokemonStorageCatalog().assertDurableCarrySource(carrySource);
-			if (nextState.dirty) {
-				await persistWorkspace(nextState, prepared.revision);
-			}
+				workspace: result.value.workspace
+			});
 
 			if (loadedSave?.file.id === nextState.file.id) loadedSave = nextState;
 			installMutatedSaveProjection(nextState, operationBox);
@@ -3170,10 +3162,12 @@
 		} catch (error) {
 			const message = getErrorMessage(error);
 			importError = null;
-			statusMessage = 'Slot change failed.';
+			pendingReconciliation = error instanceof StorageCarryPendingError;
+			statusMessage = pendingReconciliation ? message : 'Slot change failed.';
 			toastHost.error(message);
+			if (pendingReconciliation) window.location.reload();
 		} finally {
-			busy = false;
+			busy = pendingReconciliation;
 		}
 	}
 
@@ -6793,7 +6787,7 @@
 						</div>
 					</div>
 					{#if paneVirtual}
-{#if virtualViewFor(pane.id).preferences.location === 'recently-deleted'}
+						{#if virtualViewFor(pane.id).preferences.location === 'recently-deleted'}
 							<RecentlyDeletedGrid
 								records={virtualRecordsFor(pane.id)}
 								focusedId={paneActive ? virtualViewFor(pane.id).focusedId : null}
@@ -6813,47 +6807,48 @@
 								onColumns={(columns) => updateVirtualView(pane.id, { columns })}
 							/>
 						{:else}
-						<VirtualPokemonGrid
-							paneId={pane.id}
-							active={paneActive}
-							records={virtualRecordsFor(pane.id)}
-							allRecords={catalogManifest?.records ?? []}
-							preferences={virtualViewFor(pane.id).preferences}
-							focusedId={paneActive ? virtualViewFor(pane.id).focusedId : null}
-							{busy}
-							onPreferences={(preferences) => {
-								activatePane(pane, false);
-								setVirtualPreferences(preferences);
-							}}
-							onFocus={(id) => {
-								activatePane(pane, false);
-								focusVirtualRecord(id);
-							}}
-							onMoveToUnfiled={(id) => {
-								activatePane(pane, false);
-								void moveToUnfiled(id);
-							}}
-							onCarry={(id, mode) => {
-								activatePane(pane, false);
-								beginVirtualCarry(id, mode);
-							}}
-							onColumns={(columns) => {
-								const restoreRecord =
-									paneActive && document.activeElement?.id === `virtual-record-${virtualFocusedId}`
-										? virtualFocusedId
-										: null;
-								updateVirtualView(pane.id, { columns });
-								if (restoreRecord)
-									void tick().then(() => {
-										if (
-											pane.id === activePaneId &&
-											(document.activeElement === document.body ||
-												document.activeElement?.id === `virtual-record-${restoreRecord}`)
-										)
-											focusVirtualRecord(restoreRecord, true);
-									});
-							}}
-						/>
+							<VirtualPokemonGrid
+								paneId={pane.id}
+								active={paneActive}
+								records={virtualRecordsFor(pane.id)}
+								allRecords={catalogManifest?.records ?? []}
+								preferences={virtualViewFor(pane.id).preferences}
+								focusedId={paneActive ? virtualViewFor(pane.id).focusedId : null}
+								{busy}
+								onPreferences={(preferences) => {
+									activatePane(pane, false);
+									setVirtualPreferences(preferences);
+								}}
+								onFocus={(id) => {
+									activatePane(pane, false);
+									focusVirtualRecord(id);
+								}}
+								onMoveToUnfiled={(id) => {
+									activatePane(pane, false);
+									void moveToUnfiled(id);
+								}}
+								onCarry={(id, mode) => {
+									activatePane(pane, false);
+									beginVirtualCarry(id, mode);
+								}}
+								onColumns={(columns) => {
+									const restoreRecord =
+										paneActive &&
+										document.activeElement?.id === `virtual-record-${virtualFocusedId}`
+											? virtualFocusedId
+											: null;
+									updateVirtualView(pane.id, { columns });
+									if (restoreRecord)
+										void tick().then(() => {
+											if (
+												pane.id === activePaneId &&
+												(document.activeElement === document.body ||
+													document.activeElement?.id === `virtual-record-${restoreRecord}`)
+											)
+												focusVirtualRecord(restoreRecord, true);
+										});
+								}}
+							/>
 						{/if}
 					{:else}
 						<div
