@@ -980,11 +980,11 @@
 		switch (action) {
 			case 'left':
 			case 'up':
-				controls[(current - 1 + controls.length) % controls.length]?.focus();
+				controls[Math.max(0, current - 1)]?.focus();
 				break;
 			case 'right':
 			case 'down':
-				controls[(current + 1) % controls.length]?.focus();
+				controls[Math.min(controls.length - 1, current + 1)]?.focus();
 				break;
 			case 'confirm':
 				if (document.activeElement instanceof HTMLButtonElement) document.activeElement.click();

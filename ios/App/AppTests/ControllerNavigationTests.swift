@@ -81,7 +81,10 @@ final class ControllerNavigationTests: XCTestCase {
         )
         controller.extendedGamepad?.buttonX.setValue(0)
 
-        for index in 1...4 {
+        for index in 1...5 {
+            let releaseCount = try await webView.evaluateJavaScript(
+                "window.__pksxControllerEvents?.filter(event => event === 'ArrowDown:false').length ?? 0"
+            ) as? Int ?? 0
             controller.extendedGamepad?.dpad.setValueForXAxis(0, yAxis: -1)
             try await waitForJavaScript(
                 "document.activeElement?.id === 'box-menu-command-\(index)'",
@@ -89,7 +92,7 @@ final class ControllerNavigationTests: XCTestCase {
             )
             controller.extendedGamepad?.dpad.setValueForXAxis(0, yAxis: 0)
             try await waitForJavaScript(
-                "window.__pksxControllerEvents?.includes('ArrowDown:false')",
+                "window.__pksxControllerEvents?.filter(event => event === 'ArrowDown:false').length > \(releaseCount)",
                 in: webView
             )
         }
@@ -103,7 +106,7 @@ final class ControllerNavigationTests: XCTestCase {
 
         controller.extendedGamepad?.buttonB.setValue(1)
         try await waitForJavaScript(
-            "document.querySelector('[role=\"dialog\"][aria-label=\"Open another collection\"]') === null && document.activeElement?.id === 'box-menu-command-4'",
+            "document.querySelector('[role=\"dialog\"][aria-label=\"Open another collection\"]') === null && document.activeElement?.id === 'box-menu-command-5'",
             in: webView
         )
         controller.extendedGamepad?.buttonB.setValue(0)

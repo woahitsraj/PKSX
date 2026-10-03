@@ -6370,6 +6370,9 @@ test('organizes physical Storage Boxes without mixing navigation and editing', a
 	await page.getByRole('button', { name: 'Organize Storage Boxes' }).click();
 	const organizer = page.locator('.organizer');
 	await expect(organizer).toBeVisible();
+	await expect(organizer.getByRole('button', { name: 'Close' })).toBeFocused();
+	await pressController(page, 'ArrowUp');
+	await expect(organizer.getByRole('button', { name: 'Close' })).toBeFocused();
 	await pressController(page, 'ArrowDown');
 	await expect(
 		organizer.locator('.row').first().getByRole('button', { name: 'Rename' })
@@ -6377,6 +6380,9 @@ test('organizes physical Storage Boxes without mixing navigation and editing', a
 	await expect(organizer.getByRole('button', { name: 'Delete Box 01' })).toBeDisabled();
 	await organizer.getByRole('button', { name: 'Add Storage Box' }).click();
 	await expect(organizer.locator('.row')).toHaveCount(2);
+	await organizer.getByRole('button', { name: 'Add Storage Box' }).focus();
+	await pressController(page, 'ArrowDown');
+	await expect(organizer.getByRole('button', { name: 'Add Storage Box' })).toBeFocused();
 	await organizer.locator('.row').nth(1).getByRole('button', { name: 'Rename' }).click();
 	const nameInput = organizer.getByRole('textbox', { name: /Name for Box 02/ });
 	await expect(nameInput).toBeFocused();
