@@ -1,4 +1,5 @@
 import { stableAutomaticBackupId } from './automatic-backup';
+import { requireCarrySource } from '$lib/pksx/pokemon-storage-catalog/service';
 import { bytesEqual, copyBytes } from './bytes';
 import { clonePokemonStorage } from './pokemon-storage';
 import { nextWorkspaceRevision, WorkspaceRevisionConflictError } from './workspace-revision';
@@ -464,7 +465,14 @@ export class IndexedDbSavesStorage implements SavesStorage {
 	): Promise<CommitRiskyWorkspaceMutationResult> {
 		const database = await openSavesDatabase(this.#databaseName);
 		const transaction = database.transaction(
-			[saveFilesStore, saveBytesStore, workspacesStore, backupsStore, backupBytesStore],
+			[
+				saveFilesStore,
+				saveBytesStore,
+				workspacesStore,
+				backupsStore,
+				backupBytesStore,
+				...(input.carrySource ? ['manifest'] : [])
+			],
 			'readwrite'
 		);
 		try {
@@ -491,6 +499,13 @@ export class IndexedDbSavesStorage implements SavesStorage {
 						)
 					)?.bytes;
 			if (!baselineBytes) throw new Error('The Save File bytes are no longer available.');
+			if (input.carrySource) {
+				const manifest = await requestToPromise<
+					import('$lib/pksx/pokemon-storage-catalog/types').PokemonStorageManifest | undefined
+				>(transaction.objectStore('manifest').get('current'));
+				if (!manifest) throw new Error('Pokemon Storage source changed.');
+				requireCarrySource(manifest, input.carrySource);
+			}
 
 			let backupEstablished = false;
 			if (!previous?.automaticBackupCreated) {

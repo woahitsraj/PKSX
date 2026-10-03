@@ -32,7 +32,19 @@ describe('BoxesSessionService', () => {
 				}),
 				createBoxPane('pane-secondary', storage, { activeBox: 1, boxCount: 3 })
 			],
-			activePaneId: 'pane-secondary'
+			activePaneId: 'pane-secondary',
+			virtualPaneIds: ['pane-secondary'],
+			virtualPaneViews: {
+				'pane-secondary': {
+					preferences: {
+						location: 'unfiled' as const,
+						sort: 'species' as const,
+						filters: { query: 'Aron', originGame: '', entryMode: '', shinyOnly: false }
+					},
+					focusedId: 'record-1',
+					columns: 4
+				}
+			}
 		};
 		service.set(state);
 
@@ -53,7 +65,9 @@ describe('BoxesSessionService', () => {
 				}),
 				createBoxPane('pane-secondary', scarlet, { boxCount: 32 })
 			],
-			activePaneId: 'pane-secondary'
+			activePaneId: 'pane-secondary',
+			virtualPaneIds: [],
+			virtualPaneViews: {}
 		});
 
 		const restored = new BoxesSessionService(persistence).restore({
@@ -69,7 +83,9 @@ describe('BoxesSessionService', () => {
 					focus: { zone: 'party', slot: 3 }
 				})
 			],
-			activePaneId: 'pane-primary'
+			activePaneId: 'pane-primary',
+			virtualPaneIds: [],
+			virtualPaneViews: {}
 		});
 		expect(persistence.save).toHaveBeenCalledTimes(2);
 	});
@@ -89,16 +105,45 @@ describe('BoxesSessionService', () => {
 		expect(restored.panes).toEqual([createBoxPane('pane-primary', scarlet, { boxCount: 1 })]);
 	});
 
+	it('restores a primary virtual Storage view after reload', () => {
+		const persistence = createPersistence();
+		const view = {
+			preferences: {
+				location: 'unfiled' as const,
+				sort: 'recent' as const,
+				filters: { query: 'Aron', originGame: '', entryMode: '', shinyOnly: false }
+			},
+			focusedId: 'record-1',
+			columns: 3
+		};
+		new BoxesSessionService(persistence).set({
+			panes: [createBoxPane('pane-primary', storage)],
+			activePaneId: 'pane-primary',
+			virtualPaneIds: ['pane-primary'],
+			virtualPaneViews: { 'pane-primary': view }
+		});
+		const restored = new BoxesSessionService(persistence).restore({
+			saveFiles: [],
+			activeSaveFileId: null
+		});
+		expect(restored.virtualPaneIds).toEqual(['pane-primary']);
+		expect(restored.virtualPaneViews['pane-primary']).toEqual(view);
+	});
+
 	it('opens a selected collection as the focused one-pane composition', () => {
 		const service = new BoxesSessionService();
 		service.set({
 			panes: [createBoxPane('pane-primary', emerald), createBoxPane('pane-secondary', storage)],
-			activePaneId: 'pane-secondary'
+			activePaneId: 'pane-secondary',
+			virtualPaneIds: ['pane-secondary'],
+			virtualPaneViews: {}
 		});
 
 		expect(service.selectPrimary(storage, 3)).toEqual({
 			panes: [createBoxPane('pane-primary', storage, { boxCount: 3 })],
-			activePaneId: 'pane-primary'
+			activePaneId: 'pane-primary',
+			virtualPaneIds: [],
+			virtualPaneViews: {}
 		});
 	});
 });

@@ -4,6 +4,18 @@ import { waitForPokemonStorageRoot } from './pokemon-storage-seed.e2e-helper';
 const aron =
 	'rVIoJRblSsu7zMnI/xUAAwQAAgK+w9LDv///AH8OAAB+AQAAfwYAAAAoAAAhAGoAvQAdACMeCg8AAAAAAAAAAAAAAAAAN4uhozfCnwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
 
+async function waitForStorageBoxesReady(page: Page) {
+	await expect(page).toHaveURL((url) => url.pathname === '/boxes');
+	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
+	await expect(page.locator('.box-pane.active-pane')).toHaveAttribute(
+		'data-source-id',
+		'pokemon-storage'
+	);
+}
+
 async function seedStorage(page: Page, slots = [0]) {
 	await page.goto('/');
 	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
@@ -86,6 +98,7 @@ async function seedStorage(page: Page, slots = [0]) {
 		`${slots.length} Pokemon`
 	);
 	await page.goto('/?source=pokemon-storage');
+	await waitForStorageBoxesReady(page);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 }
 
@@ -210,6 +223,7 @@ test('expired recovery leaves a lightweight tombstone and disappears after reloa
 		db.close();
 	});
 	await page.reload();
+	await waitForStorageBoxesReady(page);
 	await openRecentlyDeleted(page);
 	await expect(
 		page.getByRole('grid', { name: 'Recently Deleted Pokemon' }).getByRole('gridcell')

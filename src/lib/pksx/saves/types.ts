@@ -1,5 +1,6 @@
 import type { ItemSpriteIdentity } from '$lib/engine';
 import type { PokemonStorageManifest, StagedBlob } from '$lib/pksx/pokemon-storage-catalog/types';
+import type { CatalogCarrySource } from '$lib/pksx/pokemon-storage-catalog/service';
 
 export type SaveFileId = string;
 export type BackupId = string;
@@ -134,6 +135,7 @@ export type CommitRiskyWorkspaceMutationInput = {
 	bytes: Uint8Array;
 	dirty: boolean;
 	reason: BackupReason;
+	carrySource?: CatalogCarrySource;
 };
 
 export type CommitRiskyWorkspaceMutationResult = {

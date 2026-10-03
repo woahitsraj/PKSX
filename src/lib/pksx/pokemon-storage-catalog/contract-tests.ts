@@ -368,6 +368,90 @@ export function catalogContract(
 			await service.copy(first.recordId);
 			expect(service.listRecords()).toHaveLength(31);
 		});
+		it('moves, swaps, and duplicates through a checked Carry', async () => {
+			const service = new PokemonStorageService(create(), fakeEngine());
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const first = await service.add(bytes(1), origin);
+			const second = await service.add(bytes(2), origin, { storageBoxId: boxId, slot: 1 });
+			await service.commitCarry(service.carrySource(first.recordId), 'move', {
+				storageBoxId: boxId,
+				slot: 0
+			});
+			expect(service.getRecord(first.recordId)?.placement?.slot).toBe(0);
+			await service.commitCarry(service.carrySource(first.recordId), 'move', {
+				storageBoxId: boxId,
+				slot: 1
+			});
+			expect(service.getRecord(first.recordId)?.placement?.slot).toBe(1);
+			expect(service.getRecord(second.recordId)?.placement?.slot).toBe(0);
+			await service.commitCarry(service.carrySource(first.recordId), 'copy', {
+				storageBoxId: boxId,
+				slot: 2
+			});
+			const duplicate = service
+				.listRecords()
+				.find((record) => ![first.recordId, second.recordId].includes(record.recordId));
+			expect(duplicate?.recordId).toBeTruthy();
+			expect(duplicate?.placement?.slot).toBe(2);
+			await expect(
+				service.commitCarry(service.carrySource(first.recordId), 'copy', {
+					storageBoxId: boxId,
+					slot: 0
+				})
+			).rejects.toThrow(/occupied/);
+		});
+		it('swaps occupied Slots when the Carry source placement is a proxy', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const first = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			const second = await service.add(bytes(2), origin, { storageBoxId: boxId, slot: 1 });
+			const source = service.carrySource(first.recordId);
+			source.placement = new Proxy(source.placement!, {});
+			await service.commitCarry(source, 'move', { storageBoxId: boxId, slot: 1 });
+			const records = (await persistence.read())!.records;
+			expect(records).toHaveLength(2);
+			expect(records.find((record) => record.recordId === first.recordId)).toMatchObject({
+				payload: first.payload,
+				placement: { storageBoxId: boxId, slot: 1 }
+			});
+			expect(records.find((record) => record.recordId === second.recordId)).toMatchObject({
+				payload: second.payload,
+				placement: { storageBoxId: boxId, slot: 0 }
+			});
+		});
+		it('rejects stale Carry source identity without changing the catalog', async () => {
+			const service = new PokemonStorageService(create(), fakeEngine());
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const first = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			const source = service.carrySource(first.recordId);
+			await service.place(first.recordId, null);
+			const before = service.current;
+			await expect(
+				service.commitCarry(source, 'move', { storageBoxId: boxId, slot: 1 })
+			).rejects.toThrow(/source changed/);
+			await expect(
+				service.commitCarry(source, 'copy', { storageBoxId: boxId, slot: 1 })
+			).rejects.toThrow(/source changed/);
+			expect(service.current).toEqual(before);
+		});
+		it('checks a Carry source against changes committed by another instance', async () => {
+			const persistence = create();
+			const engine = fakeEngine();
+			const firstTab = new PokemonStorageService(persistence, engine);
+			const secondTab = new PokemonStorageService(persistence, engine);
+			await firstTab.initialize();
+			const boxId = firstTab.listBoxes()[0].id;
+			const record = await firstTab.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			const source = firstTab.carrySource(record.recordId);
+			await secondTab.load();
+			await secondTab.place(record.recordId, { storageBoxId: boxId, slot: 1 });
+			firstTab.assertCarrySource(source);
+			await expect(firstTab.assertDurableCarrySource(source)).rejects.toThrow(/source changed/);
+		});
 		it('protects resolved slots held by displaced records', async () => {
 			const persistence = create();
 			const service = new PokemonStorageService(persistence, fakeEngine());

@@ -496,6 +496,58 @@ describe('CapacitorSavesStorage', () => {
 		expect(await storage.getBackupBytes(backup.id)).toEqual(original);
 	});
 
+	it('rejects a queued Storage Carry after another catalog writer changes its source', async () => {
+		const persistence = new NativeCatalogPersistence(fileStore);
+		const payload = new Uint8Array([7]);
+		const reference = await referenceFor(payload, 1);
+		const manifest = emptyManifest('storage-id', '2026-05-16T12:00:00.000Z', 'box-id');
+		manifest.records.push({
+			recordId: 'record-id',
+			payload: reference,
+			identityFingerprint: 'fingerprint',
+			projection: {} as never,
+			origin: {
+				entryMode: 'imported',
+				originSaveFileId: null,
+				originSaveFileName: null,
+				originGame: null,
+				originalTrainer: null,
+				trainerId: null,
+				enteredAt: manifest.createdAt
+			},
+			placement: { storageBoxId: 'box-id', slot: 0 },
+			revision: 0,
+			createdAt: manifest.createdAt,
+			updatedAt: manifest.updatedAt
+		});
+		await persistence.commit(null, manifest, [{ reference, bytes: payload }]);
+		const save = await storage.importSave({ bytes: new Uint8Array([1]), originalFileName: null });
+		const changed = structuredClone(manifest);
+		changed.revision += 1;
+		changed.records[0].revision += 1;
+		const changing = persistence.commit(0, changed, []);
+		const committing = storage.commitRiskyWorkspaceMutation({
+			saveFileId: save.id,
+			importedAt: save.importedAt,
+			expectedUpdatedAt: null,
+			bytes: new Uint8Array([2]),
+			dirty: true,
+			reason: 'pokemon-movement',
+			carrySource: {
+				storageId: manifest.storageId,
+				recordId: 'record-id',
+				revision: 0,
+				payloadId: reference.id,
+				placement: { storageBoxId: 'box-id', slot: 0 }
+			}
+		});
+		await changing;
+		await expect(committing).rejects.toThrow('Pokemon Storage source changed.');
+		expect(await storage.getWorkspace(save.id)).toBeNull();
+		expect(await storage.listBackups(save.id)).toEqual([]);
+		expect((await persistence.read())?.records[0].revision).toBe(1);
+	});
+
 	it('leaves Backup and Workspace state unchanged when a risky mutation commit fails', async () => {
 		const saveFile = await storage.importSave({
 			bytes: new Uint8Array([1, 2, 3]),
