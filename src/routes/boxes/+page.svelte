@@ -53,6 +53,7 @@
 		boxIndexAfterMove,
 		boxNameFor as projectedBoxNameFor,
 		createPhysicalBoxPickerLocations,
+		createStorageBoxPickerLocations,
 		moveBoxPickerControllerFocus,
 		type BoxPickerControllerFocus,
 		type BoxPickerLocation
@@ -121,6 +122,7 @@
 	import BoxMenu from '$lib/components/pksx/BoxMenu.svelte';
 	import BoxPicker from '$lib/components/pksx/BoxPicker.svelte';
 	import BoxSourceControls from '$lib/components/pksx/BoxSourceControls.svelte';
+	import StorageBoxOrganizer from '$lib/components/pksx/StorageBoxOrganizer.svelte';
 	import ClearSlotConfirm from '$lib/components/pksx/ClearSlotConfirm.svelte';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
 	import DetailRail from '$lib/components/pksx/DetailRail.svelte';
@@ -456,6 +458,9 @@
 	const slotMenuOpen = $derived(activeSummonedWorkflow?.kind === 'slot-menu');
 	const boxMenuOpen = $derived(activeSummonedWorkflow?.kind === 'box-menu');
 	const boxPickerOpen = $derived(activeSummonedWorkflow?.kind === 'box-picker');
+	const storageBoxOrganizerOpen = $derived(
+		activeSummonedWorkflow?.kind === 'storage-box-organizer'
+	);
 	const boxPickerFocusIndex = $derived(boxPickerControllerFocus.locationIndex);
 	const destinationInputSuspended = $derived(isDestinationInputSuspended(summonedWorkflow));
 	const summonedSlotLauncher = $derived(getLaunchingSlot(summonedWorkflow));
@@ -477,6 +482,37 @@
 		const target = boxPickerTarget;
 		return target ? workbenchPanes.find((pane) => matchesBoxMenuTarget(pane, target)) : undefined;
 	});
+	const storageBoxes = $derived(
+		catalogManifest?.boxOrder.map((id) => catalogManifest!.boxes.find((box) => box.id === id)!) ??
+			[]
+	);
+	const storageBoxOccupancy = $derived.by(() => {
+		const counts: Record<string, number> = {};
+		if (!catalogManifest) return counts;
+		for (const item of getPokemonStorageCatalog().listResolvedPlacements()) {
+			const id = item.placement?.storageBoxId;
+			if (id) counts[id] = (counts[id] ?? 0) + 1;
+		}
+		return counts;
+	});
+	const storageBoxDeleteBlocked = $derived.by(() => {
+		const blocked: Record<string, boolean> = {};
+		if (!catalogManifest) return blocked;
+		for (const record of catalogManifest.records) {
+			if (record.placement) blocked[record.placement.storageBoxId] = true;
+		}
+		for (const item of getPokemonStorageCatalog().listResolvedPlacements()) {
+			if (item.placement) blocked[item.placement.storageBoxId] = true;
+		}
+		return blocked;
+	});
+	const overflowCount = $derived(
+		catalogManifest
+			? getPokemonStorageCatalog()
+					.listResolvedPlacements()
+					.filter((item) => item.overflow).length
+			: 0
+	);
 	const boxPickerLocations = $derived([
 		...(boxPickerPane?.source.type === 'pokemon-storage' && !pendingSlotOperation && !virtualCarry
 			? [
@@ -494,10 +530,15 @@
 					}
 				]
 			: []),
-		...createPhysicalBoxPickerLocations(
-			boxPickerPane?.boxCount ?? 0,
-			saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames ?? null
-		)
+		...(boxPickerPane?.source.type === 'pokemon-storage'
+			? createStorageBoxPickerLocations(
+					storageBoxes,
+					pendingSlotOperation || virtualCarry ? 0 : overflowCount
+				)
+			: createPhysicalBoxPickerLocations(
+					boxPickerPane?.boxCount ?? 0,
+					saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames ?? null
+				))
 	]);
 	const activeVirtualLocation = $derived(
 		activePane?.source.type === 'pokemon-storage' && virtualPaneIds.includes(activePane.id)
@@ -762,6 +803,9 @@
 		}
 
 		switch (activeSummonedWorkflow?.kind) {
+			case 'storage-box-organizer':
+				dispatchStorageBoxOrganizer(action);
+				return true;
 			case 'box-menu':
 				dispatchBoxMenu(action);
 				return true;
@@ -919,6 +963,34 @@
 			}
 			case 'back':
 				closeBoxMenu();
+				break;
+			case 'previousBox':
+			case 'nextBox':
+			case 'sourceAction':
+			case 'carryMode':
+				break;
+		}
+	}
+
+	function dispatchStorageBoxOrganizer(action: NavigationAction) {
+		const controls = [
+			...document.querySelectorAll<HTMLElement>('[data-organizer-control]:not(:disabled)')
+		];
+		const current = controls.indexOf(document.activeElement as HTMLElement);
+		switch (action) {
+			case 'left':
+			case 'up':
+				controls[(current - 1 + controls.length) % controls.length]?.focus();
+				break;
+			case 'right':
+			case 'down':
+				controls[(current + 1) % controls.length]?.focus();
+				break;
+			case 'confirm':
+				if (document.activeElement instanceof HTMLButtonElement) document.activeElement.click();
+				break;
+			case 'back':
+				document.querySelector<HTMLElement>('[data-organizer-back]')?.click();
 				break;
 			case 'previousBox':
 			case 'nextBox':
@@ -1804,6 +1876,13 @@
 			return;
 		const action = keyboardAction(event);
 		if (
+			storageBoxOrganizerOpen &&
+			event.target instanceof HTMLInputElement &&
+			!isControllerKeyboardEvent(event) &&
+			action !== 'back'
+		)
+			return;
+		if (
 			activeVirtualLocation &&
 			event.target instanceof HTMLElement &&
 			event.target.closest('.virtual-browser .filters')
@@ -2327,6 +2406,9 @@
 		if (busy || !boxMenuCommands.some(({ key, reason }) => key === command && !reason)) return;
 
 		switch (command) {
+			case 'organize-storage-boxes':
+				openStorageBoxOrganizer();
+				break;
 			case 'export':
 				void exportBoxMenuSave();
 				break;
@@ -2346,6 +2428,92 @@
 				closeBoxMenuPane();
 				break;
 		}
+	}
+
+	function openStorageBoxOrganizer() {
+		if (
+			pendingSlotOperation ||
+			carryState ||
+			virtualCarry ||
+			boxMenuTarget?.source.type !== 'pokemon-storage'
+		)
+			return;
+		const index = boxMenuCommands.findIndex(({ key }) => key === 'organize-storage-boxes');
+		summonedWorkflow.openRelated(
+			'storage-box-organizer',
+			controlLauncher(`box-menu-command-${index}`)
+		);
+		queueMicrotask(() => document.querySelector<HTMLElement>('[data-organizer-control]')?.focus());
+	}
+
+	async function changeStorageBoxes(change: () => Promise<unknown>): Promise<string | null> {
+		if (busy || pendingSlotOperation || carryState || virtualCarry || catalogViewStale)
+			return 'Storage Box editing is unavailable.';
+		busy = true;
+		const catalog = getPokemonStorageCatalog();
+		const before = catalog.listBoxes();
+		const selectedIds = new Map(
+			workbenchPanes
+				.filter((pane) => pane.source.type === 'pokemon-storage')
+				.map((pane) => [pane.id, before[pane.activeBox]?.id])
+		);
+		try {
+			await change();
+			if (!(await refreshCommittedCatalogView()))
+				return 'Storage Boxes changed. Reload Boxes to refresh.';
+			if (
+				virtualPreferences.location === 'overflow' &&
+				!catalog.listResolvedPlacements().some((item) => item.overflow)
+			) {
+				virtualPreferences = { ...virtualPreferences, location: 'all-pokemon' };
+				persistVirtualPreferences();
+				localStorage.setItem('pksx-last-storage-location-v1', 'all-pokemon');
+			}
+			const after = catalog.listBoxes();
+			workbenchPanes = workbenchPanes.map((pane) => {
+				if (pane.source.type !== 'pokemon-storage') return pane;
+				const selectedId = selectedIds.get(pane.id);
+				const index = after.findIndex((box) => box.id === selectedId);
+				return {
+					...pane,
+					boxCount: after.length,
+					activeBox: index >= 0 ? index : Math.min(pane.activeBox, after.length - 1)
+				};
+			});
+			if (activePane?.source.type === 'pokemon-storage') {
+				const pane = workbenchPanes.find((item) => item.id === activePaneId)!;
+				navigation = { ...navigation, activeBox: pane.activeBox, boxCount: after.length };
+			}
+			return null;
+		} catch (error) {
+			return getErrorMessage(error);
+		} finally {
+			busy = false;
+		}
+	}
+
+	function addStorageBox() {
+		return changeStorageBoxes(() => getPokemonStorageCatalog().addBox());
+	}
+
+	function renameStorageBox(id: string, name: string | null) {
+		return changeStorageBoxes(() => getPokemonStorageCatalog().renameBox(id, name));
+	}
+
+	function moveStorageBox(id: string, destination: number) {
+		const order = getPokemonStorageCatalog()
+			.listBoxes()
+			.map((box) => box.id);
+		const from = order.indexOf(id);
+		if (from < 0 || destination < 0 || destination >= order.length)
+			return Promise.resolve('Storage Box is unavailable.');
+		order.splice(from, 1);
+		order.splice(destination, 0, id);
+		return changeStorageBoxes(() => getPokemonStorageCatalog().reorderBoxes(order));
+	}
+
+	function deleteStorageBox(id: string) {
+		return changeStorageBoxes(() => getPokemonStorageCatalog().removeBox(id));
 	}
 
 	function openSaveFileLegalityReport() {
@@ -5338,7 +5506,14 @@
 					const record = getPokemonStorageCatalog().getRecord(result.recordId)!;
 					virtualPreferences = {
 						...virtualPreferences,
-						location: location === 'unfiled' && record.placement ? 'all-pokemon' : location,
+						location:
+							(location === 'unfiled' && record.placement) ||
+							(location === 'overflow' &&
+								!getPokemonStorageCatalog()
+									.listResolvedPlacements()
+									.some((item) => item.recordId === result.recordId && item.overflow))
+								? 'all-pokemon'
+								: location,
 						filters: defaultVirtualViewPreferences.filters
 					};
 					persistVirtualPreferences();
@@ -5684,6 +5859,11 @@
 		try {
 			virtualPreferences = readVirtualViewPreferences(localStorage.getItem('pksx-virtual-view-v1'));
 			await restorePokemonStorage();
+			if (virtualPreferences.location === 'overflow' && overflowCount === 0) {
+				virtualPreferences = { ...virtualPreferences, location: 'all-pokemon' };
+				persistVirtualPreferences();
+				localStorage.setItem('pksx-last-storage-location-v1', 'all-pokemon');
+			}
 			const [availableSaveFiles, activeSaveFileId, restoredActiveSave] = await Promise.all([
 				storage.listSaves(),
 				storage.getActiveSaveFileId(),
@@ -5707,7 +5887,7 @@
 					});
 			workbenchPanes = session.panes;
 			activePaneId = session.activePaneId;
-			virtualPaneIds = ['all-pokemon', 'unfiled'].includes(
+			virtualPaneIds = ['all-pokemon', 'unfiled', 'overflow'].includes(
 				localStorage.getItem('pksx-last-storage-location-v1') ?? ''
 			)
 				? session.panes
@@ -6201,7 +6381,7 @@
 						: paneParty
 							? 'party'
 							: `box-${paneBox}`}
-					aria-label={`${pane.source.label}, ${paneVirtual ? (virtualPreferences.location === 'unfiled' ? 'Unfiled' : 'All Pokemon') : paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
+					aria-label={`${pane.source.label}, ${paneVirtual ? (virtualPreferences.location === 'unfiled' ? 'Unfiled' : virtualPreferences.location === 'overflow' ? 'Overflow' : 'All Pokemon') : paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
 					aria-busy={paneBusy ? 'true' : undefined}
 				>
 					<div class="pane-header">
@@ -6290,7 +6470,9 @@
 									activeBoxLabel: paneVirtual
 										? virtualPreferences.location === 'unfiled'
 											? 'Unfiled'
-											: 'All Pokemon'
+											: virtualPreferences.location === 'overflow'
+												? 'Overflow'
+												: 'All Pokemon'
 										: paneParty
 											? 'Party'
 											: boxNameFor(paneBox, pane),
@@ -6567,6 +6749,19 @@
 		onSelectLocation={selectBoxPickerLocation}
 		onColumnCountChange={(columnCount) => (boxPickerColumnCount = columnCount)}
 		onClose={closeBoxPicker}
+	/>
+{/if}
+
+{#if storageBoxOrganizerOpen}
+	<StorageBoxOrganizer
+		boxes={storageBoxes}
+		occupied={storageBoxOccupancy}
+		deleteBlocked={storageBoxDeleteBlocked}
+		onAdd={addStorageBox}
+		onRename={renameStorageBox}
+		onMove={moveStorageBox}
+		onDelete={deleteStorageBox}
+		onClose={dismissActiveWorkflow}
 	/>
 {/if}
 

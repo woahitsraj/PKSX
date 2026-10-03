@@ -6359,6 +6359,43 @@ test('Clear uses its Pokemon Storage owner without mutating the loaded Save File
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 });
 
+test('organizes physical Storage Boxes without mixing navigation and editing', async ({ page }) => {
+	await openEmptySaves(page);
+	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page
+		.getByRole('dialog', { name: 'Choose a Box' })
+		.getByRole('button', { name: /Box 01/ })
+		.click();
+	await page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: 'Organize Storage Boxes' }).click();
+	const organizer = page.locator('.organizer');
+	await expect(organizer).toBeVisible();
+	await pressController(page, 'ArrowDown');
+	await expect(
+		organizer.locator('.row').first().getByRole('button', { name: 'Rename' })
+	).toBeFocused();
+	await expect(organizer.getByRole('button', { name: 'Delete Box 01' })).toBeDisabled();
+	await organizer.getByRole('button', { name: 'Add Storage Box' }).click();
+	await expect(organizer.locator('.row')).toHaveCount(2);
+	await organizer.locator('.row').nth(1).getByRole('button', { name: 'Rename' }).click();
+	await organizer.getByRole('textbox', { name: /Name for Box 02/ }).fill('Favorites');
+	await organizer.getByRole('button', { name: 'Save name' }).click();
+	await expect(organizer.locator('.row').nth(1)).toContainText('Favorites');
+	await organizer.locator('.row').nth(1).getByRole('button', { name: 'Move up' }).click();
+	await expect(organizer.locator('.row').first()).toContainText('Favorites');
+	await expect(
+		page.locator('.box-pane.active-pane').getByRole('heading', { name: /Box 02/ })
+	).toBeVisible();
+	await organizer.getByRole('button', { name: 'Delete Box 02' }).click();
+	await organizer.getByRole('button', { name: 'Delete Storage Box' }).click();
+	await expect(organizer.locator('.row')).toHaveCount(1);
+	await expect(organizer.getByRole('button', { name: 'Delete Favorites' })).toBeDisabled();
+	await organizer.getByRole('button', { name: 'Close' }).click();
+	await page.keyboard.press('Escape');
+	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await expect(page.getByRole('dialog', { name: 'Choose a Box' })).toContainText('Favorites');
+});
+
 test('Saves opens Pokemon Storage as the focused single Boxes collection', async ({ page }) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);

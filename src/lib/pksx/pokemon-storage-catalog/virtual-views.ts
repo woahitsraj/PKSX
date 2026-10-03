@@ -1,7 +1,7 @@
 import type { PokemonRecord, PokemonStorageManifest } from './types';
 import { resolvePlacements } from './types';
 
-export type VirtualLocation = 'all-pokemon' | 'unfiled';
+export type VirtualLocation = 'all-pokemon' | 'unfiled' | 'overflow';
 export type VirtualSort = 'recent' | 'oldest' | 'species' | 'level';
 export type VirtualFilters = {
 	query: string;
@@ -27,7 +27,10 @@ export function readVirtualViewPreferences(value: string | null): VirtualViewPre
 		const parsed = JSON.parse(value) as Partial<VirtualViewPreferences>;
 		const filters = parsed.filters;
 		return {
-			location: parsed.location === 'unfiled' ? 'unfiled' : 'all-pokemon',
+			location:
+				parsed.location === 'unfiled' || parsed.location === 'overflow'
+					? parsed.location
+					: 'all-pokemon',
 			sort: ['recent', 'oldest', 'species', 'level'].includes(parsed.sort ?? '')
 				? parsed.sort!
 				: 'recent',
@@ -48,6 +51,16 @@ export function virtualRecords(
 	preferences: VirtualViewPreferences
 ): PokemonRecord[] {
 	if (!manifest) return [];
+	if (preferences.location === 'overflow') {
+		const ids = new Set(
+			resolvePlacements(manifest)
+				.filter((placement) => placement.overflow)
+				.map((placement) => placement.recordId)
+		);
+		return manifest.records
+			.filter((record) => ids.has(record.recordId))
+			.sort((a, b) => a.recordId.localeCompare(b.recordId));
+	}
 	const placements = new Map(
 		resolvePlacements(manifest).map(({ recordId, placement }) => [recordId, placement])
 	);
