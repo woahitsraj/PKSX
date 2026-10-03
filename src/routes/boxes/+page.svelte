@@ -1439,7 +1439,7 @@
 		if (activeVirtualRecords.some((record) => record.recordId === recordId)) {
 			focusVirtualRecord(recordId);
 		} else {
-			virtualFocusedId = null;
+			updateVirtualView(paneId, { focusedId: null });
 			queueMicrotask(() => document.getElementById(locationControlId(paneId))?.focus());
 		}
 	}
@@ -3889,6 +3889,8 @@
 			});
 		const openedPane = workbenchPanes.find((pane) => pane.id === id);
 		activePaneId = id;
+		if (source.type === 'pokemon-storage' && openedPane)
+			rememberPhysicalStorageBox(openedPane.activeBox);
 		navigation = {
 			...navigation,
 			boxCount: Math.max(1, openedPane?.boxCount ?? sourceBoxCount),
@@ -3964,10 +3966,8 @@
 			});
 		const switchedPane = workbenchPanes.find((candidate) => candidate.id === paneId);
 		activePaneId = paneId;
-		if (switchedPane?.source.type === 'pokemon-storage') {
-			virtualPaneIds = virtualPaneIds.filter((id) => id !== paneId);
+		if (switchedPane?.source.type === 'pokemon-storage')
 			rememberPhysicalStorageBox(switchedPane.activeBox);
-		}
 		navigation = {
 			...navigation,
 			boxCount: Math.max(1, switchedPane?.boxCount ?? targetBoxCount),
@@ -4059,6 +4059,8 @@
 				locationFocus: nextFocus
 			};
 			if (nextPane) workbenchPanes = setPaneFocus(workbenchPanes, nextPane.id, nextFocus);
+			if (nextPane?.source.type === 'pokemon-storage' && !virtualPaneIds.includes(nextPane.id))
+				rememberPhysicalStorageBox(nextPane.activeBox);
 			queueMicrotask(focusActiveControl);
 		}
 		const remaining = { ...savePaneWorkspaces };

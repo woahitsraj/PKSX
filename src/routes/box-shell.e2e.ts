@@ -6591,7 +6591,7 @@ test('Store Automatically keeps Record ID and starts from the last physical Stor
 	const readManifest = () =>
 		page.evaluate(async () => {
 			const database = await new Promise<IDBDatabase>((resolve, reject) => {
-				const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+				const opening = indexedDB.open('pksx-saves');
 				opening.onsuccess = () => resolve(opening.result);
 				opening.onerror = () => reject(opening.error);
 			});
@@ -6667,7 +6667,7 @@ test('Store Automatically follows physical Storage source switches and activatio
 	const peer = page.locator('.box-pane').nth(1);
 	const [firstBoxId, thirdBoxId] = await page.evaluate(async () => {
 		const db = await new Promise<IDBDatabase>((resolve, reject) => {
-			const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+			const opening = indexedDB.open('pksx-saves');
 			opening.onsuccess = () => resolve(opening.result);
 			opening.onerror = () => reject(opening.error);
 		});
@@ -6722,6 +6722,65 @@ test('Store Automatically follows physical Storage source switches and activatio
 	await expect(peer.locator('[id$="box-0-slot-1"]')).toBeFocused();
 });
 
+test('Store Automatically follows the active physical pane when both panes show Storage', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await seedOccupiedPokemonStorageSlot(page);
+	await page.reload();
+	const primary = page.locator('.box-pane').first();
+	await primary.getByRole('button', { name: /Open Box Menu for .*\.sav/ }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	const peer = page.locator('.box-pane').nth(1);
+	await expect(peer.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+	await primary.getByRole('button', { name: /Open Box Menu for .*\.sav/ }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Switch' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Switch collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	await expect(primary.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+	const lastBox = () =>
+		page.evaluate(() => localStorage.getItem('pksx-last-physical-storage-box-id-v1'));
+	const firstBoxId = await lastBox();
+	await primary.getByRole('button', { name: 'Next Location' }).click();
+	await primary.getByRole('button', { name: 'Next Location' }).click();
+	await expect(primary.getByRole('heading', { name: 'Box 03' })).toBeVisible();
+	expect(await lastBox()).not.toBe(firstBoxId);
+	await peer.locator('[id$="box-0-slot-0"]').click();
+	expect(await lastBox()).toBe(firstBoxId);
+	await peer.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page
+		.getByRole('dialog', { name: 'Choose a Box' })
+		.getByRole('button', { name: /All Pokemon/ })
+		.click();
+	expect(await lastBox()).toBe(firstBoxId);
+	const card = peer.getByRole('grid', { name: 'All Pokemon' }).getByRole('gridcell', {
+		name: /ARON/
+	});
+	await card.focus();
+	await page.keyboard.press('Enter');
+	await page
+		.getByRole('dialog', { name: 'Slot actions' })
+		.getByRole('button', { name: 'Store Automatically' })
+		.click();
+	await expect(peer.locator('[id$="box-0-slot-0"]')).toContainText('Empty');
+	await expect(peer.locator('[id$="box-0-slot-1"]')).toContainText('ARON');
+	await expect(peer.locator('[id$="box-0-slot-1"]')).toBeFocused();
+});
+
 test('Store Automatically restores virtual focus after a failed write and focuses the destination on success', async ({
 	page
 }) => {
@@ -6754,7 +6813,11 @@ test('Store Automatically restores virtual focus after a failed write and focuse
 	await page.evaluate(() => {
 		const original = IDBDatabase.prototype.transaction;
 		IDBDatabase.prototype.transaction = function (names, mode, options) {
-			if (this.name === 'pksx-pokemon-storage-catalog' && mode === 'readwrite') {
+			if (
+				this.name === 'pksx-saves' &&
+				mode === 'readwrite' &&
+				(typeof names === 'string' ? names === 'manifest' : Array.from(names).includes('manifest'))
+			) {
 				throw new Error('Injected catalog write failure');
 			}
 			return original.call(this, names, mode, options);
