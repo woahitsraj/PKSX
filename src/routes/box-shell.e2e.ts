@@ -6579,6 +6579,73 @@ test('Clear uses its Pokemon Storage owner without mutating the loaded Save File
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 });
 
+test('Store Automatically keeps Record ID and starts from the last physical Storage Box after reload', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await seedOccupiedPokemonStorageSlot(page);
+	await page.goto('/?source=pokemon-storage');
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+	const savesBefore = await persistedSavesStateSnapshot(page);
+	const readManifest = () =>
+		page.evaluate(async () => {
+			const database = await new Promise<IDBDatabase>((resolve, reject) => {
+				const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+				opening.onsuccess = () => resolve(opening.result);
+				opening.onerror = () => reject(opening.error);
+			});
+			try {
+				return await new Promise<{
+					boxOrder: string[];
+					records: Array<{ recordId: string; placement: { storageBoxId: string; slot: number } }>;
+				}>((resolve, reject) => {
+					const request = database.transaction('manifest').objectStore('manifest').get('current');
+					request.onsuccess = () => resolve(request.result);
+					request.onerror = () => reject(request.error);
+				});
+			} finally {
+				database.close();
+			}
+		});
+	const original = await readManifest();
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page
+		.getByRole('dialog', { name: 'Slot actions' })
+		.getByRole('button', { name: 'Store Automatically' })
+		.click();
+	await expect(page.locator('#box-0-slot-1')).toContainText('ARON');
+	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page
+		.getByRole('dialog', { name: 'Choose a Box' })
+		.getByRole('button', { name: /Box 03/ })
+		.click();
+	await expect(page.getByRole('heading', { name: 'Box 03' })).toBeVisible();
+	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page
+		.getByRole('dialog', { name: 'Choose a Box' })
+		.getByRole('button', { name: /All Pokemon/ })
+		.click();
+	await page.reload();
+	const card = page
+		.getByRole('grid', { name: 'All Pokemon' })
+		.getByRole('gridcell', { name: /ARON/ });
+	await card.focus();
+	await page.keyboard.press('Enter');
+	await page
+		.getByRole('dialog', { name: 'Slot actions' })
+		.getByRole('button', { name: 'Store Automatically' })
+		.click();
+	await expect(page.locator('.toast-success').last()).toContainText('Storage Box 3, Slot 1');
+	const stored = await readManifest();
+	expect(stored.boxOrder).toEqual(original.boxOrder);
+	expect(stored.records).toHaveLength(1);
+	expect(stored.records[0].recordId).toBe(original.records[0].recordId);
+	expect(stored.records[0].placement).toEqual({ storageBoxId: stored.boxOrder[2], slot: 0 });
+	expect(await persistedSavesStateSnapshot(page)).toBe(savesBefore);
+});
+
 test('organizes physical Storage Boxes without mixing navigation and editing', async ({ page }) => {
 	await openEmptySaves(page);
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
