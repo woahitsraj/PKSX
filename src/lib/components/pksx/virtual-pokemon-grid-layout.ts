@@ -1,0 +1,1 @@
+export const VIRTUAL_POKEMON_ROW_HEIGHT = 200;

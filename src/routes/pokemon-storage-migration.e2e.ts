@@ -79,6 +79,12 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	await expect(page.getByRole('grid', { name: 'All Pokemon' }).getByRole('gridcell')).toHaveCount(
 		1
 	);
+	const filedCard = page.getByRole('grid', { name: 'All Pokemon' }).locator('.card');
+	const filedBounds = await filedCard.evaluate((node) => ({
+		unfileBottom: node.querySelector('.unfile')!.getBoundingClientRect().bottom,
+		nameTop: node.querySelector('strong')!.getBoundingClientRect().top
+	}));
+	expect(filedBounds.unfileBottom).toBeLessThan(filedBounds.nameTop);
 	await page.getByRole('button', { name: 'Move to Unfiled' }).click();
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: /Unfiled: Unfiled/ }).click();
@@ -182,9 +188,31 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	await page.getByRole('searchbox', { name: 'Filter Pokemon' }).fill('');
 	await page.getByRole('combobox', { name: 'Sort Pokemon' }).selectOption('recent');
 	const columnCounts: number[] = [];
+	async function expectReadableVirtualCard() {
+		const card = page.getByRole('grid', { name: 'All Pokemon' }).locator('.card').first();
+		const bounds = await card.evaluate((node) => {
+			const label = node.querySelector('small')!.getBoundingClientRect();
+			const actions = node.querySelector('.carry-actions')!.getBoundingClientRect();
+			return { labelBottom: label.bottom, actionsTop: actions.top };
+		});
+		expect(bounds.labelBottom).toBeLessThan(bounds.actionsTop);
+		expect(
+			await page
+				.getByRole('combobox', { name: 'Sort Pokemon' })
+				.evaluate((node) => node.getBoundingClientRect().width)
+		).toBeGreaterThanOrEqual(160);
+		const shiny = await page.getByRole('checkbox', { name: 'Shiny' }).evaluate((node) => {
+			const bounds = node.getBoundingClientRect();
+			return { width: bounds.width, height: bounds.height, right: bounds.right };
+		});
+		expect(shiny.width).toBeGreaterThanOrEqual(16);
+		expect(shiny.height).toBeGreaterThanOrEqual(16);
+		expect(shiny.right).toBeLessThanOrEqual(page.viewportSize()!.width);
+	}
 	for (const width of [1280, 760]) {
 		await page.setViewportSize({ width, height: 800 });
 		const grid = page.getByRole('grid', { name: 'All Pokemon' });
+		await expectReadableVirtualCard();
 		const measuredColumns = await grid.evaluate((node) =>
 			Math.max(1, Math.floor((node.clientWidth + 8) / 124))
 		);
@@ -223,6 +251,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 			const focusedId = await page.evaluate(() => document.activeElement?.id);
 			await page.setViewportSize({ width: 360, height: 800 });
 			await expect(grid).not.toHaveAttribute('aria-colcount', String(columns));
+			await expectReadableVirtualCard();
 			await expect(page.locator(`#${focusedId}`)).toBeFocused();
 			await expect(page.locator(`#${focusedId}`)).toBeVisible();
 			expect(await grid.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
