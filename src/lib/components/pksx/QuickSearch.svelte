@@ -138,7 +138,9 @@
 			{#if loading}
 				<p class="state">Reading {searchScope}...</p>
 			{:else if unavailable}
-				<p class="state">{searchScope} is no longer available.</p>
+				<p class="state">
+					{saveFile.scope === 'pokemon-storage' ? '' : 'The '}{searchScope} is no longer available.
+				</p>
 			{:else if error}
 				<p class="state">Search could not read {searchScope}.</p>
 			{:else if results.length === 0}
