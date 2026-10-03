@@ -149,6 +149,10 @@ public class ControllerNavigationTest {
             "document.activeElement?.id === 'box-menu-command-4'"
         );
         pressGamepadKey(
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            "document.activeElement?.id === 'box-menu-command-5'"
+        );
+        pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_A,
             "document.querySelector('[role=\"dialog\"][aria-label=\"Open another collection\"]') !== null"
                 + " && document.activeElement?.classList.contains('source-card')"
@@ -156,7 +160,7 @@ public class ControllerNavigationTest {
         pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_B,
             "document.querySelector('[role=\"dialog\"][aria-label=\"Open another collection\"]') === null"
-                + " && document.activeElement?.id === 'box-menu-command-4'"
+                + " && document.activeElement?.id === 'box-menu-command-5'"
         );
         pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_B,
