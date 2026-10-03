@@ -2093,7 +2093,7 @@
 			storageBoxOrganizerOpen &&
 			event.target instanceof HTMLInputElement &&
 			!isControllerKeyboardEvent(event) &&
-			action !== 'back'
+			event.key !== 'Escape'
 		)
 			return;
 		if (event.target instanceof HTMLElement && event.target.closest('.virtual-browser .filters'))
