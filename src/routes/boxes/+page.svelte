@@ -85,7 +85,18 @@
 		type WorkbenchSlotRef
 	} from '$lib/pksx/storage-workbench';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
-	import { catalogLegacyView } from '$lib/pksx/pokemon-storage-catalog';
+	import {
+		catalogLegacyView,
+		type PokemonStorageManifest
+	} from '$lib/pksx/pokemon-storage-catalog';
+	import {
+		defaultVirtualViewPreferences,
+		moveVirtualFocus,
+		readVirtualViewPreferences,
+		virtualRecords,
+		type VirtualLocation,
+		type VirtualViewPreferences
+	} from '$lib/pksx/pokemon-storage-catalog/virtual-views';
 	import {
 		bytesEqual,
 		createEmptyPokemonStorage,
@@ -118,6 +129,8 @@
 	import PokemonEditor from '$lib/components/pksx/PokemonEditor.svelte';
 	import SlotActionMenu from '$lib/components/pksx/SlotActionMenu.svelte';
 	import StorageSlot from '$lib/components/pksx/StorageSlot.svelte';
+	import VirtualPokemonGrid from '$lib/components/pksx/VirtualPokemonGrid.svelte';
+	import { VIRTUAL_POKEMON_ROW_HEIGHT } from '$lib/components/pksx/virtual-pokemon-grid-layout';
 	import TakeoverFrame from '$lib/components/pksx/TakeoverFrame.svelte';
 	import type { SlotView } from '$lib/components/pksx/types';
 	import {
@@ -189,7 +202,11 @@
 	} from '$lib/pksx/summoned-workflow';
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 	import { getToastHost } from '$lib/pksx/toast/host.svelte';
-	import { createSaveFileQuickSearchResults, type QuickSearchResult } from '$lib/pksx/quick-search';
+	import {
+		createSaveFileQuickSearchResults,
+		createVirtualQuickSearchResults,
+		type QuickSearchResult
+	} from '$lib/pksx/quick-search';
 	import { getQuickSearchHost, type QuickSearchSaveFile } from '$lib/pksx/quick-search/host.svelte';
 	import {
 		applySaveFileLegalityFixBatch,
@@ -204,7 +221,11 @@
 		type SaveFileLegalityReportTarget
 	} from '$lib/pksx/save-file-legality-report/host.svelte';
 	import { createBoxMenuCommands, type BoxMenuCommandKey } from '$lib/pksx/box-menu';
-	import { createSlotMenuCommands, type SlotMenuCommandKey } from '$lib/pksx/slot-menu';
+	import {
+		createSlotMenuCommands,
+		type SlotMenuCommand,
+		type SlotMenuCommandKey
+	} from '$lib/pksx/slot-menu';
 	import { layerFade, panelSettle } from '$lib/pksx/motion';
 
 	const sourcePickerFade = layerFade('.source-picker-backdrop');
@@ -406,6 +427,21 @@
 	let saveFiles = $state<StoredSaveFile[]>([]);
 	let savePaneWorkspaces = $state<Record<string, SavePaneWorkspace>>({});
 	let pokemonStorage = $state<StoredPokemonStorage | null>(null);
+	let catalogManifest = $state<PokemonStorageManifest | null>(null);
+	let virtualPreferences = $state<VirtualViewPreferences>(
+		structuredClone(defaultVirtualViewPreferences)
+	);
+	let virtualPaneIds = $state<string[]>([]);
+	let virtualFocusedId = $state<string | null>(null);
+	let virtualColumns = $state(1);
+	let virtualMenuRecordId = $state<string | null>(null);
+	let virtualMenuIndex = $state(0);
+	let virtualCarry = $state<{
+		recordId: string;
+		mode: 'move' | 'copy';
+		paneId: string;
+		location: VirtualLocation;
+	} | null>(null);
 	let catalogViewStale = $state(false);
 	let engine: EngineApi | null = null;
 	let workspaceLoadRequest = 0;
@@ -441,12 +477,57 @@
 		const target = boxPickerTarget;
 		return target ? workbenchPanes.find((pane) => matchesBoxMenuTarget(pane, target)) : undefined;
 	});
-	const boxPickerLocations = $derived(
-		createPhysicalBoxPickerLocations(
+	const boxPickerLocations = $derived([
+		...(boxPickerPane?.source.type === 'pokemon-storage' && !pendingSlotOperation && !virtualCarry
+			? [
+					{
+						id: 'all-pokemon',
+						label: 'All Pokemon',
+						detail: 'Every Pokemon',
+						location: { kind: 'virtual' as const, id: 'all-pokemon' }
+					},
+					{
+						id: 'unfiled',
+						label: 'Unfiled',
+						detail: 'Without a Box',
+						location: { kind: 'virtual' as const, id: 'unfiled' }
+					}
+				]
+			: []),
+		...createPhysicalBoxPickerLocations(
 			boxPickerPane?.boxCount ?? 0,
 			saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames ?? null
 		)
+	]);
+	const activeVirtualLocation = $derived(
+		activePane?.source.type === 'pokemon-storage' && virtualPaneIds.includes(activePane.id)
+			? virtualPreferences.location
+			: null
 	);
+	const activeVirtualRecords = $derived(virtualRecords(catalogManifest, virtualPreferences));
+	const virtualFocusedRecord = $derived(
+		activeVirtualLocation
+			? activeVirtualRecords.find((record) => record.recordId === virtualFocusedId)
+			: null
+	);
+	const virtualCarryRecord = $derived.by(() => {
+		const pending = virtualCarry;
+		return pending
+			? catalogManifest?.records.find((record) => record.recordId === pending.recordId)
+			: null;
+	});
+	const virtualMenuRecord = $derived(
+		catalogManifest?.records.find((record) => record.recordId === virtualMenuRecordId)
+	);
+	const virtualMenuCommands = $derived<SlotMenuCommand[]>([
+		{ key: 'move', label: 'Move', availability: 'available', reason: null },
+		{ key: 'copy', label: 'Copy', availability: 'available', reason: null },
+		...(virtualMenuRecord?.placement
+			? ([
+					{ key: 'clear', label: 'Move to Unfiled', availability: 'available', reason: null }
+				] satisfies SlotMenuCommand[])
+			: [])
+	]);
 	const boxPickerNameUnavailableReason = $derived.by(() => {
 		if (boxPickerPane?.source.type !== 'save-file') return null;
 		const boxNames = saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames;
@@ -520,8 +601,38 @@
 				: null
 	);
 	const focusedSlot = $derived(summonedSlot ?? navigationFocusedSlot);
+	const sharedFocusedSlot = $derived(
+		activeVirtualLocation
+			? virtualFocusedRecord
+				? createSlotView({ ...virtualFocusedRecord.projection, entityBytesBase64: null })
+				: noSelectedSlot
+			: focusedSlot
+	);
 	const focusedSlotPane = $derived(summonedSlotLauncher ? summonedSlotPane : activePane);
 	const carriedSpriteUrl = $derived(carryState?.spriteUrl ?? null);
+	const virtualCarrySprite = $derived(
+		virtualCarryRecord
+			? resolveSpriteCatalogEntry(virtualCarryRecord.projection.spriteIdentity)
+			: null
+	);
+	const carriedAtFocus = $derived(
+		carryState
+			? {
+					label: carryState.pokemonLabel,
+					mode: carryState.mode,
+					spriteUrl: carriedSpriteUrl
+				}
+			: virtualCarry && virtualCarryRecord
+				? {
+						label:
+							virtualCarryRecord.projection.nickname ||
+							virtualCarryRecord.projection.speciesName ||
+							'Pokemon',
+						mode: virtualCarry.mode,
+						spriteUrl: virtualCarrySprite ? asset(virtualCarrySprite.path) : null
+					}
+				: null
+	);
 	const focusedSlotOwner = $derived(focusedSlotPane?.source ?? pokemonStorageSource());
 	const focusedPaneWorkspace = $derived(saveWorkspaceForPane(focusedSlotPane));
 	const createPokemonAvailability = $derived(
@@ -595,7 +706,7 @@
 	function syncAppChrome() {
 		updateAppChrome({
 			hasLoadedSave: loadedSave !== null,
-			carryActive: carryState !== null
+			carryActive: carryState !== null || virtualCarry !== null
 		});
 
 		return () => {
@@ -614,6 +725,18 @@
 	}
 
 	function dispatchToActiveSurface(action: NavigationAction): boolean {
+		if (activeSummonedWorkflow?.kind === 'virtual-record-menu' && virtualMenuRecordId) {
+			if (action === 'back' || action === 'sourceAction') closeVirtualActionMenu();
+			else if (action === 'up' || action === 'down') {
+				virtualMenuIndex = Math.max(
+					0,
+					Math.min(virtualMenuCommands.length, virtualMenuIndex + (action === 'down' ? 1 : -1))
+				);
+				document.getElementById(`slot-action-${virtualMenuIndex}`)?.focus();
+			} else if (action === 'confirm')
+				selectVirtualAction(virtualMenuCommands[virtualMenuIndex]?.key ?? 'close');
+			return true;
+		}
 		if (activeSummonedWorkflow?.kind === 'backup-browser') return true;
 		if (action === 'sourceAction') {
 			if (boxPickerOpen) {
@@ -624,7 +747,7 @@
 				closeBoxMenu();
 				return true;
 			}
-			if (pendingSlotOperation && activePane) {
+			if ((pendingSlotOperation || virtualCarry) && activePane) {
 				openBoxPicker(activePane);
 				return true;
 			}
@@ -633,6 +756,8 @@
 		}
 		if (action === 'carryMode') {
 			if (pendingSlotOperation) togglePendingSlotOperationMode();
+			if (virtualCarry)
+				virtualCarry = { ...virtualCarry, mode: virtualCarry.mode === 'move' ? 'copy' : 'move' };
 			return true;
 		}
 
@@ -669,16 +794,54 @@
 			void cancelPendingSlotOperation();
 			return true;
 		}
-
-		if (pendingSlotOperation && action === 'confirm' && isSlotFocus(navigation.focus)) {
-			void completePendingSlotOperation(slotRefForFocus(navigation.focus));
+		if (virtualCarry && action === 'back') {
+			cancelVirtualCarry();
+			return true;
+		}
+		if (virtualCarry && action === 'confirm') {
+			if (!activeVirtualLocation && isSlotFocus(navigation.focus))
+				void completeVirtualCarry(slotRefForFocus());
 			return true;
 		}
 
-		return tryNavigateBetweenPanes(action);
+		if (pendingSlotOperation && action === 'confirm') {
+			if (activeVirtualLocation)
+				toastHost.error('Choose a physical Storage Box before dropping Pokemon.');
+			else if (isSlotFocus(navigation.focus))
+				void completePendingSlotOperation(slotRefForFocus(navigation.focus));
+			return true;
+		}
+
+		return activeVirtualLocation
+			? tryNavigateFromVirtualPane(action)
+			: tryNavigateBetweenPanes(action);
 	}
 
 	function dispatchNavigation(action: NavigationAction) {
+		if (activeVirtualLocation && activePane) {
+			if (action === 'confirm' && virtualFocusedId) {
+				openVirtualActionMenu(virtualFocusedId);
+				return;
+			}
+			if (action === 'sourceAction' || action === 'previousBox' || action === 'nextBox') {
+				openBoxPicker(activePane);
+				return;
+			}
+			if (['up', 'down', 'left', 'right'].includes(action)) {
+				const index = Math.max(
+					0,
+					activeVirtualRecords.findIndex((record) => record.recordId === virtualFocusedId)
+				);
+				const next = moveVirtualFocus(
+					index,
+					activeVirtualRecords.length,
+					virtualColumns,
+					action as 'up' | 'down' | 'left' | 'right'
+				);
+				focusVirtualRecord(activeVirtualRecords[next]?.recordId ?? null);
+			}
+			return;
+		}
 		const previousFocus = navigation.focus;
 		if (action === 'confirm' && isSlotFocus(previousFocus)) {
 			openSlotMenu(previousFocus);
@@ -690,7 +853,7 @@
 		navigation = applyNavigationAction(navigation, action, {
 			paneControlCount: activePaneControlCount,
 			partyAvailable,
-			carryActive: pendingSlotOperation !== null
+			carryActive: pendingSlotOperation !== null || virtualCarry !== null
 		});
 
 		if (action === 'confirm') {
@@ -930,9 +1093,275 @@
 		return true;
 	}
 
+	function tryNavigateFromVirtualPane(action: NavigationAction): boolean {
+		if (
+			!['up', 'down', 'left', 'right'].includes(action) ||
+			workbenchPanes.length !== 2 ||
+			!activePane ||
+			!virtualFocusedId
+		)
+			return false;
+		const index = activeVirtualRecords.findIndex((record) => record.recordId === virtualFocusedId);
+		if (index < 0) return false;
+		const source = document.querySelector<HTMLElement>('.box-pane.active-pane');
+		const destination = Array.from(document.querySelectorAll<HTMLElement>('.box-pane')).find(
+			(element) => element.dataset.paneId !== activePane.id
+		);
+		const nextPane = workbenchPanes.find((pane) => pane.id === destination?.dataset.paneId);
+		if (!source || !destination || !nextPane) return false;
+		const sourceBounds = source.getBoundingClientRect();
+		const destinationBounds = destination.getBoundingClientRect();
+		const dx =
+			(destinationBounds.left + destinationBounds.right - sourceBounds.left - sourceBounds.right) /
+			2;
+		const dy =
+			(destinationBounds.top + destinationBounds.bottom - sourceBounds.top - sourceBounds.bottom) /
+			2;
+		const columns = Math.max(1, virtualColumns);
+		const row = Math.floor(index / columns);
+		const column = index % columns;
+		const rows = Math.ceil(activeVirtualRecords.length / columns);
+		const sideBySide = Math.abs(dx) > Math.abs(dy);
+		if (sideBySide) {
+			if (
+				(action !== 'left' || dx >= 0 || column !== 0) &&
+				(action !== 'right' ||
+					dx <= 0 ||
+					column !== Math.min(columns - 1, activeVirtualRecords.length - row * columns - 1))
+			)
+				return false;
+		} else if (
+			(action !== 'up' || dy >= 0 || row !== 0) &&
+			(action !== 'down' || dy <= 0 || row !== rows - 1)
+		)
+			return false;
+		const destinationColumns = nextPane.focus.zone === 'party' ? PARTY_COLUMNS : BOX_COLUMNS;
+		const destinationRows = nextPane.focus.zone === 'party' ? PARTY_ROWS : BOX_ROWS;
+		const destinationRow = sideBySide
+			? Math.min(row, destinationRows - 1)
+			: dy > 0
+				? 0
+				: destinationRows - 1;
+		const destinationColumn = sideBySide
+			? dx > 0
+				? 0
+				: destinationColumns - 1
+			: Math.min(column, destinationColumns - 1);
+		const focus =
+			nextPane.focus.zone === 'party'
+				? focusPartySlot(destinationRow * destinationColumns + destinationColumn)
+				: focusBoxSlot(destinationRow * destinationColumns + destinationColumn);
+		activatePane(nextPane);
+		navigation = { ...navigation, focus, locationFocus: focus };
+		workbenchPanes = setPaneFocus(workbenchPanes, nextPane.id, focus);
+		return true;
+	}
+
 	async function focusActiveControl() {
 		await tick();
-		document.getElementById(focusIdForNavigation(navigation.focus))?.focus();
+		document
+			.getElementById(
+				activeVirtualLocation && virtualFocusedId
+					? `virtual-record-${virtualFocusedId}`
+					: focusIdForNavigation(navigation.focus)
+			)
+			?.focus();
+	}
+
+	function focusVirtualRecord(recordId: string | null, restoreAfterResize = false) {
+		virtualFocusedId = recordId;
+		if (!recordId) return;
+		if (!restoreAfterResize && document.activeElement?.id === `virtual-record-${recordId}`) return;
+		const index = activeVirtualRecords.findIndex((record) => record.recordId === recordId);
+		const viewport = document.querySelector<HTMLElement>('.active-pane .virtual-browser .viewport');
+		if (viewport && index >= 0) {
+			const top = Math.floor(index / virtualColumns) * VIRTUAL_POKEMON_ROW_HEIGHT;
+			if (top < viewport.scrollTop) viewport.scrollTop = top;
+			else if (top + VIRTUAL_POKEMON_ROW_HEIGHT > viewport.scrollTop + viewport.clientHeight)
+				viewport.scrollTop = top + VIRTUAL_POKEMON_ROW_HEIGHT - viewport.clientHeight;
+			viewport.dispatchEvent(new Event('scroll'));
+		}
+		void tick().then(() => document.getElementById(`virtual-record-${recordId}`)?.focus());
+	}
+
+	function persistVirtualPreferences() {
+		localStorage.setItem('pksx-virtual-view-v1', JSON.stringify(virtualPreferences));
+	}
+
+	function setVirtualPreferences(preferences: VirtualViewPreferences) {
+		virtualPreferences = preferences;
+		persistVirtualPreferences();
+		if (!activeVirtualRecords.some((record) => record.recordId === virtualFocusedId))
+			virtualFocusedId = activeVirtualRecords[0]?.recordId ?? null;
+	}
+
+	function openVirtualActionMenu(recordId: string) {
+		if (
+			busy ||
+			catalogViewStale ||
+			pendingSlotOperation ||
+			virtualCarry ||
+			activeSummonedWorkflow ||
+			!getPokemonStorageCatalog().getRecord(recordId)
+		)
+			return;
+		if (
+			!summonedWorkflow.open('virtual-record-menu', controlLauncher(`virtual-record-${recordId}`))
+		)
+			return;
+		virtualMenuRecordId = recordId;
+		virtualMenuIndex = 0;
+		void tick().then(() => document.getElementById('slot-action-0')?.focus());
+	}
+
+	function closeVirtualActionMenu() {
+		virtualMenuRecordId = null;
+		dismissActiveWorkflow();
+	}
+
+	function selectVirtualAction(command: SlotMenuCommandKey | 'close') {
+		const recordId = virtualMenuRecordId;
+		if (!recordId || command === 'close') {
+			closeVirtualActionMenu();
+			return;
+		}
+		virtualMenuRecordId = null;
+		summonedWorkflow.dismiss();
+		if (command === 'move' || command === 'copy') beginVirtualCarry(recordId, command);
+		else if (command === 'clear') {
+			void moveToUnfiled(recordId);
+			queueMicrotask(() => focusVirtualRecord(recordId));
+		}
+	}
+
+	async function moveToUnfiled(recordId: string) {
+		if (busy || catalogViewStale || pendingSlotOperation || virtualCarry) return;
+		const catalog = getPokemonStorageCatalog();
+		if (!catalog.getRecord(recordId)?.placement) return;
+		busy = true;
+		try {
+			await catalog.place(recordId, null);
+			if (!(await refreshCommittedCatalogView())) return;
+			statusMessage = 'Pokemon moved to Unfiled.';
+			toastHost.success(statusMessage);
+		} catch (error) {
+			toastHost.error(getErrorMessage(error));
+		} finally {
+			busy = false;
+		}
+	}
+
+	function beginVirtualCarry(recordId: string, mode: 'move' | 'copy') {
+		if (
+			busy ||
+			catalogViewStale ||
+			pendingSlotOperation ||
+			virtualCarry ||
+			!activePane ||
+			!activeVirtualLocation
+		)
+			return;
+		if (!getPokemonStorageCatalog().getRecord(recordId)) return;
+		virtualCarry = { recordId, mode, paneId: activePane.id, location: activeVirtualLocation };
+		virtualFocusedId = recordId;
+		statusMessage = `${mode === 'move' ? 'Move' : 'Copy'} Pokemon, choose a physical destination.`;
+		openBoxPicker(activePane);
+	}
+
+	function cancelVirtualCarry() {
+		const source = virtualCarry;
+		if (!source) return;
+		virtualCarry = null;
+		virtualPaneIds = [...new Set([...virtualPaneIds, source.paneId])];
+		virtualPreferences = { ...virtualPreferences, location: source.location };
+		localStorage.setItem('pksx-last-storage-location-v1', source.location);
+		activePaneId = source.paneId;
+		statusMessage = 'Carry cancelled.';
+		queueMicrotask(() => focusVirtualRecord(source.recordId));
+	}
+
+	async function completeVirtualCarry(
+		destination: SaveSlotRef,
+		destinationPane: BoxPaneState | undefined = activePane
+	) {
+		const pending = virtualCarry;
+		if (!pending || busy || catalogViewStale) return;
+		const catalog = getPokemonStorageCatalog();
+		const source = catalog.getRecord(pending.recordId);
+		if (!source) {
+			toastHost.error('Pokemon Storage source changed.');
+			return;
+		}
+		if (destinationPane?.source.type === 'save-file') {
+			const destinationSlot = slotForRef(destination, destinationPane);
+			if (
+				destinationSlot?.kind !== 'empty' ||
+				isInvalidPartyAppendDestination(destination, destinationSlot, destinationPane)
+			) {
+				toastHost.error('Choose an available empty Save File Slot.');
+				return;
+			}
+			busy = true;
+			try {
+				const activeEngine = engine;
+				if (!activeEngine) throw new Error('PKHeX Engine is unavailable.');
+				const parsed = await activeEngine.readPreservationPayload(
+					await catalog.readPayload(pending.recordId)
+				);
+				if (!parsed.ok) throw parsed.error;
+				const sourceSlot = createSlotView({
+					...parsed.value.projection,
+					entityBytesBase64: btoa(String.fromCharCode(...parsed.value.entityBytes))
+				});
+				await applyStorageToSaveOperation(
+					{
+						kind: pending.mode,
+						source: { zone: 'box', box: 0, slot: 0 },
+						sourceLabel: pending.location,
+						sourcePokemonLabel: sourceSlot.label
+					},
+					destination,
+					destinationPane,
+					{ recordId: pending.recordId, slot: sourceSlot }
+				);
+			} catch (error) {
+				toastHost.error(getErrorMessage(error));
+			} finally {
+				busy = false;
+			}
+			return;
+		}
+		if (destinationPane?.source.type !== 'pokemon-storage' || destination.zone !== 'box') return;
+		const placement = { storageBoxId: catalogBoxId(destination.box), slot: destination.slot };
+		const current = catalog
+			.listResolvedPlacements()
+			.find((item) => item.recordId === pending.recordId)?.placement;
+		const destinationId = catalogRecordAt(destination);
+		if (current?.storageBoxId === placement.storageBoxId && current.slot === placement.slot) {
+			cancelVirtualCarry();
+			return;
+		}
+		if (destinationId && (pending.mode === 'copy' || !current)) {
+			toastHost.error('Choose an empty destination Slot.');
+			return;
+		}
+		busy = true;
+		try {
+			if (pending.mode === 'copy') await catalog.copy(pending.recordId, placement);
+			else if (destinationId) await catalog.swap(pending.recordId, destinationId);
+			else await catalog.place(pending.recordId, placement);
+			virtualCarry = null;
+			const refreshed = await refreshCommittedCatalogView();
+			if (refreshed) {
+				statusMessage = `${pending.mode === 'copy' ? 'Copied' : 'Moved'} Pokemon to ${boxNameFor(destination.box, destinationPane)}.`;
+				toastHost.success(statusMessage);
+			}
+			queueMicrotask(focusActiveControl);
+		} catch (error) {
+			toastHost.error(getErrorMessage(error));
+		} finally {
+			busy = false;
+		}
 	}
 
 	async function keepFocusedSlotVisible() {
@@ -1374,6 +1803,12 @@
 		)
 			return;
 		const action = keyboardAction(event);
+		if (
+			activeVirtualLocation &&
+			event.target instanceof HTMLElement &&
+			event.target.closest('.virtual-browser .filters')
+		)
+			return;
 
 		if (!action) {
 			return;
@@ -1626,7 +2061,7 @@
 	}
 
 	function openBoxMenu(pane: BoxPaneState) {
-		if (pendingSlotOperation || activeSummonedWorkflow) return;
+		if (pendingSlotOperation || virtualCarry || activeSummonedWorkflow) return;
 
 		const launcher = isSlotFocus(navigation.focus)
 			? slotLauncher(navigation.focus, pane)
@@ -1646,7 +2081,7 @@
 		if (
 			activeSummonedWorkflow ||
 			pane.boxCount < 1 ||
-			(pendingSlotOperation && pane.id !== activePaneId)
+			((pendingSlotOperation || virtualCarry) && pane.id !== activePaneId)
 		)
 			return;
 
@@ -1656,12 +2091,15 @@
 				: controlLauncher(locationControlId(pane.id));
 		if (!summonedWorkflow.open('box-picker', launcher)) return;
 		boxPickerTarget = { paneId: pane.id, source: { ...pane.source } };
+		const selectedIndex = virtualPaneIds.includes(pane.id)
+			? boxPickerLocations.findIndex((item) => item.id === virtualPreferences.location)
+			: boxPickerLocations.findIndex((item) => item.id === `physical-box-${pane.activeBox}`);
 		boxPickerControllerFocus = {
 			zone: 'locations',
-			locationIndex: pane.activeBox,
+			locationIndex: Math.max(0, selectedIndex),
 			formIndex: 0
 		};
-		queueMicrotask(() => focusBoxPickerLocation(pane.activeBox));
+		queueMicrotask(() => focusBoxPickerLocation(Math.max(0, selectedIndex)));
 	}
 
 	function closeBoxPicker() {
@@ -1699,13 +2137,32 @@
 
 	function selectBoxPickerLocation(location: BoxPickerLocation) {
 		const pane = boxPickerPane;
-		if (!pane || location.location.kind !== 'physical-box') return;
+		if (!pane) return;
+		if (location.location.kind === 'virtual') {
+			if (pane.source.type !== 'pokemon-storage' || pendingSlotOperation || virtualCarry) return;
+			virtualPaneIds = [...new Set([...virtualPaneIds, pane.id])];
+			virtualPreferences = {
+				...virtualPreferences,
+				location: location.location.id as VirtualLocation
+			};
+			persistVirtualPreferences();
+			localStorage.setItem('pksx-last-storage-location-v1', location.location.id);
+			virtualFocusedId = virtualRecords(catalogManifest, virtualPreferences)[0]?.recordId ?? null;
+			activePaneId = pane.id;
+			closeBoxPicker();
+			queueMicrotask(focusActiveControl);
+			return;
+		}
+		virtualPaneIds = virtualPaneIds.filter((id) => id !== pane.id);
+		if (pane.source.type === 'pokemon-storage')
+			localStorage.setItem('pksx-last-storage-location-v1', location.id);
 
 		const box = Math.min(location.location.box, Math.max(0, pane.boxCount - 1));
 		const locationFocus = projectSlotCoordinate(pane.focus, 'box');
-		const returnFocus = pendingSlotOperation
-			? locationFocus
-			: focusPaneControl(1, paneControlCountFor());
+		const returnFocus =
+			pendingSlotOperation || virtualCarry
+				? locationFocus
+				: focusPaneControl(1, paneControlCountFor());
 		summonedWorkflow.dismiss();
 		boxPickerTarget = null;
 		boxPickerControllerFocus = { zone: 'locations', locationIndex: 0, formIndex: 0 };
@@ -2079,6 +2536,24 @@
 		});
 	}
 
+	function virtualDestinationState(
+		ref: SaveSlotRef,
+		slot: SlotView,
+		pane: BoxPaneState
+	): 'valid' | 'invalid' {
+		if (!virtualCarry) return 'invalid';
+		if (pane.source.type === 'save-file')
+			return slot.kind === 'empty' && !isInvalidPartyAppendDestination(ref, slot, pane)
+				? 'valid'
+				: 'invalid';
+		if (ref.zone !== 'box') return 'invalid';
+		if (slot.kind === 'empty') return 'valid';
+		const current = getPokemonStorageCatalog()
+			.listResolvedPlacements()
+			.find((item) => item.recordId === virtualCarry?.recordId)?.placement;
+		return virtualCarry.mode === 'move' && current ? 'valid' : 'invalid';
+	}
+
 	function isInvalidPartyAppendDestination(
 		ref: SaveSlotRef,
 		slot: SlotView | null,
@@ -2098,6 +2573,13 @@
 		destinationPane: BoxPaneState | undefined = activePane
 	) {
 		if (!pendingSlotOperation || busy) {
+			return;
+		}
+		if (
+			destinationPane?.source.type === 'pokemon-storage' &&
+			virtualPaneIds.includes(destinationPane.id)
+		) {
+			toastHost.error('Choose a physical Storage Box before dropping Pokemon.');
 			return;
 		}
 		if (
@@ -2181,7 +2663,8 @@
 	async function applyStorageToSaveOperation(
 		pending: PendingStorageSlotOperation,
 		destination: SaveSlotRef,
-		destinationPane: BoxPaneState | undefined
+		destinationPane: BoxPaneState | undefined,
+		virtualSource?: { recordId: string; slot: SlotView }
 	) {
 		const destinationWorkspace = saveWorkspaceForPane(destinationPane)?.state ?? null;
 		if (!destinationWorkspace || !engine) {
@@ -2190,7 +2673,7 @@
 		}
 
 		const sourcePane = workbenchPanes.find((pane) => pane.id === carryState?.source.paneId);
-		const sourceSlot = slotForRef(pending.source, sourcePane);
+		const sourceSlot = virtualSource?.slot ?? slotForRef(pending.source, sourcePane);
 		const destinationSlot = slotForRef(destination, destinationPane);
 
 		if (!sourceSlot || sourceSlot.kind !== 'pokemon') {
@@ -2251,15 +2734,6 @@
 				await persistWorkspace(nextState, prepared.revision);
 			}
 
-			if (pending.kind === 'move') {
-				const recordId = catalogRecordAt(pending.source);
-				if (!recordId) throw new Error('Pokemon Storage source changed.');
-				await getPokemonStorageCatalog().retire(recordId, 'moved-to-save', nextState.file.id);
-				pendingSlotOperation = null;
-				carryState = null;
-				await refreshCommittedCatalogView();
-			}
-
 			if (loadedSave?.file.id === nextState.file.id) loadedSave = nextState;
 			installMutatedSaveProjection(nextState, operationBox);
 			if (loadedSave?.file.id === nextState.file.id) {
@@ -2268,6 +2742,7 @@
 			invalidateSavesCache();
 			pendingSlotOperation = null;
 			carryState = null;
+			if (virtualSource) virtualCarry = null;
 			if (destinationPane) activePaneId = destinationPane.id;
 			navigation = {
 				...navigation,
@@ -2284,6 +2759,19 @@
 			};
 			if (destinationPane) {
 				workbenchPanes = setPaneFocus(workbenchPanes, destinationPane.id, navigation.locationFocus);
+			}
+			if (pending.kind === 'move') {
+				try {
+					const recordId = virtualSource?.recordId ?? catalogRecordAt(pending.source);
+					if (!recordId) throw new Error('Pokemon Storage source changed.');
+					await getPokemonStorageCatalog().retire(recordId, 'moved-to-save', nextState.file.id);
+				} catch (error) {
+					statusMessage = `${sourceSlot.label} was saved, but remains in Pokemon Storage. Remove the Storage copy after checking the Save File.`;
+					toastHost.error(`${statusMessage} ${getErrorMessage(error)}`);
+					queueMicrotask(focusActiveControl);
+					return;
+				}
+				if (!(await refreshCommittedCatalogView())) return;
 			}
 			statusMessage =
 				pending.kind === 'move'
@@ -3051,7 +3539,7 @@
 		savePaneWorkspaces = remaining;
 	}
 
-	function activatePane(pane: BoxPaneState) {
+	function activatePane(pane: BoxPaneState, restoreFocus = true) {
 		activePaneId = pane.id;
 		navigation = selectActiveBox(
 			{
@@ -3062,7 +3550,7 @@
 			},
 			Math.min(pane.activeBox, Math.max(1, pane.boxCount) - 1)
 		);
-		queueMicrotask(focusActiveControl);
+		if (restoreFocus) queueMicrotask(focusActiveControl);
 	}
 
 	function sourceForCard(card: SourcePickerCard): BoxSourceType {
@@ -4822,10 +5310,49 @@
 
 	function captureActiveQuickSearchSaveFile(): QuickSearchSaveFile | null {
 		const pane = workbenchPanes.find(({ id }) => id === activePaneId);
+		if (initialStateReady && pane?.source.type === 'pokemon-storage' && activeVirtualLocation) {
+			const paneId = pane.id;
+			const location = activeVirtualLocation;
+			return {
+				scope: 'pokemon-storage',
+				fileName: 'Pokemon Storage',
+				isAvailable: async () => Boolean(getPokemonStorageCatalog().current),
+				loadResults: async () =>
+					createVirtualQuickSearchResults(
+						virtualRecords(getPokemonStorageCatalog().current, {
+							...defaultVirtualViewPreferences,
+							location
+						}),
+						paneId,
+						location
+					),
+				focusResult: async (result) => {
+					if (!result.recordId || !getPokemonStorageCatalog().getRecord(result.recordId))
+						return null;
+					const target = workbenchPanes.find(
+						(candidate) => candidate.id === paneId && candidate.source.type === 'pokemon-storage'
+					);
+					if (!target) return null;
+					activePaneId = paneId;
+					virtualPaneIds = [...new Set([...virtualPaneIds, paneId])];
+					const record = getPokemonStorageCatalog().getRecord(result.recordId)!;
+					virtualPreferences = {
+						...virtualPreferences,
+						location: location === 'unfiled' && record.placement ? 'all-pokemon' : location,
+						filters: defaultVirtualViewPreferences.filters
+					};
+					persistVirtualPreferences();
+					catalogManifest = getPokemonStorageCatalog().current;
+					focusVirtualRecord(result.recordId);
+					return `virtual-record-${result.recordId}`;
+				}
+			};
+		}
 		if (!initialStateReady || pane?.source.type !== 'save-file' || !pane.source.id) return null;
 		const source = { ...pane.source };
 
 		return {
+			scope: 'save-file',
 			fileName: source.label,
 			isAvailable: async () => {
 				if (!matchesActiveQuickSearchSaveFile(pane.id, source)) return false;
@@ -5155,6 +5682,7 @@
 		const legacyStorageRoute = page.url.searchParams.get('source') === 'pokemon-storage';
 
 		try {
+			virtualPreferences = readVirtualViewPreferences(localStorage.getItem('pksx-virtual-view-v1'));
 			await restorePokemonStorage();
 			const [availableSaveFiles, activeSaveFileId, restoredActiveSave] = await Promise.all([
 				storage.listSaves(),
@@ -5179,6 +5707,14 @@
 					});
 			workbenchPanes = session.panes;
 			activePaneId = session.activePaneId;
+			virtualPaneIds = ['all-pokemon', 'unfiled'].includes(
+				localStorage.getItem('pksx-last-storage-location-v1') ?? ''
+			)
+				? session.panes
+						.filter((pane) => pane.source.type === 'pokemon-storage')
+						.map((pane) => pane.id)
+				: [];
+			virtualFocusedId = virtualRecords(catalogManifest, virtualPreferences)[0]?.recordId ?? null;
 
 			await Promise.all(
 				workbenchPanes.map(async (pane) => {
@@ -5246,6 +5782,7 @@
 	async function refreshCatalogView() {
 		try {
 			pokemonStorage = await catalogLegacyView(getPokemonStorageCatalog(), getPkhexEngine());
+			catalogManifest = getPokemonStorageCatalog().current;
 			catalogViewStale = false;
 		} catch (error) {
 			catalogViewStale = true;
@@ -5650,6 +6187,8 @@
 				{@const paneControlCount = paneControlCountFor()}
 				{@const paneBox = pane.activeBox}
 				{@const paneParty = pane.focus.zone === 'party' && paneHasParty(pane)}
+				{@const paneVirtual =
+					pane.source.type === 'pokemon-storage' && virtualPaneIds.includes(pane.id)}
 				{@const paneSlots = paneParty ? panePartySlots(pane) : paneBoxSlots(pane, paneBox)}
 				{@const paneColumns = paneParty ? PARTY_COLUMNS : BOX_COLUMNS}
 				{@const paneRows = paneParty ? PARTY_ROWS : BOX_ROWS}
@@ -5657,8 +6196,12 @@
 					class={['box-pane', paneActive && 'active-pane']}
 					data-pane-id={pane.id}
 					data-source-id={pane.source.id}
-					data-location={paneParty ? 'party' : `box-${paneBox}`}
-					aria-label={`${pane.source.label}, ${paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
+					data-location={paneVirtual
+						? virtualPreferences.location
+						: paneParty
+							? 'party'
+							: `box-${paneBox}`}
+					aria-label={`${pane.source.label}, ${paneVirtual ? (virtualPreferences.location === 'unfiled' ? 'Unfiled' : 'All Pokemon') : paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
 					aria-busy={paneBusy ? 'true' : undefined}
 				>
 					<div class="pane-header">
@@ -5669,13 +6212,13 @@
 								type="button"
 								class="source-chip"
 								aria-label={`Open Box Menu for ${pane.source.label}`}
-								aria-disabled={pendingSlotOperation ? 'true' : undefined}
-								tabindex={pendingSlotOperation ? -1 : undefined}
+								aria-disabled={pendingSlotOperation || virtualCarry ? 'true' : undefined}
+								tabindex={pendingSlotOperation || virtualCarry ? -1 : undefined}
 								onpointerdown={(event) => {
-									if (pendingSlotOperation) event.preventDefault();
+									if (pendingSlotOperation || virtualCarry) event.preventDefault();
 								}}
 								onfocus={() => {
-									if (pendingSlotOperation) {
+									if (pendingSlotOperation || virtualCarry) {
 										queueMicrotask(focusActiveControl);
 										return;
 									}
@@ -5687,7 +6230,7 @@
 									};
 								}}
 								onclick={() => {
-									if (pendingSlotOperation) return;
+									if (pendingSlotOperation || virtualCarry) return;
 									activePaneId = pane.id;
 									openBoxMenu(pane);
 								}}
@@ -5696,6 +6239,15 @@
 								<em>▾</em>
 							</button>
 							<DelayedSpinner active={paneBusy} label={`Loading ${pane.source.label}`} />
+							{#if virtualCarry && paneActive}
+								<button
+									type="button"
+									class="pane-close"
+									data-pksx-control-category="small"
+									aria-label="Cancel Carry"
+									onclick={cancelVirtualCarry}>×</button
+								>
+							{/if}
 							{#if workbenchPanes.length > 1}
 								<button
 									id={`close-pane-${pane.id}`}
@@ -5704,13 +6256,13 @@
 									type="button"
 									class="pane-close"
 									aria-label={`Close ${pane.source.label} pane`}
-									aria-disabled={pendingSlotOperation ? 'true' : undefined}
-									tabindex={pendingSlotOperation ? -1 : undefined}
+									aria-disabled={pendingSlotOperation || virtualCarry ? 'true' : undefined}
+									tabindex={pendingSlotOperation || virtualCarry ? -1 : undefined}
 									onpointerdown={(event) => {
-										if (pendingSlotOperation) event.preventDefault();
+										if (pendingSlotOperation || virtualCarry) event.preventDefault();
 									}}
 									onfocus={() => {
-										if (pendingSlotOperation) {
+										if (pendingSlotOperation || virtualCarry) {
 											queueMicrotask(focusActiveControl);
 											return;
 										}
@@ -5722,7 +6274,7 @@
 										};
 									}}
 									onclick={() => {
-										if (pendingSlotOperation) return;
+										if (pendingSlotOperation || virtualCarry) return;
 										void closePane(pane.id);
 									}}
 								>
@@ -5735,22 +6287,33 @@
 								source={{
 									key: pane.source.type,
 									label: pane.source.label,
-									activeBoxLabel: paneParty ? 'Party' : boxNameFor(paneBox, pane),
+									activeBoxLabel: paneVirtual
+										? virtualPreferences.location === 'unfiled'
+											? 'Unfiled'
+											: 'All Pokemon'
+										: paneParty
+											? 'Party'
+											: boxNameFor(paneBox, pane),
 									activeBoxNumber: paneBox + 1,
 									boxCount:
 										pane.source.type === 'pokemon-storage' ? pokemonStorageBoxCount : pane.boxCount,
-									occupied: paneSlots.filter((slot) => slot.kind === 'pokemon').length,
+									occupied: paneVirtual
+										? activeVirtualRecords.length
+										: paneSlots.filter((slot) => slot.kind === 'pokemon').length,
 									capacity: paneParty ? PARTY_SLOT_COUNT : BOX_SLOT_COUNT,
-									location: paneParty ? 'party' : 'box'
+									location: paneVirtual ? 'virtual' : paneParty ? 'party' : 'box'
 								}}
 								pickerId={locationControlId(pane.id)}
 								pickerControlIndex={1}
-								pickerDisabled={pendingSlotOperation !== null && !paneActive}
-								pickerPointerOnly={pendingSlotOperation !== null}
-								onPreviousBox={() => changePaneLocation(pane, 'previousBox')}
-								onNextBox={() => changePaneLocation(pane, 'nextBox')}
+								pickerDisabled={(pendingSlotOperation !== null || virtualCarry !== null) &&
+									!paneActive}
+								pickerPointerOnly={pendingSlotOperation !== null || virtualCarry !== null}
+								onPreviousBox={() =>
+									paneVirtual ? openBoxPicker(pane) : changePaneLocation(pane, 'previousBox')}
+								onNextBox={() =>
+									paneVirtual ? openBoxPicker(pane) : changePaneLocation(pane, 'nextBox')}
 								onFocusPicker={() => {
-									if (pendingSlotOperation) return;
+									if (pendingSlotOperation || virtualCarry) return;
 									activatePane(pane);
 									navigation = {
 										...navigation,
@@ -5762,86 +6325,132 @@
 							/>
 						</div>
 					</div>
-					<div
-						id={paneActive ? 'box-grid' : `box-grid-${pane.id}`}
-						class={['location-grid', paneParty && 'party-grid']}
-						role="grid"
-						tabindex={paneActive ? 0 : -1}
-						aria-label={`${pane.source.label} ${paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
-						aria-activedescendant={paneActive && isSlotFocus(navigation.focus)
-							? activeFocusId
-							: undefined}
-						aria-rowcount={paneRows}
-						aria-colcount={paneColumns}
-						onfocus={() => activatePane(pane)}
-						onfocusin={() => {
-							if (!pendingSlotOperation && pane.id !== activePaneId) activatePane(pane);
-						}}
-					>
-						{#each Array.from(Array(paneRows).keys()) as row (row)}
-							<div class="slot-row" role="row">
-								{#each paneSlots.slice(row * paneColumns, (row + 1) * paneColumns) as slot (slot.slot)}
-									{@const position = paneParty
-										? getPartySlotPosition(slot.slot)
-										: getBoxSlotPosition(slot.slot)}
-									{@const slotRef = paneParty
-										? { zone: 'party' as const, slot: slot.slot }
-										: { zone: 'box' as const, box: paneBox, slot: slot.slot }}
-									<div
-										class={[
-											'slot-cell',
-											paneActive && isFocused(slotRef.zone, slot.slot) && 'selected'
-										]}
-									>
-										<StorageSlot
-											id={paneActive
-												? paneParty
-													? `party-slot-${slot.slot}`
-													: `box-${paneBox}-slot-${slot.slot}`
-												: `${pane.id}-${paneParty ? 'party' : `box-${paneBox}`}-slot-${slot.slot}`}
-											{slot}
-											zone={slotRef.zone}
-											focused={paneActive && isFocused(slotRef.zone, slot.slot)}
-											dualType={slotHasDualType(slot, paneParty ? -1 : paneBox)}
-											style={slotStyle(slot, paneParty ? -1 : paneBox)}
-											rowIndex={position.row + 1}
-											colIndex={position.column + 1}
-											spriteUrl={spriteUrlFor(slot)}
-											carried={paneActive && isFocused(slotRef.zone, slot.slot) && carryState
-												? {
-														label: carryState.pokemonLabel,
-														mode: carryState.mode,
-														spriteUrl: carriedSpriteUrl
-													}
-												: null}
-											destinationState={pendingSlotOperation
-												? destinationStateFor(slotRef, slot, pane)
-												: null}
-											onFocusSlot={() => {
-												activatePane(pane);
-												if (paneParty) focusParty(slot.slot);
-												else focusBox(slot.slot);
-											}}
-											onChooseSlot={pendingSlotOperation
-												? () => {
-														activatePane(pane);
-														void completePendingSlotOperation(slotRef, pane);
-													}
-												: undefined}
-											onOpenMenu={!pendingSlotOperation
-												? () => {
-														activatePane(pane);
-														if (paneParty) focusParty(slot.slot);
-														else focusBox(slot.slot);
-														openSlotMenu(slotRef, pane);
-													}
-												: undefined}
-										/>
-									</div>
-								{/each}
-							</div>
-						{/each}
-					</div>
+					{#if paneVirtual}
+						<VirtualPokemonGrid
+							records={activeVirtualRecords}
+							allRecords={catalogManifest?.records ?? []}
+							preferences={virtualPreferences}
+							focusedId={paneActive ? virtualFocusedId : null}
+							{busy}
+							onPreferences={(preferences) => {
+								activatePane(pane, false);
+								setVirtualPreferences(preferences);
+							}}
+							onFocus={(id) => {
+								activatePane(pane, false);
+								focusVirtualRecord(id);
+							}}
+							onMoveToUnfiled={(id) => {
+								activatePane(pane, false);
+								void moveToUnfiled(id);
+							}}
+							onCarry={(id, mode) => {
+								activatePane(pane, false);
+								beginVirtualCarry(id, mode);
+							}}
+							onColumns={(columns) => {
+								const restoreRecord =
+									paneActive && document.activeElement?.id === `virtual-record-${virtualFocusedId}`
+										? virtualFocusedId
+										: null;
+								virtualColumns = columns;
+								if (restoreRecord)
+									void tick().then(() => {
+										if (
+											pane.id === activePaneId &&
+											(document.activeElement === document.body ||
+												document.activeElement?.id === `virtual-record-${restoreRecord}`)
+										)
+											focusVirtualRecord(restoreRecord, true);
+									});
+							}}
+						/>
+					{:else}
+						<div
+							id={paneActive ? 'box-grid' : `box-grid-${pane.id}`}
+							class={['location-grid', paneParty && 'party-grid']}
+							role="grid"
+							tabindex={paneActive ? 0 : -1}
+							aria-label={`${pane.source.label} ${paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
+							aria-activedescendant={paneActive && isSlotFocus(navigation.focus)
+								? activeFocusId
+								: undefined}
+							aria-rowcount={paneRows}
+							aria-colcount={paneColumns}
+							onfocus={() => activatePane(pane)}
+							onfocusin={() => {
+								if (!pendingSlotOperation && !virtualCarry && pane.id !== activePaneId)
+									activatePane(pane);
+							}}
+						>
+							{#each Array.from(Array(paneRows).keys()) as row (row)}
+								<div class="slot-row" role="row">
+									{#each paneSlots.slice(row * paneColumns, (row + 1) * paneColumns) as slot (slot.slot)}
+										{@const position = paneParty
+											? getPartySlotPosition(slot.slot)
+											: getBoxSlotPosition(slot.slot)}
+										{@const slotRef = paneParty
+											? { zone: 'party' as const, slot: slot.slot }
+											: { zone: 'box' as const, box: paneBox, slot: slot.slot }}
+										<div
+											class={[
+												'slot-cell',
+												paneActive && isFocused(slotRef.zone, slot.slot) && 'selected'
+											]}
+										>
+											<StorageSlot
+												id={paneActive
+													? paneParty
+														? `party-slot-${slot.slot}`
+														: `box-${paneBox}-slot-${slot.slot}`
+													: `${pane.id}-${paneParty ? 'party' : `box-${paneBox}`}-slot-${slot.slot}`}
+												{slot}
+												zone={slotRef.zone}
+												focused={paneActive && isFocused(slotRef.zone, slot.slot)}
+												dualType={slotHasDualType(slot, paneParty ? -1 : paneBox)}
+												style={slotStyle(slot, paneParty ? -1 : paneBox)}
+												rowIndex={position.row + 1}
+												colIndex={position.column + 1}
+												spriteUrl={spriteUrlFor(slot)}
+												carried={paneActive && isFocused(slotRef.zone, slot.slot)
+													? carriedAtFocus
+													: null}
+												destinationState={pendingSlotOperation
+													? destinationStateFor(slotRef, slot, pane)
+													: virtualCarry
+														? virtualDestinationState(slotRef, slot, pane)
+														: null}
+												onFocusSlot={() => {
+													activatePane(pane);
+													if (paneParty) focusParty(slot.slot);
+													else focusBox(slot.slot);
+												}}
+												onChooseSlot={virtualCarry
+													? () => {
+															activatePane(pane);
+															void completeVirtualCarry(slotRef, pane);
+														}
+													: pendingSlotOperation
+														? () => {
+																activatePane(pane);
+																void completePendingSlotOperation(slotRef, pane);
+															}
+														: undefined}
+												onOpenMenu={!pendingSlotOperation && !virtualCarry
+													? () => {
+															activatePane(pane);
+															if (paneParty) focusParty(slot.slot);
+															else focusBox(slot.slot);
+															openSlotMenu(slotRef, pane);
+														}
+													: undefined}
+											/>
+										</div>
+									{/each}
+								</div>
+							{/each}
+						</div>
+					{/if}
 				</section>
 			{/each}
 		</div>
@@ -5852,33 +6461,51 @@
 					<button
 						type="button"
 						tabindex="-1"
-						disabled={focusedSlot.kind !== 'pokemon' || pendingSlotOperation !== null}
+						disabled={(activeVirtualLocation
+							? !virtualFocusedRecord
+							: focusedSlot.kind !== 'pokemon') ||
+							pendingSlotOperation !== null ||
+							virtualCarry !== null}
 						onpointerdown={(event) => event.preventDefault()}
-						onclick={() => beginPendingSlotOperation('move')}>Move</button
+						onclick={() =>
+							virtualFocusedRecord
+								? beginVirtualCarry(virtualFocusedRecord.recordId, 'move')
+								: beginPendingSlotOperation('move')}>Move</button
 					>
 					<button
 						type="button"
 						tabindex="-1"
-						disabled={focusedSlot.kind !== 'pokemon' || pendingSlotOperation !== null}
+						disabled={(activeVirtualLocation
+							? !virtualFocusedRecord
+							: focusedSlot.kind !== 'pokemon') ||
+							pendingSlotOperation !== null ||
+							virtualCarry !== null}
 						onpointerdown={(event) => event.preventDefault()}
-						onclick={() => beginPendingSlotOperation('copy')}>Copy</button
+						onclick={() =>
+							virtualFocusedRecord
+								? beginVirtualCarry(virtualFocusedRecord.recordId, 'copy')
+								: beginPendingSlotOperation('copy')}>Copy</button
 					>
 				</div>
 			{/if}
 			<DetailRail
-				{focusedSlot}
-				focusZone={activeSlotFocus?.zone ?? null}
-				focusSlot={activeSlotFocus?.slot ?? null}
-				slotHueStyle={slotStyle(focusedSlot, activePaneBox)}
-				spriteUrl={spriteUrlFor(focusedSlot)}
+				focusedSlot={sharedFocusedSlot}
+				focusZone={activeVirtualLocation ? null : (activeSlotFocus?.zone ?? null)}
+				focusSlot={activeVirtualLocation ? null : (activeSlotFocus?.slot ?? null)}
+				slotHueStyle={slotStyle(sharedFocusedSlot, activePaneBox)}
+				spriteUrl={spriteUrlFor(sharedFocusedSlot)}
 				{saveSummary}
 				activeBoxName={boxNameFor(
 					summonedSlotBox ?? focusedSlotPane?.activeBox ?? activePaneBox,
 					focusedSlotPane
 				)}
-				positionLabel={carryState
-					? `${activeSlotPositionLabel} · ${carryState.mode === 'move' ? 'Drop' : 'Copy'} target`
-					: activeSlotPositionLabel}
+				positionLabel={activeVirtualLocation
+					? activeVirtualLocation === 'unfiled'
+						? 'Unfiled'
+						: 'All Pokemon'
+					: carryState || virtualCarry
+						? `${activeSlotPositionLabel} · ${(carryState?.mode ?? virtualCarry?.mode) === 'move' ? 'Drop' : 'Copy'} target`
+						: activeSlotPositionLabel}
 			/>
 		</div>
 	</section>
@@ -5910,11 +6537,24 @@
 	/>
 {/if}
 
+{#if activeSummonedWorkflow?.kind === 'virtual-record-menu' && virtualMenuRecord}
+	<SlotActionMenu
+		location={`${virtualPreferences.location === 'unfiled' ? 'Unfiled' : 'All Pokemon'}, ${virtualMenuRecord.projection.nickname || virtualMenuRecord.projection.speciesName}`}
+		commands={virtualMenuCommands}
+		activeIndex={virtualMenuIndex}
+		onFocusCommand={(index) => (virtualMenuIndex = index)}
+		onSelectCommand={selectVirtualAction}
+		onClose={closeVirtualActionMenu}
+	/>
+{/if}
+
 {#if boxPickerOpen && boxPickerTarget && boxPickerPane}
 	<BoxPicker
 		collection={boxPickerTarget.source.label}
 		locations={boxPickerLocations}
-		activeLocationId={`physical-box-${boxPickerPane.activeBox}`}
+		activeLocationId={virtualPaneIds.includes(boxPickerPane.id)
+			? virtualPreferences.location
+			: `physical-box-${boxPickerPane.activeBox}`}
 		activeIndex={boxPickerFocusIndex}
 		boxNameUnavailableReason={boxPickerNameUnavailableReason}
 		reorderUnavailableReason={boxPickerReorderUnavailableReason}
