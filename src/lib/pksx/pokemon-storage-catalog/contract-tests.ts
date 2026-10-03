@@ -305,6 +305,9 @@ export function catalogContract(
 				{
 					read: () => persistence.read(),
 					readBlob: (reference) => persistence.readBlob(reference),
+					readRecovery: () => persistence.readRecovery(),
+					replace: (revision, manifest, blobs, recovery) =>
+						persistence.replace(revision, manifest, blobs, recovery),
 					commit: async () => {
 						throw new Error('Catalog commit failed');
 					},
@@ -516,7 +519,10 @@ export function catalogContract(
 			const failing = new PokemonStorageService(
 				{
 					read: () => persistence.read(),
+					readRecovery: () => persistence.readRecovery(),
 					readBlob: (reference) => persistence.readBlob(reference),
+					replace: (revision, manifest, blobs, recovery) =>
+						persistence.replace(revision, manifest, blobs, recovery),
 					commit: async () => {
 						throw new Error('Quota exceeded');
 					},
@@ -648,6 +654,9 @@ export function catalogContract(
 				{
 					read: () => persistence.read(),
 					readBlob: (reference) => persistence.readBlob(reference),
+					readRecovery: () => persistence.readRecovery(),
+					replace: (revision, manifest, blobs, recovery) =>
+						persistence.replace(revision, manifest, blobs, recovery),
 					commit: (revision, manifest, blobs) =>
 						fail
 							? Promise.reject(new Error('quota'))
@@ -918,6 +927,93 @@ export function catalogContract(
 				ok: true,
 				value: { summary: { recordId: copy.recordId }, entityBytes: bytes(1, 2, 3) }
 			});
+		});
+		it('round-trips Storage, Recently Deleted, and the pre-restore recovery', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const active = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 2 });
+			const unfiled = await service.add(bytes(2), origin);
+			const deleted = await service.add(bytes(3), origin);
+			await service.retire(deleted.recordId, 'cleared');
+			const archive = await service.exportArchive();
+			const exported = service.current!;
+			const later = await service.add(bytes(4), origin);
+			const before = service.current!;
+			await service.restoreArchive(archive);
+			expect(service.current?.storageId).toBe(before.storageId);
+			expect(service.current?.revision).toBe(before.revision + 1);
+			expect(service.current?.records.map((item) => item.recordId)).toEqual([
+				active.recordId,
+				unfiled.recordId
+			]);
+			expect(service.current?.records.map((item) => item.placement)).toEqual(
+				exported.records.map((item) => item.placement)
+			);
+			expect(service.listRecentlyDeleted().map((item) => item.recordId)).toEqual([
+				deleted.recordId
+			]);
+			expect((await persistence.readRecovery())?.manifest).toEqual(before);
+			await persistence.sweep();
+			await service.recoverPreRestore();
+			expect(service.current?.records.some((item) => item.recordId === later.recordId)).toBe(true);
+			expect(await service.readPayload(later.recordId)).toBeDefined();
+		});
+
+		it('rejects malformed backups before changing Storage', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			await service.add(bytes(5), origin);
+			const archive = await service.exportArchive();
+			const original = service.current!;
+			const parsed = JSON.parse(new TextDecoder().decode(archive));
+			const invalid = [
+				{ ...parsed, archiveVersion: 2 },
+				{ ...parsed, payloads: {} },
+				{
+					...parsed,
+					payloads: Object.fromEntries(Object.entries(parsed.payloads).map(([id]) => [id, 'AA==']))
+				},
+				{ ...parsed, manifest: { ...parsed.manifest, boxOrder: [] } }
+			];
+			for (const value of invalid) {
+				await expect(
+					service.restoreArchive(new TextEncoder().encode(JSON.stringify(value)))
+				).rejects.toThrow();
+				expect(service.current).toEqual(original);
+				expect(await persistence.readRecovery()).toBeNull();
+			}
+		});
+
+		it('leaves Storage and recovery unchanged when replacement fails', async () => {
+			const persistence = create();
+			const engine = fakeEngine();
+			const service = new PokemonStorageService(persistence, engine);
+			await service.initialize();
+			await service.add(bytes(7), origin);
+			const archive = await service.exportArchive();
+			await service.add(bytes(8), origin);
+			const before = service.current!;
+			const failing = new PokemonStorageService(
+				{
+					read: () => persistence.read(),
+					readBlob: (reference) => persistence.readBlob(reference),
+					readRecovery: () => persistence.readRecovery(),
+					commit: (revision, manifest, blobs) => persistence.commit(revision, manifest, blobs),
+					replace: async () => {
+						throw new Error('replacement write failed');
+					},
+					sweep: () => persistence.sweep()
+				},
+				engine
+			);
+			await failing.load();
+			await expect(failing.restoreArchive(archive)).rejects.toThrow('replacement write failed');
+			expect(failing.current).toEqual(before);
+			expect(await persistence.read()).toEqual(before);
+			expect(await persistence.readRecovery()).toBeNull();
 		});
 	});
 }

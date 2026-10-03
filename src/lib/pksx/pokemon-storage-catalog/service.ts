@@ -1,12 +1,15 @@
 import { base64ToBytes, type EngineApi } from '$lib/engine';
 import type { StoredPokemonStorage } from '$lib/pksx/saves';
 import { createStore, type Store } from 'tinybase';
+import { decodeStorageArchive, encodeStorageArchive } from './archive';
 import {
 	assertManifest,
 	cloneManifest,
+	CatalogOutcomeUnknownError,
 	emptyManifest,
 	referenceFor,
 	recoveryAvailable,
+	referencedPayloads,
 	resolvePlacements,
 	verifyBlob,
 	type CatalogPersistence,
@@ -29,6 +32,7 @@ export type CatalogCarrySource = {
 export class PokemonStorageService {
 	readonly #store: Store = createStore();
 	#manifest: PokemonStorageManifest | null = null;
+	#pendingReplacement = false;
 	constructor(
 		private readonly persistence: CatalogPersistence,
 		private readonly engine: Pick<
@@ -45,12 +49,100 @@ export class PokemonStorageService {
 	async load(): Promise<PokemonStorageManifest | null> {
 		const manifest = await this.persistence.read();
 		if (manifest) assertManifest(manifest);
+		this.#pendingReplacement = false;
 		this.#publish(manifest);
 		return manifest ? cloneManifest(manifest) : null;
 	}
 
 	get current(): PokemonStorageManifest | null {
 		return this.#manifest ? cloneManifest(this.#manifest) : null;
+	}
+	async exportArchive(): Promise<Uint8Array> {
+		this.#assertReady();
+		if (!this.#manifest) throw new Error('Pokemon Storage catalog is not initialized.');
+		return encodeStorageArchive(
+			this.#manifest,
+			await this.#collectBlobs(this.#manifest),
+			this.now()
+		);
+	}
+	async inspectArchive(bytes: Uint8Array) {
+		const archive = await decodeStorageArchive(bytes);
+		await this.#validateArchivePayloads(archive.manifest, archive.blobs);
+		return {
+			exportedAt: archive.exportedAt,
+			pokemonCount: archive.manifest.records.length,
+			boxCount: archive.manifest.boxes.length,
+			recentlyDeletedCount: archive.manifest.tombstones.filter((item) => item.recovery).length
+		};
+	}
+	async restoreArchive(bytes: Uint8Array): Promise<void> {
+		const archive = await decodeStorageArchive(bytes);
+		await this.#validateArchivePayloads(archive.manifest, archive.blobs);
+		await this.#replaceCollection(archive.manifest, archive.blobs);
+	}
+	async preRestoreRecovery() {
+		return this.persistence.readRecovery();
+	}
+	async recoverPreRestore(): Promise<void> {
+		const recovery = await this.persistence.readRecovery();
+		if (!recovery) throw new Error('No pre-restore Pokemon Storage snapshot is available.');
+		const blobs = await this.#collectBlobs(recovery.manifest);
+		await this.#validateArchivePayloads(recovery.manifest, blobs);
+		await this.#replaceCollection(recovery.manifest, blobs);
+	}
+	async #replaceCollection(source: PokemonStorageManifest, blobs: StagedBlob[]) {
+		this.#assertReady();
+		const current = this.#manifest;
+		if (!current) throw new Error('Pokemon Storage catalog is not initialized.');
+		await this.#collectBlobs(current);
+		const next = cloneManifest(source);
+		next.storageId = current.storageId;
+		next.revision = current.revision + 1;
+		next.createdAt = current.createdAt;
+		next.updatedAt = this.now();
+		try {
+			await this.persistence.replace(current.revision, next, blobs, {
+				createdAt: this.now(),
+				manifest: cloneManifest(current)
+			});
+		} catch (error) {
+			if (error instanceof CatalogOutcomeUnknownError) this.#pendingReplacement = true;
+			throw error;
+		}
+		this.#publish(next);
+	}
+	#assertReady() {
+		if (this.#pendingReplacement) throw new CatalogOutcomeUnknownError();
+	}
+	async #collectBlobs(manifest: PokemonStorageManifest): Promise<StagedBlob[]> {
+		const references = new Map(referencedPayloads(manifest).map((item) => [item.id, item]));
+		const blobs: StagedBlob[] = [];
+		for (const reference of references.values()) {
+			const bytes = await this.persistence.readBlob(reference);
+			if (!bytes) throw new Error('Required Pokemon preservation payload is missing.');
+			await verifyBlob(reference, bytes);
+			blobs.push({ reference, bytes });
+		}
+		return blobs;
+	}
+	async #validateArchivePayloads(manifest: PokemonStorageManifest, blobs: StagedBlob[]) {
+		const byId = new Map(blobs.map((blob) => [blob.reference.id, blob.bytes]));
+		for (const record of [
+			...manifest.records,
+			...manifest.tombstones.flatMap((item) => (item.recovery ? [item.recovery] : []))
+		]) {
+			const bytes = byId.get(record.payload.id);
+			if (!bytes) throw new Error('Required Pokemon preservation payload is missing.');
+			const parsed = await this.engine.readPreservationPayload(bytes);
+			if (
+				!parsed.ok ||
+				parsed.value.summary.recordId !== record.recordId ||
+				parsed.value.summary.identityFingerprint !== record.identityFingerprint ||
+				parsed.value.summary.version !== record.payload.schemaVersion
+			)
+				throw new Error('Pokemon Storage archive payload does not match its record.');
+		}
 	}
 	getRecord(recordId: string): PokemonRecord | null {
 		return this.current?.records.find((record) => record.recordId === recordId) ?? null;
@@ -617,6 +709,7 @@ export class PokemonStorageService {
 		expectedPayloadId: string | null = null,
 		guard?: (manifest: PokemonStorageManifest) => void
 	): Promise<PokemonRecord> {
+		this.#assertReady();
 		const parsed = await this.engine.readPreservationPayload(bytes);
 		if (!parsed.ok) throw parsed.error;
 		const { summary, projection } = parsed.value;
@@ -700,6 +793,7 @@ export class PokemonStorageService {
 		change: (manifest: PokemonStorageManifest) => void,
 		blobs: StagedBlob[] = []
 	): Promise<void> {
+		this.#assertReady();
 		if (!this.#manifest) throw new Error('Pokemon Storage catalog is not initialized.');
 		const next = cloneManifest(this.#manifest);
 		change(next);
