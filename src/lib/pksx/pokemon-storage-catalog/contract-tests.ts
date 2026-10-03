@@ -359,6 +359,155 @@ export function catalogContract(
 			await service.removeBox(second.id);
 			expect(service.listBoxes()).toHaveLength(1);
 		});
+		it('undoes moves, swaps, names, order, and empty box deletion one commit at a time', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const firstBox = service.listBoxes()[0];
+			const secondBox = await service.addBox();
+			const first = await service.add(bytes(1), origin, { storageBoxId: firstBox.id, slot: 0 });
+			const second = await service.add(bytes(2), origin, { storageBoxId: secondBox.id, slot: 0 });
+			await service.place(first.recordId, { storageBoxId: firstBox.id, slot: 1 });
+			await service.swap(first.recordId, second.recordId);
+			await service.renameBox(firstBox.id, 'Favorites');
+			await service.reorderBoxes([secondBox.id, firstBox.id]);
+			await service.undo();
+			expect(service.current?.boxOrder).toEqual([firstBox.id, secondBox.id]);
+			await service.undo();
+			expect(service.listBoxes()[0].name).toBeNull();
+			await service.undo();
+			expect(service.getRecord(first.recordId)?.placement).toEqual({
+				storageBoxId: firstBox.id,
+				slot: 1
+			});
+			expect(service.getRecord(second.recordId)?.placement).toEqual({
+				storageBoxId: secondBox.id,
+				slot: 0
+			});
+			const newer = await service.add(bytes(3), origin);
+			await service.undo();
+			expect(service.getRecord(first.recordId)?.placement).toEqual({
+				storageBoxId: firstBox.id,
+				slot: 0
+			});
+			expect(service.canUndo).toBe(false);
+			expect(service.getRecord(newer.recordId)?.placement).toBeNull();
+		});
+		it('restores deleted empty boxes without replacing boxes added later', async () => {
+			const service = new PokemonStorageService(create(), fakeEngine());
+			await service.initialize();
+			const removed = await service.addBox('Removed');
+			const survivor = await service.addBox('Survivor');
+			await service.removeBox(removed.id);
+			const newer = await service.addBox('Newer');
+			await service.undo();
+			expect(service.current?.boxOrder).toEqual([
+				service.listBoxes()[0].id,
+				removed.id,
+				survivor.id,
+				newer.id
+			]);
+			expect(service.listBoxes()[1]).toMatchObject({ id: removed.id, name: 'Removed' });
+		});
+		it('undoes successive renames of the same Storage Box', async () => {
+			const service = new PokemonStorageService(create(), fakeEngine());
+			await service.initialize();
+			const id = service.listBoxes()[0].id;
+			await service.renameBox(id, 'First');
+			await service.renameBox(id, 'Second');
+			await service.undo();
+			expect(service.listBoxes()[0].name).toBe('First');
+			await service.undo();
+			expect(service.listBoxes()[0].name).toBeNull();
+		});
+		it('refuses stale records and occupied former slots without writing', async () => {
+			const service = new PokemonStorageService(create(), fakeEngine());
+			await service.initialize();
+			const box = service.listBoxes()[0];
+			const first = await service.add(bytes(1), origin, { storageBoxId: box.id, slot: 0 });
+			await service.place(first.recordId, { storageBoxId: box.id, slot: 1 });
+			await service.add(bytes(2), origin, { storageBoxId: box.id, slot: 0 });
+			const before = service.current;
+			await expect(service.undo()).rejects.toThrow(/occupied/);
+			expect(service.current).toEqual(before);
+			expect(service.canUndo).toBe(true);
+		});
+		it('refuses an inverse after an edited record or deleted former box', async () => {
+			const engine = fakeEngine();
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, engine);
+			await service.initialize();
+			const firstBox = service.listBoxes()[0];
+			const secondBox = await service.addBox();
+			const record = await service.add(bytes(1), origin, { storageBoxId: firstBox.id, slot: 0 });
+			await service.place(record.recordId, { storageBoxId: secondBox.id, slot: 0 });
+			await service.replace(record.recordId, engine.editPayload(record.recordId, bytes(2)));
+			const edited = service.current;
+			await expect(service.undo()).rejects.toThrow(/changed/);
+			expect(service.current).toEqual(edited);
+			const other = new PokemonStorageService(persistence, engine);
+			await other.load();
+			const another = await other.add(bytes(3), origin, { storageBoxId: firstBox.id, slot: 1 });
+			await other.place(another.recordId, { storageBoxId: secondBox.id, slot: 1 });
+			await other.removeBox(firstBox.id);
+			await service.load();
+			const before = service.current;
+			await expect(service.undo()).rejects.toThrow(/changed/);
+			expect(service.current).toEqual(before);
+		});
+		it('refuses undo when the former Storage Box no longer exists', async () => {
+			const persistence = create();
+			const engine = fakeEngine();
+			const service = new PokemonStorageService(persistence, engine);
+			await service.initialize();
+			const former = await service.addBox();
+			const record = await service.add(bytes(1), origin, { storageBoxId: former.id, slot: 0 });
+			await service.place(record.recordId, null);
+			const other = new PokemonStorageService(persistence, engine);
+			await other.load();
+			await other.removeBox(former.id);
+			await service.load();
+			const before = service.current;
+			await expect(service.undo()).rejects.toThrow(/changed/);
+			expect(service.current).toEqual(before);
+		});
+		it('retains undo after a failed commit and clears it in a new service instance', async () => {
+			const persistence = create();
+			let fail = false;
+			const service = new PokemonStorageService(
+				{
+					...persistence,
+					read: () => persistence.read(),
+					readBlob: (reference) => persistence.readBlob(reference),
+					readRecovery: () => persistence.readRecovery(),
+					replace: (revision, manifest, blobs, recovery) =>
+						persistence.replace(revision, manifest, blobs, recovery),
+					commit: async (revision, manifest, blobs) => {
+						if (fail) throw new Error('Injected commit failure');
+						await persistence.commit(revision, manifest, blobs);
+					},
+					sweep: () => persistence.sweep()
+				},
+				fakeEngine()
+			);
+			await service.initialize();
+			const box = service.listBoxes()[0];
+			const record = await service.add(bytes(1), origin, { storageBoxId: box.id, slot: 0 });
+			await service.place(record.recordId, { storageBoxId: box.id, slot: 1 });
+			await service.load();
+			expect(service.canUndo).toBe(true);
+			const before = service.current;
+			fail = true;
+			await expect(service.undo()).rejects.toThrow('Injected commit failure');
+			expect(service.current).toEqual(before);
+			expect(service.canUndo).toBe(true);
+			fail = false;
+			await service.undo();
+			expect(service.getRecord(record.recordId)?.placement?.slot).toBe(0);
+			const reopened = new PokemonStorageService(persistence, fakeEngine());
+			await reopened.load();
+			expect(reopened.canUndo).toBe(false);
+		});
 		it('counts unfiled Pokemon toward local capacity', async () => {
 			const service = new PokemonStorageService(create(), fakeEngine());
 			await service.initialize();
@@ -403,6 +552,12 @@ export function catalogContract(
 					slot: 0
 				})
 			).rejects.toThrow(/occupied/);
+			await service.undo();
+			expect(service.getRecord(first.recordId)?.placement?.slot).toBe(0);
+			expect(service.getRecord(second.recordId)?.placement?.slot).toBe(1);
+			expect(service.getRecord(duplicate!.recordId)?.placement?.slot).toBe(2);
+			await service.undo();
+			expect(service.getRecord(first.recordId)?.placement).toBeNull();
 		});
 		it('swaps occupied Slots when the Carry source placement is a proxy', async () => {
 			const persistence = create();
@@ -424,6 +579,9 @@ export function catalogContract(
 				payload: second.payload,
 				placement: { storageBoxId: boxId, slot: 0 }
 			});
+			await service.undo();
+			expect(service.getRecord(first.recordId)?.placement?.slot).toBe(0);
+			expect(service.getRecord(second.recordId)?.placement?.slot).toBe(1);
 		});
 		it('rejects stale Carry source identity without changing the catalog', async () => {
 			const service = new PokemonStorageService(create(), fakeEngine());
@@ -488,6 +646,17 @@ export function catalogContract(
 			).toEqual({ storageBoxId: first.id, slot: 1 });
 			expect(service.listBoxes()).toHaveLength(3);
 		});
+		it('undoes automatic filing into an existing Storage Box as one placement', async () => {
+			const service = new PokemonStorageService(create(), fakeEngine());
+			await service.initialize();
+			const box = service.listBoxes()[0];
+			const record = await service.add(bytes(1), origin, { storageBoxId: box.id, slot: 0 });
+			await service.storeAutomatically(record.recordId, box.id, record.revision);
+			expect(service.getRecord(record.recordId)?.placement?.slot).toBe(1);
+			await service.undo();
+			expect(service.getRecord(record.recordId)?.placement?.slot).toBe(0);
+			expect(service.canUndo).toBe(false);
+		});
 		it('adds one box when all existing slots, including the source, are occupied', async () => {
 			const persistence = create();
 			const service = new PokemonStorageService(persistence, fakeEngine());
@@ -506,6 +675,100 @@ export function catalogContract(
 			expect(destination).toEqual({ storageBoxId: service.listBoxes()[1].id, slot: 0 });
 			expect(service.getRecord(source.recordId)?.placement).toEqual(destination);
 			expect((await persistence.read())?.records).toHaveLength(30);
+			await service.renameBox(destination.storageBoxId, 'Temporary');
+			await service.undo();
+			const unrelatedBox = await service.addBox();
+			const newer = await service.add(bytes(99), origin);
+			await service.undo();
+			expect(service.listBoxes().map((box) => box.id)).toEqual([boxId, unrelatedBox.id]);
+			expect(service.getRecord(source.recordId)?.placement).toEqual({
+				storageBoxId: boxId,
+				slot: 0
+			});
+			expect(service.getRecord(newer.recordId)?.placement).toBeNull();
+			expect((await persistence.read())?.records).toHaveLength(31);
+		});
+		it('refuses automatic filing undo when a newer record uses the created box', async () => {
+			const service = new PokemonStorageService(create(), fakeEngine());
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const source = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			for (let slot = 1; slot < 30; slot += 1)
+				await service.add(bytes(slot), origin, { storageBoxId: boxId, slot });
+			const destination = await service.storeAutomatically(source.recordId, boxId, source.revision);
+			await service.add(bytes(99), origin, { storageBoxId: destination.storageBoxId, slot: 1 });
+			const before = service.current;
+			await expect(service.undo()).rejects.toThrow(/changed/);
+			expect(service.current).toEqual(before);
+			await service.renameBox(destination.storageBoxId, 'Changed');
+			await service.undo();
+			await expect(service.undo()).rejects.toThrow(/changed/);
+		});
+		it('refuses to remove an automatic box when newer records need its capacity', async () => {
+			const service = new PokemonStorageService(create(), fakeEngine());
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const source = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			for (let slot = 1; slot < 30; slot += 1)
+				await service.add(bytes(slot), origin, { storageBoxId: boxId, slot });
+			await service.storeAutomatically(source.recordId, boxId, source.revision);
+			await service.add(bytes(99), origin);
+			const before = service.current;
+			await expect(service.undo()).rejects.toThrow(/changed/);
+			expect(service.current).toEqual(before);
+		});
+		it('refuses automatic filing undo when the created box changed', async () => {
+			const persistence = create();
+			const engine = fakeEngine();
+			const service = new PokemonStorageService(persistence, engine);
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const source = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			for (let slot = 1; slot < 30; slot += 1)
+				await service.add(bytes(slot), origin, { storageBoxId: boxId, slot });
+			const destination = await service.storeAutomatically(source.recordId, boxId, source.revision);
+			const other = new PokemonStorageService(persistence, engine);
+			await other.load();
+			await other.renameBox(destination.storageBoxId, 'Changed');
+			await service.load();
+			const before = service.current;
+			await expect(service.undo()).rejects.toThrow(/changed/);
+			expect(service.current).toEqual(before);
+		});
+		it('keeps compound automatic filing undo after a failed persistence commit', async () => {
+			const persistence = create();
+			let fail = false;
+			const service = new PokemonStorageService(
+				{
+					read: () => persistence.read(),
+					readBlob: (reference) => persistence.readBlob(reference),
+					readRecovery: () => persistence.readRecovery(),
+					replace: (revision, manifest, blobs, recovery) =>
+						persistence.replace(revision, manifest, blobs, recovery),
+					commit: async (revision, manifest, blobs) => {
+						if (fail) throw new Error('Injected filing undo failure');
+						await persistence.commit(revision, manifest, blobs);
+					},
+					sweep: () => persistence.sweep()
+				},
+				fakeEngine()
+			);
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const source = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
+			for (let slot = 1; slot < 30; slot += 1)
+				await service.add(bytes(slot), origin, { storageBoxId: boxId, slot });
+			await service.storeAutomatically(source.recordId, boxId, source.revision);
+			const before = service.current;
+			fail = true;
+			await expect(service.undo()).rejects.toThrow('Injected filing undo failure');
+			expect(service.current).toEqual(before);
+			expect(await persistence.read()).toEqual(before);
+			expect(service.canUndo).toBe(true);
+			fail = false;
+			await service.undo();
+			expect(service.listBoxes()).toHaveLength(1);
+			expect(service.getRecord(source.recordId)?.placement?.slot).toBe(0);
 		});
 		it('keeps the catalog unchanged when automatic storage cannot commit', async () => {
 			const persistence = create();
@@ -934,6 +1197,8 @@ export function catalogContract(
 			await service.initialize();
 			const boxId = service.listBoxes()[0].id;
 			const active = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 2 });
+			await service.place(active.recordId, { storageBoxId: boxId, slot: 3 });
+			expect(service.canUndo).toBe(true);
 			const unfiled = await service.add(bytes(2), origin);
 			const deleted = await service.add(bytes(3), origin);
 			await service.retire(deleted.recordId, 'cleared');
@@ -942,6 +1207,7 @@ export function catalogContract(
 			const later = await service.add(bytes(4), origin);
 			const before = service.current!;
 			await service.restoreArchive(archive);
+			expect(service.canUndo).toBe(false);
 			expect(service.current?.storageId).toBe(before.storageId);
 			expect(service.current?.revision).toBe(before.revision + 1);
 			expect(service.current?.records.map((item) => item.recordId)).toEqual([
