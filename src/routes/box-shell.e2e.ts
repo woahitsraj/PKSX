@@ -6474,6 +6474,56 @@ test('clear slot cancellation and confirmation use the in-app confirmation surfa
 	).toHaveCount(1);
 });
 
+test('two Recently Deleted panes keep distinct focus targets and location headers', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await seedOccupiedPokemonStorageSlot(page);
+	await page.goto('/?source=pokemon-storage');
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+	await page.locator('#box-0-slot-0').click();
+	await page.getByRole('button', { name: 'Clear Slot' }).click();
+	await page.getByRole('button', { name: 'Confirm Clear' }).click();
+	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /Recently Deleted: Recently Deleted/ }).click();
+	await page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	const [primary, secondary] = [page.locator('.box-pane').nth(0), page.locator('.box-pane').nth(1)];
+	await secondary.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /Recently Deleted: Recently Deleted/ }).click();
+	const secondaryId = await secondary.getAttribute('data-pane-id');
+	expect(secondaryId).toBeTruthy();
+	const secondaryCard = secondary
+		.getByRole('grid', { name: 'Recently Deleted Pokemon' })
+		.getByRole('gridcell');
+	await expect(secondaryCard).toHaveCount(1);
+	const recordId = (await secondaryCard.getAttribute('id'))?.replace('virtual-record-', '');
+	expect(recordId).toBeTruthy();
+	await expect(primary.locator(`#pane-primary-virtual-record-${recordId}`)).toBeVisible();
+	await expect(primary.locator('#pane-primary-recently-deleted-empty')).toBeVisible();
+	await expect(secondary.locator('#recently-deleted-empty')).toBeVisible();
+	await secondaryCard.focus();
+	await page.keyboard.press('ArrowLeft');
+	await expect(primary).toHaveClass(/active-pane/);
+	await expect(primary.locator(`#virtual-record-${recordId}`)).toBeFocused();
+	await expect(secondary.locator(`#${secondaryId}-virtual-record-${recordId}`)).toBeVisible();
+	await expect(primary.locator('#recently-deleted-empty')).toBeVisible();
+	await expect(secondary.locator(`#${secondaryId}-recently-deleted-empty`)).toBeVisible();
+	await secondary.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /All Pokemon: All Pokemon/ }).click();
+	await expect(primary.locator('.location-header')).toContainText('Recently Deleted');
+	await expect(secondary.locator('.location-header')).toContainText('All Pokemon');
+});
+
 test('Clear uses its Pokemon Storage owner without mutating the loaded Save File or Backup state', async ({
 	page
 }) => {

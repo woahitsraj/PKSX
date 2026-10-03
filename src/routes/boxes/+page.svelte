@@ -1308,13 +1308,22 @@
 
 	async function focusActiveControl() {
 		await tick();
+		const id =
+			activeVirtualLocation && virtualFocusedId
+				? `virtual-record-${virtualFocusedId}`
+				: focusIdForNavigation(navigation.focus);
 		document
-			.getElementById(
-				activeVirtualLocation && virtualFocusedId
-					? `virtual-record-${virtualFocusedId}`
-					: focusIdForNavigation(navigation.focus)
-			)
+			.querySelector<HTMLElement>('.box-pane.active-pane')
+			?.querySelector<HTMLElement>(`#${CSS.escape(id)}`)
 			?.focus();
+	}
+
+	function activeVirtualRecordElement(recordId: string): HTMLElement | null {
+		return (
+			document
+				.querySelector<HTMLElement>('.box-pane.active-pane')
+				?.querySelector<HTMLElement>(`#${CSS.escape(`virtual-record-${recordId}`)}`) ?? null
+		);
 	}
 
 	function focusVirtualRecord(recordId: string | null, restoreAfterResize = false) {
@@ -1322,7 +1331,7 @@
 		if (!recordId) return;
 		if (!restoreAfterResize && document.activeElement?.id === `virtual-record-${recordId}`) return;
 		if (activeVirtualLocation === 'recently-deleted') {
-			void tick().then(() => document.getElementById(`virtual-record-${recordId}`)?.focus());
+			void tick().then(() => activeVirtualRecordElement(recordId)?.focus());
 			return;
 		}
 		const index = activeVirtualRecords.findIndex((record) => record.recordId === recordId);
@@ -1334,7 +1343,7 @@
 				viewport.scrollTop = top + VIRTUAL_POKEMON_ROW_HEIGHT - viewport.clientHeight;
 			viewport.dispatchEvent(new Event('scroll'));
 		}
-		void tick().then(() => document.getElementById(`virtual-record-${recordId}`)?.focus());
+		void tick().then(() => activeVirtualRecordElement(recordId)?.focus());
 	}
 
 	function persistVirtualPreferences() {
@@ -6749,7 +6758,7 @@
 											? 'Unfiled'
 											: virtualViewFor(pane.id).preferences.location === 'overflow'
 												? 'Overflow'
-												: virtualPreferences.location === 'recently-deleted'
+												: virtualViewFor(pane.id).preferences.location === 'recently-deleted'
 													? 'Recently Deleted'
 													: 'All Pokemon'
 										: paneParty
@@ -6789,6 +6798,8 @@
 					{#if paneVirtual}
 						{#if virtualViewFor(pane.id).preferences.location === 'recently-deleted'}
 							<RecentlyDeletedGrid
+								paneId={pane.id}
+								active={paneActive}
 								records={virtualRecordsFor(pane.id)}
 								focusedId={paneActive ? virtualViewFor(pane.id).focusedId : null}
 								{busy}

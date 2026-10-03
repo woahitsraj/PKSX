@@ -4,6 +4,8 @@
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 
 	type Props = {
+		paneId: string;
+		active: boolean;
 		records: PokemonRecord[];
 		focusedId: string | null;
 		busy: boolean;
@@ -12,7 +14,8 @@
 		onEmpty: () => void;
 		onColumns: (columns: number) => void;
 	};
-	let { records, focusedId, busy, onFocus, onOpen, onEmpty, onColumns }: Props = $props();
+	let { paneId, active, records, focusedId, busy, onFocus, onOpen, onEmpty, onColumns }: Props =
+		$props();
 	let width = $state(600);
 	const columns = $derived(Math.max(1, Math.floor((width + 8) / 124)));
 	function measure(node: HTMLDivElement) {
@@ -33,7 +36,7 @@
 	<div class="toolbar">
 		<span>{records.length} Pokemon recoverable for 30 days</span>
 		<button
-			id="recently-deleted-empty"
+			id={active ? 'recently-deleted-empty' : `${paneId}-recently-deleted-empty`}
 			type="button"
 			data-pksx-control-category="small"
 			disabled={busy || records.length === 0}
@@ -46,7 +49,9 @@
 			{#each records as record, index (record.recordId)}
 				<div class="card" role="row">
 					<button
-						id={`virtual-record-${record.recordId}`}
+						id={active
+							? `virtual-record-${record.recordId}`
+							: `${paneId}-virtual-record-${record.recordId}`}
 						type="button"
 						role="gridcell"
 						data-pksx-control-category="card"
