@@ -118,7 +118,13 @@
 		const route = document.querySelector('.boxes-route[data-initial-state="ready"]');
 		if (!route) return false;
 		const panes = [...route.querySelectorAll('section.box-pane')];
-		if (!panes.length || panes.some((p) => p.getAttribute('aria-busy') === 'true')) return false;
+		if (
+			!panes.length ||
+			panes.some(
+				(p) => p.getAttribute('aria-busy') === 'true' || p.hasAttribute('data-box-load-pending')
+			)
+		)
+			return false;
 		return [...route.querySelectorAll('img.slot-sprite')].every((img) => img.complete);
 	};
 	P.cardsSettled = () => {

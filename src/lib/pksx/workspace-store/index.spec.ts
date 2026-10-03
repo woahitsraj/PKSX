@@ -151,6 +151,21 @@ describe('ActiveWorkspaceService', () => {
 
 		expect(await service.exportBytes()).toStrictEqual(new Uint8Array([1, 2, 3, 4]));
 	});
+
+	it('projects read-only Box state without rewriting persistence', async () => {
+		const persistence = createPersistence();
+		const service = createService({ persistence });
+		const state = await service.hydrate(file.id);
+		if (!state) throw new Error('Expected the mock Workspace to load.');
+		await service.flushed();
+		persistence.save.mockClear();
+		const projected = { ...state, workspace: { ...state.workspace, boxSlots: [] } };
+
+		service.project(projected);
+
+		expect(service.current).toBe(projected);
+		expect(persistence.save).not.toHaveBeenCalled();
+	});
 });
 
 function createService(

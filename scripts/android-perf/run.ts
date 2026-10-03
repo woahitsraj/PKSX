@@ -140,14 +140,31 @@ async function focusMoves(name: string) {
 	for (let i = 0; i < runs; i++) {
 		for (const key of ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp']) {
 			const result = await cdp.run<Result>(
-				`const before = document.activeElement;
-				return P.measure(() => P.press('${key}'), () => document.activeElement !== before, { timeout: 5000 })
+				`const grid = document.querySelector('section.box-pane.active-pane [role="grid"]');
+				const before = grid?.getAttribute('aria-activedescendant');
+				return P.measure(() => P.press('${key}'), () => grid?.getAttribute('aria-activedescendant') !== before, { timeout: 5000 })
 					.finally(() => P.press('${key}', false));`
 			);
 			record(name, result);
 			await sleep(250);
 		}
 	}
+}
+
+async function focusOccupiedBoxSlot() {
+	for (let box = 0; box < 64; box++) {
+		const focused = await cdp.run<boolean>(`
+			const slot = document.querySelector('section.box-pane.active-pane .slot.pokemon');
+			if (!slot) return false;
+			slot.focus();
+			return true;`);
+		if (focused) return;
+		await measure(
+			`window.__before = ${activeLocation}; await P.tap('PageDown');`,
+			`return ${activeLocation} !== window.__before && P.boxesSettled()`
+		);
+	}
+	throw new Error('No occupied Box slot found.');
 }
 
 const scenarios: Record<string, () => Promise<void>> = {
@@ -202,15 +219,15 @@ const scenarios: Record<string, () => Promise<void>> = {
 				await sleep(800);
 			}
 			// Five presses 90 ms apart; expect one settled final box and few engine loads.
-			record(
-				`box:rapid5-${save}`,
-				await measure(
-					`window.__before = ${activeLocation}; window.__after = 0;
+			const rapid = await measure(
+				`window.__before = ${activeLocation}; window.__rapidStart = performance.now(); window.__after = 0;
 					for (let i = 0; i < 5; i++) { await P.tap('PageDown'); await new Promise((r) => setTimeout(r, 90)); }
 					window.__after = performance.now();`,
-					`return window.__after && P.worker.every((call) => call.received) && P.boxesSettled()`
-				)
+				`return window.__after && P.worker.every((call) => call.received) && P.boxesSettled()`
 			);
+			const actionMs = await cdp.evaluate<number>('window.__after - window.__rapidStart');
+			rapid.note = `after-last=${Math.max(0, Math.round((rapid.ms ?? 0) - actionMs))}`;
+			record(`box:rapid5-${save}`, rapid);
 			await sleep(800);
 		}
 	},
@@ -233,11 +250,14 @@ const scenarios: Record<string, () => Promise<void>> = {
 			record(
 				'focus:held-right-5',
 				await cdp.run<Result>(`
-					const times = []; const onFocus = () => times.push(performance.now());
-					document.addEventListener('focusin', onFocus);
+					const times = []; const grid = document.querySelector('section.box-pane.active-pane [role="grid"]');
+					const observer = new MutationObserver((records) => {
+						for (const record of records) if (record.target.getAttribute('aria-selected') === 'true') times.push(performance.now());
+					});
+					observer.observe(grid, { attributes: true, attributeFilter: ['aria-selected'], subtree: true });
 					const t0 = performance.now(); P.press('ArrowRight');
 					await new Promise((r) => setTimeout(r, 1500)); P.press('ArrowRight', false);
-					document.removeEventListener('focusin', onFocus);
+					observer.disconnect();
 					return { ms: Math.round((times[4] ?? NaN) - t0), note: 'at=' + times.map((t) => Math.round(t - t0)).join('/'), ...P.window(t0, performance.now()) };`)
 			);
 		}
@@ -264,7 +284,7 @@ const scenarios: Record<string, () => Promise<void>> = {
 				)
 			);
 			await closeDialogs();
-			await cdp.run(`document.querySelector('section.box-pane.active-pane .slot.pokemon').focus()`);
+			await focusOccupiedBoxSlot();
 			await sleep(300);
 			record(
 				'menu:slot-open',

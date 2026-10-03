@@ -57,7 +57,6 @@ afterEach(() => {
 
 function renderSlot(props: {
 	slot: SlotView;
-	focused?: boolean;
 	spriteUrl?: string | null;
 	zone?: 'party' | 'box';
 	onChooseSlot?: () => void;
@@ -75,7 +74,6 @@ function renderSlot(props: {
 			id: 'slot-under-test',
 			slot: props.slot,
 			zone: props.zone ?? 'box',
-			focused: props.focused ?? false,
 			dualType: true,
 			style: '--slot-hue: 48; --slot-hue-2: 190',
 			rowIndex: 1,
@@ -98,12 +96,11 @@ describe('StorageSlot', () => {
 	test('renders a sprite-first filled Slot with compact metadata', () => {
 		const { button } = renderSlot({
 			slot: pokemonSlot,
-			focused: true,
 			spriteUrl: '/sprites/pokemon/species/0025-form-00-sex-default-normal.png'
 		});
+		button.focus();
 
 		expect(button.classList.contains('pokemon')).toBe(true);
-		expect(button.classList.contains('focused')).toBe(true);
 		expect(button.classList.contains('dual-type')).toBe(true);
 		expect(button.getAttribute('aria-selected')).toBe('true');
 		expect(button.querySelector('.sprite-stage')).not.toBeNull();
@@ -123,12 +120,12 @@ describe('StorageSlot', () => {
 	});
 
 	test('keeps empty Slots focusable with a distinct quiet state', () => {
-		const { button, onFocusSlot } = renderSlot({ slot: emptySlot, focused: true });
+		const { button, onFocusSlot } = renderSlot({ slot: emptySlot });
 
 		button.focus();
 
 		expect(button.classList.contains('empty')).toBe(true);
-		expect(button.classList.contains('focused')).toBe(true);
+		expect(button.matches(':focus')).toBe(true);
 		expect(button.getAttribute('role')).toBe('gridcell');
 		expect(button.getAttribute('tabindex')).toBe('-1');
 		expect(button.querySelector('.sprite-stage .empty-sprite')).not.toBeNull();
@@ -140,9 +137,10 @@ describe('StorageSlot', () => {
 		const onOpenMenu = vi.fn();
 		const { button, onFocusSlot } = renderSlot({
 			slot: pokemonSlot,
-			focused: true,
 			onOpenMenu
 		});
+		button.focus();
+		onFocusSlot.mockClear();
 
 		const tapAllowed = button.dispatchEvent(
 			new MouseEvent('click', { bubbles: true, cancelable: true })
@@ -158,7 +156,6 @@ describe('StorageSlot', () => {
 		const onOpenMenu = vi.fn();
 		const { button, onFocusSlot } = renderSlot({
 			slot: pokemonSlot,
-			focused: false,
 			onOpenMenu
 		});
 
@@ -170,8 +167,7 @@ describe('StorageSlot', () => {
 
 	test('reports pointer activation for an unfocused Slot', () => {
 		const { button, onFocusSlot } = renderSlot({
-			slot: pokemonSlot,
-			focused: false
+			slot: pokemonSlot
 		});
 
 		button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
@@ -184,7 +180,6 @@ describe('StorageSlot', () => {
 		const onChooseSlot = vi.fn();
 		const { button } = renderSlot({
 			slot: pokemonSlot,
-			focused: true,
 			onChooseSlot
 		});
 
