@@ -4903,6 +4903,21 @@ test('Boxes navigation clamps at workspace edges while Main Menu owns destinatio
 	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeVisible();
 });
 
+test('controller moves actual focus through Slot Menu commands', async ({ page }) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await pressController(page, 'Enter');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
+	await expect(page.locator('#slot-action-0')).toBeFocused();
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#slot-action-1')).toBeFocused();
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#slot-action-2')).toBeFocused();
+	await pressController(page, 'ArrowUp');
+	await expect(page.locator('#slot-action-1')).toBeFocused();
+});
+
 test('controller input follows the keyboard navigation path', async ({ page }) => {
 	await openEmptySaves(page);
 	await page.locator('#box-grid').focus();

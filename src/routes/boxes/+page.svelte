@@ -1308,6 +1308,10 @@
 
 	async function focusActiveControl() {
 		await tick();
+		if (navigation.focus.zone === 'actions') {
+			document.getElementById(focusIdForNavigation(navigation.focus))?.focus();
+			return;
+		}
 		const id =
 			activeVirtualLocation && virtualFocusedId
 				? `virtual-record-${virtualFocusedId}`
