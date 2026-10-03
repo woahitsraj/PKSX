@@ -8,15 +8,12 @@
 		focusedId: string | null;
 		busy: boolean;
 		onFocus: (id: string) => void;
-		onRestore: (id: string) => void;
-		onDelete: (id: string) => void;
+		onOpen: (id: string) => void;
 		onEmpty: () => void;
 		onColumns: (columns: number) => void;
 	};
-	let { records, focusedId, busy, onFocus, onRestore, onDelete, onEmpty, onColumns }: Props =
-		$props();
+	let { records, focusedId, busy, onFocus, onOpen, onEmpty, onColumns }: Props = $props();
 	let width = $state(600);
-	let confirmingEmpty = $state(false);
 	const columns = $derived(Math.max(1, Math.floor((width + 8) / 124)));
 	function measure(node: HTMLDivElement) {
 		const observer = new ResizeObserver(() => {
@@ -32,36 +29,17 @@
 	}
 </script>
 
-<div class="recently-deleted" class:confirming={confirmingEmpty}>
+<div class="recently-deleted">
 	<div class="toolbar">
 		<span>{records.length} Pokemon recoverable for 30 days</span>
 		<button
+			id="recently-deleted-empty"
 			type="button"
 			data-pksx-control-category="small"
 			disabled={busy || records.length === 0}
-			onclick={() => (confirmingEmpty = true)}>Empty Recently Deleted</button
+			onclick={onEmpty}>Empty Recently Deleted</button
 		>
 	</div>
-	{#if confirmingEmpty}
-		<div class="confirmation" role="group" aria-label="Confirm Empty Recently Deleted">
-			<span>Permanently delete every Pokemon in Recently Deleted?</span>
-			<button
-				type="button"
-				data-pksx-control-category="small"
-				disabled={busy}
-				onclick={() => (confirmingEmpty = false)}>Cancel</button
-			>
-			<button
-				type="button"
-				data-pksx-control-category="small"
-				disabled={busy}
-				onclick={() => {
-					confirmingEmpty = false;
-					onEmpty();
-				}}>Confirm Empty</button
-			>
-		</div>
-	{/if}
 	<div class="grid-viewport" {@attach measure} role="grid" aria-label="Recently Deleted Pokemon">
 		{#if records.length === 0}<p>No Pokemon in Recently Deleted.</p>{/if}
 		<div class="cards" style:grid-template-columns={`repeat(${columns}, minmax(0, 1fr))`}>
@@ -77,6 +55,7 @@
 						aria-colindex={(index % columns) + 1}
 						aria-label={record.projection.nickname || record.projection.speciesName}
 						onfocus={() => onFocus(record.recordId)}
+						onclick={() => onOpen(record.recordId)}
 					>
 						{#if spriteUrl(record)}<img
 								src={spriteUrl(record)!}
@@ -86,20 +65,6 @@
 							/>{/if}
 						<strong>{record.projection.nickname || record.projection.speciesName}</strong>
 					</button>
-					<div class="actions">
-						<button
-							type="button"
-							data-pksx-control-category="small"
-							disabled={busy}
-							onclick={() => onRestore(record.recordId)}>Restore</button
-						>
-						<button
-							type="button"
-							data-pksx-control-category="small"
-							disabled={busy}
-							onclick={() => onDelete(record.recordId)}>Delete Permanently</button
-						>
-					</div>
 				</div>
 			{/each}
 		</div>
@@ -114,19 +79,13 @@
 		gap: 8px;
 		padding: 8px;
 	}
-	.recently-deleted.confirming {
-		grid-template-rows: auto auto minmax(0, 1fr);
-	}
-	.toolbar,
-	.confirmation,
-	.actions {
+	.toolbar {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 6px;
 	}
 	.toolbar span,
-	.confirmation span,
 	.grid-viewport p {
 		color: var(--ink-soft);
 		font-size: var(--pksx-type-caption);
@@ -141,11 +100,10 @@
 	}
 	.card {
 		min-width: 0;
-		display: grid;
-		gap: 4px;
 	}
 	.card > button[data-pksx-control-category='card'] {
 		min-height: 98px;
+		width: 100%;
 		display: grid;
 		justify-items: center;
 		align-content: center;
@@ -165,9 +123,7 @@
 		white-space: nowrap;
 		font-size: var(--pksx-type-caption);
 	}
-	.actions button,
-	.toolbar button,
-	.confirmation button {
+	.toolbar button {
 		min-height: var(--pksx-small-control-height);
 		border: 1px solid var(--rule);
 		border-radius: 5px;
@@ -176,8 +132,5 @@
 		font: inherit;
 		font-size: var(--pksx-type-caption);
 		cursor: pointer;
-	}
-	.actions button {
-		flex: 1;
 	}
 </style>

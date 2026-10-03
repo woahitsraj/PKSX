@@ -8,6 +8,8 @@ import {
 export type SummonedWorkflowKind =
 	| 'slot-menu'
 	| 'virtual-record-menu'
+	| 'recently-deleted-menu'
+	| 'recently-deleted-confirmation'
 	| 'box-menu'
 	| 'main-menu'
 	| 'quick-search'
