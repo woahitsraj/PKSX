@@ -18,6 +18,13 @@ import {
 	type StorageBox
 } from './types';
 
+export type CatalogCarrySource = {
+	recordId: string;
+	revision: number;
+	payloadId: string;
+	placement: Placement;
+};
+
 export class PokemonStorageService {
 	readonly #store: Store = createStore();
 	#manifest: PokemonStorageManifest | null = null;
@@ -187,6 +194,78 @@ export class PokemonStorageService {
 		const result = await this.engine.forkPreservationPayload(bytes);
 		if (!result.ok) throw result.error;
 		return this.#putPayload(result.value.bytes, source.origin, placement, null);
+	}
+
+	carrySource(recordId: string): CatalogCarrySource {
+		const record = this.#required(recordId);
+		const placement =
+			this.listResolvedPlacements().find((item) => item.recordId === recordId)?.placement ?? null;
+		return { recordId, revision: record.revision, payloadId: record.payload.id, placement };
+	}
+
+	assertCarrySource(source: CatalogCarrySource): void {
+		if (!this.#manifest) throw new Error('Pokemon Storage catalog is not initialized.');
+		this.#checkCarrySource(this.#manifest, source);
+	}
+
+	async commitCarry(
+		source: CatalogCarrySource,
+		mode: 'move' | 'copy',
+		destination: NonNullable<Placement>
+	): Promise<void> {
+		if (mode === 'copy') {
+			const bytes = await this.readPayload(source.recordId);
+			const fork = await this.engine.forkPreservationPayload(bytes);
+			if (!fork.ok) throw fork.error;
+			await this.#putPayload(
+				fork.value.bytes,
+				this.#required(source.recordId).origin,
+				destination,
+				null,
+				null,
+				(manifest) => this.#checkCarrySource(manifest, source)
+			);
+			return;
+		}
+		await this.#mutate((manifest) => {
+			const record = this.#checkCarrySource(manifest, source);
+			if (!manifest.boxes.some((box) => box.id === destination.storageBoxId))
+				throw new Error('Storage Box is unavailable.');
+			const placements = resolvePlacements(manifest);
+			const occupant = placements.find(
+				(item) =>
+					item.placement?.storageBoxId === destination.storageBoxId &&
+					item.placement.slot === destination.slot
+			);
+			if (occupant?.recordId === source.recordId) return;
+			if (occupant) {
+				if (!source.placement) throw new Error('Choose an empty destination Slot.');
+				const other = manifest.records.find((item) => item.recordId === occupant.recordId)!;
+				if (!other.placement) throw new Error('Storage Slot swap is unavailable.');
+				other.placement = source.placement;
+				other.revision += 1;
+				other.updatedAt = this.now();
+			}
+			record.placement = destination;
+			record.revision += 1;
+			record.updatedAt = this.now();
+		});
+	}
+
+	#checkCarrySource(manifest: PokemonStorageManifest, source: CatalogCarrySource): PokemonRecord {
+		const record = manifest.records.find((item) => item.recordId === source.recordId);
+		const placement =
+			resolvePlacements(manifest).find((item) => item.recordId === source.recordId)?.placement ??
+			null;
+		if (
+			!record ||
+			record.revision !== source.revision ||
+			record.payload.id !== source.payloadId ||
+			placement?.storageBoxId !== source.placement?.storageBoxId ||
+			placement?.slot !== source.placement?.slot
+		)
+			throw new Error('Pokemon Storage source changed.');
+		return record;
 	}
 
 	async replace(recordId: string, payloadBytes: Uint8Array): Promise<PokemonRecord> {
@@ -484,7 +563,8 @@ export class PokemonStorageService {
 		origin: PokemonOrigin,
 		placement: Placement,
 		replacing: string | null,
-		expectedPayloadId: string | null = null
+		expectedPayloadId: string | null = null,
+		guard?: (manifest: PokemonStorageManifest) => void
 	): Promise<PokemonRecord> {
 		const parsed = await this.engine.readPreservationPayload(bytes);
 		if (!parsed.ok) throw parsed.error;
@@ -507,6 +587,7 @@ export class PokemonStorageService {
 		let saved!: PokemonRecord;
 		await this.#mutate(
 			(manifest) => {
+				guard?.(manifest);
 				const previous = manifest.records.find((record) => record.recordId === summary.recordId);
 				if (
 					Boolean(previous) !== Boolean(replacing) ||

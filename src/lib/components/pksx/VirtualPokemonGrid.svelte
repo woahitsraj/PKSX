@@ -6,6 +6,8 @@
 	import { VIRTUAL_POKEMON_ROW_HEIGHT } from './virtual-pokemon-grid-layout';
 
 	type Props = {
+		paneId: string;
+		active: boolean;
 		records: PokemonRecord[];
 		allRecords: PokemonRecord[];
 		preferences: VirtualViewPreferences;
@@ -18,6 +20,8 @@
 		onColumns: (columns: number) => void;
 	};
 	let {
+		paneId,
+		active,
 		records,
 		allRecords,
 		preferences,
@@ -163,7 +167,9 @@
 					<div class="card" role="row">
 						<button
 							data-pksx-control-category="card"
-							id={`virtual-record-${record.recordId}`}
+							id={active
+								? `virtual-record-${record.recordId}`
+								: `${paneId}-virtual-record-${record.recordId}`}
 							class:focused={focusedId === record.recordId}
 							type="button"
 							role="gridcell"
@@ -203,7 +209,7 @@
 								type="button"
 								data-pksx-control-category="composition"
 								disabled={busy}
-								onclick={() => onCarry(record.recordId, 'copy')}>Copy</button
+								onclick={() => onCarry(record.recordId, 'copy')}>Duplicate</button
 							>
 						</div>
 					</div>

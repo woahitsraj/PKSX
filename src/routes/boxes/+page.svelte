@@ -433,12 +433,31 @@
 	let savePaneWorkspaces = $state<Record<string, SavePaneWorkspace>>({});
 	let pokemonStorage = $state<StoredPokemonStorage | null>(null);
 	let catalogManifest = $state<PokemonStorageManifest | null>(null);
-	let virtualPreferences = $state<VirtualViewPreferences>(
-		structuredClone(defaultVirtualViewPreferences)
-	);
+	type VirtualPaneView = {
+		preferences: VirtualViewPreferences;
+		focusedId: string | null;
+		columns: number;
+	};
+	let virtualPaneViews = $state<Record<string, VirtualPaneView>>({});
 	let virtualPaneIds = $state<string[]>([]);
-	let virtualFocusedId = $state<string | null>(null);
-	let virtualColumns = $state(1);
+	const virtualPreferences = $derived(virtualViewFor(activePaneId).preferences);
+	const virtualFocusedId = $derived(virtualViewFor(activePaneId).focusedId);
+	const virtualColumns = $derived(virtualViewFor(activePaneId).columns);
+	function virtualViewFor(paneId: string): VirtualPaneView {
+		return (
+			virtualPaneViews[paneId] ?? {
+				preferences: defaultVirtualViewPreferences,
+				focusedId: null,
+				columns: 1
+			}
+		);
+	}
+	function updateVirtualView(paneId: string, change: Partial<VirtualPaneView>) {
+		virtualPaneViews = { ...virtualPaneViews, [paneId]: { ...virtualViewFor(paneId), ...change } };
+	}
+	function virtualRecordsFor(paneId: string) {
+		return virtualRecords(catalogManifest, virtualViewFor(paneId).preferences);
+	}
 	let virtualMenuRecordId = $state<string | null>(null);
 	let virtualMenuIndex = $state(0);
 	let deletedMenuRecordId = $state<string | null>(null);
@@ -446,6 +465,7 @@
 	let deletedConfirmIndex = $state(0);
 	let virtualCarry = $state<{
 		recordId: string;
+		source: import('$lib/pksx/pokemon-storage-catalog').CatalogCarrySource;
 		mode: 'move' | 'copy';
 		paneId: string;
 		location: VirtualLocation;
@@ -554,10 +574,10 @@
 	]);
 	const activeVirtualLocation = $derived(
 		activePane?.source.type === 'pokemon-storage' && virtualPaneIds.includes(activePane.id)
-			? virtualPreferences.location
+			? virtualViewFor(activePane.id).preferences.location
 			: null
 	);
-	const activeVirtualRecords = $derived(virtualRecords(catalogManifest, virtualPreferences));
+	const activeVirtualRecords = $derived(virtualRecordsFor(activePaneId));
 	const deletedMenuRecord = $derived(
 		activeVirtualRecords.find((record) => record.recordId === deletedMenuRecordId)
 	);
@@ -577,7 +597,7 @@
 	);
 	const virtualMenuCommands = $derived<SlotMenuCommand[]>([
 		{ key: 'move', label: 'Move', availability: 'available', reason: null },
-		{ key: 'copy', label: 'Copy', availability: 'available', reason: null },
+		{ key: 'copy', label: 'Duplicate', availability: 'available', reason: null },
 		...(virtualMenuRecord?.placement
 			? ([
 					{ key: 'clear', label: 'Move to Unfiled', availability: 'available', reason: null }
@@ -704,7 +724,11 @@
 				slotMenuPokemonActionPreview?.actions.some(
 					(action) => action.kind === 'evolve' && action.available
 				) ?? false
-		})
+		}).map((command) =>
+			command.key === 'copy' && focusedSlotOwner.type === 'pokemon-storage'
+				? { ...command, label: 'Duplicate' }
+				: command
+		)
 	);
 	const saveSummary = $derived(focusedPaneWorkspace?.state.workspace.summary ?? null);
 	const activeSlotPositionLabel = $derived(
@@ -1135,7 +1159,7 @@
 	}
 
 	function handleSourceAction() {
-		if (pendingSlotOperation || activeSummonedWorkflow || !activePane) {
+		if (pendingSlotOperation || virtualCarry || activeSummonedWorkflow || !activePane) {
 			return;
 		}
 
@@ -1289,7 +1313,7 @@
 	}
 
 	function focusVirtualRecord(recordId: string | null, restoreAfterResize = false) {
-		virtualFocusedId = recordId;
+		updateVirtualView(activePaneId, { focusedId: recordId });
 		if (!recordId) return;
 		if (!restoreAfterResize && document.activeElement?.id === `virtual-record-${recordId}`) return;
 		if (activeVirtualLocation === 'recently-deleted') {
@@ -1313,10 +1337,10 @@
 	}
 
 	function setVirtualPreferences(preferences: VirtualViewPreferences) {
-		virtualPreferences = preferences;
+		updateVirtualView(activePaneId, { preferences });
 		persistVirtualPreferences();
 		if (!activeVirtualRecords.some((record) => record.recordId === virtualFocusedId))
-			virtualFocusedId = activeVirtualRecords[0]?.recordId ?? null;
+			updateVirtualView(activePaneId, { focusedId: activeVirtualRecords[0]?.recordId ?? null });
 	}
 
 	function openVirtualActionMenu(recordId: string) {
@@ -1499,9 +1523,15 @@
 		)
 			return;
 		if (!getPokemonStorageCatalog().getRecord(recordId)) return;
-		virtualCarry = { recordId, mode, paneId: activePane.id, location: activeVirtualLocation };
-		virtualFocusedId = recordId;
-		statusMessage = `${mode === 'move' ? 'Move' : 'Copy'} Pokemon, choose a physical destination.`;
+		virtualCarry = {
+			recordId,
+			source: getPokemonStorageCatalog().carrySource(recordId),
+			mode,
+			paneId: activePane.id,
+			location: activeVirtualLocation
+		};
+		updateVirtualView(activePaneId, { focusedId: recordId });
+		statusMessage = `${mode === 'move' ? 'Move' : 'Duplicate'} Pokemon, choose a physical destination.`;
 		openBoxPicker(activePane);
 	}
 
@@ -1510,7 +1540,9 @@
 		if (!source) return;
 		virtualCarry = null;
 		virtualPaneIds = [...new Set([...virtualPaneIds, source.paneId])];
-		virtualPreferences = { ...virtualPreferences, location: source.location };
+		updateVirtualView(source.paneId, {
+			preferences: { ...virtualViewFor(source.paneId).preferences, location: source.location }
+		});
 		localStorage.setItem('pksx-last-storage-location-v1', source.location);
 		activePaneId = source.paneId;
 		statusMessage = 'Carry cancelled.';
@@ -1524,9 +1556,10 @@
 		const pending = virtualCarry;
 		if (!pending || busy || catalogViewStale) return;
 		const catalog = getPokemonStorageCatalog();
-		const source = catalog.getRecord(pending.recordId);
-		if (!source) {
-			toastHost.error('Pokemon Storage source changed.');
+		try {
+			catalog.assertCarrySource(pending.source);
+		} catch (error) {
+			toastHost.error(getErrorMessage(error));
 			return;
 		}
 		if (destinationPane?.source.type === 'save-file') {
@@ -1584,13 +1617,11 @@
 		}
 		busy = true;
 		try {
-			if (pending.mode === 'copy') await catalog.copy(pending.recordId, placement);
-			else if (destinationId) await catalog.swap(pending.recordId, destinationId);
-			else await catalog.place(pending.recordId, placement);
+			await catalog.commitCarry(pending.source, pending.mode, placement);
 			virtualCarry = null;
 			const refreshed = await refreshCommittedCatalogView();
 			if (refreshed) {
-				statusMessage = `${pending.mode === 'copy' ? 'Copied' : 'Moved'} Pokemon to ${boxNameFor(destination.box, destinationPane)}.`;
+				statusMessage = `${pending.mode === 'copy' ? 'Duplicated' : 'Moved'} Pokemon to ${boxNameFor(destination.box, destinationPane)}.`;
 				toastHost.success(statusMessage);
 			}
 			queueMicrotask(focusActiveControl);
@@ -2336,7 +2367,9 @@
 		if (!summonedWorkflow.open('box-picker', launcher)) return;
 		boxPickerTarget = { paneId: pane.id, source: { ...pane.source } };
 		const selectedIndex = virtualPaneIds.includes(pane.id)
-			? boxPickerLocations.findIndex((item) => item.id === virtualPreferences.location)
+			? boxPickerLocations.findIndex(
+					(item) => item.id === virtualViewFor(pane.id).preferences.location
+				)
 			: boxPickerLocations.findIndex((item) => item.id === `physical-box-${pane.activeBox}`);
 		boxPickerControllerFocus = {
 			zone: 'locations',
@@ -2385,14 +2418,16 @@
 		if (location.location.kind === 'virtual') {
 			if (pane.source.type !== 'pokemon-storage' || pendingSlotOperation || virtualCarry) return;
 			virtualPaneIds = [...new Set([...virtualPaneIds, pane.id])];
-			virtualPreferences = {
-				...virtualPreferences,
-				location: location.location.id as VirtualLocation
-			};
+			updateVirtualView(pane.id, {
+				preferences: {
+					...virtualViewFor(pane.id).preferences,
+					location: location.location.id as VirtualLocation
+				}
+			});
+			activePaneId = pane.id;
 			persistVirtualPreferences();
 			localStorage.setItem('pksx-last-storage-location-v1', location.location.id);
-			virtualFocusedId = virtualRecords(catalogManifest, virtualPreferences)[0]?.recordId ?? null;
-			activePaneId = pane.id;
+			updateVirtualView(pane.id, { focusedId: virtualRecordsFor(pane.id)[0]?.recordId ?? null });
 			closeBoxPicker();
 			queueMicrotask(focusActiveControl);
 			return;
@@ -2626,13 +2661,15 @@
 			await change();
 			if (!(await refreshCommittedCatalogView()))
 				return 'Storage Boxes changed. Reload Boxes to refresh.';
-			if (
-				virtualPreferences.location === 'overflow' &&
-				!catalog.listResolvedPlacements().some((item) => item.overflow)
-			) {
-				virtualPreferences = { ...virtualPreferences, location: 'all-pokemon' };
+			if (!catalog.listResolvedPlacements().some((item) => item.overflow)) {
+				for (const pane of workbenchPanes) {
+					const preferences = virtualViewFor(pane.id).preferences;
+					if (preferences.location === 'overflow')
+						updateVirtualView(pane.id, {
+							preferences: { ...preferences, location: 'all-pokemon' }
+						});
+				}
 				persistVirtualPreferences();
-				localStorage.setItem('pksx-last-storage-location-v1', 'all-pokemon');
 			}
 			const after = catalog.listBoxes();
 			workbenchPanes = workbenchPanes.map((pane) => {
@@ -2999,6 +3036,17 @@
 		destinationPane: BoxPaneState | undefined,
 		virtualSource?: { recordId: string; slot: SlotView }
 	) {
+		const carrySource = virtualSource ? virtualCarry?.source : pending.storageSource;
+		if (!carrySource) {
+			toastHost.error('Pokemon Storage source changed.');
+			return;
+		}
+		try {
+			getPokemonStorageCatalog().assertCarrySource(carrySource);
+		} catch (error) {
+			toastHost.error(getErrorMessage(error));
+			return;
+		}
 		const destinationWorkspace = saveWorkspaceForPane(destinationPane)?.state ?? null;
 		if (!destinationWorkspace || !engine) {
 			toastHost.error('Load a Save File before changing Slots.');
@@ -3034,17 +3082,9 @@
 		importError = null;
 
 		try {
-			const prepared = await prepareAutomaticBackup({
-				storage,
-				state: destinationWorkspace,
-				reason: 'pokemon-movement'
-			});
-			const workingState = prepared.state;
-			if (loadedSave?.file.id === workingState.file.id) loadedSave = workingState;
-
 			const result = await activeEngine.importStoredPokemon(
-				workingState.bytes,
-				workingState.file.originalFileName ?? undefined,
+				destinationWorkspace.bytes,
+				destinationWorkspace.file.originalFileName ?? undefined,
 				{
 					entityBytesBase64: sourceSlot.entityBytesBase64,
 					destination
@@ -3055,6 +3095,14 @@
 			if (!result.ok) {
 				throw result.error;
 			}
+			getPokemonStorageCatalog().assertCarrySource(carrySource);
+			const prepared = await prepareAutomaticBackup({
+				storage,
+				state: destinationWorkspace,
+				reason: 'pokemon-movement'
+			});
+			const workingState = prepared.state;
+			if (loadedSave?.file.id === workingState.file.id) loadedSave = workingState;
 
 			const nextState: WorkspaceState = {
 				...workingState,
@@ -3063,6 +3111,7 @@
 				dirty: workingState.dirty || result.value.mutated,
 				restoredFromBackup: null
 			};
+			getPokemonStorageCatalog().assertCarrySource(carrySource);
 			if (nextState.dirty) {
 				await persistWorkspace(nextState, prepared.revision);
 			}
@@ -3095,9 +3144,11 @@
 			}
 			if (pending.kind === 'move') {
 				try {
-					const recordId = virtualSource?.recordId ?? catalogRecordAt(pending.source);
-					if (!recordId) throw new Error('Pokemon Storage source changed.');
-					await getPokemonStorageCatalog().retire(recordId, 'moved-to-save', nextState.file.id);
+					await getPokemonStorageCatalog().retire(
+						carrySource.recordId,
+						'moved-to-save',
+						nextState.file.id
+					);
 				} catch (error) {
 					statusMessage = `${sourceSlot.label} was saved, but remains in Pokemon Storage. Remove the Storage copy after checking the Save File.`;
 					toastHost.error(`${statusMessage} ${getErrorMessage(error)}`);
@@ -3159,18 +3210,9 @@
 		try {
 			const catalog = getPokemonStorageCatalog();
 			const placement = { storageBoxId: catalogBoxId(destination.box), slot: destination.slot };
-			const destinationId = catalogRecordAt(destination);
 			if (storageSource) {
-				const sourceId = catalogRecordAt(pending.source);
-				if (!sourceId) throw new Error('Pokemon Storage source changed.');
-				if (pending.kind === 'copy') {
-					if (destinationId) throw new Error('Copy needs an empty destination Slot.');
-					await catalog.copy(sourceId, placement);
-				} else if (destinationId && sourceId !== destinationId) {
-					await catalog.swap(sourceId, destinationId);
-				} else if (sourceId !== destinationId) {
-					await catalog.place(sourceId, placement);
-				}
+				if (!pending.storageSource) throw new Error('Pokemon Storage source changed.');
+				await catalog.commitCarry(pending.storageSource, pending.kind, placement);
 			} else {
 				if (!sourceSlot.entityBytesBase64) throw new Error('Pokemon Entity bytes are unavailable.');
 				const sourcePokemon = storedPokemonFromSlot(sourceSlot, carryState);
@@ -3211,7 +3253,7 @@
 				};
 				workbenchPanes = setPaneFocus(workbenchPanes, destinationPane.id, destinationFocus);
 				if (refreshed) {
-					statusMessage = `${pending.kind === 'move' ? 'Moved' : 'Copied'} ${sourceSlot.label} to Pokemon Storage.`;
+					statusMessage = `${pending.kind === 'move' ? 'Moved' : 'Duplicated'} ${sourceSlot.label} to Pokemon Storage.`;
 					toastHost.success(statusMessage);
 				}
 				queueMicrotask(focusActiveControl);
@@ -3394,12 +3436,22 @@
 		const source = slotRefForFocus();
 		const sourcePaneId = activePane?.id ?? activePaneId;
 		const sourceOwner = activePane?.source ?? saveFileSource(loadedSave);
+		if (sourceOwner.type === 'pokemon-storage' && (catalogViewStale || source.zone !== 'box'))
+			return;
+		const sourceRecordId = sourceOwner.type === 'pokemon-storage' ? catalogRecordAt(source) : null;
+		if (sourceOwner.type === 'pokemon-storage' && !sourceRecordId) {
+			toastHost.error('Pokemon Storage source changed.');
+			return;
+		}
 		const sourceWorkspace = saveWorkspaceForPane(activePane)?.state ?? null;
 		pendingSlotOperation = {
 			kind,
 			source,
 			sourceLabel: locationForSlotRef(source),
-			sourcePokemonLabel: slot.label
+			sourcePokemonLabel: slot.label,
+			...(sourceRecordId
+				? { storageSource: getPokemonStorageCatalog().carrySource(sourceRecordId) }
+				: {})
 		};
 		carryState = {
 			mode: kind,
@@ -3717,6 +3769,7 @@
 	}
 
 	function openSourceAsPane(type: BoxSourceType, saveFileId: string | null = null) {
+		if (pendingSlotOperation || virtualCarry) return;
 		if (sourcePickerTargetPaneId) {
 			void switchPaneToSource(sourcePickerTargetPaneId, type, saveFileId);
 			return;
@@ -3734,6 +3787,12 @@
 			id,
 			boxCount: sourceBoxCount
 		});
+		if (source.type === 'pokemon-storage')
+			updateVirtualView(id, {
+				preferences: structuredClone(defaultVirtualViewPreferences),
+				focusedId:
+					virtualRecords(catalogManifest, defaultVirtualViewPreferences)[0]?.recordId ?? null
+			});
 		const openedPane = workbenchPanes.find((pane) => pane.id === id);
 		activePaneId = id;
 		navigation = {
@@ -3758,6 +3817,7 @@
 		type: BoxSourceType,
 		saveFileId: string | null = null
 	) {
+		if (pendingSlotOperation || virtualCarry) return;
 		const source = boxSourceForSelection(type, saveFileId);
 		const pane = workbenchPanes.find((candidate) => candidate.id === paneId);
 		if (!pane) return;
@@ -3801,6 +3861,13 @@
 		if (!selectionIsCurrent()) return;
 
 		workbenchPanes = switchPaneSource(workbenchPanes, paneId, source, targetBoxCount);
+		virtualPaneIds = virtualPaneIds.filter((id) => id !== paneId);
+		if (source.type === 'pokemon-storage')
+			updateVirtualView(paneId, {
+				preferences: structuredClone(defaultVirtualViewPreferences),
+				focusedId:
+					virtualRecords(catalogManifest, defaultVirtualViewPreferences)[0]?.recordId ?? null
+			});
 		const switchedPane = workbenchPanes.find((candidate) => candidate.id === paneId);
 		activePaneId = paneId;
 		navigation = {
@@ -3847,7 +3914,7 @@
 	}
 
 	async function closePane(paneId: string) {
-		if (pendingSlotOperation) {
+		if (pendingSlotOperation || virtualCarry) {
 			return;
 		}
 
@@ -3874,6 +3941,10 @@
 			invalidateSavesCache();
 		}
 		workbenchPanes = closeBoxPane(workbenchPanes, paneId);
+		virtualPaneIds = virtualPaneIds.filter((id) => id !== paneId);
+		const remainingVirtualViews = { ...virtualPaneViews };
+		delete remainingVirtualViews[paneId];
+		virtualPaneViews = remainingVirtualViews;
 		if (closingActivePane || !workbenchPanes.some((pane) => pane.id === activePaneId)) {
 			const nextPane = workbenchPanes[0];
 			const nextFocus: SlotFocus = nextPane
@@ -5699,18 +5770,20 @@
 					activePaneId = paneId;
 					virtualPaneIds = [...new Set([...virtualPaneIds, paneId])];
 					const record = getPokemonStorageCatalog().getRecord(result.recordId)!;
-					virtualPreferences = {
-						...virtualPreferences,
-						location:
-							(location === 'unfiled' && record.placement) ||
-							(location === 'overflow' &&
-								!getPokemonStorageCatalog()
-									.listResolvedPlacements()
-									.some((item) => item.recordId === result.recordId && item.overflow))
-								? 'all-pokemon'
-								: location,
-						filters: defaultVirtualViewPreferences.filters
-					};
+					updateVirtualView(paneId, {
+						preferences: {
+							...virtualPreferences,
+							location:
+								(location === 'unfiled' && record.placement) ||
+								(location === 'overflow' &&
+									!getPokemonStorageCatalog()
+										.listResolvedPlacements()
+										.some((item) => item.recordId === result.recordId && item.overflow))
+									? 'all-pokemon'
+									: location,
+							filters: defaultVirtualViewPreferences.filters
+						}
+					});
 					persistVirtualPreferences();
 					catalogManifest = getPokemonStorageCatalog().current;
 					focusVirtualRecord(result.recordId);
@@ -6052,11 +6125,12 @@
 		const legacyStorageRoute = page.url.searchParams.get('source') === 'pokemon-storage';
 
 		try {
-			virtualPreferences = readVirtualViewPreferences(localStorage.getItem('pksx-virtual-view-v1'));
+			const restoredPreferences = readVirtualViewPreferences(
+				localStorage.getItem('pksx-virtual-view-v1')
+			);
 			await restorePokemonStorage();
-			if (virtualPreferences.location === 'overflow' && overflowCount === 0) {
-				virtualPreferences = { ...virtualPreferences, location: 'all-pokemon' };
-				persistVirtualPreferences();
+			if (restoredPreferences.location === 'overflow' && overflowCount === 0) {
+				restoredPreferences.location = 'all-pokemon';
 				localStorage.setItem('pksx-last-storage-location-v1', 'all-pokemon');
 			}
 			const [availableSaveFiles, activeSaveFileId, restoredActiveSave] = await Promise.all([
@@ -6082,6 +6156,7 @@
 					});
 			workbenchPanes = session.panes;
 			activePaneId = session.activePaneId;
+			updateVirtualView(session.panes[0].id, { preferences: restoredPreferences });
 			virtualPaneIds = ['all-pokemon', 'unfiled', 'overflow', 'recently-deleted'].includes(
 				localStorage.getItem('pksx-last-storage-location-v1') ?? ''
 			)
@@ -6089,7 +6164,9 @@
 						.filter((pane) => pane.source.type === 'pokemon-storage')
 						.map((pane) => pane.id)
 				: [];
-			virtualFocusedId = virtualRecords(catalogManifest, virtualPreferences)[0]?.recordId ?? null;
+			updateVirtualView(session.activePaneId, {
+				focusedId: virtualRecordsFor(session.activePaneId)[0]?.recordId ?? null
+			});
 
 			await Promise.all(
 				workbenchPanes.map(async (pane) => {
@@ -6572,11 +6649,11 @@
 					data-pane-id={pane.id}
 					data-source-id={pane.source.id}
 					data-location={paneVirtual
-						? virtualPreferences.location
+						? virtualViewFor(pane.id).preferences.location
 						: paneParty
 							? 'party'
 							: `box-${paneBox}`}
-					aria-label={`${pane.source.label}, ${paneVirtual ? (virtualPreferences.location === 'unfiled' ? 'Unfiled' : virtualPreferences.location === 'overflow' ? 'Overflow' : virtualPreferences.location === 'recently-deleted' ? 'Recently Deleted' : 'All Pokemon') : paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
+					aria-label={`${pane.source.label}, ${paneVirtual ? (virtualViewFor(pane.id).preferences.location === 'unfiled' ? 'Unfiled' : virtualViewFor(pane.id).preferences.location === 'overflow' ? 'Overflow' : virtualViewFor(pane.id).preferences.location === 'recently-deleted' ? 'Recently Deleted' : 'All Pokemon') : paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
 					aria-busy={paneBusy ? 'true' : undefined}
 				>
 					<div class="pane-header">
@@ -6663,9 +6740,9 @@
 									key: pane.source.type,
 									label: pane.source.label,
 									activeBoxLabel: paneVirtual
-										? virtualPreferences.location === 'unfiled'
+										? virtualViewFor(pane.id).preferences.location === 'unfiled'
 											? 'Unfiled'
-											: virtualPreferences.location === 'overflow'
+											: virtualViewFor(pane.id).preferences.location === 'overflow'
 												? 'Overflow'
 												: virtualPreferences.location === 'recently-deleted'
 													? 'Recently Deleted'
@@ -6677,7 +6754,7 @@
 									boxCount:
 										pane.source.type === 'pokemon-storage' ? pokemonStorageBoxCount : pane.boxCount,
 									occupied: paneVirtual
-										? activeVirtualRecords.length
+										? virtualRecordsFor(pane.id).length
 										: paneSlots.filter((slot) => slot.kind === 'pokemon').length,
 									capacity: paneParty ? PARTY_SLOT_COUNT : BOX_SLOT_COUNT,
 									location: paneVirtual ? 'virtual' : paneParty ? 'party' : 'box'
@@ -6705,14 +6782,14 @@
 						</div>
 					</div>
 					{#if paneVirtual}
-						{#if virtualPreferences.location === 'recently-deleted'}
+{#if virtualViewFor(pane.id).preferences.location === 'recently-deleted'}
 							<RecentlyDeletedGrid
-								records={activeVirtualRecords}
-								focusedId={paneActive ? virtualFocusedId : null}
+								records={virtualRecordsFor(pane.id)}
+								focusedId={paneActive ? virtualViewFor(pane.id).focusedId : null}
 								{busy}
 								onFocus={(id) => {
 									activatePane(pane, false);
-									virtualFocusedId = id;
+									updateVirtualView(pane.id, { focusedId: id });
 								}}
 								onOpen={(id) => {
 									activatePane(pane, false);
@@ -6722,49 +6799,50 @@
 									activatePane(pane, false);
 									requestEmptyRecentlyDeleted();
 								}}
-								onColumns={(columns) => (virtualColumns = columns)}
+								onColumns={(columns) => updateVirtualView(pane.id, { columns })}
 							/>
 						{:else}
-							<VirtualPokemonGrid
-								records={activeVirtualRecords}
-								allRecords={catalogManifest?.records ?? []}
-								preferences={virtualPreferences}
-								focusedId={paneActive ? virtualFocusedId : null}
-								{busy}
-								onPreferences={(preferences) => {
-									activatePane(pane, false);
-									setVirtualPreferences(preferences);
-								}}
-								onFocus={(id) => {
-									activatePane(pane, false);
-									focusVirtualRecord(id);
-								}}
-								onMoveToUnfiled={(id) => {
-									activatePane(pane, false);
-									void moveToUnfiled(id);
-								}}
-								onCarry={(id, mode) => {
-									activatePane(pane, false);
-									beginVirtualCarry(id, mode);
-								}}
-								onColumns={(columns) => {
-									const restoreRecord =
-										paneActive &&
-										document.activeElement?.id === `virtual-record-${virtualFocusedId}`
-											? virtualFocusedId
-											: null;
-									virtualColumns = columns;
-									if (restoreRecord)
-										void tick().then(() => {
-											if (
-												pane.id === activePaneId &&
-												(document.activeElement === document.body ||
-													document.activeElement?.id === `virtual-record-${restoreRecord}`)
-											)
-												focusVirtualRecord(restoreRecord, true);
-										});
-								}}
-							/>
+						<VirtualPokemonGrid
+							paneId={pane.id}
+							active={paneActive}
+							records={virtualRecordsFor(pane.id)}
+							allRecords={catalogManifest?.records ?? []}
+							preferences={virtualViewFor(pane.id).preferences}
+							focusedId={paneActive ? virtualViewFor(pane.id).focusedId : null}
+							{busy}
+							onPreferences={(preferences) => {
+								activatePane(pane, false);
+								setVirtualPreferences(preferences);
+							}}
+							onFocus={(id) => {
+								activatePane(pane, false);
+								focusVirtualRecord(id);
+							}}
+							onMoveToUnfiled={(id) => {
+								activatePane(pane, false);
+								void moveToUnfiled(id);
+							}}
+							onCarry={(id, mode) => {
+								activatePane(pane, false);
+								beginVirtualCarry(id, mode);
+							}}
+							onColumns={(columns) => {
+								const restoreRecord =
+									paneActive && document.activeElement?.id === `virtual-record-${virtualFocusedId}`
+										? virtualFocusedId
+										: null;
+								updateVirtualView(pane.id, { columns });
+								if (restoreRecord)
+									void tick().then(() => {
+										if (
+											pane.id === activePaneId &&
+											(document.activeElement === document.body ||
+												document.activeElement?.id === `virtual-record-${restoreRecord}`)
+										)
+											focusVirtualRecord(restoreRecord, true);
+									});
+							}}
+						/>
 						{/if}
 					{:else}
 						<div
@@ -6883,7 +6961,8 @@
 						onclick={() =>
 							virtualFocusedRecord
 								? beginVirtualCarry(virtualFocusedRecord.recordId, 'copy')
-								: beginPendingSlotOperation('copy')}>Copy</button
+								: beginPendingSlotOperation('copy')}
+						>{activePane?.source.type === 'pokemon-storage' ? 'Duplicate' : 'Copy'}</button
 					>
 				</div>
 			{/if}
@@ -6974,7 +7053,7 @@
 		collection={boxPickerTarget.source.label}
 		locations={boxPickerLocations}
 		activeLocationId={virtualPaneIds.includes(boxPickerPane.id)
-			? virtualPreferences.location
+			? virtualViewFor(boxPickerPane.id).preferences.location
 			: `physical-box-${boxPickerPane.activeBox}`}
 		activeIndex={boxPickerFocusIndex}
 		boxNameUnavailableReason={boxPickerNameUnavailableReason}
