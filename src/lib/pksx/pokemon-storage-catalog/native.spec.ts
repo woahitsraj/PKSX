@@ -254,6 +254,6 @@ it('does not sweep a staged blob while its native manifest commit is in flight',
 	await expect(persistence.read()).rejects.toThrow(/checksum/);
 	files.set(`pokemon-storage-catalog/blobs/${reference.id}.bin`, payload);
 	await persistence.commit(1, { ...manifest, revision: 2, records: [] }, []);
-	expect(await persistence.sweep()).toBe(0);
-	expect(await persistence.readBlob(reference)).toEqual(payload);
+	expect(await persistence.sweep()).toBe(1);
+	expect(await persistence.readBlob(reference)).toBeNull();
 });

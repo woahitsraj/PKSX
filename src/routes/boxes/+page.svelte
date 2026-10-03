@@ -134,6 +134,7 @@
 	import PokemonEditor from '$lib/components/pksx/PokemonEditor.svelte';
 	import SlotActionMenu from '$lib/components/pksx/SlotActionMenu.svelte';
 	import StorageSlot from '$lib/components/pksx/StorageSlot.svelte';
+	import RecentlyDeletedGrid from '$lib/components/pksx/RecentlyDeletedGrid.svelte';
 	import VirtualPokemonGrid from '$lib/components/pksx/VirtualPokemonGrid.svelte';
 	import {
 		VIRTUAL_POKEMON_ROW_HEIGHT,
@@ -592,6 +593,12 @@
 						label: 'Unfiled',
 						detail: 'Without a Box',
 						location: { kind: 'virtual' as const, id: 'unfiled' }
+					},
+					{
+						id: 'recently-deleted',
+						label: 'Recently Deleted',
+						detail: 'Restore deleted Pokemon',
+						location: { kind: 'virtual' as const, id: 'recently-deleted' }
 					}
 				]
 			: []),
@@ -1434,7 +1441,9 @@
 		)
 			return;
 		const index = activeVirtualRecords.findIndex((record) => record.recordId === recordId);
-		const viewport = document.querySelector<HTMLElement>('.active-pane .virtual-browser .viewport');
+		const viewport = document.querySelector<HTMLElement>(
+			'.active-pane .virtual-browser .viewport, .active-pane .recently-deleted .grid-viewport'
+		);
 		if (viewport && index >= 0) {
 			const top = Math.floor(index / virtualColumns) * VIRTUAL_POKEMON_ROW_HEIGHT;
 			if (top < viewport.scrollTop) viewport.scrollTop = top;
@@ -1516,6 +1525,29 @@
 		} finally {
 			busy = false;
 		}
+	}
+
+	async function changeDeletedRecords(action: () => Promise<void>, message: string) {
+		if (busy || catalogViewStale) return;
+		busy = true;
+		try {
+			await action();
+			if (!(await refreshCommittedCatalogView())) return;
+			virtualFocusedId = virtualRecords(catalogManifest, virtualPreferences)[0]?.recordId ?? null;
+			statusMessage = message;
+			toastHost.success(message);
+		} catch (error) {
+			toastHost.error(getErrorMessage(error));
+		} finally {
+			busy = false;
+		}
+	}
+
+	function emptyRecentlyDeleted() {
+		void changeDeletedRecords(
+			() => getPokemonStorageCatalog().emptyRecentlyDeleted(),
+			'Recently Deleted emptied.'
+		);
 	}
 
 	function beginVirtualCarry(recordId: string, mode: 'move' | 'copy') {
@@ -3883,9 +3915,10 @@
 	}
 
 	function initializeStorageLocation(paneId: string) {
-		const location = localStorage.getItem('pksx-last-storage-location-v1') ?? 'all-pokemon';
+		const location = (localStorage.getItem('pksx-last-storage-location-v1') ??
+			'all-pokemon') as VirtualLocation;
 		virtualPaneIds = virtualPaneIds.filter((id) => id !== paneId);
-		if (location !== 'all-pokemon' && location !== 'unfiled' && location !== 'overflow') return;
+		if (!['all-pokemon', 'unfiled', 'overflow', 'recently-deleted'].includes(location)) return;
 		virtualPaneIds = [...virtualPaneIds, paneId];
 		virtualPaneLocations = { ...virtualPaneLocations, [paneId]: location };
 		virtualFocusedId =
@@ -5919,7 +5952,12 @@
 
 	function captureActiveQuickSearchSaveFile(): QuickSearchSaveFile | null {
 		const pane = workbenchPanes.find(({ id }) => id === activePaneId);
-		if (initialStateReady && pane?.source.type === 'pokemon-storage' && activeVirtualLocation) {
+		if (
+			initialStateReady &&
+			pane?.source.type === 'pokemon-storage' &&
+			activeVirtualLocation &&
+			activeVirtualLocation !== 'recently-deleted'
+		) {
 			const paneId = pane.id;
 			const location = activeVirtualLocation;
 			return {
@@ -7065,7 +7103,7 @@
 						: paneParty
 							? 'party'
 							: `box-${paneBox}`}
-					aria-label={`${pane.source.label}, ${paneVirtual ? (panePreferences.location === 'unfiled' ? 'Unfiled' : panePreferences.location === 'overflow' ? 'Overflow' : 'All Pokemon') : paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
+					aria-label={`${pane.source.label}, ${paneVirtual ? (panePreferences.location === 'unfiled' ? 'Unfiled' : panePreferences.location === 'overflow' ? 'Overflow' : panePreferences.location === 'recently-deleted' ? 'Recently Deleted' : 'All Pokemon') : paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
 					aria-busy={paneBusy ? 'true' : undefined}
 				>
 					<div class="pane-header">
@@ -7148,7 +7186,9 @@
 											? 'Unfiled'
 											: panePreferences.location === 'overflow'
 												? 'Overflow'
-												: 'All Pokemon'
+												: panePreferences.location === 'recently-deleted'
+													? 'Recently Deleted'
+													: 'All Pokemon'
 										: paneParty
 											? 'Party'
 											: boxNameFor(paneBox, pane),
@@ -7179,50 +7219,77 @@
 						</div>
 					</div>
 					{#if paneVirtual}
-						<VirtualPokemonGrid
-							paneId={pane.id}
-							records={virtualRecords(catalogManifest, panePreferences)}
-							allRecords={catalogManifest?.records ?? []}
-							preferences={panePreferences}
-							focusedId={paneActive ? virtualFocusedId : null}
-							{busy}
-							onPreferences={(preferences) => {
-								activatePane(pane, false);
-								setVirtualPreferences(preferences);
-							}}
-							onFocus={(id) => {
-								activatePane(pane, false);
-								focusVirtualRecord(id);
-							}}
-							onMoveToUnfiled={(id) => {
-								activatePane(pane, false);
-								void moveToUnfiled(id);
-							}}
-							onCarry={(id, mode) => {
-								activatePane(pane, false);
-								beginVirtualCarry(id, mode);
-							}}
-							onColumns={(columns) => {
-								const restoreRecord =
-									paneActive &&
-									virtualFocusedId &&
-									document.activeElement?.id ===
-										virtualRecordControlId(activePaneId, virtualFocusedId)
-										? virtualFocusedId
-										: null;
-								virtualColumns = columns;
-								if (restoreRecord)
-									void tick().then(() => {
-										if (
-											pane.id === activePaneId &&
-											(document.activeElement === document.body ||
-												document.activeElement?.id ===
-													virtualRecordControlId(activePaneId, restoreRecord))
-										)
-											focusVirtualRecord(restoreRecord, true);
-									});
-							}}
-						/>
+						{#if panePreferences.location === 'recently-deleted'}
+							<RecentlyDeletedGrid
+								records={virtualRecords(catalogManifest, panePreferences)}
+								focusedId={paneActive ? virtualFocusedId : null}
+								{busy}
+								onFocus={(id) => {
+									activatePane(pane, false);
+									virtualFocusedId = id;
+								}}
+								onRestore={(id) =>
+									void changeDeletedRecords(
+										() =>
+											getPokemonStorageCatalog()
+												.restore(id)
+												.then(() => undefined),
+										'Pokemon restored.'
+									)}
+								onDelete={(id) =>
+									void changeDeletedRecords(
+										() => getPokemonStorageCatalog().deletePermanently(id),
+										'Pokemon permanently deleted.'
+									)}
+								onEmpty={emptyRecentlyDeleted}
+								onColumns={(columns) => (virtualColumns = columns)}
+							/>
+						{:else}
+							<VirtualPokemonGrid
+								paneId={pane.id}
+								records={virtualRecords(catalogManifest, panePreferences)}
+								allRecords={catalogManifest?.records ?? []}
+								preferences={panePreferences}
+								focusedId={paneActive ? virtualFocusedId : null}
+								{busy}
+								onPreferences={(preferences) => {
+									activatePane(pane, false);
+									setVirtualPreferences(preferences);
+								}}
+								onFocus={(id) => {
+									activatePane(pane, false);
+									focusVirtualRecord(id);
+								}}
+								onMoveToUnfiled={(id) => {
+									activatePane(pane, false);
+									void moveToUnfiled(id);
+								}}
+								onCarry={(id, mode) => {
+									activatePane(pane, false);
+									beginVirtualCarry(id, mode);
+								}}
+								onColumns={(columns) => {
+									const restoreRecord =
+										paneActive &&
+										virtualFocusedId &&
+										document.activeElement?.id ===
+											virtualRecordControlId(activePaneId, virtualFocusedId)
+											? virtualFocusedId
+											: null;
+									virtualColumns = columns;
+									if (restoreRecord)
+										void tick().then(() => {
+											if (
+												pane.id === activePaneId &&
+												(document.activeElement === document.body ||
+													document.activeElement?.id ===
+														virtualRecordControlId(activePaneId, restoreRecord))
+											)
+												focusVirtualRecord(restoreRecord, true);
+										});
+								}}
+							/>
+						{/if}
 					{:else}
 						<div
 							id={paneActive ? 'box-grid' : `box-grid-${pane.id}`}
@@ -7351,10 +7418,11 @@
 					<button
 						type="button"
 						tabindex="-1"
-						disabled={(activeVirtualLocation
-							? !virtualFocusedRecord
-							: focusedSlot.kind !== 'pokemon' ||
-								!paneSlotActionsReady(activePane, activeSlotFocus)) ||
+						disabled={activeVirtualLocation === 'recently-deleted' ||
+							(activeVirtualLocation
+								? !virtualFocusedRecord
+								: focusedSlot.kind !== 'pokemon' ||
+									!paneSlotActionsReady(activePane, activeSlotFocus)) ||
 							pendingSlotOperation !== null ||
 							virtualCarry !== null}
 						onpointerdown={(event) =>
@@ -7367,10 +7435,11 @@
 					<button
 						type="button"
 						tabindex="-1"
-						disabled={(activeVirtualLocation
-							? !virtualFocusedRecord
-							: focusedSlot.kind !== 'pokemon' ||
-								!paneSlotActionsReady(activePane, activeSlotFocus)) ||
+						disabled={activeVirtualLocation === 'recently-deleted' ||
+							(activeVirtualLocation
+								? !virtualFocusedRecord
+								: focusedSlot.kind !== 'pokemon' ||
+									!paneSlotActionsReady(activePane, activeSlotFocus)) ||
 							pendingSlotOperation !== null ||
 							virtualCarry !== null}
 						onpointerdown={(event) =>
