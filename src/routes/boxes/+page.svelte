@@ -504,6 +504,17 @@
 			: null
 	);
 	const activeVirtualRecords = $derived(virtualRecords(catalogManifest, virtualPreferences));
+	const virtualFocusedRecord = $derived(
+		activeVirtualLocation
+			? activeVirtualRecords.find((record) => record.recordId === virtualFocusedId)
+			: null
+	);
+	const virtualCarryRecord = $derived.by(() => {
+		const pending = virtualCarry;
+		return pending
+			? catalogManifest?.records.find((record) => record.recordId === pending.recordId)
+			: null;
+	});
 	const virtualMenuRecord = $derived(
 		catalogManifest?.records.find((record) => record.recordId === virtualMenuRecordId)
 	);
@@ -589,8 +600,38 @@
 				: null
 	);
 	const focusedSlot = $derived(summonedSlot ?? navigationFocusedSlot);
+	const sharedFocusedSlot = $derived(
+		activeVirtualLocation
+			? virtualFocusedRecord
+				? createSlotView({ ...virtualFocusedRecord.projection, entityBytesBase64: null })
+				: noSelectedSlot
+			: focusedSlot
+	);
 	const focusedSlotPane = $derived(summonedSlotLauncher ? summonedSlotPane : activePane);
 	const carriedSpriteUrl = $derived(carryState?.spriteUrl ?? null);
+	const virtualCarrySprite = $derived(
+		virtualCarryRecord
+			? resolveSpriteCatalogEntry(virtualCarryRecord.projection.spriteIdentity)
+			: null
+	);
+	const carriedAtFocus = $derived(
+		carryState
+			? {
+					label: carryState.pokemonLabel,
+					mode: carryState.mode,
+					spriteUrl: carriedSpriteUrl
+				}
+			: virtualCarry && virtualCarryRecord
+				? {
+						label:
+							virtualCarryRecord.projection.nickname ||
+							virtualCarryRecord.projection.speciesName ||
+							'Pokemon',
+						mode: virtualCarry.mode,
+						spriteUrl: virtualCarrySprite ? asset(virtualCarrySprite.path) : null
+					}
+				: null
+	);
 	const focusedSlotOwner = $derived(focusedSlotPane?.source ?? pokemonStorageSource());
 	const focusedPaneWorkspace = $derived(saveWorkspaceForPane(focusedSlotPane));
 	const createPokemonAvailability = $derived(
@@ -756,8 +797,9 @@
 			cancelVirtualCarry();
 			return true;
 		}
-		if (virtualCarry && action === 'confirm' && isSlotFocus(navigation.focus)) {
-			void completeVirtualCarry(slotRefForFocus());
+		if (virtualCarry && action === 'confirm') {
+			if (!activeVirtualLocation && isSlotFocus(navigation.focus))
+				void completeVirtualCarry(slotRefForFocus());
 			return true;
 		}
 
@@ -766,7 +808,9 @@
 			return true;
 		}
 
-		return tryNavigateBetweenPanes(action);
+		return activeVirtualLocation
+			? tryNavigateFromVirtualPane(action)
+			: tryNavigateBetweenPanes(action);
 	}
 
 	function dispatchNavigation(action: NavigationAction) {
@@ -1042,6 +1086,70 @@
 			locationFocus: crossing.focus
 		};
 		workbenchPanes = setPaneFocus(workbenchPanes, nextPane.id, crossing.focus);
+		return true;
+	}
+
+	function tryNavigateFromVirtualPane(action: NavigationAction): boolean {
+		if (
+			!['up', 'down', 'left', 'right'].includes(action) ||
+			workbenchPanes.length !== 2 ||
+			!activePane ||
+			!virtualFocusedId
+		)
+			return false;
+		const index = activeVirtualRecords.findIndex((record) => record.recordId === virtualFocusedId);
+		if (index < 0) return false;
+		const source = document.querySelector<HTMLElement>('.box-pane.active-pane');
+		const destination = Array.from(document.querySelectorAll<HTMLElement>('.box-pane')).find(
+			(element) => element.dataset.paneId !== activePane.id
+		);
+		const nextPane = workbenchPanes.find((pane) => pane.id === destination?.dataset.paneId);
+		if (!source || !destination || !nextPane) return false;
+		const sourceBounds = source.getBoundingClientRect();
+		const destinationBounds = destination.getBoundingClientRect();
+		const dx =
+			(destinationBounds.left + destinationBounds.right - sourceBounds.left - sourceBounds.right) /
+			2;
+		const dy =
+			(destinationBounds.top + destinationBounds.bottom - sourceBounds.top - sourceBounds.bottom) /
+			2;
+		const columns = Math.max(1, virtualColumns);
+		const row = Math.floor(index / columns);
+		const column = index % columns;
+		const rows = Math.ceil(activeVirtualRecords.length / columns);
+		const sideBySide = Math.abs(dx) > Math.abs(dy);
+		if (sideBySide) {
+			if (
+				(action !== 'left' || dx >= 0 || column !== 0) &&
+				(action !== 'right' ||
+					dx <= 0 ||
+					column !== Math.min(columns - 1, activeVirtualRecords.length - row * columns - 1))
+			)
+				return false;
+		} else if (
+			(action !== 'up' || dy >= 0 || row !== 0) &&
+			(action !== 'down' || dy <= 0 || row !== rows - 1)
+		)
+			return false;
+		const destinationColumns = nextPane.focus.zone === 'party' ? PARTY_COLUMNS : BOX_COLUMNS;
+		const destinationRows = nextPane.focus.zone === 'party' ? PARTY_ROWS : BOX_ROWS;
+		const destinationRow = sideBySide
+			? Math.min(row, destinationRows - 1)
+			: dy > 0
+				? 0
+				: destinationRows - 1;
+		const destinationColumn = sideBySide
+			? dx > 0
+				? 0
+				: destinationColumns - 1
+			: Math.min(column, destinationColumns - 1);
+		const focus =
+			nextPane.focus.zone === 'party'
+				? focusPartySlot(destinationRow * destinationColumns + destinationColumn)
+				: focusBoxSlot(destinationRow * destinationColumns + destinationColumn);
+		activatePane(nextPane);
+		navigation = { ...navigation, focus, locationFocus: focus };
+		workbenchPanes = setPaneFocus(workbenchPanes, nextPane.id, focus);
 		return true;
 	}
 
@@ -5181,6 +5289,7 @@
 			const paneId = pane.id;
 			const location = activeVirtualLocation;
 			return {
+				scope: 'pokemon-storage',
 				fileName: 'Pokemon Storage',
 				isAvailable: async () => Boolean(getPokemonStorageCatalog().current),
 				loadResults: async () =>
@@ -5218,6 +5327,7 @@
 		const source = { ...pane.source };
 
 		return {
+			scope: 'save-file',
 			fileName: source.label,
 			isAvailable: async () => {
 				if (!matchesActiveQuickSearchSaveFile(pane.id, source)) return false;
@@ -6277,12 +6387,8 @@
 												rowIndex={position.row + 1}
 												colIndex={position.column + 1}
 												spriteUrl={spriteUrlFor(slot)}
-												carried={paneActive && isFocused(slotRef.zone, slot.slot) && carryState
-													? {
-															label: carryState.pokemonLabel,
-															mode: carryState.mode,
-															spriteUrl: carriedSpriteUrl
-														}
+												carried={paneActive && isFocused(slotRef.zone, slot.slot)
+													? carriedAtFocus
 													: null}
 												destinationState={pendingSlotOperation
 													? destinationStateFor(slotRef, slot, pane)
@@ -6330,33 +6436,51 @@
 					<button
 						type="button"
 						tabindex="-1"
-						disabled={focusedSlot.kind !== 'pokemon' || pendingSlotOperation !== null}
+						disabled={(activeVirtualLocation
+							? !virtualFocusedRecord
+							: focusedSlot.kind !== 'pokemon') ||
+							pendingSlotOperation !== null ||
+							virtualCarry !== null}
 						onpointerdown={(event) => event.preventDefault()}
-						onclick={() => beginPendingSlotOperation('move')}>Move</button
+						onclick={() =>
+							virtualFocusedRecord
+								? beginVirtualCarry(virtualFocusedRecord.recordId, 'move')
+								: beginPendingSlotOperation('move')}>Move</button
 					>
 					<button
 						type="button"
 						tabindex="-1"
-						disabled={focusedSlot.kind !== 'pokemon' || pendingSlotOperation !== null}
+						disabled={(activeVirtualLocation
+							? !virtualFocusedRecord
+							: focusedSlot.kind !== 'pokemon') ||
+							pendingSlotOperation !== null ||
+							virtualCarry !== null}
 						onpointerdown={(event) => event.preventDefault()}
-						onclick={() => beginPendingSlotOperation('copy')}>Copy</button
+						onclick={() =>
+							virtualFocusedRecord
+								? beginVirtualCarry(virtualFocusedRecord.recordId, 'copy')
+								: beginPendingSlotOperation('copy')}>Copy</button
 					>
 				</div>
 			{/if}
 			<DetailRail
-				{focusedSlot}
-				focusZone={activeSlotFocus?.zone ?? null}
-				focusSlot={activeSlotFocus?.slot ?? null}
-				slotHueStyle={slotStyle(focusedSlot, activePaneBox)}
-				spriteUrl={spriteUrlFor(focusedSlot)}
+				focusedSlot={sharedFocusedSlot}
+				focusZone={activeVirtualLocation ? null : (activeSlotFocus?.zone ?? null)}
+				focusSlot={activeVirtualLocation ? null : (activeSlotFocus?.slot ?? null)}
+				slotHueStyle={slotStyle(sharedFocusedSlot, activePaneBox)}
+				spriteUrl={spriteUrlFor(sharedFocusedSlot)}
 				{saveSummary}
 				activeBoxName={boxNameFor(
 					summonedSlotBox ?? focusedSlotPane?.activeBox ?? activePaneBox,
 					focusedSlotPane
 				)}
-				positionLabel={carryState
-					? `${activeSlotPositionLabel} · ${carryState.mode === 'move' ? 'Drop' : 'Copy'} target`
-					: activeSlotPositionLabel}
+				positionLabel={activeVirtualLocation
+					? activeVirtualLocation === 'unfiled'
+						? 'Unfiled'
+						: 'All Pokemon'
+					: carryState || virtualCarry
+						? `${activeSlotPositionLabel} · ${(carryState?.mode ?? virtualCarry?.mode) === 'move' ? 'Drop' : 'Copy'} target`
+						: activeSlotPositionLabel}
 			/>
 		</div>
 	</section>

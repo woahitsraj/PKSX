@@ -2928,6 +2928,113 @@ test('keeps a virtual Storage source after Save commits but retirement fails', a
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 });
 
+test('shared Carry and arrows use the focused virtual record in a Save and Storage layout', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	const [savePane, storagePane] = [
+		page.locator('.box-pane').nth(0),
+		page.locator('.box-pane').nth(1)
+	];
+	await savePane.locator('[id$="box-0-slot-0"]').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	await storagePane.locator('[id$="box-0-slot-0"]').click();
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await page.evaluate(async () => {
+		const db = await new Promise<IDBDatabase>((resolve, reject) => {
+			const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+			opening.onsuccess = () => resolve(opening.result);
+			opening.onerror = () => reject(opening.error);
+		});
+		const manifest = await new Promise<{ records: Array<Record<string, unknown>> }>(
+			(resolve, reject) => {
+				const request = db.transaction('manifest').objectStore('manifest').get('current');
+				request.onsuccess = () => resolve(request.result);
+				request.onerror = () => reject(request.error);
+			}
+		);
+		const template = manifest.records[0];
+		manifest.records.push(
+			...Array.from({ length: 15 }, (_, index) => ({
+				...template,
+				recordId: `virtual-${String(index).padStart(3, '0')}`,
+				placement: null,
+				createdAt: '2030-01-01T00:00:00Z',
+				projection: {
+					...(template.projection as Record<string, unknown>),
+					nickname: `CLONE ${String(index).padStart(2, '0')}`
+				}
+			}))
+		);
+		await new Promise<void>((resolve, reject) => {
+			const transaction = db.transaction('manifest', 'readwrite');
+			transaction.objectStore('manifest').put(manifest, 'current');
+			transaction.oncomplete = () => resolve();
+			transaction.onerror = () => reject(transaction.error);
+		});
+		db.close();
+	});
+	await page.reload();
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	await storagePane.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /All Pokemon: All Pokemon/ }).click();
+	const grid = storagePane.getByRole('grid', { name: 'All Pokemon' });
+	const columns = Number(await grid.getAttribute('aria-colcount'));
+	expect(columns).toBeGreaterThan(1);
+	await savePane.locator('[id$="box-0-slot-0"]').click();
+	await storagePane
+		.locator(`#virtual-record-virtual-${String(columns + 1).padStart(3, '0')}`)
+		.click();
+	await page.keyboard.press('ArrowLeft');
+	await expect(
+		storagePane.locator(`#virtual-record-virtual-${String(columns).padStart(3, '0')}`)
+	).toBeFocused();
+	await expect(storagePane).toHaveClass(/active-pane/);
+	await storagePane.locator('#virtual-record-virtual-007').click();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	await page.getByRole('button', { name: /Box 01: Box 01/ }).click();
+	await storagePane.locator('[id$="box-0-slot-1"]').click();
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await expect(storagePane.locator('[id$="box-0-slot-1"]')).toContainText('ARON');
+	const placements = await page.evaluate(async () => {
+		const db = await new Promise<IDBDatabase>((resolve, reject) => {
+			const opening = indexedDB.open('pksx-pokemon-storage-catalog');
+			opening.onsuccess = () => resolve(opening.result);
+			opening.onerror = () => reject(opening.error);
+		});
+		const records = await new Promise<
+			Array<{ recordId: string; placement: { slot: number } | null }>
+		>((resolve, reject) => {
+			const request = db.transaction('manifest').objectStore('manifest').get('current');
+			request.onsuccess = () => resolve(request.result.records);
+			request.onerror = () => reject(request.error);
+		});
+		db.close();
+		return records;
+	});
+	expect(placements.find((record) => record.recordId === 'virtual-007')?.placement?.slot).toBe(1);
+	expect(placements.filter((record) => record.placement?.slot === 0)).toHaveLength(1);
+});
+
 test('moves a Party Pokemon into an empty Storage Slot and keeps focus on its source Slot', async ({
 	page
 }) => {

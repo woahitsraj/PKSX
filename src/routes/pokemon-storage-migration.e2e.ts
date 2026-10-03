@@ -86,7 +86,18 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		page.getByRole('grid', { name: 'Unfiled Pokemon' }).getByRole('gridcell')
 	).toHaveCount(1);
 	await page.locator('.carry-actions').getByRole('button', { name: 'Move' }).click();
+	await page.keyboard.press('Escape');
+	await page.keyboard.press('Enter');
+	await expect(page.locator('[data-location="unfiled"]')).toBeVisible();
+	await expect(
+		page.getByRole('grid', { name: 'Unfiled Pokemon' }).getByRole('gridcell')
+	).toHaveCount(1);
+	await page.keyboard.press('x');
 	await page.getByRole('button', { name: /Box 01: Box 01/ }).click();
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
+	await page.keyboard.press('y');
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
+	await page.keyboard.press('y');
 	await page.locator('#box-0-slot-4').click();
 	await expect(page.locator('#box-0-slot-4')).toContainText('ARON');
 	await page.reload();
