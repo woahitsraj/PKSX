@@ -3033,6 +3033,28 @@ test('shared Carry and arrows use the focused virtual record in a Save and Stora
 	});
 	expect(placements.find((record) => record.recordId === 'virtual-007')?.placement?.slot).toBe(1);
 	expect(placements.filter((record) => record.placement?.slot === 0)).toHaveLength(1);
+	await storagePane.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /All Pokemon: All Pokemon/ }).click();
+	for (const mode of ['Copy', 'Move'] as const) {
+		await savePane.locator('[id$="box-0-slot-0"]').focus();
+		await page.getByLabel('Transfer controls').getByRole('button', { name: mode }).click();
+		await storagePane.locator('#virtual-record-virtual-008').click();
+		await page.keyboard.press('Enter');
+		await expect(
+			page
+				.locator('.toast-error', {
+					hasText: 'Choose a physical Storage Box before dropping Pokemon.'
+				})
+				.last()
+		).toBeVisible();
+		await expect(storagePane).toHaveAttribute('data-location', 'all-pokemon');
+		if (mode === 'Copy') await page.keyboard.press('Escape');
+	}
+	await page.keyboard.press('x');
+	await page.getByRole('button', { name: /Box 01: Box 01/ }).click();
+	await storagePane.locator('[id$="box-0-slot-2"]').click();
+	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('Empty');
+	await expect(storagePane.locator('[id$="box-0-slot-2"]')).toContainText('ARON');
 });
 
 test('moves a Party Pokemon into an empty Storage Slot and keeps focus on its source Slot', async ({

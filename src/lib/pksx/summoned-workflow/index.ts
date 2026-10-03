@@ -7,6 +7,7 @@ import {
 
 export type SummonedWorkflowKind =
 	| 'slot-menu'
+	| 'virtual-record-menu'
 	| 'box-menu'
 	| 'main-menu'
 	| 'quick-search'

@@ -724,7 +724,7 @@
 	}
 
 	function dispatchToActiveSurface(action: NavigationAction): boolean {
-		if (virtualMenuRecordId) {
+		if (activeSummonedWorkflow?.kind === 'virtual-record-menu' && virtualMenuRecordId) {
 			if (action === 'back' || action === 'sourceAction') closeVirtualActionMenu();
 			else if (action === 'up' || action === 'down') {
 				virtualMenuIndex = Math.max(
@@ -803,8 +803,11 @@
 			return true;
 		}
 
-		if (pendingSlotOperation && action === 'confirm' && isSlotFocus(navigation.focus)) {
-			void completePendingSlotOperation(slotRefForFocus(navigation.focus));
+		if (pendingSlotOperation && action === 'confirm') {
+			if (activeVirtualLocation)
+				toastHost.error('Choose a physical Storage Box before dropping Pokemon.');
+			else if (isSlotFocus(navigation.focus))
+				void completePendingSlotOperation(slotRefForFocus(navigation.focus));
 			return true;
 		}
 
@@ -1192,7 +1195,18 @@
 	}
 
 	function openVirtualActionMenu(recordId: string) {
-		if (busy || catalogViewStale || virtualCarry || !getPokemonStorageCatalog().getRecord(recordId))
+		if (
+			busy ||
+			catalogViewStale ||
+			pendingSlotOperation ||
+			virtualCarry ||
+			activeSummonedWorkflow ||
+			!getPokemonStorageCatalog().getRecord(recordId)
+		)
+			return;
+		if (
+			!summonedWorkflow.open('virtual-record-menu', controlLauncher(`virtual-record-${recordId}`))
+		)
 			return;
 		virtualMenuRecordId = recordId;
 		virtualMenuIndex = 0;
@@ -1200,20 +1214,23 @@
 	}
 
 	function closeVirtualActionMenu() {
-		const recordId = virtualMenuRecordId;
 		virtualMenuRecordId = null;
-		if (recordId) queueMicrotask(() => focusVirtualRecord(recordId));
+		dismissActiveWorkflow();
 	}
 
 	function selectVirtualAction(command: SlotMenuCommandKey | 'close') {
 		const recordId = virtualMenuRecordId;
-		virtualMenuRecordId = null;
 		if (!recordId || command === 'close') {
-			if (recordId) queueMicrotask(() => focusVirtualRecord(recordId));
+			closeVirtualActionMenu();
 			return;
 		}
+		virtualMenuRecordId = null;
+		summonedWorkflow.dismiss();
 		if (command === 'move' || command === 'copy') beginVirtualCarry(recordId, command);
-		else if (command === 'clear') void moveToUnfiled(recordId);
+		else if (command === 'clear') {
+			void moveToUnfiled(recordId);
+			queueMicrotask(() => focusVirtualRecord(recordId));
+		}
 	}
 
 	async function moveToUnfiled(recordId: string) {
@@ -2555,6 +2572,13 @@
 		destinationPane: BoxPaneState | undefined = activePane
 	) {
 		if (!pendingSlotOperation || busy) {
+			return;
+		}
+		if (
+			destinationPane?.source.type === 'pokemon-storage' &&
+			virtualPaneIds.includes(destinationPane.id)
+		) {
+			toastHost.error('Choose a physical Storage Box before dropping Pokemon.');
 			return;
 		}
 		if (
@@ -6512,7 +6536,7 @@
 	/>
 {/if}
 
-{#if virtualMenuRecord}
+{#if activeSummonedWorkflow?.kind === 'virtual-record-menu' && virtualMenuRecord}
 	<SlotActionMenu
 		location={`${virtualPreferences.location === 'unfiled' ? 'Unfiled' : 'All Pokemon'}, ${virtualMenuRecord.projection.nickname || virtualMenuRecord.projection.speciesName}`}
 		commands={virtualMenuCommands}
