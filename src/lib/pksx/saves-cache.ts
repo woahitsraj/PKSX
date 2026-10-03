@@ -235,6 +235,11 @@ export function setCachedActiveWorkspace(
 	queueSaveCardDetails(workspace.file, detailGeneration);
 }
 
+export function projectCachedActiveWorkspace(workspace: WorkspaceState, box: number) {
+	activeWorkspaceBox = box;
+	getActiveWorkspaceService().project(workspace);
+}
+
 export function consumeActiveSaveAdoption(saveFileId: SaveFileId) {
 	if (pendingActiveSaveAdoption !== saveFileId) return false;
 	pendingActiveSaveAdoption = null;

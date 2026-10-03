@@ -3,6 +3,10 @@ export function copyBytes(bytes: Uint8Array): Uint8Array {
 }
 
 export function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+	if (left === right) {
+		return true;
+	}
+
 	if (left.byteLength !== right.byteLength) {
 		return false;
 	}

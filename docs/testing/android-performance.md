@@ -130,6 +130,52 @@ Same device, fixtures and procedure. Profile build of the #372 branch, 2026-10-0
 - Main Menu to Bag is unchanged at 2276 to 2377 ms, with a long task of about 1.3 s while the
   inventory catalogue loads.
 
+## After #373
+
+Same Retroid Pocket 6, fixtures and procedure. Profile builds of the #373 branch,
+2026-10-03, after clearing the service worker cache and discarding cold launches. The fresh
+baseline below was measured after #372 and before changing #373 code. Times are milliseconds,
+p50 / p90, five runs unless noted.
+
+| Scenario                              | Scarlet   | Sword     | HeartGold | XD        |
+| ------------------------------------- | --------- | --------- | --------- | --------- |
+| Fresh baseline, Next Box              | 203 / 347 | 162 / 173 | 309 / 360 | 159 / 322 |
+| Fresh baseline, five rapid Next Boxes | 837       | 712       | 1107      | 919       |
+| Fresh baseline, focus move (20 moves) | 76 / 80   | 77 / 92   | 96 / 101  | 100 / 106 |
+| After #373, Next Box                  | 93 / 200  | 64 / 77   | 151 / 160 | 74 / 200  |
+| After #373, five rapid Next Boxes     | 779       | 688       | 732       | 712       |
+| After #373, focus move                | 4 / 13    | 7 / 11    | 9 / 16    | 8 / 11    |
+
+The rapid totals include the 90 ms input cadence. Completion after the fifth press was 236,
+129, 207 and 213 ms respectively. The fresh baseline ran four or five complete workspace
+loads. After #373 every fixture ran at most two `listBoxSlots` calls and committed only the
+latest requested Box.
+
+Across the core run's 80 occupied-Box focus moves, the result was 8 / 16 ms with no long task
+over 50 ms. Five isolated moves exceeded 33 ms, with a maximum of 70 ms. A separate 40-move
+Scarlet confirmation was 4 / 13 ms with one 45 ms outlier. Two-pane focus was 11 / 14 ms
+in the Scarlet pane and 6 / 13 ms in the Sword pane. Next Box was 119 / 139 ms and 104 /
+114 ms in those panes.
+
+Held Right reached the fifth move at 610 / 621 ms. This is within one 60 Hz frame of the
+610 ms target. Opening the second pane took 725 ms.
+
+Main Menu and Slot Menu opened in 75 to 95 ms and 91 to 101 ms. A warmed Pokemon Editor
+opened in 114 to 138 ms. The first cold Editor open still took 2174 ms while
+`loadSlotEditData` computed edit constraints for the selected Pokemon. Main Menu to Bag
+remained outside the #373 budget at 2114 to 2327 ms, including a 1.1 to 1.7 s inventory
+catalogue call and a 1.3 to 1.5 s frame gap.
+
+A 30-minute scripted session completed 3,535 focus and Box navigation actions without a
+renderer crash, process restart or loss of the ready Boxes route.
+
+The implementation keeps a two-Save parsed-engine cache, caches adjacent Box summaries,
+coalesces rapid Box requests, commits headers and slots together, and updates Controller Focus
+without rebuilding slot components. The active workspace store also keeps a parsed in-memory
+projection instead of reparsing every slot row and copying Save bytes on each read. Immutable
+Save byte buffers short-circuit equality checks, removing two 4.3 MB main-thread scans from a
+Scarlet Box switch.
+
 ## Bottlenecks
 
 - **The engine keeps no state.** Every request sends the whole Save File, parses it again and

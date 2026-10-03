@@ -202,6 +202,7 @@
 	.detail-rail {
 		min-width: 0;
 		min-height: 0;
+		contain: layout paint style;
 		display: flex;
 		flex-direction: column;
 		gap: 14px;
