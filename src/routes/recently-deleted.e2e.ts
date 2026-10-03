@@ -102,15 +102,32 @@ test('Clear Slot can be restored or permanently deleted', async ({ page }) => {
 	await openRecentlyDeleted(page);
 	const grid = page.getByRole('grid', { name: 'Recently Deleted Pokemon' });
 	await expect(grid.getByRole('gridcell')).toHaveCount(1);
-	await page.getByRole('button', { name: 'Restore' }).first().click();
+	await grid.getByRole('gridcell').focus();
+	await page.keyboard.press('Enter');
+	const menu = page.getByRole('dialog', { name: 'Recently Deleted actions' });
+	await expect(menu).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(menu).toBeHidden();
+	await expect(grid.getByRole('gridcell')).toBeFocused();
+	await grid.getByRole('gridcell').click();
+	await menu.getByRole('button', { name: 'Restore' }).click();
 	await expect(grid.getByRole('gridcell')).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' })
+	).toBeFocused();
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
-	await page.getByRole('button', { name: /Box 01: Box 01/ }).click();
+	await page.getByRole('button', { name: /Box 01: Favorites/ }).click();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	await clearSlot(page, 0);
 	await openRecentlyDeleted(page);
-	await page.getByRole('button', { name: 'Delete Permanently' }).first().click();
+	await grid.getByRole('gridcell').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Enter');
 	await expect(grid.getByRole('gridcell')).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' })
+	).toBeFocused();
 	await page.reload();
 	await expect(page.locator('[data-location="recently-deleted"]')).toBeVisible();
 	await expect(
@@ -125,14 +142,27 @@ test('Empty Recently Deleted needs confirmation', async ({ page }) => {
 	const grid = page.getByRole('grid', { name: 'Recently Deleted Pokemon' });
 	await expect(grid.getByRole('gridcell')).toHaveCount(1);
 	await page.getByRole('button', { name: 'Empty Recently Deleted' }).click();
-	await page
-		.getByRole('group', { name: 'Confirm Empty Recently Deleted' })
-		.getByRole('button', { name: 'Cancel' })
-		.click();
+	const confirm = page.getByRole('dialog', { name: 'Empty Recently Deleted?' });
+	await expect(confirm).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(confirm).toBeHidden();
+	await expect(page.getByRole('button', { name: 'Empty Recently Deleted' })).toBeFocused();
 	await expect(grid.getByRole('gridcell')).toHaveCount(1);
-	await page.getByRole('button', { name: 'Empty Recently Deleted' }).click();
-	await page.getByRole('button', { name: 'Confirm Empty' }).click();
+	await grid.getByRole('gridcell').focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Enter');
+	await expect(confirm).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('dialog', { name: 'Recently Deleted actions' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Empty Recently Deleted' }).last()).toBeFocused();
+	await page.keyboard.press('Enter');
+	await confirm.getByRole('button', { name: 'Confirm Empty' }).click();
 	await expect(grid.getByRole('gridcell')).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' })
+	).toBeFocused();
 	await page.reload();
 	await expect(page.locator('[data-location="recently-deleted"]')).toBeVisible();
 	await expect(
