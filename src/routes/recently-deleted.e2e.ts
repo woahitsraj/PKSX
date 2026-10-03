@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { waitForPokemonStorageRoot } from './pokemon-storage-seed.e2e-helper';
 
 const aron =
 	'rVIoJRblSsu7zMnI/xUAAwQAAgK+w9LDv///AH8OAAB+AQAAfwYAAAAoAAAhAGoAvQAdACMeCg8AAAAAAAAAAAAAAAAAN4uhozfCnwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
@@ -9,6 +10,7 @@ async function seedStorage(page: Page, slots = [0]) {
 		'data-initial-state',
 		'ready'
 	);
+	await waitForPokemonStorageRoot(page);
 	await page.evaluate(
 		async ({ entityBytesBase64, occupied }) => {
 			await new Promise<void>((resolve, reject) => {
