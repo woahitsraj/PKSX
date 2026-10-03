@@ -43,7 +43,22 @@ export type DeletionTombstone = {
 	destinationSaveFileId: string | null;
 	deletedAt: string;
 	revision: number;
+	recovery?: PokemonRecord;
 };
+export const RECOVERY_DAYS = 30;
+export function recoveryAvailable(tombstone: DeletionTombstone, now: string): boolean {
+	return Boolean(
+		tombstone.reason === 'cleared' &&
+		tombstone.recovery &&
+		Date.parse(tombstone.deletedAt) + RECOVERY_DAYS * 86400000 > Date.parse(now)
+	);
+}
+export function referencedPayloads(manifest: PokemonStorageManifest): BlobReference[] {
+	return [
+		...manifest.records.map((record) => record.payload),
+		...manifest.tombstones.flatMap((item) => (item.recovery ? [item.recovery.payload] : []))
+	];
+}
 export type PokemonStorageManifest = {
 	schemaVersion: typeof POKEMON_STORAGE_CATALOG_VERSION;
 	storageId: string;
@@ -171,6 +186,12 @@ export function assertManifest(manifest: PokemonStorageManifest): void {
 			(tombstone.reason !== 'moved-to-save' && tombstone.reason !== 'cleared')
 		)
 			throw new Error('Pokemon deletion destination does not match its reason.');
+		if (
+			!Number.isFinite(Date.parse(tombstone.deletedAt)) ||
+			(tombstone.recovery &&
+				(tombstone.reason !== 'cleared' || tombstone.recovery.recordId !== tombstone.recordId))
+		)
+			throw new Error('Invalid Pokemon deletion recovery.');
 		deleted.add(tombstone.recordId);
 	}
 }

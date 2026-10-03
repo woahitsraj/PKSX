@@ -131,6 +131,7 @@
 	import PokemonEditor from '$lib/components/pksx/PokemonEditor.svelte';
 	import SlotActionMenu from '$lib/components/pksx/SlotActionMenu.svelte';
 	import StorageSlot from '$lib/components/pksx/StorageSlot.svelte';
+	import RecentlyDeletedGrid from '$lib/components/pksx/RecentlyDeletedGrid.svelte';
 	import VirtualPokemonGrid from '$lib/components/pksx/VirtualPokemonGrid.svelte';
 	import { VIRTUAL_POKEMON_ROW_HEIGHT } from '$lib/components/pksx/virtual-pokemon-grid-layout';
 	import TakeoverFrame from '$lib/components/pksx/TakeoverFrame.svelte';
@@ -527,6 +528,12 @@
 						label: 'Unfiled',
 						detail: 'Without a Box',
 						location: { kind: 'virtual' as const, id: 'unfiled' }
+					},
+					{
+						id: 'recently-deleted',
+						label: 'Recently Deleted',
+						detail: 'Restore deleted Pokemon',
+						location: { kind: 'virtual' as const, id: 'recently-deleted' }
 					}
 				]
 			: []),
@@ -1245,7 +1252,9 @@
 		if (!recordId) return;
 		if (!restoreAfterResize && document.activeElement?.id === `virtual-record-${recordId}`) return;
 		const index = activeVirtualRecords.findIndex((record) => record.recordId === recordId);
-		const viewport = document.querySelector<HTMLElement>('.active-pane .virtual-browser .viewport');
+		const viewport = document.querySelector<HTMLElement>(
+			'.active-pane .virtual-browser .viewport, .active-pane .recently-deleted .grid-viewport'
+		);
 		if (viewport && index >= 0) {
 			const top = Math.floor(index / virtualColumns) * VIRTUAL_POKEMON_ROW_HEIGHT;
 			if (top < viewport.scrollTop) viewport.scrollTop = top;
@@ -1321,6 +1330,29 @@
 		} finally {
 			busy = false;
 		}
+	}
+
+	async function changeDeletedRecords(action: () => Promise<void>, message: string) {
+		if (busy || catalogViewStale) return;
+		busy = true;
+		try {
+			await action();
+			if (!(await refreshCommittedCatalogView())) return;
+			virtualFocusedId = virtualRecords(catalogManifest, virtualPreferences)[0]?.recordId ?? null;
+			statusMessage = message;
+			toastHost.success(message);
+		} catch (error) {
+			toastHost.error(getErrorMessage(error));
+		} finally {
+			busy = false;
+		}
+	}
+
+	function emptyRecentlyDeleted() {
+		void changeDeletedRecords(
+			() => getPokemonStorageCatalog().emptyRecentlyDeleted(),
+			'Recently Deleted emptied.'
+		);
 	}
 
 	function beginVirtualCarry(recordId: string, mode: 'move' | 'copy') {
@@ -5478,7 +5510,12 @@
 
 	function captureActiveQuickSearchSaveFile(): QuickSearchSaveFile | null {
 		const pane = workbenchPanes.find(({ id }) => id === activePaneId);
-		if (initialStateReady && pane?.source.type === 'pokemon-storage' && activeVirtualLocation) {
+		if (
+			initialStateReady &&
+			pane?.source.type === 'pokemon-storage' &&
+			activeVirtualLocation &&
+			activeVirtualLocation !== 'recently-deleted'
+		) {
 			const paneId = pane.id;
 			const location = activeVirtualLocation;
 			return {
@@ -5887,7 +5924,7 @@
 					});
 			workbenchPanes = session.panes;
 			activePaneId = session.activePaneId;
-			virtualPaneIds = ['all-pokemon', 'unfiled', 'overflow'].includes(
+			virtualPaneIds = ['all-pokemon', 'unfiled', 'overflow', 'recently-deleted'].includes(
 				localStorage.getItem('pksx-last-storage-location-v1') ?? ''
 			)
 				? session.panes
@@ -6381,7 +6418,7 @@
 						: paneParty
 							? 'party'
 							: `box-${paneBox}`}
-					aria-label={`${pane.source.label}, ${paneVirtual ? (virtualPreferences.location === 'unfiled' ? 'Unfiled' : virtualPreferences.location === 'overflow' ? 'Overflow' : 'All Pokemon') : paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
+					aria-label={`${pane.source.label}, ${paneVirtual ? (virtualPreferences.location === 'unfiled' ? 'Unfiled' : virtualPreferences.location === 'overflow' ? 'Overflow' : virtualPreferences.location === 'recently-deleted' ? 'Recently Deleted' : 'All Pokemon') : paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
 					aria-busy={paneBusy ? 'true' : undefined}
 				>
 					<div class="pane-header">
@@ -6472,7 +6509,9 @@
 											? 'Unfiled'
 											: virtualPreferences.location === 'overflow'
 												? 'Overflow'
-												: 'All Pokemon'
+								: virtualPreferences.location === 'recently-deleted'
+													? 'Recently Deleted'
+													: 'All Pokemon'
 										: paneParty
 											? 'Party'
 											: boxNameFor(paneBox, pane),
@@ -6508,6 +6547,29 @@
 						</div>
 					</div>
 					{#if paneVirtual}
+						{#if virtualPreferences.location === 'recently-deleted'}
+							<RecentlyDeletedGrid
+								records={activeVirtualRecords}
+								focusedId={paneActive ? virtualFocusedId : null}
+								{busy}
+								onFocus={(id) => {
+									activatePane(pane, false);
+									virtualFocusedId = id;
+								}}
+								onRestore={(id) =>
+									void changeDeletedRecords(
+										() => getPokemonStorageCatalog().restore(id).then(() => undefined),
+										'Pokemon restored.'
+									)}
+								onDelete={(id) =>
+									void changeDeletedRecords(
+										() => getPokemonStorageCatalog().deletePermanently(id),
+										'Pokemon permanently deleted.'
+									)}
+								onEmpty={emptyRecentlyDeleted}
+								onColumns={(columns) => (virtualColumns = columns)}
+							/>
+						{:else}
 						<VirtualPokemonGrid
 							records={activeVirtualRecords}
 							allRecords={catalogManifest?.records ?? []}
@@ -6547,6 +6609,7 @@
 									});
 							}}
 						/>
+						{/if}
 					{:else}
 						<div
 							id={paneActive ? 'box-grid' : `box-grid-${pane.id}`}
@@ -6643,9 +6706,8 @@
 					<button
 						type="button"
 						tabindex="-1"
-						disabled={(activeVirtualLocation
-							? !virtualFocusedRecord
-							: focusedSlot.kind !== 'pokemon') ||
+						disabled={activeVirtualLocation === 'recently-deleted' ||
+							(activeVirtualLocation ? !virtualFocusedRecord : focusedSlot.kind !== 'pokemon') ||
 							pendingSlotOperation !== null ||
 							virtualCarry !== null}
 						onpointerdown={(event) => event.preventDefault()}
@@ -6657,9 +6719,8 @@
 					<button
 						type="button"
 						tabindex="-1"
-						disabled={(activeVirtualLocation
-							? !virtualFocusedRecord
-							: focusedSlot.kind !== 'pokemon') ||
+						disabled={activeVirtualLocation === 'recently-deleted' ||
+							(activeVirtualLocation ? !virtualFocusedRecord : focusedSlot.kind !== 'pokemon') ||
 							pendingSlotOperation !== null ||
 							virtualCarry !== null}
 						onpointerdown={(event) => event.preventDefault()}

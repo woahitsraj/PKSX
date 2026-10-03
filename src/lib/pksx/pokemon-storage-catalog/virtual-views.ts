@@ -1,7 +1,7 @@
 import type { PokemonRecord, PokemonStorageManifest } from './types';
-import { resolvePlacements } from './types';
+import { recoveryAvailable, resolvePlacements } from './types';
 
-export type VirtualLocation = 'all-pokemon' | 'unfiled' | 'overflow';
+export type VirtualLocation = 'all-pokemon' | 'unfiled' | 'overflow' | 'recently-deleted';
 export type VirtualSort = 'recent' | 'oldest' | 'species' | 'level';
 export type VirtualFilters = {
 	query: string;
@@ -28,7 +28,9 @@ export function readVirtualViewPreferences(value: string | null): VirtualViewPre
 		const filters = parsed.filters;
 		return {
 			location:
-				parsed.location === 'unfiled' || parsed.location === 'overflow'
+				parsed.location === 'unfiled' ||
+				parsed.location === 'overflow' ||
+				parsed.location === 'recently-deleted'
 					? parsed.location
 					: 'all-pokemon',
 			sort: ['recent', 'oldest', 'species', 'level'].includes(parsed.sort ?? '')
@@ -61,6 +63,11 @@ export function virtualRecords(
 			.filter((record) => ids.has(record.recordId))
 			.sort((a, b) => a.recordId.localeCompare(b.recordId));
 	}
+	if (preferences.location === 'recently-deleted')
+		return manifest.tombstones
+			.filter((item) => recoveryAvailable(item, new Date().toISOString()))
+			.sort((a, b) => b.deletedAt.localeCompare(a.deletedAt))
+			.flatMap((item) => (item.recovery ? [item.recovery] : []));
 	const placements = new Map(
 		resolvePlacements(manifest).map(({ recordId, placement }) => [recordId, placement])
 	);

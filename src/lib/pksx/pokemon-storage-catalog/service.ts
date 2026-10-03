@@ -6,6 +6,7 @@ import {
 	cloneManifest,
 	emptyManifest,
 	referenceFor,
+	recoveryAvailable,
 	resolvePlacements,
 	verifyBlob,
 	type CatalogPersistence,
@@ -59,6 +60,9 @@ export class PokemonStorageService {
 	listTombstones() {
 		return this.current?.tombstones ?? [];
 	}
+	listRecentlyDeleted() {
+		return this.listTombstones().filter((item) => recoveryAvailable(item, this.now()));
+	}
 	subscribe(listener: () => void): () => void {
 		const id = this.#store.addTablesListener(listener);
 		return () => this.#store.delListener(id);
@@ -75,7 +79,10 @@ export class PokemonStorageService {
 		readLegacy: () => Promise<StoredPokemonStorage | null>
 	): Promise<PokemonStorageManifest> {
 		const catalog = await this.load();
-		if (catalog) return catalog;
+		if (catalog) {
+			await this.expireRecoveries().catch(() => undefined);
+			return this.current!;
+		}
 		const legacy = await readLegacy();
 		return legacy ? this.migrateLegacy(legacy) : this.initialize();
 	}
@@ -309,9 +316,86 @@ export class PokemonStorageService {
 				reason,
 				destinationSaveFileId,
 				deletedAt: this.now(),
-				revision: record.revision + 1
+				revision: record.revision + 1,
+				...(reason === 'cleared' ? { recovery: record } : {})
 			});
 		});
+	}
+
+	async restore(recordId: string): Promise<PokemonRecord> {
+		const recovery = this.#manifest?.tombstones.find(
+			(item) => item.recordId === recordId
+		)?.recovery;
+		if (!recovery) throw new Error('Pokemon recovery is unavailable.');
+		const bytes = await this.persistence.readBlob(recovery.payload);
+		if (!bytes) throw new Error('Pokemon preservation payload is missing.');
+		await verifyBlob(recovery.payload, bytes);
+		let restored!: PokemonRecord;
+		await this.#mutate((manifest) => {
+			const index = manifest.tombstones.findIndex((item) => item.recordId === recordId);
+			const tombstone = manifest.tombstones[index];
+			if (!tombstone || !recoveryAvailable(tombstone, this.now()) || !tombstone.recovery)
+				throw new Error('Pokemon recovery is unavailable.');
+			if (manifest.records.length >= manifest.boxes.length * 30)
+				throw new Error('Pokemon Storage is at capacity.');
+			if (resolvePlacements(manifest).some((item) => item.overflow))
+				throw new Error('Resolve Pokemon Storage overflow before restoring a Pokemon.');
+			const previous = tombstone.recovery.placement;
+			const placement =
+				previous &&
+				manifest.boxes.some((box) => box.id === previous.storageBoxId) &&
+				!this.#occupied(manifest, previous, recordId)
+					? previous
+					: null;
+			restored = {
+				...tombstone.recovery,
+				placement,
+				revision: tombstone.revision + 1,
+				updatedAt: this.now()
+			};
+			manifest.tombstones.splice(index, 1);
+			manifest.records.push(restored);
+		});
+		return structuredClone(restored);
+	}
+
+	async deletePermanently(recordId: string): Promise<void> {
+		await this.#mutate((manifest) => {
+			const tombstone = manifest.tombstones.find((item) => item.recordId === recordId);
+			if (!tombstone?.recovery) throw new Error('Pokemon recovery is unavailable.');
+			delete tombstone.recovery;
+			tombstone.revision += 1;
+		});
+		void this.persistence.sweep().catch(() => undefined);
+	}
+
+	async emptyRecentlyDeleted(): Promise<void> {
+		await this.#mutate((manifest) => {
+			for (const tombstone of manifest.tombstones) {
+				if (!tombstone.recovery) continue;
+				delete tombstone.recovery;
+				tombstone.revision += 1;
+			}
+		});
+		void this.persistence.sweep().catch(() => undefined);
+	}
+
+	async expireRecoveries(): Promise<void> {
+		if (
+			!this.#manifest?.tombstones.some(
+				(item) => item.recovery && !recoveryAvailable(item, this.now())
+			)
+		)
+			return;
+		await this.#mutate((manifest) => {
+			for (const tombstone of manifest.tombstones) {
+				if (tombstone.recovery && !recoveryAvailable(tombstone, this.now())) {
+					delete tombstone.recovery;
+					tombstone.revision += 1;
+				}
+			}
+		});
+		void this.persistence.sweep().catch(() => undefined);
 	}
 
 	async sweep(): Promise<number> {
