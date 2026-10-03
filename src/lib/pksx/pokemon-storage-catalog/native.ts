@@ -3,6 +3,7 @@ import {
 	assertManifest,
 	CatalogConflictError,
 	cloneManifest,
+	referencedPayloads,
 	verifyBlob,
 	type BlobReference,
 	type CatalogPersistence,
@@ -72,10 +73,10 @@ export class NativeCatalogPersistence implements CatalogPersistence {
 		assertManifest(manifest);
 		if (manifest.revision !== completion.revision)
 			throw new Error('Pokemon Storage manifest revision mismatch.');
-		for (const record of manifest.records) {
-			const bytes = await this.files.readBytes(blobPath(record.payload.id));
+		for (const reference of referencedPayloads(manifest)) {
+			const bytes = await this.files.readBytes(blobPath(reference.id));
 			if (!bytes) throw new Error('Required Pokemon preservation payload is missing.');
-			await verifyBlob(record.payload, bytes);
+			await verifyBlob(reference, bytes);
 		}
 		return cloneManifest(manifest);
 	}
@@ -118,10 +119,10 @@ export class NativeCatalogPersistence implements CatalogPersistence {
 			if (!staged) throw new Error('Staged Pokemon preservation payload is missing.');
 			await verifyBlob(blob.reference, staged);
 		}
-		for (const record of manifest.records) {
-			const bytes = await this.files.readBytes(blobPath(record.payload.id));
+		for (const reference of referencedPayloads(manifest)) {
+			const bytes = await this.files.readBytes(blobPath(reference.id));
 			if (!bytes) throw new Error('Required Pokemon preservation payload is missing.');
-			await verifyBlob(record.payload, bytes);
+			await verifyBlob(reference, bytes);
 		}
 		if ((await this.read())?.revision !== expectedRevision && expectedRevision !== null)
 			throw new CatalogConflictError();
@@ -149,10 +150,10 @@ export class NativeCatalogPersistence implements CatalogPersistence {
 		return operation;
 	}
 	async #sweep(): Promise<number> {
-		const keep = new Set<string>();
-		for (const completion of await this.#completions())
-			for (const record of (await this.#readCompleted(completion)).records)
-				keep.add(`${record.payload.id}.bin`);
+		const manifest = await this.read();
+		const keep = new Set(
+			manifest ? referencedPayloads(manifest).map((item) => `${item.id}.bin`) : []
+		);
 		const names = await this.files.list(`${directory}/blobs`);
 		const orphans = names.filter((name) => /^[a-f0-9]{64}\.bin$/.test(name) && !keep.has(name));
 		for (const name of orphans) await this.files.delete(`${directory}/blobs/${name}`);
