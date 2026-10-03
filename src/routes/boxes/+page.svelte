@@ -67,6 +67,7 @@
 	} from '$lib/pksx/storage-operations';
 	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
 	import { getBoxesSession } from '$lib/pksx/boxes-session';
+	import { preserveAndClearSaveSlot, SaveDeletionPendingError } from '$lib/pksx/save-deletion';
 	import {
 		addBoxPane,
 		closeBoxPane,
@@ -3520,7 +3521,7 @@
 
 	async function applySlotOperation(
 		operation: SlotOperation,
-		context?: { state: WorkspaceState; paneId: string }
+		context?: { state: WorkspaceState; paneId: string; preserveDeletion?: boolean }
 	): Promise<boolean> {
 		const navigationRevision = slotNavigationRevision;
 		const operationState = context?.state ?? loadedSave;
@@ -3537,6 +3538,7 @@
 
 		busy = true;
 		importError = null;
+		let pendingReconciliation = false;
 
 		try {
 			const sourceSlot = slotViewForRefFromWorkspace(operationState.workspace, operation.source);
@@ -3551,21 +3553,36 @@
 						? operation.source.box
 						: activePaneBox;
 
-			const result = await applyStorageOperation({
-				state: operationState,
-				operation,
-				activeBox: operationBox,
-				sourceSlot,
-				destinationSlot,
-				partyCount: operationState.workspace.summary.partyCount,
-				services: {
-					engine: activeEngine,
-					prepareAutomaticBackup: (state) =>
-						prepareAutomaticBackup({ storage, state, reason: 'pokemon-movement' }),
-					persistWorkspace,
-					locationForSlotRef
-				}
-			});
+			const result =
+				context?.preserveDeletion && operation.kind === 'clear'
+					? {
+							ok: true as const,
+							state: await preserveAndClearSaveSlot({
+								state: operationState,
+								source: operation.source,
+								activeBox: operationBox,
+								engine: activeEngine,
+								storage,
+								catalog: getPokemonStorageCatalog()
+							}),
+							focusRef: operation.source,
+							message: `Moved ${sourceSlot?.label ?? 'Pokemon'} to Recently Deleted.`
+						}
+					: await applyStorageOperation({
+							state: operationState,
+							operation,
+							activeBox: operationBox,
+							sourceSlot,
+							destinationSlot,
+							partyCount: operationState.workspace.summary.partyCount,
+							services: {
+								engine: activeEngine,
+								prepareAutomaticBackup: (state) =>
+									prepareAutomaticBackup({ storage, state, reason: 'pokemon-movement' }),
+								persistWorkspace,
+								locationForSlotRef
+							}
+						});
 
 			if (!result.ok) {
 				statusMessage = result.reason === 'noop' ? result.message : 'Slot change failed.';
@@ -3584,6 +3601,7 @@
 				setCachedActiveWorkspace(nextState, operationBox);
 			}
 			installMutatedSaveProjection(nextState, operationBox);
+			if (context?.preserveDeletion) void refreshCommittedCatalogView();
 			invalidateSavesCache();
 			pendingSlotOperation = null;
 			carryState = null;
@@ -3624,11 +3642,13 @@
 		} catch (error) {
 			const message = getErrorMessage(error);
 			importError = null;
-			statusMessage = 'Slot change failed.';
+			pendingReconciliation = error instanceof SaveDeletionPendingError;
+			statusMessage = pendingReconciliation ? message : 'Slot change failed.';
 			toastHost.error(message);
+			if (pendingReconciliation) window.location.reload();
 			return false;
 		} finally {
-			busy = false;
+			busy = pendingReconciliation;
 		}
 	}
 
@@ -3927,10 +3947,16 @@
 			toastHost.error('The source Save File is no longer available.');
 			return false;
 		}
+		try {
+			await ensurePokemonStorageCatalog();
+		} catch (error) {
+			toastHost.error(getErrorMessage(error));
+			return false;
+		}
 
 		return applySlotOperation(
 			{ kind: 'clear', source: pending.source },
-			{ state: workspace, paneId: pending.paneId }
+			{ state: workspace, paneId: pending.paneId, preserveDeletion: true }
 		);
 	}
 

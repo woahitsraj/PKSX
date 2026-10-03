@@ -3,6 +3,8 @@ import { bytesEqual } from './bytes';
 import { stableAutomaticBackupId } from './automatic-backup';
 import { CapacitorSavesStorage, type NativeFileStore } from './capacitor-storage';
 import { WorkspaceRevisionConflictError } from './workspace-revision';
+import { NativeCatalogPersistence } from '$lib/pksx/pokemon-storage-catalog/native';
+import { emptyManifest, referenceFor } from '$lib/pksx/pokemon-storage-catalog/types';
 
 describe('CapacitorSavesStorage', () => {
 	let files: Map<string, string | Uint8Array>;
@@ -19,6 +21,7 @@ describe('CapacitorSavesStorage', () => {
 	let catalogWriteFailure: 'after' | 'partial' | null;
 	let failCatalogReads: number;
 	let failCatalogReadback: boolean;
+	let failPayloadWrites: number;
 
 	beforeEach(() => {
 		files = new Map();
@@ -33,6 +36,7 @@ describe('CapacitorSavesStorage', () => {
 		catalogWriteFailure = null;
 		failCatalogReads = 0;
 		failCatalogReadback = false;
+		failPayloadWrites = 0;
 		const ids = ['save-1', 'backup-1'];
 		fileStore = {
 			async readText(path) {
@@ -68,6 +72,10 @@ describe('CapacitorSavesStorage', () => {
 				return value instanceof Uint8Array ? new Uint8Array(value) : null;
 			},
 			async writeBytes(path, value) {
+				if (path.startsWith('pokemon-storage-catalog/blobs/') && failPayloadWrites > 0) {
+					failPayloadWrites -= 1;
+					throw new Error('payload write unavailable');
+				}
 				if (path.startsWith('backups/') && deniedBackupWrites > 0) {
 					deniedBackupWrites -= 1;
 					throw new Error('Backup write unavailable');
@@ -855,6 +863,91 @@ describe('CapacitorSavesStorage', () => {
 		expect(backups.map(({ id }) => id)).toContain(stableId);
 		expect(new Set(backups.map(({ id }) => id)).size).toBe(2);
 	});
+
+	it.each(['success', 'payload', 'backup', 'workspace', 'catalog', 'ambiguous'])(
+		'commits preserved deletion through one journal boundary, %s',
+		async (stage) => {
+			const persistence = new NativeCatalogPersistence(fileStore);
+			const original = emptyManifest('storage-id', '2026-05-16T12:00:00.000Z', 'box-id');
+			await persistence.commit(null, original, []);
+			const save = await storage.importSave({
+				bytes: new Uint8Array([1, 2]),
+				originalFileName: 'save.sav'
+			});
+			const payloadBytes = new Uint8Array([4, 5, 6]);
+			const reference = await referenceFor(payloadBytes, 1);
+			const recovery = {
+				recordId: 'new-id',
+				payload: reference,
+				identityFingerprint: 'fingerprint',
+				projection: {} as never,
+				origin: {
+					entryMode: 'deleted-from-save' as const,
+					originSaveFileId: save.id,
+					originSaveSlot: { zone: 'party' as const, slot: 0 },
+					originSaveFileName: save.originalFileName,
+					originGame: 'Emerald',
+					originalTrainer: 'Trainer',
+					trainerId: '1',
+					enteredAt: '2026-05-16T12:00:00.000Z'
+				},
+				placement: null,
+				revision: 0,
+				createdAt: 'now',
+				updatedAt: 'now'
+			};
+			const manifest = {
+				...original,
+				revision: 1,
+				tombstones: [
+					{
+						recordId: 'new-id',
+						reason: 'cleared' as const,
+						destinationSaveFileId: null,
+						deletedAt: '2026-05-16T12:00:00.000Z',
+						revision: 1,
+						recovery
+					}
+				]
+			};
+			if (stage === 'payload') failPayloadWrites = 1;
+			if (stage === 'backup') deniedBackupWrites = 1;
+			if (stage === 'workspace') failWorkspaceWrites = 1;
+			if (stage === 'catalog') failCatalogWrites = 1;
+			if (stage === 'ambiguous') {
+				catalogWriteFailure = 'after';
+				failCatalogReadback = true;
+			}
+			const committing = storage.commitPreservedSaveDeletion({
+				saveFileId: save.id,
+				importedAt: save.importedAt,
+				expectedUpdatedAt: null,
+				expectedBytes: new Uint8Array([1, 2]),
+				expectedDirty: false,
+				bytes: new Uint8Array([9, 9]),
+				dirty: true,
+				reason: 'pokemon-movement',
+				expectedCatalogRevision: 0,
+				manifest,
+				payload: { reference, bytes: payloadBytes }
+			});
+			if (stage === 'success')
+				await expect(committing).resolves.toMatchObject({ backupEstablished: true });
+			else await expect(committing).rejects.toThrow();
+			const reopened = new CapacitorSavesStorage({ fileStore });
+			const reopenedCatalog = new NativeCatalogPersistence(fileStore);
+			const persisted = stage === 'success' || stage === 'ambiguous';
+			expect((await reopenedCatalog.read())?.revision).toBe(persisted ? 1 : 0);
+			expect(await reopened.listBackups(save.id)).toHaveLength(persisted ? 1 : 0);
+			if (persisted)
+				expect(await reopened.getWorkspace(save.id)).toMatchObject({
+					dirty: true,
+					bytes: new Uint8Array([9, 9])
+				});
+			else expect(await reopened.getWorkspace(save.id)).toBeNull();
+			if (!persisted) expect(await reopened.getSaveBytes(save.id)).toEqual(new Uint8Array([1, 2]));
+		}
+	);
 });
 
 function listChildren(files: Map<string, string | Uint8Array>, directory: string) {

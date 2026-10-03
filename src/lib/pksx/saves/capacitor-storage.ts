@@ -1,10 +1,18 @@
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
+import { NativeCatalogPersistence } from '$lib/pksx/pokemon-storage-catalog/native';
+import {
+	assertManifest,
+	CatalogConflictError,
+	cloneManifest,
+	verifyBlob
+} from '$lib/pksx/pokemon-storage-catalog/types';
 import { stableAutomaticBackupId } from './automatic-backup';
 import { bytesEqual, copyBytes } from './bytes';
 import {
 	backupBytesPath,
 	cloneCatalog,
 	NativeCatalogJournal,
+	runNativeJournalOperation,
 	saveBytesPath,
 	storedWorkspaceMetadata,
 	type NativeCatalogSnapshot,
@@ -18,6 +26,7 @@ import type {
 	BackupMetadata,
 	CommitRiskyWorkspaceMutationInput,
 	CommitRiskyWorkspaceMutationResult,
+	CommitPreservedSaveDeletionInput,
 	CreateBackupInput,
 	EnsureAutomaticBackupInput,
 	EnsureAutomaticBackupResult,
@@ -46,7 +55,6 @@ export class CapacitorSavesStorage implements SavesStorage {
 	readonly #journal: NativeCatalogJournal;
 	readonly #idFactory: () => string;
 	readonly #now: () => string;
-	#pending: Promise<void> = Promise.resolve();
 
 	constructor(options: CapacitorSavesStorageOptions = {}) {
 		this.#fileStore = options.fileStore ?? createCapacitorFileStore();
@@ -379,6 +387,96 @@ export class CapacitorSavesStorage implements SavesStorage {
 		});
 	}
 
+	commitPreservedSaveDeletion(
+		input: CommitPreservedSaveDeletionInput
+	): Promise<CommitRiskyWorkspaceMutationResult> {
+		return this.#run(async () => {
+			assertManifest(input.manifest);
+			await verifyBlob(input.payload.reference, input.payload.bytes);
+			const snapshot = await this.#journal.read();
+			const catalog = cloneCatalog(snapshot.catalog);
+			const saveFile = catalog.saves.find(({ id }) => id === input.saveFileId);
+			if (!saveFile || saveFile.importedAt !== input.importedAt)
+				throw new Error('The selected Save File is no longer available.');
+			const previous = catalog.workspaces[input.saveFileId];
+			if ((previous?.updatedAt ?? null) !== input.expectedUpdatedAt)
+				throw new WorkspaceRevisionConflictError();
+			const baseline = previous
+				? await this.#journal.readWorkspace(snapshot, input.saveFileId)
+				: await this.#fileStore.readBytes(saveBytesPath(input.saveFileId));
+			if (
+				!baseline ||
+				!bytesEqual(baseline, input.expectedBytes) ||
+				(previous?.dirty ?? false) !== input.expectedDirty
+			)
+				throw new WorkspaceRevisionConflictError();
+			const current = await new NativeCatalogPersistence(this.#fileStore).read();
+			if (
+				!current ||
+				current.revision !== input.expectedCatalogRevision ||
+				current.storageId !== input.manifest.storageId ||
+				input.manifest.revision !== current.revision + 1
+			)
+				throw new CatalogConflictError();
+			const existingPayload = await this.#fileStore.readBytes(
+				`pokemon-storage-catalog/blobs/${input.payload.reference.id}.bin`
+			);
+			if (existingPayload) await verifyBlob(input.payload.reference, existingPayload);
+			const stagedBytes = existingPayload
+				? []
+				: [
+						{
+							path: `pokemon-storage-catalog/blobs/${input.payload.reference.id}.bin`,
+							bytes: input.payload.bytes
+						}
+					];
+			const backupEstablished = !previous?.automaticBackupCreated;
+			if (backupEstablished) {
+				const backupId = stableAutomaticBackupId({
+					saveFileId: input.saveFileId,
+					importedAt: input.importedAt,
+					persistedRevision: previous?.updatedAt ?? saveFile.importedAt,
+					bytes: baseline
+				});
+				const existing = catalog.backups.find(({ id }) => id === backupId);
+				const path = backupBytesPath(backupId);
+				const existingBytes = await this.#fileStore.readBytes(path);
+				if (
+					(existing &&
+						(existing.saveFileId !== input.saveFileId ||
+							existing.byteLength !== baseline.length)) ||
+					(existingBytes && !bytesEqual(existingBytes, baseline))
+				)
+					throw new Error('The automatic Backup identity belongs to different content.');
+				if (!existing)
+					catalog.backups.push({
+						id: backupId,
+						saveFileId: input.saveFileId,
+						reason: input.reason,
+						byteLength: baseline.length,
+						createdAt: this.#now()
+					});
+				if (!existingBytes) stagedBytes.push({ path, bytes: baseline });
+			}
+			const metadata: NativeWorkspaceMetadata = {
+				saveFileId: input.saveFileId,
+				dirty: input.dirty,
+				automaticBackupCreated: true,
+				updatedAt: nextWorkspaceRevision(previous?.updatedAt, this.#now())
+			};
+			catalog.workspaces[input.saveFileId] = metadata;
+			catalog.pokemonStorageManifest = cloneManifest(input.manifest);
+			await this.#journal.commit(snapshot, catalog, {
+				workspaceBytes: new Map([[input.saveFileId, input.bytes]]),
+				stagedBytes
+			});
+			return {
+				workspace: { ...storedWorkspaceMetadata(metadata), bytes: copyBytes(input.bytes) },
+				backupEstablished
+			};
+		});
+	}
+
 	listBackups(saveFileId: SaveFileId): Promise<BackupMetadata[]> {
 		return this.#run(async () =>
 			(await this.#journal.read()).catalog.backups
@@ -407,12 +505,10 @@ export class CapacitorSavesStorage implements SavesStorage {
 	}
 
 	#run<T>(operation: () => Promise<T>): Promise<T> {
-		const result = this.#pending.then(operation, operation);
-		this.#pending = result.then(
-			() => undefined,
-			() => undefined
-		);
-		return result;
+		return runNativeJournalOperation(async () => {
+			await this.#journal.sweepOnce();
+			return operation();
+		});
 	}
 
 	async #interruptedAutomaticBackupId(

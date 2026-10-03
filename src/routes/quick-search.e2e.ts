@@ -198,7 +198,7 @@ test('reports when the Active Save File disappears', async ({ page }) => {
 	await page.evaluate(
 		() =>
 			new Promise<void>((resolve, reject) => {
-				const request = indexedDB.open('pksx-saves', 4);
+				const request = indexedDB.open('pksx-saves');
 				request.onerror = () => reject(request.error);
 				request.onsuccess = () => {
 					const database = request.result;
