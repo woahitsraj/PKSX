@@ -57,6 +57,24 @@ describe('virtual Pokemon views', () => {
 		expect(readVirtualViewPreferences('{broken')).toEqual(defaultVirtualViewPreferences);
 	});
 
+	it('shows only derived overflow in Record ID order', () => {
+		const full = structuredClone(manifest);
+		full.records.push(
+			...Array.from({ length: 30 }, (_, index) =>
+				record(`filled-${String(index).padStart(2, '0')}`, '2026-09-01', {
+					storageBoxId: 'box',
+					slot: index
+				})
+			)
+		);
+		const preferences = { ...defaultVirtualViewPreferences, location: 'overflow' as const };
+		expect(virtualRecords(full, preferences).map(({ recordId }) => recordId)).toEqual([
+			'old',
+			'overflow'
+		]);
+		expect(readVirtualViewPreferences(JSON.stringify(preferences)).location).toBe('overflow');
+	});
+
 	it('moves focus with measured columns and clamps at the end', () => {
 		expect(moveVirtualFocus(1, 8, 3, 'down')).toBe(4);
 		expect(moveVirtualFocus(7, 8, 2, 'down')).toBe(7);

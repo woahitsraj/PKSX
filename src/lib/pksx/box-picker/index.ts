@@ -1,5 +1,6 @@
 import type { NavigationAction } from '$lib/pksx/box-navigation';
 import type { SaveFileBoxNameProjection } from '$lib/engine';
+import type { StorageBox } from '$lib/pksx/pokemon-storage-catalog';
 
 export type BoxPickerLocationRef =
 	| { kind: 'physical-box'; box: number }
@@ -41,6 +42,30 @@ export function createPhysicalBoxPickerLocations(
 		detail: `${box + 1} of ${count}`,
 		location: { kind: 'physical-box', box }
 	}));
+}
+
+export function createStorageBoxPickerLocations(
+	boxes: Pick<StorageBox, 'id' | 'name'>[],
+	overflowCount: number
+): BoxPickerLocation[] {
+	return [
+		...boxes.map((box, index) => ({
+			id: `physical-box-${index}`,
+			label: box.name?.trim() || `Box ${String(index + 1).padStart(2, '0')}`,
+			detail: `${index + 1} of ${boxes.length}`,
+			location: { kind: 'physical-box' as const, box: index }
+		})),
+		...(overflowCount > 0
+			? [
+					{
+						id: 'overflow',
+						label: 'Overflow',
+						detail: `${overflowCount} Pokemon`,
+						location: { kind: 'virtual' as const, id: 'overflow' }
+					}
+				]
+			: [])
+	];
 }
 
 export function moveBoxPickerFocus(
