@@ -3021,10 +3021,13 @@ test('keeps a virtual Storage source after Save commits but retirement fails', a
 	await page.evaluate(() => {
 		const original = IDBDatabase.prototype.transaction;
 		IDBDatabase.prototype.transaction = function (names, mode, options) {
+			const stores = typeof names === 'string' ? [names] : Array.from(names);
 			if (
 				this.name === 'pksx-saves' &&
 				mode === 'readwrite' &&
-				(typeof names === 'string' ? names === 'manifest' : Array.from(names).includes('manifest'))
+				stores.length === 2 &&
+				stores.includes('manifest') &&
+				stores.includes('blobs')
 			) {
 				throw new Error('Injected retirement failure');
 			}
@@ -3128,18 +3131,16 @@ test('shared Carry and arrows use the focused virtual record in a Save and Stora
 	await storagePane.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: /All Pokemon: All Pokemon/ }).click();
 	const grid = storagePane.getByRole('grid', { name: 'All Pokemon' });
+	const virtualCard = (index: number) =>
+		storagePane.locator(`[id$="virtual-record-virtual-${String(index).padStart(3, '0')}"]`);
 	const columns = Number(await grid.getAttribute('aria-colcount'));
 	expect(columns).toBeGreaterThan(1);
 	await savePane.locator('[id$="box-0-slot-0"]').click();
-	await storagePane
-		.locator(`#virtual-record-virtual-${String(columns + 1).padStart(3, '0')}`)
-		.click();
+	await virtualCard(columns + 1).click();
 	await page.keyboard.press('ArrowLeft');
-	await expect(
-		storagePane.locator(`#virtual-record-virtual-${String(columns).padStart(3, '0')}`)
-	).toBeFocused();
+	await expect(virtualCard(columns)).toBeFocused();
 	await expect(storagePane).toHaveClass(/active-pane/);
-	await storagePane.locator('#virtual-record-virtual-007').click();
+	await virtualCard(7).click();
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
 	await page.getByRole('button', { name: /Box 01: Box 01/ }).click();
 	await storagePane.locator('[id$="box-0-slot-1"]').click();
@@ -3168,7 +3169,7 @@ test('shared Carry and arrows use the focused virtual record in a Save and Stora
 	for (const mode of ['Copy', 'Move'] as const) {
 		await savePane.locator('[id$="box-0-slot-0"]').focus();
 		await page.getByLabel('Transfer controls').getByRole('button', { name: mode }).click();
-		await storagePane.locator('#virtual-record-virtual-008').click();
+		await virtualCard(8).click();
 		await page.keyboard.press('Enter');
 		await expect(
 			page
@@ -6497,6 +6498,12 @@ test('two Recently Deleted panes keep distinct focus targets and location header
 	await importEmeraldThroughSaves(page);
 	await seedOccupiedPokemonStorageSlot(page);
 	await page.goto('/?source=pokemon-storage');
+	await expect(page).toHaveURL(/\/boxes$/);
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready');
+	await expect(page.locator('.box-pane.active-pane')).toHaveAttribute(
+		'data-source-id',
+		'pokemon-storage'
+	);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	await page.locator('#box-0-slot-0').click();
 	await page.getByRole('button', { name: 'Clear Slot' }).click();
