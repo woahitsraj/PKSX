@@ -519,7 +519,10 @@ export function catalogContract(
 			const failing = new PokemonStorageService(
 				{
 					read: () => persistence.read(),
+					readRecovery: () => persistence.readRecovery(),
 					readBlob: (reference) => persistence.readBlob(reference),
+					replace: (revision, manifest, blobs, recovery) =>
+						persistence.replace(revision, manifest, blobs, recovery),
 					commit: async () => {
 						throw new Error('Quota exceeded');
 					},
