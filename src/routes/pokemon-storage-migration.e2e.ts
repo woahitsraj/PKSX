@@ -200,6 +200,12 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		await expect(
 			page.getByRole('dialog', { name: 'Slot actions' }).getByRole('button', { name: 'Move' })
 		).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Open Main Menu' })).toHaveCount(0);
+		await page.keyboard.press('Control+k');
+		await page.keyboard.press('Control+Shift+k');
+		await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
+		await expect(page.getByRole('dialog', { name: 'Main Menu' })).toHaveCount(0);
+		await expect(page.getByRole('dialog', { name: 'Search Pokemon Storage' })).toHaveCount(0);
 		await page.keyboard.press('Escape');
 		await expect(page.locator('#virtual-record-virtual-000')).toBeFocused();
 		await page.keyboard.press('ArrowDown');
