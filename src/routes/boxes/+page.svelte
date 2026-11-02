@@ -1336,6 +1336,7 @@
 		target.setAttribute('aria-selected', 'true');
 		grid?.setAttribute('aria-activedescendant', target.id);
 		if (focusGrid && grid && document.activeElement !== grid) grid.focus({ preventScroll: true });
+		if (focusGrid) target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 		if (slotDomFocusTimer) clearTimeout(slotDomFocusTimer);
 		slotDomFocusTimer = setTimeout(() => {
 			slotDomFocusTimer = null;

@@ -5405,6 +5405,26 @@ test('Box slot density follows pane allocation without a viewport resize', async
 	await expect(number).toHaveCSS('display', 'none');
 	await expect(label).toHaveCSS('display', 'none');
 
+	await page.setViewportSize({ width: 360, height: 360 });
+	const storageGrid = page.locator('.box-pane').nth(1).getByRole('grid');
+	await page.locator('#box-0-slot-7').focus();
+	await storageGrid.evaluate((element) => (element.scrollTop = 0));
+	for (let step = 0; step < 3; step += 1) await pressController(page, 'ArrowDown');
+	await expect(storageGrid).toHaveAttribute('aria-activedescendant', 'box-0-slot-25');
+	const reveal = await storageGrid.evaluate((element) => {
+		const target = document.getElementById(element.getAttribute('aria-activedescendant') ?? '');
+		const gridBounds = element.getBoundingClientRect();
+		const targetBounds = target?.getBoundingClientRect();
+		return {
+			bottomGap: targetBounds ? gridBounds.bottom - targetBounds.bottom : Number.NaN,
+			scrollTop: element.scrollTop
+		};
+	});
+	expect(reveal.scrollTop).toBeGreaterThan(0);
+	expect(reveal.bottomGap).toBeGreaterThanOrEqual(-1);
+	expect(reveal.bottomGap).toBeLessThanOrEqual(2);
+	await page.setViewportSize({ width: 560, height: 360 });
+
 	await page.getByRole('button', { name: 'Close Pokemon Storage pane' }).click();
 	await expect(page.locator('.box-pane')).toHaveCount(1);
 	await expect(grid).toHaveAttribute('data-slot-density', 'number');
