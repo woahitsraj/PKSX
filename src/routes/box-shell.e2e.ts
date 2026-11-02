@@ -2349,6 +2349,57 @@ test('transfer controls discard a cached source when another pane becomes active
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ILLUMISE');
 });
 
+test('transfer controls discard a cached source after switching collections', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await page.goto('/');
+	const importInput = page.getByLabel('Import Save File');
+	await importInput.setInputFiles(emeraldFixturePath);
+	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+		timeout: 15000
+	});
+	const firstSave = page
+		.locator('.save-card')
+		.filter({ hasText: 'emerald-011020251345.sav' })
+		.getByRole('button', { name: 'Open emerald-011020251345.sav in Boxes' });
+	await importInput.setInputFiles({
+		name: 'second-emerald.sav',
+		mimeType: 'application/octet-stream',
+		buffer: await readFile(emeraldFixturePath)
+	});
+	await expect(page.getByText('second-emerald.sav imported and made active.')).toBeVisible({
+		timeout: 15000
+	});
+	await firstSave.click();
+	const primary = page.locator('.box-pane').first();
+	await primary.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page.getByRole('button', { name: 'Open another collection' }).click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	await expect(page.locator('.box-pane')).toHaveCount(2);
+
+	const source = primary.locator('[id$="box-0-slot-0"]');
+	await expect(source).toContainText('ARON', { timeout: 15000 });
+	await source.focus();
+	await primary.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page.getByRole('button', { name: 'Switch', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Switch collection' })
+		.getByRole('button', { name: /second-emerald\.sav/ })
+		.click();
+	await expect(
+		page.getByRole('button', { name: 'Open Box Menu for second-emerald.sav' })
+	).toBeVisible();
+	await expect(source).toContainText('ARON');
+	await primary.getByRole('grid').focus();
+	const copy = page.locator('.transfer-controls').getByRole('button', { name: 'Copy' });
+	await expect(copy).toBeEnabled();
+	await copy.click();
+	await expect(source.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
+});
+
 test('transfer controls ignore a stale active descendant after pointer focus cache expires', async ({
 	page
 }) => {

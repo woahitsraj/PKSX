@@ -3393,6 +3393,8 @@
 		const controllerSource = controllerFocusedSaveSlot();
 		if (!controllerSource) return recentSource;
 		return recentSource?.pane.id === controllerSource.pane.id &&
+			recentSource.pane.source.type === controllerSource.pane.source.type &&
+			recentSource.pane.source.id === controllerSource.pane.source.id &&
 			slotRefKey(recentSource.ref) === slotRefKey(controllerSource.ref)
 			? recentSource
 			: controllerSource;
