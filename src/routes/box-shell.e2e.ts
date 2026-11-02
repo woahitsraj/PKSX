@@ -590,6 +590,25 @@ async function showFirstBoxFromParty(page: Page) {
 	await expect(pane.getByRole('heading', { name: 'Box 01' })).toBeVisible({ timeout: 60000 });
 }
 
+async function openDuplicateEmeraldPanes(page: Page) {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('x');
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /011020251345\.sav/ })
+		.click();
+
+	const panes = page.locator('.box-pane');
+	await expect(panes).toHaveCount(2);
+	return panes;
+}
+
 async function seedPokemonStorageBoxes(page: Page, boxCount: number) {
 	await page.evaluate(
 		(boxes) =>
@@ -2234,7 +2253,20 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 	});
 
 	await duplicatePane.locator('[id$="box-1-slot-0"]').focus();
+	await expect(duplicatePane).toHaveClass(/active-pane/);
+	await expect(duplicatePane.getByRole('grid')).toHaveAttribute(
+		'aria-activedescendant',
+		'box-1-slot-0'
+	);
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	await expect(page.locator('[data-destination-state="source"]')).toHaveAttribute(
+		'id',
+		/box-1-slot-0$/
+	);
+	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toHaveAttribute(
+		'data-destination-state',
+		'source'
+	);
 	await firstPane.locator('[id$="box-0-slot-3"]').click();
 	await expect(firstPane.locator('[id$="box-0-slot-3"]')).toContainText('ARON', {
 		timeout: 15000
@@ -2242,6 +2274,52 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('Empty', {
 		timeout: 15000
 	});
+});
+
+test('transfer controls use current Controller Focus during deferred DOM focus', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	const panes = await openDuplicateEmeraldPanes(page);
+	const pane = panes.first();
+	const source = pane.locator('[id$="box-0-slot-0"]');
+	const selected = pane.locator('[id$="box-0-slot-1"]');
+
+	await source.focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(selected).toHaveAttribute('aria-selected', 'true');
+	await page
+		.getByLabel('Transfer controls')
+		.getByRole('button', { name: 'Copy' })
+		.evaluate((button) => {
+			if (!(button instanceof HTMLButtonElement)) throw new Error('Expected the Copy button.');
+			button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+			button.click();
+		});
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ILLUMISE');
+});
+
+test('duplicate Save panes retain a published Party mutation while refreshing another Box', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	const panes = await openDuplicateEmeraldPanes(page);
+	const partyPane = panes.first();
+	const boxPane = panes.nth(1);
+
+	await boxPane.getByRole('button', { name: 'Next Location' }).click();
+	await expect(boxPane).toHaveAttribute('data-location', 'box-1');
+	await partyPane.getByRole('button', { name: 'Previous Location' }).click();
+	await expect(partyPane).toHaveAttribute('data-location', 'party');
+	const source = partyPane.locator('[id$="party-slot-0"]');
+	await expect(source).toContainText('1-UP');
+
+	await source.focus();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	await boxPane.locator('[id$="box-1-slot-0"]').click();
+
+	await expect(boxPane.locator('[id$="box-1-slot-0"]')).toContainText('1-UP', { timeout: 15000 });
+	await expect(source).not.toContainText('1-UP', { timeout: 15000 });
 });
 
 test('Party never paints a fabricated Pokemon while a Box projection is pending', async ({

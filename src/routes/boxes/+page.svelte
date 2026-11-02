@@ -501,13 +501,20 @@
 	let boxesSessionPersistTimer: ReturnType<typeof setTimeout> | null = null;
 	let navigationProjectionTimer: ReturnType<typeof setTimeout> | null = null;
 	let slotDomFocusTimer: ReturnType<typeof setTimeout> | null = null;
+	let applyingSlotDomFocus = false;
+	let slotNavigationRevision = 0;
 	type DomFocusedSaveSlot = {
 		pane: BoxPaneState;
 		ref: SaveSlotRef;
 		slot: SlotView;
 	};
 	let transferDomSource: DomFocusedSaveSlot | null = null;
-	let lastDomFocusedSaveSlot: (DomFocusedSaveSlot & { at: number }) | null = null;
+	let lastDomFocusedSaveSlot:
+		| (DomFocusedSaveSlot & {
+				at: number;
+				navigationRevision: number;
+		  })
+		| null = null;
 
 	const activeSummonedWorkflow = $derived(summonedWorkflow.active);
 	const sourcePickerOpen = $derived(activeSummonedWorkflow?.kind === 'source-picker');
@@ -971,6 +978,7 @@
 			isSlotFocus(nextNavigation.focus) &&
 			nextNavigation.focus !== previousFocus;
 		const boxChanged = nextNavigation.activeBox !== previousBox;
+		if (slotFocusMoved || boxChanged) slotNavigationRevision += 1;
 		const deferredBoxChange = boxChanged && pane?.source.type === 'save-file';
 		if (deferredBoxChange) {
 			navigation.activeBox = nextNavigation.activeBox;
@@ -1222,6 +1230,7 @@
 		if (!nextPane) return false;
 
 		activatePane(nextPane);
+		slotNavigationRevision += 1;
 		navigation = {
 			...navigation,
 			activeBox: nextPane.activeBox,
@@ -1330,9 +1339,14 @@
 		if (slotDomFocusTimer) clearTimeout(slotDomFocusTimer);
 		slotDomFocusTimer = setTimeout(() => {
 			slotDomFocusTimer = null;
-			document
-				.getElementById(focusIdForNavigation(navigation.focus))
-				?.focus({ preventScroll: true });
+			applyingSlotDomFocus = true;
+			try {
+				document
+					.getElementById(focusIdForNavigation(navigation.focus))
+					?.focus({ preventScroll: true });
+			} finally {
+				applyingSlotDomFocus = false;
+			}
 		}, 500);
 	}
 
@@ -3251,7 +3265,7 @@
 	}
 
 	function beginPendingSlotOperation(kind: 'move' | 'copy') {
-		const domSource = transferDomSource ?? focusedDomSaveSlot();
+		const domSource = validateTransferSource(transferDomSource ?? focusedDomSaveSlot());
 		transferDomSource = null;
 		const slot = domSource?.slot ?? focusedSlot;
 
@@ -3302,7 +3316,15 @@
 	}
 
 	function focusedDomSaveSlot() {
-		const element = document.activeElement;
+		const activeElement = document.activeElement;
+		const element =
+			activeElement instanceof HTMLElement && activeElement.getAttribute('role') === 'grid'
+				? document.getElementById(activeElement.getAttribute('aria-activedescendant') ?? '')
+				: activeElement;
+		return domSaveSlot(element);
+	}
+
+	function domSaveSlot(element: Element | null): DomFocusedSaveSlot | null {
 		if (!(element instanceof HTMLElement) || element.getAttribute('role') !== 'gridcell')
 			return null;
 		const paneId = element.closest<HTMLElement>('[data-pane-id]')?.dataset.paneId;
@@ -3321,13 +3343,41 @@
 		return slot ? { pane, ref, slot } : null;
 	}
 
+	function controllerFocusedSaveSlot(): DomFocusedSaveSlot | null {
+		const pane = document.querySelector<HTMLElement>('.box-pane.active-pane');
+		const grid = pane?.querySelector<HTMLElement>('[role="grid"]');
+		const activeDescendant = grid?.getAttribute('aria-activedescendant');
+		const activeElement = activeDescendant ? document.getElementById(activeDescendant) : null;
+		return domSaveSlot(
+			activeElement && pane?.contains(activeElement)
+				? activeElement
+				: (grid?.querySelector('[aria-selected="true"]') ?? null)
+		);
+	}
+
+	function validateTransferSource(source: DomFocusedSaveSlot | null) {
+		if (
+			lastDomFocusedSaveSlot?.navigationRevision === slotNavigationRevision &&
+			performance.now() - lastDomFocusedSaveSlot.at < 2_000
+		) {
+			return lastDomFocusedSaveSlot;
+		}
+		const controllerSource = controllerFocusedSaveSlot();
+		if (!controllerSource) return source;
+		return source?.pane.id === controllerSource.pane.id &&
+			slotRefKey(source.ref) === slotRefKey(controllerSource.ref)
+			? source
+			: controllerSource;
+	}
+
 	function captureTransferSource(event: PointerEvent) {
 		event.preventDefault();
-		transferDomSource =
+		transferDomSource = validateTransferSource(
 			focusedDomSaveSlot() ??
-			(lastDomFocusedSaveSlot && performance.now() - lastDomFocusedSaveSlot.at < 2_000
-				? lastDomFocusedSaveSlot
-				: null);
+				(lastDomFocusedSaveSlot && performance.now() - lastDomFocusedSaveSlot.at < 2_000
+					? lastDomFocusedSaveSlot
+					: null)
+		);
 	}
 
 	async function cancelPendingSlotOperation() {
@@ -5976,12 +6026,10 @@
 
 				try {
 					const boxSlots = await loadCachedBoxSlots(state, pane.activeBox);
-					const current = savePaneWorkspaces[pane.id]?.state ?? state;
 					const paneState = {
 						...state,
 						workspace: {
 							...state.workspace,
-							partySlots: current.workspace.partySlots,
 							boxSlots
 						}
 					};
@@ -6965,6 +7013,9 @@
 														? virtualDestinationState(slotRef, slot, pane)
 														: null}
 												onFocusSlot={() => {
+													if (applyingSlotDomFocus) return;
+													if (slotDomFocusTimer) clearTimeout(slotDomFocusTimer);
+													slotDomFocusTimer = null;
 													const focus = paneParty
 														? focusPartySlot(slot.slot)
 														: focusBoxSlot(slot.slot);
@@ -6981,7 +7032,8 @@
 														pane,
 														ref: slotRef,
 														slot,
-														at: performance.now()
+														at: performance.now(),
+														navigationRevision: slotNavigationRevision
 													};
 													primeFocusedSlotEditData(pane, slotRef, slot);
 												}}
