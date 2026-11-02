@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { dev } from '$app/environment';
+	import { base64ToBytes } from '$lib/engine/serialized-save';
 	import { asset } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -118,6 +120,7 @@
 	import SlotActionMenu from '$lib/components/pksx/SlotActionMenu.svelte';
 	import StorageSlot from '$lib/components/pksx/StorageSlot.svelte';
 	import TakeoverFrame from '$lib/components/pksx/TakeoverFrame.svelte';
+	import TradeWithSwitch from '$lib/components/pksx/TradeWithSwitch.svelte';
 	import type { SlotView } from '$lib/components/pksx/types';
 	import {
 		createPokemonCreationOperation,
@@ -203,6 +206,7 @@
 		type SaveFileLegalityReportTarget
 	} from '$lib/pksx/save-file-legality-report/host.svelte';
 	import { createBoxMenuCommands, type BoxMenuCommandKey } from '$lib/pksx/box-menu';
+	import type { TradeSource } from '$lib/link-trade/trade-setup';
 	import { createSlotMenuCommands, type SlotMenuCommandKey } from '$lib/pksx/slot-menu';
 	import { layerFade, panelSettle } from '$lib/pksx/motion';
 
@@ -374,6 +378,13 @@
 	let pokemonSpeciesFormLoading = $state(false);
 	let pokemonSpeciesFormRequest = 0;
 	let legalityReport = $state<LegalityReportState>({ status: 'idle' });
+	let tradeWithSwitch = $state<TradeWithSwitch>();
+	let tradeTarget = $state.raw<{
+		pokemonLabel: string;
+		location: string;
+		source: TradeSource;
+		bytes: Uint8Array;
+	} | null>(null);
 	let legalityReportRequest = 0;
 	let pokemonAction = $state<PokemonActionState>({ status: 'idle' });
 	let pokemonActionRequest = 0;
@@ -532,7 +543,9 @@
 			evolve:
 				slotMenuPokemonActionPreview?.actions.some(
 					(action) => action.kind === 'evolve' && action.available
-				) ?? false
+				) ?? false,
+			// The review has no start action until #437, so production builds hide the entry.
+			trade: dev && focusedSlot.kind === 'pokemon' && Boolean(focusedSlot.entityBytesBase64)
 		})
 	);
 	const saveSummary = $derived(focusedPaneWorkspace?.state.workspace.summary ?? null);
@@ -658,6 +671,9 @@
 				dispatchLegalityReport(action);
 				return true;
 			case 'save-file-legality-report':
+				return true;
+			case 'trade-with-switch':
+				tradeWithSwitch?.dispatch(action);
 				return true;
 		}
 
@@ -3201,6 +3217,9 @@
 			case 'evolve':
 				void openPokemonEvolution();
 				break;
+			case 'trade-with-switch':
+				openTradeWithSwitch();
+				break;
 			default:
 				break;
 		}
@@ -4232,6 +4251,26 @@
 				originalTrainer: pending?.scope.originalTrainer === true || scope.originalTrainer
 			}
 		};
+	}
+
+	function openTradeWithSwitch() {
+		if (focusedSlot.kind !== 'pokemon' || !focusedSlot.entityBytesBase64) return;
+		tradeTarget = {
+			pokemonLabel: focusedSlot.label,
+			location: activeSlotPositionLabel,
+			source: {
+				owner: focusedSlotOwner.type === 'pokemon-storage' ? 'pokemon-storage' : 'save-file',
+				slot: slotRefForFocus()
+			},
+			bytes: base64ToBytes(focusedSlot.entityBytesBase64)
+		};
+		openRelatedWorkflow('trade-with-switch', slotCommandLauncherId('trade-with-switch'));
+	}
+
+	function closeTradeWithSwitch() {
+		tradeTarget = null;
+		dismissActiveWorkflow();
+		refreshReturnedSlotMenuAvailability();
 	}
 
 	function closeLegalityReport() {
@@ -5948,6 +5987,25 @@
 		onFocusCommand={setClearSlotCommandFocus}
 		onCancel={cancelClearSlot}
 		onConfirm={confirmClearSlot}
+	/>
+{/if}
+
+{#if activeSummonedWorkflow?.kind === 'trade-with-switch' && tradeTarget}
+	{@const target = tradeTarget}
+	<TradeWithSwitch
+		bind:this={tradeWithSwitch}
+		pokemonLabel={target.pokemonLabel}
+		location={target.location}
+		source={target.source}
+		prepare={(destinationGame) =>
+			engine
+				? engine.prepareOutgoingLinkTrade(target.bytes, { destinationGame, sourceKind: 'entity' })
+				: Promise.resolve({
+						ok: false,
+						value: null,
+						error: { code: 'engine-unavailable', message: 'The PKHeX Engine is not ready.' }
+					})}
+		onClose={closeTradeWithSwitch}
 	/>
 {/if}
 
