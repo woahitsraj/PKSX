@@ -15,7 +15,7 @@ final class ControllerNavigationTests: XCTestCase {
     func testControllerNavigatesAndHighlightsSlotActions() async throws {
         let webView = try await controllerSurface()
         controller.extendedGamepad?.dpad.setValueForXAxis(1, yAxis: 0)
-        try await waitForJavaScript("document.activeElement?.id === 'box-0-slot-1'", in: webView)
+        try await waitForJavaScript(controllerFocus("box-0-slot-1"), in: webView)
         controller.extendedGamepad?.dpad.setValueForXAxis(0, yAxis: 0)
         try await waitForJavaScript(
             "window.__pksxControllerEvents?.includes('ArrowRight:false')",
@@ -52,7 +52,7 @@ final class ControllerNavigationTests: XCTestCase {
 
         controller.extendedGamepad?.buttonB.setValue(1)
         try await waitForJavaScript(
-            "document.querySelector('[role=\"dialog\"][aria-label=\"Slot actions\"]') === null && document.activeElement?.id === 'box-0-slot-1'",
+            "document.querySelector('[role=\"dialog\"][aria-label=\"Slot actions\"]') === null && \(controllerFocus("box-0-slot-1"))",
             in: webView
         )
         controller.extendedGamepad?.buttonB.setValue(0)
@@ -69,7 +69,7 @@ final class ControllerNavigationTests: XCTestCase {
 
         controller.extendedGamepad?.leftThumbstick.setValueForXAxis(1, yAxis: 0)
         try await waitForJavaScript(
-            "window.__pksxControllerEvents?.includes('ArrowRight:true') && document.activeElement?.id === 'box-0-slot-1'",
+            "window.__pksxControllerEvents?.includes('ArrowRight:true') && \(controllerFocus("box-0-slot-1"))",
             in: webView
         )
         controller.extendedGamepad?.leftThumbstick.setValueForXAxis(0, yAxis: 0)
@@ -110,7 +110,7 @@ final class ControllerNavigationTests: XCTestCase {
 
         controller.extendedGamepad?.buttonB.setValue(1)
         try await waitForJavaScript(
-            "document.querySelector('[role=\"dialog\"][aria-label=\"Box Menu\"]') === null && document.activeElement?.id === 'box-0-slot-1'",
+            "document.querySelector('[role=\"dialog\"][aria-label=\"Box Menu\"]') === null && \(controllerFocus("box-0-slot-1"))",
             in: webView
         )
         controller.extendedGamepad?.buttonB.setValue(0)
@@ -371,7 +371,7 @@ final class ControllerNavigationTests: XCTestCase {
             "document.readyState === 'complete' && document.querySelector('.boxes-route')?.dataset.initialState === 'ready' && document.querySelector('#box-grid')?.getClientRects().length > 0",
             in: webView
         )
-        _ = try await webView.evaluateJavaScript("document.querySelector('#box-grid').focus()")
+        _ = try await webView.evaluateJavaScript("document.querySelector('#box-0-slot-0').focus()")
         _ = try await webView.evaluateJavaScript(
             "window.__pksxControllerConnected = false; window.__pksxControllerEvents = []; window.__pksxControllerDetails = []; if (window.__pksxControllerListener) window.removeEventListener('pksxcontroller', window.__pksxControllerListener); window.__pksxControllerListener = event => { window.__pksxControllerEvents.push(event.detail.key + ':' + event.detail.pressed); window.__pksxControllerDetails.push(event.detail.key + ':' + event.detail.pressed + ':' + event.detail.discrete); }; window.addEventListener('pksxcontroller', window.__pksxControllerListener); window.addEventListener('pksxcontrollerconnection', () => window.__pksxControllerConnected = true, { once: true })"
         )
@@ -399,6 +399,10 @@ final class ControllerNavigationTests: XCTestCase {
             windows.lazy.compactMap(findWebView).first,
             "The app WebView is unavailable"
         )
+    }
+
+    private func controllerFocus(_ id: String) -> String {
+        "(document.activeElement?.id === '\(id)' || document.activeElement?.getAttribute('aria-activedescendant') === '\(id)')"
     }
 
     private func hasEnabledDoubleTapRecognizer(in view: UIView) -> Bool {
