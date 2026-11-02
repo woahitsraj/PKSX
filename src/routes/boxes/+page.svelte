@@ -7003,7 +7003,10 @@
 								: undefined}
 							aria-rowcount={paneRows}
 							aria-colcount={paneColumns}
-							onfocus={() => activatePane(pane)}
+							onfocus={() => {
+								activatePane(pane);
+								queueMicrotask(() => paintSlotFocus(false));
+							}}
 							onfocusin={() => {
 								if (!pendingSlotOperation && !virtualCarry && pane.id !== activePaneId)
 									activatePane(pane);
