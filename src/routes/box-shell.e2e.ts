@@ -76,6 +76,11 @@ async function pressController(page: Page, key: string) {
 	}, key);
 }
 
+async function expectControllerSlot(page: Page, id: string) {
+	await expect(page.locator('#box-grid')).toHaveAttribute('aria-activedescendant', id);
+	await expect(page.locator(`#${id}`)).toHaveAttribute('aria-selected', 'true');
+}
+
 async function comboboxList(combobox: Locator) {
 	const listId = await combobox.getAttribute('aria-controls');
 	if (!listId) throw new Error('Combobox list identity is missing.');
@@ -3399,7 +3404,8 @@ test('shared Carry and arrows use the focused virtual record in a Save and Stora
 		await expect(storagePane).toHaveAttribute('data-location', 'all-pokemon');
 		if (mode === 'Copy') await page.keyboard.press('Escape');
 	}
-	await page.keyboard.press('x');
+	await expect(storagePane).toHaveClass(/active-pane/);
+	await storagePane.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: /Box 01: Box 01/ }).click();
 	await storagePane.locator('[id$="box-0-slot-2"]').click();
 	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('Empty');
@@ -3715,6 +3721,7 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 	await openEmptySaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('ArrowRight');
+	await expectControllerSlot(page, 'box-0-slot-1');
 	await page.keyboard.press('Enter');
 
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
@@ -5128,7 +5135,7 @@ test('controller input follows the keyboard navigation path', async ({ page }) =
 	await page.locator('#box-grid').focus();
 
 	await pressController(page, 'ArrowRight');
-	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+	await expectControllerSlot(page, 'box-0-slot-1');
 
 	await pressController(page, 'Enter');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
@@ -5145,7 +5152,7 @@ test('controller input follows the keyboard navigation path', async ({ page }) =
 	await pressController(page, 'Escape');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
 	await expect(page.locator('.boxes-route')).not.toHaveAttribute('inert', '');
-	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+	await expectControllerSlot(page, 'box-0-slot-1');
 
 	await pressController(page, 'x');
 	await expect(page.getByRole('dialog', { name: 'Box Menu' })).toBeVisible();
@@ -5160,7 +5167,7 @@ test('controller input follows the keyboard navigation path', async ({ page }) =
 		.toBe('solid');
 	await pressController(page, 'Escape');
 	await expect(page.locator('.boxes-route')).not.toHaveAttribute('inert', '');
-	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+	await expectControllerSlot(page, 'box-0-slot-1');
 });
 
 test('exports the displayed Save File through the edit coordinator boundary', async ({ page }) => {
