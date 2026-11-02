@@ -2477,6 +2477,7 @@ test('duplicate Save panes retain a published Party mutation while refreshing an
 	page
 }) => {
 	await page.setViewportSize({ width: 1800, height: 900 });
+	await installWorkspaceResponseHold(page);
 	const panes = await openDuplicateEmeraldPanes(page);
 	const partyPane = panes.first();
 	const boxPane = panes.nth(1);
@@ -2488,11 +2489,19 @@ test('duplicate Save panes retain a published Party mutation while refreshing an
 	const source = partyPane.locator('[id$="party-slot-0"]');
 	await expect(source).toContainText('1-UP');
 
+	await holdWorkspaceResponses(page, -1, 'listBoxSlots');
 	await source.focus();
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
 	await boxPane.locator('[id$="box-1-slot-0"]').click();
+	await waitForHeldWorkspaceResponses(page);
+	await partyPane.getByRole('grid').focus();
+	await page.keyboard.press('PageDown');
+	await waitForHeldWorkspaceResponses(page, 2);
+	await releaseWorkspaceResponses(page);
 
 	await expect(boxPane.locator('[id$="box-1-slot-0"]')).toContainText('1-UP', { timeout: 15000 });
+	await partyPane.getByRole('button', { name: 'Previous Location' }).click();
+	await expect(partyPane.getByRole('heading', { name: 'Party' })).toBeVisible();
 	await expect(source).not.toContainText('1-UP', { timeout: 15000 });
 });
 

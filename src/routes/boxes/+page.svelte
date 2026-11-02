@@ -6051,6 +6051,25 @@
 		const panes = workbenchPanes.filter(
 			(pane) => pane.source.type === 'save-file' && pane.source.id === state.file.id
 		);
+		const nextPaneWorkspaces = { ...savePaneWorkspaces };
+		for (const pane of panes) {
+			const current = nextPaneWorkspaces[pane.id];
+			if (!current) continue;
+			nextPaneWorkspaces[pane.id] = {
+				loadedBox: current.loadedBox,
+				state:
+					current.loadedBox === publishedBox
+						? state
+						: {
+								...state,
+								workspace: {
+									...state.workspace,
+									boxSlots: current.state.workspace.boxSlots
+								}
+							}
+			};
+		}
+		savePaneWorkspaces = nextPaneWorkspaces;
 
 		await Promise.all(
 			panes.map(async (pane) => {
