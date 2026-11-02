@@ -12,6 +12,7 @@
 		spriteUrl: string | null;
 		carried?: { label: string; mode: 'move' | 'copy'; spriteUrl?: string | null } | null;
 		destinationState?: 'valid' | 'invalid' | 'source' | null;
+		disabled?: boolean;
 		onFocusSlot: () => void;
 		onChooseSlot?: () => void;
 		onOpenMenu?: () => void;
@@ -28,6 +29,7 @@
 		spriteUrl,
 		carried = null,
 		destinationState = null,
+		disabled = false,
 		onFocusSlot,
 		onChooseSlot,
 		onOpenMenu
@@ -92,6 +94,7 @@
 	]}
 	type="button"
 	role="gridcell"
+	{disabled}
 	tabindex="-1"
 	{style}
 	aria-selected="false"

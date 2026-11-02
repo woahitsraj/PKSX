@@ -1784,13 +1784,25 @@ test('Boxes keeps session composition across navigation and restores only the pr
 		})
 		.click();
 	await expect(page.locator('.box-pane')).toHaveCount(2);
+	await primary.getByRole('grid').focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(primary.getByRole('grid')).toHaveAttribute('aria-activedescendant', 'box-1-slot-1');
 
 	await chooseMainMenu(page, 'Settings');
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const session = JSON.parse(localStorage.getItem('pksx-boxes-session-v1') ?? 'null');
+				return session?.primary?.focus?.slot;
+			})
+		)
+		.toBe(1);
 	await chooseMainMenu(page, 'Boxes');
 	await expect(page.locator('.box-pane')).toHaveCount(2);
 	await expect(
 		page.locator('.box-pane').first().getByRole('heading', { name: 'Box 02' })
 	).toBeVisible();
+	await expect(primary.getByRole('grid')).toHaveAttribute('aria-activedescendant', 'box-1-slot-1');
 	await primary.getByRole('button', { name: 'Previous Location' }).click();
 	await primary.locator('[id$="box-0-slot-0"]').click();
 	await page.keyboard.press('Enter');
@@ -2381,6 +2393,36 @@ test('switching panes preserves deferred Controller Focus in each pane', async (
 	);
 });
 
+test('pending Box loads suspend actions for the previously displayed slots', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await installWorkspaceResponseHold(page);
+	const pane = (await openDuplicateEmeraldPanes(page)).nth(1);
+	const staleSlot = pane.locator('[id$="box-0-slot-0"]');
+	const copy = page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' });
+
+	await staleSlot.focus();
+	await expect(copy).toBeEnabled();
+	await holdWorkspaceResponses(page, 1, 'listBoxSlots');
+	await page.evaluate(() => {
+		window.dispatchEvent(
+			new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true, cancelable: true })
+		);
+		window.dispatchEvent(
+			new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true, cancelable: true })
+		);
+	});
+	await waitForHeldWorkspaceResponses(page);
+
+	await expect(staleSlot).toBeDisabled();
+	await expect(copy).toBeDisabled();
+	await pane.getByRole('grid').focus();
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toHaveCount(0);
+
+	await releaseWorkspaceResponses(page);
+	await expect(pane.locator('[id$="box-2-slot-0"]')).toBeEnabled();
+});
+
 test('switching panes preserves a requested Box while its slots load', async ({ page }) => {
 	await page.setViewportSize({ width: 1800, height: 900 });
 	await installWorkspaceResponseHold(page);
@@ -2394,6 +2436,10 @@ test('switching panes preserves a requested Box while its slots load', async ({ 
 	await holdWorkspaceResponses(page, 1, 'listBoxSlots');
 	await page.keyboard.press('PageDown');
 	await waitForHeldWorkspaceResponses(page);
+	await expect(requestedPane.locator('[id$="box-1-slot-0"]')).toBeDisabled();
+	await expect(
+		page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' })
+	).toBeDisabled();
 	await firstPane.getByRole('grid').focus();
 	await expect(firstPane).toHaveClass(/active-pane/);
 	await releaseWorkspaceResponses(page);
@@ -2402,6 +2448,7 @@ test('switching panes preserves a requested Box while its slots load', async ({ 
 	await expect(requestedPane).toHaveClass(/active-pane/);
 	await expect(requestedPane).toHaveAttribute('data-location', 'box-2');
 	await expect(requestedPane.getByRole('heading', { name: 'BOX3' })).toBeVisible();
+	await expect(requestedPane.locator('[id$="box-2-slot-0"]')).toBeEnabled();
 });
 
 test('duplicate Save panes retain a published Party mutation while refreshing another Box', async ({

@@ -2159,6 +2159,7 @@
 	}
 
 	function openSlotMenu(focus: SlotFocus, pane: BoxPaneState | undefined = activePane) {
+		if (!paneSlotActionsReady(pane, focus)) return;
 		if (catalogViewStale && pane?.source.type === 'pokemon-storage') {
 			toastHost.error('Reload Boxes before changing Pokemon Storage Slots.');
 			return;
@@ -2803,7 +2804,7 @@
 		destination: SaveSlotRef,
 		destinationPane: BoxPaneState | undefined = activePane
 	) {
-		if (!pendingSlotOperation || busy) {
+		if (!pendingSlotOperation || busy || !paneSlotActionsReady(destinationPane, destination)) {
 			return;
 		}
 		if (
@@ -3275,6 +3276,7 @@
 
 		const source = domSource?.ref ?? slotRefForFocus();
 		const sourcePane = domSource?.pane ?? activePane;
+		if (!paneSlotActionsReady(sourcePane, source)) return;
 		const sourcePaneId = sourcePane?.id ?? activePaneId;
 		const sourceOwner = sourcePane?.source ?? saveFileSource(loadedSave);
 		const sourceWorkspace = saveWorkspaceForPane(sourcePane)?.state ?? null;
@@ -3942,6 +3944,20 @@
 		}
 
 		return normalizeBoxSlots(createBoxSlotViews(paneWorkspace.state.workspace.boxSlots));
+	}
+
+	function paneSlotActionsReady(
+		pane: BoxPaneState | undefined,
+		focus: Pick<SaveSlotRef, 'zone'> | null = pane?.focus ?? null
+	): boolean {
+		const requestedBox = pane?.id === activePaneId ? navigation.activeBox : pane?.activeBox;
+		const displayedWorkspace = pane ? savePaneWorkspaces[pane.id] : null;
+		return (
+			focus?.zone !== 'box' ||
+			pane?.source.type !== 'save-file' ||
+			(displayedWorkspace?.state.file.id === pane.source.id &&
+				displayedWorkspace.loadedBox === requestedBox)
+		);
 	}
 
 	function paneHasParty(pane: BoxPaneState | undefined): boolean {
@@ -5996,7 +6012,7 @@
 
 	onDestroy(() => {
 		destroyed = true;
-		if (boxesSessionPersistTimer) clearTimeout(boxesSessionPersistTimer);
+		if (boxesSessionPersistTimer) persistBoxesSession();
 		if (navigationProjectionTimer) clearTimeout(navigationProjectionTimer);
 		if (slotDomFocusTimer) clearTimeout(slotDomFocusTimer);
 		if (summonedWorkflow.active?.kind !== 'backup-browser') summonedWorkflow.closeAll();
@@ -6787,6 +6803,7 @@
 					...virtualPreferences,
 					location: virtualPaneLocations[pane.id] ?? virtualPreferences.location
 				}}
+				{@const paneSlotsActionable = paneSlotActionsReady(pane)}
 				{@const paneSlots = paneParty ? panePartySlots(pane) : paneBoxSlots(pane, paneGridBox)}
 				{@const paneColumns = paneParty ? PARTY_COLUMNS : BOX_COLUMNS}
 				{@const paneRows = paneParty ? PARTY_ROWS : BOX_ROWS}
@@ -7087,7 +7104,8 @@
 						tabindex="-1"
 						disabled={(activeVirtualLocation
 							? !virtualFocusedRecord
-							: focusedSlot.kind !== 'pokemon') ||
+							: focusedSlot.kind !== 'pokemon' ||
+								!paneSlotActionsReady(activePane, activeSlotFocus)) ||
 							pendingSlotOperation !== null ||
 							virtualCarry !== null}
 						onpointerdown={(event) =>
@@ -7102,7 +7120,8 @@
 						tabindex="-1"
 						disabled={(activeVirtualLocation
 							? !virtualFocusedRecord
-							: focusedSlot.kind !== 'pokemon') ||
+							: focusedSlot.kind !== 'pokemon' ||
+								!paneSlotActionsReady(activePane, activeSlotFocus)) ||
 							pendingSlotOperation !== null ||
 							virtualCarry !== null}
 						onpointerdown={(event) =>
