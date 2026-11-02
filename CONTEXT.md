@@ -216,6 +216,10 @@ _Avoid_: physical device, browser tab, session
 The service that authenticates User Accounts and stores and serves Cloud Sync data. It never receives installation-local state.
 _Avoid_: cloud account, Sync Profile, identity provider
 
+**Sync Quota**:
+The byte limit that a Sync Provider applies to one Sync Profile.
+_Avoid_: local storage limit, Backup limit
+
 **Sync Object**:
 A durable object in Saves that Cloud Sync addresses and tracks independently.
 _Avoid_: cloud file, provider record, synced row
@@ -251,6 +255,10 @@ _Avoid_: provider checksum, entity fingerprint, Sync Object identity
 **Deletion Marker**:
 A Sync Revision that records a Sync Object's deletion without carrying its live payload.
 _Avoid_: missing object, hard delete, expired object
+
+**Sync Ancestry Record**:
+The identity and parent links that PKSX keeps for a superseded Sync Revision after it removes that revision's content.
+_Avoid_: Deletion Marker, Backup, revision history
 
 **Save File Family**:
 A Save File and its owned Workspace and Backups, treated as one coherent group for Cloud Sync deletion and conflict handling.
@@ -413,7 +421,7 @@ _Avoid_: setting, option, config
 - Every **Sync Revision** has one **Sync Envelope** version; every live **Sync Revision** also has one kind-specific **Sync Payload** version.
 - **Sync Envelope** and **Sync Payload** versions are independent of app releases, provider versions, local storage versions, and embedded artifact format versions.
 - Each PKSX release reads and migrates every released **Sync Envelope** and **Sync Payload** version and writes only its current versions.
-- A **Sync Migration** runs in the provider-neutral sync coordinator after validating its source and creates a new immutable descendant without rewriting or removing the source.
+- A **Sync Migration** runs in the provider-neutral sync coordinator after validating its source and creates a new immutable descendant without rewriting or removing the source; retention later treats a superseded source like any other superseded **Sync Revision**.
 - **Sync Migration** converts complete candidate heads during reconciliation, not historical ancestors; each competing head migrates independently, and a **Conflict Recovery** migrates only if it becomes active again.
 - A validated **Sync Migration** preserves synchronized meaning; its descendant advances clean **Shared Sync State** automatically, while independently migrated competing heads remain in conflict.
 - When an older client edit and a **Sync Migration** share the same parent, PKSX may migrate the edit into a descendant of both heads only if it proves that the other head changed representation but not synchronized meaning; otherwise the heads remain in conflict.
@@ -429,13 +437,13 @@ _Avoid_: setting, option, config
 - Each recognized **Sync Envelope** and **Sync Payload** version has a closed schema; an unknown field in a recognized version makes the revision invalid rather than safe to ignore.
 - Adding, removing, or reinterpreting a synchronized payload field increments that kind's **Sync Payload** version; changing common metadata or canonicalization increments the **Sync Envelope** version.
 - A new **Sync Object** kind begins its own **Sync Payload** version sequence at version 1 and is unsupported by clients that do not recognize the kind.
-- Missing causal ancestors make a **Sync Revision** incomplete until those ancestors are available.
+- Missing causal ancestors make a **Sync Revision** incomplete until those ancestors are available; a **Sync Ancestry Record** makes an ancestor available.
 - An initial **Sync Revision** has no parents, an ordinary edit or deletion has one parent, an automatically migrated older-client edit has both the edit and schema-only head as parents, and a **Conflict Resolution** has every competing head it supersedes as parents.
 - PKSX may coalesce competing **Sync Revisions** automatically only when their complete synchronized content and metadata are identical.
 - Naming a parent means the child **Sync Revision** causally supersedes it; it does not imply that PKSX merged differing content automatically.
 - A **Deletion Marker** follows the same identity, ancestry, validation, and conflict rules as every other **Sync Revision**.
 - A **Deletion Marker** retains its **Sync Object** identity, type, ownership relationship, and last known user-facing label, but contains no live artifact payload.
-- A **Deletion Marker** remains the **Shared Sync State** while an older live state could return from an offline **PKSX Installation**.
+- A **Deletion Marker** never expires; it remains until **Conflict Resolution** restores its **Sync Object** or the **User Account** is deleted.
 - A live state with unprovable ancestry conflicts with a **Deletion Marker**; it never silently resurrects the deleted **Sync Object**.
 - **Conflict Resolution** may restore a deleted **Sync Object** with a live multi-parent descendant; importing the same content anew creates a different **Sync Object** identity.
 - Deleting a **Save File** records one coherent change with a **Deletion Marker** for the **Save File**, its **Workspace** when one exists, and every **Backup** known to the deleting **PKSX Installation**.
@@ -447,6 +455,7 @@ _Avoid_: setting, option, config
 - Device-local **Saves** determines what that device opens and edits, including while offline.
 - **Shared Sync State** identifies the last complete, valid state accepted for cross-device distribution; it does not replace divergent local work.
 - A successfully persisted local change becomes a **Pending Sync Change** without blocking further local work.
+- A **Sync Object** has at most one **Pending Sync Change**; further local saves extend it, and intermediate saves never become **Sync Revisions**, so pending work does not grow with the number of edits.
 - Provider filenames, paths, timestamps, ordering, and object versions do not advance **Shared Sync State**.
 - PKSX automatically accepts an incoming **Sync Object** state only when it descends from the exact **Shared Sync State** acknowledged by that **PKSX Installation** and either no **Pending Sync Change** exists or the incoming state causally includes every pending change.
 - Unknown or divergent ancestry never establishes authority; PKSX preserves every distinct competing state for explicit conflict resolution.
@@ -458,7 +467,9 @@ _Avoid_: setting, option, config
 - **Conflict Resolution** advances **Shared Sync State**, and a clean **PKSX Installation** accepts that resolution without another prompt.
 - New work that diverges from a **Conflict Resolution** creates another conflict.
 - Concurrent **Conflict Resolutions** are competing states and require another explicit **Conflict Resolution**.
-- PKSX retains every unchosen state from a **Conflict Resolution** as a **Conflict Recovery** until the user deletes it or the retention policy expires.
+- PKSX retains every unchosen state from a **Conflict Resolution** as a **Conflict Recovery** until the user deletes it.
+- PKSX replaces a superseded **Sync Revision** with a **Sync Ancestry Record** when a descendant becomes **Shared Sync State**, unless the **Sync Revision** is a competing head, a **Pending Sync Change**, or the content of a **Conflict Recovery**.
+- PKSX never removes a **Save File**, **Workspace**, **Pokemon Storage** record, **Backup**, or **Conflict Recovery** automatically to free space.
 - An incoming state that exactly matches acknowledged state is a duplicate and has no effect.
 - An incoming state that is a known ancestor of acknowledged state is stale and has no effect.
 - An incoming state that matches or causally includes a **Pending Sync Change** confirms that change, clears the covered pending work, and may advance **Shared Sync State**.
@@ -468,6 +479,14 @@ _Avoid_: setting, option, config
 - An **Unsupported Sync Revision** pauses Cloud Sync writes only for its **Sync Object**, or its **Save File Family** when family consistency is involved; unrelated **Sync Objects** continue syncing.
 - Device-local editing and **Export** remain available while an **Unsupported Sync Revision** pauses Cloud Sync writes, and new **Pending Sync Changes** wait for a compatible PKSX version.
 - Enrolling an empty device in a **Sync Profile** materializes its **Shared Sync State** into local **Saves**.
+- Every enrolled **PKSX Installation** keeps local bytes for its **Save Files**, **Workspaces**, and **Pokemon Storage**, and keeps the metadata of every **Backup** and **Conflict Recovery**.
+- A **PKSX Installation** downloads all incoming artifacts while they fit; **Backup** and **Conflict Recovery** bytes that do not fit stay only on the **Sync Provider**, and PKSX downloads them when the user opens them, so **Backup Restore** of such a **Backup** needs a network connection.
+- A **Sync Quota** rejection leaves local editing and **Export** available and keeps **Pending Sync Changes** durable; downloads and **Deletion Markers** continue, and a persistent status tells the user that cloud storage is full.
+- The Sync Provider contract reports the **Sync Quota** and the space used, and splits an artifact into chunks atomically when it exceeds a provider value limit; PKSX sets no artifact limit below the largest **Supported Save File**.
+- A failed local write leaves the previous local state in place and shows the failure; PKSX does not advance acknowledged **Shared Sync State** for a **Sync Object** that it could not write.
+- When incoming data does not fit locally, PKSX first skips **Backup** and **Conflict Recovery** bytes and then reports the problem.
+- PKSX may remove a staged incomplete incoming change from a **PKSX Installation** whenever it needs space, and removes its parts from the **Sync Provider** after 30 days without progress; the originating **PKSX Installation** can upload its pinned **Sync Revision** again with the same identity.
+- PKSX requests persistent storage when the user enables Cloud Sync and shows a persistent degraded durability status if the platform denies the request.
 - A **PKSX Installation** that holds local **Saves** enrolls only through **Sync Adoption**; nothing uploads or changes locally before the user confirms, and a cancelled adoption leaves the installation signed out and unchanged.
 - **Sync Adoption** covers every local **Sync Object**, so an enrolled **PKSX Installation** synchronizes all of its **Saves**.
 - **Sync Adoption** never matches by content; a local-only **Sync Object** keeps its identity and enters the **Sync Profile** as an initial **Sync Revision**.
