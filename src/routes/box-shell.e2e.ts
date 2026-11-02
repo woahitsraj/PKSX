@@ -2381,6 +2381,29 @@ test('switching panes preserves deferred Controller Focus in each pane', async (
 	);
 });
 
+test('switching panes preserves a requested Box while its slots load', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await installWorkspaceResponseHold(page);
+	const panes = await openDuplicateEmeraldPanes(page);
+	const firstPane = panes.first();
+	const requestedPane = panes.nth(1);
+
+	await requestedPane.getByRole('button', { name: 'Next Location' }).click();
+	await expect(requestedPane.getByRole('heading', { name: 'BOX2' })).toBeVisible();
+	await requestedPane.getByRole('grid').focus();
+	await holdWorkspaceResponses(page, 1, 'listBoxSlots');
+	await page.keyboard.press('PageDown');
+	await waitForHeldWorkspaceResponses(page);
+	await firstPane.getByRole('grid').focus();
+	await expect(firstPane).toHaveClass(/active-pane/);
+	await releaseWorkspaceResponses(page);
+	await requestedPane.getByRole('grid').focus();
+
+	await expect(requestedPane).toHaveClass(/active-pane/);
+	await expect(requestedPane).toHaveAttribute('data-location', 'box-2');
+	await expect(requestedPane.getByRole('heading', { name: 'BOX3' })).toBeVisible();
+});
+
 test('duplicate Save panes retain a published Party mutation while refreshing another Box', async ({
 	page
 }) => {

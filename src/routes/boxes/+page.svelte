@@ -3878,7 +3878,7 @@
 
 	function activatePane(pane: BoxPaneState, restoreFocus = true) {
 		if (pane.id === activePaneId) return;
-		workbenchPanes = setPaneFocus(workbenchPanes, activePaneId, navigation.locationFocus);
+		preserveActivePaneNavigation();
 		activePaneId = pane.id;
 		if (pane.source.type === 'pokemon-storage' && virtualPaneIds.includes(pane.id)) {
 			const records = virtualRecords(catalogManifest, {
@@ -3898,6 +3898,14 @@
 			Math.min(pane.activeBox, Math.max(1, pane.boxCount) - 1)
 		);
 		if (restoreFocus) queueMicrotask(focusActiveControl);
+	}
+
+	function preserveActivePaneNavigation() {
+		workbenchPanes = setPaneFocus(
+			setPaneActiveBox(workbenchPanes, activePaneId, navigation.activeBox),
+			activePaneId,
+			navigation.locationFocus
+		);
 	}
 
 	function sourceForCard(card: SourcePickerCard): BoxSourceType {
@@ -7021,11 +7029,7 @@
 														? focusPartySlot(slot.slot)
 														: focusBoxSlot(slot.slot);
 													if (pane.id !== activePaneId) {
-														workbenchPanes = setPaneFocus(
-															workbenchPanes,
-															activePaneId,
-															navigation.locationFocus
-														);
+														preserveActivePaneNavigation();
 													}
 													activePaneId = pane.id;
 													navigation = {
