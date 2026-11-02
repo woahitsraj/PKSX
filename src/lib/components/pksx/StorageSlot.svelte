@@ -66,9 +66,11 @@
 	}
 
 	function handleClick(event: MouseEvent) {
-		const wasFocused = focusedAtPointerDown ?? event.currentTarget === document.activeElement;
+		const slot = event.currentTarget as HTMLButtonElement;
+		const wasFocused = focusedAtPointerDown ?? slot === document.activeElement;
 		focusedAtPointerDown = null;
-		onFocusSlot();
+		if (slot === document.activeElement) onFocusSlot();
+		else slot.focus({ preventScroll: true });
 
 		if (onChooseSlot) {
 			onChooseSlot();

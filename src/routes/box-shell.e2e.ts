@@ -2485,6 +2485,11 @@ test('switching panes preserves deferred Controller Focus in each pane', async (
 		'aria-activedescendant',
 		'box-0-slot-1'
 	);
+	const firstSlot = firstPane.locator('[id$="box-0-slot-0"]');
+	await secondPane.getByRole('grid').focus();
+	await firstSlot.evaluate((slot: HTMLButtonElement) => slot.click());
+	await expect(firstSlot).toBeFocused();
+	await expect(firstPane).toHaveClass(/active-pane/);
 });
 
 test('pending Box loads suspend actions for the previously displayed slots', async ({ page }) => {
