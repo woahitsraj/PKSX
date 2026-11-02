@@ -3,9 +3,13 @@
 	import type { VirtualViewPreferences } from '$lib/pksx/pokemon-storage-catalog/virtual-views';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 	import { asset } from '$app/paths';
-	import { VIRTUAL_POKEMON_ROW_HEIGHT } from './virtual-pokemon-grid-layout';
+	import {
+		VIRTUAL_POKEMON_ROW_HEIGHT,
+		virtualRecordControlId
+	} from './virtual-pokemon-grid-layout';
 
 	type Props = {
+		paneId: string;
 		records: PokemonRecord[];
 		allRecords: PokemonRecord[];
 		preferences: VirtualViewPreferences;
@@ -18,6 +22,7 @@
 		onColumns: (columns: number) => void;
 	};
 	let {
+		paneId,
 		records,
 		allRecords,
 		preferences,
@@ -160,7 +165,8 @@
 							>
 								<button
 									data-pksx-control-category="card"
-									id={`virtual-record-${record.recordId}`}
+									id={virtualRecordControlId(paneId, record.recordId)}
+									data-record-id={record.recordId}
 									class={focusedId === record.recordId ? 'record focused' : 'record'}
 									type="button"
 									aria-label={`${record.projection.nickname || record.projection.speciesName}, level ${record.projection.level}`}

@@ -3003,14 +3003,14 @@ test('shared Carry and arrows use the focused virtual record in a Save and Stora
 	expect(columns).toBeGreaterThan(1);
 	await savePane.locator('[id$="box-0-slot-0"]').click();
 	await storagePane
-		.locator(`#virtual-record-virtual-${String(columns + 1).padStart(3, '0')}`)
+		.locator(`[data-record-id="virtual-${String(columns + 1).padStart(3, '0')}"]`)
 		.click();
 	await page.keyboard.press('ArrowLeft');
 	await expect(
-		storagePane.locator(`#virtual-record-virtual-${String(columns).padStart(3, '0')}`)
+		storagePane.locator(`[data-record-id="virtual-${String(columns).padStart(3, '0')}"]`)
 	).toBeFocused();
 	await expect(storagePane).toHaveClass(/active-pane/);
-	await storagePane.locator('#virtual-record-virtual-007').click();
+	await storagePane.locator('[data-record-id=\"virtual-007\"]').click();
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
 	await page.getByRole('button', { name: /Box 01: Box 01/ }).click();
 	await storagePane.locator('[id$="box-0-slot-1"]').click();
@@ -3039,7 +3039,7 @@ test('shared Carry and arrows use the focused virtual record in a Save and Stora
 	for (const mode of ['Copy', 'Move'] as const) {
 		await savePane.locator('[id$="box-0-slot-0"]').focus();
 		await page.getByLabel('Transfer controls').getByRole('button', { name: mode }).click();
-		await storagePane.locator('#virtual-record-virtual-008').click();
+		await storagePane.locator('[data-record-id=\"virtual-008\"]').click();
 		await page.keyboard.press('Enter');
 		await expect(
 			page

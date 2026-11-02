@@ -131,7 +131,10 @@
 	import SlotActionMenu from '$lib/components/pksx/SlotActionMenu.svelte';
 	import StorageSlot from '$lib/components/pksx/StorageSlot.svelte';
 	import VirtualPokemonGrid from '$lib/components/pksx/VirtualPokemonGrid.svelte';
-	import { VIRTUAL_POKEMON_ROW_HEIGHT } from '$lib/components/pksx/virtual-pokemon-grid-layout';
+	import {
+		VIRTUAL_POKEMON_ROW_HEIGHT,
+		virtualRecordControlId
+	} from '$lib/components/pksx/virtual-pokemon-grid-layout';
 	import TakeoverFrame from '$lib/components/pksx/TakeoverFrame.svelte';
 	import TradeWithSwitch from '$lib/components/pksx/TradeWithSwitch.svelte';
 	import type { SlotView } from '$lib/components/pksx/types';
@@ -1187,7 +1190,7 @@
 		document
 			.getElementById(
 				activeVirtualLocation && virtualFocusedId && navigation.focus.zone !== 'paneControls'
-					? `virtual-record-${virtualFocusedId}`
+					? virtualRecordControlId(activePaneId, virtualFocusedId)
 					: focusIdForNavigation(navigation.focus)
 			)
 			?.focus();
@@ -1198,7 +1201,11 @@
 		if (navigation.focus.zone === 'paneControls')
 			navigation = { ...navigation, focus: focusBoxSlot(0) };
 		if (!recordId) return;
-		if (!restoreAfterResize && document.activeElement?.id === `virtual-record-${recordId}`) return;
+		if (
+			!restoreAfterResize &&
+			document.activeElement?.id === virtualRecordControlId(activePaneId, recordId)
+		)
+			return;
 		const index = activeVirtualRecords.findIndex((record) => record.recordId === recordId);
 		const viewport = document.querySelector<HTMLElement>('.active-pane .virtual-browser .viewport');
 		if (viewport && index >= 0) {
@@ -1208,7 +1215,9 @@
 				viewport.scrollTop = top + VIRTUAL_POKEMON_ROW_HEIGHT - viewport.clientHeight;
 			viewport.dispatchEvent(new Event('scroll'));
 		}
-		void tick().then(() => document.getElementById(`virtual-record-${recordId}`)?.focus());
+		void tick().then(() =>
+			document.getElementById(virtualRecordControlId(activePaneId, recordId))?.focus()
+		);
 	}
 
 	function persistVirtualPreferences() {
@@ -1234,7 +1243,10 @@
 		)
 			return;
 		if (
-			!summonedWorkflow.open('virtual-record-menu', controlLauncher(`virtual-record-${recordId}`))
+			!summonedWorkflow.open(
+				'virtual-record-menu',
+				controlLauncher(virtualRecordControlId(activePaneId, recordId))
+			)
 		)
 			return;
 		virtualMenuRecordId = recordId;
@@ -5403,7 +5415,7 @@
 					persistVirtualPreferences();
 					catalogManifest = getPokemonStorageCatalog().current;
 					focusVirtualRecord(result.recordId);
-					return `virtual-record-${result.recordId}`;
+					return virtualRecordControlId(paneId, result.recordId);
 				}
 			};
 		}
@@ -6394,6 +6406,7 @@
 					</div>
 					{#if paneVirtual}
 						<VirtualPokemonGrid
+							paneId={pane.id}
 							records={virtualRecords(catalogManifest, panePreferences)}
 							allRecords={catalogManifest?.records ?? []}
 							preferences={panePreferences}
@@ -6417,7 +6430,10 @@
 							}}
 							onColumns={(columns) => {
 								const restoreRecord =
-									paneActive && document.activeElement?.id === `virtual-record-${virtualFocusedId}`
+									paneActive &&
+									virtualFocusedId &&
+									document.activeElement?.id ===
+										virtualRecordControlId(activePaneId, virtualFocusedId)
 										? virtualFocusedId
 										: null;
 								virtualColumns = columns;
@@ -6426,7 +6442,8 @@
 										if (
 											pane.id === activePaneId &&
 											(document.activeElement === document.body ||
-												document.activeElement?.id === `virtual-record-${restoreRecord}`)
+												document.activeElement?.id ===
+													virtualRecordControlId(activePaneId, restoreRecord))
 										)
 											focusVirtualRecord(restoreRecord, true);
 									});
