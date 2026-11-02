@@ -107,7 +107,7 @@ export class PokemonStorageService {
 			.sort((a, b) => a.index - b.index)
 			.map((box) => ({
 				id: this.id(),
-				name: box.name,
+				name: box.name === `Box ${String(box.index + 1).padStart(2, '0')}` ? null : box.name,
 				revision: 0,
 				createdAt: now,
 				updatedAt: now

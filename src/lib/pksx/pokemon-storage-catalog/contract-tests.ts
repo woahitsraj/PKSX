@@ -109,7 +109,7 @@ export function catalogContract(
 			const migrated = await new PokemonStorageService(create(), fakeEngine()).loadOrMigrate(
 				async () => legacy
 			);
-			expect(migrated.boxes.map((box) => box.name)).toEqual(['Box 01', 'Box 02', 'Box 03']);
+			expect(migrated.boxes.map((box) => box.name)).toEqual([null, null, null]);
 			expect(migrated.records).toEqual([]);
 			const fresh = await new PokemonStorageService(create(), fakeEngine()).loadOrMigrate(
 				async () => null
