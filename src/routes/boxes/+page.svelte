@@ -3369,17 +3369,16 @@
 	}
 
 	function validateTransferSource(source: DomFocusedSaveSlot | null) {
-		if (
+		const recentSource =
 			lastDomFocusedSaveSlot?.navigationRevision === slotNavigationRevision &&
 			performance.now() - lastDomFocusedSaveSlot.at < 2_000
-		) {
-			return lastDomFocusedSaveSlot;
-		}
+				? lastDomFocusedSaveSlot
+				: source;
 		const controllerSource = controllerFocusedSaveSlot();
-		if (!controllerSource) return source;
-		return source?.pane.id === controllerSource.pane.id &&
-			slotRefKey(source.ref) === slotRefKey(controllerSource.ref)
-			? source
+		if (!controllerSource) return recentSource;
+		return recentSource?.pane.id === controllerSource.pane.id &&
+			slotRefKey(recentSource.ref) === slotRefKey(controllerSource.ref)
+			? recentSource
 			: controllerSource;
 	}
 

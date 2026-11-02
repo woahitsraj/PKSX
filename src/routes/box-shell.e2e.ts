@@ -1503,14 +1503,13 @@ test('stale pane loads cannot replace a committed Box reorder', async ({ page })
 	const panes = page.locator('.box-pane');
 	const firstPane = panes.nth(0);
 	const duplicatePane = panes.nth(1);
-	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
-	await expect(duplicatePane.getByRole('heading', { name: 'BOX2' })).toBeVisible({
-		timeout: 15000
-	});
-	await holdWorkspaceResponses(page, 1, 'listBoxSlots');
-	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
+	await duplicatePane.getByRole('button', { name: `Open Box Picker for ${fileName}` }).click();
+	const duplicatePicker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await holdWorkspaceResponses(page, 1, 'loadSaveWorkspace');
+	await duplicatePicker.getByRole('button', { name: /^Box 03: BOX3/ }).click();
 	await waitForHeldWorkspaceResponses(page);
-	await expect(duplicatePane).toHaveAttribute('data-box-load-pending', '');
+	await expect(duplicatePane).toHaveAttribute('data-location', 'box-2');
+	await expect(duplicatePane).toHaveAttribute('aria-busy', 'true');
 
 	await firstPane.getByRole('button', { name: `Open Box Picker for ${fileName}` }).click();
 	let picker = page.getByRole('dialog', { name: 'Choose a Box' });
@@ -1520,7 +1519,7 @@ test('stale pane loads cannot replace a committed Box reorder', async ({ page })
 	await expect(picker.getByRole('button', { name: /^Box 01: BOX2/ })).toBeVisible();
 	await picker.getByRole('button', { name: 'Close Box Picker' }).click();
 
-	await releaseWorkspaceResponse(page, 'listBoxSlots');
+	await releaseWorkspaceResponse(page, 'loadSaveWorkspace');
 	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
 	await duplicatePane.getByRole('button', { name: `Open Box Picker for ${fileName}` }).click();
 	picker = page.getByRole('dialog', { name: 'Choose a Box' });
@@ -2329,6 +2328,10 @@ test('transfer controls discard a cached source when another pane becomes active
 	await firstPane.locator('[id$="box-0-slot-0"]').focus();
 	await secondPane.getByRole('grid').focus();
 	await expect(secondPane).toHaveClass(/active-pane/);
+	await expect(secondPane.getByRole('grid')).toHaveAttribute(
+		'aria-activedescendant',
+		/box-0-slot-1$/
+	);
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ILLUMISE');
 });
