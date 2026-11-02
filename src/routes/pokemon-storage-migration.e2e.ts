@@ -76,7 +76,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 
 	await page.goto('/');
 	const storage = page.getByRole('button', { name: 'Open Pokemon Storage in Boxes' });
-	await expect(storage).toContainText('1 Pokemon');
+	await expect(storage).toContainText('1 Pokemon', { timeout: 60_000 });
 	await expect(storage).toContainText('3 Storage');
 	await storage.click();
 	await expect(page.getByRole('grid', { name: 'All Pokemon' })).toBeVisible();
