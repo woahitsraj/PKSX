@@ -5366,6 +5366,44 @@ test('Box Pane owns the viewport budget at floors, target, and large thresholds'
 	await expect(page.locator('#box-0-slot-0 .slot-label')).toHaveCSS('display', 'flex');
 });
 
+test('Box slot density follows pane allocation without a viewport resize', async ({ page }) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.setViewportSize({ width: 560, height: 360 });
+	const primary = page.locator('.box-pane').first();
+	const grid = primary.getByRole('grid');
+	const firstSlot = grid.getByRole('gridcell').first();
+	const number = firstSlot.locator('.slot-number');
+	const label = firstSlot.locator('.slot-label');
+	await expect(grid).toHaveAttribute('data-slot-density', 'number');
+	await expect(number).toHaveCSS('display', 'block');
+	await expect(label).toHaveCSS('display', 'none');
+
+	await primary.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page.getByRole('button', { name: 'Open another collection' }).click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	await expect(page.locator('.box-pane')).toHaveCount(2);
+	await expect
+		.poll(() =>
+			grid
+				.locator('.slot')
+				.first()
+				.evaluate((slot) => slot.getBoundingClientRect().width)
+		)
+		.toBeLessThan(46);
+	await expect(grid).toHaveAttribute('data-slot-density', 'compact');
+	await expect(number).toHaveCSS('display', 'none');
+	await expect(label).toHaveCSS('display', 'none');
+
+	await page.getByRole('button', { name: 'Close Pokemon Storage pane' }).click();
+	await expect(page.locator('.box-pane')).toHaveCount(1);
+	await expect(grid).toHaveAttribute('data-slot-density', 'number');
+	await expect(number).toHaveCSS('display', 'block');
+});
+
 test('Box and Party grids expose rows and size real sprites against the Slot', async ({ page }) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);

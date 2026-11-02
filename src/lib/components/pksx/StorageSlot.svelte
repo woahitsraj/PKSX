@@ -438,24 +438,24 @@
 		font: 800 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
 	}
 
-	:global(.boxes-route[data-slot-density='number']) .slot-number,
-	:global(.boxes-route[data-slot-density='full']) .slot-number {
+	:global(.location-grid[data-slot-density='number']) .slot-number,
+	:global(.location-grid[data-slot-density='full']) .slot-number {
 		display: block;
 	}
 
-	:global(.boxes-route[data-slot-density='number']) img.slot-sprite {
+	:global(.location-grid[data-slot-density='number']) img.slot-sprite {
 		width: 88%;
 		height: 88%;
 		max-width: 88%;
 		max-height: 88%;
 	}
 
-	:global(.boxes-route[data-slot-density='full']) .box-slot .slot-label,
-	:global(.boxes-route[data-slot-density='full']) .party-slot .slot-label {
+	:global(.location-grid[data-slot-density='full']) .box-slot .slot-label,
+	:global(.location-grid[data-slot-density='full']) .party-slot .slot-label {
 		display: flex;
 	}
 
-	:global(.boxes-route[data-slot-density='full']) img.slot-sprite {
+	:global(.location-grid[data-slot-density='full']) img.slot-sprite {
 		width: 79%;
 		height: 79%;
 		max-width: 79%;

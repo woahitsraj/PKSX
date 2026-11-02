@@ -1568,12 +1568,21 @@
 			?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 
-	function updateSlotDensity(route: HTMLElement) {
-		const slot = route.querySelector<HTMLElement>('.slot');
+	function updateSlotDensity(grid: HTMLElement) {
+		const slot = grid.querySelector<HTMLElement>('.slot');
 		if (!slot) return;
 		const { width, height } = slot.getBoundingClientRect();
 		const size = Math.min(width, height);
-		route.dataset.slotDensity = size >= 66 ? 'full' : size >= 46 ? 'number' : 'compact';
+		grid.dataset.slotDensity = size >= 66 ? 'full' : size >= 46 ? 'number' : 'compact';
+	}
+
+	function observeSlotDensity(grid: HTMLElement) {
+		const slot = grid.querySelector<HTMLElement>('.slot');
+		if (!slot) return;
+		const resizeObserver = new ResizeObserver(() => updateSlotDensity(grid));
+		resizeObserver.observe(slot);
+		updateSlotDensity(grid);
+		return () => resizeObserver.disconnect();
 	}
 
 	function focusIdForNavigation(focus: ControllerFocus) {
@@ -6022,12 +6031,7 @@
 		});
 		const boxesRoute = document.querySelector<HTMLElement>('.boxes-route');
 		const resizeObserver = boxesRoute
-			? new ResizeObserver(() =>
-					queueMicrotask(() => {
-						void keepFocusedSlotVisible();
-						updateSlotDensity(boxesRoute);
-					})
-				)
+			? new ResizeObserver(() => queueMicrotask(() => void keepFocusedSlotVisible()))
 			: null;
 		if (boxesRoute) resizeObserver?.observe(boxesRoute);
 		engine = getPkhexEngine();
@@ -7037,6 +7041,7 @@
 								: undefined}
 							aria-rowcount={paneRows}
 							aria-colcount={paneColumns}
+							{@attach observeSlotDensity}
 							onfocus={() => {
 								activatePane(pane);
 								queueMicrotask(() => paintSlotFocus(false));
