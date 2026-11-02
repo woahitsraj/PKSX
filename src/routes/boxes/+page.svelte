@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { dev } from '$app/environment';
-	import { base64ToBytes } from '$lib/engine/serialized-save';
 	import { asset } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
