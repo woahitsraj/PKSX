@@ -2403,7 +2403,10 @@
 			localStorage.setItem('pksx-last-storage-location-v1', location.id);
 
 		const box = Math.min(location.location.box, Math.max(0, pane.boxCount - 1));
-		const locationFocus = projectSlotCoordinate(pane.focus, 'box');
+		const locationFocus = projectSlotCoordinate(
+			pane.id === activePaneId ? navigation.locationFocus : pane.focus,
+			'box'
+		);
 		const returnFocus =
 			pendingSlotOperation || virtualCarry
 				? locationFocus

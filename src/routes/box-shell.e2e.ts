@@ -1357,12 +1357,18 @@ test('direct Box Picker jumps across every Save File Box and restores focus', as
 		name: 'Open Box Picker for emerald-011020251345.sav'
 	});
 
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
 	await pickerControl.click();
 	let picker = page.getByRole('dialog', { name: 'Choose a Box' });
 	await expect(picker.getByRole('button', { name: /^Box \d{2}: BOX\d+/ })).toHaveCount(14);
 	await picker.getByRole('button', { name: /^Box 14: BOX14/ }).click();
 	await expect(page.getByRole('heading', { name: 'BOX14' })).toBeVisible({ timeout: 15000 });
 	await expect(pickerControl).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#box-13-slot-1')).toHaveAttribute('aria-selected', 'true');
+	await pickerControl.focus();
 
 	await page.keyboard.press('Enter');
 	picker = page.getByRole('dialog', { name: 'Choose a Box' });
