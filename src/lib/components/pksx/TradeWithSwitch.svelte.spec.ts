@@ -288,6 +288,22 @@ describe('Trade with Switch setup', () => {
 		expect(document.body.textContent).toContain('Destination game');
 	});
 
+	test('returns to the radio step when the board drops after the firmware installs', async () => {
+		const { client, emit } = stubClient();
+		await render(client);
+		await click('Continue with simulated radio');
+		await click('Continue');
+		await click('Install on simulated radio');
+		await click('Install firmware');
+		await click('Replace firmware');
+		await vi.waitFor(() => expect(document.body.textContent).toContain('Firmware installed'));
+		emit({ type: 'radio-disconnected', error: { code: 'radio-lost', message: 'gone' } });
+		await settle();
+		await click('Done');
+		expect(document.body.textContent).toContain('connection to the Trade Radio was lost');
+		expect(button('Use simulated radio').disabled).toBe(false);
+	});
+
 	test('returns to the radio step when the connection drops during review', async () => {
 		const { client, emit } = stubClient();
 		await render(client);

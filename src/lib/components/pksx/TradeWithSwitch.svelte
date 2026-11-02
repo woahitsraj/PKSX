@@ -251,17 +251,18 @@
 				install={async (onProgress) => {
 					installing = true;
 					try {
-						return await client!.installFirmware(port, onProgress);
+						const result = await client!.installFirmware(port, onProgress);
+						if (result.ok) {
+							board = result.board;
+							radioMessage = null;
+							offerInstall = false;
+						}
+						return result;
 					} finally {
 						installing = false;
 					}
 				}}
-				onDone={(installed) => {
-					board = installed;
-					radioMessage = null;
-					offerInstall = false;
-					step = 'game';
-				}}
+				onDone={() => (step = board ? 'game' : 'radio')}
 				onCancel={() => (step = 'radio')}
 			/>
 		{:else}
