@@ -93,6 +93,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## Other Pokemon save fixtures
+
+The folders under `test-fixtures/save-files` record the source of each file:
+
+- `pkmds-blazor`: https://github.com/codemonkey85/PKMDS-Blazor, GPL-3.0.
+- `pkhex-avalonia`: https://github.com/realgarit/PKHeX-Avalonia, GPL-3.0.
+- `minna-pokemon-saves`: https://github.com/Minna008/Minna-s-Pokemon-Save-Files. The repository has no license file. Its README says "Feel free tu use them".
+- `libpkmn-test-files`: https://github.com/ncorgan/libpkmn-test-files. The repository has no license file or statement.
+
 ## Generated platform files and package dependencies
 
 Generated Android, iOS, .NET, and JavaScript dependency files remain under the licenses and notices supplied by their copyright holders. For example, the checked-in Gradle wrapper scripts retain their Apache License 2.0 notices.

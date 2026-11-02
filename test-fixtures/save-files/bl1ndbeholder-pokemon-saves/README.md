@@ -26,3 +26,8 @@ Some extensionless source files are stored with a `.sav` suffix in this fixture 
 | `x/011020252224.sav`                   | `x/011020252224`                       |      415232 | `6023e00e0c1d44c28a750414edfeaea609b8c9e277b674a858f04a18d0b7e346` |
 | `xd-gale-of-darkness/011020251345.gci` | `xd-gale-of-darkness/011020251345.gci` |      352320 | `cf840dba3160b759020ed6590ac1c5cf3b9fac609e69ab45187dee9ed6226523` |
 | `y/011020252224`                       | `y/011020252224`                       |      415232 | `454f42b03e3c7db6c829d351a12460e050ac10fd61d7ab85c3a9135a148beb49` |
+
+Native PKHeX.Core 26.5.5 and PKSX reject these files because they do not hold a completed save, so tests do not use them as importable saves:
+
+- `alpha-sapphire/011020252224`, `moon/011020252224`, `moon/031020250637`, `omega-ruby/011020252224`, `sun/011020252224`, and `y/011020252224`: the `BEEF` footer that PKHeX uses to detect Gen 6 and Gen 7 saves is blank. With a footer copied from a valid save, the block checksums fail and the save has no trainer name, no Pokemon, and zero play time.
+- `xd-gale-of-darkness/011020251345.gci`: the GCI header is valid, but both save slots are empty.
