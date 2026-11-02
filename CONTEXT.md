@@ -455,8 +455,7 @@ _Avoid_: setting, option, config
 - Device-local **Saves** determines what that device opens and edits, including while offline.
 - **Shared Sync State** identifies the last complete, valid state accepted for cross-device distribution; it does not replace divergent local work.
 - A successfully persisted local change becomes a **Pending Sync Change** without blocking further local work.
-- Before upload, PKSX combines a linear chain of **Pending Sync Changes** into one **Sync Revision** whose parent is the chain's last published **Sync Revision**, so pending work for a **Sync Object** does not grow with its number of edits.
-- PKSX never combines a **Sync Revision** that it may have offered to the **Sync Provider** until it knows the result of that upload.
+- A **Sync Object** has at most one **Pending Sync Change**; further local saves extend it, and intermediate saves never become **Sync Revisions**, so pending work does not grow with the number of edits.
 - Provider filenames, paths, timestamps, ordering, and object versions do not advance **Shared Sync State**.
 - PKSX automatically accepts an incoming **Sync Object** state only when it descends from the exact **Shared Sync State** acknowledged by that **PKSX Installation** and either no **Pending Sync Change** exists or the incoming state causally includes every pending change.
 - Unknown or divergent ancestry never establishes authority; PKSX preserves every distinct competing state for explicit conflict resolution.
@@ -481,7 +480,7 @@ _Avoid_: setting, option, config
 - Device-local editing and **Export** remain available while an **Unsupported Sync Revision** pauses Cloud Sync writes, and new **Pending Sync Changes** wait for a compatible PKSX version.
 - Enrolling an empty device in a **Sync Profile** materializes its **Shared Sync State** into local **Saves**.
 - Every enrolled **PKSX Installation** keeps local bytes for its **Save Files**, **Workspaces**, and **Pokemon Storage**, and keeps the metadata of every **Backup** and **Conflict Recovery**.
-- **Backup** and **Conflict Recovery** bytes may stay only on the **Sync Provider** after it acknowledges them; PKSX downloads them when the user opens them, so **Backup Restore** of such a **Backup** needs a network connection.
+- A **PKSX Installation** downloads all incoming artifacts while they fit; **Backup** and **Conflict Recovery** bytes that do not fit stay only on the **Sync Provider**, and PKSX downloads them when the user opens them, so **Backup Restore** of such a **Backup** needs a network connection.
 - A **Sync Quota** rejection leaves local editing and **Export** available and keeps **Pending Sync Changes** durable; downloads and **Deletion Markers** continue, and a persistent status tells the user that cloud storage is full.
 - The Sync Provider contract reports the **Sync Quota** and the space used, and splits an artifact into chunks atomically when it exceeds a provider value limit; PKSX sets no artifact limit below the largest **Supported Save File**.
 - A failed local write leaves the previous local state in place and shows the failure; PKSX does not advance acknowledged **Shared Sync State** for a **Sync Object** that it could not write.
