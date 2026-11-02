@@ -485,6 +485,7 @@ _Avoid_: setting, option, config
 - The Sync Provider contract reports the **Sync Quota** and the space used, and splits an artifact into chunks atomically when it exceeds a provider value limit; PKSX sets no artifact limit below the largest **Supported Save File**.
 - A failed local write leaves the previous local state in place and shows the failure; PKSX does not advance acknowledged **Shared Sync State** for a **Sync Object** that it could not write.
 - When incoming data does not fit locally, PKSX first skips **Backup** and **Conflict Recovery** bytes and then reports the problem.
+- PKSX may remove a staged incomplete incoming change from a **PKSX Installation** whenever it needs space, and removes its parts from the **Sync Provider** after 30 days without progress; the originating **PKSX Installation** can upload its pinned **Sync Revision** again with the same identity.
 - PKSX requests persistent storage when the user enables Cloud Sync and shows a persistent degraded durability status if the platform denies the request.
 - A **PKSX Installation** that holds local **Saves** enrolls only through **Sync Adoption**; nothing uploads or changes locally before the user confirms, and a cancelled adoption leaves the installation signed out and unchanged.
 - **Sync Adoption** covers every local **Sync Object**, so an enrolled **PKSX Installation** synchronizes all of its **Saves**.
