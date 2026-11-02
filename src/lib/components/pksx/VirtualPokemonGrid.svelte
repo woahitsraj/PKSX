@@ -185,6 +185,7 @@
 								{#if record.placement && preferences.location === 'all-pokemon'}
 									<button
 										class="unfile"
+										data-virtual-action
 										data-pksx-control-category="small"
 										type="button"
 										disabled={busy}
@@ -196,12 +197,14 @@
 										type="button"
 										data-pksx-control-category="small"
 										disabled={busy}
+										data-virtual-action
 										onclick={() => onCarry(record.recordId, 'move')}>Move</button
 									>
 									<button
 										type="button"
 										data-pksx-control-category="small"
 										disabled={busy}
+										data-virtual-action
 										onclick={() => onCarry(record.recordId, 'copy')}>Copy</button
 									>
 								</div>

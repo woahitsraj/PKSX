@@ -842,6 +842,14 @@
 	}
 
 	function dispatchNavigation(action: NavigationAction) {
+		if (
+			action === 'confirm' &&
+			document.activeElement instanceof HTMLButtonElement &&
+			document.activeElement.matches('[data-virtual-action]')
+		) {
+			document.activeElement.click();
+			return;
+		}
 		if (activeVirtualLocation && activePane && navigation.focus.zone !== 'paneControls') {
 			if (action === 'confirm' && virtualFocusedId) {
 				openVirtualActionMenu(virtualFocusedId);
@@ -1184,6 +1192,12 @@
 
 	async function focusActiveControl() {
 		await tick();
+		if (
+			activeVirtualLocation &&
+			!activeVirtualRecords.some((record) => record.recordId === virtualFocusedId)
+		) {
+			virtualFocusedId = activeVirtualRecords[0]?.recordId ?? null;
+		}
 		if (activeVirtualLocation && !virtualFocusedId && navigation.focus.zone !== 'paneControls') {
 			navigation = { ...navigation, focus: focusPaneControl(1, activePaneControlCount) };
 		}
@@ -3587,6 +3601,14 @@
 
 	function activatePane(pane: BoxPaneState, restoreFocus = true) {
 		activePaneId = pane.id;
+		if (pane.source.type === 'pokemon-storage' && virtualPaneIds.includes(pane.id)) {
+			const records = virtualRecords(catalogManifest, {
+				...virtualPreferences,
+				location: virtualPaneLocations[pane.id] ?? virtualPreferences.location
+			});
+			if (!records.some((record) => record.recordId === virtualFocusedId))
+				virtualFocusedId = records[0]?.recordId ?? null;
+		}
 		navigation = selectActiveBox(
 			{
 				...navigation,

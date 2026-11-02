@@ -88,7 +88,8 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		nameTop: node.querySelector('strong')!.getBoundingClientRect().top
 	}));
 	expect(filedBounds.unfileBottom).toBeLessThan(filedBounds.nameTop);
-	await page.getByRole('button', { name: 'Move to Unfiled' }).click();
+	await page.getByRole('button', { name: 'Move to Unfiled' }).focus();
+	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: /Unfiled: Unfiled/ }).click();
 	await expect(
