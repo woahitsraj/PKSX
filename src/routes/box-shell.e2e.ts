@@ -2299,6 +2299,28 @@ test('transfer controls use current Controller Focus during deferred DOM focus',
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ILLUMISE');
 });
 
+test('transfer controls ignore a stale active descendant after pointer focus cache expires', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	const panes = await openDuplicateEmeraldPanes(page);
+	const pane = panes.first();
+	const pointerSource = pane.locator('[id$="box-0-slot-0"]');
+	const controllerSource = pane.locator('[id$="box-0-slot-1"]');
+
+	await pointerSource.focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(controllerSource).toHaveAttribute('aria-selected', 'true');
+	await pointerSource.click();
+	await expect(pointerSource).toBeFocused();
+	await pane.getByRole('grid').evaluate((grid) => {
+		grid.setAttribute('aria-activedescendant', 'box-0-slot-1');
+	});
+	await page.waitForTimeout(2_100);
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
+});
+
 test('duplicate Save panes retain a published Party mutation while refreshing another Box', async ({
 	page
 }) => {

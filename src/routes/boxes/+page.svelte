@@ -3344,15 +3344,15 @@
 	}
 
 	function controllerFocusedSaveSlot(): DomFocusedSaveSlot | null {
-		const pane = document.querySelector<HTMLElement>('.box-pane.active-pane');
-		const grid = pane?.querySelector<HTMLElement>('[role="grid"]');
-		const activeDescendant = grid?.getAttribute('aria-activedescendant');
-		const activeElement = activeDescendant ? document.getElementById(activeDescendant) : null;
-		return domSaveSlot(
-			activeElement && pane?.contains(activeElement)
-				? activeElement
-				: (grid?.querySelector('[aria-selected="true"]') ?? null)
-		);
+		const pane = activePane;
+		const focus = isSlotFocus(navigation.focus) ? navigation.focus : navigation.locationFocus;
+		if (!pane || pane.source.type !== 'save-file' || !isSlotFocus(focus)) return null;
+		const ref: SaveSlotRef =
+			focus.zone === 'party'
+				? { zone: 'party', slot: focus.slot }
+				: { zone: 'box', box: navigation.activeBox, slot: focus.slot };
+		const slot = slotForRef(ref, pane);
+		return slot ? { pane, ref, slot } : null;
 	}
 
 	function validateTransferSource(source: DomFocusedSaveSlot | null) {
