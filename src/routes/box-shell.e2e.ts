@@ -2878,6 +2878,7 @@ test('moves a Save File Pokemon into durable Storage and clears its source', asy
 });
 
 test('keeps a virtual Storage source after Save commits but retirement fails', async ({ page }) => {
+	await installWorkspaceResponseHold(page);
 	await page.setViewportSize({ width: 1800, height: 900 });
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
@@ -2918,7 +2919,13 @@ test('keeps a virtual Storage source after Save commits but retirement fails', a
 			return original.call(this, names, mode, options);
 		};
 	});
+	await holdWorkspaceResponses(page, 1, 'readPreservationPayload');
 	await savePane.locator('[id$="box-0-slot-0"]').click();
+	await waitForHeldWorkspaceResponses(page);
+	await expect(page.getByRole('button', { name: 'Cancel Carry' })).toBeDisabled();
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('button', { name: 'Cancel Carry' })).toBeDisabled();
+	await releaseWorkspaceResponses(page);
 	await expect(page.locator('.toast-error')).toContainText('remains in Pokemon Storage');
 	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
 	await expect(

@@ -1328,6 +1328,7 @@
 	}
 
 	function cancelVirtualCarry() {
+		if (busy) return;
 		const source = virtualCarry;
 		if (!source) return;
 		virtualCarry = null;
@@ -6356,6 +6357,7 @@
 									data-pksx-control-category="small"
 									aria-label="Cancel Carry"
 									data-cancel-virtual-carry
+									disabled={busy}
 									onclick={cancelVirtualCarry}>×</button
 								>
 							{/if}
