@@ -74,7 +74,11 @@ export function radioFailure(error: TradeError): { message: string; offerInstall
 				offerInstall: false
 			};
 		case 'port-not-found':
-			return { message: 'PKSX cannot find the board. Connect it again.', offerInstall: false };
+			return {
+				message:
+					'PKSX cannot find the board. Connect it again. If another board of the same type is connected, disconnect that board first.',
+				offerInstall: false
+			};
 		case 'web-serial-unavailable':
 			return { message: 'Link Trade needs desktop Chrome or Edge.', offerInstall: false };
 		default:
