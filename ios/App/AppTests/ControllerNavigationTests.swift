@@ -63,7 +63,7 @@ final class ControllerNavigationTests: XCTestCase {
     }
 
     func testJoystickAndShortcutButtonsFollowKeyboardNavigation() async throws {
-        let webView = try await controllerSurface()
+        let webView = try await controllerSurfaceWithSecondStorageBox()
         _ = try await webView.evaluateJavaScript("document.querySelector('#box-0-slot-0').focus()")
         try await waitForJavaScript("document.activeElement?.id === 'box-0-slot-0'", in: webView)
 
@@ -131,7 +131,7 @@ final class ControllerNavigationTests: XCTestCase {
     }
 
     func testTriggersPageBoxLocations() async throws {
-        let webView = try await controllerSurface()
+        let webView = try await controllerSurfaceWithSecondStorageBox()
 
         controller.extendedGamepad?.rightTrigger.setValue(1)
         try await waitForJavaScript(
@@ -283,6 +283,56 @@ final class ControllerNavigationTests: XCTestCase {
             "window.__pksxSettingsDocument === 'alive' && document.querySelector('[data-testid=\"app-version\"]')?.textContent === '\(installedVersion)' && document.querySelector('[data-testid=\"app-platform\"]')?.textContent === 'iOS'",
             in: webView
         )
+    }
+
+    private func controllerSurfaceWithSecondStorageBox() async throws -> WKWebView {
+        let webView = try await controllerSurface()
+        _ = try await webView.evaluateJavaScript(
+            """
+            window.__pksxSeedStorageBox = 'pending';
+            (async () => {
+                const files = Capacitor.Plugins.Filesystem, directory = 'DATA';
+                const root = 'pksx-saves/pokemon-storage-catalog/manifests/';
+                const names = (await files.readdir({path: root, directory})).files.map(file => file.name);
+                const revision = Math.max(...names.filter(name => /^\\d+\\.complete$/.test(name))
+                    .map(name => Number(name.slice(0, -9))));
+                const manifest = JSON.parse((await files.readFile({
+                    path: root + revision + '.json', directory, encoding: 'utf8'
+                })).data);
+                if (manifest.boxes.length > 1) return;
+                const now = new Date().toISOString(), id = crypto.randomUUID();
+                manifest.boxes.push({id, name: null, revision: 0, createdAt: now, updatedAt: now});
+                manifest.boxOrder.push(id);
+                manifest.revision = revision + 1;
+                manifest.updatedAt = now;
+                const hash = async value => [...new Uint8Array(await crypto.subtle.digest(
+                    'SHA-256', new TextEncoder().encode(value)
+                ))].map(byte => byte.toString(16).padStart(2, '0')).join('');
+                const text = JSON.stringify(manifest), manifestSha256 = await hash(text);
+                await files.writeFile({path: root + manifest.revision + '.json', directory,
+                    data: text, encoding: 'utf8', recursive: true});
+                await files.writeFile({path: root + manifest.revision + '.complete', directory,
+                    data: JSON.stringify({revision: manifest.revision, manifestSha256,
+                        checksum: await hash(manifest.revision + ':' + manifestSha256)}),
+                    encoding: 'utf8', recursive: true});
+            })().then(() => window.__pksxSeedStorageBox = 'ready',
+                error => window.__pksxSeedStorageBox = String(error));
+            true
+            """
+        )
+        try await waitForJavaScript("window.__pksxSeedStorageBox !== 'pending'", in: webView)
+        let result = try await webView.evaluateJavaScript("window.__pksxSeedStorageBox") as? String
+        XCTAssertEqual(result, "ready", "Could not seed a second Storage Box")
+        let originValue = try await webView.evaluateJavaScript("performance.timeOrigin")
+        let previousOrigin = try XCTUnwrap(originValue as? Double)
+        _ = try await webView.evaluateJavaScript("location.reload()")
+        try await waitForJavaScript("performance.timeOrigin !== \(previousOrigin)", in: webView)
+        let reloaded = try await controllerSurface()
+        try await waitForJavaScript(
+            "document.querySelector('.box-title h2')?.textContent?.includes('Box 01')",
+            in: reloaded
+        )
+        return reloaded
     }
 
     private func controllerSurface() async throws -> WKWebView {

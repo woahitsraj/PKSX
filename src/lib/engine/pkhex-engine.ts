@@ -118,6 +118,7 @@ type DotnetPkhexEngineExports = {
 	ApplyStoredPokemonActionJson(entityBytesBase64: string, actionJson: string): string;
 	CreatePreservationPayloadJson(entityBytes: Uint8Array): string;
 	ForkPreservationPayloadJson(payloadBytes: Uint8Array): string;
+	ReplacePreservationPayloadCurrentJson(payloadBytes: Uint8Array, entityBytes: Uint8Array): string;
 	ReadPreservationPayloadJson(payloadBytes: Uint8Array): string;
 	ProjectPreservationPayloadJson(payloadBytes: Uint8Array, targetFormat: number): string;
 	PrepareOutgoingLinkTradeJson(sourceBytes: Uint8Array, requestJson: string): string;
@@ -359,6 +360,12 @@ export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<Eng
 			decodePreservationPayloadResult(
 				parseEngineResult<RawPreservationPayloadResult>(
 					engine.ForkPreservationPayloadJson(payloadBytes)
+				)
+			),
+		replacePreservationPayloadCurrent: async (payloadBytes, entityBytes) =>
+			decodePreservationPayloadResult(
+				parseEngineResult<RawPreservationPayloadResult>(
+					engine.ReplacePreservationPayloadCurrentJson(payloadBytes, entityBytes)
 				)
 			),
 		readPreservationPayload: async (payloadBytes) =>

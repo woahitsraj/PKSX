@@ -22,7 +22,8 @@
 		type SavesDirection,
 		type SavesTarget
 	} from '$lib/pksx/saves-navigation';
-	import type { SaveFileId, StoredPokemonStorage, StoredSaveFile } from '$lib/pksx/saves';
+	import type { SaveFileId, StoredSaveFile } from '$lib/pksx/saves';
+	import type { PokemonStorageManifest } from '$lib/pksx/pokemon-storage-catalog';
 	import {
 		getCachedActiveWorkspace,
 		getCachedSavesSnapshot,
@@ -30,6 +31,7 @@
 		getSaveFileEditCoordinator,
 		getSavesSnapshot,
 		getSavesStorage,
+		ensurePokemonStorageCatalog,
 		invalidateActiveWorkspaceCache,
 		invalidateSavesCache,
 		isCachedSavesSnapshotSeeded,
@@ -81,7 +83,7 @@
 	let saveFiles = $state<StoredSaveFile[]>([]);
 	let activeSaveFileId = $state<SaveFileId | null>(null);
 	let detailsBySaveFileId = $state<Record<SaveFileId, SaveCardDetailsState>>({});
-	let pokemonStorage = $state<PokemonStorageSummary>({ boxCount: 3, pokemonCount: 0 });
+	let pokemonStorage = $state<PokemonStorageSummary>({ boxCount: 1, pokemonCount: 0 });
 	let target = $state<SavesTarget>({ kind: 'import' });
 	let gridElement = $state<HTMLElement>();
 	let gridList = $state<HTMLElement>();
@@ -229,13 +231,17 @@
 	) {
 		const request = ++refreshRequest;
 		try {
-			const storageSummary = storage.getPokemonStorage().catch(() => null);
+			const storageSummary = ensurePokemonStorageCatalog().then(
+				(value) => ({ ok: true as const, value }),
+				(error: unknown) => ({ ok: false as const, error })
+			);
 			const snapshot = await getSavesSnapshot({ force: options.force });
 			if (request !== refreshRequest) return;
 			applySnapshot(snapshot, options.preferredTarget ?? rememberedTarget(), options.focus);
 			const resolvedStorageSummary = await storageSummary;
 			if (request !== refreshRequest) return;
-			pokemonStorage = summarizePokemonStorage(resolvedStorageSummary);
+			if (!resolvedStorageSummary.ok) throw resolvedStorageSummary.error;
+			pokemonStorage = summarizePokemonStorage(resolvedStorageSummary.value);
 		} catch (error) {
 			if (request !== refreshRequest) return;
 			catalogLoading = false;
@@ -244,14 +250,10 @@
 		}
 	}
 
-	function summarizePokemonStorage(value: StoredPokemonStorage | null): PokemonStorageSummary {
+	function summarizePokemonStorage(value: PokemonStorageManifest): PokemonStorageSummary {
 		return {
-			boxCount: value?.boxCount ?? 3,
-			pokemonCount:
-				value?.boxes.reduce(
-					(total, box) => total + box.slots.filter((slot) => slot.pokemon !== null).length,
-					0
-				) ?? 0
+			boxCount: value.boxes.length,
+			pokemonCount: value.records.length
 		};
 	}
 

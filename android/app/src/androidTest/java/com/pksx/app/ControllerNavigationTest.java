@@ -118,6 +118,7 @@ public class ControllerNavigationTest {
     @Test
     public void joystickAndShortcutButtonsFollowKeyboardNavigation() throws Exception {
         awaitControllerSurface();
+        seedSecondStorageBox();
         runJavaScript("document.querySelector('#box-grid').focus()");
 
         moveJoystick(1f, 0f, "document.activeElement?.id === 'box-0-slot-1'");
@@ -626,6 +627,7 @@ public class ControllerNavigationTest {
         try (NativeDisplayFixture fixture = new NativeDisplayFixture()) {
             fixture.setViewport(360, 640, 0, false);
             awaitControllerSurface();
+            seedSecondStorageBox();
             importEmeraldSave();
             chooseMainMenu("Boxes");
             awaitControllerSurface();
@@ -2014,6 +2016,42 @@ public class ControllerNavigationTest {
         );
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         SystemClock.sleep(500);
+    }
+
+    private void seedSecondStorageBox() throws Exception {
+        runJavaScript(
+            "window.__pksxSeedStorageBox = 'pending'; (async () => {"
+                + " const files = Capacitor.Plugins.Filesystem, directory = 'DATA';"
+                + " const root = 'pksx-saves/pokemon-storage-catalog/manifests/';"
+                + " const names = (await files.readdir({path:root,directory})).files.map(file => file.name);"
+                + " const revision = Math.max(...names.filter(name => /^\\d+\\.complete$/.test(name))"
+                + ".map(name => Number(name.slice(0,-9))));"
+                + " const manifest = JSON.parse((await files.readFile({path:root + revision + '.json',"
+                + " directory,encoding:'utf8'})).data);"
+                + " if (manifest.boxes.length > 1) return;"
+                + " const now = new Date().toISOString(), id = crypto.randomUUID();"
+                + " manifest.boxes.push({id,name:null,revision:0,createdAt:now,updatedAt:now});"
+                + " manifest.boxOrder.push(id); manifest.revision = revision + 1; manifest.updatedAt = now;"
+                + " const hash = async value => [...new Uint8Array(await crypto.subtle.digest('SHA-256',"
+                + " new TextEncoder().encode(value)))].map(byte => byte.toString(16).padStart(2,'0')).join('');"
+                + " const text = JSON.stringify(manifest), manifestSha256 = await hash(text);"
+                + " await files.writeFile({path:root + manifest.revision + '.json',directory,"
+                + " data:text,encoding:'utf8',recursive:true});"
+                + " await files.writeFile({path:root + manifest.revision + '.complete',directory,"
+                + " data:JSON.stringify({revision:manifest.revision,manifestSha256,"
+                + " checksum:await hash(manifest.revision + ':' + manifestSha256)}),"
+                + " encoding:'utf8',recursive:true});"
+                + " })().then(() => window.__pksxSeedStorageBox = 'ready',"
+                + " error => window.__pksxSeedStorageBox = String(error))"
+        );
+        awaitJavaScript("window.__pksxSeedStorageBox !== 'pending'");
+        String result = runJavaScript("window.__pksxSeedStorageBox");
+        if (!"\"ready\"".equals(result)) fail("Could not seed a second Storage Box: " + result);
+        String previousOrigin = runJavaScript("performance.timeOrigin");
+        runJavaScript("location.reload()");
+        awaitJavaScript("performance.timeOrigin !== " + previousOrigin);
+        awaitControllerSurface();
+        awaitJavaScript("document.querySelector('.box-title h2')?.textContent?.includes('Box 01')");
     }
 
     private void chooseMainMenu(String label) throws Exception {
