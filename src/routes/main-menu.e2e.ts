@@ -361,7 +361,12 @@ test('Start is fresh-press only and restores destination focus by identity', asy
 	await choose(page, 'Settings');
 	await pressController(page, 'Escape');
 	await expect(page).toHaveURL(/\/boxes$/);
-	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+	await expect(page.getByRole('grid', { name: 'All Pokemon' })).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' })
+	).toBeFocused();
+	await pressController(page, 'Enter');
+	await expect(page.getByRole('button', { name: 'Close Box Picker' })).toBeVisible();
 });
 
 test('reloading with the Main Menu open does not prompt and resets session focus', async ({

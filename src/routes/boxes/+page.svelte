@@ -1181,6 +1181,9 @@
 
 	async function focusActiveControl() {
 		await tick();
+		if (activeVirtualLocation && !virtualFocusedId && navigation.focus.zone !== 'paneControls') {
+			navigation = { ...navigation, focus: focusPaneControl(1, activePaneControlCount) };
+		}
 		document
 			.getElementById(
 				activeVirtualLocation && virtualFocusedId && navigation.focus.zone !== 'paneControls'
@@ -5818,6 +5821,7 @@
 		if (legacyStorageRoute) {
 			await goto(resolve('/boxes'), { replaceState: true, keepFocus: true, noScroll: true });
 		}
+		if (activeVirtualLocation) await focusActiveControl();
 	}
 
 	async function restorePokemonStorage() {
