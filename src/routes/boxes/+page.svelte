@@ -7063,6 +7063,7 @@
 														: `box-${paneGridBox}-slot-${slot.slot}`
 													: `${pane.id}-${paneParty ? 'party' : `box-${paneGridBox}`}-slot-${slot.slot}`}
 												{slot}
+												disabled={!paneSlotsActionable}
 												zone={slotRef.zone}
 												dualType={slotHasDualType(slot, paneParty ? -1 : paneGridBox)}
 												style={slotStyle(slot, paneParty ? -1 : paneGridBox)}
