@@ -1247,6 +1247,12 @@ test('keyboard navigation moves deterministically across the box grid', async ({
 
 	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#collection-control-pane-primary')).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#location-control-pane-primary')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
 
 	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#box-0-slot-7')).toHaveAttribute('aria-selected', 'true');

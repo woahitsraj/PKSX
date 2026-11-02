@@ -2278,6 +2278,16 @@
 		return `location-control-${paneId}`;
 	}
 
+	function focusPaneHeaderControl(pane: BoxPaneState, index: number, controlCount: number) {
+		const locationFocus = pane.id === activePaneId ? navigation.locationFocus : pane.focus;
+		activatePane(pane);
+		navigation = {
+			...navigation,
+			focus: focusPaneControl(index, controlCount),
+			locationFocus
+		};
+	}
+
 	function matchesBoxMenuTarget(pane: BoxPaneState, target: BoxMenuTarget) {
 		return (
 			pane.id === target.paneId &&
@@ -6841,12 +6851,7 @@
 										queueMicrotask(focusActiveControl);
 										return;
 									}
-									activatePane(pane);
-									navigation = {
-										...navigation,
-										focus: focusPaneControl(0, paneControlCount),
-										locationFocus: pane.focus
-									};
+									focusPaneHeaderControl(pane, 0, paneControlCount);
 								}}
 								onclick={() => {
 									if (pendingSlotOperation || virtualCarry) return;
@@ -6887,12 +6892,7 @@
 											queueMicrotask(focusActiveControl);
 											return;
 										}
-										activatePane(pane);
-										navigation = {
-											...navigation,
-											focus: focusPaneControl(2, paneControlCount),
-											locationFocus: pane.focus
-										};
+										focusPaneHeaderControl(pane, 2, paneControlCount);
 									}}
 									onclick={() => {
 										if (pendingSlotOperation || virtualCarry) return;
@@ -6935,12 +6935,7 @@
 									paneVirtual ? openBoxPicker(pane) : changePaneLocation(pane, 'nextBox')}
 								onFocusPicker={() => {
 									if (pendingSlotOperation || virtualCarry) return;
-									activatePane(pane);
-									navigation = {
-										...navigation,
-										focus: focusPaneControl(1, paneControlCount),
-										locationFocus: pane.focus
-									};
+									focusPaneHeaderControl(pane, 1, paneControlCount);
 								}}
 								onOpenPicker={() => openBoxPicker(pane)}
 							/>
