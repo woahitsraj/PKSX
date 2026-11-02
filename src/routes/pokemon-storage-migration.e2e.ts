@@ -9,6 +9,13 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		'data-initial-state',
 		'ready'
 	);
+	await page.route('**/__storage-migration-fixture', (route) =>
+		route.fulfill({
+			contentType: 'text/html',
+			body: '<!doctype html><title>Storage fixture</title>'
+		})
+	);
+	await page.goto('/__storage-migration-fixture');
 	await page.evaluate(async (entityBytesBase64) => {
 		await new Promise<void>((resolve, reject) => {
 			const deletion = indexedDB.deleteDatabase('pksx-pokemon-storage-catalog');
@@ -67,7 +74,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		});
 	}, aron);
 
-	await page.reload();
+	await page.goto('/');
 	const storage = page.getByRole('button', { name: 'Open Pokemon Storage in Boxes' });
 	await expect(storage).toContainText('1 Pokemon');
 	await expect(storage).toContainText('3 Storage');
