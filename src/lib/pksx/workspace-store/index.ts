@@ -1,10 +1,10 @@
-import { base64ToBytes, type EngineApi, type SaveWorkspace } from '$lib/engine';
+import { base64ToBytes, type EngineApi } from '$lib/engine';
 import {
 	createCleanWorkspaceState,
 	createPersistedWorkspaceState,
 	type WorkspaceState
 } from '$lib/pksx/backup-workflow';
-import type { SavesStorage, SaveFileId, StoredSaveFile } from '$lib/pksx/saves';
+import { bytesEqual, type SavesStorage, type SaveFileId } from '$lib/pksx/saves';
 import { createStore, type Store } from 'tinybase';
 import type { WorkspaceStorePersistence } from './persistence';
 import {
@@ -15,12 +15,8 @@ import {
 } from './schema';
 
 type WorkspaceArtifactContext = {
-	file: StoredSaveFile;
 	bytes: Uint8Array;
-	entityBytesBySlot: Map<string, string | null | undefined>;
 };
-
-type WorkspaceProjection = Omit<SaveWorkspace, 'partySlots' | 'boxSlots'>;
 
 export type ActiveWorkspaceServiceOptions = {
 	storage: SavesStorage;
@@ -31,6 +27,8 @@ export type ActiveWorkspaceServiceOptions = {
 export class ActiveWorkspaceService {
 	readonly store: Store;
 	private artifact: WorkspaceArtifactContext | null = null;
+	private currentState: WorkspaceState | null = null;
+	private readonly listeners = new Set<(state: WorkspaceState | null) => void>();
 	private persistQueue = Promise.resolve();
 
 	constructor(private readonly options: ActiveWorkspaceServiceOptions) {
@@ -49,17 +47,14 @@ export class ActiveWorkspaceService {
 	}
 
 	get current() {
-		return this.read();
+		return this.currentState;
 	}
 
 	subscribe(listener: (state: WorkspaceState | null) => void) {
-		const notify = () => listener(this.read());
-		const tablesListener = this.store.addTablesListener(notify);
-		const valuesListener = this.store.addValuesListener(notify);
-		notify();
+		this.listeners.add(listener);
+		listener(this.currentState);
 		return () => {
-			this.store.delListener(tablesListener);
-			this.store.delListener(valuesListener);
+			this.listeners.delete(listener);
 		};
 	}
 
@@ -99,17 +94,17 @@ export class ActiveWorkspaceService {
 	set(state: WorkspaceState | null, activeBox = 0) {
 		if (!state) {
 			this.artifact = null;
+			this.currentState = null;
 			this.store.transaction(() => {
 				this.store.delTables().setValues({ activeSaveFileId: '', dirty: false });
 			});
 			this.queuePersist();
+			this.publish();
 			return;
 		}
 
 		this.artifact = {
-			file: state.file,
-			bytes: new Uint8Array(state.bytes),
-			entityBytesBySlot: new Map()
+			bytes: new Uint8Array(state.bytes)
 		};
 		const saveFileId = state.file.id;
 		const { partySlots, boxSlots, ...workspaceProjection } = state.workspace;
@@ -127,9 +122,6 @@ export class ActiveWorkspaceService {
 			}
 			for (const slot of partySlots) {
 				const rowId = `${saveFileId}:party:${slot.slot}`;
-				if ('entityBytesBase64' in slot) {
-					this.artifact?.entityBytesBySlot.set(rowId, slot.entityBytesBase64);
-				}
 				const projection = { ...slot };
 				delete projection.entityBytesBase64;
 				this.store.setRow('slots', rowId, {
@@ -142,9 +134,6 @@ export class ActiveWorkspaceService {
 			}
 			for (const slot of boxSlots) {
 				const rowId = `${saveFileId}:box:${slot.box}:${slot.slot}`;
-				if ('entityBytesBase64' in slot) {
-					this.artifact?.entityBytesBySlot.set(rowId, slot.entityBytesBase64);
-				}
 				const projection = { ...slot };
 				delete projection.entityBytesBase64;
 				this.store.setRow('slots', rowId, {
@@ -157,10 +146,23 @@ export class ActiveWorkspaceService {
 			}
 			this.store.setValues({ activeSaveFileId: saveFileId, dirty: state.dirty });
 		});
+		this.currentState = { ...state, bytes: this.artifact.bytes };
 		this.queuePersist();
+		this.publish();
 	}
 
-	async exportBytes(state = this.read()) {
+	project(state: WorkspaceState) {
+		if (
+			this.currentState &&
+			(this.currentState.file.id !== state.file.id ||
+				!bytesEqual(this.currentState.bytes, state.bytes))
+		) {
+			return;
+		}
+		this.currentState = state;
+	}
+
+	async exportBytes(state = this.currentState) {
 		if (!state) throw new Error('Load a Save File before exporting.');
 		const result = await this.engine.serializeSave(
 			state.bytes,
@@ -174,40 +176,8 @@ export class ActiveWorkspaceService {
 		await this.persistQueue;
 	}
 
-	private read(): WorkspaceState | null {
-		const saveFileId = this.store.getValue('activeSaveFileId');
-		if (typeof saveFileId !== 'string' || !saveFileId || !this.artifact) return null;
-		const row = this.store.getRow('workspaces', saveFileId);
-		if (typeof row.projection !== 'string') return null;
-		const workspaceProjection = JSON.parse(row.projection) as WorkspaceProjection;
-
-		const partySlots: SaveWorkspace['partySlots'] = [];
-		const boxSlots: SaveWorkspace['boxSlots'] = [];
-		for (const [rowId, slotRow] of Object.entries(this.store.getTable('slots'))) {
-			if (slotRow.saveFileId !== saveFileId || typeof slotRow.projection !== 'string') continue;
-			const projection = JSON.parse(slotRow.projection);
-			if (this.artifact.entityBytesBySlot.has(rowId)) {
-				projection.entityBytesBase64 = this.artifact.entityBytesBySlot.get(rowId);
-			}
-			if (slotRow.zone === 'party') partySlots.push(projection);
-			if (slotRow.zone === 'box') boxSlots.push(projection);
-		}
-		partySlots.sort((a, b) => a.slot - b.slot);
-		boxSlots.sort((a, b) => a.box - b.box || a.slot - b.slot);
-
-		return {
-			file: this.artifact.file,
-			bytes: new Uint8Array(this.artifact.bytes),
-			workspace: {
-				...workspaceProjection,
-				partySlots,
-				boxSlots
-			},
-			dirty: this.store.getValue('dirty') === true,
-			restoredFromBackup:
-				typeof row.restoredFromBackup === 'string' ? JSON.parse(row.restoredFromBackup) : null,
-			automaticBackupCreated: row.automaticBackupCreated === true
-		};
+	private publish() {
+		for (const listener of this.listeners) listener(this.currentState);
 	}
 
 	private queuePersist() {

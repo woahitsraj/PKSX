@@ -4,8 +4,9 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import {
+		type BoxSlotSummary,
 		type EngineApi,
 		base64ToBytes,
 		type EngineError,
@@ -116,6 +117,7 @@
 		getPkhexEngine,
 		invalidateSavesCache,
 		loadActiveWorkspaceFromSaves,
+		projectCachedActiveWorkspace,
 		seedSavesSnapshotFromActiveWorkspace,
 		setCachedActiveWorkspace
 	} from '$lib/pksx/saves-cache';
@@ -276,6 +278,23 @@
 		scope: PokemonEditPreviewValidationScope;
 	};
 
+	type PendingPaneBoxLoad = {
+		paneId: string;
+		sourceId: string;
+		box: number;
+		state: WorkspaceState;
+		request: number;
+		requestedAt: number;
+	};
+
+	type PaneBoxLoadQueue = {
+		paneId: string;
+		generation: number;
+		running: boolean;
+		pending: PendingPaneBoxLoad | null;
+		lastCompletedAt: number;
+	};
+
 	const noSelectedSlot: SlotView = {
 		slot: 0,
 		label: 'No slot selected',
@@ -328,17 +347,18 @@
 		secondaryChroma: number;
 	} {
 		const [primaryType, secondaryType] = slot.kind === 'pokemon' ? (slot.types ?? []) : [];
+		const fallbackBox = slot.kind === 'empty' ? 0 : box;
 		const primaryHue =
 			typeof primaryType?.hue === 'number'
 				? primaryType.hue
-				: fallbackSlotHue(box, slot.slot, slot.speciesId);
+				: fallbackSlotHue(fallbackBox, slot.slot, slot.speciesId);
 		const primaryChroma = primaryType?.chroma ?? 0.09;
 		const secondaryHue =
 			typeof secondaryType?.hue === 'number' && secondaryType.hue !== primaryHue
 				? secondaryType.hue
 				: slot.kind === 'pokemon' && primaryType
 					? null
-					: fallbackSlotHueSecondary(box, slot.slot, slot.speciesId);
+					: fallbackSlotHueSecondary(fallbackBox, slot.slot, slot.speciesId);
 		const secondaryChroma = secondaryType?.chroma ?? primaryChroma;
 
 		return { primaryHue, primaryChroma, secondaryHue, secondaryChroma };
@@ -376,8 +396,10 @@
 		kind: 'empty'
 	}));
 
-	let navigation = $state<BoxNavigationState>(createInitialNavigationState(placeholderBoxCount));
-	let loadedSave = $state<WorkspaceState | null>(null);
+	let navigation = $state.raw<BoxNavigationState>(
+		createInitialNavigationState(placeholderBoxCount)
+	);
+	let loadedSave = $state.raw<WorkspaceState | null>(null);
 	let pokemonEditorPaneId = $state<string | null>(null);
 	let pokemonEditorOpenedSlot: SlotView | null = null;
 	let openingPokemonEditor = false;
@@ -438,7 +460,7 @@
 	let sourcePickerTargetPaneId = $state<string | null>(null);
 	let sourcePickerFocusIndex = $state(0);
 	let saveFiles = $state<StoredSaveFile[]>([]);
-	let savePaneWorkspaces = $state<Record<string, SavePaneWorkspace>>({});
+	let savePaneWorkspaces = $state.raw<Record<string, SavePaneWorkspace>>({});
 	let pokemonStorage = $state<StoredPokemonStorage | null>(null);
 	let catalogManifest = $state<PokemonStorageManifest | null>(null);
 	let virtualPreferences = $state<VirtualViewPreferences>(
@@ -463,7 +485,36 @@
 	let installingActiveBoxProjection = false;
 	let destroyed = false;
 	const paneWorkspaceRequests: Record<string, number> = {};
+	const paneBoxLoadQueues: Record<string, PaneBoxLoadQueue> = {};
+	const boxSlotLoads = new WeakMap<
+		Uint8Array,
+		Record<number, Promise<BoxSlotSummary[]> | undefined>
+	>();
+	const slotEditDataLoads: Record<
+		string,
+		{
+			bytes: Uint8Array;
+			loads: Record<string, ReturnType<EngineApi['loadSlotEditData']> | undefined>;
+		}
+	> = {};
 	let paneWorkspaceLoadingRequests = $state<Record<string, number>>({});
+	let boxesSessionPersistTimer: ReturnType<typeof setTimeout> | null = null;
+	let navigationProjectionTimer: ReturnType<typeof setTimeout> | null = null;
+	let slotDomFocusTimer: ReturnType<typeof setTimeout> | null = null;
+	let applyingSlotDomFocus = false;
+	let slotNavigationRevision = 0;
+	type DomFocusedSaveSlot = {
+		pane: BoxPaneState;
+		ref: SaveSlotRef;
+		slot: SlotView;
+	};
+	let transferDomSource: DomFocusedSaveSlot | null = null;
+	let lastDomFocusedSaveSlot:
+		| (DomFocusedSaveSlot & {
+				at: number;
+				navigationRevision: number;
+		  })
+		| null = null;
 
 	const activeSummonedWorkflow = $derived(summonedWorkflow.active);
 	const sourcePickerOpen = $derived(activeSummonedWorkflow?.kind === 'source-picker');
@@ -579,7 +630,10 @@
 		if (boxPickerPane?.source.type !== 'save-file' || pendingSlotOperation) return false;
 		return saveWorkspaceForPane(boxPickerPane)?.state.workspace.boxNames.reorderSupported === true;
 	});
-	const activePaneBox = $derived(activePane?.activeBox ?? navigation.activeBox);
+	const activePaneBox = $derived(navigation.activeBox);
+	const displayedActivePaneBox = $derived(
+		(activePane && savePaneWorkspaces[activePane.id]?.loadedBox) ?? activePaneBox
+	);
 	const summonedSlotPane = $derived(
 		summonedSlotLauncher
 			? workbenchPanes.find((pane) => pane.id === summonedSlotLauncher.paneId)
@@ -592,7 +646,7 @@
 	);
 	const boxCount = $derived(loadedSave?.workspace.summary.boxCount ?? placeholderBoxCount);
 	const partyAvailable = $derived(paneHasParty(activePane));
-	const activeBoxSlots = $derived(paneBoxSlots(activePane, activePaneBox));
+	const activeBoxSlots = $derived(paneBoxSlots(activePane, displayedActivePaneBox));
 	const activeFocusId = $derived(getFocusId(navigation.focus, activePaneBox));
 	const activeSlotFocus = $derived<SlotFocus | null>(
 		sourcePickerOpen
@@ -737,7 +791,31 @@
 
 	function syncBoxesSession() {
 		if (!initialStateReady) return;
-		boxesSession.set({ panes: workbenchPanes, activePaneId });
+		void workbenchPanes;
+		void activePaneId;
+		persistBoxesSession();
+	}
+
+	function persistBoxesSession() {
+		if (boxesSessionPersistTimer) clearTimeout(boxesSessionPersistTimer);
+		boxesSessionPersistTimer = null;
+		const panes = untrack(() =>
+			setPaneFocus(workbenchPanes, activePaneId, navigation.locationFocus)
+		);
+		boxesSession.set({ panes, activePaneId });
+	}
+
+	function scheduleBoxesSessionPersist() {
+		if (boxesSessionPersistTimer) clearTimeout(boxesSessionPersistTimer);
+		boxesSessionPersistTimer = setTimeout(persistBoxesSession, 750);
+	}
+
+	function scheduleNavigationProjection() {
+		if (navigationProjectionTimer) clearTimeout(navigationProjectionTimer);
+		navigationProjectionTimer = setTimeout(() => {
+			navigationProjectionTimer = null;
+			navigation = { ...navigation };
+		}, 750);
 	}
 
 	function dispatch(action: NavigationAction) {
@@ -883,27 +961,57 @@
 		}
 		const previousFocus = navigation.focus;
 		if (action === 'confirm' && isSlotFocus(previousFocus)) {
-			openSlotMenu(previousFocus);
+			openSlotMenu(slotRefForFocus(previousFocus));
 			return;
 		}
 
 		const pane = activePane;
 		const previousBox = activePaneBox;
-		navigation = applyNavigationAction(navigation, action, {
+		const nextNavigation = applyNavigationAction(navigation, action, {
 			paneControlCount: activePaneControlCount,
 			partyAvailable,
 			carryActive: pendingSlotOperation !== null || virtualCarry !== null
 		});
+		const slotFocusChanged =
+			nextNavigation.activeBox === previousBox &&
+			isSlotFocus(previousFocus) &&
+			isSlotFocus(nextNavigation.focus) &&
+			nextNavigation.focus !== previousFocus;
+		const slotFocusMoved = slotFocusChanged && nextNavigation.focus.zone === previousFocus.zone;
+		const boxChanged = nextNavigation.activeBox !== previousBox;
+		if (slotFocusChanged || boxChanged) slotNavigationRevision += 1;
+		const deferredBoxChange = boxChanged && pane?.source.type === 'save-file';
+		if (deferredBoxChange) {
+			navigation.activeBox = nextNavigation.activeBox;
+			navigation.boxCount = nextNavigation.boxCount;
+			navigation.focus = nextNavigation.focus;
+			navigation.locationFocus = nextNavigation.locationFocus;
+		} else if (slotFocusMoved) {
+			navigation.focus = nextNavigation.focus;
+			navigation.locationFocus = nextNavigation.locationFocus;
+			scheduleNavigationProjection();
+			paintSlotFocus(true);
+		} else {
+			navigation = nextNavigation;
+		}
 
 		if (action === 'confirm') {
 			activateFocusedControl(previousFocus);
 		}
 
-		if (pane && navigation.activeBox !== previousBox) {
-			workbenchPanes = setPaneActiveBox(workbenchPanes, pane.id, navigation.activeBox);
-		}
+		const zoneChanged = Boolean(pane && navigation.locationFocus.zone !== pane.focus.zone);
 		if (pane) {
-			workbenchPanes = setPaneFocus(workbenchPanes, pane.id, navigation.locationFocus);
+			if (zoneChanged || (boxChanged && !deferredBoxChange)) {
+				workbenchPanes = setPaneFocus(
+					boxChanged && !deferredBoxChange
+						? setPaneActiveBox(workbenchPanes, pane.id, navigation.activeBox)
+						: workbenchPanes,
+					pane.id,
+					navigation.locationFocus
+				);
+			} else if (!boxChanged) {
+				scheduleBoxesSessionPersist();
+			}
 		}
 
 		if (
@@ -913,7 +1021,7 @@
 			pane.source.id === loadedSave.file.id &&
 			navigation.activeBox !== previousBox
 		) {
-			void loadWorkspaceForSave(loadedSave, navigation.activeBox);
+			queuePaneBoxLoad(pane.id, navigation.activeBox);
 		}
 
 		if (
@@ -921,10 +1029,12 @@
 			pane.source.id !== loadedSave?.file.id &&
 			navigation.activeBox !== previousBox
 		) {
-			void refreshPaneWorkspace(pane.id, navigation.activeBox);
+			queuePaneBoxLoad(pane.id, navigation.activeBox);
 		}
 
-		queueMicrotask(focusActiveControl);
+		if (navigation.activeBox === previousBox && !slotFocusMoved) {
+			queueMicrotask(focusActiveControl);
+		}
 	}
 
 	function dispatchSlotMenu(action: NavigationAction) {
@@ -1212,7 +1322,33 @@
 			focusVirtualRecord(virtualFocusedId);
 			return;
 		}
-		document.getElementById(focusIdForNavigation(navigation.focus))?.focus();
+		const target = document.getElementById(focusIdForNavigation(navigation.focus));
+		if (!target) return;
+		if (isSlotFocus(navigation.focus)) return paintSlotFocus(true);
+		target.focus();
+	}
+
+	function paintSlotFocus(focusGrid: boolean) {
+		const target = document.getElementById(focusIdForNavigation(navigation.focus));
+		if (!target) return;
+		const grid = target.closest<HTMLElement>('[role="grid"]');
+		grid?.querySelector('[aria-selected="true"]')?.setAttribute('aria-selected', 'false');
+		target.setAttribute('aria-selected', 'true');
+		grid?.setAttribute('aria-activedescendant', target.id);
+		if (focusGrid && grid && document.activeElement !== grid) grid.focus({ preventScroll: true });
+		if (focusGrid) target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+		if (slotDomFocusTimer) clearTimeout(slotDomFocusTimer);
+		slotDomFocusTimer = setTimeout(() => {
+			slotDomFocusTimer = null;
+			applyingSlotDomFocus = true;
+			try {
+				document
+					.getElementById(focusIdForNavigation(navigation.focus))
+					?.focus({ preventScroll: true });
+			} finally {
+				applyingSlotDomFocus = false;
+			}
+		}, 500);
 	}
 
 	function focusVirtualRecord(recordId: string | null, restoreAfterResize = false) {
@@ -1431,6 +1567,23 @@
 		document
 			.getElementById(focusIdForNavigation(navigation.focus))
 			?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+	}
+
+	function updateSlotDensity(grid: HTMLElement) {
+		const slot = grid.querySelector<HTMLElement>('.slot');
+		if (!slot) return;
+		const { width, height } = slot.getBoundingClientRect();
+		const size = Math.min(width, height);
+		grid.dataset.slotDensity = size >= 66 ? 'full' : size >= 46 ? 'number' : 'compact';
+	}
+
+	function observeSlotDensity(grid: HTMLElement) {
+		const slot = grid.querySelector<HTMLElement>('.slot');
+		if (!slot) return;
+		const resizeObserver = new ResizeObserver(() => updateSlotDensity(grid));
+		resizeObserver.observe(slot);
+		updateSlotDensity(grid);
+		return () => resizeObserver.disconnect();
 	}
 
 	function focusIdForNavigation(focus: ControllerFocus) {
@@ -1894,6 +2047,15 @@
 		if (!(activeElement instanceof HTMLElement)) {
 			return;
 		}
+		if (activeElement.getAttribute('role') === 'grid') {
+			const activeDescendant = activeElement.getAttribute('aria-activedescendant') ?? '';
+			const partySlot = /^party-slot-(\d+)$/.exec(activeDescendant);
+			const boxSlot = /^box-\d+-slot-(\d+)$/.exec(activeDescendant);
+			if (partySlot)
+				navigation = setLocationFocus(navigation, focusPartySlot(Number(partySlot[1])));
+			if (boxSlot) navigation = setLocationFocus(navigation, focusBoxSlot(Number(boxSlot[1])));
+			return;
+		}
 
 		const paneControlIndex = activeElement.dataset.paneControlIndex;
 		if (paneControlIndex !== undefined) {
@@ -1917,26 +2079,43 @@
 	}
 
 	function focusParty(slot: number) {
-		navigation = setLocationFocus(navigation, focusPartySlot(slot));
-		workbenchPanes = setPaneFocus(workbenchPanes, activePaneId, navigation.locationFocus);
+		lastDomFocusedSaveSlot = null;
+		const focus = focusPartySlot(slot);
+		if (navigation.locationFocus.zone === 'party' && navigation.locationFocus.slot === slot) return;
+		navigation = setLocationFocus(navigation, focus);
+		if (activePane?.focus.zone !== navigation.locationFocus.zone) {
+			workbenchPanes = setPaneFocus(workbenchPanes, activePaneId, navigation.locationFocus);
+		} else {
+			scheduleBoxesSessionPersist();
+		}
 		queueMicrotask(focusActiveControl);
 	}
 
 	function focusBox(slot: number) {
-		navigation = setLocationFocus(navigation, focusBoxSlot(slot));
-		workbenchPanes = setPaneFocus(workbenchPanes, activePaneId, navigation.locationFocus);
+		lastDomFocusedSaveSlot = null;
+		const focus = focusBoxSlot(slot);
+		if (navigation.locationFocus.zone === 'box' && navigation.locationFocus.slot === slot) return;
+		navigation = setLocationFocus(navigation, focus);
+		if (activePane?.focus.zone !== navigation.locationFocus.zone) {
+			workbenchPanes = setPaneFocus(workbenchPanes, activePaneId, navigation.locationFocus);
+		} else {
+			scheduleBoxesSessionPersist();
+		}
 		queueMicrotask(focusActiveControl);
 	}
 
 	function changePaneLocation(pane: BoxPaneState, action: 'previousBox' | 'nextBox') {
-		const previousBox = pane.activeBox;
+		lastDomFocusedSaveSlot = null;
+		const paneActive = pane.id === activePaneId;
+		const previousBox = paneActive ? navigation.activeBox : pane.activeBox;
+		const locationFocus = paneActive ? navigation.locationFocus : pane.focus;
 		const state = applyNavigationAction(
 			{
 				...navigation,
-				activeBox: pane.activeBox,
+				activeBox: previousBox,
 				boxCount: Math.max(1, pane.boxCount),
-				focus: pane.id === activePaneId ? navigation.focus : pane.focus,
-				locationFocus: pane.focus
+				focus: paneActive ? navigation.focus : pane.focus,
+				locationFocus
 			},
 			action,
 			{
@@ -1950,18 +2129,18 @@
 			pane.id,
 			state.locationFocus
 		);
-		if (pane.id === activePaneId) navigation = state;
+		if (paneActive) navigation = state;
 
 		if (state.locationFocus.zone === 'box' && state.activeBox !== previousBox) {
 			if (
 				loadedSave &&
-				pane.id === activePaneId &&
+				paneActive &&
 				pane.source.type === 'save-file' &&
 				pane.source.id === loadedSave.file.id
 			) {
-				void loadWorkspaceForSave(loadedSave, state.activeBox, pane.id);
+				queuePaneBoxLoad(pane.id, state.activeBox);
 			} else if (pane.source.type === 'save-file') {
-				void refreshPaneWorkspace(pane.id, state.activeBox);
+				queuePaneBoxLoad(pane.id, state.activeBox);
 			}
 		}
 		queueMicrotask(focusActiveControl);
@@ -1969,16 +2148,17 @@
 
 	function slotLauncher(
 		focus: SlotFocus,
-		pane: BoxPaneState | undefined = activePane
+		pane: BoxPaneState | undefined = activePane,
+		box: number | null = focus.zone === 'box' ? (pane?.activeBox ?? activePaneBox) : null
 	): SummonedWorkflowLauncher {
 		return {
 			type: 'slot',
 			id:
 				focus.zone === 'party'
 					? `party-slot-${focus.slot}`
-					: `box-${pane?.activeBox ?? activePaneBox}-slot-${focus.slot}`,
+					: `box-${box ?? activePaneBox}-slot-${focus.slot}`,
 			paneId: pane?.id ?? activePaneId,
-			box: focus.zone === 'box' ? (pane?.activeBox ?? activePaneBox) : null,
+			box,
 			focus
 		};
 	}
@@ -1991,12 +2171,20 @@
 		return isSlotFocus(focus) ? slotLauncher(focus) : controlLauncher(focusIdForNavigation(focus));
 	}
 
-	function openSlotMenu(focus: SlotFocus, pane: BoxPaneState | undefined = activePane) {
+	function openSlotMenu(source: SaveSlotRef, pane: BoxPaneState | undefined = activePane) {
+		if (!paneSlotActionsReady(pane, source)) return;
 		if (catalogViewStale && pane?.source.type === 'pokemon-storage') {
 			toastHost.error('Reload Boxes before changing Pokemon Storage Slots.');
 			return;
 		}
-		if (!summonedWorkflow.open('slot-menu', slotLauncher(focus, pane))) return;
+		const focus = source.zone === 'party' ? focusPartySlot(source.slot) : focusBoxSlot(source.slot);
+		if (
+			!summonedWorkflow.open(
+				'slot-menu',
+				slotLauncher(focus, pane, source.zone === 'box' ? source.box : null)
+			)
+		)
+			return;
 		slotMenuPokemonActionRequest += 1;
 		slotMenuPokemonActionPreview = null;
 		slotMenuPokemonActionsLoading = false;
@@ -2107,6 +2295,16 @@
 
 	function locationControlId(paneId: string) {
 		return `location-control-${paneId}`;
+	}
+
+	function focusPaneHeaderControl(pane: BoxPaneState, index: number, controlCount: number) {
+		const locationFocus = pane.id === activePaneId ? navigation.locationFocus : pane.focus;
+		activatePane(pane);
+		navigation = {
+			...navigation,
+			focus: focusPaneControl(index, controlCount),
+			locationFocus
+		};
 	}
 
 	function matchesBoxMenuTarget(pane: BoxPaneState, target: BoxMenuTarget) {
@@ -2222,7 +2420,10 @@
 			localStorage.setItem('pksx-last-storage-location-v1', location.id);
 
 		const box = Math.min(location.location.box, Math.max(0, pane.boxCount - 1));
-		const locationFocus = projectSlotCoordinate(pane.focus, 'box');
+		const locationFocus = projectSlotCoordinate(
+			pane.id === activePaneId ? navigation.locationFocus : pane.focus,
+			'box'
+		);
 		const returnFocus =
 			pendingSlotOperation || virtualCarry
 				? locationFocus
@@ -2636,7 +2837,7 @@
 		destination: SaveSlotRef,
 		destinationPane: BoxPaneState | undefined = activePane
 	) {
-		if (!pendingSlotOperation || busy) {
+		if (!pendingSlotOperation || busy || !paneSlotActionsReady(destinationPane, destination)) {
 			return;
 		}
 		if (
@@ -2709,7 +2910,9 @@
 				statusMessage = 'Cross-save movement is not available yet.';
 				return;
 			}
-			const workspace = saveWorkspaceForPane(ownerPane)?.state;
+			const sourcePaneId = carryState.source.paneId;
+			const sourcePane = workbenchPanes.find((pane) => pane.id === sourcePaneId);
+			const workspace = saveWorkspaceForPane(sourcePane)?.state;
 			if (!workspace) {
 				toastHost.error('The source Save File is no longer available.');
 				return;
@@ -2988,6 +3191,7 @@
 		operation: SlotOperation,
 		context?: { state: WorkspaceState; paneId: string }
 	): Promise<boolean> {
+		const navigationRevision = slotNavigationRevision;
 		const operationState = context?.state ?? loadedSave;
 		if (!operationState) {
 			toastHost.error('Load a Save File before changing Slots.');
@@ -3052,37 +3256,39 @@
 			invalidateSavesCache();
 			pendingSlotOperation = null;
 			carryState = null;
-			const focusRef = result.focusRef;
-			if (focusRef.zone === 'box') {
-				const focusPane = context?.paneId
-					? workbenchPanes.find((pane) => pane.id === context.paneId)
-					: (workbenchPanes.find(
-							(pane) => pane.source.type === 'save-file' && pane.source.id === nextState.file.id
-						) ?? activePane);
-				if (focusPane) {
-					workbenchPanes = setPaneActiveBox(workbenchPanes, focusPane.id, focusRef.box);
+			if (slotNavigationRevision === navigationRevision) {
+				const focusRef = result.focusRef;
+				if (focusRef.zone === 'box') {
+					const focusPane = context?.paneId
+						? workbenchPanes.find((pane) => pane.id === context.paneId)
+						: (workbenchPanes.find(
+								(pane) => pane.source.type === 'save-file' && pane.source.id === nextState.file.id
+							) ?? activePane);
+					if (focusPane) {
+						workbenchPanes = setPaneActiveBox(workbenchPanes, focusPane.id, focusRef.box);
+					}
 				}
-			}
-			const resultFocus =
-				focusRef.zone === 'party' ? focusPartySlot(focusRef.slot) : focusBoxSlot(focusRef.slot);
-			navigation = {
-				...navigation,
-				activeBox: focusRef.zone === 'box' ? focusRef.box : operationBox,
-				boxCount: Math.max(1, result.state.workspace.summary.boxCount),
-				focus: resultFocus,
-				locationFocus: resultFocus
-			};
-			const resultPane = context?.paneId
-				? workbenchPanes.find((pane) => pane.id === context.paneId)
-				: workbenchPanes.find(
-						(pane) => pane.source.type === 'save-file' && pane.source.id === nextState.file.id
-					);
-			if (resultPane) {
-				activePaneId = resultPane.id;
-				workbenchPanes = setPaneFocus(workbenchPanes, resultPane.id, resultFocus);
+				const resultFocus =
+					focusRef.zone === 'party' ? focusPartySlot(focusRef.slot) : focusBoxSlot(focusRef.slot);
+				navigation = {
+					...navigation,
+					activeBox: focusRef.zone === 'box' ? focusRef.box : operationBox,
+					boxCount: Math.max(1, result.state.workspace.summary.boxCount),
+					focus: resultFocus,
+					locationFocus: resultFocus
+				};
+				const resultPane = context?.paneId
+					? workbenchPanes.find((pane) => pane.id === context.paneId)
+					: workbenchPanes.find(
+							(pane) => pane.source.type === 'save-file' && pane.source.id === nextState.file.id
+						);
+				if (resultPane) {
+					activePaneId = resultPane.id;
+					workbenchPanes = setPaneFocus(workbenchPanes, resultPane.id, resultFocus);
+				}
+				queueMicrotask(focusActiveControl);
 			}
 			statusMessage = result.message;
-			queueMicrotask(focusActiveControl);
 			return true;
 		} catch (error) {
 			const message = getErrorMessage(error);
@@ -3096,16 +3302,20 @@
 	}
 
 	function beginPendingSlotOperation(kind: 'move' | 'copy') {
-		const slot = focusedSlot;
+		const domSource = validateTransferSource(transferDomSource ?? focusedDomSaveSlot());
+		transferDomSource = null;
+		const slot = domSource?.slot ?? focusedSlot;
 
 		if (slot.kind !== 'pokemon') {
 			return;
 		}
 
-		const source = slotRefForFocus();
-		const sourcePaneId = activePane?.id ?? activePaneId;
-		const sourceOwner = activePane?.source ?? saveFileSource(loadedSave);
-		const sourceWorkspace = saveWorkspaceForPane(activePane)?.state ?? null;
+		const source = domSource?.ref ?? slotRefForFocus();
+		const sourcePane = domSource?.pane ?? activePane;
+		if (!paneSlotActionsReady(sourcePane, source)) return;
+		const sourcePaneId = sourcePane?.id ?? activePaneId;
+		const sourceOwner = sourcePane?.source ?? saveFileSource(loadedSave);
+		const sourceWorkspace = saveWorkspaceForPane(sourcePane)?.state ?? null;
 		pendingSlotOperation = {
 			kind,
 			source,
@@ -3133,7 +3343,8 @@
 		pokemonEditor = null;
 		pokemonEditorPaneId = null;
 		pokemonEditorFeedback = null;
-		const sourceFocus = summonedSlotLauncher?.focus ?? activeSlotFocus ?? focusBoxSlot(0);
+		const sourceFocus =
+			source.zone === 'party' ? focusPartySlot(source.slot) : focusBoxSlot(source.slot);
 		summonedWorkflow.closeAll();
 		navigation = {
 			...navigation,
@@ -3141,6 +3352,72 @@
 			locationFocus: sourceFocus
 		};
 		queueMicrotask(focusActiveControl);
+	}
+
+	function focusedDomSaveSlot() {
+		const activeElement = document.activeElement;
+		const element =
+			activeElement instanceof HTMLElement && activeElement.getAttribute('role') === 'grid'
+				? document.getElementById(activeElement.getAttribute('aria-activedescendant') ?? '')
+				: activeElement;
+		return domSaveSlot(element);
+	}
+
+	function domSaveSlot(element: Element | null): DomFocusedSaveSlot | null {
+		if (!(element instanceof HTMLElement) || element.getAttribute('role') !== 'gridcell')
+			return null;
+		const paneId = element.closest<HTMLElement>('[data-pane-id]')?.dataset.paneId;
+		const pane = workbenchPanes.find((candidate) => candidate.id === paneId);
+		if (!pane) return null;
+
+		const party = element.id.match(/party-slot-(\d+)$/);
+		const box = element.id.match(/box-(\d+)-slot-(\d+)$/);
+		const ref: SaveSlotRef | null = party
+			? { zone: 'party', slot: Number(party[1]) }
+			: box
+				? { zone: 'box', box: Number(box[1]), slot: Number(box[2]) }
+				: null;
+		if (!ref) return null;
+		const slot = slotForRef(ref, pane);
+		return slot ? { pane, ref, slot } : null;
+	}
+
+	function controllerFocusedSaveSlot(): DomFocusedSaveSlot | null {
+		const pane = activePane;
+		const focus = isSlotFocus(navigation.focus) ? navigation.focus : navigation.locationFocus;
+		if (!pane || !isSlotFocus(focus)) return null;
+		const ref: SaveSlotRef =
+			focus.zone === 'party'
+				? { zone: 'party', slot: focus.slot }
+				: { zone: 'box', box: navigation.activeBox, slot: focus.slot };
+		const slot = slotForRef(ref, pane);
+		return slot ? { pane, ref, slot } : null;
+	}
+
+	function validateTransferSource(source: DomFocusedSaveSlot | null) {
+		const recentSource =
+			lastDomFocusedSaveSlot?.navigationRevision === slotNavigationRevision &&
+			performance.now() - lastDomFocusedSaveSlot.at < 2_000
+				? lastDomFocusedSaveSlot
+				: source;
+		const controllerSource = controllerFocusedSaveSlot();
+		if (!controllerSource) return recentSource;
+		return recentSource?.pane.id === controllerSource.pane.id &&
+			recentSource.pane.source.type === controllerSource.pane.source.type &&
+			recentSource.pane.source.id === controllerSource.pane.source.id &&
+			slotRefKey(recentSource.ref) === slotRefKey(controllerSource.ref)
+			? recentSource
+			: controllerSource;
+	}
+
+	function captureTransferSource(event: PointerEvent) {
+		event.preventDefault();
+		transferDomSource = validateTransferSource(
+			focusedDomSaveSlot() ??
+				(lastDomFocusedSaveSlot && performance.now() - lastDomFocusedSaveSlot.at < 2_000
+					? lastDomFocusedSaveSlot
+					: null)
+		);
 	}
 
 	async function cancelPendingSlotOperation() {
@@ -3388,6 +3665,7 @@
 			selectActiveBox(createInitialNavigationState(save.workspace.summary.boxCount), clampedBox),
 			preservedFocus
 		);
+		primeBoxSlots(save, clampedBox);
 	}
 
 	function openRelatedSourcePicker(targetPaneId: string | null) {
@@ -3516,7 +3794,15 @@
 		}
 		if (!selectionIsCurrent()) return;
 
-		workbenchPanes = switchPaneSource(workbenchPanes, paneId, source, targetBoxCount);
+		const panesForSwitch =
+			paneId === activePaneId
+				? setPaneFocus(
+						setPaneActiveBox(workbenchPanes, paneId, navigation.activeBox),
+						paneId,
+						navigation.locationFocus
+					)
+				: workbenchPanes;
+		workbenchPanes = switchPaneSource(panesForSwitch, paneId, source, targetBoxCount);
 		if (source.type === 'pokemon-storage') initializeStorageLocation(paneId);
 		const switchedPane = workbenchPanes.find((candidate) => candidate.id === paneId);
 		activePaneId = paneId;
@@ -3572,6 +3858,7 @@
 		if (!closingPane) return;
 		const closingPrimaryPane = workbenchPanes[0]?.id === paneId;
 		const closingActivePane = paneId === activePaneId;
+		let focusSurvivingPane = false;
 		const promotedPane = closingPrimaryPane
 			? workbenchPanes.find((pane) => pane.id !== paneId)
 			: undefined;
@@ -3591,12 +3878,22 @@
 			invalidateSavesCache();
 		}
 		workbenchPanes = closeBoxPane(workbenchPanes, paneId);
-		if (closingActivePane || !workbenchPanes.some((pane) => pane.id === activePaneId)) {
+		if (
+			workbenchPanes.length === 1 ||
+			closingActivePane ||
+			!workbenchPanes.some((pane) => pane.id === activePaneId)
+		) {
 			const nextPane = workbenchPanes[0];
 			const nextFocus: SlotFocus = nextPane
-				? focusSurvivingPaneAfterClose(closingPane, nextPane, {
-						partyAvailable: paneHasParty(nextPane)
-					})
+				? closingActivePane
+					? focusSurvivingPaneAfterClose(
+							{ ...closingPane, focus: navigation.locationFocus },
+							nextPane,
+							{
+								partyAvailable: paneHasParty(nextPane)
+							}
+						)
+					: nextPane.focus
 				: { zone: 'box', slot: 0 };
 			activePaneId = nextPane?.id ?? 'pane-pokemon-storage';
 			navigation = {
@@ -3607,14 +3904,24 @@
 				locationFocus: nextFocus
 			};
 			if (nextPane) workbenchPanes = setPaneFocus(workbenchPanes, nextPane.id, nextFocus);
-			queueMicrotask(focusActiveControl);
+			focusSurvivingPane = true;
 		}
 		const remaining = { ...savePaneWorkspaces };
 		delete remaining[paneId];
 		savePaneWorkspaces = remaining;
+		if (focusSurvivingPane) {
+			await tick();
+			paintSlotFocus(false);
+			document.getElementById(focusIdForNavigation(navigation.focus))?.focus();
+		}
 	}
 
 	function activatePane(pane: BoxPaneState, restoreFocus = true) {
+		if (pane.id === activePaneId) return;
+		slotNavigationRevision += 1;
+		transferDomSource = null;
+		lastDomFocusedSaveSlot = null;
+		preserveActivePaneNavigation();
 		activePaneId = pane.id;
 		if (pane.source.type === 'pokemon-storage' && virtualPaneIds.includes(pane.id)) {
 			const records = virtualRecords(catalogManifest, {
@@ -3634,6 +3941,14 @@
 			Math.min(pane.activeBox, Math.max(1, pane.boxCount) - 1)
 		);
 		if (restoreFocus) queueMicrotask(focusActiveControl);
+	}
+
+	function preserveActivePaneNavigation() {
+		workbenchPanes = setPaneFocus(
+			setPaneActiveBox(workbenchPanes, activePaneId, navigation.activeBox),
+			activePaneId,
+			navigation.locationFocus
+		);
 	}
 
 	function sourceForCard(card: SourcePickerCard): BoxSourceType {
@@ -3670,6 +3985,20 @@
 		}
 
 		return normalizeBoxSlots(createBoxSlotViews(paneWorkspace.state.workspace.boxSlots));
+	}
+
+	function paneSlotActionsReady(
+		pane: BoxPaneState | undefined,
+		focus: Pick<SaveSlotRef, 'zone'> | null = pane?.focus ?? null
+	): boolean {
+		const requestedBox = pane?.id === activePaneId ? navigation.activeBox : pane?.activeBox;
+		const displayedWorkspace = pane ? savePaneWorkspaces[pane.id] : null;
+		return (
+			focus?.zone !== 'box' ||
+			pane?.source.type !== 'save-file' ||
+			(displayedWorkspace?.state.file.id === pane.source.id &&
+				displayedWorkspace.loadedBox === requestedBox)
+		);
 	}
 
 	function paneHasParty(pane: BoxPaneState | undefined): boolean {
@@ -4501,13 +4830,9 @@
 		let slot = focusedSlot;
 		if (paneWorkspace && engine && !hasSlotEditData(slot)) {
 			openingPokemonEditor = true;
-			const loaded = await engine
-				.loadSlotEditData(
-					paneWorkspace.state.bytes,
-					paneWorkspace.state.file.originalFileName ?? undefined,
-					slotRef
-				)
-				.finally(() => (openingPokemonEditor = false));
+			const loaded = await loadCachedSlotEditData(paneWorkspace.state, slotRef).finally(
+				() => (openingPokemonEditor = false)
+			);
 			if (activeSummonedWorkflow !== launchingWorkflow) return;
 			if (!loaded.ok) {
 				statusMessage = loaded.error.message;
@@ -5409,12 +5734,6 @@
 		};
 	}
 
-	function isFocused(zone: 'party' | 'box', slot: number) {
-		return (
-			activeSlotFocus !== null && activeSlotFocus.zone === zone && activeSlotFocus.slot === slot
-		);
-	}
-
 	function captureActiveQuickSearchSaveFile(): QuickSearchSaveFile | null {
 		const pane = workbenchPanes.find(({ id }) => id === activePaneId);
 		if (initialStateReady && pane?.source.type === 'pokemon-storage' && activeVirtualLocation) {
@@ -5691,6 +6010,8 @@
 	}
 
 	onMount(() => {
+		const persistSessionBeforeUnload = () => persistBoxesSession();
+		window.addEventListener('beforeunload', persistSessionBeforeUnload);
 		const unregisterQuickSearch = quickSearchHost.register({
 			captureActiveSaveFile: captureActiveQuickSearchSaveFile
 		});
@@ -5709,14 +6030,15 @@
 			}
 			void refreshPublishedSavePanes(state);
 		});
-		const boxesRoute = document.querySelector('.boxes-route');
+		const boxesRoute = document.querySelector<HTMLElement>('.boxes-route');
 		const resizeObserver = boxesRoute
-			? new ResizeObserver(() => queueMicrotask(keepFocusedSlotVisible))
+			? new ResizeObserver(() => queueMicrotask(() => void keepFocusedSlotVisible()))
 			: null;
 		if (boxesRoute) resizeObserver?.observe(boxesRoute);
 		engine = getPkhexEngine();
 		void restoreInitialState();
 		return () => {
+			window.removeEventListener('beforeunload', persistSessionBeforeUnload);
 			resizeObserver?.disconnect();
 			unregisterQuickSearch();
 			unregisterSaveFileLegality();
@@ -5726,6 +6048,9 @@
 
 	onDestroy(() => {
 		destroyed = true;
+		if (boxesSessionPersistTimer) persistBoxesSession();
+		if (navigationProjectionTimer) clearTimeout(navigationProjectionTimer);
+		if (slotDomFocusTimer) clearTimeout(slotDomFocusTimer);
 		if (summonedWorkflow.active?.kind !== 'backup-browser') summonedWorkflow.closeAll();
 	});
 
@@ -5736,7 +6061,7 @@
 	function installActiveBoxProjection(state: WorkspaceState, box: number) {
 		installingActiveBoxProjection = true;
 		try {
-			setCachedActiveWorkspace(state, box);
+			projectCachedActiveWorkspace(state, box);
 		} finally {
 			installingActiveBoxProjection = false;
 		}
@@ -5749,28 +6074,56 @@
 		const panes = workbenchPanes.filter(
 			(pane) => pane.source.type === 'save-file' && pane.source.id === state.file.id
 		);
+		const nextPaneWorkspaces = { ...savePaneWorkspaces };
+		for (const pane of panes) {
+			const current = nextPaneWorkspaces[pane.id];
+			if (!current) continue;
+			nextPaneWorkspaces[pane.id] = {
+				loadedBox: current.loadedBox,
+				state:
+					current.loadedBox === publishedBox
+						? state
+						: {
+								...state,
+								workspace: {
+									...state.workspace,
+									boxSlots: current.state.workspace.boxSlots
+								}
+							}
+			};
+		}
+		savePaneWorkspaces = nextPaneWorkspaces;
 
 		await Promise.all(
 			panes.map(async (pane) => {
-				const needsLoad = pane.activeBox !== publishedBox;
+				const requestedBox = pane.id === activePaneId ? navigation.activeBox : pane.activeBox;
+				cancelPaneBoxLoad(pane.id);
+				const needsLoad = requestedBox !== publishedBox;
 				const request = beginPaneWorkspaceRequest(pane.id, needsLoad);
-				if (pane.activeBox === publishedBox) {
+				if (requestedBox === publishedBox) {
 					installPaneWorkspace(pane.id, state.file.id, publishedBox, state, request);
 					return;
 				}
 
 				try {
-					const paneState = await loadWorkspaceStateForSaveFile(state.file.id, pane.activeBox);
-					if (paneState) {
-						installPaneWorkspace(pane.id, state.file.id, pane.activeBox, paneState, request);
-					}
+					const boxSlots = await loadCachedBoxSlots(state, requestedBox);
+					const paneState = {
+						...state,
+						workspace: {
+							...state.workspace,
+							boxSlots
+						}
+					};
+					installPaneWorkspace(pane.id, state.file.id, requestedBox, paneState, request);
 				} catch (error) {
 					const currentPane = workbenchPanes.find((candidate) => candidate.id === pane.id);
+					const currentRequestedBox =
+						currentPane?.id === activePaneId ? navigation.activeBox : currentPane?.activeBox;
 					if (
 						paneWorkspaceRequests[pane.id] === request &&
 						currentPane?.source.type === 'save-file' &&
 						currentPane.source.id === state.file.id &&
-						currentPane.activeBox === pane.activeBox
+						currentRequestedBox === requestedBox
 					) {
 						const remaining = { ...savePaneWorkspaces };
 						delete remaining[pane.id];
@@ -5822,6 +6175,17 @@
 			for (const pane of session.panes) {
 				if (pane.source.type === 'pokemon-storage') initializeStorageLocation(pane.id);
 			}
+			const restoredPane =
+				workbenchPanes.find((pane) => pane.id === activePaneId) ?? workbenchPanes[0];
+			if (restoredPane) {
+				navigation = setLocationFocus(
+					selectActiveBox(
+						createInitialNavigationState(Math.max(1, restoredPane.boxCount)),
+						restoredPane.activeBox
+					),
+					restoredPane.focus
+				);
+			}
 
 			await Promise.all(
 				workbenchPanes.map(async (pane) => {
@@ -5842,17 +6206,6 @@
 				})
 			);
 
-			const restoredPane =
-				workbenchPanes.find((pane) => pane.id === activePaneId) ?? workbenchPanes[0];
-			if (restoredPane) {
-				navigation = setLocationFocus(
-					selectActiveBox(
-						createInitialNavigationState(Math.max(1, restoredPane.boxCount)),
-						restoredPane.activeBox
-					),
-					restoredPane.focus
-				);
-			}
 			statusMessage = restoredPane ? `${restoredPane.source.label} loaded.` : 'Open Saves.';
 		} catch (error) {
 			importError = getErrorMessage(error);
@@ -5929,6 +6282,7 @@
 	}
 
 	async function loadWorkspaceForSave(save: WorkspaceState, box: number, paneId = activePaneId) {
+		cancelPaneBoxLoad(paneId);
 		const request = (workspaceLoadRequest += 1);
 		const paneRequest = beginPaneWorkspaceRequest(paneId, true);
 		busy = true;
@@ -5975,6 +6329,7 @@
 	}
 
 	async function refreshPaneWorkspace(paneId: string, box: number) {
+		cancelPaneBoxLoad(paneId);
 		const pane = workbenchPanes.find((candidate) => candidate.id === paneId);
 		if (!pane || pane.source.type !== 'save-file' || !pane.source.id) {
 			return;
@@ -6038,6 +6393,198 @@
 		paneWorkspaceLoadingRequests = remaining;
 	}
 
+	function queuePaneBoxLoad(paneId: string, box: number) {
+		const pane = workbenchPanes.find((candidate) => candidate.id === paneId);
+		const state = paneWorkspaceSnapshot(pane);
+		if (!pane || pane.source.type !== 'save-file' || !pane.source.id || !state) return;
+
+		const request = beginPaneWorkspaceRequest(paneId, false);
+		const queue = (paneBoxLoadQueues[paneId] ??= {
+			paneId,
+			generation: 0,
+			running: false,
+			pending: null,
+			lastCompletedAt: 0
+		});
+		queue.pending = {
+			paneId,
+			sourceId: pane.source.id,
+			box,
+			state,
+			request,
+			requestedAt: performance.now()
+		};
+		setPaneBoxLoadPending(paneId, true);
+		if (!queue.running) void drainPaneBoxLoads(queue);
+	}
+
+	async function drainPaneBoxLoads(queue: PaneBoxLoadQueue) {
+		queue.running = true;
+		const generation = queue.generation;
+		try {
+			while (!destroyed && queue.generation === generation && queue.pending) {
+				const quietFor = performance.now() - queue.pending.requestedAt;
+				const recentlyCompleted = performance.now() - queue.lastCompletedAt < 500;
+				if (recentlyCompleted && quietFor < 300) {
+					await new Promise((resolve) => setTimeout(resolve, 300 - quietFor));
+				}
+				if (queue.generation !== generation || !queue.pending) return;
+				if (
+					performance.now() - queue.lastCompletedAt < 500 &&
+					performance.now() - queue.pending.requestedAt < 300
+				) {
+					continue;
+				}
+				const target = queue.pending;
+				queue.pending = null;
+				await loadPaneBox(target);
+				queue.lastCompletedAt = performance.now();
+			}
+		} finally {
+			queue.running = false;
+			if (queue.pending && !destroyed) void drainPaneBoxLoads(queue);
+			else setPaneBoxLoadPending(queue.paneId, false);
+		}
+	}
+
+	function setPaneBoxLoadPending(paneId: string | null, pending: boolean) {
+		if (!paneId) return;
+		document
+			.querySelector<HTMLElement>(`[data-pane-id="${CSS.escape(paneId)}"]`)
+			?.toggleAttribute('data-box-load-pending', pending);
+	}
+
+	async function loadPaneBox(target: PendingPaneBoxLoad) {
+		if (!engine) return;
+		try {
+			const boxSlots = await loadCachedBoxSlots(target.state, target.box);
+
+			const pane = workbenchPanes.find((candidate) => candidate.id === target.paneId);
+			const current = paneWorkspaceSnapshot(pane);
+			const targetBox = pane?.id === activePaneId ? navigation.activeBox : pane?.activeBox;
+			if (
+				paneWorkspaceRequests[target.paneId] !== target.request ||
+				pane?.source.type !== 'save-file' ||
+				pane.source.id !== target.sourceId ||
+				targetBox !== target.box ||
+				!current ||
+				!bytesEqual(current.bytes, target.state.bytes)
+			) {
+				return;
+			}
+
+			const state = {
+				...current,
+				workspace: { ...current.workspace, boxSlots }
+			};
+			installPaneWorkspace(target.paneId, target.sourceId, target.box, state, target.request);
+			if (
+				activePaneId === target.paneId &&
+				loadedSave?.file.id === target.sourceId &&
+				bytesEqual(loadedSave.bytes, state.bytes)
+			) {
+				installActiveBoxProjection(state, target.box);
+			}
+		} catch (error) {
+			if (paneWorkspaceRequests[target.paneId] === target.request) {
+				toastHost.error(getErrorMessage(error));
+				statusMessage = 'Could not load that Box.';
+			}
+		} finally {
+			finishPaneWorkspaceRequest(target.paneId, target.request);
+		}
+	}
+
+	function loadCachedBoxSlots(state: WorkspaceState, box: number) {
+		let loads = boxSlotLoads.get(state.bytes);
+		if (!loads) {
+			loads = {};
+			boxSlotLoads.set(state.bytes, loads);
+		}
+		const cached = loads[box];
+		if (cached) return cached;
+		if (!engine) return Promise.reject(new Error('Pokemon data is still loading. Try again.'));
+
+		const load = engine
+			.listBoxSlots(state.bytes, state.file.originalFileName ?? undefined, box)
+			.then((result) => {
+				if (!result.ok) throw result.error;
+				return result.value;
+			})
+			.catch((error) => {
+				if (loads) delete loads[box];
+				throw error;
+			});
+		loads[box] = load;
+		return load;
+	}
+
+	function primeBoxSlots(state: WorkspaceState, box: number) {
+		cacheBoxSlots(state, box);
+		if (state.workspace.summary.boxCount < 2) return;
+		const nextBox = (box + 1) % state.workspace.summary.boxCount;
+		void loadCachedBoxSlots(state, nextBox).catch(() => {});
+	}
+
+	function cacheBoxSlots(state: WorkspaceState, box: number) {
+		let loads = boxSlotLoads.get(state.bytes);
+		if (!loads) {
+			loads = {};
+			boxSlotLoads.set(state.bytes, loads);
+		}
+		loads[box] = Promise.resolve(state.workspace.boxSlots);
+	}
+
+	function loadCachedSlotEditData(state: WorkspaceState, source: SaveSlotRef) {
+		let cachedState = slotEditDataLoads[state.file.id];
+		if (!cachedState || !bytesEqual(cachedState.bytes, state.bytes)) {
+			cachedState = { bytes: state.bytes, loads: {} };
+			slotEditDataLoads[state.file.id] = cachedState;
+		}
+		const loads = cachedState.loads;
+		const key =
+			source.zone === 'box'
+				? `${source.zone}:${source.box}:${source.slot}`
+				: `${source.zone}:${source.slot}`;
+		const cached = loads[key];
+		if (cached) return cached;
+		if (!engine) return Promise.reject(new Error('Pokemon data is still loading. Try again.'));
+
+		const load = engine
+			.loadSlotEditData(state.bytes, state.file.originalFileName ?? undefined, source)
+			.then((result) => {
+				if (!result.ok && loads) delete loads[key];
+				return result;
+			})
+			.catch((error) => {
+				if (loads) delete loads[key];
+				throw error;
+			});
+		loads[key] = load;
+		return load;
+	}
+
+	function primeFocusedSlotEditData(pane: BoxPaneState, source: SaveSlotRef, slot: SlotView) {
+		if (slot.kind !== 'pokemon') return;
+		const state = saveWorkspaceForPane(pane)?.state;
+		if (state) void loadCachedSlotEditData(state, source).catch(() => {});
+	}
+
+	function cancelPaneBoxLoad(paneId: string) {
+		const queue = paneBoxLoadQueues[paneId];
+		if (!queue) return;
+		queue.generation += 1;
+		queue.pending = null;
+		setPaneBoxLoadPending(paneId, false);
+	}
+
+	function paneWorkspaceSnapshot(pane: BoxPaneState | undefined) {
+		if (!pane || pane.source.type !== 'save-file') return null;
+		const cached = savePaneWorkspaces[pane.id]?.state;
+		if (cached?.file.id === pane.source.id) return cached;
+		return loadedSave?.file.id === pane.source.id ? loadedSave : null;
+	}
+
 	function installPaneWorkspace(
 		paneId: string,
 		sourceId: string,
@@ -6046,39 +6593,51 @@
 		request: number
 	) {
 		const pane = workbenchPanes.find((candidate) => candidate.id === paneId);
+		const targetBox = pane?.id === activePaneId ? navigation.activeBox : pane?.activeBox;
 		if (
 			destroyed ||
 			paneWorkspaceRequests[paneId] !== request ||
 			pane?.source.type !== 'save-file' ||
 			pane.source.id !== sourceId ||
-			pane.activeBox !== box
+			targetBox !== box
 		) {
 			return false;
 		}
 
 		const boxCount = Math.max(1, state.workspace.summary.boxCount);
 		const activeBox = Math.min(box, boxCount - 1);
+		const previousWorkspace = savePaneWorkspaces[paneId]?.state;
 		savePaneWorkspaces = {
 			...savePaneWorkspaces,
 			[paneId]: { state, loadedBox: activeBox }
 		};
-		workbenchPanes = workbenchPanes.map((candidate) =>
-			candidate.id === paneId && candidate.source.type === 'save-file'
-				? {
-						...candidate,
-						activeBox,
-						boxCount,
-						source: {
-							...candidate.source,
-							label: state.file.originalFileName ?? candidate.source.label,
-							dirty: state.dirty
+		if (!previousWorkspace || previousWorkspace.bytes !== state.bytes) {
+			primeBoxSlots(state, activeBox);
+		} else {
+			cacheBoxSlots(state, activeBox);
+		}
+		const label = state.file.originalFileName ?? pane.source.label;
+		if (
+			pane.activeBox !== activeBox ||
+			pane.boxCount !== boxCount ||
+			pane.source.label !== label ||
+			pane.source.dirty !== state.dirty
+		) {
+			workbenchPanes = workbenchPanes.map((candidate) =>
+				candidate.id === paneId && candidate.source.type === 'save-file'
+					? {
+							...candidate,
+							activeBox,
+							boxCount,
+							source: { ...candidate.source, label, dirty: state.dirty }
 						}
-					}
-				: candidate
-		);
+					: candidate
+			);
+		}
 		if (activePaneId === paneId) {
 			navigation = { ...navigation, activeBox, boxCount };
 		}
+		if (activePaneId === paneId) queueMicrotask(() => paintSlotFocus(false));
 		saveFileLegalityReportHost.validate();
 		return true;
 	}
@@ -6294,6 +6853,7 @@
 					(busy && paneActive) || paneWorkspaceLoadingRequests[pane.id] !== undefined}
 				{@const paneControlCount = paneControlCountFor()}
 				{@const paneBox = pane.activeBox}
+				{@const paneGridBox = savePaneWorkspaces[pane.id]?.loadedBox ?? paneBox}
 				{@const paneParty = pane.focus.zone === 'party' && paneHasParty(pane)}
 				{@const paneVirtual =
 					pane.source.type === 'pokemon-storage' && virtualPaneIds.includes(pane.id)}
@@ -6301,7 +6861,8 @@
 					...virtualPreferences,
 					location: virtualPaneLocations[pane.id] ?? virtualPreferences.location
 				}}
-				{@const paneSlots = paneParty ? panePartySlots(pane) : paneBoxSlots(pane, paneBox)}
+				{@const paneSlotsActionable = paneSlotActionsReady(pane)}
+				{@const paneSlots = paneParty ? panePartySlots(pane) : paneBoxSlots(pane, paneGridBox)}
 				{@const paneColumns = paneParty ? PARTY_COLUMNS : BOX_COLUMNS}
 				{@const paneRows = paneParty ? PARTY_ROWS : BOX_ROWS}
 				<section
@@ -6334,12 +6895,7 @@
 										queueMicrotask(focusActiveControl);
 										return;
 									}
-									activatePane(pane);
-									navigation = {
-										...navigation,
-										focus: focusPaneControl(0, paneControlCount),
-										locationFocus: pane.focus
-									};
+									focusPaneHeaderControl(pane, 0, paneControlCount);
 								}}
 								onclick={() => {
 									if (pendingSlotOperation || virtualCarry) return;
@@ -6380,12 +6936,7 @@
 											queueMicrotask(focusActiveControl);
 											return;
 										}
-										activatePane(pane);
-										navigation = {
-											...navigation,
-											focus: focusPaneControl(2, paneControlCount),
-											locationFocus: pane.focus
-										};
+										focusPaneHeaderControl(pane, 2, paneControlCount);
 									}}
 									onclick={() => {
 										if (pendingSlotOperation || virtualCarry) return;
@@ -6428,12 +6979,7 @@
 									paneVirtual ? openBoxPicker(pane) : changePaneLocation(pane, 'nextBox')}
 								onFocusPicker={() => {
 									if (pendingSlotOperation || virtualCarry) return;
-									activatePane(pane);
-									navigation = {
-										...navigation,
-										focus: focusPaneControl(1, paneControlCount),
-										locationFocus: pane.focus
-									};
+									focusPaneHeaderControl(pane, 1, paneControlCount);
 								}}
 								onOpenPicker={() => openBoxPicker(pane)}
 							/>
@@ -6496,7 +7042,11 @@
 								: undefined}
 							aria-rowcount={paneRows}
 							aria-colcount={paneColumns}
-							onfocus={() => activatePane(pane)}
+							{@attach observeSlotDensity}
+							onfocus={() => {
+								activatePane(pane);
+								queueMicrotask(() => paintSlotFocus(false));
+							}}
 							onfocusin={() => {
 								if (!pendingSlotOperation && !virtualCarry && pane.id !== activePaneId)
 									activatePane(pane);
@@ -6510,28 +7060,25 @@
 											: getBoxSlotPosition(slot.slot)}
 										{@const slotRef = paneParty
 											? { zone: 'party' as const, slot: slot.slot }
-											: { zone: 'box' as const, box: paneBox, slot: slot.slot }}
-										<div
-											class={[
-												'slot-cell',
-												paneActive && isFocused(slotRef.zone, slot.slot) && 'selected'
-											]}
-										>
+											: { zone: 'box' as const, box: paneGridBox, slot: slot.slot }}
+										<div class="slot-cell">
 											<StorageSlot
 												id={paneActive
 													? paneParty
 														? `party-slot-${slot.slot}`
-														: `box-${paneBox}-slot-${slot.slot}`
-													: `${pane.id}-${paneParty ? 'party' : `box-${paneBox}`}-slot-${slot.slot}`}
+														: `box-${paneGridBox}-slot-${slot.slot}`
+													: `${pane.id}-${paneParty ? 'party' : `box-${paneGridBox}`}-slot-${slot.slot}`}
 												{slot}
+												disabled={!paneSlotsActionable}
 												zone={slotRef.zone}
-												focused={paneActive && isFocused(slotRef.zone, slot.slot)}
-												dualType={slotHasDualType(slot, paneParty ? -1 : paneBox)}
-												style={slotStyle(slot, paneParty ? -1 : paneBox)}
+												dualType={slotHasDualType(slot, paneParty ? -1 : paneGridBox)}
+												style={slotStyle(slot, paneParty ? -1 : paneGridBox)}
 												rowIndex={position.row + 1}
 												colIndex={position.column + 1}
 												spriteUrl={spriteUrlFor(slot)}
-												carried={paneActive && isFocused(slotRef.zone, slot.slot)
+												carried={paneActive &&
+												activeSlotFocus?.zone === slotRef.zone &&
+												activeSlotFocus.slot === slot.slot
 													? carriedAtFocus
 													: null}
 												destinationState={pendingSlotOperation
@@ -6540,9 +7087,40 @@
 														? virtualDestinationState(slotRef, slot, pane)
 														: null}
 												onFocusSlot={() => {
-													activatePane(pane);
-													if (paneParty) focusParty(slot.slot);
-													else focusBox(slot.slot);
+													if (applyingSlotDomFocus) return;
+													if (slotDomFocusTimer) clearTimeout(slotDomFocusTimer);
+													slotDomFocusTimer = null;
+													const focus = paneParty
+														? focusPartySlot(slot.slot)
+														: focusBoxSlot(slot.slot);
+													if (
+														pane.id !== activePaneId ||
+														navigation.activeBox !== pane.activeBox ||
+														navigation.locationFocus.zone !== focus.zone ||
+														navigation.locationFocus.slot !== focus.slot
+													) {
+														slotNavigationRevision += 1;
+													}
+													if (pane.id !== activePaneId) {
+														preserveActivePaneNavigation();
+													}
+													activePaneId = pane.id;
+													navigation = {
+														...navigation,
+														activeBox: pane.activeBox,
+														boxCount: Math.max(1, pane.boxCount),
+														focus,
+														locationFocus: focus
+													};
+													workbenchPanes = setPaneFocus(workbenchPanes, pane.id, focus);
+													lastDomFocusedSaveSlot = {
+														pane,
+														ref: slotRef,
+														slot,
+														at: performance.now(),
+														navigationRevision: slotNavigationRevision
+													};
+													primeFocusedSlotEditData(pane, slotRef, slot);
 												}}
 												onChooseSlot={virtualCarry
 													? () => {
@@ -6582,10 +7160,12 @@
 						tabindex="-1"
 						disabled={(activeVirtualLocation
 							? !virtualFocusedRecord
-							: focusedSlot.kind !== 'pokemon') ||
+							: focusedSlot.kind !== 'pokemon' ||
+								!paneSlotActionsReady(activePane, activeSlotFocus)) ||
 							pendingSlotOperation !== null ||
 							virtualCarry !== null}
-						onpointerdown={(event) => event.preventDefault()}
+						onpointerdown={(event) =>
+							activeVirtualLocation ? event.preventDefault() : captureTransferSource(event)}
 						onclick={() =>
 							virtualFocusedRecord
 								? beginVirtualCarry(virtualFocusedRecord.recordId, 'move')
@@ -6596,10 +7176,12 @@
 						tabindex="-1"
 						disabled={(activeVirtualLocation
 							? !virtualFocusedRecord
-							: focusedSlot.kind !== 'pokemon') ||
+							: focusedSlot.kind !== 'pokemon' ||
+								!paneSlotActionsReady(activePane, activeSlotFocus)) ||
 							pendingSlotOperation !== null ||
 							virtualCarry !== null}
-						onpointerdown={(event) => event.preventDefault()}
+						onpointerdown={(event) =>
+							activeVirtualLocation ? event.preventDefault() : captureTransferSource(event)}
 						onclick={() =>
 							virtualFocusedRecord
 								? beginVirtualCarry(virtualFocusedRecord.recordId, 'copy')
@@ -6914,6 +7496,7 @@
 		height: auto;
 		min-width: 0;
 		min-height: 0;
+		contain: layout paint style;
 		display: grid;
 		grid-template-areas:
 			'panes'
@@ -7072,6 +7655,7 @@
 	}
 
 	.location-grid {
+		contain: layout paint style;
 		--box-pane-inline-size: calc(min(800px, 100cqw) - var(--pksx-space-1) * 2);
 		--box-pane-block-size: calc(
 			max(334px, 100cqh - var(--pksx-space-1) - 260px) - var(--pksx-space-1) * 2
@@ -7138,7 +7722,7 @@
 		min-height: 0;
 	}
 
-	.slot-cell.selected {
+	.slot-cell:focus-within {
 		z-index: 2;
 	}
 

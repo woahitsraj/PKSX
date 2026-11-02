@@ -85,7 +85,8 @@ public class ControllerNavigationTest {
         pressGamepadKey(
             KeyEvent.KEYCODE_DPAD_RIGHT,
             "window.__pksxTestControllerEvents?.includes('ArrowRight:true')"
-                + " && document.activeElement?.id === 'box-0-slot-1'"
+                + " && "
+                + controllerFocusExpression("box-0-slot-1")
         );
 
         pressGamepadKey(
@@ -111,7 +112,8 @@ public class ControllerNavigationTest {
         pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_B,
             "document.querySelector('[role=\"dialog\"][aria-label=\"Slot actions\"]') === null"
-                + " && document.activeElement?.id === 'box-0-slot-1'"
+                + " && "
+                + controllerFocusExpression("box-0-slot-1")
         );
     }
 
@@ -121,7 +123,7 @@ public class ControllerNavigationTest {
         seedSecondStorageBox();
         runJavaScript("document.querySelector('#box-grid').focus()");
 
-        moveJoystick(1f, 0f, "document.activeElement?.id === 'box-0-slot-1'");
+        moveJoystick(1f, 0f, controllerFocusExpression("box-0-slot-1"));
 
         pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_X,
@@ -159,7 +161,8 @@ public class ControllerNavigationTest {
         pressGamepadKey(
             KeyEvent.KEYCODE_BUTTON_B,
             "document.querySelector('[role=\"dialog\"][aria-label=\"Box Menu\"]') === null"
-                + " && document.activeElement?.id === 'box-0-slot-1'"
+                + " && "
+                + controllerFocusExpression("box-0-slot-1")
         );
 
         pressGamepadKey(
@@ -641,8 +644,8 @@ public class ControllerNavigationTest {
             awaitBoxesState(1, "save-file", "box-0", "box-0-slot-0", null);
             awaitCapturedIdentity("single-pane landscape", paneIdentity, paneIdentityExpression());
             assertNativeSafeCanvas("single-pane landscape");
-            pressGamepadKey(KeyEvent.KEYCODE_DPAD_RIGHT, "document.activeElement?.id === 'box-0-slot-1'");
-            pressGamepadKey(KeyEvent.KEYCODE_DPAD_LEFT, "document.activeElement?.id === 'box-0-slot-0'");
+            pressGamepadKey(KeyEvent.KEYCODE_DPAD_RIGHT, controllerFocusExpression("box-0-slot-1"));
+            pressGamepadKey(KeyEvent.KEYCODE_DPAD_LEFT, controllerFocusExpression("box-0-slot-0"));
 
             fixture.setViewport(360, 640, 0, false);
             awaitBoxesState(1, "save-file", "box-0", "box-0-slot-0", null);
@@ -665,12 +668,14 @@ public class ControllerNavigationTest {
             );
             awaitJavaScript(
                 "document.querySelector('.box-pane.active-pane')?.dataset.sourceId === 'pokemon-storage'"
-                    + " && document.activeElement?.id === 'box-0-slot-7'"
+                    + " && "
+                    + controllerFocusExpression("box-0-slot-7")
             );
             pressGamepadKey(
                 KeyEvent.KEYCODE_BUTTON_R1,
                 "document.querySelector('.box-pane.active-pane')?.dataset.location === 'box-1'"
-                    + " && document.activeElement?.id === 'box-1-slot-7'"
+                    + " && "
+                    + controllerFocusExpression("box-1-slot-7")
             );
             awaitBoxesState(2, "pokemon-storage", "box-1", "box-1-slot-7", null);
             paneIdentity = capturePaneIdentity("two-pane portrait");
@@ -735,7 +740,7 @@ public class ControllerNavigationTest {
             runJavaScript(
                 "document.querySelector('[data-pane-id=\"pane-primary\"] [id$=\"-slot-0\"]').click()"
             );
-            awaitJavaScript("document.activeElement?.id === 'box-0-slot-0'");
+            awaitJavaScript(controllerFocusExpression("box-0-slot-0"));
             pressGamepadKey(
                 KeyEvent.KEYCODE_BUTTON_A,
                 "document.querySelector('[role=dialog][aria-label=\"Slot actions\"]')"
@@ -765,7 +770,8 @@ public class ControllerNavigationTest {
             pressGamepadKey(
                 KeyEvent.KEYCODE_BUTTON_B,
                 "document.querySelector('.carry-at-focus') === null"
-                    + " && document.activeElement?.id === 'box-0-slot-0'"
+                    + " && "
+                    + controllerFocusExpression("box-0-slot-0")
                     + " && document.querySelector('.box-pane.active-pane')?.dataset.sourceId"
                     + " !== 'pokemon-storage'"
             );
@@ -789,7 +795,8 @@ public class ControllerNavigationTest {
             pressGamepadKey(
                 KeyEvent.KEYCODE_BUTTON_B,
                 "document.querySelector('[role=dialog][aria-label=\"Box Menu\"]') === null"
-                    + " && document.activeElement?.id === 'box-0-slot-0'"
+                    + " && "
+                    + controllerFocusExpression("box-0-slot-0")
             );
 
             pressGamepadKey(
@@ -1153,12 +1160,20 @@ public class ControllerNavigationTest {
                 + sourceExpression
                 + " && active?.dataset.location === '"
                 + activeLocation
-                + "' && document.activeElement?.id === '"
-                + activeElementId
                 + "' && "
+                + controllerFocusExpression(activeElementId)
+                + " && "
                 + carryExpression
                 + "; })()"
         );
+    }
+
+    private String controllerFocusExpression(String elementId) {
+        return "(document.activeElement?.id === '"
+            + elementId
+            + "' || document.activeElement?.getAttribute('aria-activedescendant') === '"
+            + elementId
+            + "')";
     }
 
     private String paneIdentityExpression() {
@@ -1439,7 +1454,9 @@ public class ControllerNavigationTest {
     private JSONObject focusedScrollGeometry() throws Exception {
         return new JSONObject(
             runJavaScript(
-                "(() => { const target = document.activeElement;"
+                "(() => { const active = document.activeElement;"
+                    + " const target = document.getElementById("
+                    + "active?.getAttribute('aria-activedescendant') ?? '') ?? active;"
                     + " const scrollport = target?.closest('.location-grid');"
                     + " const rect = node => { const value = node?.getBoundingClientRect();"
                     + " return value ? [value.left,value.top,value.right,value.bottom] : null; };"
@@ -1479,7 +1496,10 @@ public class ControllerNavigationTest {
 
     private void assertFocusedTargetContained(String label) throws Exception {
         String contained = runJavaScript(
-            "(() => { const target = document.activeElement; const viewport = visualViewport;"
+            "(() => { const active = document.activeElement;"
+                + " const target = document.getElementById("
+                + "active?.getAttribute('aria-activedescendant') ?? '') ?? active;"
+                + " const viewport = visualViewport;"
                 + " if (!(target instanceof HTMLElement) || !viewport) return false;"
                 + " const rect = target.getBoundingClientRect();"
                 + " return rect.left >= viewport.offsetLeft - 1 && rect.top >= viewport.offsetTop - 1"
@@ -1497,7 +1517,9 @@ public class ControllerNavigationTest {
                 "(() => { const dialogs = [...document.querySelectorAll('[role=dialog]')]"
                     + ".filter(node => node.getClientRects().length > 0);"
                     + " const surface = dialogs.at(-1) ?? document.querySelector('[data-destination-root]');"
-                    + " const target = document.activeElement;"
+                    + " const active = document.activeElement;"
+                    + " const target = document.getElementById("
+                    + "active?.getAttribute('aria-activedescendant') ?? '') ?? active;"
                     + " const scrollport = target?.closest('.location-grid,.edge-menu-panel,.editor-rail,'"
                     + " + '.editor-content,[data-testid$=\"-scrollport\"]') ?? surface;"
                     + " const rect = node => { const value = node?.getBoundingClientRect();"
@@ -2455,6 +2477,7 @@ public class ControllerNavigationTest {
                 + " visualViewport:visualViewport ? {width:visualViewport.width,height:visualViewport.height,"
                 + " offsetLeft:visualViewport.offsetLeft,offsetTop:visualViewport.offsetTop} : null,"
                 + " activeId:active?.id ?? null,activeFocus:active?.dataset.destinationFocus ?? null,"
+                + " activeDescendant:active?.getAttribute('aria-activedescendant') ?? null,"
                 + " activeValue:'value' in (active ?? {}) ? active.value : null,panes,"
                 + " controllerEvents:window.__pksxTestControllerEvents ?? null,"
                 + " appVersion:document.querySelector('[data-testid=\"app-version\"]')?.textContent ?? null,"

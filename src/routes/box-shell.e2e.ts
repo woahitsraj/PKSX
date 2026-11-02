@@ -76,6 +76,11 @@ async function pressController(page: Page, key: string) {
 	}, key);
 }
 
+async function expectControllerSlot(page: Page, id: string) {
+	await expect(page.locator('#box-grid')).toHaveAttribute('aria-activedescendant', id);
+	await expect(page.locator(`#${id}`)).toHaveAttribute('aria-selected', 'true');
+}
+
 async function comboboxList(combobox: Locator) {
 	const listId = await combobox.getAttribute('aria-controls');
 	if (!listId) throw new Error('Combobox list identity is missing.');
@@ -588,6 +593,29 @@ async function showFirstBoxFromParty(page: Page) {
 	const pane = page.locator('.box-pane.active-pane');
 	await pane.getByRole('button', { name: 'Next Location' }).click();
 	await expect(pane.getByRole('heading', { name: 'Box 01' })).toBeVisible({ timeout: 60000 });
+}
+
+async function openDuplicateEmeraldPanes(page: Page) {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('x');
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /011020251345\.sav/ })
+		.click();
+
+	const panes = page.locator('.box-pane');
+	await expect(panes).toHaveCount(2);
+	await expect(panes.nth(1).locator('[id$="box-0-slot-1"]')).toContainText('ILLUMISE', {
+		timeout: 15000
+	});
+	await expect(panes.nth(1).locator('[id$="box-0-slot-1"]')).toBeEnabled();
+	return panes;
 }
 
 async function seedPokemonStorageBoxes(page: Page, boxCount: number) {
@@ -1228,6 +1256,12 @@ test('keyboard navigation moves deterministically across the box grid', async ({
 
 	await page.keyboard.press('ArrowRight');
 	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#collection-control-pane-primary')).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#location-control-pane-primary')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
 
 	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#box-0-slot-7')).toHaveAttribute('aria-selected', 'true');
@@ -1256,18 +1290,16 @@ test('the active Slot uses one focus ring painted inside its bounds', async ({ p
 	});
 	await slot.focus();
 	await expect(slot).toBeFocused();
-	await expect(slot).toHaveClass(/focused/);
 
 	const focusPaint = await slot.evaluate((element) => {
 		const styles = getComputedStyle(element);
 		return {
-			firstShadow: styles.boxShadow.split(/,(?![^(]*\))/)[0],
-			outlineStyle: styles.outlineStyle
+			outlineStyle: styles.outlineStyle,
+			outlineWidth: styles.outlineWidth
 		};
 	});
 
-	expect(focusPaint).toMatchObject({ outlineStyle: 'none' });
-	expect(focusPaint.firstShadow).toContain('inset');
+	expect(focusPaint).toEqual({ outlineStyle: 'solid', outlineWidth: '2px' });
 });
 
 test('compact box controls and keyboard shortcuts update the active box label', async ({
@@ -1280,10 +1312,13 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
 
 	await page.getByRole('button', { name: 'Next Location' }).click();
 	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
-	await expect(page.locator('#box-1-slot-0')).toHaveAttribute('aria-selected', 'true');
+	await expect(page.locator('#box-1-slot-1')).toHaveAttribute('aria-selected', 'true');
+	await page.locator('#box-1-slot-0').focus();
 
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('PageDown');
@@ -1299,6 +1334,31 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 	await expect(page.locator('#box-2-slot-0')).toHaveAttribute('aria-selected', 'true');
 });
 
+test('rapid Box switching loads only the latest requested Box', async ({ page }) => {
+	await installWorkspaceResponseHold(page);
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await holdWorkspaceResponses(page, -1, 'listBoxSlots');
+	await page.locator('#box-grid').focus();
+
+	for (let press = 0; press < 5; press += 1) await pressController(page, 'PageDown');
+
+	await waitForHeldWorkspaceResponses(page, 1);
+	await releaseWorkspaceResponses(page);
+	await expect(page.locator('.box-pane.active-pane')).not.toHaveAttribute('aria-busy', 'true');
+	await expect(page.getByRole('heading', { name: /Box 06/ })).toBeVisible();
+	await page.waitForTimeout(300);
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() =>
+					(window as typeof window & { __pksxHeldWorkspaceResponses?: number })
+						.__pksxHeldWorkspaceResponses ?? 0
+			)
+		)
+		.toBeLessThanOrEqual(2);
+});
+
 test('direct Box Picker jumps across every Save File Box and restores focus', async ({ page }) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
@@ -1306,12 +1366,18 @@ test('direct Box Picker jumps across every Save File Box and restores focus', as
 		name: 'Open Box Picker for emerald-011020251345.sav'
 	});
 
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
 	await pickerControl.click();
 	let picker = page.getByRole('dialog', { name: 'Choose a Box' });
 	await expect(picker.getByRole('button', { name: /^Box \d{2}: BOX\d+/ })).toHaveCount(14);
 	await picker.getByRole('button', { name: /^Box 14: BOX14/ }).click();
 	await expect(page.getByRole('heading', { name: 'BOX14' })).toBeVisible({ timeout: 15000 });
 	await expect(pickerControl).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#box-13-slot-1')).toHaveAttribute('aria-selected', 'true');
+	await pickerControl.focus();
 
 	await page.keyboard.press('Enter');
 	picker = page.getByRole('dialog', { name: 'Choose a Box' });
@@ -1423,7 +1489,6 @@ test('Save File Box reorder persists atomically and keeps panes on the moved Box
 	await expect(picker.getByRole('button', { name: /^Box 02: BOX1/ })).toBeFocused();
 	await picker.getByRole('button', { name: 'Close Box Picker' }).click();
 	await expect(page.getByRole('heading', { name: 'BOX1' })).toBeVisible();
-
 	await page.reload();
 	await expect(page.getByRole('heading', { name: 'BOX1' })).toBeVisible({ timeout: 15000 });
 	await pickerControl.click();
@@ -1456,13 +1521,12 @@ test('stale pane loads cannot replace a committed Box reorder', async ({ page })
 	const panes = page.locator('.box-pane');
 	const firstPane = panes.nth(0);
 	const duplicatePane = panes.nth(1);
-	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
-	await expect(duplicatePane.getByRole('heading', { name: 'BOX2' })).toBeVisible({
-		timeout: 15000
-	});
-	await holdWorkspaceResponses(page, 1);
-	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
+	await duplicatePane.getByRole('button', { name: `Open Box Picker for ${fileName}` }).click();
+	const duplicatePicker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await holdWorkspaceResponses(page, 1, 'loadSaveWorkspace');
+	await duplicatePicker.getByRole('button', { name: /^Box 03: BOX3/ }).click();
 	await waitForHeldWorkspaceResponses(page);
+	await expect(duplicatePane).toHaveAttribute('data-location', 'box-2');
 	await expect(duplicatePane).toHaveAttribute('aria-busy', 'true');
 
 	await firstPane.getByRole('button', { name: `Open Box Picker for ${fileName}` }).click();
@@ -1545,16 +1609,17 @@ test('stale Box loads cannot replace a committed Box rename', async ({ page }) =
 	await pressController(page, 'x');
 	await expect(picker).toBeHidden();
 
-	await holdWorkspaceResponses(page, 1, 'loadSaveWorkspace');
-	await page.getByRole('button', { name: 'Next Location' }).click();
+	await holdWorkspaceResponses(page, 1, 'listBoxSlots');
+	await pressController(page, 'PageUp');
+	await pressController(page, 'PageUp');
 	await waitForHeldWorkspaceResponses(page, 2);
 	await releaseWorkspaceResponse(page, 'applySaveFileEditOperation');
 	await expect.poll(() => backupCount(page)).toBe(1);
 	await pickerControl.click();
 	await expect(picker.getByRole('button', { name: /^Box 01: FRIENDS/ })).toBeVisible();
 	await picker.getByRole('button', { name: 'Close Box Picker' }).click();
-	await releaseWorkspaceResponse(page, 'loadSaveWorkspace');
-	await expect(page.getByRole('heading', { name: 'BOX2' })).toBeVisible();
+	await releaseWorkspaceResponse(page, 'listBoxSlots');
+	await expect(page.getByRole('heading', { name: 'BOX14' })).toBeVisible();
 
 	await pickerControl.click();
 	await expect(picker.getByRole('button', { name: /^Box 01: FRIENDS/ })).toBeVisible();
@@ -1620,7 +1685,7 @@ test('switches to durable Pokemon Storage with focusable empty Slot actions', as
 	await expect(
 		page.getByRole('dialog', { name: 'Choose a Box' }).getByRole('button', { name: /^Box \d{2}/ })
 	).toHaveCount(5);
-	await page.keyboard.press('Escape');
+	await page.getByRole('button', { name: 'Close Box Picker' }).click();
 
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('PageDown');
@@ -1634,7 +1699,7 @@ test('switches to durable Pokemon Storage with focusable empty Slot actions', as
 	await expect(page.getByRole('heading', { name: 'Box 05' })).toBeVisible();
 	await expect(page.locator('#box-4-slot-0')).toContainText('Empty');
 
-	await page.locator('#box-grid').focus();
+	await page.locator('#box-4-slot-0').focus();
 	await page.keyboard.press('Enter');
 
 	const actions = page.getByRole('dialog', { name: 'Slot actions' });
@@ -1742,13 +1807,25 @@ test('Boxes keeps session composition across navigation and restores only the pr
 		})
 		.click();
 	await expect(page.locator('.box-pane')).toHaveCount(2);
+	await primary.getByRole('grid').focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(primary.getByRole('grid')).toHaveAttribute('aria-activedescendant', 'box-1-slot-1');
 
 	await chooseMainMenu(page, 'Settings');
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const session = JSON.parse(localStorage.getItem('pksx-boxes-session-v1') ?? 'null');
+				return session?.primary?.focus?.slot;
+			})
+		)
+		.toBe(1);
 	await chooseMainMenu(page, 'Boxes');
 	await expect(page.locator('.box-pane')).toHaveCount(2);
 	await expect(
 		page.locator('.box-pane').first().getByRole('heading', { name: 'Box 02' })
 	).toBeVisible();
+	await expect(primary.getByRole('grid')).toHaveAttribute('aria-activedescendant', 'box-1-slot-1');
 	await primary.getByRole('button', { name: 'Previous Location' }).click();
 	await primary.locator('[id$="box-0-slot-0"]').click();
 	await page.keyboard.press('Enter');
@@ -2041,7 +2118,10 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 		'aria-label',
 		/emerald-011020251345\.sav BOX14/
 	);
-	await expect(page.locator('#box-13-slot-29')).toBeFocused();
+	await expect(page.locator('#box-grid')).toHaveAttribute(
+		'aria-activedescendant',
+		'box-13-slot-29'
+	);
 
 	await page.keyboard.press('x');
 	menu = page.getByRole('dialog', { name: 'Box Menu' });
@@ -2050,7 +2130,7 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 	await expect(
 		page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' })
 	).toBeVisible();
-	await expect(page.locator('#box-2-slot-29')).toBeFocused();
+	await expect(page.locator('#box-grid')).toHaveAttribute('aria-activedescendant', 'box-2-slot-29');
 
 	await page.locator('#pane-primary-party-slot-5').click();
 	await page.keyboard.press('x');
@@ -2059,14 +2139,14 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 	await expect(menu.getByRole('button', { name: 'Switch', exact: true })).toBeEnabled();
 	await expect(menu.getByRole('button', { name: 'Close', exact: true })).toBeEnabled();
 	await page.keyboard.press('x');
-	await expect(page.locator('#party-slot-5')).toBeFocused();
+	await expect(page.locator('#box-grid')).toHaveAttribute('aria-activedescendant', 'party-slot-5');
 	await page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' }).click();
 	await page
 		.getByRole('dialog', { name: 'Box Menu' })
 		.getByRole('button', { name: 'Close' })
 		.click();
 	await expect(page.locator('.box-pane')).toHaveCount(1);
-	await expect(page.locator('#party-slot-5')).toBeFocused();
+	await expect(page.locator('#box-grid')).toHaveAttribute('aria-activedescendant', 'party-slot-5');
 });
 
 test('Box Menu allows duplicate Save File panes and keeps Open another collection disabled at two panes', async ({
@@ -2102,12 +2182,12 @@ test('Box Menu allows duplicate Save File panes and keeps Open another collectio
 	await duplicatePane.evaluate((pane) => {
 		pane.setAttribute('data-observed-busy', 'false');
 		const observer = new MutationObserver(() => {
-			if (pane.getAttribute('aria-busy') === 'true') {
+			if (pane.hasAttribute('data-box-load-pending')) {
 				pane.setAttribute('data-observed-busy', 'true');
 				observer.disconnect();
 			}
 		});
-		observer.observe(pane, { attributes: true, attributeFilter: ['aria-busy'] });
+		observer.observe(pane, { attributes: true, attributeFilter: ['data-box-load-pending'] });
 	});
 	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
 	await expect(duplicatePane).toHaveAttribute('data-observed-busy', 'true');
@@ -2119,12 +2199,10 @@ test('Box Menu allows duplicate Save File panes and keeps Open another collectio
 	await fixedPane.getByRole('button', { name: 'Next Location' }).click();
 	await expect(fixedPane.getByRole('heading', { name: 'Box 02' })).toBeVisible();
 	await expect(fixedPane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
-	await page.evaluate(() => {
-		const [fixed, duplicate] = Array.from(document.querySelectorAll<HTMLElement>('.box-pane'));
-		duplicate.querySelector<HTMLButtonElement>('[aria-label="Previous Location"]')?.click();
-		duplicate.querySelector<HTMLButtonElement>('[role="gridcell"]')?.click();
-		fixed.querySelector<HTMLButtonElement>('[aria-label="Previous Location"]')?.click();
-	});
+	await duplicatePane.getByRole('button', { name: 'Previous Location' }).click();
+	await expect(duplicatePane.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+	await duplicatePane.getByRole('gridcell').first().click();
+	await fixedPane.getByRole('button', { name: 'Previous Location' }).click();
 	await expect(fixedPane.getByRole('gridcell').first()).toContainText('ARON', { timeout: 15000 });
 	await expect(duplicatePane.getByRole('gridcell').first()).toContainText('ARON', {
 		timeout: 15000
@@ -2174,19 +2252,8 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 	const firstPane = panes.nth(0);
 	const duplicatePane = panes.nth(1);
 	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true');
-	const now = Date.now();
-	await page.clock.setFixedTime(now);
-	await page.clock.pauseAt(now);
-	await page.clock.setSystemTime(now);
-	await holdWorkspaceResponses(page, 1);
 	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
-	await waitForHeldWorkspaceResponses(page);
-	await expect(duplicatePane).toHaveAttribute('aria-busy', 'true');
-	await page.clock.runFor(499);
-	await expect(duplicatePane.getByRole('status').filter({ hasText: /Loading/ })).toHaveCount(0);
-	await page.clock.runFor(1);
-	await expect(duplicatePane.getByRole('status').filter({ hasText: /Loading/ })).toBeVisible();
-	await page.clock.resume();
+	await expect(duplicatePane.getByRole('heading', { name: 'Box 02' })).toBeVisible();
 
 	await firstPane.locator('[id$="box-0-slot-0"]').focus();
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
@@ -2199,20 +2266,14 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 	});
 	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON');
 
-	await releaseWorkspaceResponses(page);
-	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
-	await expect(duplicatePane.getByRole('status').filter({ hasText: /Loading/ })).toHaveCount(0);
 	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON');
 	await duplicatePane.getByRole('button', { name: 'Previous Location' }).click();
 	await expect(duplicatePane.getByRole('heading', { name: 'Box 01' })).toBeVisible({
 		timeout: 15000
 	});
 	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
-	await holdWorkspaceResponses(page, 1);
 	await duplicatePane.getByRole('button', { name: 'Next Location' }).click();
-	await waitForHeldWorkspaceResponses(page, 2);
 	await firstPane.locator('[id$="box-1-slot-0"]').focus();
-	await releaseWorkspaceResponses(page);
 	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
 	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON');
 
@@ -2221,22 +2282,26 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 	await expect(firstPane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
 	await firstPane.locator('[id$="box-0-slot-0"]').focus();
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
-	await holdWorkspaceResponses(page);
 	await firstPane.locator('[id$="box-0-slot-2"]').click();
-	await waitForHeldWorkspaceResponses(page, 3);
-	await expect(duplicatePane).toHaveAttribute('aria-busy', 'true');
-	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('Empty');
-	await duplicatePane.locator('[id$="box-1-slot-0"]').click();
-	await expect(
-		page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' })
-	).toBeDisabled();
-
-	await releaseWorkspaceResponses(page);
-	await expect(duplicatePane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
-	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON');
+	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('ARON', {
+		timeout: 15000
+	});
 
 	await duplicatePane.locator('[id$="box-1-slot-0"]').focus();
+	await expect(duplicatePane).toHaveClass(/active-pane/);
+	await expect(duplicatePane.getByRole('grid')).toHaveAttribute(
+		'aria-activedescendant',
+		'box-1-slot-0'
+	);
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	await expect(page.locator('[data-destination-state="source"]')).toHaveAttribute(
+		'id',
+		/box-1-slot-0$/
+	);
+	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toHaveAttribute(
+		'data-destination-state',
+		'source'
+	);
 	await firstPane.locator('[id$="box-0-slot-3"]').click();
 	await expect(firstPane.locator('[id$="box-0-slot-3"]')).toContainText('ARON', {
 		timeout: 15000
@@ -2244,6 +2309,277 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 	await expect(duplicatePane.locator('[id$="box-1-slot-0"]')).toContainText('Empty', {
 		timeout: 15000
 	});
+});
+
+test('transfer controls use current Controller Focus during deferred DOM focus', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	const panes = await openDuplicateEmeraldPanes(page);
+	const pane = panes.first();
+	const source = pane.locator('[id$="box-0-slot-0"]');
+	const selected = pane.locator('[id$="box-0-slot-1"]');
+
+	await source.focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(selected).toHaveAttribute('aria-selected', 'true');
+	await page
+		.getByLabel('Transfer controls')
+		.getByRole('button', { name: 'Copy' })
+		.evaluate((button) => {
+			if (!(button instanceof HTMLButtonElement)) throw new Error('Expected the Copy button.');
+			button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+			button.click();
+		});
+	await expect(selected.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ILLUMISE');
+});
+
+test('transfer controls discard a cached source when another pane becomes active', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	const panes = await openDuplicateEmeraldPanes(page);
+	const firstPane = panes.first();
+	const secondPane = panes.nth(1);
+
+	await secondPane.locator('[id$="box-0-slot-1"]').focus();
+	await firstPane.locator('[id$="box-0-slot-0"]').focus();
+	await secondPane.getByRole('grid').focus();
+	await expect(secondPane).toHaveClass(/active-pane/);
+	await expect(secondPane.getByRole('grid')).toHaveAttribute(
+		'aria-activedescendant',
+		/box-0-slot-1$/
+	);
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ILLUMISE');
+});
+
+test('transfer controls discard a cached source after switching collections', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await page.goto('/');
+	const importInput = page.getByLabel('Import Save File');
+	await importInput.setInputFiles(emeraldFixturePath);
+	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+		timeout: 15000
+	});
+	const firstSave = page
+		.locator('.save-card')
+		.filter({ hasText: 'emerald-011020251345.sav' })
+		.getByRole('button', { name: 'Open emerald-011020251345.sav in Boxes' });
+	await importInput.setInputFiles({
+		name: 'second-emerald.sav',
+		mimeType: 'application/octet-stream',
+		buffer: await readFile(emeraldFixturePath)
+	});
+	await expect(page.getByText('second-emerald.sav imported and made active.')).toBeVisible({
+		timeout: 15000
+	});
+	await firstSave.click();
+	const primary = page.locator('.box-pane').first();
+	await primary.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page.getByRole('button', { name: 'Open another collection' }).click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	await expect(page.locator('.box-pane')).toHaveCount(2);
+
+	const source = primary.locator('[id$="box-0-slot-0"]');
+	await expect(source).toContainText('ARON', { timeout: 15000 });
+	await source.focus();
+	await primary.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page.getByRole('button', { name: 'Switch', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Switch collection' })
+		.getByRole('button', { name: /second-emerald\.sav/ })
+		.click();
+	await expect(
+		page.getByRole('button', { name: 'Open Box Menu for second-emerald.sav' })
+	).toBeVisible();
+	await expect(source).toContainText('ARON');
+	await primary.getByRole('grid').focus();
+	const copy = page.locator('.transfer-controls').getByRole('button', { name: 'Copy' });
+	await expect(copy).toBeEnabled();
+	await copy.click();
+	await expect(source.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
+});
+
+test('transfer controls ignore a stale active descendant after pointer focus cache expires', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	const panes = await openDuplicateEmeraldPanes(page);
+	const pane = panes.first();
+	const pointerSource = pane.locator('[id$="box-0-slot-0"]');
+	const controllerSource = pane.locator('[id$="box-0-slot-1"]');
+
+	await pointerSource.focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(controllerSource).toHaveAttribute('aria-selected', 'true');
+	await pointerSource.click();
+	await expect(pointerSource).toBeFocused();
+	await pane.getByRole('grid').evaluate((grid) => {
+		grid.setAttribute('aria-activedescendant', 'box-0-slot-1');
+	});
+	await page.waitForTimeout(2_100);
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
+});
+
+test('transfer controls use current Controller Focus in Pokemon Storage', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('x');
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+
+	const panes = page.locator('.box-pane');
+	const savePane = panes.first();
+	const storagePane = panes.nth(1);
+	await savePane.locator('[id$="box-0-slot-0"]').focus();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	await storagePane.locator('[id$="box-0-slot-0"]').click();
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await page.keyboard.press('Escape');
+	await savePane.locator('[id$="box-0-slot-1"]').focus();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	await storagePane.locator('[id$="box-0-slot-1"]').click();
+	await expect(storagePane.locator('[id$="box-0-slot-1"]')).toContainText('ILLUMISE');
+	await page.keyboard.press('Escape');
+	await storagePane.locator('[id$="box-0-slot-0"]').focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(storagePane.locator('[id$="box-0-slot-1"]')).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ILLUMISE');
+});
+
+test('switching panes preserves deferred Controller Focus in each pane', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	const panes = await openDuplicateEmeraldPanes(page);
+	const firstPane = panes.first();
+	const secondPane = panes.nth(1);
+
+	await firstPane.locator('[id$="box-0-slot-0"]').focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(firstPane.getByRole('grid')).toHaveAttribute(
+		'aria-activedescendant',
+		'box-0-slot-1'
+	);
+	await secondPane.getByRole('grid').focus();
+	await expect(secondPane).toHaveClass(/active-pane/);
+	await firstPane.getByRole('grid').focus();
+	await expect(firstPane).toHaveClass(/active-pane/);
+	await expect(firstPane.getByRole('grid')).toHaveAttribute(
+		'aria-activedescendant',
+		'box-0-slot-1'
+	);
+	const firstSlot = firstPane.locator('[id$="box-0-slot-0"]');
+	await secondPane.getByRole('grid').focus();
+	await firstSlot.evaluate((slot: HTMLButtonElement) => slot.click());
+	await expect(firstSlot).toBeFocused();
+	await expect(firstPane).toHaveClass(/active-pane/);
+});
+
+test('pending Box loads suspend actions for the previously displayed slots', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await installWorkspaceResponseHold(page);
+	const pane = (await openDuplicateEmeraldPanes(page)).nth(1);
+	const staleSlot = pane.locator('[id$="box-0-slot-0"]');
+	const copy = page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' });
+
+	await staleSlot.focus();
+	await expect(copy).toBeEnabled();
+	await holdWorkspaceResponses(page, 1, 'listBoxSlots');
+	await page.evaluate(() => {
+		window.dispatchEvent(
+			new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true, cancelable: true })
+		);
+	});
+	await pane.getByRole('button', { name: 'Next Location' }).click();
+	await expect(pane.getByRole('heading', { name: /Box 03|BOX3/ })).toBeVisible();
+	await waitForHeldWorkspaceResponses(page);
+
+	await expect(pane.locator('[id$="box-1-slot-0"]')).toBeDisabled();
+	await expect(copy).toBeDisabled();
+	await pane.getByRole('grid').focus();
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toHaveCount(0);
+
+	await releaseWorkspaceResponses(page);
+	await expect(pane.locator('[id$="box-2-slot-0"]')).toBeEnabled();
+});
+
+test('switching panes preserves a requested Box while its slots load', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await installWorkspaceResponseHold(page);
+	const panes = await openDuplicateEmeraldPanes(page);
+	const firstPane = panes.first();
+	const requestedPane = panes.nth(1);
+
+	await holdWorkspaceResponses(page, 1, 'loadSaveWorkspace');
+	await requestedPane.getByRole('button', { name: /Open Box Picker/ }).click();
+	await page
+		.getByRole('dialog', { name: 'Choose a Box' })
+		.getByRole('button', { name: /^Box 14: BOX14/ })
+		.click();
+	await waitForHeldWorkspaceResponses(page);
+	await expect(requestedPane.locator('[id$="box-0-slot-0"]')).toBeDisabled();
+	await expect(
+		page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' })
+	).toBeDisabled();
+	await firstPane.getByRole('grid').focus();
+	await expect(firstPane).toHaveClass(/active-pane/);
+	await releaseWorkspaceResponses(page);
+	await requestedPane.getByRole('grid').focus();
+
+	await expect(requestedPane).toHaveClass(/active-pane/);
+	await expect(requestedPane).toHaveAttribute('data-location', 'box-13');
+	await expect(requestedPane.getByRole('heading', { name: 'BOX14' })).toBeVisible();
+	await expect(requestedPane.locator('[id$="box-13-slot-0"]')).toBeEnabled();
+});
+
+test('duplicate Save panes retain a published Party mutation while refreshing another Box', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await installWorkspaceResponseHold(page);
+	const panes = await openDuplicateEmeraldPanes(page);
+	const partyPane = panes.first();
+	const boxPane = panes.nth(1);
+
+	await boxPane.getByRole('button', { name: 'Next Location' }).click();
+	await expect(boxPane).toHaveAttribute('data-location', 'box-1');
+	await partyPane.getByRole('button', { name: 'Previous Location' }).click();
+	await expect(partyPane).toHaveAttribute('data-location', 'party');
+	const source = partyPane.locator('[id$="party-slot-0"]');
+	await expect(source).toContainText('1-UP');
+
+	await holdWorkspaceResponses(page, -1, 'listBoxSlots');
+	await source.focus();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	await boxPane.locator('[id$="box-1-slot-0"]').click();
+	await waitForHeldWorkspaceResponses(page);
+	await partyPane.getByRole('grid').focus();
+	await page.keyboard.press('PageDown');
+	await waitForHeldWorkspaceResponses(page, 2);
+	await releaseWorkspaceResponses(page);
+
+	await expect(boxPane.locator('[id$="box-1-slot-0"]')).toContainText('1-UP', { timeout: 15000 });
+	await partyPane.getByRole('button', { name: 'Previous Location' }).click();
+	await expect(partyPane.getByRole('heading', { name: 'Party' })).toBeVisible();
+	await expect(source).not.toContainText('1-UP', { timeout: 15000 });
 });
 
 test('Party never paints a fabricated Pokemon while a Box projection is pending', async ({
@@ -2257,9 +2593,11 @@ test('Party never paints a fabricated Pokemon while a Box projection is pending'
 	await pane.getByRole('button', { name: 'Next Location' }).click();
 	await expect(pane.getByRole('heading', { name: 'Box 02' })).toBeVisible({ timeout: 15000 });
 	await expect(pane).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
-	await holdWorkspaceResponses(page, 1);
-	await pane.getByRole('button', { name: 'Previous Location' }).click();
+	await holdWorkspaceResponses(page, 1, 'listBoxSlots');
+	await pane.getByRole('button', { name: 'Next Location' }).click();
 	await waitForHeldWorkspaceResponses(page);
+	await pane.getByRole('button', { name: 'Previous Location' }).click();
+	await pane.getByRole('button', { name: 'Previous Location' }).click();
 	await pane.getByRole('button', { name: 'Previous Location' }).click();
 
 	await expect(pane.getByRole('heading', { name: 'Party' })).toBeVisible();
@@ -2309,7 +2647,7 @@ test('an unopened Save source cannot page beyond its unknown Box range', async (
 	await expect(openedPane).toHaveAttribute('data-location', 'party');
 });
 
-test('two Box Panes keep physical focus and Carry through rotation, mutation, and close', async ({
+test('two Box Panes keep Controller Focus and Carry through rotation, mutation, and close', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 720 });
@@ -2557,7 +2895,7 @@ test('two Box Panes keep physical focus and Carry through rotation, mutation, an
 		.click();
 	await expect(panes).toHaveCount(1);
 	await expect(panes.first()).toHaveAttribute('data-location', 'party');
-	await expect(page.locator('#party-slot-5')).toBeFocused();
+	await expect(page.locator('#box-grid')).toHaveAttribute('aria-activedescendant', 'party-slot-5');
 	await page.setViewportSize({ width: 1280, height: 720 });
 	await expect(panes).toHaveCount(1);
 });
@@ -2738,7 +3076,8 @@ test('a committed Storage move cannot be retried when its projection refresh fai
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
 	await storagePane.locator('[id$="box-0-slot-0"]').click();
 	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
-	await storagePane.locator('[id$="box-0-slot-0"]').click();
+	await storagePane.locator('[id$="box-0-slot-0"]').focus();
+	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Dismiss Slot actions' }).click();
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
 	await page.evaluate(() => {
@@ -2749,7 +3088,8 @@ test('a committed Storage move cannot be retried when its projection refresh fai
 	await storagePane.locator('[id$="box-0-slot-1"]').click();
 	await expect(page.locator('.toast-error')).toContainText('Reload Boxes to refresh its Slots.');
 	await expect(page.locator('.carry-at-focus')).toHaveCount(0);
-	await storagePane.locator('[id$="box-0-slot-1"]').click();
+	await storagePane.locator('[id$="box-0-slot-1"]').focus();
+	await page.keyboard.press('Enter');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toHaveCount(0);
 	await page.goto('/?source=pokemon-storage');
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
@@ -3069,7 +3409,8 @@ test('shared Carry and arrows use the focused virtual record in a Save and Stora
 		await expect(storagePane).toHaveAttribute('data-location', 'all-pokemon');
 		if (mode === 'Copy') await page.keyboard.press('Escape');
 	}
-	await page.keyboard.press('x');
+	await expect(storagePane).toHaveClass(/active-pane/);
+	await storagePane.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: /Box 01: Box 01/ }).click();
 	await storagePane.locator('[id$="box-0-slot-2"]').click();
 	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('Empty');
@@ -3158,13 +3499,18 @@ test('keeps both Pokemon recoverable when Save clearing fails after Storage comm
 		'aria-label',
 		/emerald-011020251345\.sav/
 	);
-	await expect(page.locator('.box-pane.active-pane #box-0-slot-0')).toContainText('ARON');
-	await page.locator('#box-grid').focus();
-	await page.keyboard.press('Enter');
-	await page
-		.getByRole('dialog', { name: 'Slot actions' })
-		.getByRole('button', { name: 'Clear Slot' })
-		.click();
+	const recoveredSlot = page.locator('#box-0-slot-0');
+	await expect(recoveredSlot).toContainText('ARON');
+	await expect(recoveredSlot).toBeEnabled({ timeout: 15000 });
+	await recoveredSlot.focus();
+	await recoveredSlot.click();
+	const slotActions = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(slotActions).toBeVisible();
+	await expect(slotActions.locator('.slot-context')).not.toHaveAttribute('aria-busy', 'true', {
+		timeout: 15000
+	});
+	await expect(slotActions).toContainText('Clear Slot');
+	await slotActions.getByRole('button', { name: 'Clear Slot' }).click();
 	await page.getByRole('button', { name: 'Confirm Clear' }).click();
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
 	expect((await backupRecords(page)).map(({ reason }) => reason)).toEqual(['pokemon-movement']);
@@ -3380,6 +3726,7 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 	await openEmptySaves(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('ArrowRight');
+	await expectControllerSlot(page, 'box-0-slot-1');
 	await page.keyboard.press('Enter');
 
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
@@ -4793,7 +5140,7 @@ test('controller input follows the keyboard navigation path', async ({ page }) =
 	await page.locator('#box-grid').focus();
 
 	await pressController(page, 'ArrowRight');
-	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+	await expectControllerSlot(page, 'box-0-slot-1');
 
 	await pressController(page, 'Enter');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
@@ -4810,7 +5157,7 @@ test('controller input follows the keyboard navigation path', async ({ page }) =
 	await pressController(page, 'Escape');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeHidden();
 	await expect(page.locator('.boxes-route')).not.toHaveAttribute('inert', '');
-	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+	await expectControllerSlot(page, 'box-0-slot-1');
 
 	await pressController(page, 'x');
 	await expect(page.getByRole('dialog', { name: 'Box Menu' })).toBeVisible();
@@ -4825,7 +5172,7 @@ test('controller input follows the keyboard navigation path', async ({ page }) =
 		.toBe('solid');
 	await pressController(page, 'Escape');
 	await expect(page.locator('.boxes-route')).not.toHaveAttribute('inert', '');
-	await expect(page.locator('#box-0-slot-1')).toBeFocused();
+	await expectControllerSlot(page, 'box-0-slot-1');
 });
 
 test('exports the displayed Save File through the edit coordinator boundary', async ({ page }) => {
@@ -4921,6 +5268,12 @@ test('controller shoulders cycle Party and Boxes while collection focus is retai
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
+	await page.locator('#box-0-slot-7').focus();
+	await pressController(page, 'PageUp');
+	await expect(page.locator('#party-slot-4')).toBeFocused();
+	await pressController(page, 'PageDown');
+	await expect(page.locator('#box-0-slot-7')).toBeFocused();
+	await page.locator('#box-0-slot-0').focus();
 
 	await pressController(page, 'PageDown');
 	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
@@ -5023,6 +5376,64 @@ test('Box Pane owns the viewport budget at floors, target, and large thresholds'
 		expect(metrics.rail.width).toBeLessThanOrEqual(260);
 	}
 	await expect(page.locator('#box-0-slot-0 .slot-label')).toHaveCSS('display', 'flex');
+});
+
+test('Box slot density follows pane allocation without a viewport resize', async ({ page }) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.setViewportSize({ width: 560, height: 360 });
+	const primary = page.locator('.box-pane').first();
+	const grid = primary.getByRole('grid');
+	const firstSlot = grid.getByRole('gridcell').first();
+	const number = firstSlot.locator('.slot-number');
+	const label = firstSlot.locator('.slot-label');
+	await expect(grid).toHaveAttribute('data-slot-density', 'number');
+	await expect(number).toHaveCSS('display', 'block');
+	await expect(label).toHaveCSS('display', 'none');
+
+	await primary.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page.getByRole('button', { name: 'Open another collection' }).click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	await expect(page.locator('.box-pane')).toHaveCount(2);
+	await expect
+		.poll(() =>
+			grid
+				.locator('.slot')
+				.first()
+				.evaluate((slot) => slot.getBoundingClientRect().width)
+		)
+		.toBeLessThan(46);
+	await expect(grid).toHaveAttribute('data-slot-density', 'compact');
+	await expect(number).toHaveCSS('display', 'none');
+	await expect(label).toHaveCSS('display', 'none');
+
+	await page.setViewportSize({ width: 360, height: 360 });
+	const storageGrid = page.locator('.box-pane').nth(1).getByRole('grid');
+	await page.locator('#box-0-slot-7').focus();
+	await storageGrid.evaluate((element) => (element.scrollTop = 0));
+	for (let step = 0; step < 3; step += 1) await pressController(page, 'ArrowDown');
+	await expect(storageGrid).toHaveAttribute('aria-activedescendant', 'box-0-slot-25');
+	const reveal = await storageGrid.evaluate((element) => {
+		const target = document.getElementById(element.getAttribute('aria-activedescendant') ?? '');
+		const gridBounds = element.getBoundingClientRect();
+		const targetBounds = target?.getBoundingClientRect();
+		return {
+			bottomGap: targetBounds ? gridBounds.bottom - targetBounds.bottom : Number.NaN,
+			scrollTop: element.scrollTop
+		};
+	});
+	expect(reveal.scrollTop).toBeGreaterThan(0);
+	expect(reveal.bottomGap).toBeGreaterThanOrEqual(-1);
+	expect(reveal.bottomGap).toBeLessThanOrEqual(2);
+	await page.setViewportSize({ width: 560, height: 360 });
+
+	await page.getByRole('button', { name: 'Close Pokemon Storage pane' }).click();
+	await expect(page.locator('.box-pane')).toHaveCount(1);
+	await expect(grid).toHaveAttribute('data-slot-density', 'number');
+	await expect(number).toHaveCSS('display', 'block');
 });
 
 test('Box and Party grids expose rows and size real sprites against the Slot', async ({ page }) => {
