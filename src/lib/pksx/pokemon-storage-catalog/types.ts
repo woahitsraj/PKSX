@@ -187,7 +187,9 @@ export function resolvePlacements(manifest: PokemonStorageManifest): ResolvedPla
 	const used = new Set<string>();
 	const result = new Map<string, ResolvedPlacement>();
 	const displaced: PokemonRecord[] = [];
-	for (const record of [...manifest.records].sort((a, b) => a.recordId.localeCompare(b.recordId))) {
+	for (const record of [...manifest.records].sort((a, b) =>
+		a.recordId < b.recordId ? -1 : a.recordId > b.recordId ? 1 : 0
+	)) {
 		const placement = record.placement;
 		if (!placement) {
 			result.set(record.recordId, {
@@ -216,10 +218,14 @@ export function resolvePlacements(manifest: PokemonStorageManifest): ResolvedPla
 			(slot) =>
 				slot.storageBoxId === record.placement?.storageBoxId && slot.slot === record.placement?.slot
 		);
-		const ordered = [
-			...slots.slice(start < 0 ? 0 : start + 1),
-			...slots.slice(0, start < 0 ? 0 : start + 1)
-		];
+		const ordered = slots
+			.map((slot, index) => ({ slot, index }))
+			.sort(
+				(a, b) =>
+					Math.abs(a.index - Math.max(0, start)) - Math.abs(b.index - Math.max(0, start)) ||
+					a.index - b.index
+			)
+			.map(({ slot }) => slot);
 		const placement =
 			ordered.find((slot) => !used.has(`${slot.storageBoxId}:${slot.slot}`)) ?? null;
 		if (placement) used.add(`${placement.storageBoxId}:${placement.slot}`);
@@ -230,7 +236,9 @@ export function resolvePlacements(manifest: PokemonStorageManifest): ResolvedPla
 			overflow: !placement
 		});
 	}
-	return [...result.values()].sort((a, b) => a.recordId.localeCompare(b.recordId));
+	return [...result.values()].sort((a, b) =>
+		a.recordId < b.recordId ? -1 : a.recordId > b.recordId ? 1 : 0
+	);
 }
 
 export function cloneManifest(manifest: PokemonStorageManifest): PokemonStorageManifest {

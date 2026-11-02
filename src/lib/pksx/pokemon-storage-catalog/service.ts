@@ -85,9 +85,13 @@ export class PokemonStorageService {
 		return this.#putPayload(result.value.bytes, source.origin, placement, null);
 	}
 
-	async replace(recordId: string, payloadBytes: Uint8Array): Promise<PokemonRecord> {
+	async replace(
+		recordId: string,
+		payloadBytes: Uint8Array,
+		expectedPayloadId: string
+	): Promise<PokemonRecord> {
 		const source = this.#required(recordId);
-		return this.#putPayload(payloadBytes, source.origin, null, recordId, source.payload.id);
+		return this.#putPayload(payloadBytes, source.origin, null, recordId, expectedPayloadId);
 	}
 
 	async readPayload(recordId: string): Promise<Uint8Array> {

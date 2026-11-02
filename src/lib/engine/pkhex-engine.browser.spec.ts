@@ -1038,7 +1038,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			if (!projected.ok) throw new Error('Expected catalog PK8 projection.');
 			const projectedEntity = await engine.readPreservationPayload(projected.value.bytes);
 			if (!projectedEntity.ok) throw new Error('Expected projected catalog payload.');
-			await catalog.replace(original.recordId, projected.value.bytes);
+			await catalog.replace(original.recordId, projected.value.bytes, original.payload.id);
 			const copied = await catalog.copy(original.recordId);
 			const copiedPayload = await engine.readPreservationPayload(
 				await catalog.readPayload(copied.recordId)

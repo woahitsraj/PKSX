@@ -271,6 +271,32 @@ export function catalogContract(
 			).toBe(true);
 			await expect(service.removeBox(extra.id)).rejects.toThrow(/empty/);
 		});
+		it('resolves Record IDs in code-unit order and picks the nearest slot with lower-slot ties', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const first = await service.add(bytes(8), origin);
+			const boxId = service.listBoxes()[0].id;
+			const manifest = service.current!;
+			manifest.records = ['fe', 'ab', 'aa'].map((recordId) => ({
+				...structuredClone(first),
+				recordId,
+				placement: { storageBoxId: boxId, slot: 10 }
+			}));
+			manifest.revision += 1;
+			await persistence.commit(service.current!.revision, manifest, []);
+			await service.load();
+			expect(
+				service
+					.listResolvedPlacements()
+					.map(({ recordId, placement }) => [recordId, placement?.slot])
+			).toEqual([
+				['aa', 10],
+				['ab', 9],
+				['fe', 11]
+			]);
+			expect(service.listRecords().every((record) => record.placement?.slot === 10)).toBe(true);
+		});
 		it('replaces a payload immutably without changing origin or independent copies', async () => {
 			const persistence = create();
 			const engine = fakeEngine();
@@ -280,7 +306,8 @@ export function catalogContract(
 			const copy = await service.copy(first.recordId);
 			const updated = await service.replace(
 				first.recordId,
-				engine.editPayload(first.recordId, bytes(6))
+				engine.editPayload(first.recordId, bytes(6)),
+				first.payload.id
 			);
 			expect(updated.payload.id).not.toBe(first.payload.id);
 			expect(updated.recordId).toBe(first.recordId);
@@ -312,7 +339,7 @@ export function catalogContract(
 			const boxId = service.listBoxes()[0].id;
 			const record = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 0 });
 			edited.payload = engine.editPayload(record.recordId, bytes(2));
-			const replacement = service.replace(record.recordId, edited.payload);
+			const replacement = service.replace(record.recordId, edited.payload, record.payload.id);
 			await started;
 			const placement = slot === null ? null : { storageBoxId: boxId, slot };
 			await service.place(record.recordId, placement);
@@ -341,15 +368,32 @@ export function catalogContract(
 			await service.initialize();
 			const record = await service.add(bytes(1), origin);
 			delayed.payload = engine.editPayload(record.recordId, bytes(2));
-			const stale = service.replace(record.recordId, delayed.payload);
+			const stale = service.replace(record.recordId, delayed.payload, record.payload.id);
 			await started;
 			const latest = await service.replace(
 				record.recordId,
-				engine.editPayload(record.recordId, bytes(3))
+				engine.editPayload(record.recordId, bytes(3)),
+				record.payload.id
 			);
 			resume();
 			await expect(stale).rejects.toThrow(/payload changed/);
 			expect(service.getRecord(record.recordId)?.payload.id).toBe(latest.payload.id);
+		});
+		it('rejects an edit prepared before another replacement commits', async () => {
+			const engine = fakeEngine();
+			const service = new PokemonStorageService(create(), engine);
+			await service.initialize();
+			const original = await service.add(bytes(1), origin);
+			const stale = engine.editPayload(original.recordId, bytes(2));
+			const current = await service.replace(
+				original.recordId,
+				engine.editPayload(original.recordId, bytes(3)),
+				original.payload.id
+			);
+			await expect(service.replace(original.recordId, stale, original.payload.id)).rejects.toThrow(
+				/payload changed/
+			);
+			expect(service.getRecord(original.recordId)?.payload.id).toBe(current.payload.id);
 		});
 		it('sweeps only uncommitted blobs after a conditional conflict', async () => {
 			const persistence = create();
@@ -367,7 +411,7 @@ export function catalogContract(
 			expect(await persistence.readBlob(reference)).toBeNull();
 			expect(await service.readPayload(record.recordId)).toBeTruthy();
 		});
-		it('rejects corrupted blob reads and sweeps unreferenced staged blobs', async () => {
+		it('rejects corrupted blob reads', async () => {
 			const persistence = create();
 			const service = new PokemonStorageService(persistence, fakeEngine());
 			await service.initialize();
