@@ -203,6 +203,15 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	await page.reload();
 	await page.getByRole('searchbox', { name: 'Filter Pokemon' }).fill('');
 	await page.getByRole('combobox', { name: 'Sort Pokemon' }).selectOption('recent');
+	const virtualGrid = page.getByRole('grid', { name: 'All Pokemon' });
+	const firstRecord = virtualGrid.locator('[data-record-id="virtual-000"]');
+	await firstRecord.focus();
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('[data-pane-control-index="0"]')).toBeFocused();
+	await virtualGrid.evaluate((node) => node.scrollTo({ top: node.scrollHeight }));
+	await expect(firstRecord).toHaveCount(0);
+	await page.keyboard.press('ArrowDown');
+	await expect(firstRecord).toBeFocused();
 	const columnCounts: number[] = [];
 	async function expectReadableVirtualCard() {
 		const card = page.getByRole('grid', { name: 'All Pokemon' }).locator('.card').first();

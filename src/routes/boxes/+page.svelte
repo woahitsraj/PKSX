@@ -1208,13 +1208,11 @@
 		if (activeVirtualLocation && !virtualFocusedId && navigation.focus.zone !== 'paneControls') {
 			navigation = { ...navigation, focus: focusPaneControl(1, activePaneControlCount) };
 		}
-		document
-			.getElementById(
-				activeVirtualLocation && virtualFocusedId && navigation.focus.zone !== 'paneControls'
-					? virtualRecordControlId(activePaneId, virtualFocusedId)
-					: focusIdForNavigation(navigation.focus)
-			)
-			?.focus();
+		if (activeVirtualLocation && virtualFocusedId && navigation.focus.zone !== 'paneControls') {
+			focusVirtualRecord(virtualFocusedId);
+			return;
+		}
+		document.getElementById(focusIdForNavigation(navigation.focus))?.focus();
 	}
 
 	function focusVirtualRecord(recordId: string | null, restoreAfterResize = false) {
