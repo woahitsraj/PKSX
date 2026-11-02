@@ -127,7 +127,12 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	await page.keyboard.press('y');
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
 	await page.keyboard.press('y');
-	await page.locator('#box-0-slot-4').click();
+	await page.locator('#box-0-slot-4').focus();
+	await page.keyboard.press('x');
+	await expect(page.getByRole('dialog', { name: 'Choose a Box' })).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(page.locator('#box-0-slot-4')).toBeFocused();
+	await page.keyboard.press('Enter');
 	await expect(page.locator('#box-0-slot-4')).toContainText('ARON');
 	await page.reload();
 	await expect(page.locator('#box-0-slot-4')).toContainText('ARON');

@@ -2143,7 +2143,8 @@
 			return;
 
 		const launcher =
-			pendingSlotOperation && isSlotFocus(navigation.focus)
+			(pendingSlotOperation || (virtualCarry && !activeVirtualLocation)) &&
+			isSlotFocus(navigation.focus)
 				? slotLauncher(navigation.focus, pane)
 				: controlLauncher(locationControlId(pane.id));
 		if (!summonedWorkflow.open('box-picker', launcher)) return;
