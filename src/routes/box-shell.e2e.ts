@@ -1303,10 +1303,13 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-selected', 'true');
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#box-0-slot-1')).toHaveAttribute('aria-selected', 'true');
 
 	await page.getByRole('button', { name: 'Next Location' }).click();
 	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
-	await expect(page.locator('#box-1-slot-0')).toHaveAttribute('aria-selected', 'true');
+	await expect(page.locator('#box-1-slot-1')).toHaveAttribute('aria-selected', 'true');
+	await page.locator('#box-1-slot-0').focus();
 
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('PageDown');
@@ -2432,13 +2435,12 @@ test('pending Box loads suspend actions for the previously displayed slots', asy
 		window.dispatchEvent(
 			new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true, cancelable: true })
 		);
-		window.dispatchEvent(
-			new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true, cancelable: true })
-		);
 	});
+	await pane.getByRole('button', { name: 'Next Location' }).click();
+	await expect(pane.getByRole('heading', { name: /Box 03|BOX3/ })).toBeVisible();
 	await waitForHeldWorkspaceResponses(page);
 
-	await expect(staleSlot).toBeDisabled();
+	await expect(pane.locator('[id$="box-1-slot-0"]')).toBeDisabled();
 	await expect(copy).toBeDisabled();
 	await pane.getByRole('grid').focus();
 	await page.keyboard.press('Enter');

@@ -2097,14 +2097,16 @@
 
 	function changePaneLocation(pane: BoxPaneState, action: 'previousBox' | 'nextBox') {
 		lastDomFocusedSaveSlot = null;
-		const previousBox = pane.activeBox;
+		const paneActive = pane.id === activePaneId;
+		const previousBox = paneActive ? navigation.activeBox : pane.activeBox;
+		const locationFocus = paneActive ? navigation.locationFocus : pane.focus;
 		const state = applyNavigationAction(
 			{
 				...navigation,
-				activeBox: pane.activeBox,
+				activeBox: previousBox,
 				boxCount: Math.max(1, pane.boxCount),
-				focus: pane.id === activePaneId ? navigation.focus : pane.focus,
-				locationFocus: pane.focus
+				focus: paneActive ? navigation.focus : pane.focus,
+				locationFocus
 			},
 			action,
 			{
@@ -2118,12 +2120,12 @@
 			pane.id,
 			state.locationFocus
 		);
-		if (pane.id === activePaneId) navigation = state;
+		if (paneActive) navigation = state;
 
 		if (state.locationFocus.zone === 'box' && state.activeBox !== previousBox) {
 			if (
 				loadedSave &&
-				pane.id === activePaneId &&
+				paneActive &&
 				pane.source.type === 'save-file' &&
 				pane.source.id === loadedSave.file.id
 			) {
