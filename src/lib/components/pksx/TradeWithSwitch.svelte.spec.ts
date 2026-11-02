@@ -44,7 +44,11 @@ const offer: OutgoingLinkTrade = {
 	sourceSha256: 'source',
 	outgoingSha256: 'outgoing',
 	converted: true,
-	changes: [{ field: 'Ball', before: 'Strange', after: 'Poke' }],
+	changes: [
+		{ field: 'Format', before: 'PB8', after: 'PK8' },
+		{ field: 'Encryption Constant', before: '00000001', after: '00000002' },
+		{ field: 'Ball', before: 'Strange', after: 'Poke' }
+	],
 	legality: null,
 	blockingReasons: [],
 	projection: null
@@ -95,7 +99,11 @@ async function render(
 		props: {
 			pokemonLabel: 'Pikachu',
 			location: 'Box 1, Slot 1',
-			source: { owner: 'pokemon-storage', slot: { zone: 'box', box: 0, slot: 0 } },
+			source: {
+				owner: 'pokemon-storage',
+				collectionId: 'pokemon-storage',
+				slot: { zone: 'box', box: 0, slot: 0 }
+			},
 			prepare,
 			createClient: () => client,
 			onClose
@@ -119,6 +127,53 @@ async function click(name: string) {
 }
 
 describe('Trade with Switch setup', () => {
+	test('explains an unsupported browser first, even when a simulated radio exists', async () => {
+		const { client } = stubClient();
+		await render(client);
+		expect(document.body.textContent).toContain('desktop Chrome or Edge');
+		await click('Continue with simulated radio');
+		expect(document.body.textContent).toContain('Switch keys');
+	});
+
+	test('moves focus with controller actions, clamps at the edges and confirms', async () => {
+		const { client } = stubClient();
+		await render(client);
+		await click('Continue with simulated radio');
+		const api = component as unknown as { dispatch(action: string): void };
+		expect(document.activeElement).toBe(button('Continue'));
+		api.dispatch('right');
+		expect(document.activeElement).toBe(button('Continue'));
+		for (const name of ['Forget keys', 'Close', 'Close']) {
+			api.dispatch('left');
+			expect(document.activeElement).toBe(button(name));
+		}
+		api.dispatch('right');
+		api.dispatch('right');
+		api.dispatch('confirm');
+		await settle();
+		expect(document.body.textContent).toContain('Trade Radio');
+	});
+
+	test('a second press while the radio connects cannot leave the step', async () => {
+		let finish = () => {};
+		const { client } = stubClient({
+			connectRadio: () =>
+				new Promise((resolve) => (finish = () => resolve({ ok: true, value: board })))
+		});
+		const { onClose } = await render(client);
+		await click('Continue with simulated radio');
+		await click('Continue');
+		await click('Use simulated radio');
+		const api = component as unknown as { dispatch(action: string): void };
+		api.dispatch('confirm');
+		api.dispatch('back');
+		await settle();
+		expect(onClose).not.toHaveBeenCalled();
+		expect(document.body.textContent).toContain('Trade Radio');
+		finish();
+		await vi.waitFor(() => expect(document.body.textContent).toContain('Destination game'));
+	});
+
 	test('explains an unsupported browser and offers no connection', async () => {
 		const { client } = stubClient({
 			capabilities: async () => ({
@@ -143,7 +198,7 @@ describe('Trade with Switch setup', () => {
 		const { client } = stubClient({
 			capabilities: async () => ({
 				ok: true,
-				value: { ...capabilities, keysPresent: false }
+				value: { ...capabilities, webSerial: true, keysPresent: false }
 			}),
 			importKeys
 		});
@@ -161,6 +216,7 @@ describe('Trade with Switch setup', () => {
 	test('reaches a review bound to the prepared game without an exchange command', async () => {
 		const { client } = stubClient();
 		const { prepare, onClose } = await render(client);
+		await click('Continue with simulated radio');
 		expect(button('Continue')).toBe(document.activeElement);
 		await click('Continue');
 		await click('Use simulated radio');
@@ -176,7 +232,8 @@ describe('Trade with Switch setup', () => {
 		expect(text).toContain('confirm the trade on the Switch');
 		expect(text).toContain('no HOME tracker');
 		expect(text).toContain('Ball: Strange to Poke');
-		expect(text).not.toContain('outgoing');
+		expect(text).not.toContain('PK8');
+		expect(text).not.toContain('Encryption');
 		expect(Object.keys(client)).not.toContain('startSession');
 
 		await click('Change game');
@@ -200,6 +257,7 @@ describe('Trade with Switch setup', () => {
 			},
 			error: null
 		});
+		await click('Continue with simulated radio');
 		await click('Continue');
 		await click('Use simulated radio');
 		await click('Sword');
@@ -215,6 +273,7 @@ describe('Trade with Switch setup', () => {
 			})
 		});
 		await render(client);
+		await click('Continue with simulated radio');
 		await click('Continue');
 		await click('Use simulated radio');
 		expect(document.body.textContent).toContain('another version of the firmware');
@@ -232,6 +291,7 @@ describe('Trade with Switch setup', () => {
 	test('returns to the radio step when the connection drops during review', async () => {
 		const { client, emit } = stubClient();
 		await render(client);
+		await click('Continue with simulated radio');
 		await click('Continue');
 		await click('Use simulated radio');
 		await click('Sword');
@@ -247,6 +307,7 @@ describe('Trade with Switch setup', () => {
 	test('moves back one step and closes from the first step', async () => {
 		const { client } = stubClient();
 		const { onClose } = await render(client);
+		await click('Continue with simulated radio');
 		await click('Continue');
 		const api = component as unknown as { dispatch(action: string): void };
 		api.dispatch('back');
@@ -266,13 +327,13 @@ describe('Trade with Switch setup', () => {
 			installFirmware: () => new Promise((resolve) => (finish = () => resolve({ ok: true, board })))
 		});
 		await render(client);
+		await click('Continue with simulated radio');
 		await click('Continue');
 		await click('Use simulated radio');
 		await click('Install firmware');
 		await click('Install firmware');
 		await click('Replace firmware');
-		const api = component as unknown as { back(): void };
-		api.back();
+		(component as unknown as { dispatch(action: string): void }).dispatch('back');
 		await settle();
 		expect(document.body.textContent).toContain('Do not disconnect the board.');
 		finish();

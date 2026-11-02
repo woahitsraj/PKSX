@@ -10,7 +10,9 @@
 	import {
 		canConnectRadio,
 		radioFailure,
+		reviewChanges,
 		reviewedLinkTrade,
+		tradeBlockingMessage,
 		TRADE_GAME_NAMES,
 		type ReviewedLinkTrade,
 		type TradeSource
@@ -42,6 +44,8 @@
 		onClose
 	}: Props = $props();
 
+	const ACTIVATION_MESSAGE = 'The browser needs a mouse or keyboard for this step. Try again.';
+
 	type Step = 'loading' | 'unsupported' | 'keys' | 'radio' | 'install' | 'game' | 'review';
 
 	let client: TradeWorkerClient | null = null;
@@ -61,8 +65,8 @@
 	let review = $state.raw<
 		| { status: 'loading'; game: LinkTradeGame }
 		| { status: 'error'; game: LinkTradeGame }
-		| { status: 'blocked'; game: LinkTradeGame; offer: OutgoingLinkTrade }
-		| { status: 'ready'; offer: OutgoingLinkTrade; reviewed: ReviewedLinkTrade }
+		| { status: 'blocked'; game: LinkTradeGame; prepared: OutgoingLinkTrade }
+		| { status: 'ready'; prepared: OutgoingLinkTrade; reviewed: ReviewedLinkTrade }
 		| null
 	>(null);
 	let reviewRequest = 0;
@@ -121,7 +125,7 @@
 		if (!result.ok) return void (step = 'unsupported');
 		capabilities = result.value;
 		keysPresent = result.value.keysPresent;
-		step = realRadio || result.value.fakePort ? 'keys' : 'unsupported';
+		step = realRadio ? 'keys' : 'unsupported';
 	}
 
 	async function importKeys(event: Event & { currentTarget: HTMLInputElement }) {
@@ -133,26 +137,27 @@
 		keyMessage = null;
 		const result = await client.importKeys(await file.text());
 		working = false;
-		if (result.ok) {
-			keysPresent = true;
-			keyMessage = 'PKSX saved the Switch keys on this device.';
-		} else {
+		if (result.ok) keysPresent = true;
+		else
 			keyMessage =
 				result.error.code === 'keys-incomplete'
 					? `This file cannot be used. ${result.error.message}.`
 					: 'PKSX could not save the Switch keys.';
-		}
+	}
+
+	function chooseKeyFile() {
+		keyMessage = navigator.userActivation?.isActive === false ? ACTIVATION_MESSAGE : null;
+		if (!keyMessage) keyFile?.click();
 	}
 
 	async function forgetKeys() {
 		if (!client) return;
 		working = true;
+		keyMessage = null;
 		const result = await client.forgetKeys();
 		working = false;
 		if (result.ok) keysPresent = false;
-		keyMessage = result.ok
-			? 'PKSX removed the Switch keys from this device.'
-			: 'PKSX could not remove the Switch keys.';
+		else keyMessage = 'PKSX could not remove the Switch keys.';
 	}
 
 	async function chooseRadio() {
@@ -162,7 +167,7 @@
 			const port = await requestRadioPort();
 			if (port) await connect(port);
 		} catch {
-			radioMessage = 'Select Connect with a mouse or keyboard, then choose the board.';
+			radioMessage = ACTIVATION_MESSAGE;
 		}
 	}
 
@@ -196,16 +201,16 @@
 		if (!result.ok) return void (review = { status: 'error', game });
 		const reviewed = reviewedLinkTrade(source, result.value);
 		review = reviewed
-			? { status: 'ready', offer: result.value, reviewed }
-			: { status: 'blocked', game, offer: result.value };
+			? { status: 'ready', prepared: result.value, reviewed }
+			: { status: 'blocked', game, prepared: result.value };
 	}
 
 	function retryReview() {
 		if (review?.status === 'error') void selectGame(review.game);
 	}
 
-	export function back() {
-		if (installing) return;
+	function back() {
+		if (installing || working) return;
 		if (firstStepBack) return onClose();
 		reviewRequest += 1;
 		review = null;
@@ -220,21 +225,21 @@
 		const all = controls();
 		const index = all.indexOf(document.activeElement as HTMLButtonElement);
 		if (action === 'back') return back();
-		if (action === 'confirm') return all[Math.max(0, index)]?.click();
+		if (index < 0) return working ? undefined : all[0]?.focus();
+		if (action === 'confirm') return all[index].click();
 		if (body && (action === 'up' || action === 'down')) {
 			const top = body.scrollTop + (action === 'down' ? 1 : -1) * body.clientHeight * 0.75;
 			const next = Math.max(0, Math.min(body.scrollHeight - body.clientHeight, top));
 			if (Math.abs(next - body.scrollTop) > 1) return void (body.scrollTop = next);
 		}
-		if (!all.length) return;
-		if (action === 'left' || action === 'up')
-			all[(Math.max(0, index) - 1 + all.length) % all.length].focus();
-		else if (action === 'right' || action === 'down') all[(index + 1) % all.length].focus();
+		if (action === 'left' || action === 'up') all[Math.max(0, index - 1)].focus();
+		else if (action === 'right' || action === 'down')
+			all[Math.min(all.length - 1, index + 1)].focus();
 	}
 </script>
 
 <TakeoverFrame
-	labelledby="trade-with-switch-title"
+	labelledby={step === 'install' ? 'install-firmware-title' : 'trade-with-switch-title'}
 	busy={step === 'loading' || working}
 	onBack={back}
 >
@@ -253,6 +258,8 @@
 				}}
 				onDone={(installed) => {
 					board = installed;
+					radioMessage = null;
+					offerInstall = false;
 					step = 'game';
 				}}
 				onCancel={() => (step = 'radio')}
@@ -325,8 +332,8 @@
 					{:else if review.status === 'blocked'}
 						<p role="alert">{pokemonLabel} cannot be traded to {reviewGame}.</p>
 						<ul>
-							{#each review.offer.blockingReasons as reason (reason.message)}
-								<li>{reason.message}</li>
+							{#each review.prepared.blockingReasons as reason (reason.message)}
+								<li>{tradeBlockingMessage(reason, reviewGame)}</li>
 							{/each}
 						</ul>
 					{:else}
@@ -335,21 +342,21 @@
 							that its player selects.
 						</p>
 						<p>You confirm the trade on the Switch. PKSX does not ask you to confirm it again.</p>
-						{#if review.offer.converted}
+						{#if review.prepared.converted}
 							<p role="alert">
 								PKSX converts this copy for {reviewGame}. The copy has no HOME tracker, and
 								{reviewGame} may refuse it.
 							</p>
 						{/if}
-						{#if review.offer.legality && !review.offer.legality.legal}
+						{#if review.prepared.legality && !review.prepared.legality.legal}
 							<p role="alert">
 								The Legality Check reports problems with this copy. {reviewGame} may refuse it.
 							</p>
 						{/if}
-						{#if review.offer.changes.length}
+						{#if reviewChanges(review.prepared.changes).length}
 							<h4>Changes to the copy</h4>
 							<ul>
-								{#each review.offer.changes as change (change.field)}
+								{#each reviewChanges(review.prepared.changes) as change (change.field)}
 									<li>{change.field}: {change.before} to {change.after}</li>
 								{/each}
 							</ul>
@@ -369,7 +376,11 @@
 							{firstStepBack ? 'Close' : 'Back'}
 						</button>
 					{/if}
-					{#if step === 'keys'}
+					{#if step === 'unsupported' && capabilities?.fakePort}
+						<button type="button" data-pksx-control-category="small" onclick={() => (step = 'keys')}
+							>Continue with simulated radio</button
+						>
+					{:else if step === 'keys'}
 						<input
 							bind:this={keyFile}
 							data-pksx-control-category="composition"
@@ -400,7 +411,7 @@
 								data-pksx-control-category="small"
 								class="primary"
 								disabled={working}
-								onclick={() => keyFile?.click()}>Import keys</button
+								onclick={chooseKeyFile}>Import keys</button
 							>
 						{/if}
 					{:else if step === 'radio'}
@@ -493,7 +504,7 @@
 
 	h2 {
 		font-size: var(--pksx-type-title);
-		line-height: 1.2;
+		line-height: 1.25;
 	}
 
 	h3,

@@ -1,8 +1,15 @@
-import type { OutgoingLinkTrade, SaveSlotRef } from '$lib/engine';
+import type {
+	LinkTradeBlockingReason,
+	OutgoingLinkTrade,
+	PokemonActionChange,
+	SaveSlotRef
+} from '$lib/engine';
 import type { LinkTradeGame, TradeError, TradeWorkerCapabilities } from './contract';
 
 export type TradeSource = {
 	owner: 'save-file' | 'pokemon-storage';
+	/** The Save File or Pokemon Storage that holds the Slot. */
+	collectionId: string | null;
 	slot: SaveSlotRef;
 };
 
@@ -40,6 +47,18 @@ export function reviewedLinkTrade(
 		outgoingSha256: offer.outgoingSha256,
 		outgoingBytes: offer.outgoingBytes
 	};
+}
+
+/** The format and encryption values are implementation details of the conversion. */
+export function reviewChanges(changes: PokemonActionChange[]): PokemonActionChange[] {
+	return changes.filter(({ field }) => field !== 'Format' && field !== 'Encryption Constant');
+}
+
+/** Engine conversion text names file formats, so PKSX states the result in plain words. */
+export function tradeBlockingMessage(reason: LinkTradeBlockingReason, gameName: string): string {
+	return reason.kind === 'unsupported-conversion'
+		? `PKSX cannot convert this Pokemon for ${gameName}.`
+		: reason.message;
 }
 
 export function radioFailure(error: TradeError): { message: string; offerInstall: boolean } {

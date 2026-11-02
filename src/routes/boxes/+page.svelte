@@ -4260,6 +4260,7 @@
 			location: activeSlotPositionLabel,
 			source: {
 				owner: focusedSlotOwner.type === 'pokemon-storage' ? 'pokemon-storage' : 'save-file',
+				collectionId: focusedSlotOwner.id,
 				slot: slotRefForFocus()
 			},
 			bytes: base64ToBytes(focusedSlot.entityBytesBase64)
