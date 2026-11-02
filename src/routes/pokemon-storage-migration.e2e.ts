@@ -83,6 +83,10 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		1
 	);
 	const filedCard = page.getByRole('grid', { name: 'All Pokemon' }).locator('.card');
+	await filedCard.locator('[data-record-id]').focus();
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('[data-pane-control-index="0"]')).toBeFocused();
+
 	const filedBounds = await filedCard.evaluate((node) => ({
 		unfileBottom: node.querySelector('.unfile')!.getBoundingClientRect().bottom,
 		nameTop: node.querySelector('strong')!.getBoundingClientRect().top

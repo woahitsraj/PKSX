@@ -866,6 +866,11 @@
 					0,
 					activeVirtualRecords.findIndex((record) => record.recordId === virtualFocusedId)
 				);
+				if (action === 'up' && index < virtualColumns && !pendingSlotOperation && !virtualCarry) {
+					navigation = { ...navigation, focus: focusPaneControl(0, activePaneControlCount) };
+					queueMicrotask(focusActiveControl);
+					return;
+				}
 				const next = moveVirtualFocus(
 					index,
 					activeVirtualRecords.length,

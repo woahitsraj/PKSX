@@ -1161,11 +1161,12 @@ test('[SURFACE-1][SURFACE-2] Menu and Backup Browser follow Safe Canvas edges wi
 	const browser = page.getByRole('dialog', { name: 'Backup Browser' });
 	await expect(browser).toBeVisible();
 	await settleMotion(page);
-	const bounds = await browser.boundingBox();
-	expect(bounds, '[SURFACE-1] portrait Backup Browser fills the Safe Canvas').toMatchObject({
-		x: portraitFloor.insets.left,
-		y: portraitFloor.insets.top,
-		width: portraitFloor.safe.width,
-		height: portraitFloor.safe.height
-	});
+	await expect
+		.poll(() => browser.boundingBox(), '[SURFACE-1] portrait Backup Browser fills the Safe Canvas')
+		.toMatchObject({
+			x: portraitFloor.insets.left,
+			y: portraitFloor.insets.top,
+			width: portraitFloor.safe.width,
+			height: portraitFloor.safe.height
+		});
 });
