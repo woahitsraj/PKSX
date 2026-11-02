@@ -972,13 +972,14 @@
 			partyAvailable,
 			carryActive: pendingSlotOperation !== null || virtualCarry !== null
 		});
-		const slotFocusMoved =
+		const slotFocusChanged =
 			nextNavigation.activeBox === previousBox &&
 			isSlotFocus(previousFocus) &&
 			isSlotFocus(nextNavigation.focus) &&
 			nextNavigation.focus !== previousFocus;
+		const slotFocusMoved = slotFocusChanged && nextNavigation.focus.zone === previousFocus.zone;
 		const boxChanged = nextNavigation.activeBox !== previousBox;
-		if (slotFocusMoved || boxChanged) slotNavigationRevision += 1;
+		if (slotFocusChanged || boxChanged) slotNavigationRevision += 1;
 		const deferredBoxChange = boxChanged && pane?.source.type === 'save-file';
 		if (deferredBoxChange) {
 			navigation.activeBox = nextNavigation.activeBox;
@@ -998,8 +999,8 @@
 			activateFocusedControl(previousFocus);
 		}
 
+		const zoneChanged = Boolean(pane && navigation.locationFocus.zone !== pane.focus.zone);
 		if (pane) {
-			const zoneChanged = navigation.locationFocus.zone !== pane.focus.zone;
 			if (zoneChanged || (boxChanged && !deferredBoxChange)) {
 				workbenchPanes = setPaneFocus(
 					boxChanged && !deferredBoxChange
@@ -6041,16 +6042,17 @@
 
 		await Promise.all(
 			panes.map(async (pane) => {
+				const requestedBox = pane.id === activePaneId ? navigation.activeBox : pane.activeBox;
 				cancelPaneBoxLoad(pane.id);
-				const needsLoad = pane.activeBox !== publishedBox;
+				const needsLoad = requestedBox !== publishedBox;
 				const request = beginPaneWorkspaceRequest(pane.id, needsLoad);
-				if (pane.activeBox === publishedBox) {
+				if (requestedBox === publishedBox) {
 					installPaneWorkspace(pane.id, state.file.id, publishedBox, state, request);
 					return;
 				}
 
 				try {
-					const boxSlots = await loadCachedBoxSlots(state, pane.activeBox);
+					const boxSlots = await loadCachedBoxSlots(state, requestedBox);
 					const paneState = {
 						...state,
 						workspace: {
@@ -6058,14 +6060,16 @@
 							boxSlots
 						}
 					};
-					installPaneWorkspace(pane.id, state.file.id, pane.activeBox, paneState, request);
+					installPaneWorkspace(pane.id, state.file.id, requestedBox, paneState, request);
 				} catch (error) {
 					const currentPane = workbenchPanes.find((candidate) => candidate.id === pane.id);
+					const currentRequestedBox =
+						currentPane?.id === activePaneId ? navigation.activeBox : currentPane?.activeBox;
 					if (
 						paneWorkspaceRequests[pane.id] === request &&
 						currentPane?.source.type === 'save-file' &&
 						currentPane.source.id === state.file.id &&
-						currentPane.activeBox === pane.activeBox
+						currentRequestedBox === requestedBox
 					) {
 						const remaining = { ...savePaneWorkspaces };
 						delete remaining[pane.id];

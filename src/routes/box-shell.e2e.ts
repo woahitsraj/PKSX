@@ -1587,8 +1587,8 @@ test('stale Box loads cannot replace a committed Box rename', async ({ page }) =
 	await expect(picker).toBeHidden();
 
 	await holdWorkspaceResponses(page, 1, 'listBoxSlots');
-	await page.getByRole('button', { name: 'Previous Location' }).click();
-	await page.getByRole('button', { name: 'Previous Location' }).click();
+	await pressController(page, 'PageUp');
+	await pressController(page, 'PageUp');
 	await waitForHeldWorkspaceResponses(page, 2);
 	await releaseWorkspaceResponse(page, 'applySaveFileEditOperation');
 	await expect.poll(() => backupCount(page)).toBe(1);
@@ -5153,6 +5153,12 @@ test('controller shoulders cycle Party and Boxes while collection focus is retai
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
 	await page.locator('#box-grid').focus();
+	await page.locator('#box-0-slot-7').focus();
+	await pressController(page, 'PageUp');
+	await expect(page.locator('#party-slot-4')).toBeFocused();
+	await pressController(page, 'PageDown');
+	await expect(page.locator('#box-0-slot-7')).toBeFocused();
+	await page.locator('#box-0-slot-0').focus();
 
 	await pressController(page, 'PageDown');
 	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible();
