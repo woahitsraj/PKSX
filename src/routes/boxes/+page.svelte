@@ -961,7 +961,7 @@
 		}
 		const previousFocus = navigation.focus;
 		if (action === 'confirm' && isSlotFocus(previousFocus)) {
-			openSlotMenu(previousFocus);
+			openSlotMenu(slotRefForFocus(previousFocus));
 			return;
 		}
 
@@ -2138,16 +2138,17 @@
 
 	function slotLauncher(
 		focus: SlotFocus,
-		pane: BoxPaneState | undefined = activePane
+		pane: BoxPaneState | undefined = activePane,
+		box: number | null = focus.zone === 'box' ? (pane?.activeBox ?? activePaneBox) : null
 	): SummonedWorkflowLauncher {
 		return {
 			type: 'slot',
 			id:
 				focus.zone === 'party'
 					? `party-slot-${focus.slot}`
-					: `box-${pane?.activeBox ?? activePaneBox}-slot-${focus.slot}`,
+					: `box-${box ?? activePaneBox}-slot-${focus.slot}`,
 			paneId: pane?.id ?? activePaneId,
-			box: focus.zone === 'box' ? (pane?.activeBox ?? activePaneBox) : null,
+			box,
 			focus
 		};
 	}
@@ -2160,13 +2161,20 @@
 		return isSlotFocus(focus) ? slotLauncher(focus) : controlLauncher(focusIdForNavigation(focus));
 	}
 
-	function openSlotMenu(focus: SlotFocus, pane: BoxPaneState | undefined = activePane) {
-		if (!paneSlotActionsReady(pane, focus)) return;
+	function openSlotMenu(source: SaveSlotRef, pane: BoxPaneState | undefined = activePane) {
+		if (!paneSlotActionsReady(pane, source)) return;
 		if (catalogViewStale && pane?.source.type === 'pokemon-storage') {
 			toastHost.error('Reload Boxes before changing Pokemon Storage Slots.');
 			return;
 		}
-		if (!summonedWorkflow.open('slot-menu', slotLauncher(focus, pane))) return;
+		const focus = source.zone === 'party' ? focusPartySlot(source.slot) : focusBoxSlot(source.slot);
+		if (
+			!summonedWorkflow.open(
+				'slot-menu',
+				slotLauncher(focus, pane, source.zone === 'box' ? source.box : null)
+			)
+		)
+			return;
 		slotMenuPokemonActionRequest += 1;
 		slotMenuPokemonActionPreview = null;
 		slotMenuPokemonActionsLoading = false;

@@ -3447,6 +3447,7 @@ test('keeps both Pokemon recoverable when Save clearing fails after Storage comm
 	await expect(slotActions.locator('.slot-context')).not.toHaveAttribute('aria-busy', 'true', {
 		timeout: 15000
 	});
+	await expect(slotActions).toContainText('Clear Slot');
 	await slotActions.getByRole('button', { name: 'Clear Slot' }).click();
 	await page.getByRole('button', { name: 'Confirm Clear' }).click();
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
