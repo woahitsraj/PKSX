@@ -23,7 +23,7 @@ manifest.records = [
 ];
 
 describe('virtual Pokemon views', () => {
-	it('lists active records by entry time and treats unresolved placements as Unfiled', () => {
+	it('lists active records by entry time and keeps displaced records out of Unfiled', () => {
 		expect(
 			virtualRecords(manifest, defaultVirtualViewPreferences).map(({ recordId }) => recordId)
 		).toEqual(['new', 'overflow', 'old']);
@@ -42,7 +42,7 @@ describe('virtual Pokemon views', () => {
 			virtualRecords(full, { ...defaultVirtualViewPreferences, location: 'unfiled' }).map(
 				({ recordId }) => recordId
 			)
-		).toEqual(['new', 'overflow']);
+		).toEqual(['new']);
 	});
 
 	it('filters and restores preferences defensively', () => {

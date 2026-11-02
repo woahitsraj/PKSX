@@ -1,5 +1,4 @@
 import type { PokemonRecord, PokemonStorageManifest } from './types';
-import { resolvePlacements } from './types';
 
 export type VirtualLocation = 'all-pokemon' | 'unfiled';
 export type VirtualSort = 'recent' | 'oldest' | 'species' | 'level';
@@ -48,13 +47,10 @@ export function virtualRecords(
 	preferences: VirtualViewPreferences
 ): PokemonRecord[] {
 	if (!manifest) return [];
-	const placements = new Map(
-		resolvePlacements(manifest).map(({ recordId, placement }) => [recordId, placement])
-	);
 	const query = preferences.filters.query.trim().toLocaleLowerCase();
 	return manifest.records
 		.filter((record) => {
-			if (preferences.location === 'unfiled' && placements.get(record.recordId)) return false;
+			if (preferences.location === 'unfiled' && record.placement) return false;
 			if (
 				preferences.filters.originGame &&
 				record.origin.originGame !== preferences.filters.originGame
