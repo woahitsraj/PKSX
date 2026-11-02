@@ -2374,59 +2374,58 @@
 			}
 			pendingSlotOperation = null;
 			carryState = null;
-		} catch (error) {
-			statusMessage = 'Slot change failed.';
-			toastHost.error(getErrorMessage(error));
-			return;
-		} finally {
-			busy = false;
-		}
-		const refreshed = await refreshCommittedCatalogView();
+			const refreshed = await refreshCommittedCatalogView();
 
-		if (storageSource) {
-			activePaneId = destinationPane.id;
-			if (destination.zone === 'box') {
-				workbenchPanes = setPaneActiveBox(workbenchPanes, destinationPane.id, destination.box);
+			if (storageSource) {
+				activePaneId = destinationPane.id;
+				if (destination.zone === 'box') {
+					workbenchPanes = setPaneActiveBox(workbenchPanes, destinationPane.id, destination.box);
+				}
+				const destinationFocus = focusBoxSlot(destination.slot);
+				navigation = {
+					...navigation,
+					activeBox: destination.zone === 'box' ? destination.box : activePaneBox,
+					focus: destinationFocus,
+					locationFocus: destinationFocus
+				};
+				workbenchPanes = setPaneFocus(workbenchPanes, destinationPane.id, destinationFocus);
+				if (refreshed) {
+					statusMessage =
+						pending.kind === 'move'
+							? `Moved ${sourceSlot.label} to Pokemon Storage.`
+							: `Copied ${sourceSlot.label} to Pokemon Storage.`;
+					toastHost.success(statusMessage);
+				}
+				queueMicrotask(focusActiveControl);
+				return;
 			}
-			const destinationFocus = focusBoxSlot(destination.slot);
-			navigation = {
-				...navigation,
-				activeBox: destination.zone === 'box' ? destination.box : activePaneBox,
-				focus: destinationFocus,
-				locationFocus: destinationFocus
-			};
-			workbenchPanes = setPaneFocus(workbenchPanes, destinationPane.id, destinationFocus);
+
+			if (pending.kind === 'move') {
+				const sourcePane = workbenchPanes.find((pane) => pane.id === sourcePaneId);
+				const sourceWorkspace = saveWorkspaceForPane(sourcePane)?.state;
+				if (!sourcePane || !sourceWorkspace) {
+					toastHost.error('The source Save File is no longer available.');
+					return;
+				}
+				await applySlotOperation(
+					{ kind: 'clear', source: pending.source },
+					{ state: sourceWorkspace, paneId: sourcePane.id }
+				);
+				statusMessage = `Moved ${sourceSlot.label} to Pokemon Storage.`;
+				return;
+			}
+
 			if (refreshed) {
-				statusMessage =
-					pending.kind === 'move'
-						? `Moved ${sourceSlot.label} to Pokemon Storage.`
-						: `Copied ${sourceSlot.label} to Pokemon Storage.`;
+				statusMessage = `Copied ${sourceSlot.label} to Pokemon Storage.`;
 				toastHost.success(statusMessage);
 			}
 			queueMicrotask(focusActiveControl);
-			return;
+		} catch (error) {
+			statusMessage = 'Slot change failed.';
+			toastHost.error(getErrorMessage(error));
+		} finally {
+			busy = false;
 		}
-
-		if (pending.kind === 'move') {
-			const sourcePane = workbenchPanes.find((pane) => pane.id === sourcePaneId);
-			const sourceWorkspace = saveWorkspaceForPane(sourcePane)?.state;
-			if (!sourcePane || !sourceWorkspace) {
-				toastHost.error('The source Save File is no longer available.');
-				return;
-			}
-			await applySlotOperation(
-				{ kind: 'clear', source: pending.source },
-				{ state: sourceWorkspace, paneId: sourcePane.id }
-			);
-			statusMessage = `Moved ${sourceSlot.label} to Pokemon Storage.`;
-			return;
-		}
-
-		if (refreshed) {
-			statusMessage = `Copied ${sourceSlot.label} to Pokemon Storage.`;
-			toastHost.success(statusMessage);
-		}
-		queueMicrotask(focusActiveControl);
 	}
 
 	async function applySlotOperation(
@@ -5654,14 +5653,14 @@
 	inert={destinationInputSuspended}
 >
 	<section
-		class="storage-workspace pksx-density"
-		class:two-pane={workbenchPanes.length === 2}
+		class={['storage-workspace pksx-density', { 'two-pane': workbenchPanes.length === 2 }]}
 		aria-label="Party and box storage"
 	>
 		<div
-			class="box-pane-strip"
-			class:single-pane={workbenchPanes.length === 1}
-			class:many-panes={workbenchPanes.length >= 3}
+			class={[
+				'box-pane-strip',
+				{ 'single-pane': workbenchPanes.length === 1, 'many-panes': workbenchPanes.length >= 3 }
+			]}
 		>
 			{#each workbenchPanes as pane (pane.id)}
 				{@const paneActive = pane.id === activePaneId}
