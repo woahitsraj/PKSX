@@ -2921,7 +2921,8 @@ test('a committed Storage move cannot be retried when its projection refresh fai
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
 	await storagePane.locator('[id$="box-0-slot-0"]').click();
 	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
-	await storagePane.locator('[id$="box-0-slot-0"]').click();
+	await storagePane.locator('[id$="box-0-slot-0"]').focus();
+	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Dismiss Slot actions' }).click();
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
 	await page.evaluate(() => {
@@ -2932,7 +2933,8 @@ test('a committed Storage move cannot be retried when its projection refresh fai
 	await storagePane.locator('[id$="box-0-slot-1"]').click();
 	await expect(page.locator('.toast-error')).toContainText('Reload Boxes to refresh its Slots.');
 	await expect(page.locator('.carry-at-focus')).toHaveCount(0);
-	await storagePane.locator('[id$="box-0-slot-1"]').click();
+	await storagePane.locator('[id$="box-0-slot-1"]').focus();
+	await page.keyboard.press('Enter');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toHaveCount(0);
 	await page.goto('/?source=pokemon-storage');
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
