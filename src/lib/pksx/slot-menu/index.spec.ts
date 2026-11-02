@@ -17,7 +17,7 @@ const empty: SlotView = {
 };
 
 const occupied = { ...empty, label: 'Pikachu', speciesId: 25, kind: 'pokemon' } satisfies SlotView;
-const noDynamicActions = { edit: true, legality: true, evolve: false };
+const noDynamicActions = { edit: true, legality: true, evolve: false, trade: false };
 
 describe('Slot Menu commands', () => {
 	it('shows only Create Pokemon for a supported empty Slot', () => {
@@ -31,10 +31,19 @@ describe('Slot Menu commands', () => {
 			createSlotMenuCommands(empty, 'Pokemon Storage is unsupported.', noDynamicActions)
 		).toEqual([]);
 		expect(
-			createSlotMenuCommands(occupied, null, { edit: false, legality: false, evolve: false }).map(
-				({ label }) => label
-			)
+			createSlotMenuCommands(occupied, null, {
+				edit: false,
+				legality: false,
+				evolve: false,
+				trade: false
+			}).map(({ label }) => label)
 		).toEqual(['Move', 'Copy', 'Clear Slot']);
+	});
+
+	it('adds Trade with Switch only when the caller allows it', () => {
+		expect(
+			createSlotMenuCommands(occupied, null, { ...noDynamicActions, trade: true }).at(-1)?.label
+		).toBe('Trade with Switch');
 	});
 
 	it('adds Evolve only after the engine reports a direct evolution', () => {

@@ -8,7 +8,8 @@ export type SlotMenuCommandKey =
 	| 'copy'
 	| 'clear'
 	| 'export'
-	| 'legality-check';
+	| 'legality-check'
+	| 'trade-with-switch';
 
 export type SlotMenuCommand = {
 	key: SlotMenuCommandKey;
@@ -20,7 +21,7 @@ export type SlotMenuCommand = {
 export function createSlotMenuCommands(
 	slot: SlotView,
 	createPokemonReason: string | null,
-	capabilities: { edit: boolean; legality: boolean; evolve: boolean }
+	capabilities: { edit: boolean; legality: boolean; evolve: boolean; trade: boolean }
 ): SlotMenuCommand[] {
 	if (slot.kind === 'empty') {
 		return createPokemonReason
@@ -56,6 +57,16 @@ export function createSlotMenuCommands(
 			: []),
 		...(capabilities.evolve
 			? ([{ key: 'evolve', label: 'Evolve', availability: 'available', reason: null }] as const)
+			: []),
+		...(capabilities.trade
+			? ([
+					{
+						key: 'trade-with-switch',
+						label: 'Trade with Switch',
+						availability: 'available',
+						reason: null
+					}
+				] as const)
 			: [])
 	];
 }

@@ -19,7 +19,8 @@ export type SummonedWorkflowKind =
 	| 'pokemon-actions'
 	| 'legality-report'
 	| 'save-file-legality-report'
-	| 'backup-browser';
+	| 'backup-browser'
+	| 'trade-with-switch';
 
 export type SummonedWorkflowLauncher =
 	| {
