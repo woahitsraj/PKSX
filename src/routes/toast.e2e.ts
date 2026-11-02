@@ -25,6 +25,11 @@ test('one root Toast host delivers across Saves and Boxes without moving focus o
 	const announcements = notifications.getByRole('status');
 	await expect(announcements).toHaveCount(1);
 	await expect(announcements).toBeEmpty();
+	// The prerendered input ignores a file chosen before hydration.
+	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
 	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
 	await expect(announcements.filter({ hasText: 'imported and made active' })).toBeVisible({
 		timeout: 15_000
