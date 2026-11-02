@@ -42,6 +42,7 @@ import {
 	CONNECTION_RESPONSE,
 	contiguousThrough,
 	FLAG_APPLICATION_DATA,
+	FIRST_SEQUENCE,
 	inflate,
 	JOIN_REQUEST,
 	JOIN_RESPONSE,
@@ -617,8 +618,9 @@ export class SwshJoinSession {
 }
 
 interface Window {
+	pending: Map<number, Bytes>;
 	seqs: Set<number>;
-	through: number | null;
+	through: number;
 }
 
 /** The Pia half of `swsh_connect.main_async` under the `trade` preset. */
@@ -882,7 +884,11 @@ class PiaJoiner {
 		const st = this.st;
 		const windowKey = key(protocol, port);
 		let w = st.windows.get(windowKey);
-		if (!w) st.windows.set(windowKey, (w = { seqs: new Set(), through: null }));
+		if (!w)
+			st.windows.set(
+				windowKey,
+				(w = { pending: new Map(), seqs: new Set(), through: FIRST_SEQUENCE - 1 })
+			);
 		const got = parseReliableMessage(body);
 		if (got.isAck) {
 			let ids: number[];
@@ -897,28 +903,42 @@ class PiaJoiner {
 			}
 			return;
 		}
-		const payload = got.payload;
-		const fresh = !(w.seqs.size && got.sequence <= Math.max(...w.seqs));
-		if (fresh) {
-			st.saidByProto.set(protocol, payload);
-			st.saidByPort.set(windowKey, payload);
+		if (!w.seqs.has(got.sequence)) {
+			w.seqs.add(got.sequence);
+			w.pending.set(got.sequence, got.payload);
 		}
+		const through = contiguousThrough(w.seqs, w.through);
+		if (through === w.through) return;
+		for (let sequence = w.through + 1; sequence <= through; sequence++) {
+			const payload = w.pending.get(sequence);
+			if (payload) this.reliablePayload(protocol, port, payload, now);
+			w.pending.delete(sequence);
+		}
+		w.through = through;
+		const ack = buildAckMessage(through + 1, got.streamId);
+		void this.send(ack, protocol, {
+			port,
+			flags: RELIABLE_MESSAGE_FLAGS,
+			destination: DATA_DESTINATION
+		});
+	}
+
+	private reliablePayload(protocol: number, port: number, payload: Bytes, now: number): void {
+		const st = this.st;
+		st.saidByProto.set(protocol, payload);
+		st.saidByPort.set(key(protocol, port), payload);
 		if (protocol === RELIABLE_PROTOCOL) this.tradeRpc(payload, now);
 		if (protocol === MESH_PROTOCOL) this.migration(payload);
 		const command = parseBoxCommand(payload);
-		if (command !== null && fresh) this.boxCommand(command, now);
+		if (command !== null) this.boxCommand(command, now);
 		const offered = offeredPokemon(payload);
-		if (offered && fresh && this.ev.ladderFinished) {
+		if (offered && this.ev.ladderFinished) {
 			st.offeredAgain = true;
 			this.session.end('console-offered-again');
 		}
 		// A reselection before the ladder replaces the Trade Offer; the receipt must hold the last one.
 		const reselected =
-			offered &&
-			fresh &&
-			!this.ev.ladderStarted &&
-			this.ev.offered &&
-			!equal(offered, this.ev.offered);
+			offered && !this.ev.ladderStarted && this.ev.offered && !equal(offered, this.ev.offered);
 		if (offered && reselected) {
 			this.ev.offered = offered;
 			this.session.events.offer(offered);
@@ -933,17 +953,6 @@ class PiaJoiner {
 				st.pk8OfferSent = true;
 			}
 		}
-		if (w.through === null) w.through = got.sequence - 1;
-		w.seqs.add(got.sequence);
-		const through = contiguousThrough(w.seqs, w.through);
-		if (through === w.through) return;
-		w.through = through;
-		const ack = buildAckMessage(through + 1, got.streamId);
-		void this.send(ack, protocol, {
-			port,
-			flags: RELIABLE_MESSAGE_FLAGS,
-			destination: DATA_DESTINATION
-		});
 	}
 
 	private boxCommand(command: number, now: number): void {

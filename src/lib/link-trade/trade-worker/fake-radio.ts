@@ -215,6 +215,7 @@ export class FakeTradeRadio implements TradeSerialPort {
 	private snapshotRx = new SnapshotReceiver();
 	private snapshotFragments = new Map<number, Bytes>();
 	private snapshotAcked = 0;
+	private consoleStarted = false;
 	private flags = {
 		localAcked: false,
 		requested: false,
@@ -293,6 +294,7 @@ export class FakeTradeRadio implements TradeSerialPort {
 		} else if (type === CMD_STOP) {
 			this.stop.abort();
 			this.stop = new AbortController();
+			this.consoleStarted = false;
 			this.mode = 'idle';
 			this.result(type);
 		} else if (type === CMD_ETH_TX) {
@@ -412,7 +414,10 @@ export class FakeTradeRadio implements TradeSerialPort {
 		};
 		network.numParticipants = 2;
 		this.emit(MSG_RX_ETH, ethernetFrame(this.joinerMac!, CONSOLE_MAC, ETHERTYPE_LDN, frame));
-		void this.console();
+		if (!this.consoleStarted) {
+			this.consoleStarted = true;
+			void this.console();
+		}
 	}
 
 	// --- The console's Pia side ---
