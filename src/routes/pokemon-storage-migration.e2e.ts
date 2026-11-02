@@ -239,7 +239,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		expect(columns).toBeGreaterThan(0);
 		expect(await grid.getByRole('gridcell').count()).toBeLessThan(121);
 		await grid.evaluate((node) => (node.scrollTop = 0));
-		await page.locator('[data-record-id=\"virtual-000\"]').click();
+		await page.locator('[data-record-id="virtual-000"]').click();
 		await page.keyboard.press('Enter');
 		await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
 		await expect(
@@ -252,7 +252,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		await expect(page.getByRole('dialog', { name: 'Main Menu' })).toHaveCount(0);
 		await expect(page.getByRole('dialog', { name: 'Search Pokemon Storage' })).toHaveCount(0);
 		await page.keyboard.press('Escape');
-		await expect(page.locator('[data-record-id=\"virtual-000\"]')).toBeFocused();
+		await expect(page.locator('[data-record-id="virtual-000"]')).toBeFocused();
 		await page.keyboard.press('ArrowDown');
 		await expect(
 			page.locator(`[data-record-id="virtual-${String(columns).padStart(3, '0')}"]`)
