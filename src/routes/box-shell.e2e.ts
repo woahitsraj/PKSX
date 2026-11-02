@@ -2326,7 +2326,7 @@ test('transfer controls use current Controller Focus during deferred DOM focus',
 			button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
 			button.click();
 		});
-	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ILLUMISE');
+	await expect(selected.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ILLUMISE');
 });
 
 test('transfer controls discard a cached source when another pane becomes active', async ({

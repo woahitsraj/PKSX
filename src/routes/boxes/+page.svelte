@@ -3325,7 +3325,8 @@
 		pokemonEditor = null;
 		pokemonEditorPaneId = null;
 		pokemonEditorFeedback = null;
-		const sourceFocus = summonedSlotLauncher?.focus ?? activeSlotFocus ?? focusBoxSlot(0);
+		const sourceFocus =
+			source.zone === 'party' ? focusPartySlot(source.slot) : focusBoxSlot(source.slot);
 		summonedWorkflow.closeAll();
 		navigation = {
 			...navigation,
