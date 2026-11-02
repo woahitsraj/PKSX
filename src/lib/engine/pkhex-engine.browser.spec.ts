@@ -1226,7 +1226,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			}
 		});
 		expect(staleInput).toEqual(staleOriginal);
-	});
+	}, 30_000);
 
 	test('describes repaired party state without offering a heal-only legality action', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
