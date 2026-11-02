@@ -18,16 +18,20 @@ import vectors from './test-vectors.json';
 
 /** Real timers, `factor` times faster: the protocol's own timings, compressed. */
 function scaledClock(factor: number): Clock {
-	const start = performance.now();
+	let now = 0;
 	return {
-		now: () => (performance.now() - start) * factor,
+		now: () => now,
 		sleep: (ms, signal) =>
 			new Promise((resolve) => {
 				if (signal?.aborted) return resolve();
-				const timer = setTimeout(done, ms / factor);
-				signal?.addEventListener('abort', done, { once: true });
-				function done() {
+				const deadline = now + ms;
+				const timer = setTimeout(() => done(true), ms / factor);
+				const abort = () => done(false);
+				signal?.addEventListener('abort', abort, { once: true });
+				function done(elapsed: boolean) {
 					clearTimeout(timer);
+					signal?.removeEventListener('abort', abort);
+					if (elapsed) now = Math.max(now, deadline);
 					resolve();
 				}
 			})
