@@ -4,6 +4,7 @@ import type { QuickSearchResult } from '.';
 const quickSearchHostKey = Symbol('pksx-quick-search-host');
 
 export type QuickSearchSaveFile = {
+	scope: 'save-file' | 'pokemon-storage';
 	fileName: string;
 	isAvailable(): Promise<boolean>;
 	loadResults(): Promise<QuickSearchResult[]>;

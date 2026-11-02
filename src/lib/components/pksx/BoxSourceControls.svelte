@@ -38,9 +38,11 @@
 
 	<div class="box-title">
 		<h2
-			aria-label={source.location === 'party'
+			aria-label={source.location === 'virtual'
 				? source.activeBoxLabel
-				: `${source.activeBoxLabel}, Box ${String(source.activeBoxNumber).padStart(2, '0')} of ${source.boxCount}`}
+				: source.location === 'party'
+					? source.activeBoxLabel
+					: `${source.activeBoxLabel}, Box ${String(source.activeBoxNumber).padStart(2, '0')} of ${source.boxCount}`}
 		>
 			{source.activeBoxLabel}
 			<button
@@ -62,11 +64,17 @@
 		</h2>
 		<span>
 			<em
-				>{source.location === 'party'
-					? 'PARTY'
-					: `BOX ${String(source.activeBoxNumber).padStart(2, '0')}/${source.boxCount}`}</em
+				>{source.location === 'virtual'
+					? 'COLLECTION'
+					: source.location === 'party'
+						? 'PARTY'
+						: `BOX ${String(source.activeBoxNumber).padStart(2, '0')}/${source.boxCount}`}</em
 			>
-			<b>{source.occupied} / {source.capacity} occupied</b>
+			<b
+				>{source.location === 'virtual'
+					? `${source.occupied} Pokemon`
+					: `${source.occupied} / ${source.capacity} occupied`}</b
+			>
 		</span>
 	</div>
 

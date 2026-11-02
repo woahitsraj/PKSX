@@ -77,8 +77,14 @@ The current Box Pane composition, active Box Pane, and each pane's last meaningf
 _Avoid_: route state, URL state
 
 **Location**:
-A Party, Box, or Storage Box that a Box Pane shows one at a time.
+A Party, Box, Storage Box, or derived Pokemon Storage view that a Box Pane shows one at a time.
 _Avoid_: page, tab
+
+**All Pokemon**:
+A continuous virtualized Location containing every active Pokemon Storage record, including filed and Unfiled records. This is the first Location shown when opening Pokemon Storage without a saved Location preference.
+
+**Unfiled**:
+A continuous virtualized Location containing active Pokemon Storage records with no stored physical placement. A record with a placement that resolves into Overflow is not Unfiled.
 
 **Pokemon Origin**:
 A record of where a Pokemon Entity entered PKSX, such as the source Save File, source game, source trainer, entry time, and whether it entered through move, copy, import, or transfer.
@@ -688,14 +694,14 @@ _Avoid_: setting, option, config
 - The **Active Slot Detail Rail** reflects the **Slot** under **Controller Focus** and does not define a second selected **Slot**.
 - The **Active Slot Detail Rail** never takes **Controller Focus** and is not a **Focus Zone**.
 - A **Slot** may be under **Controller Focus** even when it is not a valid destination during a **Carry**.
-- **Controller Focus** targets a **Slot** or a control, never a **Pokemon Entity**; emptying the focused **Slot** leaves **Controller Focus** on it.
+- **Controller Focus** targets a **Slot** or a control; emptying a focused physical **Slot** leaves **Controller Focus** on it. In **All Pokemon** and **Unfiled**, record controls use **Record ID** so sorting and filtering retain the focused record when it remains visible.
 - A completed **Slot Action** with a destination moves **Controller Focus** to the destination **Slot**; one without a destination leaves it on the source **Slot**.
 - A **Carry** moves **Controller Focus** among **Slots**. The **Box Picker** is its only summoned-workflow exception: dismissal returns **Controller Focus** to the launching **Slot**, while selection moves it to the same coordinate in the chosen **Location**.
 - During a **Carry**, the **Box Picker** changes only the destination **Location**. **Box Source** switching and changes to the set, order, or names of **Locations** remain unavailable.
 - When the **Focus Zone** under **Controller Focus** disappears, **Controller Focus** moves to the active **Box Source**'s current **Location** at the same **Slot** coordinate, clamped to its grid.
 - A **Menu** or **Takeover** returns **Controller Focus** to its launching **Slot** or control by identity, even when that **Slot** is now empty; if the launching **Pokemon Action** no longer exists, its **Slot Menu** closes too and **Controller Focus** returns to the **Slot**.
 - **Controller Focus** is never hidden when its target disappears, for any input kind; it always moves to a surviving target.
-- A **Height Band** change or rotation never moves **Controller Focus**, because it binds to **Slot** identity rather than screen position.
+- A **Height Band** change or rotation never moves **Controller Focus**, because it binds to **Slot** or record-control identity rather than screen position.
 - **Controller Focus** clamps at a **Focus Zone** edge unless that edge defines an explicit transition to another **Focus Zone**.
 - Each **Box Pane** is one **Focus Zone** containing its **Box Source** control, **Box Picker** launcher, and the visible **Slots** in its current **Location**.
 - Switching between **Locations** in a **Box Pane** preserves the focused **Slot** coordinate when possible and clamps it to the destination grid.

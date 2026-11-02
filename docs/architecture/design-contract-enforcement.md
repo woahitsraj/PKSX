@@ -221,7 +221,7 @@ Y has no rest action and toggles move or copy only during Carry. The Box Menu is
 
 Source: [#162](https://github.com/woahitsraj/PKSX/issues/162), [#201](https://github.com/woahitsraj/PKSX/issues/201), and the focus relationships in [CONTEXT.md](../../CONTEXT.md).
 
-Controller Focus remains independent of browser DOM focus and binds to a Slot or control identity, never a Pokemon Entity or screen coordinate. One visible Slot highlight drives the Active Slot Detail Rail. There is no separate selected Slot.
+Controller Focus remains independent of browser DOM focus and binds to a Slot or control identity in physical Locations, never a screen coordinate. In All Pokemon and Unfiled, the focused record control is keyed by Record ID so sorting and filtering do not change its identity; if that record leaves the view, focus moves to an available record or the Location control. One visible Slot highlight drives the Active Slot Detail Rail. There is no separate selected Slot.
 
 Keyboard and gamepad produce the same Navigation Actions. Held directional actions repeat after an initial delay. Every non-directional command requires a fresh press. Slot collections expose grid semantics, and browser keyboard navigation reaches major interactive regions.
 

@@ -24,7 +24,7 @@ export async function catalogLegacyView(
 	const visible = new Map(service.listResolvedPlacements().map((item) => [item.recordId, item]));
 	for (const record of manifest.records) {
 		const placement = visible.get(record.recordId)?.placement;
-		if (!placement) throw new Error('Pokemon Storage contains a record outside physical boxes.');
+		if (!placement) continue;
 		const box = boxes.findIndex((item) => item.id === placement.storageBoxId);
 		if (box < 0) throw new Error('Pokemon Storage placement is unavailable.');
 		const payload = await service.readPayload(record.recordId);

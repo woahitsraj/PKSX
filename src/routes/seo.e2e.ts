@@ -49,7 +49,7 @@ test('old Saves links work, Boxes opens directly, and only public content is in 
 	await page.goto('/saves');
 	await expect(page).toHaveURL(/\/$/);
 	await page.goto('/boxes');
-	await expect(page.locator('#box-grid')).toBeVisible();
+	await expect(page.getByRole('grid', { name: 'All Pokemon', exact: true })).toBeVisible();
 	await expect(page).toHaveURL(/\/boxes$/);
 	for (const route of ['/boxes', '/prototype/density']) {
 		const html = await (await request.get(route)).text();

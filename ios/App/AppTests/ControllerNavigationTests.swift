@@ -338,15 +338,34 @@ final class ControllerNavigationTests: XCTestCase {
     private func controllerSurface() async throws -> WKWebView {
         let webView = try appWebView()
         try await waitForJavaScript(
-            "document.readyState === 'complete' && document.querySelector('.main-menu-opener') !== null && ((document.querySelector('.boxes-route')?.dataset.initialState === 'ready' && document.querySelector('#box-grid')?.getClientRects().length > 0) || (document.querySelector('[data-destination-root]')?.dataset.destinationRoot !== 'boxes' && document.querySelector('[data-destination-root]')?.dataset.initialState === 'ready'))",
+            "document.readyState === 'complete' && document.querySelector('.main-menu-opener') !== null && ((document.querySelector('.boxes-route')?.dataset.initialState === 'ready' && document.querySelector('#box-grid, .virtual-browser .viewport')?.getClientRects().length > 0) || (document.querySelector('[data-destination-root]')?.dataset.destinationRoot !== 'boxes' && document.querySelector('[data-destination-root]')?.dataset.initialState === 'ready'))",
             in: webView,
             timeout: 60
         )
-        let hasBoxGrid = try await webView.evaluateJavaScript(
-            "document.querySelector('#box-grid') !== null"
+        let hasBoxes = try await webView.evaluateJavaScript(
+            "document.querySelector('.boxes-route') !== null"
         ) as? Bool
-        if hasBoxGrid != true {
+        if hasBoxes != true {
             try await chooseMainMenu("Boxes", in: webView)
+        }
+        try await waitForJavaScript(
+            "document.querySelector('.boxes-route')?.dataset.initialState === 'ready'",
+            in: webView
+        )
+        let hasVirtualGrid = try await webView.evaluateJavaScript(
+            "document.querySelector('.virtual-browser') !== null"
+        ) as? Bool
+        if hasVirtualGrid == true {
+            _ = try await webView.evaluateJavaScript(
+                "document.querySelector('[aria-label=\"Open Box Picker for Pokemon Storage\"]').click()"
+            )
+            try await waitForJavaScript(
+                "document.querySelector('[aria-label^=\"Box 01:\"]') !== null",
+                in: webView
+            )
+            _ = try await webView.evaluateJavaScript(
+                "document.querySelector('[aria-label^=\"Box 01:\"]').click()"
+            )
         }
         try await waitForJavaScript(
             "document.readyState === 'complete' && document.querySelector('.boxes-route')?.dataset.initialState === 'ready' && document.querySelector('#box-grid')?.getClientRects().length > 0",

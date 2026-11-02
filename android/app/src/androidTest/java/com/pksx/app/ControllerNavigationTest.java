@@ -2002,12 +2002,18 @@ public class ControllerNavigationTest {
             "document.readyState === 'complete'"
                 + " && document.querySelector('.main-menu-opener')"
                 + " && ((document.querySelector('.boxes-route')?.dataset.initialState === 'ready'"
-                + " && document.querySelector('#box-grid')?.getClientRects().length > 0)"
+                + " && document.querySelector('#box-grid, .virtual-browser .viewport')?.getClientRects().length > 0)"
                 + " || (document.querySelector('[data-destination-root]')?.dataset.destinationRoot !== 'boxes'"
                 + " && document.querySelector('[data-destination-root]')?.dataset.initialState === 'ready'))"
         );
-        if (!"true".equals(runJavaScript("Boolean(document.querySelector('#box-grid'))"))) {
+        if (!"true".equals(runJavaScript("Boolean(document.querySelector('.boxes-route'))"))) {
             chooseMainMenu("Boxes");
+        }
+        awaitJavaScript("document.querySelector('.boxes-route')?.dataset.initialState === 'ready'");
+        if ("true".equals(runJavaScript("Boolean(document.querySelector('.virtual-browser'))"))) {
+            runJavaScript("document.querySelector('[aria-label=\"Open Box Picker for Pokemon Storage\"]').click()");
+            awaitJavaScript("Boolean(document.querySelector('[aria-label^=\"Box 01:\"]'))");
+            runJavaScript("document.querySelector('[aria-label^=\"Box 01:\"]').click()");
         }
         awaitJavaScript(
             "document.readyState === 'complete'"
