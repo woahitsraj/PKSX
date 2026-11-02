@@ -3440,10 +3440,11 @@ test('keeps both Pokemon recoverable when Save clearing fails after Storage comm
 	await expect(page.locator('.box-pane.active-pane #box-0-slot-0')).toContainText('ARON');
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
-	await page
-		.getByRole('dialog', { name: 'Slot actions' })
-		.getByRole('button', { name: 'Clear Slot' })
-		.click();
+	const slotActions = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(slotActions.locator('.slot-context')).not.toHaveAttribute('aria-busy', 'true', {
+		timeout: 15000
+	});
+	await slotActions.getByRole('button', { name: 'Clear Slot' }).click();
 	await page.getByRole('button', { name: 'Confirm Clear' }).click();
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
 	expect((await backupRecords(page)).map(({ reason }) => reason)).toEqual(['pokemon-movement']);
