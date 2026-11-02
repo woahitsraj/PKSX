@@ -194,6 +194,10 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		manifest.records.push(
 			...Array.from({ length: 120 }, (_, index) => ({
 				...template,
+				projection: {
+					...(template.projection as Record<string, unknown>),
+					nickname: index === 119 ? 'Distant' : 'ARON'
+				},
 				recordId: `virtual-${String(index).padStart(3, '0')}`,
 				placement: null,
 				createdAt: '2030-01-01T00:00:00Z'
@@ -308,4 +312,14 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	await filter.focus();
 	await page.setViewportSize({ width: 900, height: 800 });
 	await expect(filter).toBeFocused();
+	await filter.fill('no-match');
+	await expect(virtualGrid.getByRole('gridcell')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Open Main Menu' }).click();
+	await page
+		.getByRole('dialog', { name: 'Main Menu' })
+		.getByRole('button', { name: /^Search/ })
+		.click();
+	await search.getByRole('searchbox').fill('Distant');
+	await search.getByRole('button', { name: /Distant, Aron/ }).click();
+	await expect(page.locator('[data-record-id="virtual-119"]')).toBeFocused();
 });

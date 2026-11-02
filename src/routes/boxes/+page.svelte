@@ -5449,7 +5449,9 @@
 					};
 					persistVirtualPreferences();
 					catalogManifest = getPokemonStorageCatalog().current;
+					await tick();
 					focusVirtualRecord(result.recordId);
+					await tick();
 					return virtualRecordControlId(paneId, result.recordId);
 				}
 			};
