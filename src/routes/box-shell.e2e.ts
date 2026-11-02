@@ -606,6 +606,10 @@ async function openDuplicateEmeraldPanes(page: Page) {
 
 	const panes = page.locator('.box-pane');
 	await expect(panes).toHaveCount(2);
+	await expect(panes.nth(1).locator('[id$="box-0-slot-1"]')).toContainText('ILLUMISE', {
+		timeout: 15000
+	});
+	await expect(panes.nth(1).locator('[id$="box-0-slot-1"]')).toBeEnabled();
 	return panes;
 }
 
@@ -2463,13 +2467,14 @@ test('switching panes preserves a requested Box while its slots load', async ({ 
 	const firstPane = panes.first();
 	const requestedPane = panes.nth(1);
 
-	await requestedPane.getByRole('button', { name: 'Next Location' }).click();
-	await expect(requestedPane.getByRole('heading', { name: 'BOX2' })).toBeVisible();
-	await requestedPane.getByRole('grid').focus();
-	await holdWorkspaceResponses(page, 1, 'listBoxSlots');
-	await page.keyboard.press('PageDown');
+	await holdWorkspaceResponses(page, 1, 'loadSaveWorkspace');
+	await requestedPane.getByRole('button', { name: /Open Box Picker/ }).click();
+	await page
+		.getByRole('dialog', { name: 'Choose a Box' })
+		.getByRole('button', { name: /^Box 14: BOX14/ })
+		.click();
 	await waitForHeldWorkspaceResponses(page);
-	await expect(requestedPane.locator('[id$="box-1-slot-0"]')).toBeDisabled();
+	await expect(requestedPane.locator('[id$="box-0-slot-0"]')).toBeDisabled();
 	await expect(
 		page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' })
 	).toBeDisabled();
@@ -2479,9 +2484,9 @@ test('switching panes preserves a requested Box while its slots load', async ({ 
 	await requestedPane.getByRole('grid').focus();
 
 	await expect(requestedPane).toHaveClass(/active-pane/);
-	await expect(requestedPane).toHaveAttribute('data-location', 'box-2');
-	await expect(requestedPane.getByRole('heading', { name: 'BOX3' })).toBeVisible();
-	await expect(requestedPane.locator('[id$="box-2-slot-0"]')).toBeEnabled();
+	await expect(requestedPane).toHaveAttribute('data-location', 'box-13');
+	await expect(requestedPane.getByRole('heading', { name: 'BOX14' })).toBeVisible();
+	await expect(requestedPane.locator('[id$="box-13-slot-0"]')).toBeEnabled();
 });
 
 test('duplicate Save panes retain a published Party mutation while refreshing another Box', async ({

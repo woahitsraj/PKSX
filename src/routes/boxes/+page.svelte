@@ -1231,7 +1231,6 @@
 		if (!nextPane) return false;
 
 		activatePane(nextPane);
-		slotNavigationRevision += 1;
 		navigation = {
 			...navigation,
 			activeBox: nextPane.activeBox,
@@ -3174,6 +3173,7 @@
 		operation: SlotOperation,
 		context?: { state: WorkspaceState; paneId: string }
 	): Promise<boolean> {
+		const navigationRevision = slotNavigationRevision;
 		const operationState = context?.state ?? loadedSave;
 		if (!operationState) {
 			toastHost.error('Load a Save File before changing Slots.');
@@ -3238,37 +3238,39 @@
 			invalidateSavesCache();
 			pendingSlotOperation = null;
 			carryState = null;
-			const focusRef = result.focusRef;
-			if (focusRef.zone === 'box') {
-				const focusPane = context?.paneId
-					? workbenchPanes.find((pane) => pane.id === context.paneId)
-					: (workbenchPanes.find(
-							(pane) => pane.source.type === 'save-file' && pane.source.id === nextState.file.id
-						) ?? activePane);
-				if (focusPane) {
-					workbenchPanes = setPaneActiveBox(workbenchPanes, focusPane.id, focusRef.box);
+			if (slotNavigationRevision === navigationRevision) {
+				const focusRef = result.focusRef;
+				if (focusRef.zone === 'box') {
+					const focusPane = context?.paneId
+						? workbenchPanes.find((pane) => pane.id === context.paneId)
+						: (workbenchPanes.find(
+								(pane) => pane.source.type === 'save-file' && pane.source.id === nextState.file.id
+							) ?? activePane);
+					if (focusPane) {
+						workbenchPanes = setPaneActiveBox(workbenchPanes, focusPane.id, focusRef.box);
+					}
 				}
-			}
-			const resultFocus =
-				focusRef.zone === 'party' ? focusPartySlot(focusRef.slot) : focusBoxSlot(focusRef.slot);
-			navigation = {
-				...navigation,
-				activeBox: focusRef.zone === 'box' ? focusRef.box : operationBox,
-				boxCount: Math.max(1, result.state.workspace.summary.boxCount),
-				focus: resultFocus,
-				locationFocus: resultFocus
-			};
-			const resultPane = context?.paneId
-				? workbenchPanes.find((pane) => pane.id === context.paneId)
-				: workbenchPanes.find(
-						(pane) => pane.source.type === 'save-file' && pane.source.id === nextState.file.id
-					);
-			if (resultPane) {
-				activePaneId = resultPane.id;
-				workbenchPanes = setPaneFocus(workbenchPanes, resultPane.id, resultFocus);
+				const resultFocus =
+					focusRef.zone === 'party' ? focusPartySlot(focusRef.slot) : focusBoxSlot(focusRef.slot);
+				navigation = {
+					...navigation,
+					activeBox: focusRef.zone === 'box' ? focusRef.box : operationBox,
+					boxCount: Math.max(1, result.state.workspace.summary.boxCount),
+					focus: resultFocus,
+					locationFocus: resultFocus
+				};
+				const resultPane = context?.paneId
+					? workbenchPanes.find((pane) => pane.id === context.paneId)
+					: workbenchPanes.find(
+							(pane) => pane.source.type === 'save-file' && pane.source.id === nextState.file.id
+						);
+				if (resultPane) {
+					activePaneId = resultPane.id;
+					workbenchPanes = setPaneFocus(workbenchPanes, resultPane.id, resultFocus);
+				}
+				queueMicrotask(focusActiveControl);
 			}
 			statusMessage = result.message;
-			queueMicrotask(focusActiveControl);
 			return true;
 		} catch (error) {
 			const message = getErrorMessage(error);
@@ -3895,6 +3897,7 @@
 
 	function activatePane(pane: BoxPaneState, restoreFocus = true) {
 		if (pane.id === activePaneId) return;
+		slotNavigationRevision += 1;
 		transferDomSource = null;
 		lastDomFocusedSaveSlot = null;
 		preserveActivePaneNavigation();
@@ -7072,6 +7075,14 @@
 													const focus = paneParty
 														? focusPartySlot(slot.slot)
 														: focusBoxSlot(slot.slot);
+													if (
+														pane.id !== activePaneId ||
+														navigation.activeBox !== pane.activeBox ||
+														navigation.locationFocus.zone !== focus.zone ||
+														navigation.locationFocus.slot !== focus.slot
+													) {
+														slotNavigationRevision += 1;
+													}
 													if (pane.id !== activePaneId) {
 														preserveActivePaneNavigation();
 													}
