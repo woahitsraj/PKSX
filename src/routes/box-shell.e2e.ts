@@ -2570,6 +2570,7 @@ test('Pokemon Storage opens as an independent second pane and persists copied Po
 	await seedPokemonStorageBoxes(page, 3);
 	await page.reload();
 	await importEmeraldThroughSaves(page);
+	await page.evaluate(() => localStorage.removeItem('pksx-last-storage-location-v1'));
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('x');
 	await page
@@ -2593,6 +2594,9 @@ test('Pokemon Storage opens as an independent second pane and persists copied Po
 		await panes.evaluateAll((elements) => elements.map((pane) => pane.dataset.sourceId))
 	).toEqual([expect.not.stringMatching(/^pokemon-storage$/), 'pokemon-storage']);
 
+	await expect(storagePane).toHaveAttribute('data-location', 'all-pokemon');
+	await storagePane.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /Box 01: Box 01/ }).click();
 	await storagePane.getByRole('button', { name: 'Next Location' }).click();
 	await expect(storagePane).toHaveAttribute('data-location', 'box-1');
 	await storagePane.locator('[id$="box-1-slot-8"]').click();

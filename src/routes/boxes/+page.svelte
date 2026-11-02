@@ -3416,6 +3416,16 @@
 		document.getElementById('quick-save-import')?.click();
 	}
 
+	function initializeStorageLocation(paneId: string) {
+		const location = localStorage.getItem('pksx-last-storage-location-v1') ?? 'all-pokemon';
+		virtualPaneIds = virtualPaneIds.filter((id) => id !== paneId);
+		if (location !== 'all-pokemon' && location !== 'unfiled') return;
+		virtualPaneIds = [...virtualPaneIds, paneId];
+		virtualPaneLocations = { ...virtualPaneLocations, [paneId]: location };
+		virtualFocusedId =
+			virtualRecords(catalogManifest, { ...virtualPreferences, location })[0]?.recordId ?? null;
+	}
+
 	function openSourceAsPane(type: BoxSourceType, saveFileId: string | null = null) {
 		if (sourcePickerTargetPaneId) {
 			void switchPaneToSource(sourcePickerTargetPaneId, type, saveFileId);
@@ -3434,6 +3444,7 @@
 			id,
 			boxCount: sourceBoxCount
 		});
+		if (source.type === 'pokemon-storage') initializeStorageLocation(id);
 		const openedPane = workbenchPanes.find((pane) => pane.id === id);
 		activePaneId = id;
 		navigation = {
@@ -3501,6 +3512,7 @@
 		if (!selectionIsCurrent()) return;
 
 		workbenchPanes = switchPaneSource(workbenchPanes, paneId, source, targetBoxCount);
+		if (source.type === 'pokemon-storage') initializeStorageLocation(paneId);
 		const switchedPane = workbenchPanes.find((candidate) => candidate.id === paneId);
 		activePaneId = paneId;
 		navigation = {
@@ -5798,17 +5810,11 @@
 					});
 			workbenchPanes = session.panes;
 			activePaneId = session.activePaneId;
-			virtualPaneIds = ['all-pokemon', 'unfiled'].includes(
-				localStorage.getItem('pksx-last-storage-location-v1') ?? 'all-pokemon'
-			)
-				? session.panes
-						.filter((pane) => pane.source.type === 'pokemon-storage')
-						.map((pane) => pane.id)
-				: [];
-			virtualPaneLocations = Object.fromEntries(
-				virtualPaneIds.map((id) => [id, virtualPreferences.location])
-			);
-			virtualFocusedId = virtualRecords(catalogManifest, virtualPreferences)[0]?.recordId ?? null;
+			virtualPaneIds = [];
+			virtualPaneLocations = {};
+			for (const pane of session.panes) {
+				if (pane.source.type === 'pokemon-storage') initializeStorageLocation(pane.id);
+			}
 
 			await Promise.all(
 				workbenchPanes.map(async (pane) => {
