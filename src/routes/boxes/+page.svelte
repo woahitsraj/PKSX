@@ -3891,6 +3891,8 @@
 
 	function activatePane(pane: BoxPaneState, restoreFocus = true) {
 		if (pane.id === activePaneId) return;
+		transferDomSource = null;
+		lastDomFocusedSaveSlot = null;
 		preserveActivePaneNavigation();
 		activePaneId = pane.id;
 		if (pane.source.type === 'pokemon-storage' && virtualPaneIds.includes(pane.id)) {

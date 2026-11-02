@@ -2317,6 +2317,22 @@ test('transfer controls use current Controller Focus during deferred DOM focus',
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ILLUMISE');
 });
 
+test('transfer controls discard a cached source when another pane becomes active', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	const panes = await openDuplicateEmeraldPanes(page);
+	const firstPane = panes.first();
+	const secondPane = panes.nth(1);
+
+	await secondPane.locator('[id$="box-0-slot-1"]').focus();
+	await firstPane.locator('[id$="box-0-slot-0"]').focus();
+	await secondPane.getByRole('grid').focus();
+	await expect(secondPane).toHaveClass(/active-pane/);
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ILLUMISE');
+});
+
 test('transfer controls ignore a stale active descendant after pointer focus cache expires', async ({
 	page
 }) => {
