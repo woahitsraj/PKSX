@@ -438,6 +438,7 @@ _Avoid_: setting, option, config
 - Adding, removing, or reinterpreting a synchronized payload field increments that kind's **Sync Payload** version; changing common metadata or canonicalization increments the **Sync Envelope** version.
 - A new **Sync Object** kind begins its own **Sync Payload** version sequence at version 1 and is unsupported by clients that do not recognize the kind.
 - Missing causal ancestors make a **Sync Revision** incomplete until those ancestors are available; a **Sync Ancestry Record** makes an ancestor available.
+- An incomplete incoming change stays staged without surfacing and never pauses publishing; if it later completes, it arrives as a normal incoming state under the causal replacement rule.
 - An initial **Sync Revision** has no parents, an ordinary edit or deletion has one parent, an automatically migrated older-client edit has both the edit and schema-only head as parents, and a **Conflict Resolution** has every competing head it supersedes as parents.
 - PKSX may coalesce competing **Sync Revisions** automatically only when their complete synchronized content and metadata are identical.
 - Naming a parent means the child **Sync Revision** causally supersedes it; it does not imply that PKSX merged differing content automatically.
@@ -456,6 +457,11 @@ _Avoid_: setting, option, config
 - **Shared Sync State** identifies the last complete, valid state accepted for cross-device distribution; it does not replace divergent local work.
 - A successfully persisted local change becomes a **Pending Sync Change** without blocking further local work.
 - A **Sync Object** has at most one **Pending Sync Change**; further local saves extend it, and intermediate saves never become **Sync Revisions**, so pending work does not grow with the number of edits.
+- PKSX creates the **Sync Revision** for a **Pending Sync Change** when it publishes, from the object's current local state.
+- A local change made while a **Sync Revision** is publishing becomes a new **Pending Sync Change** whose revision descends from the publishing one.
+- PKSX publishes a **Pending Sync Change** after its **Sync Object** has had no local saves for 30 seconds, or 5 minutes after the change began during continuous saving, and tries to publish it when the app goes to the background.
+- A transient Cloud Sync failure retries without an attempt or time limit and never surfaces to the user, however long a **Pending Sync Change** stays unpublished.
+- Cloud Sync surfaces a failure only when PKSX has proof that retrying cannot succeed and one user action fixes it: sign in, update PKSX, or free storage. Any other failure counts as transient, and no timer or attempt count escalates it.
 - Provider filenames, paths, timestamps, ordering, and object versions do not advance **Shared Sync State**.
 - PKSX automatically accepts an incoming **Sync Object** state only when it descends from the exact **Shared Sync State** acknowledged by that **PKSX Installation** and either no **Pending Sync Change** exists or the incoming state causally includes every pending change.
 - Unknown or divergent ancestry never establishes authority; PKSX preserves every distinct competing state for explicit conflict resolution.
