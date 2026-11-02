@@ -3329,7 +3329,7 @@
 			return null;
 		const paneId = element.closest<HTMLElement>('[data-pane-id]')?.dataset.paneId;
 		const pane = workbenchPanes.find((candidate) => candidate.id === paneId);
-		if (!pane || pane.source.type !== 'save-file') return null;
+		if (!pane) return null;
 
 		const party = element.id.match(/party-slot-(\d+)$/);
 		const box = element.id.match(/box-(\d+)-slot-(\d+)$/);
@@ -3346,7 +3346,7 @@
 	function controllerFocusedSaveSlot(): DomFocusedSaveSlot | null {
 		const pane = activePane;
 		const focus = isSlotFocus(navigation.focus) ? navigation.focus : navigation.locationFocus;
-		if (!pane || pane.source.type !== 'save-file' || !isSlotFocus(focus)) return null;
+		if (!pane || !isSlotFocus(focus)) return null;
 		const ref: SaveSlotRef =
 			focus.zone === 'party'
 				? { zone: 'party', slot: focus.slot }
@@ -3878,6 +3878,7 @@
 
 	function activatePane(pane: BoxPaneState, restoreFocus = true) {
 		if (pane.id === activePaneId) return;
+		workbenchPanes = setPaneFocus(workbenchPanes, activePaneId, navigation.locationFocus);
 		activePaneId = pane.id;
 		if (pane.source.type === 'pokemon-storage' && virtualPaneIds.includes(pane.id)) {
 			const records = virtualRecords(catalogManifest, {
@@ -7019,6 +7020,13 @@
 													const focus = paneParty
 														? focusPartySlot(slot.slot)
 														: focusBoxSlot(slot.slot);
+													if (pane.id !== activePaneId) {
+														workbenchPanes = setPaneFocus(
+															workbenchPanes,
+															activePaneId,
+															navigation.locationFocus
+														);
+													}
 													activePaneId = pane.id;
 													navigation = {
 														...navigation,

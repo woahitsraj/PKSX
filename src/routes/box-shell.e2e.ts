@@ -2321,6 +2321,66 @@ test('transfer controls ignore a stale active descendant after pointer focus cac
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'copy ARON');
 });
 
+test('transfer controls use current Controller Focus in Pokemon Storage', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('x');
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+
+	const panes = page.locator('.box-pane');
+	const savePane = panes.first();
+	const storagePane = panes.nth(1);
+	await savePane.locator('[id$="box-0-slot-0"]').focus();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	await storagePane.locator('[id$="box-0-slot-0"]').click();
+	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+	await page.keyboard.press('Escape');
+	await savePane.locator('[id$="box-0-slot-1"]').focus();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
+	await storagePane.locator('[id$="box-0-slot-1"]').click();
+	await expect(storagePane.locator('[id$="box-0-slot-1"]')).toContainText('ILLUMISE');
+	await page.keyboard.press('Escape');
+	await storagePane.locator('[id$="box-0-slot-0"]').focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(storagePane.locator('[id$="box-0-slot-1"]')).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ILLUMISE');
+});
+
+test('switching panes preserves deferred Controller Focus in each pane', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	const panes = await openDuplicateEmeraldPanes(page);
+	const firstPane = panes.first();
+	const secondPane = panes.nth(1);
+
+	await firstPane.locator('[id$="box-0-slot-0"]').focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(firstPane.getByRole('grid')).toHaveAttribute(
+		'aria-activedescendant',
+		'box-0-slot-1'
+	);
+	await secondPane.getByRole('grid').focus();
+	await expect(secondPane).toHaveClass(/active-pane/);
+	await firstPane.getByRole('grid').focus();
+	await expect(firstPane).toHaveClass(/active-pane/);
+	await expect(firstPane.getByRole('grid')).toHaveAttribute(
+		'aria-activedescendant',
+		'box-0-slot-1'
+	);
+});
+
 test('duplicate Save panes retain a published Party mutation while refreshing another Box', async ({
 	page
 }) => {
