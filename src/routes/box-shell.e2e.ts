@@ -3437,8 +3437,9 @@ test('keeps both Pokemon recoverable when Save clearing fails after Storage comm
 		'aria-label',
 		/emerald-011020251345\.sav/
 	);
-	await expect(page.locator('.box-pane.active-pane #box-0-slot-0')).toContainText('ARON');
-	await page.locator('#box-grid').focus();
+	const recoveredSlot = page.locator('#box-0-slot-0');
+	await expect(recoveredSlot).toContainText('ARON');
+	await recoveredSlot.focus();
 	await page.keyboard.press('Enter');
 	const slotActions = page.getByRole('dialog', { name: 'Slot actions' });
 	await expect(slotActions.locator('.slot-context')).not.toHaveAttribute('aria-busy', 'true', {
