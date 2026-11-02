@@ -741,6 +741,16 @@
 	}
 
 	function dispatch(action: NavigationAction) {
+		if (
+			action === 'confirm' &&
+			!activeSummonedWorkflow &&
+			!busy &&
+			document.activeElement instanceof HTMLButtonElement &&
+			document.activeElement.matches('[data-virtual-action], [data-cancel-virtual-carry]')
+		) {
+			document.activeElement.click();
+			return;
+		}
 		if (dispatchToActiveSurface(action)) return;
 		dispatchNavigation(action);
 	}
@@ -842,14 +852,6 @@
 	}
 
 	function dispatchNavigation(action: NavigationAction) {
-		if (
-			action === 'confirm' &&
-			document.activeElement instanceof HTMLButtonElement &&
-			document.activeElement.matches('[data-virtual-action]')
-		) {
-			document.activeElement.click();
-			return;
-		}
 		if (activeVirtualLocation && activePane && navigation.focus.zone !== 'paneControls') {
 			if (action === 'confirm' && virtualFocusedId) {
 				openVirtualActionMenu(virtualFocusedId);
@@ -1858,11 +1860,7 @@
 		)
 			return;
 		const action = keyboardAction(event);
-		if (
-			activeVirtualLocation &&
-			event.target instanceof HTMLElement &&
-			event.target.closest('.virtual-browser .filters')
-		)
+		if (event.target instanceof HTMLElement && event.target.closest('.virtual-browser .filters'))
 			return;
 
 		if (!action) {
@@ -6346,6 +6344,7 @@
 									class="pane-close"
 									data-pksx-control-category="small"
 									aria-label="Cancel Carry"
+									data-cancel-virtual-carry
 									onclick={cancelVirtualCarry}>×</button
 								>
 							{/if}

@@ -2999,6 +2999,13 @@ test('shared Carry and arrows use the focused virtual record in a Save and Stora
 	await storagePane.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: /All Pokemon: All Pokemon/ }).click();
 	const grid = storagePane.getByRole('grid', { name: 'All Pokemon' });
+	await savePane.locator('[id$="box-0-slot-0"]').click();
+	const filter = storagePane.getByRole('searchbox', { name: 'Filter Pokemon' });
+	await filter.focus();
+	await page.keyboard.type('x');
+	await expect(filter).toHaveValue('x');
+	await expect(page.getByRole('dialog', { name: 'Box Menu' })).toBeHidden();
+	await filter.fill('');
 	const columns = Number(await grid.getAttribute('aria-colcount'));
 	expect(columns).toBeGreaterThan(1);
 	await savePane.locator('[id$="box-0-slot-0"]').click();
