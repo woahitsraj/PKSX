@@ -40,7 +40,6 @@
 	const rows = $derived(Math.ceil(records.length / columns));
 	const startRow = $derived(Math.max(0, Math.floor(scrollTop / rowHeight) - 2));
 	const endRow = $derived(Math.min(rows, Math.ceil((scrollTop + height) / rowHeight) + 2));
-	const visible = $derived(records.slice(startRow * columns, endRow * columns));
 	const games = $derived(
 		[
 			...new Set(
@@ -50,7 +49,12 @@
 			)
 		].sort()
 	);
-	const modes = ['moved-in', 'copied-in', 'imported', 'transferred-in'];
+	const entryModeLabels: Record<PokemonRecord['origin']['entryMode'], string> = {
+		'moved-in': 'Moved',
+		'copied-in': 'Copied',
+		imported: 'Imported',
+		'transferred-in': 'Transferred'
+	};
 	function measure(node: HTMLDivElement) {
 		viewport = node;
 		const observer = new ResizeObserver(() => {
@@ -78,18 +82,16 @@
 	}
 </script>
 
-<div class="virtual-browser" style:--row-height={`${rowHeight}px`}>
+<div class="virtual-browser" style:--row-height={`${rowHeight}px`} style:--card-gap={`${gap}px`}>
 	<div class="filters" aria-label="Pokemon filters and sort">
 		<input
 			type="search"
-			data-pksx-control-category="composition"
 			aria-label="Filter Pokemon"
 			placeholder="Species, nickname, trainer"
 			value={preferences.filters.query}
 			oninput={(event) => updateFilters({ query: event.currentTarget.value })}
 		/>
 		<select
-			data-pksx-control-category="composition"
 			aria-label="Sort Pokemon"
 			value={preferences.sort}
 			onchange={(event) =>
@@ -104,7 +106,6 @@
 			<option value="level">Highest level</option>
 		</select>
 		<select
-			data-pksx-control-category="composition"
 			aria-label="Origin game"
 			value={preferences.filters.originGame}
 			onchange={(event) => updateFilters({ originGame: event.currentTarget.value })}
@@ -113,14 +114,13 @@
 			{#each games as game (game)}<option value={game}>{game}</option>{/each}
 		</select>
 		<select
-			data-pksx-control-category="composition"
 			aria-label="Entry mode"
 			value={preferences.filters.entryMode}
 			onchange={(event) => updateFilters({ entryMode: event.currentTarget.value })}
 		>
 			<option value="">All origins</option>
-			{#each modes as mode (mode)}<option value={mode}
-					>{mode.replace('-in', '').replace('-', ' ')}</option
+			{#each Object.entries(entryModeLabels) as [mode, label] (mode)}<option value={mode}
+					>{label}</option
 				>{/each}
 		</select>
 		<label class="shiny"
@@ -143,59 +143,64 @@
 	>
 		{#if records.length === 0}<p class="empty">No Pokemon match this view.</p>{/if}
 		<div class="spacer" style={`--virtual-height: ${rows * rowHeight}px`}>
-			<div
-				class="cards"
-				style:top={`${startRow * rowHeight}px`}
-				style:grid-template-columns={`repeat(${columns}, minmax(0, 1fr))`}
-			>
-				{#each visible as record, offset (record.recordId)}
-					{@const index = startRow * columns + offset}
-					<div class="card" role="row">
-						<button
-							data-pksx-control-category="card"
-							id={`virtual-record-${record.recordId}`}
-							class:focused={focusedId === record.recordId}
-							type="button"
-							role="gridcell"
-							aria-selected={focusedId === record.recordId}
-							aria-rowindex={Math.floor(index / columns) + 1}
-							aria-colindex={(index % columns) + 1}
-							aria-label={`${record.projection.nickname || record.projection.speciesName}, level ${record.projection.level}`}
-							onfocus={() => onFocus(record.recordId)}
-							onclick={() => onFocus(record.recordId)}
-						>
-							{#if spriteUrl(record)}<img
-									src={spriteUrl(record)!}
-									alt=""
-									width="64"
-									height="64"
-								/>{/if}
-							<strong>{record.projection.nickname || record.projection.speciesName}</strong>
-							<small>Lv {record.projection.level}</small>
-						</button>
-						{#if record.placement && preferences.location === 'all-pokemon'}
-							<button
-								class="unfile"
-								data-pksx-control-category="composition"
-								type="button"
-								disabled={busy}
-								onclick={() => onMoveToUnfiled(record.recordId)}>Move to Unfiled</button
+			<div class="cards" style:top={`${startRow * rowHeight}px`}>
+				{#each Array.from({ length: endRow - startRow }, (_, offset) => startRow + offset) as row (row)}
+					<div
+						class="row"
+						role="row"
+						aria-rowindex={row + 1}
+						style:grid-template-columns={`repeat(${columns}, minmax(0, 1fr))`}
+					>
+						{#each records.slice(row * columns, (row + 1) * columns) as record, column (record.recordId)}
+							<div
+								class="card"
+								role="gridcell"
+								aria-colindex={column + 1}
+								aria-selected={focusedId === record.recordId}
 							>
-						{/if}
-						<div class="carry-actions">
-							<button
-								type="button"
-								data-pksx-control-category="composition"
-								disabled={busy}
-								onclick={() => onCarry(record.recordId, 'move')}>Move</button
-							>
-							<button
-								type="button"
-								data-pksx-control-category="composition"
-								disabled={busy}
-								onclick={() => onCarry(record.recordId, 'copy')}>Copy</button
-							>
-						</div>
+								<button
+									data-pksx-control-category="card"
+									id={`virtual-record-${record.recordId}`}
+									class={focusedId === record.recordId ? 'record focused' : 'record'}
+									type="button"
+									aria-label={`${record.projection.nickname || record.projection.speciesName}, level ${record.projection.level}`}
+									onfocus={() => onFocus(record.recordId)}
+									onclick={() => onFocus(record.recordId)}
+								>
+									{#if spriteUrl(record)}<img
+											src={spriteUrl(record)!}
+											alt=""
+											width="64"
+											height="64"
+										/>{/if}
+									<strong>{record.projection.nickname || record.projection.speciesName}</strong>
+									<small>Lv {record.projection.level}</small>
+								</button>
+								{#if record.placement && preferences.location === 'all-pokemon'}
+									<button
+										class="unfile"
+										data-pksx-control-category="small"
+										type="button"
+										disabled={busy}
+										onclick={() => onMoveToUnfiled(record.recordId)}>Move to Unfiled</button
+									>
+								{/if}
+								<div class="carry-actions">
+									<button
+										type="button"
+										data-pksx-control-category="small"
+										disabled={busy}
+										onclick={() => onCarry(record.recordId, 'move')}>Move</button
+									>
+									<button
+										type="button"
+										data-pksx-control-category="small"
+										disabled={busy}
+										onclick={() => onCarry(record.recordId, 'copy')}>Copy</button
+									>
+								</div>
+							</div>
+						{/each}
 					</div>
 				{/each}
 			</div>
@@ -209,13 +214,13 @@
 		min-height: 0;
 		display: grid;
 		grid-template-rows: auto minmax(0, 1fr) auto;
-		gap: 6px;
-		padding: 8px;
+		gap: var(--pksx-space-3);
+		padding: var(--pksx-space-4);
 	}
 	.filters {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 5px;
+		gap: var(--pksx-space-2);
 	}
 	.filters input[type='search'] {
 		min-width: 160px;
@@ -225,7 +230,7 @@
 	.filters input {
 		min-height: var(--pksx-control-height);
 		border: 1px solid var(--rule);
-		border-radius: 6px;
+		border-radius: var(--pksx-radius-medium);
 		background: var(--paper);
 		color: var(--ink);
 		font: inherit;
@@ -243,7 +248,7 @@
 	.shiny {
 		display: flex;
 		align-items: center;
-		gap: 3px;
+		gap: var(--pksx-space-1);
 		flex: 0 0 auto;
 		white-space: nowrap;
 		font-size: var(--pksx-type-caption);
@@ -271,36 +276,40 @@
 		left: 0;
 		right: 0;
 		display: grid;
-		gap: 8px;
+		gap: var(--card-gap);
+	}
+	.row {
+		display: grid;
+		gap: var(--card-gap);
 	}
 	.card {
 		min-width: 0;
-		height: calc(var(--row-height) - 8px);
+		height: calc(var(--row-height) - var(--card-gap));
 		position: relative;
 	}
-	.card > button:first-child {
+	.card > .record {
 		width: 100%;
 		height: 100%;
 		display: grid;
 		justify-items: center;
 		align-content: center;
-		gap: 2px;
+		gap: var(--pksx-space-1);
 		box-sizing: border-box;
-		padding: 8px 4px 39px;
+		padding: var(--pksx-space-4) var(--pksx-space-2)
+			calc(var(--pksx-small-control-height) + var(--pksx-space-3));
 		border: 1px solid var(--rule);
-		border-radius: 8px;
+		border-radius: var(--pksx-radius-sm);
 		background: var(--paper);
 		color: var(--ink);
 		font: inherit;
 		cursor: pointer;
 	}
-	.card:has(.unfile) > button:first-child {
-		padding-top: 39px;
+	.card:has(.unfile) > .record {
+		padding-top: calc(var(--pksx-small-control-height) + var(--pksx-space-3));
 	}
-	.card > button:first-child.focused,
-	.card > button:first-child:focus-visible {
-		outline: 2px solid var(--rust);
-		outline-offset: -2px;
+	.card > .record.focused {
+		outline: var(--pksx-focus-ring) solid var(--pksx-color-accent-ring);
+		outline-offset: calc(-1 * var(--pksx-focus-ring));
 	}
 	.card img {
 		object-fit: contain;
@@ -317,30 +326,30 @@
 	}
 	.unfile {
 		position: absolute;
-		right: 3px;
-		top: 3px;
+		right: var(--pksx-space-1);
+		top: var(--pksx-space-1);
 		border: 0;
-		border-radius: 4px;
+		border-radius: var(--pksx-radius-small);
 		background: var(--paper-hi);
 		color: var(--ink);
 		font-size: var(--pksx-type-caption);
-		min-height: calc(var(--pksx-small-control-height));
+		min-height: var(--pksx-small-control-height);
 		cursor: pointer;
 	}
 	.carry-actions {
 		position: absolute;
-		left: 3px;
-		bottom: 3px;
+		left: var(--pksx-space-1);
+		bottom: var(--pksx-space-1);
 		display: flex;
-		gap: 2px;
+		gap: var(--pksx-space-1);
 	}
 	.carry-actions button {
 		border: 0;
-		border-radius: 4px;
+		border-radius: var(--pksx-radius-small);
 		background: var(--paper-hi);
 		color: var(--ink);
 		font-size: var(--pksx-type-caption);
-		min-height: calc(var(--pksx-small-control-height));
+		min-height: var(--pksx-small-control-height);
 		cursor: pointer;
 	}
 	.count,

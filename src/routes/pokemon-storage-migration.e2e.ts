@@ -72,6 +72,9 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	await expect(storage).toContainText('1 Pokemon');
 	await expect(storage).toContainText('3 Storage');
 	await storage.click();
+	await expect(page.getByRole('grid', { name: 'All Pokemon' })).toBeVisible();
+	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /Box 01: Box 01/ }).click();
 	await expect(page.locator('#box-0-slot-4')).toContainText('ARON');
 	await expect(page.getByRole('heading', { name: 'Favorites, Box 01 of 3' })).toBeVisible();
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
@@ -152,7 +155,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	const search = page.getByRole('dialog', { name: 'Search Pokemon Storage' });
 	await search.getByRole('searchbox').fill('ARON');
 	await search.getByRole('button', { name: /ARON, Aron/ }).click();
-	await expect(page.getByRole('gridcell', { name: 'ARON, level 11' })).toBeFocused();
+	await expect(page.getByRole('button', { name: 'ARON, level 11', exact: true })).toBeFocused();
 
 	await page.evaluate(async () => {
 		const db = await new Promise<IDBDatabase>((resolve, reject) => {

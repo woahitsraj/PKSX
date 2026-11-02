@@ -31,6 +31,7 @@ async function settleMotion(page: Page) {
 
 async function openEmptySaves(page: Page) {
 	await page.goto('/');
+	await page.evaluate(() => localStorage.setItem('pksx-last-storage-location-v1', 'box-0'));
 	await page.evaluate(
 		() =>
 			new Promise<void>((resolve, reject) => {

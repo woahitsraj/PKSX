@@ -442,6 +442,7 @@
 		structuredClone(defaultVirtualViewPreferences)
 	);
 	let virtualPaneIds = $state<string[]>([]);
+	let virtualPaneLocations = $state<Record<string, VirtualLocation>>({});
 	let virtualFocusedId = $state<string | null>(null);
 	let virtualColumns = $state(1);
 	let virtualMenuRecordId = $state<string | null>(null);
@@ -511,10 +512,15 @@
 	]);
 	const activeVirtualLocation = $derived(
 		activePane?.source.type === 'pokemon-storage' && virtualPaneIds.includes(activePane.id)
-			? virtualPreferences.location
+			? (virtualPaneLocations[activePane.id] ?? virtualPreferences.location)
 			: null
 	);
-	const activeVirtualRecords = $derived(virtualRecords(catalogManifest, virtualPreferences));
+	const activeVirtualRecords = $derived(
+		virtualRecords(catalogManifest, {
+			...virtualPreferences,
+			location: activeVirtualLocation ?? virtualPreferences.location
+		})
+	);
 	const virtualFocusedRecord = $derived(
 		activeVirtualLocation
 			? activeVirtualRecords.find((record) => record.recordId === virtualFocusedId)
@@ -833,7 +839,7 @@
 	}
 
 	function dispatchNavigation(action: NavigationAction) {
-		if (activeVirtualLocation && activePane) {
+		if (activeVirtualLocation && activePane && navigation.focus.zone !== 'paneControls') {
 			if (action === 'confirm' && virtualFocusedId) {
 				openVirtualActionMenu(virtualFocusedId);
 				return;
@@ -1110,6 +1116,7 @@
 
 	function tryNavigateFromVirtualPane(action: NavigationAction): boolean {
 		if (
+			navigation.focus.zone === 'paneControls' ||
 			!['up', 'down', 'left', 'right'].includes(action) ||
 			workbenchPanes.length !== 2 ||
 			!activePane ||
@@ -1176,7 +1183,7 @@
 		await tick();
 		document
 			.getElementById(
-				activeVirtualLocation && virtualFocusedId
+				activeVirtualLocation && virtualFocusedId && navigation.focus.zone !== 'paneControls'
 					? `virtual-record-${virtualFocusedId}`
 					: focusIdForNavigation(navigation.focus)
 			)
@@ -1185,6 +1192,8 @@
 
 	function focusVirtualRecord(recordId: string | null, restoreAfterResize = false) {
 		virtualFocusedId = recordId;
+		if (navigation.focus.zone === 'paneControls')
+			navigation = { ...navigation, focus: focusBoxSlot(0) };
 		if (!recordId) return;
 		if (!restoreAfterResize && document.activeElement?.id === `virtual-record-${recordId}`) return;
 		const index = activeVirtualRecords.findIndex((record) => record.recordId === recordId);
@@ -1205,6 +1214,7 @@
 
 	function setVirtualPreferences(preferences: VirtualViewPreferences) {
 		virtualPreferences = preferences;
+		virtualPaneLocations = { ...virtualPaneLocations, [activePaneId]: preferences.location };
 		persistVirtualPreferences();
 		if (!activeVirtualRecords.some((record) => record.recordId === virtualFocusedId))
 			virtualFocusedId = activeVirtualRecords[0]?.recordId ?? null;
@@ -1288,6 +1298,7 @@
 		if (!source) return;
 		virtualCarry = null;
 		virtualPaneIds = [...new Set([...virtualPaneIds, source.paneId])];
+		virtualPaneLocations = { ...virtualPaneLocations, [source.paneId]: source.location };
 		virtualPreferences = { ...virtualPreferences, location: source.location };
 		localStorage.setItem('pksx-last-storage-location-v1', source.location);
 		activePaneId = source.paneId;
@@ -2107,7 +2118,9 @@
 		if (!summonedWorkflow.open('box-picker', launcher)) return;
 		boxPickerTarget = { paneId: pane.id, source: { ...pane.source } };
 		const selectedIndex = virtualPaneIds.includes(pane.id)
-			? boxPickerLocations.findIndex((item) => item.id === virtualPreferences.location)
+			? boxPickerLocations.findIndex(
+					(item) => item.id === (virtualPaneLocations[pane.id] ?? virtualPreferences.location)
+				)
 			: boxPickerLocations.findIndex((item) => item.id === `physical-box-${pane.activeBox}`);
 		boxPickerControllerFocus = {
 			zone: 'locations',
@@ -2156,6 +2169,10 @@
 		if (location.location.kind === 'virtual') {
 			if (pane.source.type !== 'pokemon-storage' || pendingSlotOperation || virtualCarry) return;
 			virtualPaneIds = [...new Set([...virtualPaneIds, pane.id])];
+			virtualPaneLocations = {
+				...virtualPaneLocations,
+				[pane.id]: location.location.id as VirtualLocation
+			};
 			virtualPreferences = {
 				...virtualPreferences,
 				location: location.location.id as VirtualLocation
@@ -2165,7 +2182,7 @@
 			virtualFocusedId = virtualRecords(catalogManifest, virtualPreferences)[0]?.recordId ?? null;
 			activePaneId = pane.id;
 			closeBoxPicker();
-			queueMicrotask(focusActiveControl);
+			queueMicrotask(() => focusVirtualRecord(virtualFocusedId));
 			return;
 		}
 		virtualPaneIds = virtualPaneIds.filter((id) => id !== pane.id);
@@ -5373,6 +5390,7 @@
 					if (!target) return null;
 					activePaneId = paneId;
 					virtualPaneIds = [...new Set([...virtualPaneIds, paneId])];
+					virtualPaneLocations = { ...virtualPaneLocations, [paneId]: location };
 					const record = getPokemonStorageCatalog().getRecord(result.recordId)!;
 					virtualPreferences = {
 						...virtualPreferences,
@@ -5746,12 +5764,15 @@
 			workbenchPanes = session.panes;
 			activePaneId = session.activePaneId;
 			virtualPaneIds = ['all-pokemon', 'unfiled'].includes(
-				localStorage.getItem('pksx-last-storage-location-v1') ?? ''
+				localStorage.getItem('pksx-last-storage-location-v1') ?? 'all-pokemon'
 			)
 				? session.panes
 						.filter((pane) => pane.source.type === 'pokemon-storage')
 						.map((pane) => pane.id)
 				: [];
+			virtualPaneLocations = Object.fromEntries(
+				virtualPaneIds.map((id) => [id, virtualPreferences.location])
+			);
 			virtualFocusedId = virtualRecords(catalogManifest, virtualPreferences)[0]?.recordId ?? null;
 
 			await Promise.all(
@@ -6227,6 +6248,10 @@
 				{@const paneParty = pane.focus.zone === 'party' && paneHasParty(pane)}
 				{@const paneVirtual =
 					pane.source.type === 'pokemon-storage' && virtualPaneIds.includes(pane.id)}
+				{@const panePreferences = {
+					...virtualPreferences,
+					location: virtualPaneLocations[pane.id] ?? virtualPreferences.location
+				}}
 				{@const paneSlots = paneParty ? panePartySlots(pane) : paneBoxSlots(pane, paneBox)}
 				{@const paneColumns = paneParty ? PARTY_COLUMNS : BOX_COLUMNS}
 				{@const paneRows = paneParty ? PARTY_ROWS : BOX_ROWS}
@@ -6235,11 +6260,11 @@
 					data-pane-id={pane.id}
 					data-source-id={pane.source.id}
 					data-location={paneVirtual
-						? virtualPreferences.location
+						? panePreferences.location
 						: paneParty
 							? 'party'
 							: `box-${paneBox}`}
-					aria-label={`${pane.source.label}, ${paneVirtual ? (virtualPreferences.location === 'unfiled' ? 'Unfiled' : 'All Pokemon') : paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
+					aria-label={`${pane.source.label}, ${paneVirtual ? (panePreferences.location === 'unfiled' ? 'Unfiled' : 'All Pokemon') : paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
 					aria-busy={paneBusy ? 'true' : undefined}
 				>
 					<div class="pane-header">
@@ -6326,7 +6351,7 @@
 									key: pane.source.type,
 									label: pane.source.label,
 									activeBoxLabel: paneVirtual
-										? virtualPreferences.location === 'unfiled'
+										? panePreferences.location === 'unfiled'
 											? 'Unfiled'
 											: 'All Pokemon'
 										: paneParty
@@ -6365,9 +6390,9 @@
 					</div>
 					{#if paneVirtual}
 						<VirtualPokemonGrid
-							records={activeVirtualRecords}
+							records={virtualRecords(catalogManifest, panePreferences)}
 							allRecords={catalogManifest?.records ?? []}
-							preferences={virtualPreferences}
+							preferences={panePreferences}
 							focusedId={paneActive ? virtualFocusedId : null}
 							{busy}
 							onPreferences={(preferences) => {
@@ -6577,7 +6602,7 @@
 
 {#if activeSummonedWorkflow?.kind === 'virtual-record-menu' && virtualMenuRecord}
 	<SlotActionMenu
-		location={`${virtualPreferences.location === 'unfiled' ? 'Unfiled' : 'All Pokemon'}, ${virtualMenuRecord.projection.nickname || virtualMenuRecord.projection.speciesName}`}
+		location={`${activeVirtualLocation === 'unfiled' ? 'Unfiled' : 'All Pokemon'}, ${virtualMenuRecord.projection.nickname || virtualMenuRecord.projection.speciesName}`}
 		commands={virtualMenuCommands}
 		activeIndex={virtualMenuIndex}
 		onFocusCommand={(index) => (virtualMenuIndex = index)}
@@ -6591,7 +6616,7 @@
 		collection={boxPickerTarget.source.label}
 		locations={boxPickerLocations}
 		activeLocationId={virtualPaneIds.includes(boxPickerPane.id)
-			? virtualPreferences.location
+			? (virtualPaneLocations[boxPickerPane.id] ?? virtualPreferences.location)
 			: `physical-box-${boxPickerPane.activeBox}`}
 		activeIndex={boxPickerFocusIndex}
 		boxNameUnavailableReason={boxPickerNameUnavailableReason}
