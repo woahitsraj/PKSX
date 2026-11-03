@@ -38,31 +38,27 @@ const entryModes = new Set([
 ]);
 const isText = (value: unknown) => typeof value === 'string';
 const isOptionalText = (value: unknown) => value == null || typeof value === 'string';
+const isOptionalNumber = (value: unknown) => value == null || typeof value === 'number';
+const isObject = (value: unknown): value is Record<string, unknown> =>
+	typeof value === 'object' && value !== null && !Array.isArray(value);
 
 function assertArchivedRecord(record: PokemonRecord | undefined): void {
-	const projection = record?.projection;
-	const origin = record?.origin;
+	const projection: unknown = record?.projection;
+	const origin: unknown = record?.origin;
 	if (
 		!record ||
 		!isText(record.recordId) ||
-		!isText(record.identityFingerprint) ||
-		!Number.isSafeInteger(record.revision) ||
 		!isText(record.createdAt) ||
-		!isText(record.updatedAt) ||
-		!projection ||
-		typeof projection !== 'object' ||
-		!Number.isInteger(projection.speciesId) ||
-		!Number.isInteger(projection.level) ||
-		!isText(projection.nickname) ||
+		!isObject(projection) ||
 		!isOptionalText(projection.speciesName) ||
-		(projection.spriteIdentity != null && typeof projection.spriteIdentity !== 'object') ||
-		!origin ||
-		typeof origin !== 'object' ||
-		!entryModes.has(origin.entryMode) ||
+		!isOptionalText(projection.nickname) ||
+		!isOptionalNumber(projection.level) ||
+		!(projection.spriteIdentity == null || isObject(projection.spriteIdentity)) ||
+		!isObject(origin) ||
+		!entryModes.has(origin.entryMode as string) ||
 		!isOptionalText(origin.originSaveFileName) ||
 		!isOptionalText(origin.originGame) ||
-		!isOptionalText(origin.originalTrainer) ||
-		!isText(origin.enteredAt)
+		!isOptionalText(origin.originalTrainer)
 	)
 		throw new Error('Pokemon Storage archive record is malformed.');
 }
