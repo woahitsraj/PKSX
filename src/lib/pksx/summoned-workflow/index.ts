@@ -15,6 +15,7 @@ export type SummonedWorkflowKind =
 	| 'save-file-delete'
 	| 'source-picker'
 	| 'box-picker'
+	| 'storage-box-organizer'
 	| 'clear-slot-confirmation'
 	| 'pokemon-editor'
 	| 'pokemon-actions'
@@ -83,6 +84,19 @@ export function dismissSummonedWorkflow(owner: SummonedWorkflowOwner): {
 		owner: { active: owner.active.returnTo },
 		returnLauncher: owner.active.launcher
 	};
+}
+
+export function remapSummonedWorkflowLaunchers(
+	owner: SummonedWorkflowOwner,
+	map: (launcher: SummonedWorkflowLauncher) => SummonedWorkflowLauncher
+): SummonedWorkflowOwner {
+	const remap = (workflow: SummonedWorkflow | null): SummonedWorkflow | null =>
+		workflow && {
+			...workflow,
+			launcher: map(workflow.launcher),
+			returnTo: remap(workflow.returnTo)
+		};
+	return { active: remap(owner.active) };
 }
 
 export function closeSummonedWorkflows(): SummonedWorkflowOwner {

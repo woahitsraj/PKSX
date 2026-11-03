@@ -4,6 +4,7 @@ export type BoxMenuCommandKey =
 	| 'export'
 	| 'save-backup'
 	| 'legality-report'
+	| 'organize-storage-boxes'
 	| 'switch'
 	| 'open-another'
 	| 'close';
@@ -36,6 +37,7 @@ export function createBoxMenuCommands(input: {
 	const storage = input.source.type === 'pokemon-storage';
 
 	return [
+		...(storage ? [available('organize-storage-boxes', 'Organize Storage Boxes')] : []),
 		storage
 			? unavailable('export', 'Export', 'Pokemon Storage cannot be exported.')
 			: input.workspaceReady

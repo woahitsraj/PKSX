@@ -4,11 +4,27 @@ import {
 	boxIndexAfterMove,
 	boxNameFor,
 	createPhysicalBoxPickerLocations,
+	createStorageBoxPickerLocations,
 	moveBoxPickerControllerFocus,
 	moveBoxPickerFocus
 } from './index';
 
 describe('box picker', () => {
+	it('lists named Storage Boxes in display order with derived Overflow last', () => {
+		expect(
+			createStorageBoxPickerLocations(
+				[
+					{ id: 'second', name: 'Favorites' },
+					{ id: 'first', name: null }
+				],
+				2
+			).map(({ label, location }) => ({ label, location }))
+		).toEqual([
+			{ label: 'Favorites', location: { kind: 'physical-box', box: 0 } },
+			{ label: 'Box 02', location: { kind: 'physical-box', box: 1 } },
+			{ label: 'Overflow', location: { kind: 'virtual', id: 'overflow' } }
+		]);
+	});
 	it('creates one numbered physical Location for every reported Box', () => {
 		expect(createPhysicalBoxPickerLocations(3)).toEqual([
 			{

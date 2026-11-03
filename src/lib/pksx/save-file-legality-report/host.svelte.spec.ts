@@ -31,6 +31,7 @@ describe('Save File Legality Report host', () => {
 			openRelated: vi.fn(),
 			dismiss: vi.fn(() => null),
 			closeAll: vi.fn(),
+			remapLaunchers: vi.fn(),
 			subscribe: vi.fn(() => () => {})
 		} satisfies SummonedWorkflowHost;
 		const host = createSaveFileLegalityReportHost(workflow);
@@ -60,6 +61,7 @@ describe('Save File Legality Report host', () => {
 			openRelated: vi.fn(),
 			dismiss: vi.fn(() => null),
 			closeAll: vi.fn(),
+			remapLaunchers: vi.fn(),
 			subscribe: vi.fn(() => () => {})
 		} satisfies SummonedWorkflowHost;
 		const host = createSaveFileLegalityReportHost(workflow);
@@ -284,6 +286,7 @@ function workflowHost() {
 		openRelated: vi.fn(),
 		dismiss: vi.fn(() => null),
 		closeAll: vi.fn(),
+		remapLaunchers: vi.fn(),
 		subscribe: vi.fn(() => () => {})
 	} satisfies SummonedWorkflowHost;
 }
