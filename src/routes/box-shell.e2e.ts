@@ -3256,11 +3256,16 @@ for (const mode of ['Move', 'Duplicate'] as const) {
 		const secondTab = await page.context().newPage();
 		await secondTab.goto('/settings');
 		await storagePane.locator('[id$="box-0-slot-0"]').click();
+		await expect(storagePane).toHaveClass(/active-pane/);
+		await expect(storagePane.locator('[id$="box-0-slot-0"]')).toHaveAttribute(
+			'aria-selected',
+			'true'
+		);
 		await page.keyboard.press('Enter');
-		await page
-			.getByRole('dialog', { name: 'Slot actions' })
-			.getByRole('button', { name: mode })
-			.click();
+		const slotActions = page.getByRole('dialog', { name: 'Slot actions' });
+		await expect(slotActions).toBeVisible();
+		await settleMotion(page);
+		await slotActions.getByRole('button', { name: mode }).click();
 		await secondTab.evaluate(
 			() =>
 				new Promise<void>((resolve, reject) => {
