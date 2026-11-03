@@ -51,6 +51,9 @@ async function openEmptySaves(page: Page) {
 		.click();
 	await expect(page.locator('#box-grid')).toBeVisible({ timeout: 15000 });
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
+		timeout: 60_000
+	});
 }
 
 async function pressController(page: Page, key: string) {
