@@ -26,17 +26,23 @@
 		return box.name?.trim() || `Box ${String(index + 1).padStart(2, '0')}`;
 	}
 
-	async function focusRow(id: string, action: 'rename' | 'delete', index: number) {
+	type RowAction = 'rename' | 'delete' | 'up' | 'down';
+
+	async function focusRow(id: string | null, action: RowAction, index: number) {
 		await tick();
-		const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-box-action]')];
-		const matching = buttons.find(
-			(button) => button.dataset.boxId === id && button.dataset.boxAction === action
-		);
-		const fallbackId = boxes[Math.min(index, boxes.length - 1)]?.id;
-		const fallback = buttons.find(
-			(button) => button.dataset.boxId === fallbackId && button.dataset.boxAction === 'rename'
-		);
-		(matching ?? fallback ?? document.querySelector<HTMLButtonElement>('.organizer .add'))?.focus();
+		const buttons = [
+			...document.querySelectorAll<HTMLButtonElement>('[data-box-action]:not(:disabled)')
+		];
+		const find = (boxId: string | undefined, rowAction: RowAction) =>
+			buttons.find(
+				(button) => button.dataset.boxId === boxId && button.dataset.boxAction === rowAction
+			);
+		const fallbackId = id ? boxes[Math.min(index, boxes.length - 1)]?.id : undefined;
+		(
+			(id && (find(id, action) ?? find(id, 'rename'))) ||
+			find(fallbackId, 'rename') ||
+			document.querySelector<HTMLButtonElement>('.organizer .add')
+		)?.focus();
 	}
 
 	function back() {
@@ -51,18 +57,21 @@
 		} else onClose();
 	}
 
-	async function run(action: () => Promise<string | null>) {
+	async function run(
+		action: () => Promise<string | null>,
+		target?: { id: string; action: RowAction; index: number }
+	) {
 		if (busy) return;
-		const id = editing ?? deleting;
-		const rowAction = editing ? 'rename' : 'delete';
-		const index = boxes.findIndex((box) => box.id === id);
+		const id = target?.id ?? editing ?? deleting;
+		const rowAction = target?.action ?? (editing ? 'rename' : 'delete');
+		const index = target?.index ?? boxes.findIndex((box) => box.id === id);
 		busy = true;
 		error = null;
 		try {
 			error = await action();
 			if (!error) {
 				editing = deleting = null;
-				if (id) void focusRow(id, rowAction, index);
+				void focusRow(id, rowAction, index);
 			}
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : 'Storage Box change failed.';
@@ -168,15 +177,29 @@
 								type="button"
 								data-organizer-control
 								data-pksx-control-category="small"
+								data-box-id={box.id}
+								data-box-action="up"
 								disabled={busy || index === 0}
-								onclick={() => void run(() => onMove(box.id, index - 1))}>Move up</button
+								onclick={() =>
+									void run(() => onMove(box.id, index - 1), {
+										id: box.id,
+										action: 'up',
+										index: index - 1
+									})}>Move up</button
 							>
 							<button
 								type="button"
 								data-organizer-control
 								data-pksx-control-category="small"
+								data-box-id={box.id}
+								data-box-action="down"
 								disabled={busy || index === boxes.length - 1}
-								onclick={() => void run(() => onMove(box.id, index + 1))}>Move down</button
+								onclick={() =>
+									void run(() => onMove(box.id, index + 1), {
+										id: box.id,
+										action: 'down',
+										index: index + 1
+									})}>Move down</button
 							>
 							<button
 								type="button"
