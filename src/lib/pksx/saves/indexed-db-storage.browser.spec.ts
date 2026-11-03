@@ -3,6 +3,9 @@ import { bytesEqual } from './bytes';
 import { deleteIndexedDbSaves, IndexedDbSavesStorage } from './indexed-db-storage';
 import { createEmptyPokemonStorage } from './pokemon-storage';
 import { WorkspaceRevisionConflictError } from './workspace-revision';
+import { BrowserCatalogPersistence } from '$lib/pksx/pokemon-storage-catalog/browser';
+import { emptyManifest, referenceFor } from '$lib/pksx/pokemon-storage-catalog/types';
+import { openSavesDatabase } from './indexed-db-storage';
 
 describe('IndexedDbSavesStorage', () => {
 	let databaseName: string;
@@ -262,6 +265,68 @@ describe('IndexedDbSavesStorage', () => {
 		const [backup] = await storage.listBackups(saveFile.id);
 		expect(backup.reason).toBe('save-file-editing');
 		expect(await storage.getBackupBytes(backup.id)).toEqual(original);
+	});
+
+	it('rejects a Storage Carry changed while its Save commit waits, without Backup or Workspace writes', async () => {
+		const save = await storage.importSave({ bytes: new Uint8Array([1]), originalFileName: null });
+		const catalog = new BrowserCatalogPersistence(databaseName, null);
+		const payload = new Uint8Array([7]);
+		const reference = await referenceFor(payload, 1);
+		const manifest = emptyManifest('storage-id', '2026-05-16T12:00:00.000Z', 'box-id');
+		manifest.records.push({
+			recordId: 'record-id',
+			payload: reference,
+			identityFingerprint: 'fingerprint',
+			projection: {} as never,
+			origin: {
+				entryMode: 'imported',
+				originSaveFileId: null,
+				originSaveFileName: null,
+				originGame: null,
+				originalTrainer: null,
+				trainerId: null,
+				enteredAt: manifest.createdAt
+			},
+			placement: { storageBoxId: 'box-id', slot: 0 },
+			revision: 0,
+			createdAt: manifest.createdAt,
+			updatedAt: manifest.updatedAt
+		});
+		await catalog.commit(null, manifest, [{ reference, bytes: payload }]);
+		const source = {
+			storageId: manifest.storageId,
+			recordId: 'record-id',
+			revision: 0,
+			payloadId: reference.id,
+			placement: { storageBoxId: 'box-id', slot: 0 }
+		};
+		const db = await openSavesDatabase(databaseName);
+		const mutation = db.transaction('manifest', 'readwrite');
+		const read = mutation.objectStore('manifest').get('current');
+		const committing = storage.commitRiskyWorkspaceMutation({
+			saveFileId: save.id,
+			importedAt: save.importedAt,
+			expectedUpdatedAt: null,
+			bytes: new Uint8Array([2]),
+			dirty: true,
+			reason: 'pokemon-movement',
+			carrySource: source
+		});
+		read.onsuccess = () => {
+			const changed = read.result;
+			changed.records[0].revision += 1;
+			changed.revision += 1;
+			mutation.objectStore('manifest').put(changed, 'current');
+		};
+		await new Promise<void>((resolve, reject) => {
+			mutation.oncomplete = () => resolve();
+			mutation.onerror = () => reject(mutation.error);
+		});
+		db.close();
+		await expect(committing).rejects.toThrow('Pokemon Storage source changed.');
+		expect(await storage.getWorkspace(save.id)).toBeNull();
+		expect(await storage.listBackups(save.id)).toEqual([]);
+		expect((await catalog.read())?.records[0].revision).toBe(1);
 	});
 
 	it('rejects an obsolete risky mutation without creating a Backup or changing Workspace bytes', async () => {

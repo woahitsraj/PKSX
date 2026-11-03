@@ -35,7 +35,7 @@
 	<div class="toolbar">
 		<span>{records.length} Pokemon recoverable for 30 days</span>
 		<button
-			id="recently-deleted-empty"
+			id={`${paneId}-recently-deleted-empty`}
 			type="button"
 			data-pksx-control-category="small"
 			disabled={busy || records.length === 0}
