@@ -55,6 +55,7 @@ afterEach(async () => {
 	container?.remove();
 	fakes.detailsRequest = null;
 	await deleteIndexedDbSaves(fakes.databaseName);
+	await deleteIndexedDbSaves('pksx-saves');
 	await deleteBrowserCatalog('pksx-pokemon-storage-catalog');
 	invalidateSavesCache();
 	vi.useRealTimers();

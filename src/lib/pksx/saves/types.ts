@@ -1,4 +1,5 @@
 import type { ItemSpriteIdentity } from '$lib/engine';
+import type { PokemonStorageManifest, StagedBlob } from '$lib/pksx/pokemon-storage-catalog/types';
 
 export type SaveFileId = string;
 export type BackupId = string;
@@ -85,7 +86,7 @@ export type StoredPokemonStoragePokemon = {
 	metLabel?: string;
 	entityBytesBase64?: string;
 	origin: {
-		entryMode: 'moved-in' | 'copied-in' | 'imported' | 'transferred-in';
+		entryMode: 'moved-in' | 'copied-in' | 'imported' | 'transferred-in' | 'deleted-from-save';
 		originSaveFileName: string | null;
 		originGame: string | null;
 		originalTrainer: string | null;
@@ -140,6 +141,14 @@ export type CommitRiskyWorkspaceMutationResult = {
 	backupEstablished: boolean;
 };
 
+export type CommitPreservedSaveDeletionInput = CommitRiskyWorkspaceMutationInput & {
+	expectedBytes: Uint8Array;
+	expectedDirty: boolean;
+	expectedCatalogRevision: number;
+	manifest: PokemonStorageManifest;
+	payload: StagedBlob;
+};
+
 export type SavesStorage = {
 	importSave(input: ImportSaveInput): Promise<StoredSaveFile>;
 	getSave(saveFileId: SaveFileId): Promise<StoredSaveFile | null>;
@@ -157,6 +166,9 @@ export type SavesStorage = {
 	ensureAutomaticBackup(input: EnsureAutomaticBackupInput): Promise<EnsureAutomaticBackupResult>;
 	commitRiskyWorkspaceMutation?(
 		input: CommitRiskyWorkspaceMutationInput
+	): Promise<CommitRiskyWorkspaceMutationResult>;
+	commitPreservedSaveDeletion?(
+		input: CommitPreservedSaveDeletionInput
 	): Promise<CommitRiskyWorkspaceMutationResult>;
 	listBackups(saveFileId: SaveFileId): Promise<BackupMetadata[]>;
 	getBackupBytes(backupId: BackupId): Promise<Uint8Array | null>;

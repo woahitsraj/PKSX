@@ -72,6 +72,46 @@ it('native sweep removes staged orphans but retains committed blobs', async () =
 	expect(files.size).toBe(0);
 });
 
+it('retains legacy catalog authority until the joint journal commits', async () => {
+	const { files, store, persistence } = fixture();
+	const payload = new Uint8Array([7]);
+	const reference = await referenceFor(payload, 1);
+	const original = {
+		schemaVersion: 1 as const,
+		storageId: 'storage-id',
+		revision: 0,
+		createdAt: 'now',
+		updatedAt: 'now',
+		boxOrder: ['box-id'],
+		boxes: [{ id: 'box-id', name: null, revision: 0, createdAt: 'now', updatedAt: 'now' }],
+		records: [recordFor(reference)],
+		tombstones: []
+	};
+	const hash = async (text: string) =>
+		[...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))]
+			.map((byte) => byte.toString(16).padStart(2, '0'))
+			.join('');
+	const text = JSON.stringify(original);
+	const manifestSha256 = await hash(text);
+	files.set('pokemon-storage-catalog/blobs/' + reference.id + '.bin', payload);
+	files.set('pokemon-storage-catalog/manifests/0.json', text);
+	files.set(
+		'pokemon-storage-catalog/manifests/0.complete',
+		JSON.stringify({
+			revision: 0,
+			manifestSha256,
+			checksum: await hash(`0:${manifestSha256}`)
+		})
+	);
+	expect(await persistence.read()).toEqual(original);
+	await persistence.commit(0, { ...original, revision: 1 }, []);
+	files.delete('pokemon-storage-catalog/manifests/0.complete');
+	expect((await new NativeCatalogPersistence(store).read())?.records[0]?.recordId).toBe(
+		'engine-record-id'
+	);
+	expect(await persistence.readBlob(reference)).toEqual(payload);
+});
+
 it('keeps a complete native manifest authoritative after a partial manifest write', async () => {
 	const { files, store, persistence } = fixture();
 	const first = {
@@ -121,7 +161,7 @@ it('ignores valid JSON candidates without a verified completion', async () => {
 	expect((await persistence.read())?.revision).toBe(0);
 	expect(await persistence.sweep()).toBe(0);
 });
-it('keeps the previous manifest when completion publication fails', async () => {
+it('keeps the previous manifest when joint journal publication fails', async () => {
 	const { files, store, persistence } = fixture();
 	const first = {
 		schemaVersion: 1 as const,
@@ -140,8 +180,8 @@ it('keeps the previous manifest when completion publication fails', async () => 
 	const failing = new NativeCatalogPersistence({
 		...store,
 		async writeText(path, value) {
-			if (path.endsWith('/1.complete')) {
-				files.set(path, JSON.stringify({ revision: 1, manifestSha256: 'a'.repeat(64) }));
+			if (path === 'catalog.0.json') {
+				files.set(path, '{');
 				throw new Error('publication interrupted');
 			}
 			await store.writeText(path, value);
@@ -152,9 +192,6 @@ it('keeps the previous manifest when completion publication fails', async () => 
 			{ reference, bytes: payload }
 		])
 	).rejects.toThrow('publication interrupted');
-	expect(JSON.parse(files.get('pokemon-storage-catalog/manifests/1.json') as string).revision).toBe(
-		1
-	);
 	expect((await persistence.read())?.revision).toBe(0);
 	expect(await persistence.sweep()).toBe(1);
 	expect(await persistence.readBlob(reference)).toBeNull();
@@ -197,7 +234,7 @@ it('does not mistake a native read failure for an older authoritative generation
 	const failing = new NativeCatalogPersistence({
 		...store,
 		async readText(path) {
-			if (path.endsWith('/1.json')) throw new Error('media unavailable');
+			if (path === 'catalog.0.json') throw new Error('media unavailable');
 			return store.readText(path);
 		}
 	});
@@ -235,7 +272,7 @@ it('does not sweep a staged blob while its native manifest commit is in flight',
 	const writer = new NativeCatalogPersistence({
 		...store,
 		async writeText(path, value) {
-			if (path.endsWith('/1.json')) {
+			if (path === 'catalog.0.json') {
 				announce();
 				await gate;
 			}
