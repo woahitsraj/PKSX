@@ -51,6 +51,9 @@ async function openEmptySaves(page: Page) {
 		.click();
 	await expect(page.locator('#box-grid')).toBeVisible({ timeout: 15000 });
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
+		timeout: 60_000
+	});
 }
 
 async function pressController(page: Page, key: string) {
@@ -3407,20 +3410,29 @@ test('shared Carry and arrows use the focused virtual record in a Save and Stora
 	expect(placements.filter((record) => record.placement?.slot === 0)).toHaveLength(1);
 	await storagePane.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: /All Pokemon: All Pokemon/ }).click();
+	const dropRejected = page.locator('.toast-error', {
+		hasText: 'Choose a physical Storage Box before dropping Pokemon.'
+	});
 	for (const mode of ['Copy', 'Move'] as const) {
 		await savePane.locator('[id$="box-0-slot-0"]').focus();
+		await expect(savePane).toHaveClass(/active-pane/);
 		await page.getByLabel('Transfer controls').getByRole('button', { name: mode }).click();
+		await expect(page.locator('[data-destination-state="source"]')).toHaveAttribute(
+			'id',
+			/box-0-slot-0$/
+		);
 		await storagePane.locator('[data-record-id="virtual-008"]').click();
 		await page.keyboard.press('Enter');
-		await expect(
-			page
-				.locator('.toast-error', {
-					hasText: 'Choose a physical Storage Box before dropping Pokemon.'
-				})
-				.last()
-		).toBeVisible();
+		await expect(dropRejected.last()).toBeVisible();
+		await expect(page.locator('[data-destination-state="source"]')).toHaveAttribute(
+			'id',
+			/box-0-slot-0$/
+		);
 		await expect(storagePane).toHaveAttribute('data-location', 'all-pokemon');
-		if (mode === 'Copy') await page.keyboard.press('Escape');
+		if (mode === 'Copy') {
+			await page.keyboard.press('Escape');
+			await expect(page.locator('[data-destination-state="source"]')).toHaveCount(0);
+		}
 	}
 	await expect(storagePane).toHaveClass(/active-pane/);
 	await storagePane.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();

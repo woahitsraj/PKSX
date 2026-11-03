@@ -432,6 +432,90 @@ export function catalogContract(
 			await service.retire(record.recordId, 'moved-to-save', 'save-id');
 			expect(service.listTombstones()[0].destinationSaveFileId).toBe('save-id');
 		});
+		it('recovers Clear Slot payloads for 30 days and retains lightweight tombstones', async () => {
+			const persistence = create();
+			let now = '2026-10-02T00:00:00Z';
+			const service = new PokemonStorageService(persistence, fakeEngine(), () => now);
+			await service.initialize();
+			const boxId = service.listBoxes()[0].id;
+			const first = await service.add(bytes(1), origin, { storageBoxId: boxId, slot: 3 });
+			await service.retire(first.recordId, 'cleared');
+			expect(service.getRecord(first.recordId)).toBeNull();
+			expect(service.listRecentlyDeleted()[0].recovery).toEqual(first);
+			await persistence.sweep();
+			expect(await persistence.readBlob(first.payload)).toBeTruthy();
+			await service.restore(first.recordId);
+			expect(service.getRecord(first.recordId)?.placement).toEqual(first.placement);
+			await service.retire(first.recordId, 'cleared');
+			const second = await service.add(bytes(2), origin, first.placement);
+			await service.restore(first.recordId);
+			expect(service.getRecord(first.recordId)?.placement).toBeNull();
+			await service.retire(first.recordId, 'cleared');
+			await service.deletePermanently(first.recordId);
+			expect(service.listRecentlyDeleted()).toHaveLength(0);
+			expect(
+				service.listTombstones().find((item) => item.recordId === first.recordId)?.recovery
+			).toBeUndefined();
+			expect(await service.readPayload(second.recordId)).toBeTruthy();
+			const third = await service.add(bytes(3), origin);
+			await service.retire(third.recordId, 'cleared');
+			now = '2026-11-01T00:00:00Z';
+			expect(service.listRecentlyDeleted()).toHaveLength(0);
+			await service.expireRecoveries();
+			expect(
+				service.listTombstones().find((item) => item.recordId === third.recordId)?.recovery
+			).toBeUndefined();
+			const temporary = await service.addBox();
+			const fourth = await service.add(bytes(5), origin, { storageBoxId: temporary.id, slot: 0 });
+			await service.retire(fourth.recordId, 'cleared');
+			await service.removeBox(temporary.id);
+			await service.restore(fourth.recordId);
+			expect(service.getRecord(fourth.recordId)?.placement).toBeNull();
+			await service.retire(fourth.recordId, 'cleared');
+			await service.emptyRecentlyDeleted();
+			expect(service.listRecentlyDeleted()).toHaveLength(0);
+			expect(
+				service.listTombstones().find((item) => item.recordId === fourth.recordId)?.recovery
+			).toBeUndefined();
+		});
+		it('keeps the current catalog visible when recovery commits fail', async () => {
+			const persistence = create();
+			let fail = false;
+			const service = new PokemonStorageService(
+				{
+					read: () => persistence.read(),
+					readBlob: (reference) => persistence.readBlob(reference),
+					commit: (revision, manifest, blobs) =>
+						fail
+							? Promise.reject(new Error('quota'))
+							: persistence.commit(revision, manifest, blobs),
+					sweep: () => persistence.sweep()
+				},
+				fakeEngine()
+			);
+			await service.initialize();
+			const record = await service.add(bytes(4), origin);
+			fail = true;
+			await expect(service.retire(record.recordId, 'cleared')).rejects.toThrow('quota');
+			expect(service.getRecord(record.recordId)).toEqual(record);
+			fail = false;
+			await service.retire(record.recordId, 'cleared');
+			fail = true;
+			await expect(service.restore(record.recordId)).rejects.toThrow('quota');
+			expect(service.listRecentlyDeleted()).toHaveLength(1);
+			await expect(service.emptyRecentlyDeleted()).rejects.toThrow('quota');
+			expect(service.listRecentlyDeleted()).toHaveLength(1);
+		});
+		it('does not restore a recovery with a damaged payload', async () => {
+			const persistence = create();
+			const service = new PokemonStorageService(persistence, fakeEngine());
+			await service.initialize();
+			const record = await service.add(bytes(7), origin);
+			await service.retire(record.recordId, 'cleared');
+			await corrupt(persistence, record.payload.id);
+			await expect(service.restore(record.recordId)).rejects.toThrow(/checksum/);
+			expect(service.listRecentlyDeleted()).toHaveLength(1);
+		});
 		it('swaps two occupied physical placements without replacing either record', async () => {
 			const service = new PokemonStorageService(create(), fakeEngine());
 			await service.initialize();

@@ -2,6 +2,7 @@ import {
 	assertManifest,
 	CatalogConflictError,
 	cloneManifest,
+	referencedPayloads,
 	verifyBlob,
 	type BlobReference,
 	type CatalogPersistence,
@@ -84,10 +85,10 @@ export class BrowserCatalogPersistence implements CatalogPersistence {
 				if (!staged) throw new Error('Staged Pokemon preservation payload is missing.');
 				await verifyBlob(blob.reference, staged);
 			}
-			for (const record of manifest.records) {
-				const bytes = await this.readBlob(record.payload);
+			for (const reference of referencedPayloads(manifest)) {
+				const bytes = await this.readBlob(reference);
 				if (!bytes) throw new Error('Required Pokemon preservation payload is missing.');
-				await verifyBlob(record.payload, bytes);
+				await verifyBlob(reference, bytes);
 			}
 			const transaction = db.transaction([manifestStore, blobStore], 'readwrite');
 			try {
@@ -100,9 +101,9 @@ export class BrowserCatalogPersistence implements CatalogPersistence {
 					manifest.revision !== (expectedRevision ?? -1) + 1
 				)
 					throw new CatalogConflictError();
-				for (const record of manifest.records) {
+				for (const reference of referencedPayloads(manifest)) {
 					const bytes = await request<Uint8Array | undefined>(
-						transaction.objectStore(blobStore).get(record.payload.id)
+						transaction.objectStore(blobStore).get(reference.id)
 					);
 					if (!bytes) throw new Error('Required Pokemon preservation payload is missing.');
 				}
@@ -128,7 +129,9 @@ export class BrowserCatalogPersistence implements CatalogPersistence {
 				transaction.objectStore(manifestStore).get('current')
 			);
 			if (manifest) assertManifest(manifest);
-			const referenced = new Set(manifest?.records.map((record) => record.payload.id));
+			const referenced = new Set(
+				manifest ? referencedPayloads(manifest).map((item) => item.id) : []
+			);
 			const keys = await request<IDBValidKey[]>(transaction.objectStore(blobStore).getAllKeys());
 			const orphans = keys.filter((key) => !referenced.has(String(key)));
 			for (const key of orphans) transaction.objectStore(blobStore).delete(key);
