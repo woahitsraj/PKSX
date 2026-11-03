@@ -7660,6 +7660,11 @@
 													}
 													if (pane.id !== activePaneId) {
 														preserveActivePaneNavigation();
+														if (
+															pane.source.type === 'pokemon-storage' &&
+															!virtualPaneIds.includes(pane.id)
+														)
+															rememberPhysicalStorageBox(pane.activeBox);
 													}
 													activePaneId = pane.id;
 													navigation = {

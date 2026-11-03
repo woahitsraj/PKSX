@@ -7147,6 +7147,7 @@ test('Store Automatically follows physical Storage source switches and activatio
 		.getByRole('dialog', { name: 'Switch collection' })
 		.getByRole('button', { name: /Pokemon Storage/ })
 		.click();
+	await expect(page.getByRole('dialog', { name: 'Switch collection' })).toBeHidden();
 	await expect(peer.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 	expect(await lastBox()).toBe(firstBoxId);
 	await page.evaluate(
@@ -7165,7 +7166,7 @@ test('Store Automatically follows physical Storage source switches and activatio
 	const card = peer.getByRole('grid', { name: 'All Pokemon' }).getByRole('gridcell', {
 		name: /ARON/
 	});
-	await card.focus();
+	await card.getByRole('button', { name: /ARON/ }).focus();
 	await page.keyboard.press('Enter');
 	await page
 		.getByRole('dialog', { name: 'Slot actions' })
@@ -7204,6 +7205,7 @@ test('Store Automatically follows the active physical pane when both panes show 
 		.getByRole('dialog', { name: 'Switch collection' })
 		.getByRole('button', { name: /Pokemon Storage/ })
 		.click();
+	await expect(page.getByRole('dialog', { name: 'Switch collection' })).toBeHidden();
 	await expect(primary.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 	const lastBox = () =>
 		page.evaluate(() => localStorage.getItem('pksx-last-physical-storage-box-id-v1'));
@@ -7223,7 +7225,7 @@ test('Store Automatically follows the active physical pane when both panes show 
 	const card = peer.getByRole('grid', { name: 'All Pokemon' }).getByRole('gridcell', {
 		name: /ARON/
 	});
-	await card.focus();
+	await card.getByRole('button', { name: /ARON/ }).focus();
 	await page.keyboard.press('Enter');
 	await page
 		.getByRole('dialog', { name: 'Slot actions' })
@@ -7248,7 +7250,7 @@ test('Store Automatically restores virtual focus after a failed write and focuse
 	let card = page.getByRole('grid', { name: 'All Pokemon' }).getByRole('gridcell', {
 		name: /ARON/
 	});
-	await card.focus();
+	await card.getByRole('button', { name: /ARON/ }).focus();
 	await page.keyboard.press('Enter');
 	await page
 		.getByRole('dialog', { name: 'Slot actions' })
@@ -7276,17 +7278,17 @@ test('Store Automatically restores virtual focus after a failed write and focuse
 			return original.call(this, names, mode, options);
 		};
 	});
-	await card.focus();
+	await card.getByRole('button', { name: /ARON/ }).focus();
 	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Store Automatically' }).click();
 	await expect(page.locator('.toast-error').last()).toContainText('Injected catalog write failure');
-	await expect(card).toBeFocused();
+	await expect(card.getByRole('button', { name: /ARON/ })).toBeFocused();
 	await page.keyboard.press('Enter');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
 	await page.keyboard.press('Escape');
 	await page.reload();
 	card = page.getByRole('grid', { name: 'Unfiled' }).getByRole('gridcell', { name: /ARON/ });
-	await card.focus();
+	await card.getByRole('button', { name: /ARON/ }).focus();
 	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Store Automatically' }).click();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
