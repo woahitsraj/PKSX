@@ -1,5 +1,6 @@
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { NativeCatalogPersistence } from '$lib/pksx/pokemon-storage-catalog/native';
+import { requireCarrySource } from '$lib/pksx/pokemon-storage-catalog/service';
 import {
 	assertManifest,
 	CatalogConflictError,
@@ -333,6 +334,11 @@ export class CapacitorSavesStorage implements SavesStorage {
 				? await this.#journal.readWorkspace(snapshot, input.saveFileId)
 				: await this.#fileStore.readBytes(saveBytesPath(input.saveFileId));
 			if (!baselineBytes) throw new Error('The Save File bytes are no longer available.');
+			if (input.carrySource) {
+				const manifest = await new NativeCatalogPersistence(this.#fileStore).read();
+				if (!manifest) throw new Error('Pokemon Storage source changed.');
+				requireCarrySource(manifest, input.carrySource);
+			}
 
 			let backupEstablished = false;
 			let stagedBytes: { path: string; bytes: Uint8Array }[] = [];

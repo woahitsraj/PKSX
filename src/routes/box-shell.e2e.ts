@@ -1892,9 +1892,9 @@ test('Box Menu keeps fixed unavailable commands and X and Y preserve their conte
 	const backupsBefore = await backupCount(page);
 	let downloads = 0;
 	page.on('download', () => (downloads += 1));
-	await menu.getByRole('button', { name: 'Export' }).click({ force: true });
-	await menu.getByRole('button', { name: 'Save a backup' }).click({ force: true });
-	await menu.getByRole('button', { name: 'Close' }).click({ force: true });
+	await menu.getByRole('button', { name: 'Export' }).dispatchEvent('click');
+	await menu.getByRole('button', { name: 'Save a backup' }).dispatchEvent('click');
+	await menu.getByRole('button', { name: 'Close' }).dispatchEvent('click');
 	await expect(menu).toBeVisible();
 	expect(downloads).toBe(0);
 	expect(await backupCount(page)).toBe(backupsBefore);
@@ -3230,6 +3230,111 @@ test('moves a Save File Pokemon into durable Storage and clears its source', asy
 	});
 });
 
+for (const mode of ['Move', 'Duplicate'] as const) {
+	test(`Storage-to-Save ${mode} rejects source changes from another tab before writing`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width: 1800, height: 900 });
+		await openEmptySaves(page);
+		await importEmeraldThroughSaves(page);
+		await seedOccupiedPokemonStorageSlot(page);
+		await page.reload();
+		await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+		await page
+			.getByRole('dialog', { name: 'Box Menu' })
+			.getByRole('button', { name: 'Open another collection', exact: true })
+			.click();
+		await page
+			.getByRole('dialog', { name: 'Open another collection' })
+			.getByRole('button', { name: /Pokemon Storage/ })
+			.click();
+		const savePane = page.locator('.box-pane').nth(0);
+		const storagePane = page.locator('.box-pane').nth(1);
+		const destination = savePane.locator('.box-slot.empty').first();
+		await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
+		await expect(destination).toContainText('Empty');
+		const secondTab = await page.context().newPage();
+		await secondTab.goto('/settings');
+		await storagePane.locator('[id$="box-0-slot-0"]').click();
+		await page.keyboard.press('Enter');
+		await page
+			.getByRole('dialog', { name: 'Slot actions' })
+			.getByRole('button', { name: mode })
+			.click();
+		await secondTab.evaluate(
+			() =>
+				new Promise<void>((resolve, reject) => {
+					const open = indexedDB.open('pksx-saves');
+					open.onerror = () => reject(open.error);
+					open.onsuccess = () => {
+						const db = open.result;
+						const transaction = db.transaction('manifest', 'readwrite');
+						const store = transaction.objectStore('manifest');
+						const read = store.get('current');
+						read.onsuccess = () => {
+							const manifest = read.result;
+							manifest.records[0].revision += 1;
+							manifest.revision += 1;
+							store.put(manifest, 'current');
+						};
+						transaction.oncomplete = () => {
+							db.close();
+							resolve();
+						};
+						transaction.onerror = () => reject(transaction.error);
+					};
+				})
+		);
+		const before = await persistedSavesStateSnapshot(page);
+		await destination.click();
+		await expect(page.locator('.toast-error').last()).toContainText(
+			'Pokemon Storage source changed.'
+		);
+		await expect(destination).toContainText('Empty');
+		expect(await persistedSavesStateSnapshot(page)).toBe(before);
+		await secondTab.close();
+	});
+}
+
+test('virtual Carry keeps Save Box locations available but blocks Box edits', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await seedOccupiedPokemonStorageSlot(page);
+	await page.reload();
+	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	const savePane = page.locator('.box-pane').nth(0);
+	const storagePane = page.locator('.box-pane').nth(1);
+	await storagePane.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /All Pokemon: All Pokemon/ }).click();
+	await storagePane.getByRole('gridcell', { name: 'ARON, level 11' }).click();
+	await storagePane.locator('.carry-actions').getByRole('button', { name: 'Move' }).click();
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('dialog', { name: 'Choose a Box' })).toHaveCount(0);
+	await storagePane.locator('[data-record-id]').first().focus();
+	await page.keyboard.press('ArrowLeft');
+	await expect(savePane).toHaveClass(/active-pane/);
+	await savePane
+		.getByRole('button', { name: 'Open Box Picker for emerald-011020251345.sav' })
+		.click();
+	const picker = page.getByRole('dialog', { name: 'Choose a Box' });
+	await expect(picker).toContainText('Finish or cancel Carry before renaming a Box.');
+	await expect(picker).toContainText('Finish or cancel Carry before moving a Box.');
+	await expect(picker.getByRole('button', { name: 'Rename Box' })).toHaveCount(0);
+	await expect(picker.getByRole('button', { name: 'Move Box' })).toHaveCount(0);
+	await picker.getByRole('button', { name: /^Box 02:/ }).click();
+	await expect(savePane).toHaveAttribute('data-location', 'box-1');
+	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
+});
+
 test('keeps a virtual Storage source after Save commits but retirement fails', async ({ page }) => {
 	await installWorkspaceResponseHold(page);
 	await page.setViewportSize({ width: 1800, height: 900 });
@@ -3266,10 +3371,13 @@ test('keeps a virtual Storage source after Save commits but retirement fails', a
 	await page.evaluate(() => {
 		const original = IDBDatabase.prototype.transaction;
 		IDBDatabase.prototype.transaction = function (names, mode, options) {
+			const stores = typeof names === 'string' ? [names] : Array.from(names);
 			if (
 				this.name === 'pksx-saves' &&
 				mode === 'readwrite' &&
-				(typeof names === 'string' ? names === 'manifest' : Array.from(names).includes('manifest'))
+				stores.length === 2 &&
+				stores.includes('manifest') &&
+				stores.includes('blobs')
 			) {
 				throw new Error('Injected retirement failure');
 			}
@@ -3427,7 +3535,7 @@ test('shared Carry and arrows use the focused virtual record in a Save and Stora
 		hasText: 'Choose a physical Storage Box before dropping Pokemon.'
 	});
 	for (const mode of ['Copy', 'Move'] as const) {
-		await savePane.locator('[id$="box-0-slot-0"]').focus();
+		await savePane.locator('[id$="box-0-slot-0"]').click();
 		await expect(savePane).toHaveClass(/active-pane/);
 		await page.getByLabel('Transfer controls').getByRole('button', { name: mode }).click();
 		await expect(page.locator('[data-destination-state="source"]')).toHaveAttribute(
@@ -5177,6 +5285,21 @@ test('Boxes navigation clamps at workspace edges while Main Menu owns destinatio
 	await expect(page.getByRole('dialog', { name: 'Main Menu' })).toBeVisible();
 });
 
+test('controller moves actual focus through Slot Menu commands', async ({ page }) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await pressController(page, 'Enter');
+	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
+	await expect(page.locator('#slot-action-0')).toBeFocused();
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#slot-action-1')).toBeFocused();
+	await pressController(page, 'ArrowDown');
+	await expect(page.locator('#slot-action-2')).toBeFocused();
+	await pressController(page, 'ArrowUp');
+	await expect(page.locator('#slot-action-1')).toBeFocused();
+});
+
 test('controller input follows the keyboard navigation path', async ({ page }) => {
 	await openEmptySaves(page);
 	await page.locator('#box-grid').focus();
@@ -6810,6 +6933,65 @@ test('clear slot cancellation and confirmation use the in-app confirmation surfa
 	await expect(
 		page.getByRole('grid', { name: 'Unfiled Pokemon' }).getByRole('gridcell')
 	).toHaveCount(1);
+});
+
+test('two Recently Deleted panes keep distinct focus targets and location headers', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await seedOccupiedPokemonStorageSlot(page);
+	await page.goto('/?source=pokemon-storage');
+	await expect(page).toHaveURL(/\/boxes$/);
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready');
+	await expect(page.locator('.box-pane.active-pane')).toHaveAttribute(
+		'data-source-id',
+		'pokemon-storage'
+	);
+	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+	await page.locator('#box-0-slot-0').click();
+	await page.getByRole('button', { name: 'Clear Slot' }).click();
+	await page.getByRole('button', { name: 'Confirm Clear' }).click();
+	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /Recently Deleted: Recently Deleted/ }).click();
+	await page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Open another collection', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	const [primary, secondary] = [page.locator('.box-pane').nth(0), page.locator('.box-pane').nth(1)];
+	await secondary.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /Recently Deleted: Recently Deleted/ }).click();
+	const secondaryId = await secondary.getAttribute('data-pane-id');
+	expect(secondaryId).toBeTruthy();
+	const secondaryCard = secondary
+		.getByRole('grid', { name: 'Recently Deleted Pokemon' })
+		.getByRole('gridcell');
+	await expect(secondaryCard).toHaveCount(1);
+	const recordId = (await secondaryCard.getAttribute('id'))?.replace(
+		`virtual-record-${secondaryId}-`,
+		''
+	);
+	expect(recordId).toBeTruthy();
+	await expect(primary.locator(`#virtual-record-pane-primary-${recordId}`)).toBeVisible();
+	await expect(primary.locator('#pane-primary-recently-deleted-empty')).toBeVisible();
+	await expect(secondary.locator(`#${secondaryId}-recently-deleted-empty`)).toBeVisible();
+	await secondaryCard.focus();
+	await page.keyboard.press('ArrowLeft');
+	await expect(primary).toHaveClass(/active-pane/);
+	await expect(primary.locator(`#virtual-record-pane-primary-${recordId}`)).toBeFocused();
+	await expect(secondary.locator(`#virtual-record-${secondaryId}-${recordId}`)).toBeVisible();
+	await expect(primary.locator('#pane-primary-recently-deleted-empty')).toBeVisible();
+	await expect(secondary.locator(`#${secondaryId}-recently-deleted-empty`)).toBeVisible();
+	await secondary.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /All Pokemon: All Pokemon/ }).click();
+	await expect(primary.locator('.location-header')).toContainText('Recently Deleted');
+	await expect(secondary.locator('.location-header')).toContainText('All Pokemon');
 });
 
 test('Clear uses its Pokemon Storage owner without mutating the loaded Save File or Backup state', async ({

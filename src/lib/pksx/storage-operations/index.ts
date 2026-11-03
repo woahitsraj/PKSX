@@ -6,6 +6,7 @@ import type {
 	SlotOperationResult
 } from '$lib/engine';
 import type { PreparedAutomaticBackup, WorkspaceState } from '$lib/pksx/backup-workflow';
+import type { CatalogCarrySource } from '$lib/pksx/pokemon-storage-catalog';
 
 export type StorageOperationKind = SlotOperation['kind'];
 export type PendingStorageSlotOperation = {
@@ -13,6 +14,7 @@ export type PendingStorageSlotOperation = {
 	source: SaveSlotRef;
 	sourceLabel: string;
 	sourcePokemonLabel: string;
+	storageSource?: CatalogCarrySource;
 };
 
 export type StorageSlotOccupancy = {

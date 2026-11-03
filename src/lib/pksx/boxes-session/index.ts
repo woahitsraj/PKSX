@@ -1,12 +1,22 @@
 import { createBoxPane, type BoxPaneState, type BoxSourceRef } from '$lib/pksx/storage-workbench';
+import type { VirtualViewPreferences } from '$lib/pksx/pokemon-storage-catalog/virtual-views';
+
+export type BoxesVirtualPaneView = {
+	preferences: VirtualViewPreferences;
+	focusedId: string | null;
+	columns: number;
+};
 
 export type BoxesSessionState = {
 	panes: BoxPaneState[];
 	activePaneId: string;
+	virtualPaneIds: string[];
+	virtualPaneViews: Record<string, BoxesVirtualPaneView>;
 };
 
 type PersistedBoxesSession = {
 	primary: BoxPaneState;
+	primaryVirtualView?: BoxesVirtualPaneView;
 };
 
 export type BoxesSessionPersistence = {
@@ -36,7 +46,17 @@ export class BoxesSessionService {
 		const activePaneId = restoredPanes.some((pane) => pane.id === session?.activePaneId)
 			? session!.activePaneId
 			: primary.id;
-		this.current = { panes: restoredPanes, activePaneId };
+		const storagePaneIds = new Set(
+			restoredPanes.filter((pane) => pane.source.type === 'pokemon-storage').map((pane) => pane.id)
+		);
+		this.current = {
+			panes: restoredPanes,
+			activePaneId,
+			virtualPaneIds: (session?.virtualPaneIds ?? []).filter((id) => storagePaneIds.has(id)),
+			virtualPaneViews: Object.fromEntries(
+				Object.entries(session?.virtualPaneViews ?? {}).filter(([id]) => storagePaneIds.has(id))
+			)
+		};
 		this.persist();
 		return this.snapshot();
 	}
@@ -50,14 +70,22 @@ export class BoxesSessionService {
 	selectPrimary(source: BoxSourceRef, boxCount = 1): BoxesSessionState {
 		return this.set({
 			panes: [createBoxPane('pane-primary', source, { boxCount })],
-			activePaneId: 'pane-primary'
+			activePaneId: 'pane-primary',
+			virtualPaneIds: [],
+			virtualPaneViews: {}
 		});
 	}
 
 	private persistedState(): BoxesSessionState | null {
 		const value = this.persistence?.load();
 		if (!isPersistedBoxesSession(value)) return null;
-		return { panes: [value.primary], activePaneId: value.primary.id };
+		const view = value.primaryVirtualView;
+		return {
+			panes: [value.primary],
+			activePaneId: value.primary.id,
+			virtualPaneIds: view ? [value.primary.id] : [],
+			virtualPaneViews: view ? { [value.primary.id]: view } : {}
+		};
 	}
 
 	private resolvePane(pane: BoxPaneState, options: RestoreOptions): BoxPaneState | null {
@@ -93,7 +121,15 @@ export class BoxesSessionService {
 
 	private persist() {
 		const primary = this.current?.panes[0];
-		if (primary) this.persistence?.save({ primary: clonePane(primary) });
+		if (primary) {
+			const primaryVirtualView = this.current?.virtualPaneIds.includes(primary.id)
+				? this.current.virtualPaneViews[primary.id]
+				: undefined;
+			this.persistence?.save({
+				primary: clonePane(primary),
+				...(primaryVirtualView ? { primaryVirtualView: cloneVirtualView(primaryVirtualView) } : {})
+			});
+		}
 	}
 
 	private snapshot(): BoxesSessionState {
@@ -137,7 +173,26 @@ function pokemonStorageSource(): BoxSourceRef {
 }
 
 function cloneState(state: BoxesSessionState): BoxesSessionState {
-	return { panes: state.panes.map(clonePane), activePaneId: state.activePaneId };
+	return {
+		panes: state.panes.map(clonePane),
+		activePaneId: state.activePaneId,
+		virtualPaneIds: [...state.virtualPaneIds],
+		virtualPaneViews: Object.fromEntries(
+			Object.entries(state.virtualPaneViews).map(([id, view]) => [id, cloneVirtualView(view)])
+		)
+	};
+}
+
+function cloneVirtualView(view: BoxesVirtualPaneView): BoxesVirtualPaneView {
+	return {
+		preferences: {
+			location: view.preferences.location,
+			sort: view.preferences.sort,
+			filters: { ...view.preferences.filters }
+		},
+		focusedId: view.focusedId,
+		columns: view.columns
+	};
 }
 
 function clonePane(pane: BoxPaneState): BoxPaneState {
