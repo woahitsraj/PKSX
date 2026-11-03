@@ -90,6 +90,11 @@ async function clearSlot(page: Page, slot: number) {
 }
 
 async function openRecentlyDeleted(page: Page) {
+	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready',
+		{ timeout: 60_000 }
+	);
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: /Recently Deleted: Recently Deleted/ }).click();
 }
