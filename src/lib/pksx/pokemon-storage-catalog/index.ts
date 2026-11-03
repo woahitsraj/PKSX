@@ -11,7 +11,11 @@ export type { CatalogCarrySource } from './service';
 export { catalogLegacyView } from './legacy-view';
 export { BrowserCatalogPersistence, deleteBrowserCatalog } from './browser';
 export { NativeCatalogPersistence } from './native';
-export { CatalogConflictError, POKEMON_STORAGE_CATALOG_VERSION } from './types';
+export {
+	CatalogConflictError,
+	CatalogOutcomeUnknownError,
+	POKEMON_STORAGE_CATALOG_VERSION
+} from './types';
 export type {
 	BlobReference,
 	PokemonOrigin,

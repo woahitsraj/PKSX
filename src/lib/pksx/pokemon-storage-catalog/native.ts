@@ -7,12 +7,14 @@ import {
 import {
 	assertManifest,
 	CatalogConflictError,
+	CatalogOutcomeUnknownError,
 	cloneManifest,
 	referencedPayloads,
 	verifyBlob,
 	type BlobReference,
 	type CatalogPersistence,
 	type PokemonStorageManifest,
+	type StorageRecovery,
 	type StagedBlob
 } from './types';
 
@@ -27,10 +29,34 @@ const digest = async (value: string) =>
 type Completion = { revision: number; manifestSha256: string; checksum: string };
 
 export class NativeCatalogPersistence implements CatalogPersistence {
+	#pending: {
+		expectedRevision: number;
+		manifest: PokemonStorageManifest;
+		recovery: StorageRecovery;
+	} | null = null;
 	constructor(private readonly files: NativeFileStore) {}
+	async readRecovery(): Promise<StorageRecovery | null> {
+		if (this.#pending) await this.read();
+		const recovery = (await new NativeCatalogJournal(this.files).read()).catalog
+			.pokemonStorageRecovery;
+		if (recovery) assertManifest(recovery.manifest);
+		return recovery ? structuredClone(recovery) : null;
+	}
+	async replace(
+		expectedRevision: number,
+		manifest: PokemonStorageManifest,
+		blobs: StagedBlob[],
+		recovery: StorageRecovery
+	): Promise<void> {
+		if (this.#pending) throw new CatalogOutcomeUnknownError();
+		assertManifest(recovery.manifest);
+		return runNativeJournalOperation(() =>
+			this.#commit(expectedRevision, manifest, blobs, recovery)
+		);
+	}
 	async read(): Promise<PokemonStorageManifest | null> {
-		const joint = (await new NativeCatalogJournal(this.files).read()).catalog
-			.pokemonStorageManifest;
+		const catalog = (await new NativeCatalogJournal(this.files).read()).catalog;
+		const joint = catalog.pokemonStorageManifest;
 		if (joint) {
 			assertManifest(joint);
 			for (const record of [
@@ -41,10 +67,29 @@ export class NativeCatalogPersistence implements CatalogPersistence {
 				if (!bytes) throw new Error('Required Pokemon preservation payload is missing.');
 				await verifyBlob(record.payload, bytes);
 			}
+			this.#settlePending(joint, catalog.pokemonStorageRecovery);
 			return cloneManifest(joint);
 		}
 		const completions = await this.#completions();
-		return completions[0] ? this.#readCompleted(completions[0]) : null;
+		const legacy = completions[0] ? await this.#readCompleted(completions[0]) : null;
+		this.#settlePending(legacy, null);
+		return legacy;
+	}
+	#settlePending(manifest: PokemonStorageManifest | null, recovery?: StorageRecovery | null) {
+		const pending = this.#pending;
+		if (!pending) return;
+		if (manifest?.revision === pending.expectedRevision) {
+			this.#pending = null;
+			return;
+		}
+		if (
+			JSON.stringify(manifest) === JSON.stringify(pending.manifest) &&
+			JSON.stringify(recovery) === JSON.stringify(pending.recovery)
+		) {
+			this.#pending = null;
+			return;
+		}
+		throw new CatalogOutcomeUnknownError();
 	}
 	async #completions(): Promise<Completion[]> {
 		const names = await this.files.list(`${directory}/manifests`);
@@ -94,18 +139,21 @@ export class NativeCatalogPersistence implements CatalogPersistence {
 		const bytes = await this.files.readBytes(blobPath(reference.id));
 		return bytes ? new Uint8Array(bytes) : null;
 	}
-	commit(
+	async commit(
 		expectedRevision: number | null,
 		manifest: PokemonStorageManifest,
 		blobs: StagedBlob[]
 	): Promise<void> {
+		if (this.#pending) throw new CatalogOutcomeUnknownError();
 		return runNativeJournalOperation(() => this.#commit(expectedRevision, manifest, blobs));
 	}
 	async #commit(
 		expectedRevision: number | null,
 		manifest: PokemonStorageManifest,
-		blobs: StagedBlob[]
+		blobs: StagedBlob[],
+		recovery?: StorageRecovery
 	): Promise<void> {
+		if (this.#pending) throw new CatalogOutcomeUnknownError();
 		assertManifest(manifest);
 		const current = await this.read();
 		if (
@@ -137,17 +185,55 @@ export class NativeCatalogPersistence implements CatalogPersistence {
 		)
 			throw new CatalogConflictError();
 		const catalog = cloneCatalog(snapshot.catalog);
+		if (recovery) {
+			if (JSON.stringify(recovery.manifest) !== JSON.stringify(current))
+				throw new CatalogConflictError();
+			for (const reference of referencedPayloads(recovery.manifest)) {
+				const bytes = await this.files.readBytes(blobPath(reference.id));
+				if (!bytes) throw new Error('Pre-restore Pokemon preservation payload is missing.');
+				await verifyBlob(reference, bytes);
+			}
+			catalog.pokemonStorageRecovery = structuredClone(recovery);
+		}
 		catalog.pokemonStorageManifest = cloneManifest(manifest);
-		await journal.commit(snapshot, catalog);
+		try {
+			await journal.commit(snapshot, catalog);
+		} catch (error) {
+			if (!recovery) throw error;
+			let observed;
+			try {
+				observed = (await journal.read()).catalog;
+			} catch {
+				this.#pending = {
+					expectedRevision: expectedRevision!,
+					manifest: cloneManifest(manifest),
+					recovery: structuredClone(recovery)
+				};
+				throw new CatalogOutcomeUnknownError();
+			}
+			if (
+				JSON.stringify(observed.pokemonStorageManifest) === JSON.stringify(manifest) &&
+				JSON.stringify(observed.pokemonStorageRecovery) === JSON.stringify(recovery)
+			)
+				return;
+			this.#pending = {
+				expectedRevision: expectedRevision!,
+				manifest: cloneManifest(manifest),
+				recovery: structuredClone(recovery)
+			};
+			throw new CatalogOutcomeUnknownError();
+		}
 	}
 	sweep(): Promise<number> {
 		return runNativeJournalOperation(() => this.#sweep());
 	}
 	async #sweep(): Promise<number> {
 		const manifest = await this.read();
-		const keep = new Set(
-			manifest ? referencedPayloads(manifest).map((item) => `${item.id}.bin`) : []
-		);
+		const recovery = await this.readRecovery();
+		const keep = new Set([
+			...(manifest ? referencedPayloads(manifest).map((item) => `${item.id}.bin`) : []),
+			...(recovery ? referencedPayloads(recovery.manifest).map((item) => `${item.id}.bin`) : [])
+		]);
 		const names = await this.files.list(`${directory}/blobs`);
 		const orphans = names.filter((name) => /^[a-f0-9]{64}\.bin$/.test(name) && !keep.has(name));
 		for (const name of orphans) await this.files.delete(`${directory}/blobs/${name}`);

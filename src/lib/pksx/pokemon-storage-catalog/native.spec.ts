@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import type { NativeFileStore } from '$lib/pksx/saves';
 import { catalogContract } from './contract-tests';
 import { NativeCatalogPersistence } from './native';
-import { referenceFor, type BlobReference } from './types';
+import { CatalogOutcomeUnknownError, referenceFor, type BlobReference } from './types';
 
 const recordFor = (payload: BlobReference) => ({
 	recordId: 'engine-record-id',
@@ -135,6 +135,88 @@ it('keeps a complete native manifest authoritative after a partial manifest writ
 	});
 	await expect(failing.commit(0, { ...first, revision: 1 }, [])).rejects.toThrow('disk full');
 	expect((await persistence.read())?.revision).toBe(0);
+});
+
+it('native replacement leaves the current collection unchanged on a failed journal write', async () => {
+	const { files, store, persistence } = fixture();
+	const first = {
+		schemaVersion: 1 as const,
+		storageId: 'storage-id',
+		revision: 0,
+		createdAt: 'now',
+		updatedAt: 'now',
+		boxOrder: ['box-id'],
+		boxes: [{ id: 'box-id', name: null, revision: 0, createdAt: 'now', updatedAt: 'now' }],
+		records: [],
+		tombstones: []
+	};
+	await persistence.commit(null, first, []);
+	const failing = new NativeCatalogPersistence({
+		...store,
+		async writeText(path, value) {
+			if (path.startsWith('catalog.')) {
+				files.set(path, value.slice(0, 12));
+				throw new Error('disk full');
+			}
+			await store.writeText(path, value);
+		}
+	});
+	await expect(
+		failing.replace(0, { ...first, revision: 1 }, [], {
+			createdAt: 'later',
+			manifest: first
+		})
+	).rejects.toBeInstanceOf(CatalogOutcomeUnknownError);
+	expect(await failing.read()).toEqual(first);
+	expect(await persistence.read()).toEqual(first);
+	expect(await persistence.readRecovery()).toBeNull();
+});
+
+it('reconciles a published replacement after the write acknowledgement and reads fail', async () => {
+	const { files, store, persistence } = fixture();
+	const first = {
+		schemaVersion: 1 as const,
+		storageId: 'storage-id',
+		revision: 0,
+		createdAt: 'now',
+		updatedAt: 'now',
+		boxOrder: ['box-id'],
+		boxes: [{ id: 'box-id', name: null, revision: 0, createdAt: 'now', updatedAt: 'now' }],
+		records: [],
+		tombstones: []
+	};
+	await persistence.commit(null, first, []);
+	const replacement = { ...first, revision: 1, boxes: [{ ...first.boxes[0], name: 'Restored' }] };
+	let failedReads = 0;
+	let wroteReplacement = false;
+	const failing = new NativeCatalogPersistence({
+		...store,
+		async writeText(path, value) {
+			await store.writeText(path, value);
+			if (path.startsWith('catalog.')) {
+				wroteReplacement = true;
+				throw new Error('lost write acknowledgement');
+			}
+		},
+		async readText(path) {
+			if (wroteReplacement && path === 'catalog.0.json' && failedReads++ < 2)
+				throw new Error('read unavailable');
+			return store.readText(path);
+		}
+	});
+	await expect(
+		failing.replace(0, replacement, [], { createdAt: 'later', manifest: first })
+	).rejects.toBeInstanceOf(CatalogOutcomeUnknownError);
+	expect(files.has('catalog.0.json')).toBe(true);
+	await expect(failing.commit(0, replacement, [])).rejects.toBeInstanceOf(
+		CatalogOutcomeUnknownError
+	);
+	await expect(
+		failing.replace(0, replacement, [], { createdAt: 'later', manifest: first })
+	).rejects.toBeInstanceOf(CatalogOutcomeUnknownError);
+	expect(await failing.read()).toEqual(replacement);
+	expect((await failing.readRecovery())?.manifest).toEqual(first);
+	expect(await persistence.read()).toEqual(replacement);
 });
 it('ignores valid JSON candidates without a verified completion', async () => {
 	const { files, persistence } = fixture();

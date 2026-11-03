@@ -9,6 +9,8 @@ import {
 	getSaveFileEditCoordinator,
 	getSavesSnapshot,
 	getSavesStorage,
+	getPokemonStorageCatalog,
+	ensurePokemonStorageCatalog,
 	invalidateSavesCache
 } from '$lib/pksx/saves-cache';
 
@@ -54,6 +56,7 @@ afterEach(async () => {
 	component = null;
 	container?.remove();
 	fakes.detailsRequest = null;
+	await ensurePokemonStorageCatalog();
 	await deleteIndexedDbSaves(fakes.databaseName);
 	await deleteIndexedDbSaves('pksx-saves');
 	await deleteBrowserCatalog('pksx-pokemon-storage-catalog');
@@ -130,6 +133,10 @@ it('includes Pokemon Storage in grid navigation', async () => {
 	grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 	await tick();
 	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-import');
+
+	grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+	grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
+	await expect.poll(() => fakes.host?.active?.kind).toBe('storage-backup-menu');
 });
 
 it('marks a Save File card busy only while its details are loading', async () => {
@@ -199,4 +206,78 @@ it('sends confirmed deletion through the Save File edit coordinator', async () =
 
 	await expect.poll(() => deleteSave).toHaveBeenCalledWith(saveFile);
 	await expect.poll(() => storage.getSave(saveFile.id)).toBeNull();
+});
+
+it('starts one recovery request and ignores results after its menu closes', async () => {
+	const host = createSummonedWorkflowHost();
+	fakes.host = host;
+	await getSavesStorage().putPokemonStorage(createEmptyPokemonStorage(1));
+	await ensurePokemonStorageCatalog();
+	const snapshot = { createdAt: '2026-11-01T00:00:00Z' } as Awaited<
+		ReturnType<ReturnType<typeof getPokemonStorageCatalog>['preRestoreRecovery']>
+	>;
+	let release = () => {};
+	const read = vi
+		.spyOn(getPokemonStorageCatalog(), 'preRestoreRecovery')
+		.mockResolvedValueOnce(snapshot)
+		.mockImplementation(() => new Promise((resolve) => (release = () => resolve(snapshot))));
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(SavesGrid, { target: container });
+	const openMenu = async () => {
+		container
+			.querySelector<HTMLButtonElement>('[aria-label="Open Pokemon Storage Backup Menu"]')!
+			.click();
+		await expect
+			.poll(() => document.querySelector<HTMLButtonElement>('#storage-backup-command-2')?.disabled)
+			.toBe(false);
+	};
+	await expect
+		.poll(() => container.querySelector('[aria-label="Open Pokemon Storage Backup Menu"]'))
+		.not.toBeNull();
+	await openMenu();
+	const recover = document.querySelector<HTMLButtonElement>('#storage-backup-command-2')!;
+	recover.click();
+	recover.click();
+	release();
+	await expect.poll(() => host.active?.kind).toBe('storage-backup-confirmation');
+	expect(host.active?.returnTo?.kind).toBe('storage-backup-menu');
+	expect(host.active?.returnTo?.returnTo).toBeNull();
+	expect(read).toHaveBeenCalledTimes(2);
+
+	host.closeAll();
+	flushSync();
+	read.mockResolvedValueOnce(snapshot);
+	await openMenu();
+	document.querySelector<HTMLButtonElement>('#storage-backup-command-2')!.click();
+	host.closeAll();
+	release();
+	await tick();
+	await new Promise((resolve) => setTimeout(resolve, 20));
+	expect(host.active).toBeNull();
+});
+
+it('ignores backup keyboard commands while an export is pending', async () => {
+	fakes.host = createSummonedWorkflowHost();
+	await getSavesStorage().putPokemonStorage(createEmptyPokemonStorage(1));
+	await ensurePokemonStorageCatalog();
+	let finish = () => {};
+	const exportArchive = vi
+		.spyOn(getPokemonStorageCatalog(), 'exportArchive')
+		.mockImplementation(() => new Promise((resolve) => (finish = () => resolve(new Uint8Array()))));
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(SavesGrid, { target: container });
+	const menuButton = () =>
+		container.querySelector<HTMLButtonElement>('[aria-label="Open Pokemon Storage Backup Menu"]');
+	await expect.poll(menuButton).not.toBeNull();
+	menuButton()!.click();
+	await expect.poll(() => document.querySelector('#storage-backup-command-0')).not.toBeNull();
+	const press = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+	press();
+	await tick();
+	press();
+	press();
+	expect(exportArchive).toHaveBeenCalledTimes(1);
+	finish();
 });

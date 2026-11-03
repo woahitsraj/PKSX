@@ -1,6 +1,9 @@
 import { stableAutomaticBackupId } from './automatic-backup';
 import { bytesEqual } from './bytes';
-import type { PokemonStorageManifest } from '$lib/pksx/pokemon-storage-catalog/types';
+import type {
+	PokemonStorageManifest,
+	StorageRecovery
+} from '$lib/pksx/pokemon-storage-catalog/types';
 import type {
 	BackupId,
 	BackupMetadata,
@@ -35,6 +38,7 @@ export type NativeCatalog = {
 	workspaces: Record<SaveFileId, NativeWorkspaceMetadata>;
 	activeSaveFileId: SaveFileId | null;
 	pokemonStorageManifest?: PokemonStorageManifest;
+	pokemonStorageRecovery?: StorageRecovery;
 };
 
 let nativeJournalQueue = Promise.resolve();
@@ -362,6 +366,9 @@ export function cloneCatalog(catalog: NativeCatalog): NativeCatalog {
 		activeSaveFileId: catalog.activeSaveFileId,
 		pokemonStorageManifest: catalog.pokemonStorageManifest
 			? structuredClone(catalog.pokemonStorageManifest)
+			: undefined,
+		pokemonStorageRecovery: catalog.pokemonStorageRecovery
+			? structuredClone(catalog.pokemonStorageRecovery)
 			: undefined
 	};
 }
