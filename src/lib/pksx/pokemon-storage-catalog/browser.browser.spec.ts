@@ -28,6 +28,29 @@ catalogContract('browser', create, async (persistence, id) => {
 	void persistence;
 });
 
+test('browser replacement aborts without publishing a recovery snapshot', async () => {
+	const persistence = create();
+	const first = emptyManifest('storage-id', '2026-10-03T00:00:00Z', 'box-id');
+	await persistence.commit(null, first, []);
+	const originalPut = IDBObjectStore.prototype.put;
+	IDBObjectStore.prototype.put = function (...args) {
+		if (this.name === 'manifest' && args[1] === 'current') throw new Error('quota');
+		return originalPut.apply(this, args);
+	};
+	try {
+		await expect(
+			persistence.replace(0, { ...first, revision: 1 }, [], {
+				createdAt: '2026-10-03T01:00:00Z',
+				manifest: first
+			})
+		).rejects.toThrow('quota');
+	} finally {
+		IDBObjectStore.prototype.put = originalPut;
+	}
+	expect(await persistence.read()).toEqual(first);
+	expect(await persistence.readRecovery()).toBeNull();
+});
+
 test('migrates a legacy catalog with recovery bytes into the Saves database', async () => {
 	const legacyName = `legacy-catalog-${crypto.randomUUID()}`;
 	const jointName = `joint-saves-${crypto.randomUUID()}`;

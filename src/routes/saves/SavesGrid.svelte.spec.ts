@@ -9,6 +9,7 @@ import {
 	getSaveFileEditCoordinator,
 	getSavesSnapshot,
 	getSavesStorage,
+	ensurePokemonStorageCatalog,
 	invalidateSavesCache
 } from '$lib/pksx/saves-cache';
 
@@ -54,6 +55,7 @@ afterEach(async () => {
 	component = null;
 	container?.remove();
 	fakes.detailsRequest = null;
+	await ensurePokemonStorageCatalog();
 	await deleteIndexedDbSaves(fakes.databaseName);
 	await deleteIndexedDbSaves('pksx-saves');
 	await deleteBrowserCatalog('pksx-pokemon-storage-catalog');

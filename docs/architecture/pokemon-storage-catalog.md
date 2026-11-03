@@ -9,3 +9,19 @@ The service asks the PKHeX Engine to create, fork, and read preservation payload
 Opening a version 1 Pokemon Storage library converts every physical box and occupied slot in one catalog commit. The legacy snapshot remains unchanged for retry after failure. The engine creates each preservation payload and derives missing projections from its entity bytes. Existing empty boxes keep their names and order; only a library with no legacy snapshot starts with one box. For stored actions, the engine replaces the current snapshot in an existing payload only when its identity fingerprint still matches, retaining the Record ID and original bytes.
 
 At least one Storage Box must remain, and a box can be deleted only when empty. Placement collisions and references to deleted boxes are retained in the manifest for future synchronization. The service derives a deterministic visible slot by Record ID, using the nearest empty slot in flattened Box order, with the lower slot winning equal-distance ties. Record IDs use locale-independent code-unit order; a missing Box starts the search at the first slot. Records without a free slot appear in derived overflow. Local additions and copies count unfiled records toward capacity and stop when capacity is full or overflow exists. Local placements cannot target raw or resolved occupied slots. The derivation never rewrites a record's persisted placement. Deletion tombstones require a Save File ID only for moves to a Save File.
+
+## Pokemon Storage archives
+
+A `.pksx-storage` file is a UTF-8 JSON object. Archive version 1 has these fields:
+
+| Field            | Meaning                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `archiveVersion` | Integer `1`, independent of the catalog and payload schema versions.                                                                                    |
+| `exportedAt`     | Parseable export timestamp.                                                                                                                             |
+| `manifest`       | Complete `PokemonStorageManifest`, including collection identity, box order, records, origins, placements, revisions, and deletion recovery records.    |
+| `manifestSha256` | Lowercase SHA-256 hex of the UTF-8 bytes of `JSON.stringify(manifest)`. This is order-sensitive JSON, not canonical JSON.                               |
+| `payloads`       | Object mapping each referenced payload ID to its Base64-encoded preservation bytes, including recoverable deleted records. Shared payloads appear once. |
+
+Each manifest payload reference supplies the expected SHA-256, byte length, format, and payload schema version. Import requires exactly the referenced payload set and verifies every blob independently. Invalid UTF-8, unsupported archive or catalog versions, malformed data, missing or extra payloads, and checksum mismatches reject the archive before replacement. This format is a local backup format, not a Cloud Sync envelope, and provides integrity checks rather than encryption or authentication.
+
+Restore replaces the collection only after confirmation. The persistence adapter conditionally stores the previous manifest and its referenced blobs as one pre-restore recovery snapshot together with the replacement. Failed publication leaves the previous collection authoritative. The recovery snapshot survives reload and can restore the pre-replacement collection; it is a single recovery slot, not an archive history or a merge workflow. Garbage collection retains blobs referenced by both the current catalog and this recovery snapshot.

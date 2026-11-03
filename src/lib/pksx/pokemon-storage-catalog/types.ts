@@ -71,6 +71,7 @@ export type PokemonStorageManifest = {
 	tombstones: DeletionTombstone[];
 };
 export type StagedBlob = { reference: BlobReference; bytes: Uint8Array };
+export type StorageRecovery = { createdAt: string; manifest: PokemonStorageManifest };
 export type CatalogPersistence = {
 	read(): Promise<PokemonStorageManifest | null>;
 	readBlob(reference: BlobReference): Promise<Uint8Array | null>;
@@ -79,11 +80,23 @@ export type CatalogPersistence = {
 		manifest: PokemonStorageManifest,
 		blobs: StagedBlob[]
 	): Promise<void>;
+	readRecovery(): Promise<StorageRecovery | null>;
+	replace(
+		expectedRevision: number,
+		manifest: PokemonStorageManifest,
+		blobs: StagedBlob[],
+		recovery: StorageRecovery
+	): Promise<void>;
 	sweep(): Promise<number>;
 };
 export class CatalogConflictError extends Error {
 	constructor() {
 		super('Pokemon Storage changed. Reload before retrying.');
+	}
+}
+export class CatalogOutcomeUnknownError extends Error {
+	constructor() {
+		super('Pokemon Storage replacement is awaiting confirmation. Reload before changing Storage.');
 	}
 }
 export async function referenceFor(
