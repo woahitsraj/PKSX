@@ -3239,6 +3239,9 @@ for (const mode of ['Move', 'Duplicate'] as const) {
 		await importEmeraldThroughSaves(page);
 		await seedOccupiedPokemonStorageSlot(page);
 		await page.reload();
+		await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
+			timeout: 60_000
+		});
 		await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
 		await page
 			.getByRole('dialog', { name: 'Box Menu' })
