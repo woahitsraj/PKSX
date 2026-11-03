@@ -661,6 +661,12 @@
 	const virtualMenuCommands = $derived<SlotMenuCommand[]>([
 		{ key: 'move', label: 'Move', availability: 'available', reason: null },
 		{ key: 'copy', label: 'Duplicate', availability: 'available', reason: null },
+		{
+			key: 'store-automatically',
+			label: 'Store Automatically',
+			availability: 'available',
+			reason: null
+		},
 		...(virtualMenuRecord?.placement
 			? ([
 					{ key: 'clear', label: 'Move to Unfiled', availability: 'available', reason: null }
@@ -797,7 +803,8 @@
 					(action) => action.kind === 'evolve' && action.available
 				) ?? false,
 			// The review has no start action until #437, so production builds hide the entry.
-			trade: dev && focusedSlot.kind === 'pokemon' && Boolean(focusedSlot.entityBytesBase64)
+			trade: dev && focusedSlot.kind === 'pokemon' && Boolean(focusedSlot.entityBytesBase64),
+			storage: focusedSlotOwner.type === 'pokemon-storage'
 		}).map((command) =>
 			command.key === 'copy' && focusedSlotOwner.type === 'pokemon-storage'
 				? { ...command, label: 'Duplicate' }
@@ -1109,6 +1116,8 @@
 		}
 
 		const zoneChanged = Boolean(pane && navigation.locationFocus.zone !== pane.focus.zone);
+		if (boxChanged && pane?.source.type === 'pokemon-storage' && !virtualPaneIds.includes(pane.id))
+			rememberPhysicalStorageBox(navigation.activeBox);
 		if (pane) {
 			if (zoneChanged || (boxChanged && !deferredBoxChange)) {
 				workbenchPanes = setPaneFocus(
@@ -1562,6 +1571,7 @@
 
 	function selectVirtualAction(command: SlotMenuCommandKey | 'close') {
 		const recordId = virtualMenuRecordId;
+		const paneId = activePane?.id;
 		if (!recordId || command === 'close') {
 			closeVirtualActionMenu();
 			return;
@@ -1569,6 +1579,8 @@
 		virtualMenuRecordId = null;
 		summonedWorkflow.dismiss();
 		if (command === 'move' || command === 'copy') beginVirtualCarry(recordId, command);
+		else if (command === 'store-automatically')
+			void storeRecordAutomatically(recordId, paneId, true);
 		else if (command === 'clear') {
 			void moveToUnfiled(recordId);
 			queueMicrotask(() => focusVirtualRecord(recordId));
@@ -1587,6 +1599,74 @@
 			toastHost.success(statusMessage);
 		} catch (error) {
 			toastHost.error(getErrorMessage(error));
+		} finally {
+			busy = false;
+		}
+	}
+
+	function rememberPhysicalStorageBox(index: number) {
+		const id = getPokemonStorageCatalog().listBoxes()[index]?.id;
+		if (id) localStorage.setItem('pksx-last-physical-storage-box-id-v1', id);
+	}
+
+	function restoreVirtualFocusAfterAutomaticStore(recordId: string, paneId: string | undefined) {
+		if (!paneId || activePaneId !== paneId || !virtualPaneIds.includes(paneId)) return;
+		if (activeVirtualRecords.some((record) => record.recordId === recordId)) {
+			focusVirtualRecord(recordId);
+		} else {
+			updateVirtualView(paneId, { focusedId: null });
+			queueMicrotask(() => document.getElementById(locationControlId(paneId))?.focus());
+		}
+	}
+
+	async function storeRecordAutomatically(recordId: string, paneId?: string, fromVirtual = false) {
+		if (busy || catalogViewStale || pendingSlotOperation || virtualCarry) return;
+		const catalog = getPokemonStorageCatalog();
+		const record = catalog.getRecord(recordId);
+		if (!record) {
+			if (fromVirtual) restoreVirtualFocusAfterAutomaticStore(recordId, paneId);
+			return;
+		}
+		busy = true;
+		try {
+			const destination = await catalog.storeAutomatically(
+				recordId,
+				localStorage.getItem('pksx-last-physical-storage-box-id-v1'),
+				record.revision
+			);
+			if (!(await refreshCommittedCatalogView())) {
+				if (fromVirtual) restoreVirtualFocusAfterAutomaticStore(recordId, paneId);
+				return;
+			}
+			const boxes = catalog.listBoxes();
+			const box = boxes.findIndex((item) => item.id === destination.storageBoxId);
+			workbenchPanes = workbenchPanes.map((pane) =>
+				pane.source.type === 'pokemon-storage' ? { ...pane, boxCount: boxes.length } : pane
+			);
+			if (paneId && box >= 0) {
+				workbenchPanes = setPaneFocus(
+					setPaneActiveBox(workbenchPanes, paneId, box),
+					paneId,
+					focusBoxSlot(destination.slot)
+				);
+				activePaneId = paneId;
+				virtualPaneIds = virtualPaneIds.filter((id) => id !== paneId);
+				navigation = {
+					...navigation,
+					activeBox: box,
+					boxCount: boxes.length,
+					focus: focusBoxSlot(destination.slot),
+					locationFocus: focusBoxSlot(destination.slot)
+				};
+				localStorage.setItem('pksx-last-storage-location-v1', `physical-box-${box}`);
+				rememberPhysicalStorageBox(box);
+				queueMicrotask(focusActiveControl);
+			}
+			statusMessage = `Stored Pokemon in Storage Box ${box + 1}, Slot ${destination.slot + 1}.`;
+			toastHost.success(statusMessage);
+		} catch (error) {
+			toastHost.error(getErrorMessage(error));
+			if (fromVirtual) restoreVirtualFocusAfterAutomaticStore(recordId, paneId);
 		} finally {
 			busy = false;
 		}
@@ -2407,6 +2487,7 @@
 		if (paneActive) navigation = state;
 
 		if (state.locationFocus.zone === 'box' && state.activeBox !== previousBox) {
+			if (pane.source.type === 'pokemon-storage') rememberPhysicalStorageBox(state.activeBox);
 			if (
 				loadedSave &&
 				paneActive &&
@@ -2689,8 +2770,10 @@
 			return;
 		}
 		virtualPaneIds = virtualPaneIds.filter((id) => id !== pane.id);
-		if (pane.source.type === 'pokemon-storage')
+		if (pane.source.type === 'pokemon-storage') {
 			localStorage.setItem('pksx-last-storage-location-v1', location.id);
+			rememberPhysicalStorageBox(location.location.box);
+		}
 
 		const box = Math.min(location.location.box, Math.max(0, pane.boxCount - 1));
 		const locationFocus = projectSlotCoordinate(
@@ -4140,6 +4223,8 @@
 		if (source.type === 'pokemon-storage') initializeStorageLocation(id);
 		const openedPane = workbenchPanes.find((pane) => pane.id === id);
 		activePaneId = id;
+		if (source.type === 'pokemon-storage' && openedPane)
+			rememberPhysicalStorageBox(openedPane.activeBox);
 		navigation = {
 			...navigation,
 			boxCount: Math.max(1, openedPane?.boxCount ?? sourceBoxCount),
@@ -4217,6 +4302,8 @@
 		if (source.type === 'pokemon-storage') initializeStorageLocation(paneId);
 		const switchedPane = workbenchPanes.find((candidate) => candidate.id === paneId);
 		activePaneId = paneId;
+		if (switchedPane?.source.type === 'pokemon-storage')
+			rememberPhysicalStorageBox(switchedPane.activeBox);
 		navigation = {
 			...navigation,
 			boxCount: Math.max(1, switchedPane?.boxCount ?? targetBoxCount),
@@ -4315,6 +4402,8 @@
 				locationFocus: nextFocus
 			};
 			if (nextPane) workbenchPanes = setPaneFocus(workbenchPanes, nextPane.id, nextFocus);
+			if (nextPane?.source.type === 'pokemon-storage' && !virtualPaneIds.includes(nextPane.id))
+				rememberPhysicalStorageBox(nextPane.activeBox);
 			focusSurvivingPane = true;
 		}
 		const remaining = { ...savePaneWorkspaces };
@@ -4334,7 +4423,8 @@
 		lastDomFocusedSaveSlot = null;
 		preserveActivePaneNavigation();
 		activePaneId = pane.id;
-
+		if (pane.source.type === 'pokemon-storage' && !virtualPaneIds.includes(pane.id))
+			rememberPhysicalStorageBox(pane.activeBox);
 		navigation = selectActiveBox(
 			{
 				...navigation,
@@ -4555,6 +4645,15 @@
 			case 'copy':
 				beginPendingSlotOperation('copy');
 				break;
+			case 'store-automatically': {
+				const launcher = summonedSlotLauncher;
+				if (launcher?.type !== 'slot' || launcher.focus.zone !== 'box') break;
+				const recordId = catalogRecordAt(slotRefForLauncher(launcher));
+				if (!recordId) break;
+				closeSlotMenu();
+				void storeRecordAutomatically(recordId, launcher.paneId);
+				break;
+			}
 			case 'clear':
 				requestClearFocusedSlot();
 				break;
