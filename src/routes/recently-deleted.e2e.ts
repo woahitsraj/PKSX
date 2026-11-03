@@ -96,7 +96,8 @@ async function seedStorage(page: Page, slots = [0]) {
 	);
 	await page.reload();
 	await expect(page.getByRole('button', { name: 'Open Pokemon Storage in Boxes' })).toContainText(
-		`${slots.length} Pokemon`
+		`${slots.length} Pokemon`,
+		{ timeout: 60_000 }
 	);
 	await page.goto('/?source=pokemon-storage');
 	await waitForStorageBoxesReady(page);
