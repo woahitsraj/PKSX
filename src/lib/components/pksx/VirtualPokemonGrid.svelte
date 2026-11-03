@@ -88,8 +88,7 @@
 </script>
 
 <div
-	class="virtual-browser"
-	class:overflow={preferences.location === 'overflow'}
+	class={['virtual-browser', { overflow: preferences.location === 'overflow' }]}
 	style:--row-height={`${rowHeight}px`}
 	style:--card-gap={`${gap}px`}
 >
