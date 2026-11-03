@@ -3,6 +3,7 @@ import {
 	assertManifest,
 	referencedPayloads,
 	verifyBlob,
+	type PokemonRecord,
 	type PokemonStorageManifest,
 	type StagedBlob
 } from './types';
@@ -26,6 +27,44 @@ function toBase64(bytes: Uint8Array): string {
 	for (let index = 0; index < bytes.length; index += 8192)
 		binary += String.fromCharCode(...bytes.subarray(index, index + 8192));
 	return btoa(binary);
+}
+
+const entryModes = new Set([
+	'moved-in',
+	'copied-in',
+	'imported',
+	'transferred-in',
+	'deleted-from-save'
+]);
+const isText = (value: unknown) => typeof value === 'string';
+const isOptionalText = (value: unknown) => value == null || typeof value === 'string';
+
+function assertArchivedRecord(record: PokemonRecord | undefined): void {
+	const projection = record?.projection;
+	const origin = record?.origin;
+	if (
+		!record ||
+		!isText(record.recordId) ||
+		!isText(record.identityFingerprint) ||
+		!Number.isSafeInteger(record.revision) ||
+		!isText(record.createdAt) ||
+		!isText(record.updatedAt) ||
+		!projection ||
+		typeof projection !== 'object' ||
+		!Number.isInteger(projection.speciesId) ||
+		!Number.isInteger(projection.level) ||
+		!isText(projection.nickname) ||
+		!isOptionalText(projection.speciesName) ||
+		(projection.spriteIdentity != null && typeof projection.spriteIdentity !== 'object') ||
+		!origin ||
+		typeof origin !== 'object' ||
+		!entryModes.has(origin.entryMode) ||
+		!isOptionalText(origin.originSaveFileName) ||
+		!isOptionalText(origin.originGame) ||
+		!isOptionalText(origin.originalTrainer) ||
+		!isText(origin.enteredAt)
+	)
+		throw new Error('Pokemon Storage archive record is malformed.');
 }
 
 export async function encodeStorageArchive(
@@ -69,6 +108,9 @@ export async function decodeStorageArchive(bytes: Uint8Array): Promise<{
 	if (!Number.isFinite(Date.parse(archive.exportedAt)))
 		throw new Error('Pokemon Storage archive export time is invalid.');
 	assertManifest(archive.manifest);
+	for (const record of archive.manifest.records) assertArchivedRecord(record);
+	for (const tombstone of archive.manifest.tombstones)
+		if (tombstone.recovery !== undefined) assertArchivedRecord(tombstone.recovery);
 	if (archive.manifestSha256 !== (await sha256(JSON.stringify(archive.manifest))))
 		throw new Error('Pokemon Storage archive manifest checksum mismatch.');
 	if (!archive.payloads || typeof archive.payloads !== 'object' || Array.isArray(archive.payloads))
