@@ -3258,12 +3258,11 @@ for (const mode of ['Move', 'Duplicate'] as const) {
 		await expect(destination).toContainText('Empty');
 		const secondTab = await page.context().newPage();
 		await secondTab.goto('/settings');
-		await storagePane.locator('[id$="box-0-slot-0"]').click();
+		// A click is a first or second Slot tap depending on focus timing; use the keyboard.
+		const source = storagePane.locator('[id$="box-0-slot-0"]');
+		await source.focus();
+		await expect(source).toBeFocused();
 		await expect(storagePane).toHaveClass(/active-pane/);
-		await expect(storagePane.locator('[id$="box-0-slot-0"]')).toHaveAttribute(
-			'aria-selected',
-			'true'
-		);
 		await page.keyboard.press('Enter');
 		const slotActions = page.getByRole('dialog', { name: 'Slot actions' });
 		await expect(slotActions).toBeVisible();
@@ -7260,6 +7259,9 @@ test('Store Automatically restores virtual focus after a failed write and focuse
 	await openEmptySaves(page);
 	await seedOccupiedPokemonStorageSlot(page);
 	await page.goto('/?source=pokemon-storage');
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
+		timeout: 60_000
+	});
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page
 		.getByRole('dialog', { name: 'Choose a Box' })
@@ -7269,6 +7271,7 @@ test('Store Automatically restores virtual focus after a failed write and focuse
 		name: /ARON/
 	});
 	await card.getByRole('button', { name: /ARON/ }).focus();
+	await expect(card.getByRole('button', { name: /ARON/ })).toBeFocused();
 	await page.keyboard.press('Enter');
 	await page
 		.getByRole('dialog', { name: 'Slot actions' })

@@ -107,7 +107,9 @@ async function seedStorage(page: Page, slots = [0]) {
 }
 
 async function clearSlot(page: Page, slot: number) {
-	await page.locator(`#box-0-slot-${slot}`).click();
+	const source = page.locator(`#box-0-slot-${slot}`);
+	await source.focus();
+	await expect(source).toBeFocused();
 	await page.keyboard.press('Enter');
 	await page
 		.getByRole('dialog', { name: 'Slot actions' })
