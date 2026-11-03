@@ -394,12 +394,9 @@ export class PokemonStorageService {
 			},
 			[],
 			(before, after) => {
+				const revisions = new Map(before.records.map((item) => [item.recordId, item.revision]));
 				const changed = after.records
-					.filter(
-						(record) =>
-							record.revision !==
-							before.records.find((item) => item.recordId === record.recordId)?.revision
-					)
+					.filter((record) => record.revision !== revisions.get(record.recordId))
 					.map((record) => this.#recordUndo(before, after, record.recordId));
 				return changed.length ? { kind: 'placement', records: changed } : null;
 			}
