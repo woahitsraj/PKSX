@@ -252,3 +252,28 @@ it('starts one recovery request and ignores results after its menu closes', asyn
 	await new Promise((resolve) => setTimeout(resolve, 20));
 	expect(host.active).toBeNull();
 });
+
+it('ignores backup keyboard commands while an export is pending', async () => {
+	fakes.host = createSummonedWorkflowHost();
+	await getSavesStorage().putPokemonStorage(createEmptyPokemonStorage(1));
+	await ensurePokemonStorageCatalog();
+	let finish = () => {};
+	const exportArchive = vi
+		.spyOn(getPokemonStorageCatalog(), 'exportArchive')
+		.mockImplementation(() => new Promise((resolve) => (finish = () => resolve(new Uint8Array()))));
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(SavesGrid, { target: container });
+	const menuButton = () =>
+		container.querySelector<HTMLButtonElement>('[aria-label="Open Pokemon Storage Backup Menu"]');
+	await expect.poll(menuButton).not.toBeNull();
+	menuButton()!.click();
+	await expect.poll(() => document.querySelector('#storage-backup-command-0')).not.toBeNull();
+	const press = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+	press();
+	await tick();
+	press();
+	press();
+	expect(exportArchive).toHaveBeenCalledTimes(1);
+	finish();
+});

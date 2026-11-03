@@ -442,6 +442,7 @@
 	}
 
 	async function exportStorageBackup() {
+		if (busyTarget) return;
 		busyTarget = 'pokemon-storage';
 		try {
 			const bytes = await getPokemonStorageCatalog().exportArchive();
@@ -577,6 +578,7 @@
 			return;
 		}
 		if (event.key === 'Enter' || event.key === ' ') {
+			if (busyTarget) return;
 			if (storageConfirmOpen) {
 				if (storageBackupIndex === 0) dismissStorageBackup();
 				else void confirmStorageReplacement();
