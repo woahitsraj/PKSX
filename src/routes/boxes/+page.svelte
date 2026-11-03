@@ -564,7 +564,15 @@
 		createBoxMenuCommands({
 			source: boxMenuTarget?.source ?? pokemonStorageSource(),
 			workspaceReady: saveWorkspaceForPane(boxMenuPane) !== null,
-			paneCount: workbenchPanes.length
+			paneCount: workbenchPanes.length,
+			undoAvailable:
+				Boolean(catalogManifest) &&
+				getPokemonStorageCatalog().canUndo &&
+				!busy &&
+				!catalogViewStale &&
+				!pendingSlotOperation &&
+				!carryState &&
+				!virtualCarry
 		})
 	);
 	const boxPickerPane = $derived.by(() => {
@@ -2954,6 +2962,9 @@
 			case 'organize-storage-boxes':
 				openStorageBoxOrganizer();
 				break;
+			case 'undo-storage-organization':
+				void undoStorageOrganization();
+				break;
 			case 'export':
 				void exportBoxMenuSave();
 				break;
@@ -3059,6 +3070,17 @@
 
 	function deleteStorageBox(id: string) {
 		return changeStorageBoxes(() => getPokemonStorageCatalog().removeBox(id));
+	}
+
+	async function undoStorageOrganization() {
+		const error = await changeStorageBoxes(() => getPokemonStorageCatalog().undo());
+		if (error) {
+			toastHost.error(error);
+			return;
+		}
+		statusMessage = 'Storage organization undone.';
+		toastHost.success(statusMessage);
+		closeBoxMenu();
 	}
 
 	function openSaveFileLegalityReport() {

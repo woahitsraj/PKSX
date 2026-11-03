@@ -8,7 +8,8 @@ describe('Box Menu commands', () => {
 			createBoxMenuCommands({
 				source: { type: 'save-file', label: 'emerald.sav' },
 				workspaceReady: true,
-				paneCount: 1
+				paneCount: 1,
+				undoAvailable: false
 			}).map((command) => command.label)
 		).toEqual([
 			'Export',
@@ -24,7 +25,8 @@ describe('Box Menu commands', () => {
 		const commands = createBoxMenuCommands({
 			source: { type: 'pokemon-storage', label: 'Pokemon Storage' },
 			workspaceReady: false,
-			paneCount: 1
+			paneCount: 1,
+			undoAvailable: false
 		});
 
 		expect(
@@ -52,6 +54,11 @@ describe('Box Menu commands', () => {
 				key: 'close',
 				availability: 'unavailable',
 				reason: 'Keep at least one collection open.'
+			},
+			{
+				key: 'undo-storage-organization',
+				availability: 'unavailable',
+				reason: 'No completed Storage organization change is available to undo.'
 			}
 		]);
 	});
@@ -60,7 +67,8 @@ describe('Box Menu commands', () => {
 		const commands = createBoxMenuCommands({
 			source: { type: 'save-file', label: 'emerald.sav' },
 			workspaceReady: true,
-			paneCount: 2
+			paneCount: 2,
+			undoAvailable: false
 		});
 
 		expect(commands[3]).toMatchObject({ availability: 'available', reason: null });
@@ -75,7 +83,8 @@ describe('Box Menu commands', () => {
 		const commands = createBoxMenuCommands({
 			source: { type: 'save-file', label: 'secondary.sav' },
 			workspaceReady: false,
-			paneCount: 2
+			paneCount: 2,
+			undoAvailable: false
 		});
 
 		expect(commands[0]).toMatchObject({
