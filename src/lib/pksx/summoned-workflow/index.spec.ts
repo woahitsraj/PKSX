@@ -9,10 +9,31 @@ import {
 	isDestinationInputSuspended,
 	isSummonedWorkflowPresented,
 	openRelatedSummonedWorkflow,
-	openSummonedWorkflow
+	openSummonedWorkflow,
+	remapSummonedWorkflowLaunchers
 } from './index';
 
 describe('summoned workflow ownership', () => {
+	it('remaps every launcher in the chain', () => {
+		const slot = {
+			type: 'slot' as const,
+			id: 'box-2-slot-8',
+			paneId: 'p',
+			box: 2,
+			focus: focusBoxSlot(8)
+		};
+		const owner = openRelatedSummonedWorkflow(
+			openSummonedWorkflow(createSummonedWorkflowOwner(), 'box-menu', slot),
+			'storage-box-organizer',
+			{ type: 'control', id: 'box-menu-command-0' }
+		);
+		const remapped = remapSummonedWorkflowLaunchers(owner, (launcher) =>
+			launcher.type === 'slot' ? { ...launcher, box: 0, id: 'box-0-slot-8' } : launcher
+		);
+		expect(getLaunchingSlot(remapped)).toEqual({ ...slot, box: 0, id: 'box-0-slot-8' });
+		expect(remapped.active?.launcher).toEqual({ type: 'control', id: 'box-menu-command-0' });
+	});
+
 	it('owns a related workflow, its launch chain, input suspension, and focus return', () => {
 		expect.assertions(14);
 

@@ -2742,6 +2742,13 @@
 				const pane = workbenchPanes.find((item) => item.id === activePaneId)!;
 				navigation = { ...navigation, activeBox: pane.activeBox, boxCount: after.length };
 			}
+			summonedWorkflow.remapLaunchers((launcher) => {
+				if (launcher.type !== 'slot' || launcher.box === null || !selectedIds.has(launcher.paneId))
+					return launcher;
+				const index = after.findIndex((box) => box.id === before[launcher.box!]?.id);
+				const box = index >= 0 ? index : Math.min(launcher.box, after.length - 1);
+				return { ...launcher, box, id: launcher.id.replace(/box-\d+-slot-/, `box-${box}-slot-`) };
+			});
 			return null;
 		} catch (error) {
 			return getErrorMessage(error);

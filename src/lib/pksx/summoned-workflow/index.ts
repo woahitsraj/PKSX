@@ -86,6 +86,19 @@ export function dismissSummonedWorkflow(owner: SummonedWorkflowOwner): {
 	};
 }
 
+export function remapSummonedWorkflowLaunchers(
+	owner: SummonedWorkflowOwner,
+	map: (launcher: SummonedWorkflowLauncher) => SummonedWorkflowLauncher
+): SummonedWorkflowOwner {
+	const remap = (workflow: SummonedWorkflow | null): SummonedWorkflow | null =>
+		workflow && {
+			...workflow,
+			launcher: map(workflow.launcher),
+			returnTo: remap(workflow.returnTo)
+		};
+	return { active: remap(owner.active) };
+}
+
 export function closeSummonedWorkflows(): SummonedWorkflowOwner {
 	return createSummonedWorkflowOwner();
 }

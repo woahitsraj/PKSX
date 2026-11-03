@@ -6,6 +6,7 @@ import {
 	dismissSummonedWorkflow,
 	openRelatedSummonedWorkflow,
 	openSummonedWorkflow,
+	remapSummonedWorkflowLaunchers,
 	type SummonedWorkflow,
 	type SummonedWorkflowKind,
 	type SummonedWorkflowLauncher,
@@ -20,6 +21,7 @@ export type SummonedWorkflowHost = {
 	open(kind: SummonedWorkflowKind, launcher: SummonedWorkflowLauncher): boolean;
 	openRelated(kind: SummonedWorkflowKind, launcher: SummonedWorkflowLauncher): void;
 	dismiss(): SummonedWorkflowLauncher | null;
+	remapLaunchers(map: (launcher: SummonedWorkflowLauncher) => SummonedWorkflowLauncher): void;
 	closeAll(): void;
 };
 
@@ -54,6 +56,9 @@ export function createSummonedWorkflowHost(): SummonedWorkflowHost {
 			const dismissed = dismissSummonedWorkflow(owner);
 			publish(dismissed.owner);
 			return dismissed.returnLauncher;
+		},
+		remapLaunchers(map) {
+			publish(remapSummonedWorkflowLaunchers(owner, map));
 		},
 		closeAll() {
 			publish(closeSummonedWorkflows());
