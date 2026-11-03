@@ -58,7 +58,8 @@
 		'moved-in': 'Moved',
 		'copied-in': 'Copied',
 		imported: 'Imported',
-		'transferred-in': 'Transferred'
+		'transferred-in': 'Transferred',
+		'deleted-from-save': 'Deleted'
 	};
 	function measure(node: HTMLDivElement) {
 		viewport = node;
