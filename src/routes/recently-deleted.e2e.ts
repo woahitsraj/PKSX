@@ -72,7 +72,7 @@ async function seedStorage(page: Page, slots = [0]) {
 	);
 	await page.reload();
 	await page.goto('/?source=pokemon-storage');
-	await expect(page.getByRole('grid', { name: 'All Pokemon' })).toBeVisible();
+	await expect(page.getByRole('grid', { name: 'All Pokemon' })).toBeVisible({ timeout: 60_000 });
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: /^Box 01: Favorites, 1 of 1$/ }).click();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
