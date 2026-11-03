@@ -441,7 +441,11 @@ export function catalogContract(
 			const secondBox = await service.addBox();
 			const record = await service.add(bytes(1), origin, { storageBoxId: firstBox.id, slot: 0 });
 			await service.place(record.recordId, { storageBoxId: secondBox.id, slot: 0 });
-			await service.replace(record.recordId, engine.editPayload(record.recordId, bytes(2)));
+			await service.replace(
+				record.recordId,
+				engine.editPayload(record.recordId, bytes(2)),
+				record.payload.id
+			);
 			const edited = service.current;
 			await expect(service.undo()).rejects.toThrow(/changed/);
 			expect(service.current).toEqual(edited);
