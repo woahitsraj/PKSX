@@ -7358,7 +7358,7 @@
 								{busy}
 								onFocus={(id) => {
 									activatePane(pane, false);
-									virtualFocusedId = id;
+									focusVirtualRecord(id);
 								}}
 								onOpen={(id) => {
 									activatePane(pane, false);

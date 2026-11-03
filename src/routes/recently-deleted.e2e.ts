@@ -72,11 +72,14 @@ async function seedStorage(page: Page, slots = [0]) {
 	);
 	await page.reload();
 	await page.goto('/?source=pokemon-storage');
+	await expect(page.getByRole('grid', { name: 'All Pokemon' })).toBeVisible();
+	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
+	await page.getByRole('button', { name: /^Box 01: Favorites, 1 of 1$/ }).click();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 }
 
 async function clearSlot(page: Page, slot: number) {
-	await page.locator('#box-grid').focus();
+	await page.locator(`#box-0-slot-${slot}`).click();
 	await page.keyboard.press('Enter');
 	await page
 		.getByRole('dialog', { name: 'Slot actions' })
@@ -102,6 +105,7 @@ test('Clear Slot can be restored or permanently deleted', async ({ page }) => {
 	await openRecentlyDeleted(page);
 	const grid = page.getByRole('grid', { name: 'Recently Deleted Pokemon' });
 	await expect(grid.getByRole('gridcell')).toHaveCount(1);
+	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).focus();
 	await grid.getByRole('gridcell').focus();
 	await page.keyboard.press('Enter');
 	const menu = page.getByRole('dialog', { name: 'Recently Deleted actions' });
