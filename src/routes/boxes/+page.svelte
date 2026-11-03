@@ -4223,7 +4223,7 @@
 		if (source.type === 'pokemon-storage') initializeStorageLocation(id);
 		const openedPane = workbenchPanes.find((pane) => pane.id === id);
 		activePaneId = id;
-		if (source.type === 'pokemon-storage' && openedPane)
+		if (source.type === 'pokemon-storage' && openedPane && !virtualPaneIds.includes(id))
 			rememberPhysicalStorageBox(openedPane.activeBox);
 		navigation = {
 			...navigation,
@@ -4302,7 +4302,7 @@
 		if (source.type === 'pokemon-storage') initializeStorageLocation(paneId);
 		const switchedPane = workbenchPanes.find((candidate) => candidate.id === paneId);
 		activePaneId = paneId;
-		if (switchedPane?.source.type === 'pokemon-storage')
+		if (switchedPane?.source.type === 'pokemon-storage' && !virtualPaneIds.includes(paneId))
 			rememberPhysicalStorageBox(switchedPane.activeBox);
 		navigation = {
 			...navigation,

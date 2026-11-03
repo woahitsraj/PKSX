@@ -7174,6 +7174,21 @@ test('Store Automatically follows physical Storage source switches and activatio
 		.click();
 	await expect(peer.locator('[id$="box-0-slot-1"]')).toContainText('ARON');
 	await expect(peer.locator('[id$="box-0-slot-1"]')).toBeFocused();
+	await page.evaluate((id) => {
+		localStorage.setItem('pksx-last-physical-storage-box-id-v1', id);
+		localStorage.setItem('pksx-last-storage-location-v1', 'all-pokemon');
+	}, thirdBoxId);
+	await primary.getByRole('button', { name: /Open Box Menu for .*\.sav/ }).click();
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Switch' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Switch collection' })
+		.getByRole('button', { name: /Pokemon Storage/ })
+		.click();
+	await expect(primary.getByRole('grid', { name: 'All Pokemon' })).toBeVisible();
+	expect(await lastBox()).toBe(thirdBoxId);
 });
 
 test('Store Automatically follows the active physical pane when both panes show Storage', async ({
