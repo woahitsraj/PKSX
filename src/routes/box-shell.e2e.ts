@@ -7620,6 +7620,11 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await expect(grid).toHaveAttribute('aria-activedescendant', 'saves-target-pokemon-storage');
 	await page.keyboard.press('x');
 	await expect(page.getByRole('dialog', { name: 'Save File Menu' })).toBeHidden();
+	const storageBackup = page.getByRole('dialog', { name: 'Pokemon Storage Backup' });
+	await expect(storageBackup).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(storageBackup).toBeHidden();
+	await expect(grid).toBeFocused();
 	await page.keyboard.press('ArrowLeft');
 	await expect(grid).toHaveAttribute('aria-activedescendant', alphaTarget!);
 	await page.getByRole('heading', { name: 'Saves', exact: true }).click();
