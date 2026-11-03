@@ -489,9 +489,15 @@
 		}
 	}
 
+	let recoveryLoading = false;
+
 	async function requestStorageRecovery() {
+		const launchingWorkflow = summonedWorkflow.active;
+		if (recoveryLoading || busyTarget || launchingWorkflow?.kind !== 'storage-backup-menu') return;
+		recoveryLoading = true;
 		try {
 			const recovery = await getPokemonStorageCatalog().preRestoreRecovery();
+			if (summonedWorkflow.active !== launchingWorkflow) return;
 			if (!recovery) throw new Error('No pre-restore snapshot is available.');
 			pendingStorageArchive = null;
 			recoveryRequested = true;
@@ -503,7 +509,9 @@
 			storageBackupIndex = 0;
 			void focusStorageBackupCommand();
 		} catch (error) {
-			toastHost.error(getErrorMessage(error));
+			if (summonedWorkflow.active === launchingWorkflow) toastHost.error(getErrorMessage(error));
+		} finally {
+			recoveryLoading = false;
 		}
 	}
 

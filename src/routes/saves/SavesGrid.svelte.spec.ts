@@ -9,6 +9,7 @@ import {
 	getSaveFileEditCoordinator,
 	getSavesSnapshot,
 	getSavesStorage,
+	getPokemonStorageCatalog,
 	ensurePokemonStorageCatalog,
 	invalidateSavesCache
 } from '$lib/pksx/saves-cache';
@@ -201,4 +202,53 @@ it('sends confirmed deletion through the Save File edit coordinator', async () =
 
 	await expect.poll(() => deleteSave).toHaveBeenCalledWith(saveFile);
 	await expect.poll(() => storage.getSave(saveFile.id)).toBeNull();
+});
+
+it('starts one recovery request and ignores results after its menu closes', async () => {
+	const host = createSummonedWorkflowHost();
+	fakes.host = host;
+	await getSavesStorage().putPokemonStorage(createEmptyPokemonStorage(1));
+	await ensurePokemonStorageCatalog();
+	const snapshot = { createdAt: '2026-11-01T00:00:00Z' } as Awaited<
+		ReturnType<ReturnType<typeof getPokemonStorageCatalog>['preRestoreRecovery']>
+	>;
+	let release = () => {};
+	const read = vi
+		.spyOn(getPokemonStorageCatalog(), 'preRestoreRecovery')
+		.mockResolvedValueOnce(snapshot)
+		.mockImplementation(() => new Promise((resolve) => (release = () => resolve(snapshot))));
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(SavesGrid, { target: container });
+	const openMenu = async () => {
+		container
+			.querySelector<HTMLButtonElement>('[aria-label="Open Pokemon Storage Backup Menu"]')!
+			.click();
+		await expect
+			.poll(() => document.querySelector<HTMLButtonElement>('#storage-backup-command-2')?.disabled)
+			.toBe(false);
+	};
+	await expect
+		.poll(() => container.querySelector('[aria-label="Open Pokemon Storage Backup Menu"]'))
+		.not.toBeNull();
+	await openMenu();
+	const recover = document.querySelector<HTMLButtonElement>('#storage-backup-command-2')!;
+	recover.click();
+	recover.click();
+	release();
+	await expect.poll(() => host.active?.kind).toBe('storage-backup-confirmation');
+	expect(host.active?.returnTo?.kind).toBe('storage-backup-menu');
+	expect(host.active?.returnTo?.returnTo).toBeNull();
+	expect(read).toHaveBeenCalledTimes(2);
+
+	host.closeAll();
+	flushSync();
+	read.mockResolvedValueOnce(snapshot);
+	await openMenu();
+	document.querySelector<HTMLButtonElement>('#storage-backup-command-2')!.click();
+	host.closeAll();
+	release();
+	await tick();
+	await new Promise((resolve) => setTimeout(resolve, 20));
+	expect(host.active).toBeNull();
 });
