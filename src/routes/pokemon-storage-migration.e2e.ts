@@ -148,6 +148,11 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	await page.keyboard.press('Enter');
 	await expect(page.locator('#box-0-slot-4')).toContainText('ARON');
 	await page.reload();
+	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready',
+		{ timeout: 60_000 }
+	);
 	await expect(page.locator('#box-0-slot-4')).toContainText('ARON');
 	const state = await page.evaluate(async () => {
 		const read = async (name: string, store: string, key: string): Promise<unknown> => {
