@@ -133,6 +133,10 @@ it('includes Pokemon Storage in grid navigation', async () => {
 	grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 	await tick();
 	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-import');
+
+	grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+	grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
+	await expect.poll(() => fakes.host?.active?.kind).toBe('storage-backup-menu');
 });
 
 it('marks a Save File card busy only while its details are loading', async () => {

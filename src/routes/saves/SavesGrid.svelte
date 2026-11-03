@@ -346,6 +346,9 @@
 			if (target.kind === 'save-file') {
 				event.preventDefault();
 				openSaveFileMenu(target.id);
+			} else if (target.kind === 'pokemon-storage') {
+				event.preventDefault();
+				void openStorageBackupMenu();
 			}
 			return;
 		}
