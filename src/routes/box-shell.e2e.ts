@@ -1293,6 +1293,26 @@ test('keyboard navigation moves deterministically across the box grid', async ({
 	await expect(page.locator('#collection-control-pane-primary')).toBeFocused();
 });
 
+test('controller navigation highlights the active Slot without outlining the entire grid', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	await page.locator('#box-grid').focus();
+	await pressController(page, 'ArrowRight');
+	await expectControllerSlot(page, 'box-0-slot-1');
+
+	const gridFocus = await page.locator('#box-grid').evaluate((grid) => ({
+		focused: document.activeElement === grid,
+		outline: getComputedStyle(grid).outlineStyle
+	}));
+	expect(gridFocus).toEqual({ focused: true, outline: 'none' });
+	await expect(page.locator('#box-0-slot-1')).toHaveCSS('outline-style', 'solid');
+
+	await chooseMainMenu(page, 'Saves');
+	await pressController(page, 'ArrowDown');
+	await expectControllerHighlights(page, page.locator('.saves-route'));
+});
+
 test('the active Slot uses one focus ring painted inside its bounds', async ({ page }) => {
 	await openEmptySaves(page);
 	const slot = page.locator('#box-0-slot-0');
