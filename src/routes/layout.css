@@ -257,7 +257,9 @@ strong {
 	font-weight: 650;
 }
 
-html[data-input-modality='controller'] body :focus:not([data-pksx-control-category='slot']) {
+html[data-input-modality='controller']
+	body
+	:focus:not([data-pksx-control-category='slot']):not([role='grid'][aria-activedescendant]) {
 	outline: 3px solid var(--pksx-color-accent-ring) !important;
 	outline-offset: 3px !important;
 }
