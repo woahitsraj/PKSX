@@ -1307,6 +1307,10 @@ test('controller navigation highlights the active Slot without outlining the ent
 	}));
 	expect(gridFocus).toEqual({ focused: true, outline: 'none' });
 	await expect(page.locator('#box-0-slot-1')).toHaveCSS('outline-style', 'solid');
+
+	await chooseMainMenu(page, 'Saves');
+	await pressController(page, 'ArrowDown');
+	await expectControllerHighlights(page, page.locator('.saves-route'));
 });
 
 test('the active Slot uses one focus ring painted inside its bounds', async ({ page }) => {

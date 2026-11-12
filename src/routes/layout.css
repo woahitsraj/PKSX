@@ -259,7 +259,7 @@ strong {
 
 html[data-input-modality='controller']
 	body
-	:focus:not([data-pksx-control-category='slot']):not([role='grid'][aria-activedescendant]) {
+	:focus:not([data-pksx-control-category='slot']):not(.location-grid) {
 	outline: 3px solid var(--pksx-color-accent-ring) !important;
 	outline-offset: 3px !important;
 }
