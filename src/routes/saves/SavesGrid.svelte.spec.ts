@@ -335,25 +335,21 @@ it('returns pointer menus to the remembered grid target', async () => {
 		bytes: new Uint8Array([1]),
 		originalFileName: 'menu-owner.sav'
 	});
-	const remembered = await storage.importSave({
-		bytes: new Uint8Array([2]),
-		originalFileName: 'remembered.sav'
-	});
 	fakes.host = createSummonedWorkflowHost();
 	container = document.createElement('div');
 	document.body.append(container);
 	component = mount(SavesGrid, { target: container });
-	await expect.poll(() => container.querySelectorAll('.save-card').length).toBe(2);
+	await expect.poll(() => container.querySelectorAll('.save-card').length).toBe(1);
 	const grid = container.querySelector<HTMLElement>('[role="grid"]')!;
-	await expect
-		.poll(() => grid.getAttribute('aria-activedescendant'))
-		.toBe('saves-target-' + remembered.id);
+	container.querySelector<HTMLInputElement>('#save-file-input')!.dispatchEvent(new Event('cancel'));
+	await tick();
+	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-import');
 	container
 		.querySelector<HTMLButtonElement>('[aria-label="Open Save File Menu for menu-owner.sav"]')!
 		.click();
 	await tick();
 	window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 	await tick();
-	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-' + remembered.id);
+	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-import');
 	expect((await storage.getSave(file.id))?.originalFileName).toBe('menu-owner.sav');
 });
