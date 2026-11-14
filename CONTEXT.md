@@ -663,6 +663,9 @@ _Avoid_: setting, option, config
 - A **Pokemon Entity** received through a **Link Trade** enters **Pokemon Storage** once per **Trade Receipt**, with a new **Record ID**.
 - An **Unknown Trade Outcome** keeps its recovery evidence and never starts another **Link Trade** automatically.
 - **Cloud Sync** makes **Save Files**, **Backups**, **Pokemon Storage**, and persisted **Workspaces** available across a user's PKSX Installations.
+- Eligible users manage **Cloud Sync** in one settings **Takeover**, with enable/sign-in, **Sync Adoption**, account controls, actionable state, and a Manage storage workflow; unauthorized users have no Cloud Sync entry.
+- Cloud Sync space management shows profile usage and **Sync Quota**, attributed to **Save File Families**, **Pokemon Storage**, and **Conflict Recoveries**; it uses existing domain deletion actions and inline confirmations rather than deleting raw artifacts independently.
+- Cloud space usage is distinct from local storage usage; offline estimates and pending deletions never claim confirmed freed provider space.
 - A **User Account** owns zero or one **Sync Profile**.
 - A **Sync Profile** belongs to exactly one **User Account** and cannot be shared with another account.
 - A **PKSX Installation** enrolls in at most one **Sync Profile** at a time.
