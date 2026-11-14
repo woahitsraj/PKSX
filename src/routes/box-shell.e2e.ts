@@ -1192,6 +1192,8 @@ async function expectLastSlotCommandVisible(page: Page) {
 	await expect(lastCommand).toBeVisible({ timeout: 15000 });
 	await lastCommand.focus();
 	await expect(lastCommand).toBeFocused();
+	await settleMotion(page);
+
 	expect(
 		await lastCommand.evaluate((command) => {
 			const rowRect = command.parentElement?.getBoundingClientRect();
