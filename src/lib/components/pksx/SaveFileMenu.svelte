@@ -11,6 +11,7 @@
 		onFocusCommand: (index: number) => void;
 		onOpenTrainer: () => void;
 		onOpenBag: () => void;
+		onBackups: () => void;
 		onDelete: () => void;
 		onCancelDelete: () => void;
 		onClose: () => void;
@@ -25,6 +26,7 @@
 		onFocusCommand,
 		onOpenTrainer,
 		onOpenBag,
+		onBackups,
 		onDelete,
 		onCancelDelete,
 		onClose
@@ -35,7 +37,7 @@
 	label={mode === 'commands' ? 'Save File Menu' : 'Delete ' + fileName + '?'}
 	onDismiss={onClose}
 >
-	<div class="save-file-menu" class:confirmation={mode === 'delete'} aria-busy={busy}>
+	<div class={['save-file-menu', { confirmation: mode === 'delete' }]} aria-busy={busy}>
 		<header>
 			<h2>{mode === 'commands' ? fileName : 'Delete ' + fileName + '?'}</h2>
 			{#if description}<span>{description}</span>{/if}
@@ -46,7 +48,7 @@
 				<button
 					id="save-file-menu-command-0"
 					type="button"
-					class:controller-focused={activeIndex === 0}
+					class={{ 'controller-focused': activeIndex === 0 }}
 					onfocus={() => onFocusCommand(0)}
 					onclick={onOpenTrainer}
 				>
@@ -55,7 +57,7 @@
 				<button
 					id="save-file-menu-command-1"
 					type="button"
-					class:controller-focused={activeIndex === 1}
+					class={{ 'controller-focused': activeIndex === 1 }}
 					onfocus={() => onFocusCommand(1)}
 					onclick={onOpenBag}
 				>
@@ -64,19 +66,25 @@
 				<button
 					id="save-file-menu-command-2"
 					type="button"
-					class="danger"
-					class:controller-focused={activeIndex === 2}
+					class={['danger', { 'controller-focused': activeIndex === 2 }]}
 					onfocus={() => onFocusCommand(2)}
 					onclick={onDelete}
 				>
 					<strong>Delete from Saves</strong>
 				</button>
+				<button
+					id="save-file-menu-command-3"
+					type="button"
+					class={{ 'controller-focused': activeIndex === 3 }}
+					onfocus={() => onFocusCommand(3)}
+					onclick={onBackups}><strong>Backups</strong></button
+				>
 				<DelayedSpinner active={busy} label="Opening Save File" />
 			{:else}
 				<button
 					id="save-file-delete-command-0"
 					type="button"
-					class:controller-focused={activeIndex === 0}
+					class={{ 'controller-focused': activeIndex === 0 }}
 					disabled={busy}
 					onfocus={() => onFocusCommand(0)}
 					onclick={onCancelDelete}
@@ -86,8 +94,7 @@
 				<button
 					id="save-file-delete-command-1"
 					type="button"
-					class="danger"
-					class:controller-focused={activeIndex === 1}
+					class={['danger', { 'controller-focused': activeIndex === 1 }]}
 					disabled={busy}
 					onfocus={() => onFocusCommand(1)}
 					onclick={onDelete}

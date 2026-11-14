@@ -53,6 +53,7 @@ const backup: BackupMetadata = {
 function storageStub(overrides: Partial<SavesStorage> = {}): SavesStorage {
 	return {
 		getActiveSaveFileId: async () => saveFile.id,
+		setActiveSaveFileId: async () => saveFile,
 		getSave: async () => saveFile,
 		getSaveBytes: async () => new Uint8Array([1, 2, 3, 4]),
 		getBackupBytes: async () => new Uint8Array([9, 9, 9, 9]),
@@ -169,35 +170,45 @@ describe('backup workflow', () => {
 		expect(writes).toEqual([{ saveFileId: 'selected-save', bytes: [8, 7, 6, 5] }]);
 	});
 
-	it('restores owner-bound Backup bytes without changing the imported Save File', async () => {
-		const workspaces: number[][] = [];
-		const publications: WorkspaceState[] = [];
-		let importedBytesRead = 0;
-		const storage = storageStub({
-			getSaveBytes: async () => {
-				importedBytesRead += 1;
-				return new Uint8Array([1, 2, 3, 4]);
-			},
-			putWorkspace: async (input) => {
-				workspaces.push([...input.bytes]);
-				return { ...input, updatedAt: '2026-05-28T11:00:00.000Z' };
-			}
-		});
+	it.each([null, 'unrelated-save'])(
+		'restores owner-bound Backup bytes with active owner %s without changing the imported Save File',
+		async (activeId) => {
+			const workspaces: number[][] = [];
+			const publications: WorkspaceState[] = [];
+			let importedBytesRead = 0;
+			const activations: string[] = [];
+			const storage = storageStub({
+				getActiveSaveFileId: async () => activeId,
+				setActiveSaveFileId: async (id) => {
+					activations.push(id);
+					return saveFile;
+				},
+				getSaveBytes: async () => {
+					importedBytesRead += 1;
+					return new Uint8Array([1, 2, 3, 4]);
+				},
+				putWorkspace: async (input) => {
+					workspaces.push([...input.bytes]);
+					return { ...input, updatedAt: '2026-05-28T11:00:00.000Z' };
+				}
+			});
 
-		const restored = await restoreBackupToWorkspace({
-			storage,
-			engine: engineStub(),
-			owner: saveFile,
-			backup,
-			box: 3,
-			publish: (state) => publications.push(state)
-		});
+			const restored = await restoreBackupToWorkspace({
+				storage,
+				engine: engineStub(),
+				owner: saveFile,
+				backup,
+				box: 3,
+				publish: (state) => publications.push(state)
+			});
 
-		expect(importedBytesRead).toBe(1);
-		expect(workspaces).toEqual([[9, 9, 9, 9]]);
-		expect(restored).toMatchObject({ file: { id: 'save-1' }, dirty: true });
-		expect(publications).toEqual([restored]);
-	});
+			expect(activations).toEqual([saveFile.id]);
+			expect(importedBytesRead).toBe(1);
+			expect(workspaces).toEqual([[9, 9, 9, 9]]);
+			expect(restored).toMatchObject({ file: { id: 'save-1' }, dirty: true });
+			expect(publications).toEqual([restored]);
+		}
+	);
 
 	it('rejects stale owners and missing Backup bytes before mutation', async () => {
 		let writes = 0;

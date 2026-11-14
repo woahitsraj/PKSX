@@ -281,3 +281,38 @@ it('ignores backup keyboard commands while an export is pending', async () => {
 	expect(exportArchive).toHaveBeenCalledTimes(1);
 	finish();
 });
+
+it('opens Backups for the chosen inactive Save File without activating it', async () => {
+	const storage = getSavesStorage();
+	const owner = await storage.importSave({
+		bytes: new Uint8Array([1]),
+		originalFileName: 'owner.sav'
+	});
+	const active = await storage.importSave({
+		bytes: new Uint8Array([2]),
+		originalFileName: 'active.sav'
+	});
+	await storage.setActiveSaveFileId(active.id);
+	const host = createSummonedWorkflowHost();
+	fakes.host = host;
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(SavesGrid, { target: container });
+	await expect.poll(() => container.querySelectorAll('.save-card').length).toBe(2);
+	container
+		.querySelector<HTMLButtonElement>('[aria-label="Open Save File Menu for owner.sav"]')!
+		.click();
+	await tick();
+	container.querySelector<HTMLButtonElement>('#save-file-menu-command-3')!.click();
+	await tick();
+	expect(host.active).toMatchObject({
+		kind: 'backup-browser',
+		backupOwner: { id: owner.id },
+		launcher: { id: 'saves-grid' },
+		returnTo: null
+	});
+	expect(container.querySelector('#saves-grid')?.getAttribute('aria-activedescendant')).toBe(
+		'saves-target-' + owner.id
+	);
+	expect(await storage.getActiveSaveFileId()).toBe(active.id);
+});

@@ -1,3 +1,4 @@
+import type { StoredSaveFile } from '../saves';
 import {
 	focusActionCommand,
 	type ControllerFocus,
@@ -43,6 +44,7 @@ export type SummonedWorkflowLauncher =
 
 export type SummonedWorkflow = {
 	kind: SummonedWorkflowKind;
+	backupOwner?: StoredSaveFile;
 	launcher: SummonedWorkflowLauncher;
 	returnTo: SummonedWorkflow | null;
 };
@@ -63,9 +65,10 @@ export function createSummonedWorkflowOwner(): SummonedWorkflowOwner {
 export function openSummonedWorkflow(
 	owner: SummonedWorkflowOwner,
 	kind: SummonedWorkflowKind,
-	launcher: SummonedWorkflowLauncher
+	launcher: SummonedWorkflowLauncher,
+	backupOwner?: StoredSaveFile
 ): SummonedWorkflowOwner {
-	return owner.active ? owner : { active: { kind, launcher, returnTo: null } };
+	return owner.active ? owner : { active: { kind, launcher, returnTo: null, backupOwner } };
 }
 
 export function openRelatedSummonedWorkflow(

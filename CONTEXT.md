@@ -391,7 +391,7 @@ A brief notice that appears over the current screen and goes away on its own.
 _Avoid_: snackbar, notification banner
 
 **Backup Browser**:
-A list of the Backups for the active Save File, from which the user can create, restore, and delete Backups.
+A list of the Backups for an explicitly chosen Save File, or the active Save File when opened from the Main Menu, from which the user can create, restore, and delete Backups. Browsing preserves the active Boxes Session.
 _Avoid_: Saves when referring only to the active Save File's backups
 
 **Active Slot Detail Rail**:
@@ -729,7 +729,7 @@ _Avoid_: setting, option, config
 - The **Slot Menu** acts on the **Slot** under **Controller Focus**.
 - The **Box Menu** acts on the active **Box Source**: **Export**, create a **Backup**, run a Save File-wide **Legality Report**, switch it, open another, or close it.
 - The **Box Menu** opens from the control that names the active **Box Source**, which is a **Controller Focus** target.
-- The **Save File Menu** opens the focused **Save File** in Trainer or Bag, or deletes it from **Saves**.
+- The **Save File Menu** opens the focused **Save File** in Trainer, Bag, or the **Backup Browser**, or deletes it from **Saves**.
 - **Export** from the **Box Menu** writes the **Workspace** bytes.
 - The **Main Menu** order is Boxes, Search, Save File-wide **Legality Report**, Trainer, Bag, Saves, Settings, and **Backup Browser**; it never hides or dims an entry.
 - Choosing an entry in the **Main Menu** closes it; returning from that destination does not reopen it.
