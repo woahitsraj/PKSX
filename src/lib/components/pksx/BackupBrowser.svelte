@@ -161,7 +161,9 @@
 				box: box,
 				publish: (state, box) => {
 					if (!document.querySelector('.boxes-route')) selectRecoveredOwner(state);
-					setCachedActiveWorkspace(state, box, { adoptAsActiveSave: true });
+					setCachedActiveWorkspace(state, box, {
+						adoptAsActiveSave: !document.querySelector('.boxes-route')
+					});
 					getSaveFileEditCoordinator().replaceWorkspace(state, box);
 				}
 			});
