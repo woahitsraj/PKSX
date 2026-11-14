@@ -1,0 +1,81 @@
+{
+	"date": "2026-11-14",
+	"device": "Retroid Pocket 6",
+	"android": "13",
+	"webView": "109.0.5414.123",
+	"rendererAbi": "armeabi-v7a",
+	"viewportCssPixels": [833, 421],
+	"buildType": "profile",
+	"webPayloadFiles": 3794,
+	"webPayloadsIdentical": true,
+	"runnerSha256": "97d321bae4b34ddf6f708b72b9f1c1a38579350f8cfa2ae6c28cc65cedd4766e",
+	"sampler": "CDP Runtime.getHeapUsage.usedSize, main thread, target period 1000ms, no forced GC",
+	"workload": "10-second cycles rotate Scarlet, Sword and HeartGold; open Save File, five next-Location actions 90ms apart, four focus directions, Trainer, Boxes, Saves; wait for readiness and verify app PID stays unchanged",
+	"interpretation": "One stability observation per build. No memory-reduction claim.",
+	"runs": [
+		{
+			"label": "baseline",
+			"durationMs": 1800147,
+			"cycles": 180,
+			"samples": 1763,
+			"peakMainThreadHeapBytes": 28698412,
+			"peakMiB": 27.368938446044922,
+			"medianSampleIntervalMs": 1023,
+			"maxSampleIntervalMs": 4006,
+			"errors": 0,
+			"naturalRendererLosses": 0
+		},
+		{
+			"label": "recovery",
+			"durationMs": 1800586,
+			"cycles": 180,
+			"samples": 1790,
+			"peakMainThreadHeapBytes": 27837156,
+			"peakMiB": 26.54758071899414,
+			"medianSampleIntervalMs": 1023,
+			"maxSampleIntervalMs": 2167,
+			"errors": 0,
+			"naturalRendererLosses": 0
+		}
+	],
+	"builds": {
+		"baseline": {
+			"nativeCommit": "2df9fdd096d8620fb49e9f69518cbbaa7db12305",
+			"apkSha256": "59384c07b263b327f5eb02980bdf918ef879d55bb14f1286822e4210eb6b3ba6"
+		},
+		"recovery": {
+			"nativeCommit": "8d820f17d35ddb3442e56bc71fd47012364e715d",
+			"apkSha256": "b8803916327dfa8356f5b6df66a1899c676f02d9f66cfb37b8f149021b2eed2c"
+		}
+	},
+	"fixtures": [
+		{
+			"name": "pokemon-heartgold.sav",
+			"sha256": "2da7b027556edaf55ce99bec04c7357fc177f62247942334b45938e0bd664284"
+		},
+		{
+			"name": "pokemon-sword-2025-03-24-main.sav",
+			"sha256": "c8bfc68e46ffdd2ea5d4c894907ad42d4d88caf293318ccf7b5d6f786657fc35"
+		},
+		{
+			"name": "pokemon-scarlet-2025-03-24-main.sav",
+			"sha256": "2c0a87eb6bc306f2121f84954e34a8619de6488bc38b3ed5e9e5cfc720f33612"
+		}
+	],
+	"forcedRendererLoss": {
+		"baselineAppExited": true,
+		"recoveryAttempts": 2,
+		"recoveryAppProcessSurvived": true,
+		"replacementWebViewTargets": true,
+		"fixture": "Scarlet copy",
+		"expectedMoney": "12345",
+		"persistedWorkspaceSha256": "04f38d37ec13d90d393336b6de06b2a3946b1d578286fd6627acecef99ddf717",
+		"workspaceSha256Preserved": true
+	},
+	"cleanup": {
+		"testCopyAndBackupDeleted": true,
+		"originalFamiliesUnchanged": true,
+		"originalActiveRestored": true,
+		"screenTimeoutRestoredMs": 60000
+	}
+}
