@@ -12,6 +12,7 @@
 		spriteUrl: string | null;
 		carried?: { label: string; mode: 'move' | 'copy'; spriteUrl?: string | null } | null;
 		destinationState?: 'valid' | 'invalid' | 'source' | null;
+		selected?: boolean;
 		disabled?: boolean;
 		onFocusSlot: () => void;
 		onChooseSlot?: () => void;
@@ -29,6 +30,7 @@
 		spriteUrl,
 		carried = null,
 		destinationState = null,
+		selected = false,
 		disabled = false,
 		onFocusSlot,
 		onChooseSlot,
@@ -103,12 +105,14 @@
 	aria-label={accessibleLabel}
 	aria-rowindex={rowIndex}
 	aria-colindex={colIndex}
+	data-batch-selected={selected || undefined}
 	data-destination-state={destinationState ?? undefined}
 	onpointerdown={handlePointerDown}
 	onpointercancel={() => (focusedAtPointerDown = null)}
 	onfocus={handleFocus}
 	onclick={handleClick}
 >
+	{#if selected}<span class="selection-check" aria-label="Selected">✓</span>{/if}
 	<span class="slot-number">{slotNumber}</span>
 	<span class="sprite-stage" aria-hidden="true">
 		{#if slot.kind === 'pokemon' && spriteUrl}
@@ -137,6 +141,22 @@
 </button>
 
 <style>
+	.selection-check {
+		position: absolute;
+		top: 0;
+		left: 0;
+		z-index: 4;
+		width: 16px;
+		height: 16px;
+		display: grid;
+		place-items: center;
+		border-radius: 50%;
+		background: var(--ink);
+		color: var(--paper);
+		font-size: var(--pksx-type-caption);
+		font-weight: 700;
+		pointer-events: none;
+	}
 	.slot {
 		--slot-hue: 48;
 		--slot-chroma: 0.09;

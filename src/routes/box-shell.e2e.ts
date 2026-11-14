@@ -1901,6 +1901,7 @@ test('Box Menu keeps fixed unavailable commands and X and Y preserve their conte
 		'Switch',
 		'Open another collection',
 		'Close',
+		'Select Pokemon',
 		'Undo Storage organization'
 	]);
 	await expect(menu.getByRole('button', { name: 'Export' })).toHaveAttribute(

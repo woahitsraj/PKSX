@@ -973,6 +973,10 @@
 			handleSourceAction();
 			return true;
 		}
+		if (selection && !activeSummonedWorkflow && action === 'carryMode') {
+			document.querySelector<HTMLButtonElement>('[data-selection-controls] button')?.focus();
+			return true;
+		}
 		if (action === 'carryMode') {
 			if (pendingSlotOperation) togglePendingSlotOperationMode();
 			if (virtualCarry)
@@ -1043,6 +1047,18 @@
 	}
 
 	function dispatchNavigation(action: NavigationAction) {
+		if (selection && action === 'carryMode') {
+			document.querySelector<HTMLButtonElement>('[data-selection-controls] button')?.focus();
+			return;
+		}
+		if (selection && action === 'back') {
+			selection = null;
+			return;
+		}
+		if (selection && action === 'confirm' && isSlotFocus(navigation.focus)) {
+			toggleSelectedSlot(slotRefForFocus(navigation.focus));
+			return;
+		}
 		if (activeVirtualLocation === 'recently-deleted' && activePane && action === 'confirm') {
 			if (document.activeElement?.id === `${activePane.id}-recently-deleted-empty`) {
 				requestEmptyRecentlyDeleted();
@@ -2366,12 +2382,106 @@
 		}
 	}
 
+	let selection = $state<{
+		source: BoxSourceRef;
+		bytes: Uint8Array | null;
+		revision: number | null;
+		slots: { box: number; slot: number }[];
+	} | null>(null);
+
+	$effect(reconcileSelection);
+
+	function reconcileSelection() {
+		if (!selection) return;
+		const pane = activePane;
+		if (
+			!pane ||
+			pane.source.type !== selection.source.type ||
+			pane.source.id !== selection.source.id
+		) {
+			selection = null;
+			statusMessage = 'Selection cleared after leaving its collection.';
+			return;
+		}
+		const state = saveWorkspaceForPane(pane)?.state;
+		if (
+			(state && selection.bytes && !bytesEqual(state.bytes, selection.bytes)) ||
+			(selection.revision !== null && catalogManifest?.revision !== selection.revision)
+		) {
+			selection = null;
+			statusMessage = 'Selection cleared because its contents changed. Select Pokemon again.';
+		}
+	}
+
+	function beginSelection(pane: BoxPaneState | undefined = activePane) {
+		if (!pane || busy || pendingSlotOperation || virtualCarry || virtualPaneIds.includes(pane.id))
+			return;
+		const state = saveWorkspaceForPane(pane)?.state;
+		if (pane.source.type === 'save-file' && !state) return;
+		selection = {
+			source: pane.source,
+			bytes: state?.bytes.slice() ?? null,
+			revision: pane.source.type === 'pokemon-storage' ? (catalogManifest?.revision ?? null) : null,
+			slots: []
+		};
+		statusMessage = 'Select mode. Confirm or tap Pokemon to toggle selection.';
+	}
+
+	function toggleSelectedSlot(ref: SaveSlotRef, pane: BoxPaneState | undefined = activePane) {
+		if (
+			!selection ||
+			!pane ||
+			ref.zone !== 'box' ||
+			busy ||
+			pane.source.type !== selection.source.type ||
+			pane.source.id !== selection.source.id ||
+			slotForRef(ref, pane)?.kind !== 'pokemon'
+		)
+			return;
+		const found = selection.slots.some((item) => item.box === ref.box && item.slot === ref.slot);
+		selection.slots = found
+			? selection.slots.filter((item) => item.box !== ref.box || item.slot !== ref.slot)
+			: [...selection.slots, { box: ref.box, slot: ref.slot }];
+	}
+
+	function selectCurrentBox() {
+		if (!selection || !activePane || navigation.locationFocus.zone !== 'box') return;
+		for (let slot = 0; slot < BOX_SLOT_COUNT; slot++) {
+			const ref = { zone: 'box' as const, box: activePaneBox, slot };
+			if (!selection.slots.some((item) => item.box === ref.box && item.slot === slot))
+				toggleSelectedSlot(ref);
+		}
+	}
+
 	function handleAppKeydown(event: KeyboardEvent) {
 		if (
 			activeSummonedWorkflow?.kind === 'backup-browser' ||
 			activeSummonedWorkflow?.kind === 'quick-search'
 		)
 			return;
+		if (
+			(event.key === '-' || event.key === 'Select') &&
+			!activeSummonedWorkflow &&
+			!(event.target instanceof HTMLInputElement)
+		) {
+			event.preventDefault();
+			if (selection) selection = null;
+			else beginSelection();
+			return;
+		}
+		if (
+			selection &&
+			!activeSummonedWorkflow &&
+			document.activeElement instanceof HTMLElement &&
+			document.activeElement.closest('[data-selection-controls]')
+		) {
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				selection = null;
+				queueMicrotask(focusActiveControl);
+			}
+			return;
+		}
 		const action = keyboardAction(event);
 		if (
 			storageBoxOrganizerOpen &&
@@ -2536,6 +2646,10 @@
 	}
 
 	function openSlotMenu(source: SaveSlotRef, pane: BoxPaneState | undefined = activePane) {
+		if (selection) {
+			toggleSelectedSlot(source, pane);
+			return;
+		}
 		if (!paneSlotActionsReady(pane, source)) return;
 		if (catalogViewStale && pane?.source.type === 'pokemon-storage') {
 			toastHost.error('Reload Boxes before changing Pokemon Storage Slots.');
@@ -2959,6 +3073,10 @@
 		if (busy || !boxMenuCommands.some(({ key, reason }) => key === command && !reason)) return;
 
 		switch (command) {
+			case 'select':
+				beginSelection(boxMenuPane ?? activePane);
+				closeBoxMenu();
+				break;
 			case 'organize-storage-boxes':
 				openStorageBoxOrganizer();
 				break;
@@ -3786,6 +3904,7 @@
 	}
 
 	function beginPendingSlotOperation(kind: 'move' | 'copy') {
+		if (selection) return;
 		const domSource = validateTransferSource(transferDomSource ?? focusedDomSaveSlot());
 		transferDomSource = null;
 		const slot = domSource?.slot ?? focusedSlot;
@@ -7394,16 +7513,22 @@
 	inert={destinationInputSuspended}
 >
 	<section
-		class={['storage-workspace pksx-density', { 'two-pane': workbenchPanes.length === 2 }]}
+		class={[
+			'storage-workspace pksx-density',
+			{ 'two-pane': workbenchPanes.length === 2 && !selection }
+		]}
 		aria-label="Party and box storage"
 	>
 		<div
 			class={[
 				'box-pane-strip',
-				{ 'single-pane': workbenchPanes.length === 1, 'many-panes': workbenchPanes.length >= 3 }
+				{
+					'single-pane': workbenchPanes.length === 1 || !!selection,
+					'many-panes': workbenchPanes.length >= 3
+				}
 			]}
 		>
-			{#each workbenchPanes as pane (pane.id)}
+			{#each selection ? workbenchPanes.filter((pane) => pane.id === activePaneId) : workbenchPanes as pane (pane.id)}
 				{@const paneActive = pane.id === activePaneId}
 				{@const paneBusy =
 					(busy && paneActive) || paneWorkspaceLoadingRequests[pane.id] !== undefined}
@@ -7648,6 +7773,13 @@
 														: `box-${paneGridBox}-slot-${slot.slot}`
 													: `${pane.id}-${paneParty ? 'party' : `box-${paneGridBox}`}-slot-${slot.slot}`}
 												{slot}
+												selected={!!selection &&
+													selection.source.id === pane.source.id &&
+													selection.source.type === pane.source.type &&
+													!paneParty &&
+													selection.slots.some(
+														(item) => item.box === paneGridBox && item.slot === slot.slot
+													)}
 												disabled={!paneSlotsActionable}
 												zone={slotRef.zone}
 												dualType={slotHasDualType(slot, paneParty ? -1 : paneGridBox)}
@@ -7706,18 +7838,20 @@
 													};
 													primeFocusedSlotEditData(pane, slotRef, slot);
 												}}
-												onChooseSlot={virtualCarry
-													? () => {
-															activatePane(pane);
-															void completeVirtualCarry(slotRef, pane);
-														}
-													: pendingSlotOperation
+												onChooseSlot={selection
+													? () => toggleSelectedSlot(slotRef, pane)
+													: virtualCarry
 														? () => {
 																activatePane(pane);
-																void completePendingSlotOperation(slotRef, pane);
+																void completeVirtualCarry(slotRef, pane);
 															}
-														: undefined}
-												onOpenMenu={!pendingSlotOperation && !virtualCarry
+														: pendingSlotOperation
+															? () => {
+																	activatePane(pane);
+																	void completePendingSlotOperation(slotRef, pane);
+																}
+															: undefined}
+												onOpenMenu={!selection && !pendingSlotOperation && !virtualCarry
 													? () => {
 															activatePane(pane);
 															if (paneParty) focusParty(slot.slot);
@@ -7737,67 +7871,97 @@
 		</div>
 
 		<div class="shared-detail" aria-label="Shared Slot summary">
-			{#if workbenchPanes.length === 2}
-				<div class="transfer-controls" aria-label="Transfer controls">
-					<button
-						type="button"
-						tabindex="-1"
-						disabled={activeVirtualLocation === 'recently-deleted' ||
-							(activeVirtualLocation
-								? !virtualFocusedRecord
-								: focusedSlot.kind !== 'pokemon' ||
-									!paneSlotActionsReady(activePane, activeSlotFocus)) ||
-							pendingSlotOperation !== null ||
-							virtualCarry !== null}
-						onpointerdown={(event) =>
-							activeVirtualLocation ? event.preventDefault() : captureTransferSource(event)}
-						onclick={() =>
-							virtualFocusedRecord
-								? beginVirtualCarry(virtualFocusedRecord.recordId, 'move')
-								: beginPendingSlotOperation('move')}>Move</button
-					>
-					<button
-						type="button"
-						tabindex="-1"
-						disabled={activeVirtualLocation === 'recently-deleted' ||
-							(activeVirtualLocation
-								? !virtualFocusedRecord
-								: focusedSlot.kind !== 'pokemon' ||
-									!paneSlotActionsReady(activePane, activeSlotFocus)) ||
-							pendingSlotOperation !== null ||
-							virtualCarry !== null}
-						onpointerdown={(event) =>
-							activeVirtualLocation ? event.preventDefault() : captureTransferSource(event)}
-						onclick={() =>
-							virtualFocusedRecord
-								? beginVirtualCarry(virtualFocusedRecord.recordId, 'copy')
-								: beginPendingSlotOperation('copy')}
-						>{activePane?.source.type === 'pokemon-storage' ? 'Duplicate' : 'Copy'}</button
-					>
-				</div>
+			{#if selection}{@render selectionControls()}{:else}
+				{#if workbenchPanes.length === 2}
+					<div class="transfer-controls" aria-label="Transfer controls">
+						<button
+							type="button"
+							tabindex="-1"
+							disabled={activeVirtualLocation === 'recently-deleted' ||
+								(activeVirtualLocation
+									? !virtualFocusedRecord
+									: focusedSlot.kind !== 'pokemon' ||
+										!paneSlotActionsReady(activePane, activeSlotFocus)) ||
+								pendingSlotOperation !== null ||
+								virtualCarry !== null}
+							onpointerdown={(event) =>
+								activeVirtualLocation ? event.preventDefault() : captureTransferSource(event)}
+							onclick={() =>
+								virtualFocusedRecord
+									? beginVirtualCarry(virtualFocusedRecord.recordId, 'move')
+									: beginPendingSlotOperation('move')}>Move</button
+						>
+						<button
+							type="button"
+							tabindex="-1"
+							disabled={activeVirtualLocation === 'recently-deleted' ||
+								(activeVirtualLocation
+									? !virtualFocusedRecord
+									: focusedSlot.kind !== 'pokemon' ||
+										!paneSlotActionsReady(activePane, activeSlotFocus)) ||
+								pendingSlotOperation !== null ||
+								virtualCarry !== null}
+							onpointerdown={(event) =>
+								activeVirtualLocation ? event.preventDefault() : captureTransferSource(event)}
+							onclick={() =>
+								virtualFocusedRecord
+									? beginVirtualCarry(virtualFocusedRecord.recordId, 'copy')
+									: beginPendingSlotOperation('copy')}
+							>{activePane?.source.type === 'pokemon-storage' ? 'Duplicate' : 'Copy'}</button
+						>
+					</div>
+				{/if}
+				<DetailRail
+					focusedSlot={sharedFocusedSlot}
+					focusZone={activeVirtualLocation ? null : (activeSlotFocus?.zone ?? null)}
+					focusSlot={activeVirtualLocation ? null : (activeSlotFocus?.slot ?? null)}
+					slotHueStyle={slotStyle(sharedFocusedSlot, activePaneBox)}
+					spriteUrl={spriteUrlFor(sharedFocusedSlot)}
+					{saveSummary}
+					activeBoxName={boxNameFor(
+						summonedSlotBox ?? focusedSlotPane?.activeBox ?? activePaneBox,
+						focusedSlotPane
+					)}
+					positionLabel={activeVirtualLocation
+						? activeVirtualLocation === 'unfiled'
+							? 'Unfiled'
+							: 'All Pokemon'
+						: carryState || virtualCarry
+							? `${activeSlotPositionLabel} · ${(carryState?.mode ?? virtualCarry?.mode) === 'move' ? 'Drop' : 'Copy'} target`
+							: activeSlotPositionLabel}
+				/>
 			{/if}
-			<DetailRail
-				focusedSlot={sharedFocusedSlot}
-				focusZone={activeVirtualLocation ? null : (activeSlotFocus?.zone ?? null)}
-				focusSlot={activeVirtualLocation ? null : (activeSlotFocus?.slot ?? null)}
-				slotHueStyle={slotStyle(sharedFocusedSlot, activePaneBox)}
-				spriteUrl={spriteUrlFor(sharedFocusedSlot)}
-				{saveSummary}
-				activeBoxName={boxNameFor(
-					summonedSlotBox ?? focusedSlotPane?.activeBox ?? activePaneBox,
-					focusedSlotPane
-				)}
-				positionLabel={activeVirtualLocation
-					? activeVirtualLocation === 'unfiled'
-						? 'Unfiled'
-						: 'All Pokemon'
-					: carryState || virtualCarry
-						? `${activeSlotPositionLabel} · ${(carryState?.mode ?? virtualCarry?.mode) === 'move' ? 'Drop' : 'Copy'} target`
-						: activeSlotPositionLabel}
-			/>
 		</div>
 	</section>
 </section>
+
+{#snippet selectionControls()}
+	{#if selection}
+		<div
+			data-selection-controls
+			class="selection-controls"
+			role="group"
+			aria-label="Selection actions"
+		>
+			<strong aria-live="polite">{selection.slots.length} selected</strong>
+			<span>A Toggle · B Exit · Y Actions · L/R Boxes</span>
+			<button type="button" onclick={selectCurrentBox}>Select box</button>
+			<button
+				type="button"
+				onclick={() => {
+					if (selection) selection.slots = [];
+				}}>Clear selection</button
+			>
+			<button
+				type="button"
+				onclick={() => {
+					selection = null;
+					queueMicrotask(focusActiveControl);
+				}}>Exit Select mode</button
+			>
+		</div>
+	{/if}
+{/snippet}
 
 {#if boxMenuOpen && boxMenuTarget}
 	<BoxMenu
@@ -8059,6 +8223,37 @@
 {/if}
 
 <style>
+	.selection-controls button {
+		height: var(--pksx-control-height);
+	}
+
+	.selection-controls {
+		font-size: var(--pksx-type-label);
+		line-height: 1.4;
+		height: 100%;
+		overflow: auto;
+		align-content: start;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		align-items: center;
+		padding: 8px;
+		background: var(--paper);
+		border: 1px solid var(--rule-hi);
+		border-radius: var(--pksx-radius-md);
+	}
+
+	.selection-controls strong {
+		flex-basis: 100%;
+		font-size: var(--pksx-type-body);
+	}
+
+	.selection-controls > span {
+		flex-basis: 100%;
+		font-size: var(--pksx-type-caption);
+		color: var(--ink-soft);
+	}
+
 	.source-picker-import {
 		position: absolute;
 		width: 1px;

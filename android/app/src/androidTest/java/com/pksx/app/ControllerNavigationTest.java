@@ -67,7 +67,9 @@ public class ControllerNavigationTest {
     @Test
     public void gamepadNavigatesAndHighlightsSlotActions() throws Exception {
         awaitControllerSurface();
+        String previousOrigin = runJavaScript("performance.timeOrigin");
         runJavaScript("location.assign('/boxes?source=pokemon-storage')");
+        awaitJavaScript("performance.timeOrigin !== " + previousOrigin);
         awaitJavaScript(
             "location.pathname === '/boxes' && location.search === ''"
                 + " && document.querySelector('.boxes-route')?.dataset.initialState === 'ready'"
@@ -80,6 +82,15 @@ public class ControllerNavigationTest {
                 + " window.addEventListener('pksxcontroller', event =>"
                 + " window.__pksxTestControllerEvents.push(event.detail.key + ':' + event.detail.pressed));"
                 + " document.querySelector('#box-grid').focus()"
+        );
+
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_SELECT,
+            "document.querySelector('[data-selection-controls]')?.textContent.includes('0 selected')"
+        );
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_B,
+            "!document.querySelector('[data-selection-controls]')"
         );
 
         pressGamepadKey(
