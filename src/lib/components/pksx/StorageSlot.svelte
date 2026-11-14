@@ -153,7 +153,7 @@
 		border-radius: 50%;
 		background: var(--ink);
 		color: var(--paper);
-		font-size: 12px;
+		font-size: var(--pksx-type-caption);
 		font-weight: 700;
 		pointer-events: none;
 	}
