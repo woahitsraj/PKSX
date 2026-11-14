@@ -68,7 +68,7 @@ test('renaming an active save preserves the cached box projection identity', asy
 	);
 	const firstSlot = await page.locator('#box-0-slot-0').getAttribute('aria-label');
 	await page.getByRole('button', { name: 'Next Location', exact: true }).click();
-	await expect(page.getByRole('heading', { name: 'Box 02', exact: true })).toBeVisible();
+	await expect(page.locator('.box-pane.active-pane')).toHaveAttribute('data-location', 'box-1');
 	await expect(page.locator('#box-1-slot-0')).toBeVisible();
 	await expect(page.locator('.box-pane[aria-busy="true"]')).toHaveCount(0);
 	await page.getByRole('button', { name: 'Open Main Menu' }).click();
@@ -83,6 +83,6 @@ test('renaming an active save preserves the cached box projection identity', asy
 	await page.getByLabel('Display name', { exact: true }).fill('Renamed box owner');
 	await page.getByRole('button', { name: 'Apply', exact: true }).click();
 	await page.getByRole('button', { name: 'Open Renamed box owner in Boxes', exact: true }).click();
-	await expect(page.getByRole('heading', { name: 'Box 01', exact: true })).toBeVisible();
+	await expect(page.locator('.box-pane.active-pane')).toHaveAttribute('data-location', 'box-0');
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-label', firstSlot!);
 });
