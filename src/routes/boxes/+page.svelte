@@ -8213,7 +8213,9 @@
 {/if}
 
 <style>
-	.selection-controls button { height: var(--pksx-control-height); }
+	.selection-controls button {
+		height: var(--pksx-control-height);
+	}
 
 	.selection-controls {
 		position: fixed;
