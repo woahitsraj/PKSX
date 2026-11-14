@@ -23,8 +23,12 @@ for (const { script, fault } of [
 	{ script: 'trade', fault: 'storage' },
 	{ script: 'trade', fault: 'join' },
 	{ script: 'trade', fault: 'radio' },
-	{ script: 'trade', fault: 'journal' }
-] satisfies { script: FakeScript; fault?: 'storage' | 'join' | 'radio' | 'journal' }[]) {
+	{ script: 'trade', fault: 'journal' },
+	{ script: 'trade', fault: 'stopped' }
+] satisfies {
+	script: FakeScript;
+	fault?: 'storage' | 'join' | 'radio' | 'journal' | 'stopped';
+}[]) {
 	test(`exchange Takeover follows the real fake-radio ${script} ${fault ?? ''} outcome`, async () => {
 		await page.viewport(
 			fault === 'join' ? 616 : fault === 'storage' ? 360 : 1280,
@@ -55,6 +59,7 @@ for (const { script, fault } of [
 		await storage.initialize();
 		const entries = new Map<string, TradeEntry>();
 		let rejectDispatch = fault === 'journal';
+		let rejectReceipt = fault === 'stopped';
 		const journal = new TradeJournal(
 			{
 				list: async () => structuredClone([...entries.values()]),
@@ -62,6 +67,10 @@ for (const { script, fault } of [
 					if (entry.dispatched && rejectDispatch) {
 						rejectDispatch = false;
 						throw new Error('disk full before dispatch');
+					}
+					if (entry.outcome === 'completed' && rejectReceipt) {
+						rejectReceipt = false;
+						throw new Error('disk full saving receipt');
 					}
 					entries.set(entry.id, structuredClone(entry));
 				}
@@ -80,7 +89,31 @@ for (const { script, fault } of [
 				return original(...args);
 			});
 		}
-		const client = fakeTradeClient(script, outgoing, fault === 'journal' ? undefined : fault);
+		const client = fakeTradeClient(
+			script,
+			outgoing,
+			fault === 'journal' || fault === 'stopped' ? undefined : fault
+		);
+		let stopWorker = () => {};
+		let finishOffer = () => {};
+		let completedQueued = false;
+		const recover = vi.spyOn(journal, 'recover');
+		if (fault === 'stopped') {
+			client.onStopped = (listener) => {
+				stopWorker = listener;
+				return () => {
+					stopWorker = () => {};
+				};
+			};
+			const readOffer = journal.readOffer.bind(journal);
+			const held = new Promise<void>((resolve) => {
+				finishOffer = resolve;
+			});
+			vi.spyOn(journal, 'readOffer').mockImplementationOnce(async (...args) => {
+				await held;
+				return readOffer(...args);
+			});
+		}
 		if (fault === 'storage')
 			vi.spyOn(storage, 'importPayload').mockRejectedValueOnce(new Error('disk full'));
 		const start = vi.spyOn(client, 'startSession');
@@ -122,7 +155,32 @@ for (const { script, fault } of [
 			await click('Continue');
 			await click('Use simulated radio');
 			await click('Sword');
+			recover.mockClear();
+			if (fault === 'stopped')
+				client.onEvent((event) => {
+					if (event.type === 'session-ended' && event.outcome === 'completed') {
+						completedQueued = true;
+						stopWorker();
+					}
+				});
 			await click('Start trade');
+			if (fault === 'stopped') {
+				await vi.waitFor(() => expect(completedQueued).toBe(true), { timeout: 25000 });
+				expect(recover).not.toHaveBeenCalled();
+				finishOffer();
+				await vi.waitFor(() => expect(host.textContent).toContain('could not save trade evidence'));
+				expect(recover).not.toHaveBeenCalled();
+				expect(storage.listRecords()).toHaveLength(0);
+				component.dispatch('back');
+				expect(onClose).not.toHaveBeenCalled();
+				expect(start).toHaveBeenCalledOnce();
+				expect(
+					[...host.querySelectorAll('button')].some((button) =>
+						['Start trade', 'Retry', 'Cancel trade'].includes(button.textContent?.trim() ?? '')
+					)
+				).toBe(false);
+				await click('Retry saving evidence');
+			}
 			if (fault === 'journal') {
 				await vi.waitFor(() => expect(host.textContent).toContain('could not prepare this trade'));
 				expect(start).not.toHaveBeenCalled();
@@ -166,6 +224,14 @@ for (const { script, fault } of [
 				await vi.waitFor(() => expect(host.textContent).toContain('Unfiled'));
 				expect(storage.listRecords()).toHaveLength(1);
 			} else expect(storage.listRecords()).toHaveLength(0);
+			if (fault === 'stopped') {
+				await vi.waitFor(() => expect(host.textContent).not.toContain('Retry saving evidence'));
+				expect(recover).toHaveBeenCalledOnce();
+				const saved = [...entries.values()].find((entry) => entry.imported);
+				if (!saved?.receipt) throw new Error('Expected durable completed receipt.');
+				expect(saved.outcome).toBe('completed');
+				expect(new Uint8Array(saved.receipt.receivedPokemon)).toEqual(outgoing);
+			}
 			expect(start).toHaveBeenCalledTimes(fault === 'join' || fault === 'radio' ? 2 : 1);
 			const dialog = host.querySelector('[role=dialog]')!.getBoundingClientRect();
 			expect(dialog.left).toBeGreaterThanOrEqual(0);
@@ -180,6 +246,7 @@ for (const { script, fault } of [
 			expect(onClose).toHaveBeenCalledOnce();
 		} finally {
 			finishImport();
+			finishOffer();
 			await unmount(component);
 			host.remove();
 			await deleteBrowserCatalog(name);

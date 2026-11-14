@@ -70,6 +70,7 @@
 	let partnerLabel = $state<string | null>(null);
 	let pendingEvents = $state.raw<import('$lib/link-trade/contract').TradeWorkerEvent[]>([]);
 	let savingEvents = false;
+	let recoveryPending = $state(false);
 
 	async function loadJournal() {
 		if (!createJournal) return;
@@ -101,6 +102,12 @@
 				}
 				if (saved?.outcome === 'completed') entry = await journal.retryImport(saved.id);
 			}
+			if (recoveryPending) {
+				journal.close();
+				const recovered = await journal.recover();
+				entry = recovered.find((item) => item.id === entry?.id) ?? entry;
+				recoveryPending = false;
+			}
 			exchangeMessage = null;
 		} catch {
 			exchangeMessage =
@@ -111,7 +118,17 @@
 	}
 
 	async function startTrade() {
-		if (!journal || !client || review?.status !== 'ready' || working || running) return;
+		if (
+			!journal ||
+			!client ||
+			review?.status !== 'ready' ||
+			working ||
+			running ||
+			savingEvents ||
+			pendingEvents.length ||
+			recoveryPending
+		)
+			return;
 		if (!board) {
 			reviewRequest += 1;
 			review = null;
@@ -136,8 +153,8 @@
 					saved.review.outgoingBytes
 				);
 				if (!result.ok) {
-					journal!.close();
-					entry = (await journal!.recover()).find((item) => item.id === saved.id) ?? entry;
+					recoveryPending = true;
+					void saveEvents();
 					exchangeMessage =
 						'PKSX could not start the trade. Check the Switch and Trade Radio. Review again before trying a new trade.';
 				}
@@ -210,10 +227,9 @@
 		const active = createClient();
 		client = active;
 		const stopErrors = active.onStopped?.(() => {
-			journal?.close();
-			void journal?.recover().then((entries) => {
-				entry = entries.find((item) => item.id === entry?.id) ?? entry;
-			});
+			if (!journal) return;
+			recoveryPending = true;
+			void saveEvents();
 		});
 		const stopEvents = active.onEvent((event) => {
 			if ('sessionId' in event && event.sessionId === entry?.id) {
@@ -351,7 +367,7 @@
 	}
 
 	function back() {
-		if (installing || working || savingEvents || pendingEvents.length) return;
+		if (installing || working || savingEvents || pendingEvents.length || recoveryPending) return;
 		if (running) return void cancelTrade();
 		if (step === 'exchange' || step === 'recovery') return onClose();
 		if (firstStepBack) return onClose();
@@ -606,7 +622,7 @@
 						</button>
 					{/if}
 					{#if step === 'exchange' && entry}
-						{#if running}<button
+						{#if running && !recoveryPending}<button
 								type="button"
 								data-pksx-control-category="small"
 								onclick={cancelTrade}>Cancel trade</button
@@ -616,7 +632,7 @@
 								data-pksx-control-category="small"
 								onclick={() => retryImport('separate')}>Import separately</button
 							>{/if}
-						{#if pendingEvents.length}<button
+						{#if pendingEvents.length || recoveryPending}<button
 								type="button"
 								data-pksx-control-category="small"
 								onclick={saveEvents}>Retry saving evidence</button
