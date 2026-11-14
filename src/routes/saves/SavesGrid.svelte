@@ -105,7 +105,9 @@
 	let recoveryRequested = $state(false);
 	let refreshRequest = 0;
 
-	const visibleSaveFiles = $derived(filterSortSaves(saveFiles, detailsBySaveFileId, query, sort));
+	const visibleSaveFiles = $derived(
+		filterSortSaves({ files: saveFiles, details: detailsBySaveFileId, query, sort })
+	);
 
 	const targets = $derived<SavesTarget[]>([
 		...visibleSaveFiles.map((saveFile) => ({ kind: 'save-file' as const, id: saveFile.id })),
@@ -233,7 +235,12 @@
 		activeSaveFileId = snapshot.activeSaveFileId;
 		detailsBySaveFileId = snapshot.detailsBySaveFileId;
 		const nextTargets = currentTargets(
-			filterSortSaves(snapshot.saveFiles, snapshot.detailsBySaveFileId, query, sort)
+			filterSortSaves({
+				files: snapshot.saveFiles,
+				details: snapshot.detailsBySaveFileId,
+				query,
+				sort
+			})
 		);
 		target = resolveSavesTarget(
 			nextTargets,
@@ -929,7 +936,9 @@
 		query = nextQuery;
 		sort = nextSort;
 		target = resolveSavesTarget(
-			currentTargets(filterSortSaves(saveFiles, detailsBySaveFileId, query, sort)),
+			currentTargets(
+				filterSortSaves({ files: saveFiles, details: detailsBySaveFileId, query, sort })
+			),
 			target,
 			null
 		);
