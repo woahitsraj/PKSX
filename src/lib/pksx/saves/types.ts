@@ -18,6 +18,7 @@ export type BackupReason =
 export type StoredSaveFile = {
 	id: SaveFileId;
 	originalFileName: string | null;
+	linkedDocumentId?: string;
 	byteLength: number;
 	importedAt: string;
 	updatedAt: string;
@@ -99,6 +100,7 @@ export type StoredPokemonStoragePokemon = {
 export type ImportSaveInput = {
 	bytes: Uint8Array;
 	originalFileName?: string | null;
+	linkedDocumentId?: string;
 };
 
 export type CreateBackupInput = {

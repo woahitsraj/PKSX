@@ -36,6 +36,8 @@ public class MainActivity extends BridgeActivity {
                 return true;
             }
         });
+
+        registerPlugin(SaveFoldersPlugin.class);
         super.onCreate(savedInstanceState);
         if (getPackageName().endsWith(".profile")) WebView.setWebContentsDebuggingEnabled(true);
     }
