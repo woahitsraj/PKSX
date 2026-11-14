@@ -7580,16 +7580,22 @@
 	inert={destinationInputSuspended}
 >
 	<section
-		class={['storage-workspace pksx-density', { 'two-pane': workbenchPanes.length === 2 }]}
+		class={[
+			'storage-workspace pksx-density',
+			{ 'two-pane': workbenchPanes.length === 2 && !selection }
+		]}
 		aria-label="Party and box storage"
 	>
 		<div
 			class={[
 				'box-pane-strip',
-				{ 'single-pane': workbenchPanes.length === 1, 'many-panes': workbenchPanes.length >= 3 }
+				{
+					'single-pane': workbenchPanes.length === 1 || !!selection,
+					'many-panes': workbenchPanes.length >= 3
+				}
 			]}
 		>
-			{#each workbenchPanes as pane (pane.id)}
+			{#each selection ? workbenchPanes.filter((pane) => pane.id === activePaneId) : workbenchPanes as pane (pane.id)}
 				{@const paneActive = pane.id === activePaneId}
 				{@const paneBusy =
 					(busy && paneActive) || paneWorkspaceLoadingRequests[pane.id] !== undefined}
