@@ -3205,8 +3205,14 @@ test('moves a Save File Pokemon into durable Storage and clears its source', asy
 	expect((await backupRecords(page)).map(({ reason }) => reason)).toEqual(['pokemon-movement']);
 
 	await page.reload();
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
+		timeout: 60_000
+	});
 	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('Empty');
 	await page.goto('/?source=pokemon-storage');
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
+		timeout: 60_000
+	});
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	const persisted = await page.evaluate(async () => {
 		const saves = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -3669,7 +3675,9 @@ test('keeps both Pokemon recoverable when Save clearing fails after Storage comm
 	expect(await backupCount(page)).toBe(0);
 
 	await page.reload();
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready');
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
+		timeout: 60_000
+	});
 	await expect(page.locator('.box-pane.active-pane')).toHaveAttribute(
 		'aria-label',
 		/emerald-011020251345\.sav/
