@@ -1,5 +1,6 @@
 import {
 	boardSchema,
+	sessionStatusSchema,
 	capabilitiesSchema,
 	tradeWorkerMessageSchema,
 	type Board,
@@ -17,8 +18,14 @@ import {
 
 export type TradeWorkerResult<T> = { ok: true; value: T } | { ok: false; error: TradeError };
 
-/** The setup commands only: the exchange (#437) adds its own after the #368 journal exists. */
+/** Commands used by the Takeover, with session dispatch owned by the journal. */
 export type TradeWorkerClient = {
+	startSession(
+		sessionId: string,
+		game: import('./contract').LinkTradeGame,
+		bytes: Uint8Array
+	): Promise<TradeWorkerResult<import('./contract').TradeSessionStatus>>;
+	cancelSession(sessionId: string): Promise<TradeWorkerResult<unknown>>;
 	capabilities(): Promise<TradeWorkerResult<TradeWorkerCapabilities>>;
 	importKeys(prodKeys: string): Promise<TradeWorkerResult<unknown>>;
 	forgetKeys(): Promise<TradeWorkerResult<unknown>>;
@@ -27,6 +34,7 @@ export type TradeWorkerClient = {
 		port: RadioPort,
 		onProgress: (progress: FirmwareInstallProgress) => void
 	): Promise<FirmwareInstallResult>;
+	onStopped?(listener: () => void): () => void;
 	onEvent(listener: (event: TradeWorkerEvent) => void): () => void;
 	terminate(): void;
 };
@@ -42,6 +50,7 @@ export function createTradeWorkerClient(
 		type: 'module'
 	})
 ): TradeWorkerClient {
+	const stopped = new Set<() => void>();
 	const pending = new Map<string, (result: TradeWorkerResult<unknown>) => void>();
 
 	worker.addEventListener('message', ({ data }) => {
@@ -56,6 +65,7 @@ export function createTradeWorkerClient(
 		pending.delete(requestId);
 	});
 	worker.addEventListener('error', () => {
+		for (const listener of stopped) listener();
 		for (const resolve of pending.values())
 			resolve({
 				ok: false,
@@ -73,6 +83,16 @@ export function createTradeWorkerClient(
 	}
 
 	return {
+		startSession: async (sessionId, game, bytes) => {
+			const result = await request({
+				type: 'start-session',
+				sessionId,
+				game,
+				outgoingPokemon: new Uint8Array(bytes).buffer
+			});
+			return result.ok ? { ok: true, value: sessionStatusSchema.parse(result.value) } : result;
+		},
+		cancelSession: (sessionId) => request({ type: 'cancel-session', sessionId }),
 		capabilities: async () => {
 			const result = await request({ type: 'get-capabilities' });
 			return result.ok ? { ok: true, value: capabilitiesSchema.parse(result.value) } : result;
@@ -86,6 +106,12 @@ export function createTradeWorkerClient(
 				: result;
 		},
 		installFirmware: (port, onProgress) => installFirmware(worker, port, onProgress),
+		onStopped: (listener) => {
+			stopped.add(listener);
+			return () => {
+				stopped.delete(listener);
+			};
+		},
 		onEvent: (listener) => {
 			const listen = ({ data }: MessageEvent) => {
 				const message = tradeWorkerMessageSchema.safeParse(data);

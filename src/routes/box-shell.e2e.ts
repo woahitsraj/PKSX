@@ -19,14 +19,20 @@ const aronEntityBytes =
 	'rVIoJRblSsu7zMnI/xUAAwQAAgK+w9LDv///AH8OAAB+AQAAfwYAAAAoAAAhAGoAvQAdACMeCg8AAAAAAAAAAAAAAAAAN4uhozfCnwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
 
 async function settleMotion(page: Page) {
-	await page.evaluate(() =>
-		Promise.all(
-			document
+	await page.evaluate(async () => {
+		let animations: Animation[];
+		do {
+			await new Promise(requestAnimationFrame);
+			animations = document
 				.getAnimations()
-				.filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
-				.map((animation) => animation.finished.catch(() => undefined))
-		)
-	);
+				.filter(
+					(animation) =>
+						animation.effect?.getTiming().iterations !== Infinity &&
+						animation.playState !== 'finished'
+				);
+			await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
+		} while (animations.length);
+	});
 }
 
 async function openEmptySaves(page: Page) {
@@ -1188,10 +1194,12 @@ function expectBackdropCoversViewport(
 
 async function expectLastSlotCommandVisible(page: Page) {
 	const dialog = page.getByRole('dialog', { name: 'Slot actions' });
-	const lastCommand = dialog.getByRole('button', { name: 'Evolve' });
+	const lastCommand = dialog.getByRole('button', { name: 'Trade with Switch' });
 	await expect(lastCommand).toBeVisible({ timeout: 15000 });
 	await lastCommand.focus();
 	await expect(lastCommand).toBeFocused();
+	await settleMotion(page);
+
 	expect(
 		await lastCommand.evaluate((command) => {
 			const rowRect = command.parentElement?.getBoundingClientRect();
@@ -3205,8 +3213,14 @@ test('moves a Save File Pokemon into durable Storage and clears its source', asy
 	expect((await backupRecords(page)).map(({ reason }) => reason)).toEqual(['pokemon-movement']);
 
 	await page.reload();
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
+		timeout: 60_000
+	});
 	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('Empty');
 	await page.goto('/?source=pokemon-storage');
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
+		timeout: 60_000
+	});
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	const persisted = await page.evaluate(async () => {
 		const saves = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -3669,7 +3683,9 @@ test('keeps both Pokemon recoverable when Save clearing fails after Storage comm
 	expect(await backupCount(page)).toBe(0);
 
 	await page.reload();
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready');
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
+		timeout: 60_000
+	});
 	await expect(page.locator('.box-pane.active-pane')).toHaveAttribute(
 		'aria-label',
 		/emerald-011020251345\.sav/
@@ -3967,7 +3983,8 @@ test('occupied slot actions expose Edit and Close dismisses', async ({ page }) =
 		'Copy',
 		'Clear Slot',
 		'Legality Check',
-		'Evolve'
+		'Evolve',
+		'Trade with Switch'
 	]);
 	await expect(dialog.locator('.slot-command-row button:disabled')).toHaveCount(0);
 	for (const unavailableAction of ['Export', 'Quick Actions', 'Create Pokemon']) {

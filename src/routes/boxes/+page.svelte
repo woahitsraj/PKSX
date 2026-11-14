@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { dev } from '$app/environment';
 	import { asset } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -148,6 +147,7 @@
 	} from '$lib/components/pksx/virtual-pokemon-grid-layout';
 	import TakeoverFrame from '$lib/components/pksx/TakeoverFrame.svelte';
 	import TradeWithSwitch from '$lib/components/pksx/TradeWithSwitch.svelte';
+	import { TradeJournal, browserTradeJournal } from '$lib/link-trade/trade-journal';
 	import type { SlotView } from '$lib/components/pksx/types';
 	import {
 		createPokemonCreationOperation,
@@ -440,6 +440,7 @@
 		pokemonLabel: string;
 		location: string;
 		source: TradeSource;
+		paneId: string;
 		bytes: Uint8Array;
 	} | null>(null);
 	let legalityReportRequest = 0;
@@ -811,7 +812,7 @@
 					(action) => action.kind === 'evolve' && action.available
 				) ?? false,
 			// The review has no start action until #437, so production builds hide the entry.
-			trade: dev && focusedSlot.kind === 'pokemon' && Boolean(focusedSlot.entityBytesBase64),
+			trade: focusedSlot.kind === 'pokemon' && Boolean(focusedSlot.entityBytesBase64),
 			storage: focusedSlotOwner.type === 'pokemon-storage'
 		}).map((command) =>
 			command.key === 'copy' && focusedSlotOwner.type === 'pokemon-storage'
@@ -5729,10 +5730,23 @@
 
 	function openTradeWithSwitch() {
 		if (focusedSlot.kind !== 'pokemon' || !focusedSlot.entityBytesBase64) return;
+		const ref = slotRefForFocus();
+		const recordId =
+			focusedSlotOwner.type === 'pokemon-storage' && ref.zone === 'box'
+				? getPokemonStorageCatalog()
+						.listResolvedPlacements()
+						.find(
+							(item) =>
+								item.placement?.storageBoxId === storageBoxes[ref.box]?.id &&
+								item.placement?.slot === ref.slot
+						)?.recordId
+				: undefined;
 		tradeTarget = {
+			paneId: focusedSlotPane?.id ?? activePaneId,
 			pokemonLabel: focusedSlot.label,
 			location: activeSlotPositionLabel,
 			source: {
+				recordId,
 				owner: focusedSlotOwner.type === 'pokemon-storage' ? 'pokemon-storage' : 'save-file',
 				collectionId: focusedSlotOwner.id,
 				slot: slotRefForFocus()
@@ -5745,6 +5759,7 @@
 	function closeTradeWithSwitch() {
 		tradeTarget = null;
 		dismissActiveWorkflow();
+		void refreshCommittedCatalogView();
 		refreshReturnedSlotMenuAvailability();
 	}
 
@@ -8030,14 +8045,38 @@
 		pokemonLabel={target.pokemonLabel}
 		location={target.location}
 		source={target.source}
-		prepare={(destinationGame) =>
-			engine
-				? engine.prepareOutgoingLinkTrade(target.bytes, { destinationGame, sourceKind: 'entity' })
-				: Promise.resolve({
-						ok: false,
-						value: null,
-						error: { code: 'engine-unavailable', message: 'The PKHeX Engine is not ready.' }
-					})}
+		createJournal={async () => {
+			await ensurePokemonStorageCatalog();
+			if (!engine) throw new Error('The Engine is not ready.');
+			return new TradeJournal(browserTradeJournal(), engine, getPokemonStorageCatalog());
+		}}
+		prepare={async (destinationGame) => {
+			if (engine) {
+				if (target.source.recordId) {
+					await getPokemonStorageCatalog().load();
+					const payload = await getPokemonStorageCatalog().readPayload(target.source.recordId);
+					return engine.prepareOutgoingLinkTrade(payload, {
+						destinationGame,
+						sourceKind: 'preservation-payload'
+					});
+				}
+				const pane = workbenchPanes.find((item) => item.id === target.paneId);
+				const current =
+					pane?.source.id === target.source.collectionId
+						? slotForRef(target.source.slot, pane)
+						: null;
+				if (current?.entityBytesBase64)
+					return engine.prepareOutgoingLinkTrade(base64ToBytes(current.entityBytesBase64), {
+						destinationGame,
+						sourceKind: 'entity'
+					});
+			}
+			return {
+				ok: false,
+				value: null,
+				error: { code: 'engine-unavailable', message: 'The Pokemon source is unavailable.' }
+			};
+		}}
 		onClose={closeTradeWithSwitch}
 	/>
 {/if}

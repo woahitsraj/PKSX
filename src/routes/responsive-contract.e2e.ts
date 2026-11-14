@@ -104,14 +104,20 @@ const visibleControlSelector =
 	'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false" i])';
 
 async function settleMotion(page: Page) {
-	await page.evaluate(() =>
-		Promise.all(
-			document
+	await page.evaluate(async () => {
+		let animations: Animation[];
+		do {
+			await new Promise(requestAnimationFrame);
+			animations = document
 				.getAnimations()
-				.filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
-				.map((animation) => animation.finished.catch(() => undefined))
-		)
-	);
+				.filter(
+					(animation) =>
+						animation.effect?.getTiming().iterations !== Infinity &&
+						animation.playState !== 'finished'
+				);
+			await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
+		} while (animations.length);
+	});
 }
 
 async function setSafeArea(page: Page, insets: Insets) {
@@ -1089,6 +1095,7 @@ test('[SURFACE-1][SURFACE-2] Menu and Backup Browser follow Safe Canvas edges wi
 }, testInfo) => {
 	skipNonChromium(testInfo);
 	await importPublicSave(page);
+
 	for (const budget of floorAndTargetCases.filter(({ target }) => !target)) {
 		await openDestination(page, destinations[0], budget);
 		const before = await page.locator('.app-shell').evaluate((shell) => ({

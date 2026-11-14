@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import type { TradeJournal, TradeEntry } from '$lib/link-trade/trade-journal';
+	import { tradeProgress, tradeOutcomeMessage } from '$lib/link-trade/trade-display';
 	import type { EngineResult, OutgoingLinkTrade } from '$lib/engine';
 	import type {
 		Board,
@@ -31,6 +33,7 @@
 		location: string;
 		source: TradeSource;
 		prepare: (game: LinkTradeGame) => Promise<EngineResult<OutgoingLinkTrade>>;
+		createJournal?: () => Promise<TradeJournal>;
 		createClient?: () => TradeWorkerClient;
 		onClose: () => void;
 	}
@@ -41,18 +44,159 @@
 		source,
 		prepare,
 		createClient = createTradeWorkerClient,
+		createJournal,
 		onClose
 	}: Props = $props();
 
 	const ACTIVATION_MESSAGE = 'The browser needs a mouse or keyboard for this step. Try again.';
 
-	type Step = 'loading' | 'unsupported' | 'keys' | 'radio' | 'install' | 'game' | 'review';
+	type Step =
+		| 'loading'
+		| 'unsupported'
+		| 'keys'
+		| 'radio'
+		| 'install'
+		| 'game'
+		| 'review'
+		| 'exchange'
+		| 'recovery';
 
 	let client: TradeWorkerClient | null = null;
-	let root = $state<HTMLElement>();
-	let body = $state<HTMLElement>();
-	let keyFile = $state<HTMLInputElement>();
+	let journal: TradeJournal | null = null;
+	let entry = $state.raw<TradeEntry | null>(null);
+	let recoveries = $state.raw<TradeEntry[]>([]);
+	let exchangeMessage = $state<string | null>(null);
+	let journalReady = $state(false);
+	let partnerLabel = $state<string | null>(null);
+	let pendingEvents = $state.raw<import('$lib/link-trade/contract').TradeWorkerEvent[]>([]);
+	let savingEvents = false;
+	let recoveryPending = $state(false);
+
+	async function loadJournal() {
+		if (!createJournal) return;
+		try {
+			journal = await createJournal();
+			recoveries = (await journal.recover()).filter(
+				(item) =>
+					item.outcome === 'outcome-unknown' || (item.outcome === 'completed' && !item.imported)
+			);
+			journalReady = true;
+			if (recoveries.length) step = 'recovery';
+		} catch {
+			exchangeMessage = 'PKSX cannot open trade recovery on this device. Trading is unavailable.';
+		}
+	}
+
+	async function saveEvents() {
+		if (savingEvents || !journal) return;
+		savingEvents = true;
+		try {
+			while (pendingEvents.length) {
+				const event = pendingEvents[0];
+				const saved = await journal.event(event);
+				pendingEvents = pendingEvents.slice(1);
+				if (saved) entry = saved;
+				if (saved && event.type === 'trade-offer') {
+					const offer = await journal.readOffer(saved.id);
+					partnerLabel = offer?.projection?.nickname || offer?.projection?.speciesName || null;
+				}
+				if (saved?.outcome === 'completed') entry = await journal.retryImport(saved.id);
+			}
+			if (recoveryPending) {
+				journal.close();
+				const recovered = await journal.recover();
+				entry = recovered.find((item) => item.id === entry?.id) ?? entry;
+				recoveryPending = false;
+			}
+			exchangeMessage = null;
+		} catch {
+			exchangeMessage =
+				'PKSX could not save trade evidence. Keep this window open and retry saving. The console outcome has not changed.';
+		} finally {
+			savingEvents = false;
+		}
+	}
+
+	async function startTrade() {
+		if (
+			!journal ||
+			!client ||
+			review?.status !== 'ready' ||
+			working ||
+			running ||
+			savingEvents ||
+			pendingEvents.length ||
+			recoveryPending
+		)
+			return;
+		if (!board) {
+			reviewRequest += 1;
+			review = null;
+			step = 'radio';
+			radioMessage = 'Connect the Trade Radio again, then review the Pokemon before retrying.';
+			return;
+		}
+		working = true;
+		exchangeMessage = null;
+		try {
+			const prepared = await journal.prepare(review.reviewed, async () => {
+				const result = await prepare(review!.status === 'ready' ? review!.reviewed.game : 'sword');
+				return result.ok ? reviewedLinkTrade(source, result.value) : null;
+			});
+			await journal.dispatch(prepared.id, async (saved) => {
+				entry = saved;
+				step = 'exchange';
+				partnerLabel = null;
+				const result = await client!.startSession(
+					saved.id,
+					saved.review.game,
+					saved.review.outgoingBytes
+				);
+				if (!result.ok) {
+					recoveryPending = true;
+					void saveEvents();
+					exchangeMessage =
+						'PKSX could not start the trade. Check the Switch and Trade Radio. Review again before trying a new trade.';
+				}
+			});
+		} catch {
+			if (!entry || entry.outcome) step = 'review';
+			exchangeMessage =
+				'PKSX could not prepare this trade. The Pokemon may have changed, or local storage is unavailable. Review it again.';
+		} finally {
+			working = false;
+		}
+	}
+
+	async function cancelTrade() {
+		if (!client || !entry || !running || working) return;
+		working = true;
+		try {
+			await client.cancelSession(entry.id);
+		} finally {
+			working = false;
+		}
+	}
+
+	async function retryImport(choice?: 'link' | 'separate') {
+		if (!journal || !entry || working) return;
+		working = true;
+		try {
+			entry = await journal.retryImport(entry.id, choice);
+		} catch {
+			exchangeMessage =
+				'PKSX could not save the local import. Keep this window open and try again.';
+		} finally {
+			working = false;
+		}
+	}
+
+	let root: HTMLElement | undefined;
+	let body: HTMLElement | undefined;
+	let keyFile: HTMLInputElement | undefined;
 	let step = $state<Step>('loading');
+	const running = $derived(step === 'exchange' && entry !== null && entry.outcome === null);
+
 	let capabilities = $state.raw<TradeWorkerCapabilities | null>(null);
 	let keysPresent = $state(false);
 	let keyMessage = $state<string | null>(null);
@@ -82,7 +226,17 @@
 	onMount(() => {
 		const active = createClient();
 		client = active;
+		const stopErrors = active.onStopped?.(() => {
+			if (!journal) return;
+			recoveryPending = true;
+			void saveEvents();
+		});
 		const stopEvents = active.onEvent((event) => {
+			if ('sessionId' in event && event.sessionId === entry?.id) {
+				pendingEvents = [...pendingEvents, event];
+				void saveEvents();
+			}
+
 			if (event.type === 'radio-connected') board = event.board;
 			if (event.type !== 'radio-disconnected') return;
 			board = null;
@@ -95,18 +249,18 @@
 				step = 'radio';
 			}
 		});
-		void loadCapabilities(active);
+		void loadCapabilities(active).then(loadJournal);
 		return () => {
 			stopEvents();
+			stopErrors?.();
+			journal?.close();
 			active.terminate();
 			client = null;
 		};
 	});
 
-	// Steps replace their controls, so keep focus inside the Takeover when a control disappears.
-	$effect(() => {
-		if (!root) return;
-		const target = root;
+	function focusScope(target: HTMLElement) {
+		root = target;
 		const keepFocus = () => {
 			if (target.contains(document.activeElement)) return;
 			(
@@ -116,8 +270,11 @@
 		const observer = new MutationObserver(keepFocus);
 		observer.observe(target, { childList: true, subtree: true });
 		keepFocus();
-		return () => observer.disconnect();
-	});
+		return () => {
+			observer.disconnect();
+			root = undefined;
+		};
+	}
 
 	async function loadCapabilities(active: TradeWorkerClient) {
 		const result = await active.capabilities();
@@ -196,9 +353,9 @@
 		const request = (reviewRequest += 1);
 		review = { status: 'loading', game };
 		step = 'review';
-		const result = await prepare(game);
+		const result = await prepare(game).catch(() => null);
 		if (request !== reviewRequest) return;
-		if (!result.ok) return void (review = { status: 'error', game });
+		if (!result?.ok) return void (review = { status: 'error', game });
 		const reviewed = reviewedLinkTrade(source, result.value);
 		review = reviewed
 			? { status: 'ready', prepared: result.value, reviewed }
@@ -210,7 +367,9 @@
 	}
 
 	function back() {
-		if (installing || working) return;
+		if (installing || working || savingEvents || pendingEvents.length || recoveryPending) return;
+		if (running) return void cancelTrade();
+		if (step === 'exchange' || step === 'recovery') return onClose();
 		if (firstStepBack) return onClose();
 		reviewRequest += 1;
 		review = null;
@@ -243,7 +402,7 @@
 	busy={step === 'loading' || working}
 	onBack={back}
 >
-	<div class="trade-with-switch" bind:this={root}>
+	<div class="trade-with-switch" {@attach focusScope}>
 		{#if step === 'install' && lastPort}
 			{@const port = lastPort}
 			<InstallFirmware
@@ -272,8 +431,87 @@
 				<p class="pokemon">{pokemonLabel}</p>
 			</header>
 
-			<div class="trade-body" bind:this={body}>
-				{#if step === 'loading'}
+			<div
+				class="trade-body"
+				{@attach (node) => {
+					body = node;
+					return () => {
+						body = undefined;
+					};
+				}}
+			>
+				{#if step === 'recovery'}
+					<h3>Trade recovery</h3>
+					<p>These trades need attention. Recovery never starts another console trade.</p>
+					<button
+						type="button"
+						data-pksx-control-category="small"
+						onclick={() => (step = realRadio ? 'keys' : 'unsupported')}>Set up another trade</button
+					>
+					{#each recoveries as saved (saved.id)}
+						<button
+							type="button"
+							data-pksx-control-category="small"
+							onclick={() => {
+								entry = saved;
+								step = 'exchange';
+							}}>Review trade from {new Date(saved.createdAt).toLocaleString()}</button
+						>
+					{/each}
+				{:else if step === 'exchange' && entry}
+					<h3>{entry.outcome ? tradeOutcomeMessage(entry) : tradeProgress(entry)}</h3>
+					{#if running}
+						<p role="status">
+							Keep this window open. Select the Pokemon and confirm on the Switch.
+						</p>
+						{#if entry.events.some((event) => event.type === 'trade-offer')}
+							<p>
+								The Switch has offered {partnerLabel ?? 'a Pokemon'}. Confirm on the Switch. This is
+								not a completed trade.
+							</p>
+						{/if}
+					{:else if entry.outcome === 'completed'}
+						<p>The Switch trade completed. Your original Pokemon remains in PKSX.</p>
+						{#if entry.imported}
+							<p role="status">
+								{entry.choice === 'link'
+									? 'Linked to the original Pokemon in Pokemon Storage. Its original data is preserved.'
+									: 'Received Pokemon saved in Pokemon Storage, Unfiled.'}
+							</p>
+						{:else if entry.returningSession && !entry.choice}
+							<p>
+								This may be a returning copy. Link it to the original Storage record and keep its
+								original data, or import a separate record.
+							</p>
+						{:else if entry.importProblem === 'unparseable'}
+							<p role="alert">
+								PKSX cannot read the received Pokemon. Its received bytes are kept on this device
+								for recovery.
+							</p>
+						{:else}
+							<p role="alert">
+								The trade completed, but the Pokemon has not been saved to Storage. Retry the local
+								import. This never repeats the console trade.
+							</p>
+						{/if}
+						{#if entry.legality}<p>
+								{entry.legality.legal
+									? 'Legality Check passed.'
+									: 'Legality Check found issues. PKSX has not changed the Pokemon.'}
+							</p>{/if}
+					{:else if entry.outcome === 'cancelled'}
+						<p>The console keeps its Pokemon. Your original Pokemon remains in PKSX.</p>
+					{:else if entry.outcome === 'outcome-unknown'}
+						<p>
+							Check the Pokemon on the Switch to find out whether the trade completed. Saved offers
+							are evidence only. PKSX will not repeat the trade or import an unconfirmed offer.
+						</p>
+					{:else if entry.error?.code === 'console-not-ready'}
+						<p>Open Link Trade on the Switch and press A on both messages. Then retry.</p>
+					{:else}
+						<p>No trade happened. Check the Switch and Trade Radio, then retry.</p>
+					{/if}
+				{:else if step === 'loading'}
 					<p role="status">Checking this browser</p>
 				{:else if step === 'unsupported'}
 					<h3>This browser cannot trade</h3>
@@ -312,7 +550,7 @@
 							<button
 								type="button"
 								data-pksx-control-category="small"
-								class:primary={hardwareVerified}
+								class={hardwareVerified ? 'primary' : undefined}
 								disabled={!hardwareVerified}
 								aria-describedby={hardwareVerified ? undefined : `trade-game-${game}-reason`}
 								onclick={() => selectGame(game)}>{TRADE_GAME_NAMES[game]}</button
@@ -343,6 +581,10 @@
 							that its player selects.
 						</p>
 						<p>You confirm the trade on the Switch. PKSX does not ask you to confirm it again.</p>
+						<p>
+							Before starting, open Link Trade and press A on both Link Trade messages on the
+							Switch.
+						</p>
 						{#if review.prepared.converted}
 							<p role="alert">
 								PKSX converts this copy for {reviewGame}. The copy has no HOME tracker, and
@@ -363,27 +605,72 @@
 							</ul>
 						{/if}
 						<p role="status">
-							PKSX stops here. This version cannot start the trade, so nothing was sent.
+							Start only when the Switch is ready. Keep the Trade Radio connected until the outcome
+							appears.
 						</p>
 					{/if}
 				{/if}
+				{#if exchangeMessage}<p role="alert">{exchangeMessage}</p>{/if}
 			</div>
 
 			<!-- A new row on each state moves focus to its main action. -->
-			{#key `${step}-${review?.status}-${keysPresent}-${board !== null}`}
+			{#key `${step}-${review?.status}-${keysPresent}-${board !== null}-${entry?.outcome}-${entry?.imported}`}
 				<div class="actions">
-					{#if !(step === 'review' && review?.status === 'ready')}
+					{#if !running && !(step === 'review' && review?.status === 'ready')}
 						<button type="button" data-pksx-control-category="small" onclick={back}>
-							{firstStepBack ? 'Close' : 'Back'}
+							{firstStepBack || step === 'exchange' || step === 'recovery' ? 'Close' : 'Back'}
 						</button>
 					{/if}
-					{#if step === 'unsupported' && capabilities?.fakePort}
+					{#if step === 'exchange' && entry}
+						{#if running && !recoveryPending}<button
+								type="button"
+								data-pksx-control-category="small"
+								onclick={cancelTrade}>Cancel trade</button
+							>{/if}
+						{#if entry.choice === 'link' && !entry.imported}<button
+								type="button"
+								data-pksx-control-category="small"
+								onclick={() => retryImport('separate')}>Import separately</button
+							>{/if}
+						{#if pendingEvents.length || recoveryPending}<button
+								type="button"
+								data-pksx-control-category="small"
+								onclick={saveEvents}>Retry saving evidence</button
+							>{/if}
+						{#if entry.outcome === 'failed'}<button
+								type="button"
+								data-pksx-control-category="small"
+								class="primary"
+								onclick={startTrade}>Retry</button
+							>{/if}
+						{#if entry.outcome === 'completed' && !entry.imported}
+							{#if entry.returningSession && !entry.choice}<button
+									type="button"
+									data-pksx-control-category="small"
+									onclick={() => retryImport('link')}>Link to original</button
+								><button
+									type="button"
+									data-pksx-control-category="small"
+									onclick={() => retryImport('separate')}>Import separately</button
+								>
+							{:else}<button
+									type="button"
+									data-pksx-control-category="small"
+									onclick={() => retryImport()}>Retry local import</button
+								>{/if}
+						{/if}
+					{:else if step === 'unsupported' && capabilities?.fakePort}
 						<button type="button" data-pksx-control-category="small" onclick={() => (step = 'keys')}
 							>Continue with simulated radio</button
 						>
 					{:else if step === 'keys'}
 						<input
-							bind:this={keyFile}
+							{@attach (node) => {
+								keyFile = node;
+								return () => {
+									keyFile = undefined;
+								};
+							}}
 							data-pksx-control-category="composition"
 							class="key-file"
 							type="file"
@@ -473,7 +760,8 @@
 							type="button"
 							data-pksx-control-category="small"
 							class="primary"
-							onclick={onClose}>Done</button
+							disabled={!journalReady || working}
+							onclick={startTrade}>Start trade</button
 						>
 					{/if}
 				</div>
