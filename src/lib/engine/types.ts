@@ -286,6 +286,7 @@ export type PokemonOriginalTrainerEditConstraints = {
 	maxNameLength: number;
 	minTrainerId: number;
 	maxTrainerId: number;
+	maxSecretId: number;
 	supportsSecretId: boolean;
 	supportsGender: boolean;
 	supportsLanguage: boolean;
