@@ -67,7 +67,9 @@ public class ControllerNavigationTest {
     @Test
     public void gamepadNavigatesAndHighlightsSlotActions() throws Exception {
         awaitControllerSurface();
+        String previousOrigin = runJavaScript("performance.timeOrigin");
         runJavaScript("location.assign('/boxes?source=pokemon-storage')");
+        awaitJavaScript("performance.timeOrigin !== " + previousOrigin);
         awaitJavaScript(
             "location.pathname === '/boxes' && location.search === ''"
                 + " && document.querySelector('.boxes-route')?.dataset.initialState === 'ready'"
