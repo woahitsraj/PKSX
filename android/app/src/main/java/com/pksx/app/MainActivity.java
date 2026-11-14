@@ -38,6 +38,7 @@ public class MainActivity extends BridgeActivity {
         });
 
         registerPlugin(SaveFoldersPlugin.class);
+        registerPlugin(LinkedSavesPlugin.class);
         super.onCreate(savedInstanceState);
         if (getPackageName().endsWith(".profile")) WebView.setWebContentsDebuggingEnabled(true);
     }

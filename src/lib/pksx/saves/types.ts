@@ -13,7 +13,11 @@ export type BackupReason =
 	| 'trainer-editing'
 	| 'inventory-editing'
 	| 'legality-fix'
-	| 'evolution';
+	| 'evolution'
+	| 'linked-source-before-export'
+	| 'linked-workspace-before-refresh'
+	| 'linked-import-before-refresh'
+	| 'linked-source-before-recovery';
 
 export type StoredSaveFile = {
 	id: SaveFileId;

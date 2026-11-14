@@ -1482,3 +1482,24 @@ describe('Save File edit coordinator', () => {
 		expect(harness.files.has('save-1')).toBe(false);
 	});
 });
+
+it('serializes external refresh after queued edits and requires confirmation for their dirty result', async () => {
+	const initial = workspace();
+	const harness = createHarness(initial);
+	const edits = new SaveFileEditCoordinator({ storage: harness.storage, engine: harness.engine });
+	const origin = edits.openWorkspace(initial);
+	const edit = edits.enqueueEdit(origin, { key: 'money', operation: { money: 500 } });
+	const refresh = edits.replaceFromLinkedSource(origin, new Uint8Array([9]), false);
+	expect((await edit).ok).toBe(true);
+	await expect(refresh).rejects.toThrow('Confirm');
+	expect(harness.workspaces.get(initial.file.id)?.bytes).toEqual(new Uint8Array([2]));
+	await edits.replaceFromLinkedSource(origin, new Uint8Array([9]), true);
+	expect(harness.workspaces.get(initial.file.id)?.bytes).toEqual(new Uint8Array([9]));
+	expect(
+		[...harness.backups.values()].some(
+			(backup) =>
+				backup.metadata.reason === 'linked-workspace-before-refresh' && backup.bytes[0] === 2
+		)
+	).toBe(true);
+	expect(await harness.storage.getSaveBytes(initial.file.id)).toEqual(new Uint8Array([1]));
+});
