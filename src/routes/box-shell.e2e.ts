@@ -1188,7 +1188,7 @@ function expectBackdropCoversViewport(
 
 async function expectLastSlotCommandVisible(page: Page) {
 	const dialog = page.getByRole('dialog', { name: 'Slot actions' });
-	const lastCommand = dialog.getByRole('button', { name: 'Evolve' });
+	const lastCommand = dialog.getByRole('button', { name: 'Trade with Switch' });
 	await expect(lastCommand).toBeVisible({ timeout: 15000 });
 	await lastCommand.focus();
 	await expect(lastCommand).toBeFocused();
@@ -3967,7 +3967,8 @@ test('occupied slot actions expose Edit and Close dismisses', async ({ page }) =
 		'Copy',
 		'Clear Slot',
 		'Legality Check',
-		'Evolve'
+		'Evolve',
+		'Trade with Switch'
 	]);
 	await expect(dialog.locator('.slot-command-row button:disabled')).toHaveCount(0);
 	for (const unavailableAction of ['Export', 'Quick Actions', 'Create Pokemon']) {

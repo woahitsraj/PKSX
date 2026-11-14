@@ -65,6 +65,10 @@ afterEach(async () => {
 function stubClient(overrides: Partial<TradeWorkerClient> = {}) {
 	const listeners = new Set<(event: TradeWorkerEvent) => void>();
 	const client: TradeWorkerClient = {
+		startSession: async () => {
+			throw new Error('Unexpected start');
+		},
+		cancelSession: async () => ({ ok: true, value: {} }),
 		capabilities: async () => ({ ok: true, value: capabilities }),
 		importKeys: async () => ({ ok: true, value: {} }),
 		forgetKeys: async () => ({ ok: true, value: {} }),
@@ -234,13 +238,16 @@ describe('Trade with Switch setup', () => {
 		expect(text).toContain('Ball: Strange to Poke');
 		expect(text).not.toContain('PK8');
 		expect(text).not.toContain('Encryption');
-		expect(Object.keys(client)).not.toContain('startSession');
+		expect(button('Start trade').disabled).toBe(true);
 
 		await click('Change game');
 		expect(document.body.textContent).toContain('Destination game');
 		await click('Sword');
 		expect(prepare).toHaveBeenCalledTimes(2);
-		await click('Done');
+		await click('Change game');
+		(component as unknown as { dispatch(action: string): void }).dispatch('back');
+		(component as unknown as { dispatch(action: string): void }).dispatch('back');
+		(component as unknown as { dispatch(action: string): void }).dispatch('back');
 		expect(onClose).toHaveBeenCalledOnce();
 	});
 

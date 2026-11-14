@@ -107,6 +107,8 @@ export type FakeScript = 'trade' | 'cancel' | 'not-ready' | 'drop-after-ladder';
 
 export interface FakeRadioOptions {
 	script: FakeScript;
+	receivedPokemon?: Bytes;
+	joinFailures?: number;
 	keys(): Promise<SwitchKeys | null>;
 	clock: Clock;
 	/** The INFO text, for board and firmware checks. */
@@ -362,6 +364,7 @@ export class FakeTradeRadio implements TradeSerialPort {
 		}
 	}
 
+	private joins = 0;
 	private async join(payload: Bytes): Promise<void> {
 		const network = await this.ensureNetwork();
 		const key = payload.slice(1 + 6 + 32, 1 + 6 + 32 + 16);
@@ -371,7 +374,10 @@ export class FakeTradeRadio implements TradeSerialPort {
 			? await deriveDataKey(this.keys, 3, network.serverRandom, PASSPHRASE)
 			: null;
 		await this.sleep(50);
-		const up = this.observed.expectedDataKey && equal(key, this.observed.expectedDataKey);
+		const up =
+			this.joins++ >= (this.options.joinFailures ?? 0) &&
+			this.observed.expectedDataKey &&
+			equal(key, this.observed.expectedDataKey);
 		this.emit(MSG_LINK, concat(Uint8Array.of(up ? 1 : 0), u16le(up ? 0 : 0x0f), this.joinerMac));
 		if (!up) return;
 		this.mode = 'sta';
@@ -625,7 +631,7 @@ export class FakeTradeRadio implements TradeSerialPort {
 		const block = this.stream(BROADCAST_RELIABLE_PROTOCOL, 0);
 		const station = ldnConstantId(CONSOLE_MAC);
 		let clock = 2348n;
-		const theirs = fakePk8(2);
+		const theirs = this.options.receivedPokemon ?? fakePk8(2);
 		const ourOffer = () => this.observed.offer;
 
 		a.push(sync(97, 1));
