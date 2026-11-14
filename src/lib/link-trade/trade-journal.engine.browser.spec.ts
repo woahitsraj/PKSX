@@ -178,12 +178,26 @@ test('a returning copy waits for a choice and links to the original payload only
 		};
 		const sent = await h.journal.prepare(outgoingReview, async () => outgoingReview);
 		await h.journal.dispatch(sent.id, async () => {});
+		const projected = await h.engine.projectPreservationPayload(original, 9);
+		if (!projected.ok) throw projected.error;
+		await h.storage.replace(record.recordId, projected.value.bytes, record.payload.id);
+		const recent = await h.journal.prepare(outgoingReview, async () => outgoingReview);
+		await h.journal.dispatch(recent.id, async () => {});
 		await h.end();
 		const waiting = await h.journal.retryImport(h.entry.id);
-		expect(waiting.returningSession).toBe(sent.id);
+		expect(waiting.returningSession).toBe(recent.id);
 		expect(waiting.imported).toBe(false);
 		expect(h.storage.listRecords()).toHaveLength(1);
+		await h.store.put({
+			...waiting,
+			choice: 'link',
+			returningSession: sent.id,
+			recordId: record.recordId,
+			payload: original,
+			importProblem: 'storage'
+		});
 		const linked = await h.journal.retryImport(h.entry.id, 'link');
+		expect(linked.returningSession).toBe(recent.id);
 		expect(linked.recordId).toBe(record.recordId);
 		expect(linked.imported).toBe(true);
 		expect(await h.storage.readPayload(record.recordId)).toEqual(original);

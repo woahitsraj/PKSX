@@ -264,6 +264,23 @@ export class TradeJournal {
 					entry.choice = 'separate';
 					await this.store.put(entry);
 				}
+				const linkedRecordId = entry.choice === 'link' ? entry.recordId : null;
+				if (entry.choice === 'link' && entry.payload && entry.recordId) {
+					const previous = entry.returningSession
+						? await this.required(entry.returningSession)
+						: null;
+					const current = this.storage.getRecord(entry.recordId)
+						? await this.storage.readPayload(entry.recordId)
+						: null;
+					if (
+						!current ||
+						(!equalBytes(current, entry.payload) &&
+							(!previous?.sourcePayload || !equalBytes(current, previous.sourcePayload)))
+					) {
+						entry.payload = null;
+						await this.store.put(entry);
+					}
+				}
 				if (!entry.payload) {
 					const parsed = await this.engine.readLinkTradePartnerPokemon(
 						new Uint8Array(entry.receipt.receivedPokemon),
@@ -277,7 +294,7 @@ export class TradeJournal {
 						await this.store.put(entry);
 						return entry;
 					}
-					const match = (await this.list()).find(
+					const matches = (await this.list()).filter(
 						(previous) =>
 							previous.id !== id &&
 							previous.dispatched &&
@@ -285,11 +302,28 @@ export class TradeJournal {
 							previous.sourcePayload &&
 							sameIdentity(previous.outgoingIdentity, parsed.value.identity)
 					);
-					entry.returningSession = match?.id ?? null;
-					entry.choice = entry.choice ?? choice ?? (match ? null : 'separate');
+					const eligible: TradeEntry[] = [];
+					for (const candidate of matches) {
+						const recordId = candidate.review.source.recordId!;
+						if (
+							(linkedRecordId && recordId !== linkedRecordId) ||
+							!this.storage.getRecord(recordId)
+						)
+							continue;
+						if (equalBytes(await this.storage.readPayload(recordId), candidate.sourcePayload!))
+							eligible.push(candidate);
+					}
+					const recordIds = new Set(eligible.map((candidate) => candidate.review.source.recordId));
+					const match = recordIds.size === 1 ? eligible[0] : null;
+					entry.returningSession = match?.id ?? matches[0]?.id ?? null;
+					entry.choice = entry.choice ?? choice ?? (matches.length ? null : 'separate');
 					await this.store.put(entry);
 					if (!entry.choice) return entry;
-					if (entry.choice === 'link' && match) {
+					if (entry.choice === 'link') {
+						if (!match)
+							throw new Error(
+								'The original source is changed, unavailable or ambiguous. Import separately.'
+							);
 						entry.recordId = match.review.source.recordId!;
 						const original = await this.engine.readPreservationPayload(match.sourcePayload!);
 						if (!original.ok) throw original.error;
