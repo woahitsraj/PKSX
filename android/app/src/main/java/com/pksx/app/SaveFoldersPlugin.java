@@ -32,13 +32,16 @@ public class SaveFoldersPlugin extends Plugin {
         return getContext().getSharedPreferences("linked-save-folder", 0);
     }
 
-    private JSArray folders() throws Exception {
-        String stored = preferences().getString("folders", null);
+    private JSArray folders() throws Exception { return linkedFolders(getContext()); }
+
+    static JSArray linkedFolders(android.content.Context context) throws Exception {
+        SharedPreferences preferences = context.getSharedPreferences("linked-save-folder", 0);
+        String stored = preferences.getString("folders", null);
         if (stored != null) return new JSArray(stored);
         JSArray folders = new JSArray();
-        String legacy = preferences().getString("tree", null);
+        String legacy = preferences.getString("tree", null);
         if (legacy != null) folders.put(new JSObject().put("tree", legacy)
-            .put("name", preferences().getString("name", "Selected folder")));
+            .put("name", preferences.getString("name", "Selected folder")));
         return folders;
     }
 
@@ -58,7 +61,7 @@ public class SaveFoldersPlugin extends Plugin {
     @PluginMethod
     public void pick(PluginCall call) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(call, intent, "picked");
     }
 
@@ -77,7 +80,9 @@ public class SaveFoldersPlugin extends Plugin {
                 if (cursor == null || !cursor.moveToFirst()) throw new IllegalStateException("Folder is unavailable.");
                 name = cursor.getString(0);
             }
-            getContext().getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            int flags = result.getData().getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            if ((flags & Intent.FLAG_GRANT_READ_URI_PERMISSION) == 0) throw new SecurityException("Read access was not granted.");
+            getContext().getContentResolver().takePersistableUriPermission(tree, flags);
             JSArray linked = folders();
             boolean exists = false;
             for (int i = 0; i < linked.length(); i++) {
@@ -91,7 +96,12 @@ public class SaveFoldersPlugin extends Plugin {
     }
 
     private void release(String tree) {
-        try { getContext().getContentResolver().releasePersistableUriPermission(Uri.parse(tree), Intent.FLAG_GRANT_READ_URI_PERMISSION); }
+        try { for (android.content.UriPermission permission : getContext().getContentResolver().getPersistedUriPermissions()) {
+            if (permission.getUri().equals(Uri.parse(tree))) {
+                int flags = (permission.isReadPermission() ? Intent.FLAG_GRANT_READ_URI_PERMISSION : 0) | (permission.isWritePermission() ? Intent.FLAG_GRANT_WRITE_URI_PERMISSION : 0);
+                getContext().getContentResolver().releasePersistableUriPermission(permission.getUri(), flags);
+            }
+        } }
         catch (SecurityException ignored) { }
     }
 

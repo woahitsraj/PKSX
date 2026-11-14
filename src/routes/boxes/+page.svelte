@@ -236,6 +236,8 @@
 		type SaveFileLegalityReportProvider,
 		type SaveFileLegalityReportTarget
 	} from '$lib/pksx/save-file-legality-report/host.svelte';
+	import { supportsSaveFolders } from '$lib/pksx/linked-save-folders';
+	import { getLinkedSaveSources } from '$lib/pksx/linked-save-sources/runtime';
 	import { createBoxMenuCommands, type BoxMenuCommandKey } from '$lib/pksx/box-menu';
 	import type { TradeSource } from '$lib/link-trade/trade-setup';
 	import {
@@ -564,6 +566,9 @@
 		createBoxMenuCommands({
 			source: boxMenuTarget?.source ?? pokemonStorageSource(),
 			workspaceReady: saveWorkspaceForPane(boxMenuPane) !== null,
+			linkedSource:
+				supportsSaveFolders() &&
+				Boolean(saveWorkspaceForPane(boxMenuPane)?.state.file.linkedDocumentId),
 			paneCount: workbenchPanes.length,
 			undoAvailable:
 				Boolean(catalogManifest) &&
@@ -2965,6 +2970,9 @@
 			case 'undo-storage-organization':
 				void undoStorageOrganization();
 				break;
+			case 'export-copy':
+				void exportBoxMenuSave(true);
+				break;
 			case 'export':
 				void exportBoxMenuSave();
 				break;
@@ -3100,7 +3108,7 @@
 		return pane && workspace ? { pane, workspace } : null;
 	}
 
-	async function exportBoxMenuSave() {
+	async function exportBoxMenuSave(copy = false) {
 		const target = boxMenuTarget;
 		const resolved = resolveBoxMenuSaveTarget(target);
 		if (!target || !resolved) return;
@@ -3113,10 +3121,21 @@
 				resolved.workspace.state,
 				resolved.pane.activeBox
 			);
-			const bytes = await editCoordinator.export(origin);
 			if (!resolveBoxMenuSaveTarget(target)) return;
-			downloadBytes(bytes, createExportFileName(resolved.workspace.state.file.originalFileName));
-			statusMessage = `Export ready for ${resolved.workspace.state.file.originalFileName ?? 'Save File'}.`;
+			const file = resolved.workspace.state.file;
+			if (!copy && supportsSaveFolders() && file.linkedDocumentId) {
+				const exported = await getLinkedSaveSources().export(file, () =>
+					editCoordinator.export(origin)
+				);
+				statusMessage = exported.written
+					? `Exported to ${exported.name}. Source Backup saved.`
+					: `${exported.name} already matches this Workspace.`;
+				invalidateSavesCache();
+			} else {
+				const bytes = await editCoordinator.export(origin);
+				downloadBytes(bytes, createExportFileName(file.originalFileName));
+				statusMessage = `Export ready for ${file.originalFileName ?? 'Save File'}.`;
+			}
 			toastHost.success(statusMessage);
 			closeBoxMenu();
 		} catch (error) {

@@ -693,7 +693,8 @@ _Avoid_: setting, option, config
 - Moving, copying, or clearing a **Slot** in a **Save File** is a **Risky Change** to the **Workspace**.
 - Moving a **Pokemon Entity** from a **Save File** to **Pokemon Storage** removes it from the source **Slot**.
 - Copying a **Pokemon Entity** from a **Save File** to **Pokemon Storage** leaves the source **Slot** unchanged.
-- **Export** names should keep a recognizable connection to the imported **Save File** while keeping the exported file distinct from the source file.
+- **Export** of an Android-linked **Save File** explicitly writes its **Workspace** to the original document after a source-byte conflict check and external **Backup**. **Export a copy** and unlinked imports create a distinct file with a recognizable name.
+- An external refresh preserves the current **Workspace** and imported baseline in owner-bound **Backups** before replacement. A **Dirty Workspace** requires explicit confirmation. Linked source hashes, grants, and interrupted Export journals remain device-local and do not participate in **Cloud Sync**.
 - **Controller Focus** belongs to exactly one **Focus Zone** at a time.
 - Mouse and pointer input may move **Controller Focus**, but hover alone is not **Controller Focus**.
 - A **Pointer-only control** performs its action without moving **Controller Focus** from its current target.

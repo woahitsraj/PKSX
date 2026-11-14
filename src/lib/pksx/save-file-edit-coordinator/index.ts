@@ -259,6 +259,88 @@ export class SaveFileEditCoordinator {
 		return result;
 	}
 
+	replaceFromLinkedSource(origin: SaveFileEditOrigin, bytes: Uint8Array, allowDirty: boolean) {
+		const record = this.currentRecord(origin);
+		if (!record) return Promise.reject(new Error('The Save File Workspace changed.'));
+		const incoming = copyBytes(bytes);
+		const sequence = ++record.sequence;
+		record.pending.set(sequence, 'linked-source-refresh');
+		this.notify(record);
+		const assertCurrent = () => {
+			if (!this.currentRecord(origin) || this.importIsTerminal(record.file)) {
+				throw new Error('The Save File changed or is being deleted.');
+			}
+		};
+		const result = record.tail.then(async () => {
+			assertCurrent();
+			const latest = await this.loadLatest(record);
+			if (bytesEqual(latest.bytes, incoming)) return latest;
+			if (latest.dirty && !allowDirty)
+				throw new Error('Confirm replacing the Dirty Workspace first.');
+			const parsed = await this.engine.loadSaveWorkspace(
+				incoming,
+				latest.file.originalFileName ?? undefined,
+				0
+			);
+			if (!parsed.ok) throw new Error(parsed.error.message);
+			const box = Math.min(record.activeBox, Math.max(0, parsed.value.summary.boxCount - 1));
+			const loaded =
+				box === 0
+					? parsed
+					: await this.engine.loadSaveWorkspace(
+							incoming,
+							latest.file.originalFileName ?? undefined,
+							box
+						);
+			if (!loaded.ok) throw new Error(loaded.error.message);
+			const baseline = await this.options.storage.getSaveBytes(latest.file.id);
+			if (!baseline) throw new Error('The imported baseline is missing.');
+			await this.options.storage.createBackup({
+				saveFileId: latest.file.id,
+				bytes: latest.bytes,
+				reason: 'linked-workspace-before-refresh'
+			});
+			if (!bytesEqual(baseline, latest.bytes)) {
+				await this.options.storage.createBackup({
+					saveFileId: latest.file.id,
+					bytes: baseline,
+					reason: 'linked-import-before-refresh'
+				});
+			}
+			assertCurrent();
+			const stored = await this.options.storage.putWorkspace({
+				saveFileId: latest.file.id,
+				bytes: incoming,
+				dirty: !bytesEqual(incoming, baseline),
+				automaticBackupCreated: false,
+				expectedUpdatedAt: record.storedRevision
+			});
+			if (!this.currentRecord(origin)) {
+				await this.restoreCurrentWorkspace(latest.file.id, stored.updatedAt);
+				throw new Error('The Save File Workspace changed during refresh.');
+			}
+			record.activeBox = box;
+			record.storedRevision = stored.updatedAt;
+			record.latest = createPersistedWorkspaceState({
+				file: latest.file,
+				bytes: incoming,
+				workspace: loaded.value,
+				dirty: stored.dirty,
+				automaticBackupCreated: false
+			});
+			if (this.resultIsCurrent(record)) this.options.publish?.(copyWorkspace(record.latest), box);
+			return copyWorkspace(record.latest);
+		});
+		record.tail = result.then(
+			() => undefined,
+			() => undefined
+		);
+		return result.finally(() => {
+			record.pending.delete(sequence);
+			this.notify(record);
+		});
+	}
+
 	async recoverWorkspace(
 		origin: SaveFileEditOrigin,
 		options: { isCurrent: () => boolean }

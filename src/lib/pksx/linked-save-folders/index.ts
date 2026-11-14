@@ -38,7 +38,7 @@ export function documentBytes(base64: string) {
 	return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
 }
 
-function cancellable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+export function cancellable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
 	return new Promise((resolve, reject) => {
 		const abort = () => reject(signal.reason);
 		promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
