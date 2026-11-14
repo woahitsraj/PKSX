@@ -18,6 +18,7 @@
 		getSaveFileEditCoordinator,
 		getPkhexEngine,
 		getSavesStorage,
+		getSavesSnapshot,
 		invalidateSavesCache,
 		setCachedActiveWorkspace
 	} from '$lib/pksx/saves-cache';
@@ -146,8 +147,9 @@
 
 	async function restoreBackup(backup: BackupMetadata) {
 		if (!owner || busy) return;
+		const fromBoxes = document.querySelector('.boxes-route') !== null;
 		const box =
-			document.querySelector('.boxes-route') && getCachedActiveWorkspace()?.file.id === owner.id
+			fromBoxes && getCachedActiveWorkspace()?.file.id === owner.id
 				? getCachedActiveWorkspaceBox()
 				: 0;
 		browserState = { kind: 'working', action: 'restore', backup };
@@ -160,9 +162,9 @@
 				backup,
 				box: box,
 				publish: (state, box) => {
-					if (!document.querySelector('.boxes-route')) selectRecoveredOwner(state);
+					if (!fromBoxes) selectRecoveredOwner(state);
 					setCachedActiveWorkspace(state, box, {
-						adoptAsActiveSave: !document.querySelector('.boxes-route')
+						adoptAsActiveSave: !fromBoxes
 					});
 					getSaveFileEditCoordinator().replaceWorkspace(state, box);
 				}
@@ -306,11 +308,18 @@
 
 	function dismissBrowser() {
 		const launcher = host.dismiss();
-		if (launcher) queueMicrotask(() => document.getElementById(launcher.id)?.focus());
+		if (!launcher) return;
+		const resumed = host.active;
+		const restoreFocus = () => {
+			if (host.active === resumed) document.getElementById(launcher.id)?.focus();
+		};
+		if (document.getElementById(launcher.id)?.dataset.destinationFocus === 'saves-grid') {
+			void getSavesSnapshot({ force: true }).then(restoreFocus, restoreFocus);
+		} else queueMicrotask(restoreFocus);
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
-		if (!host.active || host.active.kind !== 'backup-browser') return;
+		if (event.defaultPrevented || !host.active || host.active.kind !== 'backup-browser') return;
 		if (event.key === 'Escape' || event.key === 'Backspace') {
 			event.preventDefault();
 			event.stopPropagation();

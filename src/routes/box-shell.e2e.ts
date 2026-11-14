@@ -8066,15 +8066,41 @@ test.describe('Owner Backups with touch', () => {
 				})
 			).toBeVisible();
 			const platinumId = await activeSaveFileId(page);
+			const platinumMenu = page.getByRole('button', {
+				name: 'Open Save File Menu for pokemon-platinum-eu.sav',
+				exact: true
+			});
+			await platinumMenu.tap();
+			await page.getByRole('button', { name: 'Backups', exact: true }).tap();
+			const platinumBrowser = page.getByRole('dialog', { name: 'Backup Browser' });
+			await platinumBrowser.getByRole('button', { name: 'Create Backup' }).tap();
+			await expect(platinumBrowser.locator('article')).toHaveCount(1);
+			await pressController(page, 'Escape');
+			const cleanPlatinumHash = await workspaceBytesHashForFile(page, 'pokemon-platinum-eu.sav');
+			await chooseMainMenu(page, 'Trainer');
+			const platinumTrainer = page.getByLabel('Trainer name');
+			await expect(platinumTrainer).toBeVisible();
+			await platinumTrainer.fill('DIRTY');
+			await platinumTrainer.press('Enter');
+			await expect
+				.poll(() => workspaceBytesHashForFile(page, 'pokemon-platinum-eu.sav'))
+				.not.toBeNull();
+			await chooseMainMenu(page, 'Saves');
+			await expect(page.locator('.save-card.active')).toContainText('DIRTY');
+			const dirtyPlatinumHash = await workspaceBytesHashForFile(page, 'pokemon-platinum-eu.sav');
+			expect(dirtyPlatinumHash).not.toBe(cleanPlatinumHash);
 			await emerald.tap();
 			await page.getByRole('button', { name: 'Backups', exact: true }).tap();
 			browser = page.getByRole('dialog', { name: 'Backup Browser' });
 			await expect(browser.locator('article')).toHaveCount(1);
 			await expect(browser).toContainText('emerald-011020251345.sav');
+			await settleMotion(page);
+			await page.screenshot({ path: '/tmp/pksx-inactive-owner-' + height + '.png' });
 			await browser.getByRole('button', { name: 'Create Backup' }).tap();
 			await expect(browser.locator('article')).toHaveCount(2);
 			await browser.getByRole('button', { name: 'Restore', exact: true }).first().tap();
 			await expect(browser).toContainText('Restore this Backup?');
+			await expect(browser).toContainText('This replaces the current Workspace.');
 			await page.keyboard.press('Escape');
 			await expect(browser).not.toContainText('Restore this Backup?');
 			expect(await activeSaveFileId(page)).toBe(platinumId);
@@ -8090,8 +8116,31 @@ test.describe('Owner Backups with touch', () => {
 				})
 				.tap();
 			await page.getByRole('button', { name: 'Backups', exact: true }).tap();
-			await expect(browser).toContainText('No Backups yet');
+			await expect(browser.locator('article')).toHaveCount(2);
+			await expect(browser.locator('article').filter({ hasText: 'Manual' })).toHaveCount(1);
+			await expect(browser.locator('article').filter({ hasText: 'Save File editing' })).toHaveCount(
+				1
+			);
 			await browser.getByRole('button', { name: 'Close Backup Browser' }).tap();
+			await emerald.tap();
+			await page.getByRole('button', { name: 'Backups', exact: true }).tap();
+			await pressController(page, 'Escape');
+			await pressController(page, 'x');
+			await expect(page.getByRole('dialog', { name: 'Save File Menu' })).toBeVisible();
+			for (let step = 0; step < 3; step++) await pressController(page, 'ArrowDown');
+			await pressController(page, 'Enter');
+			await expect(browser).toContainText('emerald-011020251345.sav');
+			await expect(browser.locator('article')).toHaveCount(1);
+			await browser.getByRole('button', { name: 'Restore', exact: true }).tap();
+			await browser.locator('#backup-browser-confirm-restore').tap();
+			await expect(browser).toBeHidden();
+			expect(await activeSaveFileId(page)).not.toBe(platinumId);
+			expect(await workspaceBytesHashForFile(page, 'pokemon-platinum-eu.sav')).toBe(
+				dirtyPlatinumHash
+			);
+			await chooseMainMenu(page, 'Trainer');
+			await expect(page.getByLabel('Trainer name')).toHaveValue('DIXIE');
+			await chooseMainMenu(page, 'Saves');
 			await page.evaluate(
 				() =>
 					new Promise<void>((resolve, reject) => {
@@ -8124,6 +8173,36 @@ test.describe('Owner Backups with touch', () => {
 			await chooseMainMenu(page, 'Boxes');
 			await expectActiveSaveOwner(page, 'emerald-011020251345.sav');
 			await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
+			await chooseMainMenu(page, 'Saves');
+			await emerald.tap();
+			await page.getByRole('button', { name: 'Backups', exact: true }).tap();
+			const otherPage = await page.context().newPage();
+			try {
+				await otherPage.goto('/');
+				await expect(otherPage.locator('[data-destination-focus="saves-grid"]')).toBeFocused();
+				await otherPage
+					.getByRole('button', {
+						name: 'Open Save File Menu for emerald-011020251345.sav',
+						exact: true
+					})
+					.click();
+				await otherPage.getByRole('button', { name: 'Delete from Saves', exact: true }).click();
+				await otherPage.getByRole('button', { name: 'Delete', exact: true }).click();
+				await expect(otherPage.getByText('emerald-011020251345.sav deleted.')).toBeVisible();
+			} finally {
+				await otherPage.close();
+			}
+			await browser.getByRole('button', { name: 'Create Backup' }).tap();
+			await expect(browser).toContainText('The Save File bytes are no longer available.');
+			await pressController(page, 'Escape');
+			const returningGrid = page.locator('[data-destination-focus="saves-grid"]');
+			await expect(returningGrid).toBeFocused();
+			await expect(returningGrid).toHaveAttribute(
+				'aria-activedescendant',
+				'saves-target-' + platinumId
+			);
+			await settleMotion(page);
+			await page.screenshot({ path: '/tmp/pksx-owner-deleted-' + height + '.png' });
 		});
 	}
 });

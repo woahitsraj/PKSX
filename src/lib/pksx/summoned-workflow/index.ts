@@ -43,11 +43,16 @@ export type SummonedWorkflowLauncher =
 	  };
 
 export type SummonedWorkflow = {
-	kind: SummonedWorkflowKind;
-	backupOwner?: StoredSaveFile;
 	launcher: SummonedWorkflowLauncher;
 	returnTo: SummonedWorkflow | null;
-};
+} & (
+	| { kind: 'backup-browser'; backupOwner: StoredSaveFile }
+	| { kind: SummonedWorkflowKind; backupOwner?: never }
+);
+
+export type SummonedWorkflowLaunch =
+	| [kind: 'backup-browser', launcher: SummonedWorkflowLauncher, backupOwner: StoredSaveFile]
+	| [kind: SummonedWorkflowKind, launcher: SummonedWorkflowLauncher];
 
 export type SummonedWorkflowOwner = {
 	active: SummonedWorkflow | null;
@@ -64,11 +69,13 @@ export function createSummonedWorkflowOwner(): SummonedWorkflowOwner {
 
 export function openSummonedWorkflow(
 	owner: SummonedWorkflowOwner,
-	kind: SummonedWorkflowKind,
-	launcher: SummonedWorkflowLauncher,
-	backupOwner?: StoredSaveFile
+	...[kind, launcher, backupOwner]: SummonedWorkflowLaunch
 ): SummonedWorkflowOwner {
-	return owner.active ? owner : { active: { kind, launcher, returnTo: null, backupOwner } };
+	if (owner.active) return owner;
+	const active: SummonedWorkflow = backupOwner
+		? { kind: 'backup-browser', launcher, returnTo: null, backupOwner }
+		: { kind, launcher, returnTo: null };
+	return { active };
 }
 
 export function openRelatedSummonedWorkflow(
