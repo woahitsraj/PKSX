@@ -1,3 +1,4 @@
+import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import path from 'node:path';
@@ -48,10 +49,7 @@ async function importSaveFile(page: Page, fixturePath = emeraldFixturePath) {
 		'data-initial-state',
 		'ready'
 	);
-	await page.getByLabel('Import Save File').setInputFiles(fixturePath);
-	await expect(
-		page.getByText(`${path.basename(fixturePath)} imported and made active.`)
-	).toBeVisible({ timeout: 15_000 });
+	await importSaveThroughSaves(page, fixturePath);
 }
 
 async function importActiveSaveFile(page: Page, fixturePath = emeraldFixturePath) {
@@ -433,10 +431,8 @@ test('runs, cancels, refreshes, filters, and navigates a Save File-wide Legality
 
 test('keeps a secondary Save File report current across Box projection loads', async ({ page }) => {
 	await importSaveFile(page);
-	await page.getByLabel('Import Save File').setInputFiles(platinumFixturePath);
-	await expect(
-		page.getByText(`${path.basename(platinumFixturePath)} imported and made active.`)
-	).toBeVisible({ timeout: 15_000 });
+	await importSaveThroughSaves(page, platinumFixturePath);
+
 	await page
 		.getByRole('button', { name: `Open ${path.basename(emeraldFixturePath)} in Boxes` })
 		.click();

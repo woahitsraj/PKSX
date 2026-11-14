@@ -1,3 +1,4 @@
+import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
 
@@ -30,7 +31,7 @@ test('one root Toast host delivers across Saves and Boxes without moving focus o
 		'data-initial-state',
 		'ready'
 	);
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
+	await importSaveThroughSaves(page, emeraldFixturePath);
 	await expect(announcements.filter({ hasText: 'imported and made active' })).toBeVisible({
 		timeout: 15_000
 	});
