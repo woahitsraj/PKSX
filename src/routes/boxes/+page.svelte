@@ -7935,7 +7935,7 @@
 		aria-label="Selection actions"
 	>
 		<strong aria-live="polite">{selection.slots.length} selected</strong>
-		<span>A Toggle · B Exit · X Actions · L/R Boxes</span>
+		<span>A Toggle · B Exit · Y Actions · L/R Boxes</span>
 		<button type="button" onclick={selectCurrentBox}>Select box</button>
 		<button
 			type="button"
