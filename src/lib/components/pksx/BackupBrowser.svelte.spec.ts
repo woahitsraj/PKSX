@@ -26,6 +26,7 @@ vi.mock('$lib/pksx/summoned-workflow/host.svelte', () => ({
 	})
 }));
 vi.mock('$lib/pksx/saves-cache', () => ({
+	getSavesSnapshot: vi.fn(),
 	getCachedActiveWorkspaceBox: () => 0,
 	getCachedActiveWorkspace: () => null,
 	getSaveFileEditCoordinator: () => ({}),
