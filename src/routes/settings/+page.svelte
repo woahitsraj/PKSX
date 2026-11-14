@@ -5,6 +5,7 @@
 
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import LinkedSaveFolders from '$lib/components/pksx/LinkedSaveFolders.svelte';
 	import { asset } from '$app/paths';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
 	import { appCommands } from '$lib/pksx/app-commands';
@@ -116,11 +117,13 @@
 	}
 
 	function controlsFor(row: Element) {
-		return Array.from(row.querySelectorAll<HTMLElement>('[data-settings-control]'));
+		return Array.from(row.querySelectorAll<HTMLElement>('[data-settings-control]:not(:disabled)'));
 	}
 
 	function rows() {
-		return Array.from(route.querySelectorAll<HTMLElement>('[data-settings-row]'));
+		return Array.from(route.querySelectorAll<HTMLElement>('[data-settings-row]')).filter(
+			(row) => controlsFor(row).length > 0
+		);
 	}
 
 	function focusStop(id: string, column = 0) {
@@ -200,6 +203,7 @@
 		</header>
 
 		<div class="settings-scrollport">
+			<LinkedSaveFolders />
 			<section class="settings-card preferences" aria-labelledby="preferences-title">
 				<div class="section-heading">
 					<p class="section-number">01</p>

@@ -21,6 +21,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        registerPlugin(SaveFoldersPlugin.class);
         super.onCreate(savedInstanceState);
         if (getPackageName().endsWith(".profile")) WebView.setWebContentsDebuggingEnabled(true);
     }

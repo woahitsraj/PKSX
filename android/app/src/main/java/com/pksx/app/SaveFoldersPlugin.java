@@ -1,0 +1,159 @@
+package com.pksx.app;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.net.Uri;
+import android.os.CancellationSignal;
+import android.provider.DocumentsContract;
+import android.util.Base64;
+import androidx.activity.result.ActivityResult;
+import com.getcapacitor.JSArray;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
+import com.getcapacitor.annotation.CapacitorPlugin;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+
+@CapacitorPlugin(name = "SaveFolders")
+public class SaveFoldersPlugin extends Plugin {
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private volatile CancellationSignal signal;
+    private static final int MAX_BYTES = 16 * 1024 * 1024;
+
+    private SharedPreferences preferences() {
+        return getContext().getSharedPreferences("linked-save-folder", 0);
+    }
+
+    @PluginMethod
+    public void status(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("tree", preferences().getString("tree", null));
+        result.put("mode", preferences().getString("mode", "dolphin"));
+        result.put("name", preferences().getString("name", "Selected folder"));
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void pick(PluginCall call) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(call, intent, "picked");
+    }
+
+    @ActivityCallback
+    private void picked(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
+            call.resolve(new JSObject().put("cancelled", true));
+            return;
+        }
+        Uri tree = result.getData().getData();
+        try {
+            getContext().getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            String name = "Selected folder";
+            Uri root = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
+            try (Cursor cursor = getContext().getContentResolver().query(root, new String[]{"_display_name"}, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) name = cursor.getString(0);
+            }
+            String previous = preferences().getString("tree", null);
+            preferences().edit().putString("tree", tree.toString()).putString("name", name).putString("mode", call.getString("mode", "dolphin")).commit();
+            if (previous != null && !previous.equals(tree.toString())) release(previous);
+            status(call);
+        } catch (Exception e) { call.reject("Folder access could not be retained. Choose the folder again.", e); }
+    }
+
+    private void release(String tree) {
+        try { getContext().getContentResolver().releasePersistableUriPermission(Uri.parse(tree), Intent.FLAG_GRANT_READ_URI_PERMISSION); }
+        catch (SecurityException ignored) { }
+    }
+
+    @PluginMethod
+    public void unlink(PluginCall call) {
+        String tree = preferences().getString("tree", null);
+        preferences().edit().clear().commit();
+        if (tree != null) release(tree);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void cancel(PluginCall call) {
+        CancellationSignal active = signal;
+        if (active != null) active.cancel();
+        call.resolve();
+    }
+
+    private Uri tree() {
+        String value = preferences().getString("tree", null);
+        if (value == null) throw new IllegalStateException("Choose a folder first.");
+        return Uri.parse(value);
+    }
+
+    @PluginMethod
+    public void list(PluginCall call) {
+        worker.execute(() -> {
+            CancellationSignal current = new CancellationSignal();
+            signal = current;
+            try {
+                Uri tree = tree();
+                String parent = call.getString("documentId", DocumentsContract.getTreeDocumentId(tree));
+                Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parent);
+                String[] columns = {"document_id", "_display_name", "mime_type", "_size"};
+                JSArray entries = new JSArray();
+                boolean truncated = false;
+                try (Cursor cursor = getContext().getContentResolver().query(children, columns, null, null, null, current)) {
+                    if (cursor == null) throw new IllegalStateException("Folder is unavailable.");
+                    while (cursor.moveToNext()) {
+                        current.throwIfCanceled();
+                        if (entries.length() >= 2000) { truncated = true; break; }
+                        entries.put(new JSObject().put("id", cursor.getString(0)).put("name", cursor.getString(1))
+                            .put("directory", DocumentsContract.Document.MIME_TYPE_DIR.equals(cursor.getString(2)))
+                            .put("size", cursor.getLong(3)));
+                    }
+                }
+                call.resolve(new JSObject().put("entries", entries).put("truncated", truncated));
+            } catch (Exception e) { call.reject("Folder unavailable or scan cancelled. Relink if access was removed.", e); }
+            finally { if (signal == current) signal = null; }
+        });
+    }
+
+    @PluginMethod
+    public void read(PluginCall call) {
+        worker.execute(() -> {
+            CancellationSignal current = new CancellationSignal();
+            signal = current;
+            try {
+                Uri tree = tree();
+                String id = call.getString("documentId");
+                if (id == null) throw new IllegalArgumentException("Missing document identity.");
+                Uri document = DocumentsContract.buildDocumentUriUsingTree(tree, id);
+                try (android.os.ParcelFileDescriptor descriptor = getContext().getContentResolver().openFileDescriptor(document, "r", current);
+                     InputStream input = new android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor);
+                     ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                    byte[] buffer = new byte[32768];
+                    int count;
+                    while ((count = input.read(buffer)) != -1) {
+                        current.throwIfCanceled();
+                        if (output.size() + count > MAX_BYTES) throw new IllegalArgumentException("File exceeds 16 MiB scan limit.");
+                        output.write(buffer, 0, count);
+                    }
+                    String identity = new JSArray().put(tree.getAuthority()).put(id).toString();
+                    call.resolve(new JSObject().put("base64", Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)).put("identity", identity));
+                }
+            } catch (Exception e) { call.reject("File unavailable or read cancelled. Relink if access was removed.", e); }
+            finally { if (signal == current) signal = null; }
+        });
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        if (signal != null) signal.cancel();
+        worker.shutdownNow();
+    }
+}
