@@ -11,7 +11,6 @@
 	import { appCommands } from '$lib/pksx/app-commands';
 	import { appPlatformLabel, getAppMetadata } from '$lib/pksx/app-metadata';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
-	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
 	import { getPkhexEngine } from '$lib/pksx/saves-cache';
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 	import { theme } from '$lib/pksx/theme.svelte';
@@ -151,7 +150,7 @@
 		if (summonedWorkflow.active) return;
 		const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 		if (!active || !route.contains(active)) {
-			if (isControllerKeyboardEvent(event) && event.key.startsWith('Arrow')) {
+			if (event.key.startsWith('Arrow')) {
 				focusStop(rememberedStop, rememberedThemeControl);
 				event.preventDefault();
 			}
