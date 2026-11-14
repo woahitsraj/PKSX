@@ -19,14 +19,20 @@ const aronEntityBytes =
 	'rVIoJRblSsu7zMnI/xUAAwQAAgK+w9LDv///AH8OAAB+AQAAfwYAAAAoAAAhAGoAvQAdACMeCg8AAAAAAAAAAAAAAAAAN4uhozfCnwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
 
 async function settleMotion(page: Page) {
-	await page.evaluate(() =>
-		Promise.all(
-			document
+	await page.evaluate(async () => {
+		let animations: Animation[];
+		do {
+			await new Promise(requestAnimationFrame);
+			animations = document
 				.getAnimations()
-				.filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
-				.map((animation) => animation.finished.catch(() => undefined))
-		)
-	);
+				.filter(
+					(animation) =>
+						animation.effect?.getTiming().iterations !== Infinity &&
+						animation.playState !== 'finished'
+				);
+			await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
+		} while (animations.length);
+	});
 }
 
 async function openEmptySaves(page: Page) {
