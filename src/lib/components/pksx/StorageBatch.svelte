@@ -45,10 +45,30 @@
 			busy = false;
 		}
 	}
+	function handleKeydown(event: KeyboardEvent) {
+		const controls = [
+			...document.querySelectorAll<HTMLButtonElement>('.batch button:not(:disabled)')
+		];
+		const index = controls.findIndex((control) => control === document.activeElement);
+		if (event.key === 'Escape' || event.key === 'Backspace') {
+			event.preventDefault();
+			back();
+		} else if (event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			controls[index]?.click();
+		} else if (event.key.startsWith('Arrow')) {
+			event.preventDefault();
+			const offset = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
+			controls[Math.max(0, Math.min(controls.length - 1, index + offset))]?.focus();
+		}
+	}
+
 	function back() {
 		if (!busy) onClose();
 	}
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <TakeoverFrame labelledby="storage-batch-title" {busy} onBack={back}>
 	<section class="batch">
