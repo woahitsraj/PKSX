@@ -155,6 +155,22 @@ export class IndexedDbSavesStorage implements SavesStorage {
 		}
 	}
 
+	async recordSuccessfulOpen(saveFileId: SaveFileId): Promise<StoredSaveFile> {
+		const database = await openSavesDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction(saveFilesStore, 'readwrite');
+			const store = transaction.objectStore(saveFilesStore);
+			const existing = await requestToPromise<StoredSaveFile | undefined>(store.get(saveFileId));
+			if (!existing) throw new Error('The selected Save File is no longer available.');
+			const updated = { ...existing, lastOpenedAt: this.#now() };
+			store.put(updated);
+			await transactionDone(transaction);
+			return updated;
+		} finally {
+			database.close();
+		}
+	}
+
 	async getSaveBytes(saveFileId: SaveFileId): Promise<Uint8Array | null> {
 		const database = await openSavesDatabase(this.#databaseName);
 		try {
@@ -277,24 +293,17 @@ export class IndexedDbSavesStorage implements SavesStorage {
 	}
 
 	async setActiveSaveFileId(saveFileId: SaveFileId): Promise<StoredSaveFile> {
-		const existing = await this.getSave(saveFileId);
-		if (!existing) {
-			throw new Error(`Cannot activate unknown save file: ${saveFileId}`);
-		}
-
-		const updated: StoredSaveFile = {
-			...existing,
-			updatedAt: this.#now()
-		};
-
 		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction([saveFilesStore, appStateStore], 'readwrite');
-			transaction.objectStore(saveFilesStore).put(updated);
-			transaction.objectStore(appStateStore).put({
-				key: activeSaveFileIdKey,
-				value: saveFileId
-			} satisfies AppStateRecord);
+			const store = transaction.objectStore(saveFilesStore);
+			const existing = await requestToPromise<StoredSaveFile | undefined>(store.get(saveFileId));
+			if (!existing) throw new Error(`Cannot activate unknown save file: ${saveFileId}`);
+			const updated = { ...existing, updatedAt: this.#now() };
+			store.put(updated);
+			transaction
+				.objectStore(appStateStore)
+				.put({ key: activeSaveFileIdKey, value: saveFileId } satisfies AppStateRecord);
 			await transactionDone(transaction);
 			return { ...updated };
 		} finally {

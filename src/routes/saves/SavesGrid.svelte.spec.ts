@@ -329,6 +329,47 @@ it('stages, cancels and applies a duplicate display name without losing target i
 	expect(container.querySelectorAll('[aria-label="Open Adventure in Boxes"]').length).toBe(2);
 });
 
+it('retains target identity through filtering and sorting and keeps empty-result actions reachable', async () => {
+	const storage = getSavesStorage();
+	const file = await storage.importSave({
+		bytes: new Uint8Array([1]),
+		originalFileName: 'z-last.sav'
+	});
+	await storage.importSave({ bytes: new Uint8Array([2]), originalFileName: 'a-first.sav' });
+	fakes.host = createSummonedWorkflowHost();
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(SavesGrid, { target: container });
+	await expect.poll(() => container.querySelectorAll('.save-card').length).toBe(2);
+	const search = container.querySelector<HTMLInputElement>('#saves-search')!;
+	const filter = async (value: string) => {
+		search.value = value;
+		search.dispatchEvent(new Event('input', { bubbles: true }));
+		await tick();
+	};
+	await filter('z-last');
+	const grid = container.querySelector<HTMLElement>('[role="grid"]')!;
+	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-' + file.id);
+	await filter('');
+	Array.from(container.querySelectorAll('button'))
+		.find((button) => button.textContent?.includes('Sort:'))!
+		.click();
+	await tick();
+	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-' + file.id);
+	await filter('no-such-save');
+	expect(container.querySelectorAll('.save-card').length).toBe(0);
+	expect(container.textContent).toContain('No Save Files match');
+	expect(container.querySelector('#saves-target-import')).not.toBeNull();
+	expect(container.querySelector('#saves-target-pokemon-storage')).not.toBeNull();
+	expect(container.querySelector('#' + grid.getAttribute('aria-activedescendant'))).not.toBeNull();
+	Array.from(container.querySelectorAll('button'))
+		.find((button) => button.textContent === 'Clear search')!
+		.click();
+	await tick();
+	expect(container.querySelectorAll('.save-card').length).toBe(2);
+	expect((await storage.getSave(file.id))?.lastOpenedAt).toBeUndefined();
+});
+
 it('returns pointer menus to the remembered grid target', async () => {
 	const storage = getSavesStorage();
 	const file = await storage.importSave({
