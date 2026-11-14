@@ -117,6 +117,19 @@ export class CapacitorSavesStorage implements SavesStorage {
 		});
 	}
 
+	async recordSuccessfulOpen(saveFileId: SaveFileId): Promise<StoredSaveFile> {
+		return this.#run(async () => {
+			const snapshot = await this.#journal.read();
+			const catalog = cloneCatalog(snapshot.catalog);
+			const index = catalog.saves.findIndex(({ id }) => id === saveFileId);
+			if (index < 0) throw new Error('The selected Save File is no longer available.');
+			const updated = { ...catalog.saves[index], lastOpenedAt: this.#now() };
+			catalog.saves[index] = updated;
+			await this.#journal.commit(snapshot, catalog);
+			return { ...updated };
+		});
+	}
+
 	getSaveBytes(saveFileId: SaveFileId): Promise<Uint8Array | null> {
 		return this.#run(() => this.#fileStore.readBytes(saveBytesPath(saveFileId)));
 	}

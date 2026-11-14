@@ -10,6 +10,13 @@
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
 	import RenameSaveFile from '$lib/components/pksx/RenameSaveFile.svelte';
 	import { getSaveDisplayName } from '$lib/pksx/saves';
+	import {
+		filterSortSaves,
+		getSaveGameTitle,
+		readSavesSort,
+		writeSavesSort,
+		type SavesSort
+	} from '$lib/pksx/saves-library';
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
 	import StorageBackupMenu from '$lib/components/pksx/StorageBackupMenu.svelte';
 	import type { EngineError } from '$lib/engine';
@@ -73,21 +80,10 @@
 	const boxesSession = getBoxesSession();
 	const summonedWorkflow = getSummonedWorkflowHost();
 	const toastHost = getToastHost();
-	const gameNames: Record<string, string> = {
-		E: 'Pokemon Emerald',
-		COLO: 'Pokemon Colosseum',
-		XD: 'Pokemon XD',
-		X: 'Pokemon X',
-		Y: 'Pokemon Y',
-		OR: 'Pokemon Omega Ruby',
-		AS: 'Pokemon Alpha Sapphire',
-		SN: 'Pokemon Sun',
-		MN: 'Pokemon Moon',
-		US: 'Pokemon Ultra Sun',
-		UM: 'Pokemon Ultra Moon',
-		SV: 'Pokemon Scarlet / Violet'
-	};
 
+	let query = $state('');
+	let sort = $state<SavesSort>('alphabetical');
+	let searchControls: HTMLElement;
 	let saveFiles = $state<StoredSaveFile[]>([]);
 	let activeSaveFileId = $state<SaveFileId | null>(null);
 	let detailsBySaveFileId = $state<Record<SaveFileId, SaveCardDetailsState>>({});
@@ -109,8 +105,10 @@
 	let recoveryRequested = $state(false);
 	let refreshRequest = 0;
 
+	const visibleSaveFiles = $derived(filterSortSaves(saveFiles, detailsBySaveFileId, query, sort));
+
 	const targets = $derived<SavesTarget[]>([
-		...saveFiles.map((saveFile) => ({ kind: 'save-file' as const, id: saveFile.id })),
+		...visibleSaveFiles.map((saveFile) => ({ kind: 'save-file' as const, id: saveFile.id })),
 		{ kind: 'pokemon-storage' },
 		{ kind: 'import' }
 	]);
@@ -127,9 +125,9 @@
 	const activeTargetId = $derived(targetDomId(target));
 	const rowCount = $derived(Math.max(1, Math.ceil(targets.length / columnCount)));
 	const gridEntries = $derived<SavesGridEntry[]>([
-		...saveFiles.map((saveFile, index) => ({ kind: 'save-file' as const, saveFile, index })),
-		{ kind: 'pokemon-storage', index: saveFiles.length },
-		{ kind: 'import', index: saveFiles.length + 1 }
+		...visibleSaveFiles.map((saveFile, index) => ({ kind: 'save-file' as const, saveFile, index })),
+		{ kind: 'pokemon-storage', index: visibleSaveFiles.length },
+		{ kind: 'import', index: visibleSaveFiles.length + 1 }
 	]);
 	const gridRows = $derived.by(() => {
 		const rows: SavesGridEntry[][] = [];
@@ -145,6 +143,7 @@
 	});
 
 	onMount(() => {
+		sort = readSavesSort();
 		const cached = getCachedSavesSnapshot();
 		const seeded = isCachedSavesSnapshotSeeded();
 		let hasReceivedSnapshot = false;
@@ -208,7 +207,7 @@
 			: 'saves-target-' + value.kind;
 	}
 
-	function currentTargets(saveFileList = saveFiles): SavesTarget[] {
+	function currentTargets(saveFileList = visibleSaveFiles): SavesTarget[] {
 		return [
 			...saveFileList.map((saveFile) => ({ kind: 'save-file' as const, id: saveFile.id })),
 			{ kind: 'pokemon-storage' },
@@ -233,7 +232,9 @@
 		saveFiles = snapshot.saveFiles;
 		activeSaveFileId = snapshot.activeSaveFileId;
 		detailsBySaveFileId = snapshot.detailsBySaveFileId;
-		const nextTargets = currentTargets(snapshot.saveFiles);
+		const nextTargets = currentTargets(
+			filterSortSaves(snapshot.saveFiles, snapshot.detailsBySaveFileId, query, sort)
+		);
 		target = resolveSavesTarget(
 			nextTargets,
 			preferredTarget ?? rememberedTarget(),
@@ -309,8 +310,12 @@
 			event.ctrlKey ||
 			event.metaKey ||
 			event.shiftKey ||
-			isTextEntryTarget(event.target)
+			(isTextEntryTarget(event.target) && !searchControls?.contains(document.activeElement))
 		) {
+			return;
+		}
+		if (!summonedWorkflow.active && searchControls?.contains(document.activeElement)) {
+			handleSearchKeydown(event);
 			return;
 		}
 		if (renameOpen) return;
@@ -343,7 +348,12 @@
 		const direction = directionForKey(event.key);
 		if (direction) {
 			event.preventDefault();
-			chooseTarget(moveSavesTarget(targets, target, columnCount, direction));
+			if (
+				direction === 'up' &&
+				targets.findIndex((entry) => sameSavesTarget(entry, target)) < columnCount
+			) {
+				document.getElementById('saves-search')?.focus();
+			} else chooseTarget(moveSavesTarget(targets, target, columnCount, direction));
 			return;
 		}
 
@@ -698,6 +708,15 @@
 			await goto(path, {
 				keepFocus: true
 			});
+			try {
+				await storage.recordSuccessfulOpen(current.id);
+				invalidateSavesCache();
+			} catch (error) {
+				toastHost.error(
+					'Opened Save File, but could not store its recently opened history. ' +
+						getErrorMessage(error)
+				);
+			}
 		} catch (error) {
 			toastHost.error('Could not open Save File. ' + getErrorMessage(error));
 			if (menuOpen) void focusMenuCommand(menuIndex);
@@ -897,16 +916,44 @@
 		void focusMenuCommand(4);
 	}
 
+	function updateLibrary(nextQuery = query, nextSort = sort) {
+		query = nextQuery;
+		sort = nextSort;
+		target = resolveSavesTarget(
+			currentTargets(filterSortSaves(saveFiles, detailsBySaveFileId, query, sort)),
+			target,
+			null
+		);
+		rememberTarget(target);
+	}
+
+	function handleSearchKeydown(event: KeyboardEvent) {
+		const active = document.activeElement;
+		if (event.key === 'Escape' || event.key === 'ArrowDown') {
+			event.preventDefault();
+			void focusGrid();
+		} else if (event.key === 'ArrowUp') {
+			event.preventDefault();
+		} else if (
+			(event.key === 'ArrowRight' || event.key === 'ArrowLeft') &&
+			!(active instanceof HTMLInputElement && !isControllerKeyboardEvent(event))
+		) {
+			event.preventDefault();
+			const controls = Array.from(searchControls.querySelectorAll<HTMLElement>('input, button'));
+			const index = controls.findIndex((node) => node === active);
+			controls[
+				Math.max(0, Math.min(controls.length - 1, index + (event.key === 'ArrowLeft' ? -1 : 1)))
+			]?.focus();
+		}
+	}
+
 	function displayName(saveFile: StoredSaveFile) {
 		return getSaveDisplayName(saveFile);
 	}
 
 	function gameTitle(details: SaveCardDetailsState, saveFile: StoredSaveFile) {
 		if (details.status !== 'ready') return displayName(saveFile);
-		return (
-			gameNames[details.details.summary.gameVersion] ??
-			'Pokemon ' + details.details.summary.gameVersion
-		);
+		return getSaveGameTitle(details.details.summary.gameVersion);
 	}
 
 	function getErrorMessage(error: unknown) {
@@ -960,7 +1007,42 @@
 			/>
 		</header>
 
+		<div
+			class="library-controls"
+			{@attach (node) => {
+				searchControls = node;
+			}}
+		>
+			<label for="saves-search">Search Saves</label>
+			<input
+				id="saves-search"
+				type="search"
+				value={query}
+				placeholder="Name, game, trainer or filename"
+				oninput={(event) => updateLibrary(event.currentTarget.value)}
+			/>
+			<button
+				type="button"
+				onclick={() => {
+					updateLibrary('');
+					document.getElementById('saves-search')?.focus();
+				}}>Clear search</button
+			>
+			<button
+				type="button"
+				onclick={() => {
+					const next = sort === 'alphabetical' ? 'recently-opened' : 'alphabetical';
+					updateLibrary(query, next);
+					writeSavesSort(next);
+				}}
+			>
+				Sort: {sort === 'alphabetical' ? 'Alphabetical' : 'Recently opened'}
+			</button>
+		</div>
 		<div class="saves-scrollport">
+			{#if query.trim() && visibleSaveFiles.length === 0}<p role="status">
+					No Save Files match your search. Clear search to show all Save Files.
+				</p>{/if}
 			<div
 				id="saves-grid"
 				{@attach savesGridOwner}
@@ -1182,6 +1264,35 @@
 {/if}
 
 <style>
+	.library-controls {
+		display: flex;
+		align-items: center;
+		gap: var(--pksx-space-1);
+		flex-wrap: wrap;
+		padding: var(--pksx-space-2);
+	}
+	.library-controls label,
+	.library-controls button {
+		font-size: var(--pksx-type-label);
+	}
+	.library-controls input {
+		font-size: var(--pksx-type-editable);
+		min-width: 0;
+		flex: 1;
+	}
+	.library-controls input,
+	.library-controls button {
+		min-height: var(--pksx-control-height);
+		padding: var(--pksx-space-1) var(--pksx-space-2);
+		border: var(--pksx-border-width) solid var(--rule);
+		border-radius: var(--pksx-radius-medium);
+		background: var(--paper);
+		color: var(--ink);
+	}
+	.library-controls :focus-visible {
+		outline: 2px solid var(--rust);
+	}
+
 	:global(.app-shell:has(.saves-route)) {
 		height: 100dvh;
 		min-height: 100dvh;
@@ -1202,7 +1313,7 @@
 		margin: 0 auto;
 		padding: var(--pksx-space-2);
 		display: grid;
-		grid-template-rows: auto minmax(0, 1fr);
+		grid-template-rows: auto auto minmax(0, 1fr);
 		gap: var(--pksx-space-2);
 	}
 

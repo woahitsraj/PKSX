@@ -4259,7 +4259,10 @@
 		boxMenuTarget = null;
 		summonedWorkflow.closeAll();
 		if (source.type === 'save-file') {
-			void refreshPaneWorkspace(id, 0);
+			void refreshPaneWorkspace(id, 0).then(() => {
+				if (source.id && savePaneWorkspaces[id]?.state.file.id === source.id)
+					void rememberSaveOpen(source.id);
+			});
 		}
 		statusMessage = `${source.label} opened in another pane.`;
 		queueMicrotask(focusActiveControl);
@@ -4352,7 +4355,18 @@
 		boxMenuTarget = null;
 		summonedWorkflow.closeAll();
 		statusMessage = `Pane switched to ${source.label}.`;
+		if (source.type === 'save-file' && source.id && targetWorkspace)
+			void rememberSaveOpen(source.id);
 		queueMicrotask(focusActiveControl);
+	}
+
+	async function rememberSaveOpen(saveFileId: string) {
+		try {
+			await storage.recordSuccessfulOpen(saveFileId);
+			invalidateSavesCache();
+		} catch (error) {
+			toastHost.error('Could not store recently opened history. ' + getErrorMessage(error));
+		}
 	}
 
 	function boxSourceForSelection(type: BoxSourceType, saveFileId: string | null): BoxSourceRef {
