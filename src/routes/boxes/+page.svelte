@@ -8281,6 +8281,8 @@
 	}
 
 	.selection-controls {
+		font-size: var(--pksx-type-label);
+		line-height: 1.4;
 		height: 100%;
 		overflow: auto;
 		align-content: start;
@@ -8292,6 +8294,17 @@
 		background: var(--paper);
 		border: 1px solid var(--rule-hi);
 		border-radius: var(--pksx-radius-md);
+	}
+
+	.selection-controls strong {
+		flex-basis: 100%;
+		font-size: var(--pksx-type-body);
+	}
+
+	.selection-controls > span {
+		flex-basis: 100%;
+		font-size: var(--pksx-type-caption);
+		color: var(--ink-soft);
 	}
 
 	.source-picker-import {
