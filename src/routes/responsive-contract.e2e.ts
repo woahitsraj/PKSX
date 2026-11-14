@@ -607,13 +607,13 @@ async function expectBoxSlotsAndReachability(root: Locator, context: string) {
 		`[BUDGET-1] ${context} workspace must own composition overflow`
 	).toMatch(/auto|scroll/);
 	for (const { width, height } of metrics.slots) {
-		expect(width, `[DENSITY-2] ${context} Slot width must be at least 44px`).toBeGreaterThanOrEqual(
-			44
+		expect(width, `[DENSITY-2] ${context} Slot width must be at least 36px`).toBeGreaterThanOrEqual(
+			36
 		);
 		expect(
 			height,
-			`[DENSITY-2] ${context} Slot height must be at least 44px`
-		).toBeGreaterThanOrEqual(44);
+			`[DENSITY-2] ${context} Slot height must be at least 36px`
+		).toBeGreaterThanOrEqual(36);
 	}
 
 	const lastSlot = root.locator('.location-grid .slot').last();

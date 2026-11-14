@@ -105,7 +105,7 @@
 @property --pksx-slot-minimum {
 	syntax: '<length>';
 	inherits: true;
-	initial-value: 44px;
+	initial-value: 36px;
 }
 
 :root {
@@ -178,7 +178,7 @@
 	--pksx-radius-large: calc(6px + var(--pksx-space-unit) * 1.5);
 	--pksx-border-width: 1px;
 	--pksx-focus-ring: clamp(2px, 0.6cqh, 3px);
-	--pksx-slot-minimum: 44px;
+	--pksx-slot-minimum: 36px;
 	--pksx-space-1: var(--pksx-space-unit);
 	--pksx-space-2: calc(var(--pksx-space-unit) * 2);
 	--pksx-space-3: calc(var(--pksx-space-unit) * 3);
