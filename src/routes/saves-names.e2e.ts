@@ -130,6 +130,9 @@ test.describe('display names across Save File consumers', () => {
 			await page.getByRole('button', { name: 'Rename', exact: true }).tap();
 			await page.getByLabel('Display name', { exact: true }).fill('Journey');
 			await page.getByRole('button', { name: 'Apply', exact: true }).tap();
+			await expect(
+				page.getByRole('button', { name: 'Open Journey in Boxes', exact: true })
+			).toHaveCount(2);
 			await page.reload();
 			await expect(
 				page.getByRole('button', { name: 'Open Journey in Boxes', exact: true })
