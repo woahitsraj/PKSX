@@ -8,6 +8,8 @@
 	import { onMount, tick } from 'svelte';
 	import SavesIntroduction from '$lib/components/pksx/SavesIntroduction.svelte';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
+	import RenameSaveFile from '$lib/components/pksx/RenameSaveFile.svelte';
+	import { getSaveDisplayName } from '$lib/pksx/saves';
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
 	import StorageBackupMenu from '$lib/components/pksx/StorageBackupMenu.svelte';
 	import AddSavesMenu from '$lib/components/pksx/AddSavesMenu.svelte';
@@ -123,6 +125,7 @@
 	const menuSource = $derived(menuSaveFile ? discovery.sources[menuSaveFile.id] : undefined);
 	let replaceEdits = $state(false);
 	const menuOpen = $derived(summonedWorkflow.active?.kind === 'save-file-menu');
+	const renameOpen = $derived(summonedWorkflow.active?.kind === 'save-file-rename');
 	const deleteOpen = $derived(summonedWorkflow.active?.kind === 'save-file-delete');
 	const addSavesOpen = $derived(summonedWorkflow.active?.kind === 'add-saves-menu');
 	const folderLinking = supportsSaveFolders();
@@ -228,7 +231,7 @@
 		shouldFocus = false
 	) {
 		if (menuSaveFileId && !snapshot.saveFiles.some((file) => file.id === menuSaveFileId)) {
-			if (menuOpen || deleteOpen) {
+			if (menuOpen || deleteOpen || renameOpen) {
 				summonedWorkflow.closeAll();
 				shouldFocus = true;
 			}
@@ -320,11 +323,12 @@
 			return;
 		}
 		if (addSavesOpen) return;
+		if (renameOpen) return;
 		if (storageBackupOpen || storageConfirmOpen) {
 			handleStorageBackupKeydown(event);
 			return;
 		}
-		if (menuOpen || deleteOpen) {
+		if (menuOpen || deleteOpen || renameOpen) {
 			handleMenuKeydown(event);
 			return;
 		}
@@ -704,7 +708,7 @@
 			boxesSession.selectPrimary({
 				type: 'save-file',
 				id: current.id,
-				label: current.originalFileName ?? 'Save File',
+				label: displayName(current),
 				dirty: opening.state.dirty
 			});
 			chooseTarget({ kind: 'save-file', id: current.id }, false);
@@ -740,7 +744,7 @@
 			return;
 		}
 		menuSaveFileId = saveFileId;
-		menuReturnTarget = target;
+		menuReturnTarget = { kind: 'save-file', id: saveFileId };
 		menuIndex = 0;
 		replaceEdits = false;
 		deleteDescription = null;
@@ -856,12 +860,23 @@
 				else if (menuIndex === 1 && menuSaveFile) void activateSaveFile(menuSaveFile, 'bag');
 				else if (menuIndex === 3) openBackups();
 				else if (menuIndex === 4) void runSourceAction();
+				else if (menuIndex === 5) requestRename();
 				else void requestDelete();
 			}
 			return;
 		}
 		const offset = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
-		menuIndex = Math.max(0, Math.min(deleteOpen ? 1 : menuSource ? 4 : 3, menuIndex + offset));
+		menuIndex = Math.max(
+			0,
+			Math.min(
+				deleteOpen ? 1 : 5,
+				!deleteOpen && !menuSource && menuIndex + offset === 4
+					? offset > 0
+						? 5
+						: 3
+					: menuIndex + offset
+			)
+		);
 		void focusMenuCommand(menuIndex);
 	}
 
@@ -926,8 +941,43 @@
 			: folder;
 	}
 
+	function requestRename() {
+		if (busyTarget || !menuSaveFile) return;
+		summonedWorkflow.openRelated('save-file-rename', {
+			type: 'control',
+			id: 'save-file-menu-command-5'
+		});
+	}
+
+	async function applyRename(name: string | null) {
+		if (!menuSaveFile || busyTarget) return;
+		const id = menuSaveFile.id;
+		busyTarget = id;
+		try {
+			const file = await storage.renameSave(id, name);
+			const workspace = getCachedActiveWorkspace();
+			if (workspace?.file.id === id) setCachedActiveWorkspace({ ...workspace, file });
+			invalidateSavesCache();
+			summonedWorkflow.closeAll();
+			menuSaveFileId = null;
+			menuReturnTarget = null;
+			await refreshSaves({ force: true, preferredTarget: { kind: 'save-file', id }, focus: true });
+		} catch (error) {
+			toastHost.error(getErrorMessage(error));
+		} finally {
+			busyTarget = null;
+		}
+	}
+
+	function cancelRename() {
+		if (busyTarget) return;
+		summonedWorkflow.dismiss();
+		menuIndex = 5;
+		void focusMenuCommand(5);
+	}
+
 	function displayName(saveFile: StoredSaveFile) {
-		return saveFile.originalFileName ?? 'Save File';
+		return getSaveDisplayName(saveFile);
 	}
 
 	function gameTitle(details: SaveCardDetailsState, saveFile: StoredSaveFile) {
@@ -1054,11 +1104,16 @@
 												<span class="trainer"
 													>{details.details.summary.trainerName ?? 'Unknown Trainer'}</span
 												>
-												<span class="file-name" elementtiming="save-card"
-													>{displayName(saveFile)}</span
+												<span
+													class="file-name"
+													title={saveFile.originalFileName ?? undefined}
+													elementtiming="save-card">{displayName(saveFile)}</span
 												>
 												{#if sourceLabel(saveFile)}<span class="file-name source"
 														>{sourceLabel(saveFile)}</span
+													>{/if}
+												{#if saveFile.displayName}<span class="file-name"
+														>{saveFile.originalFileName ?? 'No original filename'}</span
 													>{/if}
 												<span class="card-stats">
 													<b>{details.details.summary.boxCount}</b> boxes
@@ -1066,8 +1121,10 @@
 													<b>{details.details.pokemonCount}</b> Pokemon
 												</span>
 											{:else}
-												<span class="file-name" elementtiming="save-card"
-													>{displayName(saveFile)}</span
+												<span
+													class="file-name"
+													title={saveFile.originalFileName ?? undefined}
+													elementtiming="save-card">{displayName(saveFile)}</span
 												>
 												{#if sourceLabel(saveFile)}<span class="file-name source"
 														>{sourceLabel(saveFile)}</span
@@ -1177,7 +1234,9 @@
 	<SaveFileMenu
 		mode={deleteOpen ? 'delete' : 'commands'}
 		fileName={displayName(menuSaveFile)}
-		description={deleteOpen ? (deleteDescription ?? undefined) : undefined}
+		description={deleteOpen
+			? (deleteDescription ?? undefined)
+			: (menuSaveFile.originalFileName ?? undefined)}
 		activeIndex={menuIndex}
 		busy={busyTarget === menuSaveFile.id}
 		onFocusCommand={(index) => (menuIndex = index)}
@@ -1191,6 +1250,7 @@
 					(fileEmulator(menuSaveFile) ?? 'emulator')
 			: undefined}
 		onSourceAction={() => void runSourceAction()}
+		onRename={requestRename}
 		onDelete={() => (deleteOpen ? void confirmDelete() : void requestDelete())}
 		onCancelDelete={cancelDelete}
 		onClose={dismissSaveFileWorkflow}
@@ -1209,6 +1269,15 @@
 		onScan={() => (discovery.scanning ? discovery.cancel() : void discovery.scan(undefined, true))}
 		onUnlink={(folder) => void discovery.unlink(folder)}
 		onClose={() => closeAddSaves()}
+	/>
+{/if}
+
+{#if renameOpen && menuSaveFile}
+	<RenameSaveFile
+		file={menuSaveFile}
+		busy={busyTarget !== null}
+		onApply={applyRename}
+		onCancel={cancelRename}
 	/>
 {/if}
 
