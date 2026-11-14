@@ -1,0 +1,29 @@
+{
+	"groups": {
+		"application": {
+			"raw": 3080000,
+			"gzip": 450000
+		},
+		"workers": {
+			"raw": 610000,
+			"gzip": 200000
+		},
+		"engine": {
+			"raw": 29350000,
+			"gzip": 8450000
+		},
+		"sprites": {
+			"raw": 101000000,
+			"gzip": 99000000
+		},
+		"other": {
+			"raw": 960000,
+			"gzip": 590000
+		},
+		"total": {
+			"raw": 133000000,
+			"gzip": 108000000
+		}
+	},
+	"largestApplicationScriptGzip": 155000
+}

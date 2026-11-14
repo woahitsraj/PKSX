@@ -130,6 +130,7 @@ async function installWorkspaceResponseHold(page: Page) {
 	await page.addInitScript(() => {
 		type TestWindow = typeof window & {
 			__pksxWorkspaceRequestsToHold?: number;
+			__pksxEngineRequests?: string[];
 			__pksxHeldWorkspaceResponses?: number;
 			__pksxResponseMethodToHold?: string;
 			__pksxReleaseWorkspaceResponse?: (method: string) => void;
@@ -139,6 +140,7 @@ async function installWorkspaceResponseHold(page: Page) {
 		const NativeWorker = window.Worker;
 		const heldRequestMethods = new Map<string, string>();
 		const releases: Array<{ method: string; invoke: () => void }> = [];
+		testWindow.__pksxEngineRequests = [];
 		testWindow.__pksxWorkspaceRequestsToHold = 0;
 		testWindow.__pksxHeldWorkspaceResponses = 0;
 		testWindow.__pksxResponseMethodToHold = 'loadSaveWorkspace';
@@ -158,6 +160,7 @@ async function installWorkspaceResponseHold(page: Page) {
 				worker.postMessage = new Proxy(postMessage, {
 					apply(target, thisArg, args) {
 						const request = args[0] as { id?: string; method?: string } | null;
+						if (request?.method) testWindow.__pksxEngineRequests?.push(request.method);
 						const remaining = testWindow.__pksxWorkspaceRequestsToHold ?? 0;
 						if (
 							request?.id &&
@@ -1375,29 +1378,51 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 	await expect(page.locator('#box-2-slot-0')).toHaveAttribute('aria-selected', 'true');
 });
 
-test('rapid Box switching loads only the latest requested Box', async ({ page }) => {
+test('focus and rapid Box switching stay within engine work budgets', async ({
+	page
+}, testInfo) => {
 	await installWorkspaceResponseHold(page);
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
-	await holdWorkspaceResponses(page, -1, 'listBoxSlots');
+	const requests = (reset = false) =>
+		page.evaluate((clear) => {
+			const testWindow = window as typeof window & { __pksxEngineRequests?: string[] };
+			const methods = testWindow.__pksxEngineRequests ?? [];
+			if (clear) testWindow.__pksxEngineRequests = [];
+			return methods;
+		}, reset);
 	await page.locator('#box-grid').focus();
+	await requests(true);
+	for (let move = 0; move < 20; move += 1) {
+		await pressController(page, move % 2 === 0 ? 'ArrowRight' : 'ArrowLeft');
+		await expectControllerSlot(page, move % 2 === 0 ? 'box-0-slot-1' : 'box-0-slot-0');
+	}
+	await expectControllerSlot(page, 'box-0-slot-0');
+	const focusRequests = await requests(true);
+	expect(focusRequests, '20 focus moves must not call the engine').toEqual([]);
 
+	await holdWorkspaceResponses(page, -1, 'listBoxSlots');
 	for (let press = 0; press < 5; press += 1) await pressController(page, 'PageDown');
-
 	await waitForHeldWorkspaceResponses(page, 1);
 	await releaseWorkspaceResponses(page);
 	await expect(page.locator('.box-pane.active-pane')).not.toHaveAttribute('aria-busy', 'true');
 	await expect(page.getByRole('heading', { name: /Box 06/ })).toBeVisible();
-	await page.waitForTimeout(300);
-	await expect
-		.poll(() =>
-			page.evaluate(
-				() =>
-					(window as typeof window & { __pksxHeldWorkspaceResponses?: number })
-						.__pksxHeldWorkspaceResponses ?? 0
-			)
-		)
-		.toBeLessThanOrEqual(2);
+	const boxRequests = await requests();
+	const boxLoads = boxRequests.filter((method) => method === 'listBoxSlots').length;
+	await testInfo.attach('engine-work-budget', {
+		body: JSON.stringify({ focusRequests, boxRequests, boxLoads }),
+		contentType: 'application/json'
+	});
+	console.log(
+		`Engine work budgets: 20 focus moves = ${focusRequests.length} requests; five rapid Next Boxes = ${boxLoads} Box loads`
+	);
+	expect(boxLoads, 'five rapid Next Boxes must perform at most two Box loads').toBeGreaterThan(0);
+	expect(boxLoads, 'five rapid Next Boxes must perform at most two Box loads').toBeLessThanOrEqual(
+		2
+	);
+	expect(boxRequests, 'Box switching must not reload the complete Workspace').not.toContain(
+		'loadSaveWorkspace'
+	);
 });
 
 test('direct Box Picker jumps across every Save File Box and restores focus', async ({ page }) => {
