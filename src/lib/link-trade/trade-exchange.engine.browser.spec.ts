@@ -21,8 +21,9 @@ for (const { script, fault } of [
 	{ script: 'not-ready' },
 	{ script: 'drop-after-ladder' },
 	{ script: 'trade', fault: 'storage' },
-	{ script: 'trade', fault: 'join' }
-] satisfies { script: FakeScript; fault?: 'storage' | 'join' }[]) {
+	{ script: 'trade', fault: 'join' },
+	{ script: 'trade', fault: 'radio' }
+] satisfies { script: FakeScript; fault?: 'storage' | 'join' | 'radio' }[]) {
 	test(`exchange Takeover follows the real fake-radio ${script} ${fault ?? ''} outcome`, async () => {
 		await page.viewport(
 			fault === 'join' ? 616 : fault === 'storage' ? 360 : 1280,
@@ -122,11 +123,18 @@ for (const { script, fault } of [
 				'not-ready': "Switch isn't ready",
 				'drop-after-ladder': 'Unknown Trade Outcome'
 			}[script];
-			if (fault === 'join') {
+			if (fault === 'join' || fault === 'radio') {
 				await vi.waitFor(() => expect(host.textContent).toContain('Could not join the Switch'), {
 					timeout: 25000
 				});
 				await click('Retry');
+				if (fault === 'radio') {
+					expect(start).toHaveBeenCalledTimes(1);
+					expect(entries.size).toBe(1);
+					await click('Use simulated radio');
+					await click('Sword');
+					await click('Start trade');
+				}
 			}
 			await vi.waitFor(() => expect(host.textContent).toContain(expected), { timeout: 25000 });
 			if (script === 'trade' && !fault) {
@@ -142,7 +150,7 @@ for (const { script, fault } of [
 				await vi.waitFor(() => expect(host.textContent).toContain('Unfiled'));
 				expect(storage.listRecords()).toHaveLength(1);
 			} else expect(storage.listRecords()).toHaveLength(0);
-			expect(start).toHaveBeenCalledTimes(fault === 'join' ? 2 : 1);
+			expect(start).toHaveBeenCalledTimes(fault === 'join' || fault === 'radio' ? 2 : 1);
 			const dialog = host.querySelector('[role=dialog]')!.getBoundingClientRect();
 			expect(dialog.left).toBeGreaterThanOrEqual(0);
 			expect(dialog.top).toBeGreaterThanOrEqual(0);

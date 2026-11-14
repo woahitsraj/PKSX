@@ -112,6 +112,13 @@
 
 	async function startTrade() {
 		if (!journal || !client || review?.status !== 'ready' || working || running) return;
+		if (!board) {
+			reviewRequest += 1;
+			review = null;
+			step = 'radio';
+			radioMessage = 'Connect the Trade Radio again, then review the Pokemon before retrying.';
+			return;
+		}
 		working = true;
 		exchangeMessage = null;
 		try {

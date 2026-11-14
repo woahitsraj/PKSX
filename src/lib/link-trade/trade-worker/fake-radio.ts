@@ -109,6 +109,7 @@ export interface FakeRadioOptions {
 	script: FakeScript;
 	receivedPokemon?: Bytes;
 	joinFailures?: number;
+	dropBeforeConfirmation?: boolean;
 	keys(): Promise<SwitchKeys | null>;
 	clock: Clock;
 	/** The INFO text, for board and firmware checks. */
@@ -666,6 +667,7 @@ export class FakeTradeRadio implements TradeSerialPort {
 		) {
 			return;
 		}
+		if (this.options.dropBeforeConfirmation) return this.loseRadio();
 		await this.sleep(1000);
 		a.push(boxSyncState(4));
 		if (this.options.script === 'cancel') {
@@ -693,15 +695,16 @@ export class FakeTradeRadio implements TradeSerialPort {
 			if (!(await this.until(() => this.observed.syncCommands.length > i))) return;
 		}
 		await this.sleep(500);
-		if (this.options.script === 'drop-after-ladder') {
-			const onClose = this.onClose;
-			this.onData = null;
-			this.stop.abort();
-			onClose?.(new Error('The device has been lost.'));
-			return;
-		}
+		if (this.options.script === 'drop-after-ladder') return this.loseRadio();
 		await this.sleep(2000);
 		await this.leave(a);
+	}
+
+	private loseRadio(): void {
+		const onClose = this.onClose;
+		this.onData = null;
+		this.stop.abort();
+		onClose?.(new Error('The device has been lost.'));
 	}
 
 	/** The RPC pair that opens a phase; -> once the joiner has answered both members. */

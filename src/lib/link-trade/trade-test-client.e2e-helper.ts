@@ -13,7 +13,7 @@ import type { TradeWorkerClient, TradeWorkerResult } from './trade-worker-client
 export function fakeTradeClient(
 	script: FakeScript,
 	receivedPokemon: Uint8Array,
-	fault?: 'join' | 'storage'
+	fault?: 'join' | 'storage' | 'radio'
 ): TradeWorkerClient {
 	const keyStore = memoryKeyStore(
 		parseProdKeys(
@@ -38,6 +38,7 @@ export function fakeTradeClient(
 				signal?.addEventListener('abort', done, { once: true });
 			})
 	};
+	let connections = 0;
 	const runtime = new TradeWorkerRuntime({
 		post: (message) => {
 			if (message.type === 'event') listeners.forEach((listener) => listener(message.event));
@@ -57,6 +58,7 @@ export function fakeTradeClient(
 				script,
 				receivedPokemon: new Uint8Array(receivedPokemon),
 				joinFailures: fault === 'join' ? 1 : 0,
+				dropBeforeConfirmation: fault === 'radio' && connections++ === 0,
 				keys: () => keyStore.load(),
 				clock
 			}),
