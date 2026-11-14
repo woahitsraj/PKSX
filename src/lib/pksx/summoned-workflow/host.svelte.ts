@@ -1,3 +1,4 @@
+import type { StoredSaveFile } from '../saves';
 import { getContext, setContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
 import {
@@ -18,7 +19,11 @@ const hostContextKey = Symbol('pksx-summoned-workflow-host');
 export type SummonedWorkflowHost = {
 	readonly active: SummonedWorkflow | null;
 	subscribe(listener: (active: SummonedWorkflow | null) => void): () => void;
-	open(kind: SummonedWorkflowKind, launcher: SummonedWorkflowLauncher): boolean;
+	open(
+		kind: SummonedWorkflowKind,
+		launcher: SummonedWorkflowLauncher,
+		backupOwner?: StoredSaveFile
+	): boolean;
 	openRelated(kind: SummonedWorkflowKind, launcher: SummonedWorkflowLauncher): void;
 	dismiss(): SummonedWorkflowLauncher | null;
 	remapLaunchers(map: (launcher: SummonedWorkflowLauncher) => SummonedWorkflowLauncher): void;
@@ -43,8 +48,8 @@ export function createSummonedWorkflowHost(): SummonedWorkflowHost {
 			listener(owner.active);
 			return () => listeners.delete(listener);
 		},
-		open(kind, launcher) {
-			const next = openSummonedWorkflow(owner, kind, launcher);
+		open(kind, launcher, backupOwner) {
+			const next = openSummonedWorkflow(owner, kind, launcher, backupOwner);
 			if (next === owner) return false;
 			publish(next);
 			return true;

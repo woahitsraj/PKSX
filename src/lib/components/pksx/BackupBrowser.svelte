@@ -14,13 +14,14 @@
 	import {
 		getActiveWorkspaceService,
 		getCachedActiveWorkspaceBox,
+		getCachedActiveWorkspace,
 		getSaveFileEditCoordinator,
 		getPkhexEngine,
 		getSavesStorage,
 		invalidateSavesCache,
-		loadActiveWorkspaceFromSaves,
 		setCachedActiveWorkspace
 	} from '$lib/pksx/saves-cache';
+	import { getBoxesSession } from '$lib/pksx/boxes-session';
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 	import DelayedSpinner from './DelayedSpinner.svelte';
 	import TakeoverFrame from './TakeoverFrame.svelte';
@@ -49,11 +50,12 @@
 		evolution: 'Evolution'
 	};
 
+	let mounted = false;
 	const storage = getSavesStorage();
 	const host = getSummonedWorkflowHost();
 	let browserState = $state<BrowserState>({ kind: 'loading' });
 	let owner = $state<StoredSaveFile | null>(null);
-	let workspace = $state<WorkspaceState | null>(null);
+	let workspace = $state<Pick<WorkspaceState, 'bytes' | 'dirty'> | null>(null);
 	let backups = $state<BackupMetadata[]>([]);
 	let selectedBackupId = $state<string | null>(null);
 	let errorMessage = $state<string | null>(null);
@@ -63,18 +65,22 @@
 	);
 
 	onMount(() => {
+		mounted = true;
 		const unsubscribe = getActiveWorkspaceService().subscribe((next) => {
 			if (owner && next?.file.id === owner.id) workspace = next;
 		});
 		void loadBrowser();
-		return unsubscribe;
+		return () => {
+			mounted = false;
+			unsubscribe();
+		};
 	});
 
 	async function loadBrowser() {
 		browserState = { kind: 'loading' };
 		errorMessage = null;
 		try {
-			const activeId = await storage.getActiveSaveFileId();
+			const activeId = host.active?.backupOwner?.id ?? (await storage.getActiveSaveFileId());
 			if (!activeId) {
 				browserState = { kind: 'no-active' };
 				await focusControl('backup-browser-close');
@@ -89,7 +95,7 @@
 			}
 
 			owner = activeOwner;
-			workspace = await loadActiveWorkspaceFromSaves();
+			workspace = await loadOwnerWorkspace(activeOwner);
 			await reloadBackups();
 			browserState = { kind: 'browsing' };
 			selectedBackupId = backups[0]?.id ?? null;
@@ -99,6 +105,14 @@
 			browserState = { kind: 'browsing' };
 			await focusControl('backup-browser-close');
 		}
+	}
+
+	async function loadOwnerWorkspace(file: StoredSaveFile) {
+		const persisted = await storage.getWorkspace(file.id);
+		if (persisted) return persisted;
+		const bytes = await storage.getSaveBytes(file.id);
+		if (!bytes) throw new Error('The Save File bytes are no longer available.');
+		return { bytes, dirty: false };
 	}
 
 	async function reloadBackups() {
@@ -116,7 +130,7 @@
 			const created = await createManualBackup({
 				storage,
 				owner,
-				workspaceBytes: workspace.bytes
+				workspaceBytes: (await loadOwnerWorkspace(owner)).bytes
 			});
 			invalidateSavesCache();
 			await reloadBackups();
@@ -132,6 +146,10 @@
 
 	async function restoreBackup(backup: BackupMetadata) {
 		if (!owner || busy) return;
+		const box =
+			document.querySelector('.boxes-route') && getCachedActiveWorkspace()?.file.id === owner.id
+				? getCachedActiveWorkspaceBox()
+				: 0;
 		browserState = { kind: 'working', action: 'restore', backup };
 		errorMessage = null;
 		try {
@@ -140,9 +158,10 @@
 				engine: getPkhexEngine(),
 				owner,
 				backup,
-				box: getCachedActiveWorkspaceBox(),
+				box: box,
 				publish: (state, box) => {
-					setCachedActiveWorkspace(state, box);
+					if (!document.querySelector('.boxes-route')) selectRecoveredOwner(state);
+					setCachedActiveWorkspace(state, box, { adoptAsActiveSave: true });
 					getSaveFileEditCoordinator().replaceWorkspace(state, box);
 				}
 			});
@@ -178,6 +197,7 @@
 
 	async function keepBackupAsSaveFile(backup: BackupMetadata) {
 		if (!owner || busy) return;
+		const box = 0;
 		browserState = { kind: 'working', action: 'separate', backup };
 		errorMessage = null;
 		try {
@@ -187,10 +207,11 @@
 				owner,
 				backup,
 				fileName: createRestoredSaveFileName(owner.originalFileName),
-				box: getCachedActiveWorkspaceBox(),
+				box: box,
 				publish: (state) => {
 					host.closeAll();
-					setCachedActiveWorkspace(state, getCachedActiveWorkspaceBox(), {
+					selectRecoveredOwner(state);
+					setCachedActiveWorkspace(state, box, {
 						adoptAsActiveSave: true
 					});
 				}
@@ -199,7 +220,7 @@
 			await goto(resolve('/boxes'), { keepFocus: true });
 			await new Promise<void>((resolveFocus) => {
 				const focusDestination = () => {
-					const slot = document.getElementById(`box-${getCachedActiveWorkspaceBox()}-slot-0`);
+					const slot = document.getElementById(`box-${box}-slot-0`);
 					const destination = document.querySelector<HTMLElement>(
 						'.boxes-route[data-initial-state="ready"]'
 					);
@@ -231,7 +252,27 @@
 		}
 	}
 
-	function requestRestore(backup: BackupMetadata) {
+	function selectRecoveredOwner(state: WorkspaceState) {
+		getBoxesSession().selectPrimary(
+			{
+				type: 'save-file',
+				id: state.file.id,
+				label: state.file.originalFileName ?? 'Save File',
+				dirty: state.dirty
+			},
+			state.workspace.summary.boxCount
+		);
+	}
+
+	async function requestRestore(backup: BackupMetadata) {
+		if (!owner) return;
+		try {
+			workspace = await loadOwnerWorkspace(owner);
+			if (!mounted) return;
+		} catch (error) {
+			errorMessage = getErrorMessage(error);
+			return;
+		}
 		selectedBackupId = backup.id;
 		browserState = { kind: 'confirm-restore', backup };
 		void focusControl('backup-browser-confirm-restore');
@@ -312,6 +353,7 @@
 
 	async function focusSelectedBackupOrCreate() {
 		await tick();
+		if (!mounted) return;
 		const id = selectedBackupId
 			? `backup-browser-restore-${selectedBackupId}`
 			: 'backup-browser-create';
@@ -320,6 +362,7 @@
 
 	async function focusControl(id: string) {
 		await tick();
+		if (!mounted) return;
 		document.getElementById(id)?.focus();
 	}
 
@@ -397,7 +440,7 @@
 
 			<div class="backup-list" aria-label="Backups">
 				{#each backups as backup (backup.id)}
-					<article class:selected={selectedBackupId === backup.id}>
+					<article class={{ selected: selectedBackupId === backup.id }}>
 						<div>
 							<strong>{reasonLabels[backup.reason]}</strong>
 							<span>{formatTimestamp(backup.createdAt)}</span>

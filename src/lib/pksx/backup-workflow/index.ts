@@ -165,11 +165,6 @@ export async function restoreBackupToWorkspace(input: {
 	box: number;
 	publish: (state: WorkspaceState, box: number) => void;
 }): Promise<WorkspaceState> {
-	const activeSaveFileId = await input.storage.getActiveSaveFileId();
-	if (activeSaveFileId !== input.owner.id) {
-		throw new Error('The active Save File changed while the Backup Browser was open.');
-	}
-
 	const owner = await requireSaveFileOwner(input.storage, input.owner);
 	await requireBackupOwner(input.storage, owner, input.backup);
 	const [backupBytes, currentSaveBytes] = await Promise.all([
@@ -198,6 +193,7 @@ export async function restoreBackupToWorkspace(input: {
 		}
 	});
 	await persistWorkspace(input.storage, state);
+	await input.storage.setActiveSaveFileId(state.file.id);
 	input.publish(state, input.box);
 	return state;
 }
