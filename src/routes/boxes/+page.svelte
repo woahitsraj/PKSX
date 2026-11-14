@@ -8035,13 +8035,15 @@
 {/if}
 
 {#if activeSummonedWorkflow?.kind === 'storage-batch'}
-	<StorageBatch
-		mode={batchMode}
-		boxes={storageBoxes}
-		onPreview={previewSelectedStorageBatch}
-		onApply={applySelectedStorageBatch}
-		onClose={closeStorageBatch}
-	/>
+	{#key activeSummonedWorkflow}
+		<StorageBatch
+			mode={batchMode}
+			boxes={storageBoxes}
+			onPreview={previewSelectedStorageBatch}
+			onApply={applySelectedStorageBatch}
+			onClose={closeStorageBatch}
+		/>
+	{/key}
 {/if}
 
 {#if boxMenuOpen && boxMenuTarget}
