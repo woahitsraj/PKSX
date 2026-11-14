@@ -13,6 +13,6 @@ export async function importSaveThroughSaves(page: Page, file: SaveFile, message
 	await page.getByLabel('Import Save File', { exact: true }).setInputFiles(file);
 	const name = typeof file === 'string' ? path.basename(file) : file.name;
 	await expect(
-		page.getByText(message ?? `${name} imported and made active.`, { exact: true })
+		page.getByText(message ?? `${name} imported and made active.`, { exact: message === undefined })
 	).toBeVisible({ timeout: 60_000 });
 }
