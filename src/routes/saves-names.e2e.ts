@@ -144,6 +144,10 @@ test.describe('display names across Save File consumers', () => {
 				'Pokemon Emerald'
 			);
 			await page.locator('.save-card').filter({ hasText: 'alpha.sav' }).locator('.card-main').tap();
+			await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+				'data-initial-state',
+				'ready'
+			);
 			await page.getByRole('button', { name: 'Open Main Menu' }).tap();
 			await page
 				.getByRole('dialog', { name: 'Main Menu' })
