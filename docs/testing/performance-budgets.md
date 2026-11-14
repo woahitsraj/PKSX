@@ -43,6 +43,8 @@ The service worker eagerly caches most shipped assets, including sprites and eng
 
 One local size-check run took 49.31 seconds wall time, 4.81 seconds user CPU, and 1.63 seconds system CPU, including pnpm startup. This is a local observation, not a hosted-runner cost guarantee. It compresses 3,793 files and adds no browser or build job.
 
+After rebasing onto main commit `e9a38b9d6f26d1fe9f481971ae373550cd7d991b`, verification under the exclusive `perf-budgets` Mac lock measured 126,623,775 raw / 102,698,040 gzip bytes and a 144,774-byte largest application script. All existing budgets passed without raising limits. The exclusive size check took 2.81 seconds wall time, 2.67 seconds user CPU and 0.31 seconds system CPU. All 707 unit tests and three repeated Chromium journeys passed. This supersedes the earlier contended run as the local check-cost observation; hosted-runner cost is still unmeasured.
+
 A second production build changed the total by +82 raw bytes and -8 gzip bytes, with identical file counts. Engine, sprite, and worker sizes were identical. Generated service-worker version and content hashes cause small application/HTML differences.
 
 ## Navigation work budgets
@@ -63,7 +65,7 @@ The baseline and three repeated production-browser runs each measured zero focus
 
 ## Regression proof
 
-A local check added a new 524,288-byte incompressible file at `build/_app/immutable/chunks/performance-regression.js`. The unchanged gate exited 1, rejecting application raw size, application gzip size, and the largest application script, even though the overall payload remained within its budget. Removing the file restored a passing result. This proves newly emitted chunks are covered without editing a manifest or lowering a threshold. Use a temporary build-only file for this experiment, never commit it.
+A local check added a new 524,288-byte incompressible file at `build/_app/immutable/chunks/performance-regression.js`. The unchanged gate exited 1, rejecting application raw size, application gzip size, and the largest application script, even though the overall payload remained within its budget. Removing the file restored a passing result. This proves newly emitted chunks are covered without editing a manifest or lowering a threshold. A standalone 512 KiB compressed resource also failed the other-assets budgets, and removing the engine entry file failed the incomplete-build check. Use a temporary build-only file for this experiment, never commit it.
 
 ## Integration with the other CI threads
 
