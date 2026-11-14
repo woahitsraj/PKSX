@@ -2539,8 +2539,8 @@
 		if (
 			selection &&
 			!activeSummonedWorkflow &&
-			event.target instanceof HTMLElement &&
-			event.target.closest('[data-selection-controls]')
+			document.activeElement instanceof HTMLElement &&
+			document.activeElement.closest('[data-selection-controls]')
 		) {
 			if (event.key === 'Escape') {
 				event.preventDefault();
