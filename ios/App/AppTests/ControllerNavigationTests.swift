@@ -12,6 +12,19 @@ final class ControllerNavigationTests: XCTestCase {
         controller = GCController.withExtendedGamepad()
     }
 
+    func testSelectEntersSelectionAndUnbindsOnDisconnect() async throws {
+        let webView = try await controllerSurface()
+        let select = try XCTUnwrap(controller.extendedGamepad?.buttonOptions)
+        select.setValue(1)
+        try await waitForJavaScript("document.querySelector('[data-selection-controls]') !== null", in: webView)
+        select.setValue(0)
+        try await waitForJavaScript("window.__pksxControllerEvents?.includes('Select:false')", in: webView)
+        select.setValue(1)
+        try await waitForJavaScript("document.querySelector('[data-selection-controls]') === null", in: webView)
+        NotificationCenter.default.post(name: .GCControllerDidDisconnect, object: controller)
+        XCTAssertNil(select.pressedChangedHandler)
+    }
+
     func testControllerNavigatesAndHighlightsSlotActions() async throws {
         let webView = try await controllerSurface()
         controller.extendedGamepad?.dpad.setValueForXAxis(1, yAxis: 0)

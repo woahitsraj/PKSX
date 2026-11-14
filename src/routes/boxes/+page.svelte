@@ -2381,6 +2381,7 @@
 		const pane = activePane;
 		if (
 			!pane ||
+			virtualPaneIds.includes(pane.id) ||
 			pane.source.type !== selection.source.type ||
 			pane.source.id !== selection.source.id
 		) {
@@ -2416,6 +2417,7 @@
 		if (
 			!selection ||
 			!pane ||
+			virtualPaneIds.includes(pane.id) ||
 			ref.zone !== 'box' ||
 			busy ||
 			pane.source.type !== selection.source.type ||

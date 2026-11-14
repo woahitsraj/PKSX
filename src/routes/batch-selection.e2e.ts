@@ -77,3 +77,23 @@ for (const viewport of [
 		});
 	});
 }
+
+for (const location of ['All Pokemon', 'Unfiled', 'Recently Deleted']) {
+	test(`clears physical selection before entering ${location}`, async ({ page }) => {
+		await page.goto('/?source=pokemon-storage');
+		await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+			'data-initial-state',
+			'ready'
+		);
+		const picker = page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' });
+		await picker.click();
+		await page.getByRole('button', { name: /^Box 01:/ }).click();
+		await page.keyboard.press('-');
+		const actions = page.getByRole('group', { name: 'Selection actions' });
+		await expect(actions).toContainText('0 selected');
+		await picker.click();
+		await page.getByRole('button', { name: new RegExp('^' + location) }).click();
+		await expect(actions).toHaveCount(0);
+		await expect(page.locator('.virtual-browser')).toBeVisible();
+	});
+}

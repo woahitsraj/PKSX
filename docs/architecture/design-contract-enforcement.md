@@ -142,7 +142,7 @@ Every editable `input`, `select`, `textarea`, combobox input, and `contenteditab
 
 Source: [#196](https://github.com/woahitsraj/PKSX/issues/196).
 
-Slots never shrink below 44px. The pane scrolls before further shrinkage. Slot text responds to the Slot's own dimensions: name and level display above 66px, the index displays above 46px, then the Sprite Catalog image fills the remaining presentation as labels disappear. Render the offline pixelated PNG at 78 to 92 percent of the Slot according to label state.
+Slots never shrink below 36px. The pane scrolls before further shrinkage. Slot text responds to the Slot's own dimensions: name and level display above 66px, the index displays above 46px, then the Sprite Catalog image fills the remaining presentation as labels disappear. Render the offline pixelated PNG at 78 to 92 percent of the Slot according to label state.
 
 The 616×336 landscape Safe Canvas produces 58 to 59px Box Slots. The earlier 63px figure was measured against the raw viewport and is not an acceptance value.
 
