@@ -1,3 +1,4 @@
+import { getSaveDisplayName } from '$lib/pksx/saves';
 import { BOX_SLOT_COUNT, projectSlotCoordinate, type SlotFocus } from '$lib/pksx/box-navigation';
 import type {
 	SaveFileId,
@@ -34,6 +35,7 @@ export type SavePaneWorkspaceState = {
 	file: {
 		id: SaveFileId;
 		originalFileName: string | null;
+		displayName?: string | null;
 	};
 	workspace: {
 		summary: {
@@ -221,7 +223,7 @@ export function refreshSaveFilePaneWorkspaces<TState extends SavePaneWorkspaceSt
 						boxCount: state.workspace.summary.boxCount,
 						source: {
 							...pane.source,
-							label: state.file.originalFileName ?? pane.source.label,
+							label: getSaveDisplayName(state.file),
 							dirty: state.dirty
 						}
 					}
