@@ -8,7 +8,12 @@ import {
 	PokemonStorageService
 } from '$lib/pksx/pokemon-storage-catalog';
 import { reviewedLinkTrade } from './trade-setup';
-import { TradeJournal, type TradeEntry, type TradeJournalStore } from './trade-journal';
+import {
+	browserTradeJournal,
+	TradeJournal,
+	type TradeEntry,
+	type TradeJournalStore
+} from './trade-journal';
 
 async function harness() {
 	const engine = await createPkhexEngine('/pkhex-engine');
@@ -74,7 +79,10 @@ async function harness() {
 		journal,
 		entry,
 		end,
-		cleanup: () => deleteBrowserCatalog(name)
+		cleanup: () => {
+			journal.close();
+			return deleteBrowserCatalog(name);
+		}
 	};
 }
 
@@ -94,6 +102,9 @@ test('rechecks review, preserves evidence and recovers without exchanging again'
 			sequence: 0,
 			pokemon: new Uint8Array(h.review.outgoingBytes).buffer
 		});
+		const active = await new TradeJournal(h.store, h.engine, h.storage).recover();
+		expect(active[0].outcome).toBeNull();
+		h.journal.close();
 		const recovered = await h.journal.recover();
 		expect(recovered[0].outcome).toBe('outcome-unknown');
 		expect(recovered[0].events[0].type).toBe('trade-offer');
@@ -178,5 +189,25 @@ test('a returning copy waits for a choice and links to the original payload only
 		expect(await h.storage.readPayload(record.recordId)).toEqual(original);
 	} finally {
 		await h.cleanup();
+	}
+});
+
+test('IndexedDB acknowledgement survives reopening with exact encrypted receipt bytes', async () => {
+	const h = await harness();
+	const database = `trade-journal-${crypto.randomUUID()}`;
+	try {
+		const store = browserTradeJournal(database);
+		await h.end();
+		await store.put(await h.journal.required(h.entry.id));
+		const reopened = new TradeJournal(browserTradeJournal(database), h.engine, h.storage);
+		await reopened.recover();
+		const entry = await reopened.retryImport(h.entry.id);
+		expect(entry.imported).toBe(true);
+		const persisted = (await browserTradeJournal(database).list())[0];
+		expect(persisted.recordId).toBe(entry.recordId);
+		expect(new Uint8Array(persisted.receipt!.receivedPokemon)).toEqual(h.review.outgoingBytes);
+	} finally {
+		await h.cleanup();
+		indexedDB.deleteDatabase(database);
 	}
 });

@@ -62,13 +62,13 @@ export interface TradeJournalStore {
 }
 
 /** This database is deliberately outside Saves, export and synchronization. */
-export function browserTradeJournal(): TradeJournalStore {
+export function browserTradeJournal(database = 'pksx-trade-journal'): TradeJournalStore {
 	async function run<T>(
 		mode: IDBTransactionMode,
 		action: (store: IDBObjectStore) => IDBRequest<T>
 	) {
 		const db = await new Promise<IDBDatabase>((resolve, reject) => {
-			const request = indexedDB.open('pksx-trade-journal', 1);
+			const request = indexedDB.open(database, 1);
 			request.onupgradeneeded = () =>
 				request.result.createObjectStore('sessions', { keyPath: 'id' });
 			request.onsuccess = () => resolve(request.result);
@@ -95,6 +95,12 @@ export function browserTradeJournal(): TradeJournalStore {
 }
 
 export class TradeJournal {
+	readonly #leases = new Map<string, () => void>();
+	close() {
+		for (const release of this.#leases.values()) release();
+		this.#leases.clear();
+	}
+
 	constructor(
 		readonly store: TradeJournalStore,
 		private readonly engine: Pick<
@@ -164,14 +170,35 @@ export class TradeJournal {
 	}
 
 	async dispatch(id: string, start: (entry: TradeEntry) => Promise<void>) {
-		const entry = await this.lock(async () => {
-			const entry = await this.required(id);
-			if (entry.dispatched) throw new Error('This trade was already started. Check its outcome.');
-			entry.dispatched = true;
-			await this.store.put(entry);
-			return entry;
+		if (this.#leases.has(id)) throw new Error('This trade was already started.');
+		await new Promise<void>((resolve, reject) => {
+			void navigator.locks
+				.request(`pksx-trade-session-${id}`, { ifAvailable: true }, async (lock) => {
+					if (!lock) {
+						reject(new Error('This trade is active in another window.'));
+						return;
+					}
+					await new Promise<void>((release) => {
+						this.#leases.set(id, release);
+						resolve();
+					});
+				})
+				.catch(reject);
 		});
-		await start(entry);
+		try {
+			const entry = await this.lock(async () => {
+				const entry = await this.required(id);
+				if (entry.dispatched) throw new Error('This trade was already started. Check its outcome.');
+				entry.dispatched = true;
+				await this.store.put(entry);
+				return entry;
+			});
+			await start(entry);
+		} catch (error) {
+			this.#leases.get(id)?.();
+			this.#leases.delete(id);
+			throw error;
+		}
 	}
 
 	async event(event: TradeWorkerEvent) {
@@ -190,6 +217,10 @@ export class TradeJournal {
 				entry.receipt = event.receipt;
 			}
 			await this.store.put(entry);
+			if (entry.outcome) {
+				this.#leases.get(entry.id)?.();
+				this.#leases.delete(entry.id);
+			}
 			return entry;
 		});
 	}
@@ -207,7 +238,10 @@ export class TradeJournal {
 
 	async recover() {
 		return this.lock(async () => {
+			const locks = await navigator.locks.query();
+			const active = new Set(locks.held?.map((lock) => lock.name));
 			for (const entry of await this.list()) {
+				if (active.has(`pksx-trade-session-${entry.id}`)) continue;
 				if (entry.dispatched && !entry.outcome) {
 					entry.outcome = 'outcome-unknown';
 					await this.store.put(entry);
