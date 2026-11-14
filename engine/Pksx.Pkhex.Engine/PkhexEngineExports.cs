@@ -1475,10 +1475,17 @@ public static partial class PkhexEngineExports
 
     private static SlotMutationResult ApplySaveFileEditOperation(SaveFile save, SaveFileEditOperationRequest operation)
     {
-        if (operation.TrainerProfile is null && operation.Money is null && (operation.Inventory is null || operation.Inventory.Count == 0) && operation.BoxName is null && operation.BoxMove is null)
+        if (operation.TrainerProfile is null && operation.Money is null && (operation.Inventory is null || operation.Inventory.Count == 0) && operation.BoxName is null && operation.BoxMove is null && operation.Pokedex is null)
             return SlotMutationResult.Fail("invalid-save-file-edit", "Choose a Save File edit to apply.");
 
         var mutated = false;
+        if (operation.Pokedex is { } pokedex)
+        {
+            var result = ApplyPokedexEdit(save, pokedex);
+            if (!result.Ok)
+                return result;
+            mutated |= result.Mutated;
+        }
         if (operation.BoxMove is { } boxMove)
         {
             if ((uint)boxMove.Box >= save.BoxCount || (uint)boxMove.Destination >= save.BoxCount)

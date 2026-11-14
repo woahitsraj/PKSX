@@ -1,3 +1,9 @@
+import type { z } from 'zod';
+import type { pokedexProjectionSchema, pokedexEditSchema } from './worker-protocol';
+
+export type PokedexProjection = z.infer<typeof pokedexProjectionSchema>;
+export type PokedexEdit = z.infer<typeof pokedexEditSchema>;
+
 export type EngineErrorCode =
 	| 'unsupported-save'
 	| 'invalid-box'
@@ -369,6 +375,7 @@ export type SaveFileBoxNameProjection = {
 export type TrainerGender = 'male' | 'female';
 
 export type SaveFileEditableProjection = {
+	pokedex?: PokedexProjection;
 	trainerProfile: {
 		trainerName: string | null;
 		trainerNameSupported: boolean;
@@ -551,6 +558,7 @@ export type PokemonCreationResult = {
 };
 
 export type SaveFileEditOperation = {
+	pokedex?: PokedexEdit;
 	boxName?: {
 		box: number;
 		name: string;
