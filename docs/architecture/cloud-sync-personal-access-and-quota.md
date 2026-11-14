@@ -10,6 +10,8 @@ Authorization is enforced by the service, not merely by a hidden client control.
 
 Provisioning binds access to the maintainer's authenticated, immutable internal User Account identity. Account recovery must recover that account, not grant eligibility to a newly registered account that claims its email. Deleting the User Account and recreating one at the same email does not restore eligibility automatically. The exact identity is a deployment input to establish through an authenticated provisioning step; do not request credentials during planning or expose them in repository files.
 
+The maintainer enters first sign-in through a restricted owner activation path. Normal app settings remain hidden until the service verifies the authenticated owner and access grant. Possessing or discovering the activation URL alone grants no eligibility and cannot create an authorized account. An activation attempt by another identity leaves local Saves unchanged.
+
 Authentication and eligibility are distinct. A valid Google or Apple login is not permission to enroll. Account creation and passkey enrollment endpoints also need the bootstrap restriction so arbitrary public sign-ups cannot turn into authorized accounts. A native callback or restored session cannot bypass the same policy. Keep this as a small explicit access check, without building a generalized billing system for a single-user rollout.
 
 ## Accepted initial funding and allowance

@@ -669,14 +669,14 @@ _Avoid_: setting, option, config
 - A **User Account** owns zero or one **Sync Profile**.
 - A **Sync Profile** belongs to exactly one **User Account** and cannot be shared with another account.
 - A **PKSX Installation** enrolls in at most one **Sync Profile** at a time.
-- Authenticating a **User Account** is sufficient to enroll a **PKSX Installation** in its **Sync Profile**; another Installation does not approve it.
+- For a **User Account** authorized by the active Cloud Sync access policy, authentication is sufficient to enroll a **PKSX Installation** in its **Sync Profile**, subject to **Sync Adoption** when local Saves exists; another Installation does not approve it.
 - Multiple **PKSX Installations** may enroll in one **Sync Profile** concurrently.
 - The **Sync Provider** authenticates the **User Account** and issues the session; a **User Account** has no password.
 - A **User Account** has one verified email address; every sign-in method resolves to the account of that address, and access to the address is sufficient to recover the account.
 - Signing out removes an Installation's credentials and enrollment state but retains its local **Saves** as local-only data.
 - Removing local **Saves** after sign-out is a separate, user-confirmed action.
 - Formerly synchronized data retains its **Sync Profile** association after sign-out.
-- Signing back into the same **User Account** re-enrolls the Installation and reconciles its retained local **Saves** with that account's **Sync Profile**.
+- Signing back into the same **User Account** re-enrolls the Installation only while that account remains authorized by the Cloud Sync access policy, and reconciles its retained local **Saves** with that account's **Sync Profile**.
 - Signing into another **User Account** never uploads data associated with the previous account's **Sync Profile** without explicit adoption.
 - Revoking an Installation's authentication blocks future **Sync Provider** access after the Installation reconnects but cannot erase its local **Saves**.
 - Signing out everywhere ends every session of a **User Account**, including the session of the **PKSX Installation** that requests it; account recovery does the same.
