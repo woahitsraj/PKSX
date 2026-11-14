@@ -68,10 +68,15 @@ export class CapacitorSavesStorage implements SavesStorage {
 		return this.#run(async () => {
 			const snapshot = await this.#journal.read();
 			const catalog = cloneCatalog(snapshot.catalog);
+			const existing =
+				input.linkedDocumentId &&
+				catalog.saves.find((save) => save.linkedDocumentId === input.linkedDocumentId);
+			if (existing) return { ...existing };
 			const timestamp = this.#now();
 			const saveFile: StoredSaveFile = {
 				id: this.#idFactory(),
 				originalFileName: input.originalFileName ?? null,
+				...(input.linkedDocumentId ? { linkedDocumentId: input.linkedDocumentId } : {}),
 				byteLength: input.bytes.byteLength,
 				importedAt: timestamp,
 				updatedAt: timestamp

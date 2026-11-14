@@ -74,3 +74,43 @@ It traces the fixed API 36 Pixel 2 baseline to BUDGET-2, keyboard-open rotation 
 to RESP-2, pane and Carry identity to FOCUS-2 and FOCUS-3, and destination, Menu, and Takeover
 ownership to FOCUS-4. Together with the deterministic browser coverage, it supplies the native
 acceptance assigned to #205.
+
+## Linked Dolphin save folders
+
+Settings > Linked save folder uses Android's system folder picker. Choose the
+Dolphin location exported by its document provider, then GC or a GCI save subfolder.
+No direct Android/data path or broad storage permission is required. If Dolphin
+is absent from the picker, export individual GCI files into a selectable folder.
+Whole RAW/GCP memory cards are not supported. The generic folder option recognizes
+GCI, SAV, DAT, BIN, DSV, SRM, and extensionless save candidates through the engine.
+
+The following device acceptance checks must run outside performance measurements.
+Never replace a package another thread is measuring. The browser XD fixture test
+covers engine validation and import, but does not prove Android grants or Dolphin
+provider behavior.
+
+1. Cancel the system picker and confirm the previous link and Saves stay intact.
+2. Select installed Dolphin's GC folder. Scan its Pokemon XD GCI save, inspect the
+   relative path, and explicitly import it. Open it from Saves and verify XD game,
+   trainer, party and boxes. Confirm the original GCI bytes remain unchanged.
+3. Restart PKSX, rescan, and verify the grant survives and the document reads
+   Already in Saves. Repeat with a relink and with two different GCI documents
+   sharing a filename. The latter must remain separate imports.
+4. Cancel during discovery. Confirm the UI remains responsive and partial results
+   remain importable. Check that Cache, shaders, textures and unrelated Dolphin
+   folders are skipped. Select a smaller folder when entry or depth limits appear.
+5. Remove the grant or move the selected folder. Confirm scan errors explain
+   relinking. Relink and rescan. Unlink and verify previously imported Saves remain.
+6. Choose another save folder and discover a recognized non-GCI save. Check invalid
+   files do not appear as importable saves, and RAW/GCP guidance stays visible.
+
+Native discovery and reads use a background executor and cancellable provider
+queries. Scans stop after 2,000 entries or 12 nested folder levels, with per-folder
+results also capped at 2,000 entries. Candidate reads stop at 16 MiB. Cancellation
+stops scheduling new work and suppresses results from an engine validation already
+in flight. Each import re-reads and revalidates the source. The Saves catalog stores
+provider authority and document ID atomically with the import, so rescans and
+concurrent repeated imports cannot duplicate a linked document. It deliberately
+keeps the imported copy when the source changes. Trainer-based replace/import-as-new
+reconciliation remains separate work in
+[Detect repeated Save File imports and offer replace or import as new](https://github.com/woahitsraj/PKSX/issues/269).
