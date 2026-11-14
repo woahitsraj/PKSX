@@ -1341,18 +1341,19 @@ public static partial class PkhexEngineExports
                 pokemon.SetAbilityIndex(abilityIndex);
         }
 
-        if (operation.MetData is not null)
-        {
-            var metDataResult = ApplyMetDataEdit(pokemon, operation.MetData);
-            if (!metDataResult.Ok)
-                return metDataResult;
-        }
-
+        // Decode staged Trainer IDs before an origin edit can change their display format.
         if (operation.OriginalTrainer is not null)
         {
             var trainerResult = ApplyOriginalTrainerEdit(pokemon, operation.OriginalTrainer);
             if (!trainerResult.Ok)
                 return trainerResult;
+        }
+
+        if (operation.MetData is not null)
+        {
+            var metDataResult = ApplyMetDataEdit(pokemon, operation.MetData);
+            if (!metDataResult.Ok)
+                return metDataResult;
         }
 
         if (operation.Ivs is not null)
