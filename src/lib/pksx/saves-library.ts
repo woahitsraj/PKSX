@@ -52,12 +52,17 @@ export function getSaveGameTitle(version: string) {
 	return gameNames[version] ?? 'Pokemon ' + version;
 }
 
-export function filterSortSaves(
-	files: StoredSaveFile[],
-	details: Record<string, SaveCardDetailsState>,
-	query: string,
-	sort: SavesSort
-) {
+export function filterSortSaves({
+	files,
+	details,
+	query,
+	sort
+}: {
+	files: StoredSaveFile[];
+	details: Record<string, SaveCardDetailsState>;
+	query: string;
+	sort: SavesSort;
+}) {
 	const needle = query.trim().toLowerCase();
 	return files
 		.filter((file) => {

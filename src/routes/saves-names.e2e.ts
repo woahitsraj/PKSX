@@ -71,6 +71,18 @@ for (const height of [336, 720]) {
 			exact: true
 		});
 		await expect(open).toBeVisible();
+		await page.locator('#save-file-input').setInputFiles({
+			name: 'a-unopened.sav',
+			mimeType: 'application/octet-stream',
+			buffer: await readFile(
+				path.resolve(
+					'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
+				)
+			)
+		});
+		await expect(
+			page.getByRole('button', { name: 'Open a-unopened.sav in Boxes', exact: true })
+		).toBeVisible();
 		const search = page.getByRole('searchbox', { name: 'Search Saves' });
 		for (const query of ['EMERALD', 'dIxIe', '011020251345']) {
 			await search.fill(query);
@@ -90,6 +102,8 @@ for (const height of [336, 720]) {
 		await expect(page.getByRole('button', { name: 'Open Pokemon Storage in Boxes' })).toBeVisible();
 		await page.getByRole('button', { name: 'Clear search', exact: true }).click();
 		await expect(open).toBeVisible();
+		const firstSave = page.locator('.save-card .card-main').first();
+		await expect(firstSave).toHaveAttribute('aria-label', 'Open a-unopened.sav in Boxes');
 		await open.click();
 		await expect(page.locator('[data-destination-root="boxes"]')).toBeVisible();
 		await page.goto('/saves');
@@ -100,19 +114,7 @@ for (const height of [336, 720]) {
 		await expect(
 			page.getByRole('button', { name: 'Sort: Recently opened', exact: true })
 		).toBeVisible();
-		const history = await page.evaluate(async () => {
-			const database = await new Promise<IDBDatabase>((resolve) => {
-				const request = indexedDB.open('pksx-saves');
-				request.onsuccess = () => resolve(request.result);
-			});
-			const records = await new Promise<Array<{ lastOpenedAt?: string }>>((resolve) => {
-				const request = database.transaction('saveFiles').objectStore('saveFiles').getAll();
-				request.onsuccess = () => resolve(request.result);
-			});
-			database.close();
-			return records[0]?.lastOpenedAt;
-		});
-		expect(history).toBeTruthy();
+		await expect(firstSave).toHaveAttribute('aria-label', 'Open emerald-011020251345.sav in Boxes');
 	});
 }
 

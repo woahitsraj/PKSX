@@ -45,7 +45,7 @@ const details: Record<string, SaveCardDetailsState> = {
 	}
 };
 const ids = (query: string) =>
-	filterSortSaves(files, details, query, 'alphabetical').map((file) => file.id);
+	filterSortSaves({ files, details, query, sort: 'alphabetical' }).map((file) => file.id);
 
 describe('Saves library', () => {
 	it('matches every identifying field without requiring parsed metadata', () => {
@@ -62,14 +62,27 @@ describe('Saves library', () => {
 			...file,
 			...(file.id === 'c' ? { lastOpenedAt: '2026-11-14T12:00:00Z' } : {})
 		}));
-		expect(filterSortSaves(opened, details, '', 'recently-opened').map((file) => file.id)).toEqual([
-			'c',
-			'a',
-			'b'
-		]);
 		expect(
-			filterSortSaves([...opened].reverse(), details, '', 'recently-opened').map((file) => file.id)
+			filterSortSaves({ files: opened, details, query: '', sort: 'recently-opened' }).map(
+				(file) => file.id
+			)
 		).toEqual(['c', 'a', 'b']);
+		expect(
+			filterSortSaves({
+				files: [...opened].reverse(),
+				details,
+				query: '',
+				sort: 'recently-opened'
+			}).map((file) => file.id)
+		).toEqual(['c', 'a', 'b']);
+		expect(
+			filterSortSaves({
+				files: files.map((file) => ({ ...file, lastOpenedAt: '2026-11-14T12:00:00Z' })),
+				details,
+				query: '',
+				sort: 'recently-opened'
+			}).map((file) => file.id)
+		).toEqual(['a', 'b', 'c']);
 		expect(files.every((file) => !file.lastOpenedAt)).toBe(true);
 	});
 });
