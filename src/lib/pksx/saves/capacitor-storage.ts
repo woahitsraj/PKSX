@@ -1,3 +1,4 @@
+import { normalizeSaveDisplayName } from './display-name';
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { NativeCatalogPersistence } from '$lib/pksx/pokemon-storage-catalog/native';
 import { requireCarrySource } from '$lib/pksx/pokemon-storage-catalog/service';
@@ -100,6 +101,20 @@ export class CapacitorSavesStorage implements SavesStorage {
 				.map((saveFile) => ({ ...saveFile }))
 				.sort((left, right) => right.importedAt.localeCompare(left.importedAt))
 		);
+	}
+
+	async renameSave(saveFileId: SaveFileId, name: string | null): Promise<StoredSaveFile> {
+		const displayName = normalizeSaveDisplayName(name);
+		return this.#run(async () => {
+			const snapshot = await this.#journal.read();
+			const catalog = cloneCatalog(snapshot.catalog);
+			const index = catalog.saves.findIndex(({ id }) => id === saveFileId);
+			if (index < 0) throw new Error('The selected Save File is no longer available.');
+			const updated = { ...catalog.saves[index], displayName };
+			catalog.saves[index] = updated;
+			await this.#journal.commit(snapshot, catalog);
+			return { ...updated };
+		});
 	}
 
 	getSaveBytes(saveFileId: SaveFileId): Promise<Uint8Array | null> {

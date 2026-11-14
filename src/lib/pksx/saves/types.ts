@@ -18,6 +18,7 @@ export type BackupReason =
 export type StoredSaveFile = {
 	id: SaveFileId;
 	originalFileName: string | null;
+	displayName?: string | null;
 	byteLength: number;
 	importedAt: string;
 	updatedAt: string;
@@ -155,6 +156,7 @@ export type SavesStorage = {
 	importSave(input: ImportSaveInput): Promise<StoredSaveFile>;
 	getSave(saveFileId: SaveFileId): Promise<StoredSaveFile | null>;
 	listSaves(): Promise<StoredSaveFile[]>;
+	renameSave(saveFileId: SaveFileId, name: string | null): Promise<StoredSaveFile>;
 	getSaveBytes(saveFileId: SaveFileId): Promise<Uint8Array | null>;
 	putWorkspace(input: PutWorkspaceInput): Promise<StoredWorkspace>;
 	getWorkspace(saveFileId: SaveFileId): Promise<StoredWorkspace | null>;
