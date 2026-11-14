@@ -132,7 +132,6 @@
 			>Back to Boxes</button
 		>
 		<h1>Pokedex</h1>
-		<span>{workspace?.dirty ? 'Dirty Workspace' : 'Clean Workspace'}</span>
 	</header>
 	{#if message}<p role="alert">{message} <button onclick={load}>Reload</button></p>{/if}
 	{#if loading}
@@ -257,9 +256,6 @@
 	}
 	h2 {
 		font-size: var(--pksx-type-body);
-	}
-	header span {
-		margin-left: auto;
 	}
 	.list-heading {
 		display: flex;
