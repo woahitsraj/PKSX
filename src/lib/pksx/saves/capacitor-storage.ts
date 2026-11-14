@@ -82,7 +82,7 @@ export class CapacitorSavesStorage implements SavesStorage {
 				updatedAt: timestamp
 			};
 			catalog.saves.push(saveFile);
-			catalog.activeSaveFileId = saveFile.id;
+			if (input.activate !== false) catalog.activeSaveFileId = saveFile.id;
 			await this.#journal.commit(snapshot, catalog, {
 				stagedBytes: [{ path: saveBytesPath(saveFile.id), bytes: input.bytes }]
 			});

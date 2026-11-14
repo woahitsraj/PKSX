@@ -8,6 +8,7 @@
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import './layout.css';
 	import Seo from '$lib/components/pksx/Seo.svelte';
+	import LinkedSaveDiscovery from '$lib/components/pksx/LinkedSaveDiscovery.svelte';
 	import AppUpdatePrompt from '$lib/components/pksx/AppUpdatePrompt.svelte';
 	import BackupBrowser from '$lib/components/pksx/BackupBrowser.svelte';
 	import MainMenu, {
@@ -762,6 +763,7 @@
 	};
 </script>
 
+<LinkedSaveDiscovery />
 <Seo pathname={page.url.pathname} />
 
 <svelte:head>

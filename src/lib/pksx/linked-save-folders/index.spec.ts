@@ -4,6 +4,8 @@ import { createMockEngine } from '$lib/engine/mock-engine';
 import { scanFolder, importLinkedSave, type SaveFoldersPlugin, type DiscoveredSave } from './index';
 import { CapacitorSavesStorage, type NativeFileStore } from '$lib/pksx/saves';
 
+const folder = { tree: 'content://dolphin.user/tree/root', name: 'Dolphin' };
+
 function storageFixture() {
 	const files = new Map<string, string | Uint8Array>();
 	const fileStore: NativeFileStore = {
@@ -31,8 +33,8 @@ function storageFixture() {
 
 function pluginFixture(): SaveFoldersPlugin {
 	return {
-		status: async () => ({ tree: 'test', mode: 'dolphin' }),
-		pick: async () => ({ tree: 'test', mode: 'dolphin' }),
+		status: async () => ({ folders: [folder] }),
+		pick: async () => ({ cancelled: false, folder }),
 		unlink: async () => {},
 		cancel: async () => {},
 		list: vi.fn(async ({ documentId }) => ({
@@ -64,7 +66,7 @@ describe('linked save folders', () => {
 				plugin,
 				engine,
 				storage,
-				mode: 'dolphin',
+				folder,
 				signal: controller.signal,
 				onSave: (save) => {
 					saves.push(save);
@@ -94,7 +96,7 @@ describe('linked save folders', () => {
 				plugin,
 				engine,
 				storage,
-				mode: 'dolphin',
+				folder,
 				signal: controller.signal,
 				onSave,
 				onProgress: () => {}
@@ -103,11 +105,35 @@ describe('linked save folders', () => {
 		expect(onSave).not.toHaveBeenCalled();
 	});
 
+	it('reports durable import failures instead of treating them as unrecognized files', async () => {
+		const { storage } = storageFixture();
+		await expect(
+			scanFolder({
+				plugin: pluginFixture(),
+				engine: createMockEngine(),
+				storage,
+				folder,
+				signal: new AbortController().signal,
+				onSave: async () => {
+					throw new Error('Saves disk full');
+				},
+				onProgress: () => {}
+			})
+		).rejects.toThrow('Saves disk full');
+	});
+
 	it('retains source identity across restart, serializes repeated imports, and preserves same-named distinct documents', async () => {
 		const plugin = pluginFixture();
 		const engine = createMockEngine();
 		const { storage, fileStore } = storageFixture();
-		const save = { id: 'xd', name: 'same.gci', path: 'GC/same.gci', imported: false };
+		const save = {
+			id: 'xd',
+			name: 'same.gci',
+			path: 'GC/same.gci',
+			imported: false,
+			folder,
+			identity: 'xd'
+		};
 		const [first, repeated] = await Promise.all([
 			importLinkedSave(plugin, engine, storage, save),
 			importLinkedSave(plugin, engine, storage, save)
@@ -140,7 +166,7 @@ describe('linked save folders', () => {
 			plugin,
 			engine,
 			storage,
-			mode: 'generic',
+			folder: { tree: 'test', name: 'Generic' },
 			signal: new AbortController().signal,
 			onSave,
 			onProgress
@@ -153,6 +179,8 @@ describe('linked save folders', () => {
 				id: 'main',
 				name: 'main',
 				path: 'main',
+				folder,
+				identity: 'main',
 				imported: false
 			})
 		).rejects.toThrow('Invalid save');
