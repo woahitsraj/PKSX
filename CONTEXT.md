@@ -669,6 +669,7 @@ _Avoid_: setting, option, config
 - Authenticating a **User Account** is sufficient to enroll a **PKSX Installation** in its **Sync Profile**; another Installation does not approve it.
 - Multiple **PKSX Installations** may enroll in one **Sync Profile** concurrently.
 - The **Sync Provider** authenticates the **User Account** and issues the session; a **User Account** has no password.
+- Cloud Sync prefers passkeys for ordinary sign-in, supports Google and Apple as social alternatives, and places emailed one-time codes last; a successful passkey or social sign-in does not routinely require an additional email-code step.
 - A **User Account** has one verified email address; every sign-in method resolves to the account of that address, and access to the address is sufficient to recover the account.
 - Signing out removes an Installation's credentials and enrollment state but retains its local **Saves** as local-only data.
 - Removing local **Saves** after sign-out is a separate, user-confirmed action.
