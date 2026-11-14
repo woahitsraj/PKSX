@@ -4,7 +4,6 @@ import { deleteIndexedDbSaves, IndexedDbSavesStorage } from '$lib/pksx/saves';
 import { scanFolder, type SaveFoldersPlugin } from './index';
 import emerald from '../../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav?url';
 import soulsilver from '../../../../test-fixtures/save-files/minna-pokemon-saves/pokemon-soulsilver.sav?url';
-import red from '../../../../test-fixtures/save-files/pkmds-blazor/pokemon-red.sav?url';
 import x from '../../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/x/011020252224.sav?url';
 
 it('validates battery save bytes through the worker engine in each emulator directory layout', async () => {
@@ -15,7 +14,7 @@ it('validates battery save bytes through the worker engine in each emulator dire
 		['RetroArch', 'saves/mGBA/Pokemon.srm', emerald],
 		['melonDS', 'roms/Pokemon.sav', soulsilver],
 		['DraStic', 'backup/Pokemon.dsv', soulsilver],
-		['Pizza Boy A', 'saves/Pokemon.sav', red],
+		['Pizza Boy A', 'saves/Pokemon.sav', emerald],
 		['Azahar', 'sdmc/Nintendo 3DS/id0/id1/title/00040000/00055e00/data/00000001/main', x]
 	];
 	try {
