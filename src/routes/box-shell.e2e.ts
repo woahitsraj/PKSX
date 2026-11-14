@@ -8059,6 +8059,7 @@ test.describe('Owner Backups with touch', () => {
 			await expect(preview).toContainText('DIXIE');
 			await expect(preview).toContainText('5ː45ː26');
 			await expect(preview.locator('dd').last()).toHaveText('7');
+			await settleMotion(page);
 			await page.screenshot({ path: '/tmp/pksx-owner-backups-' + height + '.png' });
 			await page.keyboard.press('Escape');
 			await expect(page.locator('[data-destination-focus="saves-grid"]')).toBeFocused();
