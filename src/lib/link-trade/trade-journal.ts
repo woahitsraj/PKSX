@@ -1,30 +1,61 @@
-import type { EngineApi, LegalityReport, LinkTradeIdentity } from '$lib/engine/types';
+import type { EngineApi, LinkTradeIdentity } from '$lib/engine/types';
+import { z } from 'zod/v4';
+import { legalityReportSchema, saveSlotRefSchema } from '$lib/engine/worker-protocol';
 import type { PokemonStorageService } from '$lib/pksx/pokemon-storage-catalog/service';
-import type { TradeWorkerEvent, TradeReceipt, TradeOutcome, TradeError } from './contract';
+import {
+	tradeWorkerEventSchema,
+	tradeSessionIdSchema,
+	linkTradeGameSchema,
+	tradeOutcomeSchema,
+	tradeErrorSchema,
+	tradeReceiptSchema,
+	type TradeWorkerEvent
+} from './contract';
 import type { ReviewedLinkTrade } from './trade-setup';
 
-type SessionEvent = Extract<TradeWorkerEvent, { sessionId: string }>;
-export type TradeEntry = {
-	version: 1;
-	id: string;
-	review: ReviewedLinkTrade;
-	createdAt: string;
-	dispatched: boolean;
-	events: SessionEvent[];
-	outcome: TradeOutcome | null;
-	error: TradeError | null;
-	receipt: TradeReceipt | null;
-	outgoingIdentity: LinkTradeIdentity | null;
-	sourcePayload: Uint8Array | null;
-	partnerDigest: string | null;
-	legality: LegalityReport | null;
-	returningSession: string | null;
-	choice: 'separate' | 'link' | null;
-	payload: Uint8Array | null;
-	recordId: string | null;
-	imported: boolean;
-	importProblem: 'unparseable' | 'storage' | null;
-};
+const identitySchema = z.object({
+	pid: z.number().int(),
+	ec: z.number().int(),
+	tid: z.number().int(),
+	sid: z.number().int()
+});
+const uint8Schema = z.instanceof(Uint8Array);
+const sessionEventSchema = z.union(
+	tradeWorkerEventSchema.options.filter((schema) => 'sessionId' in schema.shape)
+);
+export const tradeEntrySchema = z.object({
+	version: z.literal(1),
+	id: tradeSessionIdSchema,
+	review: z.object({
+		game: linkTradeGameSchema,
+		source: z.object({
+			owner: z.enum(['save-file', 'pokemon-storage']),
+			collectionId: z.string().nullable(),
+			recordId: z.string().optional(),
+			slot: saveSlotRefSchema
+		}),
+		sourceSha256: z.string(),
+		outgoingSha256: z.string(),
+		outgoingBytes: uint8Schema
+	}),
+	createdAt: z.string(),
+	dispatched: z.boolean(),
+	events: z.array(sessionEventSchema),
+	outcome: tradeOutcomeSchema.nullable(),
+	error: tradeErrorSchema.nullable(),
+	receipt: tradeReceiptSchema.nullable(),
+	outgoingIdentity: identitySchema.nullable(),
+	sourcePayload: uint8Schema.nullable(),
+	partnerDigest: z.string().nullable(),
+	legality: legalityReportSchema.nullable(),
+	returningSession: z.string().nullable(),
+	choice: z.enum(['separate', 'link']).nullable(),
+	payload: uint8Schema.nullable(),
+	recordId: z.string().nullable(),
+	imported: z.boolean(),
+	importProblem: z.enum(['unparseable', 'storage']).nullable()
+});
+export type TradeEntry = z.infer<typeof tradeEntrySchema>;
 export interface TradeJournalStore {
 	list(): Promise<TradeEntry[]>;
 	put(entry: TradeEntry): Promise<void>;
@@ -55,7 +86,8 @@ export function browserTradeJournal(): TradeJournalStore {
 		}
 	}
 	return {
-		list: () => run<TradeEntry[]>('readonly', (store) => store.getAll()),
+		list: async () =>
+			z.array(tradeEntrySchema).parse(await run('readonly', (store) => store.getAll())),
 		put: async (entry) => {
 			await run('readwrite', (store) => store.put(entry));
 		}
@@ -67,7 +99,10 @@ export class TradeJournal {
 		readonly store: TradeJournalStore,
 		private readonly engine: Pick<
 			EngineApi,
-			'readLinkTradePartnerPokemon' | 'createPreservationPayload'
+			| 'readLinkTradePartnerPokemon'
+			| 'createPreservationPayload'
+			| 'readPreservationPayload'
+			| 'projectPreservationPayload'
 		>,
 		private readonly storage: PokemonStorageService,
 		private readonly lock: <T>(action: () => Promise<T>) => Promise<T> = (action) =>
@@ -103,7 +138,7 @@ export class TradeJournal {
 			const entry: TradeEntry = {
 				version: 1,
 				id: crypto.randomUUID(),
-				review: structuredClone(review),
+				review: { ...structuredClone(review), outgoingBytes: new Uint8Array(review.outgoingBytes) },
 				createdAt: new Date().toISOString(),
 				dispatched: false,
 				events: [],
@@ -112,7 +147,7 @@ export class TradeJournal {
 				receipt: null,
 				outgoingIdentity: parsed.value.identity,
 				sourcePayload: review.source.recordId
-					? await this.storage.readPayload(review.source.recordId)
+					? new Uint8Array(await this.storage.readPayload(review.source.recordId))
 					: null,
 				partnerDigest: null,
 				legality: null,
@@ -143,7 +178,11 @@ export class TradeJournal {
 		if (!('sessionId' in event)) return;
 		return this.lock(async () => {
 			const entry = await this.required(event.sessionId);
-			if (entry.outcome || event.sequence <= (entry.events.at(-1)?.sequence ?? -1)) return entry;
+			if (
+				entry.outcome ||
+				event.sequence <= (entry.events.filter((item) => 'sequence' in item).at(-1)?.sequence ?? -1)
+			)
+				return entry;
 			entry.events.push(structuredClone(event));
 			if (event.type === 'session-ended') {
 				entry.outcome = event.outcome;
@@ -153,6 +192,17 @@ export class TradeJournal {
 			await this.store.put(entry);
 			return entry;
 		});
+	}
+
+	async readOffer(id: string) {
+		const entry = await this.required(id);
+		const offer = entry.events.findLast((event) => event.type === 'trade-offer');
+		if (offer?.type !== 'trade-offer') return null;
+		const result = await this.engine.readLinkTradePartnerPokemon(
+			new Uint8Array(offer.pokemon),
+			entry.review.game
+		);
+		return result.ok ? result.value : null;
 	}
 
 	async recover() {
@@ -174,6 +224,12 @@ export class TradeJournal {
 			try {
 				await this.storage.load();
 				if (!this.storage.current) await this.storage.initialize();
+				if (choice === 'separate' && entry.choice === 'link') {
+					entry.payload = null;
+					entry.recordId = null;
+					entry.choice = 'separate';
+					await this.store.put(entry);
+				}
 				if (!entry.payload) {
 					const parsed = await this.engine.readLinkTradePartnerPokemon(
 						new Uint8Array(entry.receipt.receivedPokemon),
@@ -201,11 +257,18 @@ export class TradeJournal {
 					if (!entry.choice) return entry;
 					if (entry.choice === 'link' && match) {
 						entry.recordId = match.review.source.recordId!;
-						entry.payload = match.sourcePayload;
+						const original = await this.engine.readPreservationPayload(match.sourcePayload!);
+						if (!original.ok) throw original.error;
+						const restored = await this.engine.projectPreservationPayload(
+							match.sourcePayload!,
+							original.value.summary.originalFormat
+						);
+						if (!restored.ok) throw restored.error;
+						entry.payload = new Uint8Array(restored.value.bytes);
 					} else {
 						const payload = await this.engine.createPreservationPayload(parsed.value.entityBytes);
 						if (!payload.ok) throw payload.error;
-						entry.payload = payload.value.bytes;
+						entry.payload = new Uint8Array(payload.value.bytes);
 						entry.recordId = payload.value.summary.recordId;
 					}
 					await this.store.put(entry);
@@ -215,8 +278,14 @@ export class TradeJournal {
 				if (entry.choice === 'link') {
 					if (!record) throw new Error('Source record is unavailable.');
 					const current = await this.storage.readPayload(entry.recordId);
-					if (!equalBytes(current, entry.payload))
-						throw new Error('Source record changed. Keep it and import separately.');
+					if (!equalBytes(current, entry.payload)) {
+						const previous = entry.returningSession
+							? await this.required(entry.returningSession)
+							: null;
+						if (!previous?.sourcePayload || !equalBytes(current, previous.sourcePayload))
+							throw new Error('Source record changed. Keep it and import separately.');
+						await this.storage.replace(entry.recordId, entry.payload, record.payload.id);
+					}
 				} else if (
 					!record &&
 					!this.storage.listTombstones().some((item) => item.recordId === entry.recordId)
