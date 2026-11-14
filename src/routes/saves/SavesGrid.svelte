@@ -731,9 +731,6 @@
 					: destination === 'trainer'
 						? resolve('/trainer')
 						: resolve('/bag');
-			await goto(path, {
-				keepFocus: true
-			});
 			try {
 				await storage.recordSuccessfulOpen(current.id);
 				invalidateSavesCache();
@@ -743,6 +740,9 @@
 						getErrorMessage(error)
 				);
 			}
+			await goto(path, {
+				keepFocus: true
+			});
 		} catch (error) {
 			toastHost.error('Could not open Save File. ' + getErrorMessage(error));
 			if (menuOpen) void focusMenuCommand(menuIndex);
