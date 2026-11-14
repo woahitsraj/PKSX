@@ -1,0 +1,5 @@
+# Publish coherent Cloud Sync changes idempotently
+
+PKSX publishes each coherent Cloud Sync change through an immutable completeness descriptor after its records and raw artifacts are durable, with stable idempotency identities, resumable transfers, and recoverable publication outcomes. The provider-neutral coordinator retains causal authority, so concurrent publications survive instead of racing to replace a single provider head; conditional cleanup protects newly retained Conflict Recoveries. This costs adapter bookkeeping compared with accepting TinyBase merge events or upload completion as authority, but preserves Save File and Pokemon Storage moves across partial transfers, crashes, retries, and retention races without requiring one transaction across every storage service.
+
+The [provider adapter contract](../architecture/cloud-sync-provider-adapter-contract.md) defines the operations and verification boundaries. Accepted by the user on 2026-11-14 for [Define the Cloud Sync provider adapter contract](https://github.com/woahitsraj/PKSX/issues/363). This decision selects no provider.

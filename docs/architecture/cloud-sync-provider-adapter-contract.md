@@ -1,8 +1,8 @@
-# Cloud Sync provider adapter contract proposal
+# Cloud Sync provider adapter contract
 
 For [Define the Cloud Sync provider adapter contract](https://github.com/woahitsraj/PKSX/issues/363), on [Wayfinder: Cloud Sync for Saves](https://github.com/woahitsraj/PKSX/issues/302).
 
-Status: proposed for discussion, not an accepted contract. No provider is selected. This document does not authorize infrastructure or runtime changes.
+Status: accepted by the user on 2026-11-14. No provider is selected. This contract specifies future implementation and does not authorize infrastructure or runtime changes.
 
 ## Existing boundaries
 
@@ -10,7 +10,7 @@ Status: proposed for discussion, not an accepted contract. No provider is select
 
 The coordinator owns schema validation, digests of synchronized meaning, migration, causal reconciliation, adoption, conflict selection, and safe local application. An adapter transports opaque versioned records and artifacts. It may enforce transport integrity, authenticated ownership, size, and publication completeness without interpreting Sync Payloads or migrating them.
 
-## Recommended operations
+## Operations
 
 These are behavioral operations, not final TypeScript signatures.
 
@@ -32,7 +32,7 @@ These are behavioral operations, not final TypeScript signatures.
 
 Durable acknowledgement means the service has persisted enough to recover the result after process restart. A WebSocket send, TinyBase merge event, or artifact upload alone is not a commit receipt. A checkpoint is transport progress, never Shared Sync State or causal authority. If a checkpoint expires, complete enumeration must remain possible. Live notifications are hints to catch up.
 
-## Recommended publication semantics
+## Publication semantics
 
 Upload artifacts and records into staging, then publish one immutable commit descriptor naming the full set. Expose committed changes only after every named component is durably available. Raw TinyBase arrivals may be staged; the coordinator must not present them as a complete accepted change. A physical transaction across every storage service is unnecessary if the descriptor supplies the same all-or-nothing observable result.
 
@@ -40,7 +40,7 @@ Concurrent publications from the same parent must both survive. Do not compare-a
 
 Concurrent Conflict Resolutions are valid competing publications. The coordinator, rather than the adapter, decides whether an incoming change advances Shared Sync State. Local acknowledgement follows successful durable local application, not the remote commit receipt alone.
 
-Retention needs a stronger guard than publication: cleanup must not delete content that became a competing head or Conflict Recovery after it was selected for pruning. Use a conditional storage generation or equivalent serialized operation that atomically checks pins and removes only eligible content. If the provider cannot supply that guarantee, it does not meet this proposal. Preserve Sync Ancestry Records and Deletion Markers under the existing policy. Staged incomplete data may expire after 30 days without progress, and the origin can re-upload it with the same identity.
+Retention needs a stronger guard than publication: cleanup must not delete content that became a competing head or Conflict Recovery after it was selected for pruning. Use a conditional storage generation or equivalent serialized operation that atomically checks pins and removes only eligible content. If the provider cannot supply that guarantee, it does not meet this contract. Preserve Sync Ancestry Records and Deletion Markers under the existing policy. Staged incomplete data may expire after 30 days without progress, and the origin can re-upload it with the same identity.
 
 ## Authentication and isolation
 
@@ -79,12 +79,12 @@ Use a credential-free fake adapter for coordinator tests and an isolated provide
 - Revocation bounds apply to an already-open socket and an already-issued artifact grant.
 - Account deletion retries across storage failures and cannot report success with residual accessible data.
 
-These are proposed acceptance boundaries, not tests claimed to have passed.
+These are implementation acceptance boundaries, not tests claimed to have passed.
 
-## Approval needed and dependency
+## Dependencies and remaining decisions
 
-Accept an append-only publication contract with one durable completeness descriptor for each coherent change, idempotent retry and outcome lookup, and conditional retention guards, while the coordinator keeps causal authority?
+The accepted boundary is recorded in [CONTEXT.md](../../CONTEXT.md) and [ADR 0020](../adr/0020-publish-coherent-cloud-sync-changes-idempotently.md). The focused PR closes this contract issue when merged.
 
-After approval, record the boundary in `CONTEXT.md` and an ADR, then close this issue through its focused PR. Only then progress [Select the Cloud Sync provider](https://github.com/woahitsraj/PKSX/issues/414). The existing [authentication and storage research](../research/cloud-sync-auth-and-tinybase-options.md) puts Cloudflare plus Better Auth first, but does not prove this proposed contract or approve its operational burden. Recheck primary documentation against the accepted contract before proposing the provider ADR. Do not infer permission to operate identity/email delivery, select a paid plan, purchase services, or change accounts.
+Progress [Select the Cloud Sync provider](https://github.com/woahitsraj/PKSX/issues/414) after this issue closes. The existing [authentication and storage research](../research/cloud-sync-auth-and-tinybase-options.md) puts Cloudflare plus Better Auth first, but does not prove this contract or approve its operational burden. Recheck primary documentation against this contract before proposing the provider ADR. Contract approval does not select a provider, approve a paid plan, or authorize purchases or account changes.
 
-The implementation breakdown waits for the complete specification, including the map's outstanding settings, quota ownership/payment, and space-view decisions. No implementation issues are declared ready by this proposal.
+The implementation breakdown waits for the complete specification, including the map's outstanding settings, quota ownership/payment, and space-view decisions. No implementation issues are declared ready by this contract.

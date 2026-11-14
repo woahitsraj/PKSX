@@ -432,6 +432,14 @@ _Avoid_: setting, option, config
 - A validated **Sync Migration** preserves synchronized meaning; its descendant advances clean **Shared Sync State** automatically, while independently migrated competing heads remain in conflict.
 - When an older client edit and a **Sync Migration** share the same parent, PKSX may migrate the edit into a descendant of both heads only if it proves that the other head changed representation but not synchronized meaning; otherwise the heads remain in conflict.
 - Sync Provider adapters store and transport versioned records but never interpret, migrate, or downgrade them.
+- A Sync Provider adapter publishes each coherent multi-object change through one immutable completeness descriptor only after all referenced records and artifacts are durably available; a transport send or merge event is not a commit receipt.
+- Publication has a stable idempotency identity and recoverable outcome; repeating the same publication returns the same result, while different bytes at that identity cannot overwrite it.
+- Concurrent publications preserve every distinct **Sync Revision**; provider conditional writes never select a winning causal head.
+- Artifact transfers resume from durable chunks and expose complete bytes only after integrity verification; committed-change enumeration can recover without omissions after reconnect or checkpoint expiry.
+- Content cleanup conditionally checks current retention references before removal, so a concurrent competing head or **Conflict Recovery** cannot lose its content.
+- A Sync Provider adapter authorizes every record, artifact, enumeration, and transport operation within the authenticated **User Account**'s **Sync Profile**; supplied identities alone never grant ownership.
+- **Sync Quota** admission preserves coherent publication and leaves **Deletion Markers** and cleanup bookkeeping writable when user-content capacity is full.
+- Revocation bounds apply to existing transport connections and artifact grants as well as new requests; account deletion reports completion only after its identity and synchronized data are erased.
 - An embedded artifact format that PKSX cannot read makes its **Sync Revision** unsupported; **Sync Migration** never converts that artifact lossily.
 - **Sync Migration** validates its source, completes every forward step, validates and digests the result, and publishes only the complete result.
 - Unknown versions are unsupported, recognized data that fails schema or digest validation is an **Invalid Sync Revision**, and a migrator failure is an internal sync error.
