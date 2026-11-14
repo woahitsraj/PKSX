@@ -53,6 +53,8 @@ public static partial class PkhexEngineExports
         var field = projection.Fields.Find(f => f.Key == edit.Field);
         if (field is null || edit.Value is not long value || value < field.Min || value > field.Max || edit.Seen is not null || edit.Caught is not null)
             return SlotMutationResult.Fail("invalid-save-file-edit", "Choose a supported Pokedex field and a value in its range.");
+        if (value == field.Value)
+            return SlotMutationResult.Success(false);
         switch (save, field.Key)
         {
             case (SAV2 s2, "unown-first"): s2.UnownFirstSeen = (int)value; break;
