@@ -1732,6 +1732,14 @@ public static partial class PkhexEngineExports
 
         pokemon.Species = speciesId;
         pokemon.Form = form;
+        if (pokemon is IFormArgument argument)
+        {
+            argument.FormArgument = 0;
+            argument.FormArgumentRemain = argument.FormArgumentElapsed = argument.FormArgumentMaximum = 0;
+            var analysis = new LegalityAnalysis(pokemon);
+            pokemon.SetSuggestedFormArgument(
+                speciesId, form, pokemon.Context, analysis.Info.EvoChainsAllGens, analysis.EncounterMatch.Species);
+        }
         pokemon.RefreshAbility(Math.Min(abilityIndex, Math.Max(0, pokemon.PersonalInfo.AbilityCount - 1)));
         pokemon.Gender = pokemon.GetSaneGender();
         // Re-anchor experience so a growth-rate change keeps the pre-edit level.
