@@ -35,6 +35,11 @@ vi.mock('$lib/pksx/saves-cache', async () => {
 	const storage = new IndexedDbSavesStorage({ databaseName: state.database });
 	return {
 		getSavesStorage: () => storage,
+		getSavesSnapshot: async () => ({
+			activeSaveFileId: await storage.getActiveSaveFileId(),
+			saveFiles: await storage.listSaves(),
+			detailsBySaveFileId: {}
+		}),
 		getPkhexEngine: createMockEngine,
 		invalidateSavesCache: () => {}
 	};

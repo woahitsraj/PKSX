@@ -177,3 +177,7 @@ not emulate those apps or verify platform-specific save containers.
 Folder preferences also retain the first link in the legacy single-folder fields.
 A rollback can read that link; the multi-folder array is authoritative in this build.
 Unlink updates both representations and retains imported Saves.
+
+Unknown document sizes remain candidates and are bounded by the native reader.
+Background imports reload and publish the Saves snapshot, preserving the mounted
+grid selection and focus when returning from an emulator.

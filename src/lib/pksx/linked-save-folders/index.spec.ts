@@ -187,3 +187,28 @@ describe('linked save folders', () => {
 		expect(await storage.listSaves()).toEqual([]);
 	});
 });
+
+it('reads and validates unknown-size candidates while rejecting known empty and oversized files', async () => {
+	const plugin = pluginFixture();
+	plugin.list = vi.fn(async () => ({
+		entries: [
+			{ id: 'unknown', name: 'unknown.sav', directory: false, size: null },
+			{ id: 'empty', name: 'empty.sav', directory: false, size: 0 },
+			{ id: 'large', name: 'large.sav', directory: false, size: 17 * 1024 * 1024 }
+		],
+		truncated: false
+	}));
+	const found: DiscoveredSave[] = [];
+	await scanFolder({
+		plugin,
+		folder,
+		engine: createMockEngine(),
+		storage: storageFixture().storage,
+		signal: new AbortController().signal,
+		onSave: (save) => {
+			found.push(save);
+		},
+		onProgress: () => {}
+	});
+	expect(found.map((save) => save.name)).toEqual(['unknown.sav']);
+});

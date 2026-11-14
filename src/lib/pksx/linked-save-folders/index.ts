@@ -4,7 +4,7 @@ import type { SavesStorage } from '$lib/pksx/saves';
 import { folderProfile, skipFolder } from './profiles';
 
 export type FolderLink = { tree: string; name: string };
-export type FolderEntry = { id: string; name: string; directory: boolean; size: number };
+export type FolderEntry = { id: string; name: string; directory: boolean; size: number | null };
 export type DiscoveredSave = {
 	id: string;
 	name: string;
@@ -99,7 +99,12 @@ export async function scanFolder(options: {
 				queue.push({ id: entry.id, path: path + '/', depth: folder.depth + 1 });
 				continue;
 			}
-			if (!candidateFile(entry.name) || entry.size === 0 || entry.size > 16 * 1024 * 1024) continue;
+			if (
+				!candidateFile(entry.name) ||
+				entry.size === 0 ||
+				(entry.size !== null && entry.size > 16 * 1024 * 1024)
+			)
+				continue;
 			let recognized: DiscoveredSave;
 			let bytes: Uint8Array;
 			try {

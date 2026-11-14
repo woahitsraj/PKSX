@@ -150,7 +150,7 @@ public class SaveFoldersPlugin extends Plugin {
                         if (entries.length() >= 2000) { truncated = true; break; }
                         entries.put(new JSObject().put("id", cursor.getString(0)).put("name", cursor.getString(1))
                             .put("directory", DocumentsContract.Document.MIME_TYPE_DIR.equals(cursor.getString(2)))
-                            .put("size", cursor.getLong(3)));
+                            .put("size", cursor.isNull(3) ? JSONObject.NULL : cursor.getLong(3)));
                     }
                 }
                 call.resolve(new JSObject().put("entries", entries).put("truncated", truncated));

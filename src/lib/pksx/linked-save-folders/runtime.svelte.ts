@@ -1,5 +1,10 @@
 import { SvelteSet } from 'svelte/reactivity';
-import { getPkhexEngine, getSavesStorage, invalidateSavesCache } from '$lib/pksx/saves-cache';
+import {
+	getPkhexEngine,
+	getSavesStorage,
+	getSavesSnapshot,
+	invalidateSavesCache
+} from '$lib/pksx/saves-cache';
 import {
 	saveFolders,
 	supportsSaveFolders,
@@ -108,6 +113,7 @@ export class LinkedSaveDiscovery {
 							added++;
 							invalidateSavesCache();
 						}
+						await getSavesSnapshot();
 						this.saves = [
 							...this.saves.filter((item) => item.identity !== save.identity),
 							{ ...save, imported: true }
