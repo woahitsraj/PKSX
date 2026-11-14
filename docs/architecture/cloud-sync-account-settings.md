@@ -24,7 +24,7 @@ Cloud usage may lag a user action or an offline Installation's pending work. Pre
 
 ## Navigation and confirmations
 
-Follow ADRs 0012 and 0014: one Menu or Takeover at a time, destructive confirmations inline, durable status in its owning view, and transient feedback only for user actions. Back from a confirmation cancels it; Back from a storage detail returns through the workflow; leaving the Takeover returns Controller Focus to its launcher. Back never signs out, deletes data, or silently accepts Sync Adoption.
+Follow [Draw durable state in place](../adr/0012-draw-durable-state-in-place.md) and [Present summoned surfaces as menus and takeovers](../adr/0014-present-summoned-surfaces-as-menus-and-takeovers.md): one Menu or Takeover at a time, destructive confirmations inline, durable status in its owning view, and transient feedback only for user actions. Back from a confirmation cancels it; Back from a storage detail returns through the workflow; leaving the Takeover returns Controller Focus to its launcher. Back never signs out, deletes data, or silently accepts Sync Adoption.
 
 Opening settings does not replace active local content with incoming revisions or erase staged edits. Unrelated local work and Export remain available when the workflow closes. Offline actions explain which remote result cannot be completed yet without inventing an automatic retry warning.
 
