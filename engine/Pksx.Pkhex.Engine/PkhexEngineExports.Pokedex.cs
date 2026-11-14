@@ -4,7 +4,7 @@ namespace Pksx.Pkhex.Engine;
 
 public sealed record PokedexSpecies(int Id, string Name, bool Seen, bool Caught);
 public sealed record PokedexField(string Key, string Label, long Value, long Min, long Max);
-public sealed record PokedexEdit(int? Species, bool? Seen, bool? Caught, string? Field, long? Value);
+public sealed record PokedexEdit(string Kind, int? Species, bool? Seen, bool? Caught, string? Field, long? Value);
 public sealed record PokedexProjection(string Status, string? Reason, List<PokedexSpecies> Species, List<PokedexField> Fields)
 {
     public static PokedexProjection From(SaveFile save)
@@ -38,9 +38,9 @@ public static partial class PkhexEngineExports
         var projection = PokedexProjection.From(save);
         if (projection.Status != "available")
             return SlotMutationResult.Fail("unsupported-save-file-edit", projection.Reason!);
-        if (edit.Species is int id)
+        if (edit.Kind is "seen" or "caught")
         {
-            if (id < 1 || id > save.MaxSpeciesID || edit.Field is not null || edit.Value is not null || (edit.Seen is null && edit.Caught is null))
+            if (edit.Species is not int id || id < 1 || id > save.MaxSpeciesID || edit.Field is not null || edit.Value is not null || (edit.Kind == "seen" && (edit.Seen is null || edit.Caught is not null)) || (edit.Kind == "caught" && (edit.Caught is null || edit.Seen is not null)))
                 return SlotMutationResult.Fail("invalid-save-file-edit", "Choose a supported Pokedex species and flag.");
             var species = (ushort)id;
             var beforeSeen = save.GetSeen(species);
@@ -51,7 +51,7 @@ public static partial class PkhexEngineExports
             return SlotMutationResult.Success(beforeSeen != save.GetSeen(species) || beforeCaught != save.GetCaught(species));
         }
         var field = projection.Fields.Find(f => f.Key == edit.Field);
-        if (field is null || edit.Value is not long value || value < field.Min || value > field.Max || edit.Seen is not null || edit.Caught is not null)
+        if (edit.Kind != "field" || edit.Species is not null || field is null || edit.Value is not long value || value < field.Min || value > field.Max || edit.Seen is not null || edit.Caught is not null)
             return SlotMutationResult.Fail("invalid-save-file-edit", "Choose a supported Pokedex field and a value in its range.");
         if (value == field.Value)
             return SlotMutationResult.Success(false);

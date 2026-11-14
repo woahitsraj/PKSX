@@ -120,15 +120,13 @@
 					? 'Edit the active Save File Bag.'
 					: 'No active Save File. Open Bag to see how to continue.'
 			},
-			...(hasActiveSaveFile
-				? [
-						{
-							key: 'pokedex' as const,
-							label: 'Pokedex',
-							description: pokedexReason ?? 'Search and edit the active Save File Pokedex.'
-						}
-					]
-				: []),
+			{
+				key: 'pokedex',
+				label: 'Pokedex',
+				description: hasActiveSaveFile
+					? (pokedexReason ?? 'Search and edit the active Save File Pokedex.')
+					: 'No active Save File. Open Pokedex to see how to continue.'
+			},
 			{ key: 'saves', label: 'Saves', description: 'Import and choose Save Files.' },
 			{ key: 'settings', label: 'Settings', description: 'Theme, controls, and build details.' },
 			{
