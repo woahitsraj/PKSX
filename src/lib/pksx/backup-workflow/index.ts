@@ -274,3 +274,21 @@ async function persistWorkspace(storage: SavesStorage, state: WorkspaceState) {
 		automaticBackupCreated: state.automaticBackupCreated
 	});
 }
+
+export async function inspectBackup(input: {
+	storage: SavesStorage;
+	engine: EngineApi;
+	owner: StoredSaveFile;
+	backup: BackupMetadata;
+}) {
+	const owner = await requireSaveFileOwner(input.storage, input.owner);
+	await requireBackupOwner(input.storage, owner, input.backup);
+	const bytes = await input.storage.getBackupBytes(input.backup.id);
+	if (!bytes) throw new Error('The selected Backup bytes are missing.');
+	const result = await input.engine.summarizeSaveCard(
+		copyBytes(bytes),
+		owner.originalFileName ?? undefined
+	);
+	if (!result.ok) throw new Error(result.error.message);
+	return result.value;
+}
