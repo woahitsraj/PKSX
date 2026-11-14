@@ -7923,7 +7923,7 @@ test('Saves menu activates its Save File before opening Trainer or Bag', async (
 	const alphaCard = page.locator('.save-card').filter({ hasText: 'alpha.sav' });
 	const alphaTarget = await alphaCard.getAttribute('id');
 	await grid.focus();
-	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('ArrowLeft');
 	await expect(grid).toHaveAttribute('aria-activedescendant', alphaTarget!);
 	await page.keyboard.press('x');
 	let menu = page.getByRole('dialog', { name: 'Save File Menu' });

@@ -32,6 +32,21 @@ describe('IndexedDbSavesStorage', () => {
 		await deleteIndexedDbSaves(databaseName);
 	});
 
+	it('keeps open history separate from import, activation and metadata changes', async () => {
+		const file = await storage.importSave({
+			bytes: new Uint8Array([1]),
+			originalFileName: 'history.sav'
+		});
+		await storage.setActiveSaveFileId(file.id);
+		await storage.renameSave(file.id, 'History');
+		expect((await storage.getSave(file.id))?.lastOpenedAt).toBeUndefined();
+		const opened = await storage.recordSuccessfulOpen(file.id);
+		const restarted = new IndexedDbSavesStorage({ databaseName });
+		expect(opened.lastOpenedAt).toBeDefined();
+		expect((await restarted.getSave(file.id))?.lastOpenedAt).toBe(opened.lastOpenedAt);
+		expect(await restarted.getSaveBytes(file.id)).toEqual(new Uint8Array([1]));
+	});
+
 	it('renames legacy metadata and resets without touching artifacts across restart', async () => {
 		const bytes = new Uint8Array([1, 2, 3]);
 		const file = await storage.importSave({ bytes, originalFileName: 'original.sav' });

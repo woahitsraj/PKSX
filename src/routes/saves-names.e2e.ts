@@ -48,6 +48,73 @@ for (const height of [336, 720]) {
 	});
 }
 
+for (const height of [336, 720]) {
+	test(`search, sort and successful-open history survive reload at height ${height}`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width: 960, height });
+		await page.goto('/');
+		await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+			'data-initial-state',
+			'ready'
+		);
+		await page
+			.locator('#save-file-input')
+			.setInputFiles(
+				path.resolve(
+					'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
+				)
+			);
+		const open = page.getByRole('button', {
+			name: 'Open emerald-011020251345.sav in Boxes',
+			exact: true
+		});
+		await expect(open).toBeVisible();
+		const search = page.getByRole('searchbox', { name: 'Search Saves' });
+		for (const query of ['EMERALD', 'dIxIe', '011020251345']) {
+			await search.fill(query);
+			await expect(open).toBeVisible();
+		}
+		const grid = page.getByRole('grid', { name: 'Saves collections' });
+		const before = await grid.getAttribute('aria-activedescendant');
+		await page.getByRole('button', { name: 'Sort: Alphabetical', exact: true }).click();
+		await expect(grid).toHaveAttribute('aria-activedescendant', before!);
+		await search.fill('nothing-matches');
+		await expect(
+			page.getByText('No Save Files match your search.', { exact: false })
+		).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: 'Import a Save File', exact: true })
+		).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Open Pokemon Storage in Boxes' })).toBeVisible();
+		await page.getByRole('button', { name: 'Clear search', exact: true }).click();
+		await expect(open).toBeVisible();
+		await open.click();
+		await expect(page.locator('[data-destination-root="boxes"]')).toBeVisible();
+		await page.goto('/saves');
+		await expect(
+			page.getByRole('button', { name: 'Sort: Recently opened', exact: true })
+		).toBeVisible();
+		await page.reload();
+		await expect(
+			page.getByRole('button', { name: 'Sort: Recently opened', exact: true })
+		).toBeVisible();
+		const history = await page.evaluate(async () => {
+			const database = await new Promise<IDBDatabase>((resolve) => {
+				const request = indexedDB.open('pksx-saves');
+				request.onsuccess = () => resolve(request.result);
+			});
+			const records = await new Promise<Array<{ lastOpenedAt?: string }>>((resolve) => {
+				const request = database.transaction('saveFiles').objectStore('saveFiles').getAll();
+				request.onsuccess = () => resolve(request.result);
+			});
+			database.close();
+			return records[0]?.lastOpenedAt;
+		});
+		expect(history).toBeTruthy();
+	});
+}
+
 test('renaming an active save preserves the cached box projection identity', async ({ page }) => {
 	await page.goto('/');
 	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
