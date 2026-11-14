@@ -1,9 +1,20 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import path from 'node:path';
 
 const fixture = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
 );
+
+async function pressController(page: Page, key: string) {
+	await page.evaluate(async (key) => {
+		const detail = { key, pressed: true, discrete: true, id: 'Test controller' };
+		window.dispatchEvent(new CustomEvent('pksxcontroller', { detail }));
+		await new Promise(requestAnimationFrame);
+		window.dispatchEvent(
+			new CustomEvent('pksxcontroller', { detail: { ...detail, pressed: false } })
+		);
+	}, key);
+}
 
 test.use({ hasTouch: true });
 
@@ -33,14 +44,7 @@ for (const viewport of [
 				'ready',
 				{ timeout: 60_000 }
 			);
-			await page.evaluate(async () => {
-				const detail = { key: 'Select', pressed: true, discrete: true, id: 'Test controller' };
-				window.dispatchEvent(new CustomEvent('pksxcontroller', { detail }));
-				await new Promise(requestAnimationFrame);
-				window.dispatchEvent(
-					new CustomEvent('pksxcontroller', { detail: { ...detail, pressed: false } })
-				);
-			});
+			await pressController(page, 'Select');
 			const actions = page.getByRole('group', { name: 'Selection actions' });
 			await expect(actions).toContainText('0 selected');
 			const pokemon = page.locator('.box-pane .slot.pokemon').first();
@@ -56,16 +60,13 @@ for (const viewport of [
 			await actions.getByRole('button', { name: 'Select box', exact: true }).tap();
 			const occupied = await page.locator('.box-pane .slot.pokemon').count();
 			await expect(page.locator('[data-batch-selected="true"]')).toHaveCount(occupied);
-			await actions.getByRole('button', { name: 'Clear selection' }).tap();
+			await pressController(page, 'y');
+			await expect(actions.locator('button:focus')).toHaveCount(1);
+			await actions.getByRole('button', { name: 'Clear selection' }).focus();
+			await pressController(page, 'Enter');
 			await expect(actions).toContainText('0 selected');
 			await pokemon.focus();
-			await page.evaluate(() =>
-				window.dispatchEvent(
-					new CustomEvent('pksxcontroller', {
-						detail: { key: 'Enter', pressed: true, discrete: true, id: 'Test controller' }
-					})
-				)
-			);
+			await pressController(page, 'Enter');
 			await expect(actions).toContainText('1 selected');
 			await page.keyboard.press('Escape');
 			await expect(actions).toHaveCount(0);
