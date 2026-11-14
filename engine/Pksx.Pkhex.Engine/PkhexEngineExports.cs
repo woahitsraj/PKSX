@@ -1774,12 +1774,16 @@ public static partial class PkhexEngineExports
                 "invalid-pokemon-edit",
                 $"Trainer ID must be between {constraints.MinTrainerId} and {constraints.MaxTrainerId}.");
         if (edit.SecretId is int secretId &&
-            (!constraints.SupportsSecretId || secretId < constraints.MinTrainerId || secretId > constraints.MaxTrainerId))
+            (!constraints.SupportsSecretId || secretId < constraints.MinTrainerId || secretId > constraints.MaxSecretId))
             return SlotMutationResult.Fail(
                 constraints.SupportsSecretId ? "invalid-pokemon-edit" : "unsupported-pokemon-edit",
                 constraints.SupportsSecretId
-                    ? $"Secret ID must be between {constraints.MinTrainerId} and {constraints.MaxTrainerId}."
+                    ? $"Secret ID must be between {constraints.MinTrainerId} and {constraints.MaxSecretId}."
                     : "Secret ID editing is not supported for this Pokemon.");
+        var nextSid = (uint)(edit.SecretId ?? constraints.CurrentSecretId);
+        if (pokemon.TrainerIDDisplayFormat == TrainerIDFormat.SixDigit &&
+            ((ulong)nextSid * 1_000_000) + (uint)edit.TrainerId > uint.MaxValue)
+            return SlotMutationResult.Fail("invalid-pokemon-edit", "Trainer ID and Secret ID exceed the 32-bit Trainer ID range.");
         if (edit.GenderId is int genderId &&
             (!constraints.SupportsGender || constraints.Genders.All(option => option.Id != genderId)))
             return SlotMutationResult.Fail(
@@ -1812,9 +1816,7 @@ public static partial class PkhexEngineExports
                 "invalid-pokemon-edit",
                 "Original Trainer name contains characters that are not valid for this Pokemon format or language.");
 
-        pokemon.TID16 = (ushort)edit.TrainerId;
-        if (edit.SecretId is int nextSecretId)
-            pokemon.SID16 = (ushort)nextSecretId;
+        pokemon.SetDisplayID((uint)edit.TrainerId, nextSid);
         if (edit.GenderId is int nextGender)
             pokemon.OriginalTrainerGender = (byte)nextGender;
 

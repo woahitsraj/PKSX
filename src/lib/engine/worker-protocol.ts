@@ -303,6 +303,7 @@ export const pokemonOriginalTrainerEditConstraintsSchema = z.object({
 	maxNameLength: z.number().int().default(0),
 	minTrainerId: z.number().int().default(0),
 	maxTrainerId: z.number().int().default(65535),
+	maxSecretId: z.number().int().default(65535),
 	supportsSecretId: z.boolean().default(false),
 	supportsGender: z.boolean().default(false),
 	supportsLanguage: z.boolean().default(false),

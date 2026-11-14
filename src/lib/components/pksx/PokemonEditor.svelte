@@ -864,7 +864,7 @@
 			constraints.supportsSecretId &&
 			(!Number.isInteger(secretId) ||
 				secretId < constraints.minTrainerId ||
-				secretId > constraints.maxTrainerId)
+				secretId > constraints.maxSecretId)
 		) {
 			return 'pokemon-editor-secret-id';
 		}
@@ -1457,7 +1457,6 @@
 						id={`pokemon-editor-section-${section.id}`}
 						type="button"
 						data-pksx-control-category="small"
-						class:active={session.section === section.id}
 						aria-current={session.section === section.id ? 'page' : undefined}
 						data-editor-rail-section={section.id}
 						onclick={() => onSelectSection(section.id)}
@@ -1563,7 +1562,7 @@
 										{:else}
 											<select
 												id="pokemon-editor-form"
-												class:staged-field={draftForm !== (slot.form ?? 0)}
+												class={{ 'staged-field': draftForm !== (slot.form ?? 0) }}
 												value={draftForm}
 												disabled={applying || speciesFormLoading}
 												onchange={(event) => setDraftForm(event.currentTarget.value)}
@@ -1581,7 +1580,7 @@
 									{:else}
 										<strong>{speciesFormPreview.speciesName} · {speciesFormPreview.formName}</strong
 										>
-										<span class:illegal={!speciesFormPreview.legal}
+										<span class={{ illegal: !speciesFormPreview.legal }}
 											>{speciesFormPreview.legal
 												? 'Legal preview'
 												: 'Legality issues expected'}</span
@@ -1647,7 +1646,7 @@
 											{:else}
 												<select
 													id={`pokemon-editor-battle-field-${field.key}`}
-													class:staged-field={draftBattleFields[field.key] !== field.value}
+													class={{ 'staged-field': draftBattleFields[field.key] !== field.value }}
 													aria-invalid={isControlInvalid(
 														`pokemon-editor-battle-field-${field.key}`
 													)}
@@ -1686,7 +1685,7 @@
 								<input
 									id="pokemon-editor-nickname"
 									aria-label="Nickname"
-									class:staged-field={isEditDirty('nickname')}
+									class={{ 'staged-field': isEditDirty('nickname') }}
 									aria-invalid={isControlInvalid('pokemon-editor-nickname')}
 									type="text"
 									value={draftNickname}
@@ -1823,7 +1822,7 @@
 									<span>Ability choice</span>
 									<select
 										id="pokemon-editor-ability"
-										class:staged-field={isEditDirty('ability')}
+										class={{ 'staged-field': isEditDirty('ability') }}
 										aria-invalid={isControlInvalid('pokemon-editor-ability')}
 										aria-describedby={isControlInvalid('pokemon-editor-ability')
 											? 'pokemon-editor-status'
@@ -1890,8 +1889,10 @@
 										<span>Met level</span>
 										<input
 											id="pokemon-editor-met-level"
-											class:staged-field={draftMetLevel !==
-												String(metDataEditConstraints?.currentMetLevel ?? 0)}
+											class={{
+												'staged-field':
+													draftMetLevel !== String(metDataEditConstraints?.currentMetLevel ?? 0)
+											}}
 											aria-invalid={isControlInvalid('pokemon-editor-met-level')}
 											aria-describedby={isControlInvalid('pokemon-editor-met-level')
 												? 'pokemon-editor-status'
@@ -1963,8 +1964,10 @@
 											<span>Met date</span>
 											<input
 												id="pokemon-editor-met-date"
-												class:staged-field={draftMetDate !==
-													(metDataEditConstraints.currentMetDate ?? '')}
+												class={{
+													'staged-field':
+														draftMetDate !== (metDataEditConstraints.currentMetDate ?? '')
+												}}
 												aria-invalid={isControlInvalid('pokemon-editor-met-date')}
 												aria-describedby={isControlInvalid('pokemon-editor-met-date')
 													? 'pokemon-editor-status'
@@ -2009,8 +2012,10 @@
 										<span>Name</span>
 										<input
 											id="pokemon-editor-original-trainer-name"
-											class:staged-field={draftOriginalTrainerName !==
-												originalTrainerEditConstraints.currentName}
+											class={{
+												'staged-field':
+													draftOriginalTrainerName !== originalTrainerEditConstraints.currentName
+											}}
 											aria-invalid={isControlInvalid('pokemon-editor-original-trainer-name')}
 											aria-describedby={isControlInvalid('pokemon-editor-original-trainer-name')
 												? 'pokemon-editor-status'
@@ -2041,8 +2046,10 @@
 										<span>Trainer ID</span>
 										<input
 											id="pokemon-editor-trainer-id"
-											class:staged-field={draftTrainerId !==
-												String(originalTrainerEditConstraints.currentTrainerId)}
+											class={{
+												'staged-field':
+													draftTrainerId !== String(originalTrainerEditConstraints.currentTrainerId)
+											}}
 											aria-invalid={isControlInvalid('pokemon-editor-trainer-id')}
 											aria-describedby={isControlInvalid('pokemon-editor-trainer-id')
 												? 'pokemon-editor-status'
@@ -2071,15 +2078,17 @@
 											<span>Secret ID</span>
 											<input
 												id="pokemon-editor-secret-id"
-												class:staged-field={draftSecretId !==
-													String(originalTrainerEditConstraints.currentSecretId)}
+												class={{
+													'staged-field':
+														draftSecretId !== String(originalTrainerEditConstraints.currentSecretId)
+												}}
 												aria-invalid={isControlInvalid('pokemon-editor-secret-id')}
 												aria-describedby={isControlInvalid('pokemon-editor-secret-id')
 													? 'pokemon-editor-status'
 													: undefined}
 												type="number"
 												min={originalTrainerEditConstraints.minTrainerId}
-												max={originalTrainerEditConstraints.maxTrainerId}
+												max={originalTrainerEditConstraints.maxSecretId}
 												step="1"
 												value={draftSecretId}
 												disabled={applying}
@@ -2102,8 +2111,10 @@
 											<span>Gender</span>
 											<select
 												id="pokemon-editor-trainer-gender"
-												class:staged-field={draftTrainerGenderId !==
-													originalTrainerEditConstraints.currentGenderId}
+												class={{
+													'staged-field':
+														draftTrainerGenderId !== originalTrainerEditConstraints.currentGenderId
+												}}
 												aria-invalid={isControlInvalid('pokemon-editor-trainer-gender')}
 												value={draftTrainerGenderId}
 												disabled={applying}
@@ -2191,7 +2202,7 @@
 										<span>Level</span>
 										<input
 											id="pokemon-editor-level"
-											class:staged-field={draftLevel !== String(slot.level ?? 1)}
+											class={{ 'staged-field': draftLevel !== String(slot.level ?? 1) }}
 											aria-invalid={isControlInvalid('pokemon-editor-level')}
 											aria-describedby={isControlInvalid('pokemon-editor-level')
 												? 'pokemon-editor-status'
@@ -2220,7 +2231,7 @@
 										<span>Experience</span>
 										<input
 											id="pokemon-editor-experience"
-											class:staged-field={draftExperience !== String(slot.experience ?? 0)}
+											class={{ 'staged-field': draftExperience !== String(slot.experience ?? 0) }}
 											aria-invalid={isControlInvalid('pokemon-editor-experience')}
 											aria-describedby={isControlInvalid('pokemon-editor-experience')
 												? 'pokemon-editor-status'
@@ -2265,7 +2276,9 @@
 											<span>{field.label} ({field.min}-{field.max})</span>
 											<input
 												id={`pokemon-editor-${field.key}`}
-												class:staged-field={draftFriendship[field.key] !== String(field.value)}
+												class={{
+													'staged-field': draftFriendship[field.key] !== String(field.value)
+												}}
 												aria-invalid={isControlInvalid(`pokemon-editor-${field.key}`)}
 												aria-describedby={isControlInvalid(`pokemon-editor-${field.key}`)
 													? 'pokemon-editor-status'
@@ -2318,8 +2331,10 @@
 										{@const maxPp = maxPpForMove(move)}
 										<div class="move-edit-row">
 											<div
-												class="move-picker-field"
-												class:staged-field={isMoveFieldDirty(index, 'move')}
+												class={[
+													'move-picker-field',
+													{ 'staged-field': isMoveFieldDirty(index, 'move') }
+												]}
 											>
 												<span id={`pokemon-editor-move-${index}-label`}>Move {index + 1}</span>
 												<Combobox
@@ -2344,7 +2359,7 @@
 												<span>PP</span>
 												<input
 													id={`pokemon-editor-move-${index}-pp`}
-													class:staged-field={isMoveFieldDirty(index, 'pp')}
+													class={{ 'staged-field': isMoveFieldDirty(index, 'pp') }}
 													aria-invalid={isControlInvalid(`pokemon-editor-move-${index}-pp`)}
 													aria-describedby={isControlInvalid(`pokemon-editor-move-${index}-pp`)
 														? 'pokemon-editor-status'
@@ -2376,7 +2391,7 @@
 												<span>PP Ups</span>
 												<input
 													id={`pokemon-editor-move-${index}-pp-ups`}
-													class:staged-field={isMoveFieldDirty(index, 'ppUps')}
+													class={{ 'staged-field': isMoveFieldDirty(index, 'ppUps') }}
 													aria-invalid={isControlInvalid(`pokemon-editor-move-${index}-pp-ups`)}
 													aria-describedby={isControlInvalid(`pokemon-editor-move-${index}-pp-ups`)
 														? 'pokemon-editor-status'
@@ -2463,7 +2478,7 @@
 												<span>{key} IV</span>
 												<input
 													id={`pokemon-editor-${key.toLowerCase()}-iv`}
-													class:staged-field={draftIvs[key] !== String(baseIvs[key])}
+													class={{ 'staged-field': draftIvs[key] !== String(baseIvs[key]) }}
 													aria-invalid={isControlInvalid(`pokemon-editor-${key.toLowerCase()}-iv`)}
 													aria-describedby={isControlInvalid(
 														`pokemon-editor-${key.toLowerCase()}-iv`
@@ -2501,7 +2516,7 @@
 												<span>{key} EV</span>
 												<input
 													id={`pokemon-editor-${key.toLowerCase()}-ev`}
-													class:staged-field={draftEvs[key] !== String(baseEvs[key])}
+													class={{ 'staged-field': draftEvs[key] !== String(baseEvs[key]) }}
 													aria-invalid={isControlInvalid(`pokemon-editor-${key.toLowerCase()}-ev`)}
 													aria-describedby={isControlInvalid(
 														`pokemon-editor-${key.toLowerCase()}-ev`
@@ -3312,7 +3327,7 @@
 		text-align: left;
 	}
 
-	.editor-rail button.active {
+	.editor-rail button[aria-current='page'] {
 		border-color: var(--pksx-color-accent-primary);
 		background: var(--pksx-color-accent-wash);
 		color: var(--pksx-color-text-primary);

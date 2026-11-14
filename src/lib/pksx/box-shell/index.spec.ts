@@ -68,6 +68,7 @@ const occupiedSlot: BoxSlotSummary = {
 		maxNameLength: 0,
 		minTrainerId: 0,
 		maxTrainerId: 65535,
+		maxSecretId: 65535,
 		supportsSecretId: false,
 		supportsGender: false,
 		supportsLanguage: false,
