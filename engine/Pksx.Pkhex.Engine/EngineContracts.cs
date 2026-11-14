@@ -293,6 +293,7 @@ public sealed record PokemonOriginalTrainerEditConstraints(
     int MaxNameLength,
     int MinTrainerId,
     int MaxTrainerId,
+    int MaxSecretId,
     bool SupportsSecretId,
     bool SupportsGender,
     bool SupportsLanguage,
@@ -1239,7 +1240,7 @@ internal static class SlotDetailProjection
         if (pokemon.Species == 0)
         {
             return new PokemonOriginalTrainerEditConstraints(
-                false, "", 0, 0, 0, 0, 0, 0, ushort.MaxValue, false, false, false, [], [],
+                false, "", 0, 0, 0, 0, 0, 0, ushort.MaxValue, ushort.MaxValue, false, false, false, [], [],
                 "Original Trainer Data Editing needs an occupied Slot.");
         }
 
@@ -1260,13 +1261,14 @@ internal static class SlotDetailProjection
         return new PokemonOriginalTrainerEditConstraints(
             true,
             pokemon.OriginalTrainerName,
-            pokemon.TID16,
-            pokemon.SID16,
+            (int)pokemon.GetDisplayTID(),
+            (int)pokemon.GetDisplaySID(),
             pokemon.OriginalTrainerGender,
             pokemon.Language,
             pokemon.MaxStringLengthTrainer,
             0,
-            ushort.MaxValue,
+            pokemon.TrainerIDDisplayFormat == TrainerIDFormat.SixDigit ? 999_999 : ushort.MaxValue,
+            pokemon.TrainerIDDisplayFormat == TrainerIDFormat.SixDigit ? 4_294 : ushort.MaxValue,
             supportsExtendedFields,
             supportsExtendedFields,
             supportsExtendedFields,
