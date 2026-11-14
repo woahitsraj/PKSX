@@ -18,6 +18,7 @@ import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import org.json.JSONObject;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 
@@ -31,13 +32,27 @@ public class SaveFoldersPlugin extends Plugin {
         return getContext().getSharedPreferences("linked-save-folder", 0);
     }
 
+    private JSArray folders() throws Exception {
+        String stored = preferences().getString("folders", null);
+        if (stored != null) return new JSArray(stored);
+        JSArray folders = new JSArray();
+        String legacy = preferences().getString("tree", null);
+        if (legacy != null) folders.put(new JSObject().put("tree", legacy)
+            .put("name", preferences().getString("name", "Selected folder")));
+        return folders;
+    }
+
+    private void persistFolders(JSArray folders) {
+        if (!preferences().edit().putString("folders", folders.toString())
+            .remove("tree").remove("mode").remove("name").commit()) {
+            throw new IllegalStateException("Folder links could not be saved.");
+        }
+    }
+
     @PluginMethod
     public void status(PluginCall call) {
-        JSObject result = new JSObject();
-        result.put("tree", preferences().getString("tree", null));
-        result.put("mode", preferences().getString("mode", "dolphin"));
-        result.put("name", preferences().getString("name", "Selected folder"));
-        call.resolve(result);
+        try { call.resolve(new JSObject().put("folders", folders())); }
+        catch (Exception e) { call.reject("Folder links could not be read.", e); }
     }
 
     @PluginMethod
@@ -56,16 +71,22 @@ public class SaveFoldersPlugin extends Plugin {
         }
         Uri tree = result.getData().getData();
         try {
-            getContext().getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION);
             String name = "Selected folder";
             Uri root = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
             try (Cursor cursor = getContext().getContentResolver().query(root, new String[]{"_display_name"}, null, null, null)) {
-                if (cursor != null && cursor.moveToFirst()) name = cursor.getString(0);
+                if (cursor == null || !cursor.moveToFirst()) throw new IllegalStateException("Folder is unavailable.");
+                name = cursor.getString(0);
             }
-            String previous = preferences().getString("tree", null);
-            preferences().edit().putString("tree", tree.toString()).putString("name", name).putString("mode", call.getString("mode", "dolphin")).commit();
-            if (previous != null && !previous.equals(tree.toString())) release(previous);
-            status(call);
+            getContext().getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            JSArray linked = folders();
+            boolean exists = false;
+            for (int i = 0; i < linked.length(); i++) {
+                if (linked.getJSONObject(i).getString("tree").equals(tree.toString())) exists = true;
+            }
+            JSObject folder = new JSObject().put("tree", tree.toString()).put("name", name);
+            if (!exists) linked.put(folder);
+            persistFolders(linked);
+            call.resolve(new JSObject().put("cancelled", false).put("folder", folder));
         } catch (Exception e) { call.reject("Folder access could not be retained. Choose the folder again.", e); }
     }
 
@@ -76,10 +97,18 @@ public class SaveFoldersPlugin extends Plugin {
 
     @PluginMethod
     public void unlink(PluginCall call) {
-        String tree = preferences().getString("tree", null);
-        preferences().edit().clear().commit();
-        if (tree != null) release(tree);
-        call.resolve();
+        try {
+            String tree = call.getString("tree");
+            JSArray remaining = new JSArray();
+            JSArray linked = folders();
+            for (int i = 0; i < linked.length(); i++) {
+                JSONObject folder = linked.getJSONObject(i);
+                if (!folder.getString("tree").equals(tree)) remaining.put(folder);
+            }
+            persistFolders(remaining);
+            if (tree != null) release(tree);
+            call.resolve();
+        } catch (Exception e) { call.reject("Folder could not be unlinked.", e); }
     }
 
     @PluginMethod
@@ -89,10 +118,13 @@ public class SaveFoldersPlugin extends Plugin {
         call.resolve();
     }
 
-    private Uri tree() {
-        String value = preferences().getString("tree", null);
-        if (value == null) throw new IllegalStateException("Choose a folder first.");
-        return Uri.parse(value);
+    private Uri tree(PluginCall call) throws Exception {
+        String value = call.getString("tree");
+        JSArray linked = folders();
+        for (int i = 0; i < linked.length(); i++) {
+            if (linked.getJSONObject(i).getString("tree").equals(value)) return Uri.parse(value);
+        }
+        throw new SecurityException("Choose or relink this folder first.");
     }
 
     @PluginMethod
@@ -101,7 +133,7 @@ public class SaveFoldersPlugin extends Plugin {
             CancellationSignal current = new CancellationSignal();
             signal = current;
             try {
-                Uri tree = tree();
+                Uri tree = tree(call);
                 String parent = call.getString("documentId", DocumentsContract.getTreeDocumentId(tree));
                 Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parent);
                 String[] columns = {"document_id", "_display_name", "mime_type", "_size"};
@@ -129,7 +161,7 @@ public class SaveFoldersPlugin extends Plugin {
             CancellationSignal current = new CancellationSignal();
             signal = current;
             try {
-                Uri tree = tree();
+                Uri tree = tree(call);
                 String id = call.getString("documentId");
                 if (id == null) throw new IllegalArgumentException("Missing document identity.");
                 Uri document = DocumentsContract.buildDocumentUriUsingTree(tree, id);

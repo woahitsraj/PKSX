@@ -98,6 +98,7 @@ export type StoredPokemonStoragePokemon = {
 };
 
 export type ImportSaveInput = {
+	activate?: boolean;
 	bytes: Uint8Array;
 	originalFileName?: string | null;
 	linkedDocumentId?: string;

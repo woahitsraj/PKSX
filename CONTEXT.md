@@ -412,7 +412,9 @@ _Avoid_: setting, option, config
 - A **Supported Save File** is a **Save File** that can be loaded through the **PKHeX Engine** for the current milestone.
 - For the first end-to-end slice, the Pokemon Emerald test save committed to this repository is the only required **Supported Save File**.
 - A **Save File** is accepted into **Saves** only after the **PKHeX Engine** recognizes it as a **Supported Save File**.
-- Importing the same user-controlled file more than once creates separate imported **Save Files** in **Saves**.
+- A manual import may create a separate **Save File**. Automatic discovery deduplicates linked documents by provider and document identity, not trainer values or filename.
+- A user grants each linked folder once through the platform picker. Linked folder permissions belong to this installation and are not Cloud Sync data.
+- Automatic discovery adds recognized new linked documents to **Saves** without changing the active **Save File**, **Workspace**, navigation, or **Controller Focus**.
 - A **Party** contains one or more **Slots**.
 - A **Box** contains zero or more **Slots**.
 - A **Box** always has a number and may also have a **Box Name**.
