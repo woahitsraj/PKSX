@@ -1,6 +1,7 @@
 import type { BoxSourceType } from '$lib/pksx/storage-workbench';
 
 export type BoxMenuCommandKey =
+	| 'select'
 	| 'export'
 	| 'save-backup'
 	| 'legality-report'
@@ -62,6 +63,7 @@ export function createBoxMenuCommands(input: {
 		input.paneCount <= 1
 			? unavailable('close', 'Close', 'Keep at least one collection open.')
 			: available('close', 'Close'),
+		available('select', 'Select Pokemon'),
 		...(storage
 			? [
 					input.undoAvailable
