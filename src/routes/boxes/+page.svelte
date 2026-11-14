@@ -1,4 +1,12 @@
 <script lang="ts">
+	import StorageBatch from '$lib/components/pksx/StorageBatch.svelte';
+	import {
+		previewSaveStorageBatch,
+		BatchCommitUncertainError,
+		applySaveStorageBatch,
+		type SaveStorageBatch
+	} from '$lib/pksx/save-storage-batch';
+
 	import { dev } from '$app/environment';
 	import { asset } from '$app/paths';
 	import { goto } from '$app/navigation';
@@ -2413,6 +2421,64 @@
 		}
 	}
 
+	let batchMode = $state<'copy' | 'move'>('copy');
+	function openStorageBatch(mode: 'copy' | 'move') {
+		if (!selection?.slots.length || selection.source.type !== 'save-file' || busy) return;
+		batchMode = mode;
+		if (summonedWorkflow.open('storage-batch', controlLauncher(`batch-${mode}`)))
+			queueMicrotask(() => document.querySelector<HTMLButtonElement>('.batch button')?.focus());
+	}
+	function closeStorageBatch() {
+		if (busy) return;
+		summonedWorkflow.dismiss();
+		queueMicrotask(() => document.getElementById(`batch-${batchMode}`)?.focus());
+	}
+	async function previewSelectedStorageBatch(startingBoxId: string) {
+		const state = saveWorkspaceForPane(activePane)?.state;
+		if (
+			!selection ||
+			!state ||
+			!engine ||
+			!selection.bytes ||
+			!bytesEqual(state.bytes, selection.bytes)
+		)
+			throw new Error('Selection changed. Select Pokemon again.');
+		return previewSaveStorageBatch({
+			state,
+			sources: selection.slots,
+			mode: batchMode,
+			startingBoxId,
+			engine,
+			catalog: getPokemonStorageCatalog()
+		});
+	}
+	async function applySelectedStorageBatch(batch: SaveStorageBatch) {
+		const state = saveWorkspaceForPane(activePane)?.state;
+		if (!selection || !state || !bytesEqual(state.bytes, batch.state.bytes))
+			throw new Error('Selection changed. Preview again.');
+		busy = true;
+		try {
+			const next = await applySaveStorageBatch(batch, storage, getPokemonStorageCatalog());
+			selection = null;
+			summonedWorkflow.dismiss();
+			if (loadedSave?.file.id === next.file.id) {
+				loadedSave = next;
+				setCachedActiveWorkspace(next, next.workspace.boxSlots[0]?.box ?? activePaneBox);
+			}
+			installMutatedSaveProjection(next, next.workspace.boxSlots[0]?.box ?? activePaneBox);
+			invalidateSavesCache();
+			await refreshCommittedCatalogView();
+			toastHost.success(
+				`${batch.mode === 'copy' ? 'Copied' : 'Moved'} ${batch.labels.length} Pokemon to Storage.`
+			);
+		} catch (error) {
+			if (error instanceof BatchCommitUncertainError) window.location.reload();
+			throw error;
+		} finally {
+			busy = false;
+		}
+	}
+
 	function beginSelection(pane: BoxPaneState | undefined = activePane) {
 		if (!pane || busy || pendingSlotOperation || virtualCarry || virtualPaneIds.includes(pane.id))
 			return;
@@ -2454,6 +2520,7 @@
 	}
 
 	function handleAppKeydown(event: KeyboardEvent) {
+		if (activeSummonedWorkflow?.kind === 'storage-batch') return;
 		if (
 			activeSummonedWorkflow?.kind === 'backup-browser' ||
 			activeSummonedWorkflow?.kind === 'quick-search'
@@ -7945,6 +8012,20 @@
 		>
 			<strong aria-live="polite">{selection.slots.length} selected</strong>
 			<span>A Toggle · B Exit · Y Actions · L/R Boxes</span>
+			{#if selection.source.type === 'save-file'}
+				<button
+					id="batch-copy"
+					type="button"
+					disabled={!selection.slots.length}
+					onclick={() => openStorageBatch('copy')}>Copy to Storage</button
+				>
+				<button
+					id="batch-move"
+					type="button"
+					disabled={!selection.slots.length}
+					onclick={() => openStorageBatch('move')}>Move to Storage</button
+				>
+			{/if}
 			<button type="button" onclick={selectCurrentBox}>Select box</button>
 			<button
 				type="button"
@@ -7962,6 +8043,18 @@
 		</div>
 	{/if}
 {/snippet}
+
+{#if activeSummonedWorkflow?.kind === 'storage-batch'}
+	{#key activeSummonedWorkflow}
+		<StorageBatch
+			mode={batchMode}
+			boxes={storageBoxes}
+			onPreview={previewSelectedStorageBatch}
+			onApply={applySelectedStorageBatch}
+			onClose={closeStorageBatch}
+		/>
+	{/key}
+{/if}
 
 {#if boxMenuOpen && boxMenuTarget}
 	<BoxMenu

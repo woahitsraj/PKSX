@@ -398,7 +398,8 @@ export class CapacitorSavesStorage implements SavesStorage {
 	): Promise<CommitRiskyWorkspaceMutationResult> {
 		return this.#run(async () => {
 			assertManifest(input.manifest);
-			await verifyBlob(input.payload.reference, input.payload.bytes);
+			for (const payload of [input.payload, ...(input.additionalPayloads ?? [])])
+				await verifyBlob(payload.reference, payload.bytes);
 			const snapshot = await this.#journal.read();
 			const catalog = cloneCatalog(snapshot.catalog);
 			const saveFile = catalog.saves.find(({ id }) => id === input.saveFileId);
@@ -424,19 +425,14 @@ export class CapacitorSavesStorage implements SavesStorage {
 				input.manifest.revision !== current.revision + 1
 			)
 				throw new CatalogConflictError();
-			const existingPayload = await this.#fileStore.readBytes(
-				`pokemon-storage-catalog/blobs/${input.payload.reference.id}.bin`
-			);
-			if (existingPayload) await verifyBlob(input.payload.reference, existingPayload);
-			const stagedBytes = existingPayload
-				? []
-				: [
-						{
-							path: `pokemon-storage-catalog/blobs/${input.payload.reference.id}.bin`,
-							bytes: input.payload.bytes
-						}
-					];
-			const backupEstablished = !previous?.automaticBackupCreated;
+			const stagedBytes: { path: string; bytes: Uint8Array }[] = [];
+			for (const payload of [input.payload, ...(input.additionalPayloads ?? [])]) {
+				const path = `pokemon-storage-catalog/blobs/${payload.reference.id}.bin`;
+				const existing = await this.#fileStore.readBytes(path);
+				if (existing) await verifyBlob(payload.reference, existing);
+				else stagedBytes.push({ path, bytes: payload.bytes });
+			}
+			const backupEstablished = !input.preserveWorkspace && !previous?.automaticBackupCreated;
 			if (backupEstablished) {
 				const backupId = stableAutomaticBackupId({
 					saveFileId: input.saveFileId,
@@ -470,10 +466,12 @@ export class CapacitorSavesStorage implements SavesStorage {
 				automaticBackupCreated: true,
 				updatedAt: nextWorkspaceRevision(previous?.updatedAt, this.#now())
 			};
-			catalog.workspaces[input.saveFileId] = metadata;
+			if (!input.preserveWorkspace) catalog.workspaces[input.saveFileId] = metadata;
 			catalog.pokemonStorageManifest = cloneManifest(input.manifest);
 			await this.#journal.commit(snapshot, catalog, {
-				workspaceBytes: new Map([[input.saveFileId, input.bytes]]),
+				workspaceBytes: input.preserveWorkspace
+					? new Map()
+					: new Map([[input.saveFileId, input.bytes]]),
 				stagedBytes
 			});
 			return {

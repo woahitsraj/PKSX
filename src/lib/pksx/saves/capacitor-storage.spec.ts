@@ -916,8 +916,8 @@ describe('CapacitorSavesStorage', () => {
 		expect(new Set(backups.map(({ id }) => id)).size).toBe(2);
 	});
 
-	it.each(['success', 'payload', 'backup', 'workspace', 'catalog', 'ambiguous'])(
-		'commits preserved deletion through one journal boundary, %s',
+	it.each(['success', 'copy', 'payload', 'backup', 'workspace', 'catalog', 'ambiguous'])(
+		'commits preserved payloads through one journal boundary, %s',
 		async (stage) => {
 			const persistence = new NativeCatalogPersistence(fileStore);
 			const original = emptyManifest('storage-id', '2026-05-16T12:00:00.000Z', 'box-id');
@@ -928,6 +928,8 @@ describe('CapacitorSavesStorage', () => {
 			});
 			const payloadBytes = new Uint8Array([4, 5, 6]);
 			const reference = await referenceFor(payloadBytes, 1);
+			const extraBytes = new Uint8Array([7, 8, 9]);
+			const extraReference = await referenceFor(extraBytes, 1);
 			const recovery = {
 				recordId: 'new-id',
 				payload: reference,
@@ -981,17 +983,22 @@ describe('CapacitorSavesStorage', () => {
 				reason: 'pokemon-movement',
 				expectedCatalogRevision: 0,
 				manifest,
-				payload: { reference, bytes: payloadBytes }
+				payload: { reference, bytes: payloadBytes },
+				additionalPayloads: [{ reference: extraReference, bytes: extraBytes }],
+				preserveWorkspace: stage === 'copy'
 			});
-			if (stage === 'success')
-				await expect(committing).resolves.toMatchObject({ backupEstablished: true });
+			if (stage === 'success' || stage === 'copy')
+				await expect(committing).resolves.toMatchObject({ backupEstablished: stage !== 'copy' });
 			else await expect(committing).rejects.toThrow();
 			const reopened = new CapacitorSavesStorage({ fileStore });
 			const reopenedCatalog = new NativeCatalogPersistence(fileStore);
-			const persisted = stage === 'success' || stage === 'ambiguous';
+			const persisted = stage === 'success' || stage === 'copy' || stage === 'ambiguous';
 			expect((await reopenedCatalog.read())?.revision).toBe(persisted ? 1 : 0);
-			expect(await reopened.listBackups(save.id)).toHaveLength(persisted ? 1 : 0);
-			if (persisted)
+			expect(await reopened.listBackups(save.id)).toHaveLength(
+				persisted && stage !== 'copy' ? 1 : 0
+			);
+			if (persisted) expect(await reopenedCatalog.readBlob(extraReference)).toEqual(extraBytes);
+			if (persisted && stage !== 'copy')
 				expect(await reopened.getWorkspace(save.id)).toMatchObject({
 					dirty: true,
 					bytes: new Uint8Array([9, 9])

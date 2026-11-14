@@ -653,6 +653,56 @@ export class PokemonStorageService {
 		});
 	}
 
+	planBatchPlacement(count: number, startingBoxId: string): NonNullable<Placement>[] {
+		this.#assertReady();
+		const manifest = this.#manifest;
+		if (!manifest || !Number.isInteger(count) || count < 1)
+			throw new Error('Select Pokemon before choosing a destination.');
+		const start = manifest.boxOrder.indexOf(startingBoxId);
+		if (start < 0) throw new Error('Choose an available Storage Box.');
+		if (resolvePlacements(manifest).some((item) => item.overflow))
+			throw new Error('Resolve Storage overflow before adding Pokemon.');
+		const placements: NonNullable<Placement>[] = [];
+		for (const storageBoxId of manifest.boxOrder.slice(start)) {
+			for (let slot = 0; slot < 30; slot++) {
+				const placement = { storageBoxId, slot };
+				if (!this.#occupied(manifest, placement, '')) placements.push(placement);
+				if (
+					placements.length === count &&
+					manifest.records.length + count <= manifest.boxes.length * 30
+				)
+					return placements;
+			}
+		}
+		throw new Error(
+			'Not enough empty Storage Slots. Select fewer Pokemon or choose an earlier Storage Box.'
+		);
+	}
+
+	async prepareSaveBatch(
+		items: { bytes: Uint8Array; origin: PokemonOrigin }[],
+		startingBoxId: string
+	) {
+		if (!this.#manifest) throw new Error('Pokemon Storage is unavailable.');
+		const expectedRevision = this.#manifest.revision;
+		const placements = this.planBatchPlacement(items.length, startingBoxId);
+		const manifest = cloneManifest(this.#manifest);
+		const payloads: StagedBlob[] = [];
+		for (const [index, item] of items.entries()) {
+			const prepared = await this.prepareSaveDeletion(item.bytes, item.origin);
+			if (prepared.expectedRevision !== expectedRevision)
+				throw new Error('Storage changed. Preview the batch again.');
+			const record = prepared.manifest.tombstones.at(-1)?.recovery;
+			if (!record) throw new Error('Pokemon preservation failed.');
+			manifest.records.push({ ...record, placement: placements[index] });
+			payloads.push(prepared.payload);
+		}
+		manifest.revision++;
+		manifest.updatedAt = this.now();
+		assertManifest(manifest);
+		return { expectedRevision, manifest, payloads };
+	}
+
 	async prepareSaveDeletion(
 		entityBytes: Uint8Array,
 		origin: PokemonOrigin
