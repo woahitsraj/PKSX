@@ -189,7 +189,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: End-to-end tests
-        run: pnpm exec playwright test --fully-parallel --workers=2 --shard=${{ matrix.shard }}/4
+        run: pnpm exec playwright test --fully-parallel --workers=1 --shard=${{ matrix.shard }}/4
         env:
           PKSX_E2E_PREBUILT: '1'
 
@@ -200,6 +200,15 @@ jobs:
           name: responsive-target-screenshots-${{ matrix.shard }}
           path: test-results/**/responsive-*.png
           if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload browser failure results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-failure-results-${{ matrix.shard }}
+          path: test-results
+          if-no-files-found: warn
           retention-days: 7
 
   pkhex-engine:

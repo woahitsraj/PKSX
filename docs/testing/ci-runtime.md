@@ -35,7 +35,7 @@ Publish and smoke-test the engine, then build the web app once. Transfer the exi
 manifest and client/prerendered output, so the static deployment directory alone
 cannot replace that artifact.
 
-Each shard runs `playwright test --fully-parallel --workers=2 --shard=N/4` with
+Each shard runs `playwright test --fully-parallel --workers=1 --shard=N/4` with
 `PKSX_E2E_PREBUILT=1`. The flag skips only the build inside Playwright's server
 command. Local `pnpm test:e2e` still builds by default. Test-level parallelism is
 necessary because file-level sharding would leave the largest file on one runner.
@@ -79,3 +79,29 @@ migration. This change leaves `package.json`, the lockfile, and lint commands un
 Other CI speed changes must preserve `web-build` producer dependencies, all four
 shards, unique artifact names, and explicit browser validation before signed releases.
 The existing required check names remain available.
+
+## Verification runs
+
+The [first sharded hosted run](https://github.com/woahitsraj/PKSX/actions/runs/43571541314)
+on e6cc9d4f passed all 184 tests and native acceptance checks in 13m20s, compared
+with 28m28s on its exact base commit. Summed job durations rose from 37m56s to
+44m36s. This is one run per side, with different cache and host conditions, not a
+repeatable performance guarantee. iOS took 10m20s and became the critical path.
+
+The [next hosted run](https://github.com/woahitsraj/PKSX/actions/runs/43571738667)
+on f16ef8af failed two five-second canonical URL assertions in browser shard 3.
+The other 182 tests and both native checks passed. The aggregate engine gate
+failed and deployment was skipped, verifying failure propagation. This failed
+run is excluded from successful runtime comparisons.
+
+Both initial hosted runs used two workers per shard. The workflow now uses one
+worker per runner to avoid adding within-file CPU contention to test-level
+sharding, and uploads browser failure contexts. All four shards still run across
+four machines. Validation of that final setting must be reported separately.
+
+The earlier concurrent local shard runs overlapped another thread's exclusive
+Mac window. Their timing is confounded and excluded from performance evidence.
+Shards 2 and 4 were stopped, and all owned browser/server processes were cleaned
+up. Logs remain at `/tmp/pksx-ci-timing/local-shard*.log`. The subsequently granted
+local window runs one production build and four sequential one-worker shards for
+correctness only. Local results are not hosted-CI timing evidence.
