@@ -40,7 +40,7 @@ Raw Save File, Workspace, and Backup persistence lives under `src/lib/pksx/saves
 
 Put revision validation, causal decisions, queue scheduling, and migrations in provider-neutral code with explicit inputs and durable storage ports. The provider adapter transports opaque records and raw artifacts and enforces authorization, transport completeness, and conditional storage operations. It never picks a conflict winner or migrates payload schemas. The PKHeX Engine remains the only Pokemon-byte authority; transporting preservation artifacts requires no TypeScript serializer or new engine implementation.
 
-The UI consumes domain outcomes and actionability. Do not scatter provider SDK calls through Saves mutations or surface automatic transient failures as notifications. Only the service adapter knows Cloudflare-specific identifiers, and credentials/enrollment/UI state stay installation-local.
+The UI consumes domain outcomes and actionability. Do not scatter provider SDK calls through Saves mutations or surface automatic transient failures as notifications. Only the service adapter knows Cloudflare-specific identifiers. Client credentials, enrollment state, and UI state remain local to each Installation and never enter synchronized Saves. Server-owned OAuth secrets, signing keys, and Better Auth identity/session records belong to the provider service or its secret store, not to synchronized Saves or a public client bundle.
 
 ## Verification order
 
@@ -48,7 +48,7 @@ Start with deterministic coordinator and persistence tests using a credential-fr
 
 Before UI integration, demonstrate crash recovery after artifact completion and after publication commit, coherent Save/Storage acceptance, a cleanup/recovery race, and cross-profile denial. Before native handoff, demonstrate real system-browser return and cold-start behavior plus secure credential access. No correctness requirement may depend on a suspended app executing background JavaScript.
 
-Implementation PRs run the repository's applicable lint, typecheck, unit, engine-smoke, and e2e checks. Engine changes additionally require dotnet build and format verification; this plan does not anticipate engine changes. Verify against each issue's acceptance on its actual branch, preserve required evidence outside the repository, and report every incomplete integration check honestly. No code tests are claimed to have passed by this document.
+Implementation PRs run the repository's applicable lint, typecheck, unit, engine-smoke, and e2e checks sequentially. Use Vitest `--maxWorkers=1` and Playwright `--workers=1`. Run heavy local checks through `~/.t3/locks/pksx-lock run mac <owner> -- <command>` and Retroid sessions through the corresponding `retroid` lock; use a worktree-unique `PKSX_E2E_PORT`. Engine changes additionally require dotnet build and format verification; this plan does not anticipate engine changes. Verify against each issue's acceptance on its actual branch, preserve required evidence outside the repository, and report every incomplete integration check honestly. No code tests are claimed to have passed by this document.
 
 ## Deployment gates and unresolved choices
 
