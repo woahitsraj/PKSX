@@ -24,13 +24,22 @@
 		error = '';
 		try {
 			preview = await onPreview(boxId);
-			await tick();
-			document.getElementById('apply-storage-batch')?.focus();
 		} catch (cause) {
-			error = cause instanceof Error ? cause.message : 'Batch preview failed.';
+			error = `${cause instanceof Error ? cause.message : 'Batch preview failed.'} Adjust the selection or choose another Storage Box and preview again.`;
 		} finally {
 			busy = false;
+			await focusStep();
 		}
+	}
+	async function focusStep() {
+		await tick();
+		document
+			.querySelector<HTMLButtonElement>(preview ? '#apply-storage-batch' : '.batch .content button')
+			?.focus();
+	}
+	async function changeDestination() {
+		preview = null;
+		await focusStep();
 	}
 	async function apply() {
 		if (!preview || busy) return;
@@ -43,6 +52,7 @@
 			preview = null;
 		} finally {
 			busy = false;
+			if (!preview) await focusStep();
 		}
 	}
 	function handleKeydown(event: KeyboardEvent) {
@@ -103,12 +113,7 @@
 		</div>
 		{#if preview}
 			<footer>
-				<button
-					type="button"
-					disabled={busy}
-					onclick={() => {
-						preview = null;
-					}}>Change destination</button
+				<button type="button" disabled={busy} onclick={changeDestination}>Change destination</button
 				>
 				<button id="apply-storage-batch" type="button" disabled={busy} onclick={apply}>Apply</button
 				>

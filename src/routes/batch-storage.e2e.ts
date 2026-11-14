@@ -44,8 +44,21 @@ for (const mode of ['Copy', 'Move']) {
 		dialog = page.getByRole('dialog', { name: `${mode} to Storage` });
 		await dialog.getByRole('button', { name: /Storage Box 1/ }).tap();
 		await expect(dialog.locator('li')).toHaveCount(2);
-		await dialog.getByRole('button', { name: 'Apply', exact: true }).focus();
+		await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeFocused();
+		await dialog.getByRole('button', { name: 'Change destination' }).click();
+		await expect(dialog.getByRole('button', { name: /Storage Box 1/ })).toBeFocused();
 		await page.keyboard.press('Enter');
+		await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toBeFocused();
+		if (mode === 'Move') {
+			await page.evaluate(() => {
+				for (const pressed of [true, false])
+					window.dispatchEvent(
+						new CustomEvent('pksxcontroller', {
+							detail: { key: 'Enter', pressed, discrete: true, id: 'Test controller' }
+						})
+					);
+			});
+		} else await page.keyboard.press('Enter');
 		await expect(dialog).toHaveCount(0, { timeout: 60_000 });
 		await expect(actions).toHaveCount(0);
 		await expect(page.locator('.box-pane .slot.pokemon')).toHaveCount(
