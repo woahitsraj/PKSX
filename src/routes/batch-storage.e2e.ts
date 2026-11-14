@@ -5,7 +5,7 @@ const fixture = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
 );
 
-test.use({ hasTouch: true, viewport: { width: 360, height: 740 } });
+test.use({ actionTimeout: 15000, hasTouch: true, viewport: { width: 360, height: 740 } });
 for (const mode of ['Copy', 'Move']) {
 	test(`${mode} selected Pokemon to Storage after reviewing destinations`, async ({ page }) => {
 		await page.goto('/');
@@ -37,6 +37,7 @@ for (const mode of ['Copy', 'Move']) {
 		await expect(dialog.locator('li').nth(0)).toContainText('Storage Box 1, Slot 1');
 		await expect(dialog.locator('li').nth(1)).toContainText('Storage Box 1, Slot 2');
 		await page.keyboard.press('Escape');
+		await expect(dialog).toHaveCount(0);
 		await expect(actions).toContainText('2 selected');
 		await expect(page.locator('.box-pane .slot.pokemon')).toHaveCount(occupiedBefore);
 		await actions.getByRole('button', { name: `${mode} to Storage` }).tap();
