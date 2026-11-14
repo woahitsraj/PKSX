@@ -94,6 +94,8 @@ for (const location of ['All Pokemon', 'Unfiled', 'Recently Deleted']) {
 		await picker.click();
 		await page.getByRole('button', { name: new RegExp('^' + location) }).click();
 		await expect(actions).toHaveCount(0);
-		await expect(page.locator('.virtual-browser')).toBeVisible();
+		await expect(
+			page.getByRole('region', { name: `Pokemon Storage, ${location}`, exact: true })
+		).toBeVisible();
 	});
 }
