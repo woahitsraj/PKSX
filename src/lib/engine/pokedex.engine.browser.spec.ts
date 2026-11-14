@@ -44,7 +44,7 @@ for (const [file, count] of cases) {
 			const rejected = await engine.applySaveFileEditOperation(
 				bytes,
 				file,
-				{ pokedex: { species: 1, seen: true } },
+				{ pokedex: { kind: 'seen', species: 1, seen: true } },
 				0
 			);
 			expect(rejected.ok).toBe(false);
@@ -58,10 +58,18 @@ for (const [file, count] of cases) {
 					: ['national', 'unown-pid', 'spinda-pid']
 		);
 		const before = dex.species[0];
-		const changed = await engine.applySaveFileEditOperation(
+		const seenEdit = await engine.applySaveFileEditOperation(
 			bytes,
 			file,
-			{ pokedex: { species: 1, seen: !before.seen, caught: !before.caught } },
+			{ pokedex: { kind: 'seen', species: 1, seen: !before.seen } },
+			0
+		);
+		expect(seenEdit.ok).toBe(true);
+		if (!seenEdit.ok) return;
+		const changed = await engine.applySaveFileEditOperation(
+			seenEdit.value.bytes,
+			file,
+			{ pokedex: { kind: 'caught', species: 1, caught: !before.caught } },
 			0
 		);
 		expect(changed.ok).toBe(true);
@@ -89,7 +97,7 @@ for (const [file, count] of cases) {
 			const unchanged = await engine.applySaveFileEditOperation(
 				bytes,
 				file,
-				{ pokedex: { field: nationalDex.key, value: nationalDex.value } },
+				{ pokedex: { kind: 'field', field: nationalDex.key, value: nationalDex.value } },
 				0
 			);
 			expect(unchanged.ok).toBe(true);
@@ -104,7 +112,7 @@ for (const [file, count] of cases) {
 			const result = await engine.applySaveFileEditOperation(
 				bytes,
 				file,
-				{ pokedex: { field: field.key, value } },
+				{ pokedex: { kind: 'field', field: field.key, value } },
 				0
 			);
 			expect(result.ok).toBe(true);
@@ -116,7 +124,7 @@ for (const [file, count] of cases) {
 		const rejected = await engine.applySaveFileEditOperation(
 			bytes,
 			file,
-			{ pokedex: { species: count + 1, caught: true } },
+			{ pokedex: { kind: 'caught', species: count + 1, caught: true } },
 			0
 		);
 		expect(rejected.ok).toBe(false);

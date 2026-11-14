@@ -175,7 +175,7 @@
 							aria-disabled={pending}
 							data-destination-focus={`species-${entry.id}-seen`}
 							data-destination-fallbacks={JSON.stringify(['search'])}
-							onclick={() => apply({ species: entry.id, seen: !entry.seen })}
+							onclick={() => apply({ kind: 'seen', species: entry.id, seen: !entry.seen })}
 							>Seen {entry.seen ? '✓' : '·'}</button
 						>
 						<button
@@ -184,7 +184,7 @@
 							aria-disabled={pending}
 							data-destination-focus={`species-${entry.id}-caught`}
 							data-destination-fallbacks={JSON.stringify(['search'])}
-							onclick={() => apply({ species: entry.id, caught: !entry.caught })}
+							onclick={() => apply({ kind: 'caught', species: entry.id, caught: !entry.caught })}
 							>Caught {entry.caught ? '✓' : '·'}</button
 						>
 					</div>
@@ -199,7 +199,7 @@
 								event.preventDefault();
 								const value = new FormData(event.currentTarget).get('value');
 								if (typeof value === 'string')
-									void apply({ field: field.key, value: Number(value) });
+									void apply({ kind: 'field', field: field.key, value: Number(value) });
 							}}
 						>
 							<label
