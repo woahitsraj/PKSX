@@ -666,6 +666,9 @@ _Avoid_: setting, option, config
 - During the initial personal rollout, **Cloud Sync** is available only to the maintainer's explicitly authorized **User Account**; other users see no Cloud Sync entry and cannot enroll or access sync data through direct service requests.
 - Cloud Sync eligibility is distinct from authentication and is bound to the authorized **User Account** identity, never a client flag or a claimed email address; deletion and re-registration do not transfer access automatically.
 - The initial personal rollout is maintainer-funded with no user billing and a server-configured 1 GiB **Sync Quota** for user-visible synchronized content, with separate capacity reserved for protocol metadata and deletion.
+- Eligible users manage **Cloud Sync** in one settings **Takeover**, with enable/sign-in, **Sync Adoption**, account controls, actionable state, and a Manage storage workflow; unauthorized users have no Cloud Sync entry.
+- Cloud Sync space management shows profile usage and **Sync Quota**, attributed to **Save File Families**, **Pokemon Storage**, and **Conflict Recoveries**; it uses existing domain deletion actions and inline confirmations rather than deleting raw artifacts independently.
+- Cloud space usage is distinct from local storage usage; offline estimates and pending deletions never claim confirmed freed provider space.
 - A **User Account** owns zero or one **Sync Profile**.
 - A **Sync Profile** belongs to exactly one **User Account** and cannot be shared with another account.
 - A **PKSX Installation** enrolls in at most one **Sync Profile** at a time.
