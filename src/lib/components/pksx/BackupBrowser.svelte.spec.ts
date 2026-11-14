@@ -55,7 +55,7 @@ afterEach(async () => {
 	fakes.ownerAvailable = true;
 });
 
-function details(game: string, trainer: string, playTime: string): SaveCardSummary {
+function details(input: { game: string; trainer: string; playTime: string }): SaveCardSummary {
 	return {
 		summary: {
 			saveType: 'SAV3',
@@ -67,9 +67,9 @@ function details(game: string, trainer: string, playTime: string): SaveCardSumma
 			partyCount: 1,
 			boxCount: 14,
 			boxSlotCount: 30,
-			gameVersion: game,
-			trainerName: trainer,
-			playTime
+			gameVersion: input.game,
+			trainerName: input.trainer,
+			playTime: input.playTime
 		},
 		pokemonCount: 7
 	};
@@ -92,10 +92,16 @@ it('ignores late selected previews, distinguishes missing and parse failure, and
 		container.querySelector<HTMLButtonElement>('#backup-browser-preview-' + id)!.click();
 	select('two');
 	await expect.poll(() => fakes.pending.has(2)).toBe(true);
-	fakes.pending.get(2)!({ ok: true, value: details('Pt', 'SECOND', '') });
+	fakes.pending.get(2)!({
+		ok: true,
+		value: details({ game: 'Pt', trainer: 'SECOND', playTime: '' })
+	});
 	await expect.poll(() => container.textContent).toContain('SECOND');
 	expect(container.textContent).toContain('Unavailable');
-	fakes.pending.get(1)!({ ok: true, value: details('E', 'FIRST', '10:00') });
+	fakes.pending.get(1)!({
+		ok: true,
+		value: details({ game: 'E', trainer: 'FIRST', playTime: '10:00' })
+	});
 	await expect.poll(() => container.textContent).not.toContain('FIRST');
 	select('missing');
 	await expect.poll(() => container.textContent).toContain('Backup bytes are missing');
@@ -113,14 +119,20 @@ it('ignores late selected previews, distinguishes missing and parse failure, and
 	await expect.poll(() => container.textContent).toContain('Loading Backup preview');
 	await unmount(component);
 	component = undefined;
-	fakes.pending.get(1)!({ ok: true, value: details('E', 'CLOSED', '10:00') });
+	fakes.pending.get(1)!({
+		ok: true,
+		value: details({ game: 'E', trainer: 'CLOSED', playTime: '10:00' })
+	});
 	expect(container.textContent).toBe('');
 	expect(fakes.putWorkspace).not.toHaveBeenCalled();
 });
 
 it('renders Engine-owned absent trainer and play time as unavailable', async () => {
 	fakes.bytes = new Map([['one', new Uint8Array([1])]]);
-	fakes.summarize.mockResolvedValue({ ok: true, value: details('RSBOX', '', '') });
+	fakes.summarize.mockResolvedValue({
+		ok: true,
+		value: details({ game: 'RSBOX', trainer: '', playTime: '' })
+	});
 	container = document.createElement('div');
 	document.body.append(container);
 	component = mount(BackupBrowser, { target: container });
