@@ -1,6 +1,6 @@
 # Cloud Sync provider recommendation against the accepted contract
 
-For [Select the Cloud Sync provider](https://github.com/woahitsraj/PKSX/issues/414). Reviewed 2026-11-14 against the [accepted adapter contract](../architecture/cloud-sync-provider-adapter-contract.md). The user accepted the provider selection on 2026-11-14 after the deeper trade-off review. [ADR 0021](../adr/0021-use-cloudflare-and-better-auth-for-cloud-sync.md) records the decision. This research does not authorize deployment, purchases, or account changes.
+For [Select the Cloud Sync provider](https://github.com/woahitsraj/PKSX/issues/414). Reviewed 2026-11-14 against the [accepted adapter contract](../architecture/cloud-sync-provider-adapter-contract.md). The user accepted the provider selection on 2026-11-14 after the deeper trade-off review. [Use Cloudflare and Better Auth for Cloud Sync](../adr/0021-use-cloudflare-and-better-auth-for-cloud-sync.md) records the decision. This research does not authorize deployment, purchases, or account changes.
 
 ## Recommendation
 
@@ -93,6 +93,6 @@ More broad vendor research has diminishing value. The remaining technical uncert
 
 ## Accepted decision and remaining planning
 
-The user accepted Cloudflare Workers, SQLite-backed Durable Objects, private R2, and D1 with Better Auth as the first Sync Provider, including PKSX ownership of passwordless authentication operations and email-delivery integration. [ADR 0021](../adr/0021-use-cloudflare-and-better-auth-for-cloud-sync.md) records the reasons and rejected alternative; [CONTEXT.md](../../CONTEXT.md) records the provider boundary.
+The user accepted Cloudflare Workers, SQLite-backed Durable Objects, private R2, and D1 with Better Auth as the first Sync Provider, including PKSX ownership of passwordless authentication operations and email-delivery integration. [Use Cloudflare and Better Auth for Cloud Sync](../adr/0021-use-cloudflare-and-better-auth-for-cloud-sync.md) records the reasons and rejected alternative; [CONTEXT.md](../../CONTEXT.md) records the provider boundary.
 
 Initial sign-in methods, email vendor, settings and space-management workflows, quota, budget, and hosting plan remain separate focused decisions. The implementation breakdown must include the acceptance spikes identified above and cannot treat this research as a passing provider integration test. No infrastructure or runtime work is authorized by this planning decision.
