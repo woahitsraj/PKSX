@@ -193,7 +193,7 @@ test('a returning copy waits for a choice and links to the original payload only
 			choice: 'link',
 			returningSession: sent.id,
 			recordId: record.recordId,
-			payload: original,
+			payload: new Uint8Array(original),
 			importProblem: 'storage'
 		});
 		const linked = await h.journal.retryImport(h.entry.id, 'link');
