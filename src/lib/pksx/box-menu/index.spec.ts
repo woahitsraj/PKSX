@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoxMenuCommands } from './index';
 
 describe('Box Menu commands', () => {
-	it('keeps the six commands in their fixed order', () => {
+	it('keeps collection commands followed by selection', () => {
 		expect(
 			createBoxMenuCommands({
 				source: { type: 'save-file', label: 'emerald.sav' },
@@ -17,7 +17,8 @@ describe('Box Menu commands', () => {
 			'Legality Report',
 			'Switch',
 			'Open another collection',
-			'Close'
+			'Close',
+			'Select Pokemon'
 		]);
 	});
 
@@ -55,6 +56,7 @@ describe('Box Menu commands', () => {
 				availability: 'unavailable',
 				reason: 'Keep at least one collection open.'
 			},
+			{ key: 'select', availability: 'available', reason: null },
 			{
 				key: 'undo-storage-organization',
 				availability: 'unavailable',

@@ -7,6 +7,7 @@ export type ControllerKey =
 	| 'Escape'
 	| 'PageUp'
 	| 'PageDown'
+	| 'Select'
 	| 'Menu'
 	| 'x'
 	| 'y';
@@ -224,6 +225,7 @@ export function readGamepadKeys(gamepad: Gamepad): ControllerKey[] {
 	if (pressed(gamepad, 3)) keys.push('y');
 	if (pressed(gamepad, 4) || pressed(gamepad, 6)) keys.push('PageUp');
 	if (pressed(gamepad, 5) || pressed(gamepad, 7)) keys.push('PageDown');
+	if (pressed(gamepad, 8)) keys.push('Select');
 	if (pressed(gamepad, 9)) keys.push('Menu');
 
 	return keys;
