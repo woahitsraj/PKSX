@@ -663,6 +663,9 @@ _Avoid_: setting, option, config
 - A **Pokemon Entity** received through a **Link Trade** enters **Pokemon Storage** once per **Trade Receipt**, with a new **Record ID**.
 - An **Unknown Trade Outcome** keeps its recovery evidence and never starts another **Link Trade** automatically.
 - **Cloud Sync** makes **Save Files**, **Backups**, **Pokemon Storage**, and persisted **Workspaces** available across a user's PKSX Installations.
+- During the initial personal rollout, **Cloud Sync** is available only to the maintainer's explicitly authorized **User Account**; other users see no Cloud Sync entry and cannot enroll or access sync data through direct service requests.
+- Cloud Sync eligibility is distinct from authentication and is bound to the authorized **User Account** identity, never a client flag or a claimed email address; deletion and re-registration do not transfer access automatically.
+- The initial personal rollout is maintainer-funded with no user billing and a server-configured 1 GiB **Sync Quota** for user-visible synchronized content, with separate capacity reserved for protocol metadata and deletion.
 - A **User Account** owns zero or one **Sync Profile**.
 - A **Sync Profile** belongs to exactly one **User Account** and cannot be shared with another account.
 - A **PKSX Installation** enrolls in at most one **Sync Profile** at a time.
