@@ -669,7 +669,12 @@ _Avoid_: setting, option, config
 - Authenticating a **User Account** is sufficient to enroll a **PKSX Installation** in its **Sync Profile**; another Installation does not approve it.
 - Multiple **PKSX Installations** may enroll in one **Sync Profile** concurrently.
 - The **Sync Provider** authenticates the **User Account** and issues the session; a **User Account** has no password.
-- A **User Account** has one verified email address; every sign-in method resolves to the account of that address, and access to the address is sufficient to recover the account.
+- Cloud Sync prefers passkeys for ordinary sign-in, supports Google and Apple as social alternatives, and places emailed one-time codes last; a successful passkey or social sign-in does not routinely require an additional email-code step.
+- A **User Account** has one primary verified email address, and access to that address is sufficient to recover the account; a linked provider's email does not replace it.
+- Initial Cloud Sync account setup uses Google or Apple to establish the verified email and immediately offers passkey enrollment; subsequent ordinary sign-in leads with passkeys.
+- An authenticated user explicitly links Google or Apple to the existing **User Account**, including when provider emails differ; implicit account linking and automatic merging of existing **Sync Profiles** or **Saves** are not allowed.
+- A linked sign-in method authenticates the same **User Account** and **Sync Profile**, independently of its provider email, without transferring Cloud Sync eligibility to another account.
+- Emailed one-time codes are an explicitly chosen last fallback to the primary verified email and never a routine additional step after successful passkey or social authentication.
 - Signing out removes an Installation's credentials and enrollment state but retains its local **Saves** as local-only data.
 - Removing local **Saves** after sign-out is a separate, user-confirmed action.
 - Formerly synchronized data retains its **Sync Profile** association after sign-out.
