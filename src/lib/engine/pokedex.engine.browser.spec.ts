@@ -80,6 +80,25 @@ for (const [file, count] of cases) {
 				seen: !before.seen,
 				caught: !before.caught
 			});
+		const nationalDex = dex.fields.find((field) => field.key === 'national');
+		if (nationalDex) {
+			if (file.includes('emerald-')) expect(nationalDex.value).toBe(0);
+			const baseline = await engine.serializeSave(bytes, file);
+			expect(baseline.ok).toBe(true);
+			if (!baseline.ok) return;
+			const unchanged = await engine.applySaveFileEditOperation(
+				bytes,
+				file,
+				{ pokedex: { field: nationalDex.key, value: nationalDex.value } },
+				0
+			);
+			expect(unchanged.ok).toBe(true);
+			if (!unchanged.ok) return;
+			expect(unchanged.value.mutated).toBe(false);
+			expect(unchanged.value.bytes).toEqual(
+				Uint8Array.from(atob(baseline.value.bytesBase64), (c) => c.charCodeAt(0))
+			);
+		}
 		for (const field of dex.fields) {
 			const value = field.value === field.max ? field.min : field.max;
 			const result = await engine.applySaveFileEditOperation(
