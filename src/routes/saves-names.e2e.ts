@@ -143,6 +143,41 @@ test.describe('display names across Save File consumers', () => {
 			await expect(page.locator('.save-card').filter({ hasText: 'beta.sav' })).toContainText(
 				'Pokemon Emerald'
 			);
+			for (const destination of ['Trainer', 'Bag']) {
+				await page
+					.locator('.save-card')
+					.filter({ hasText: 'alpha.sav' })
+					.getByRole('button', { name: 'Open Save File Menu for Journey', exact: true })
+					.tap();
+				await page.getByRole('button', { name: 'Open ' + destination, exact: true }).tap();
+				const ledger = page.locator('[data-destination-root="' + destination.toLowerCase() + '"]');
+				await expect(ledger).toHaveAttribute('data-initial-state', 'ready');
+				await expect(ledger.locator('.filename')).toHaveText('Journey');
+				await expect(ledger.locator('.filename')).toHaveAttribute('title', 'alpha.sav');
+				await page.getByRole('button', { name: 'Open Main Menu' }).tap();
+				await page
+					.getByRole('dialog', { name: 'Main Menu' })
+					.getByRole('button', { name: /^Saves/ })
+					.tap();
+				await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+					'data-initial-state',
+					'ready'
+				);
+			}
+			await page
+				.locator('.save-card')
+				.filter({ hasText: 'alpha.sav' })
+				.getByRole('button', { name: 'Open Save File Menu for Journey', exact: true })
+				.tap();
+			await page.getByRole('button', { name: 'Delete from Saves', exact: true }).tap();
+			await expect(
+				page.getByRole('dialog', { name: 'Delete Journey?', exact: true })
+			).toBeVisible();
+			await page.getByRole('button', { name: 'Keep Save File', exact: true }).tap();
+			await page.keyboard.press('Escape');
+			await expect(
+				page.getByRole('button', { name: 'Open Journey in Boxes', exact: true })
+			).toHaveCount(2);
 			await page.locator('.save-card').filter({ hasText: 'alpha.sav' }).locator('.card-main').tap();
 			await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
 				'data-initial-state',
