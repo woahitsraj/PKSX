@@ -81,7 +81,8 @@ public static partial class PkhexEngineExports
                     nameof(PK8),
                     null,
                     CreateLegalityReport(pokemon, StorageSlotType.Box),
-                    BoxSlotSummary.From(pokemon, BlankSaveForStoredPokemon(pokemon), 0, 0))),
+                    BoxSlotSummary.From(pokemon, BlankSaveForStoredPokemon(pokemon), 0, 0),
+                    new LinkTradeIdentity(pokemon.PID, pokemon.EncryptionConstant, pokemon.TID16, pokemon.SID16))),
                 EngineJsonContext.Default.EngineResultLinkTradePartnerPokemonResult);
         }
         catch (Exception ex)

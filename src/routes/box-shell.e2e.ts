@@ -1340,6 +1340,7 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 	await openEmptySaves(page);
 	await seedPokemonStorageBoxes(page, 3);
 	await page.reload();
+	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready');
 	await page.locator('#box-grid').focus();
 
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();

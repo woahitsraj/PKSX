@@ -753,3 +753,7 @@ _Avoid_: setting, option, config
 - The box-first shell can prove navigation with local fixture **Slots** before loading **Save File** data through the **PKHeX Engine**.
 - After a **Supported Save File** is loaded, visible **Party** and **Box** **Slots** represent parsed save data instead of placeholder contents.
 - Box-first navigation rules are domain interaction rules and should be testable outside the Svelte view.
+
+### Returning Link Trade copies
+
+The device-local trade journal records the source Record ID and the Engine's outgoing PID, EC, TID and SID. Matching those fields in a completed Trade Receipt reports a possible returning copy, never ownership. The user chooses whether to link it to the source Storage record and retain its original preservation payload, including fields unavailable in Sword/Shield, or import a separate record. A changed or unavailable source cannot be silently restored. Receipt import is idempotent by session and its durably reserved Record ID, never by Identity Fingerprint. Converted copies have no HOME tracker, and PKSX never writes one.
