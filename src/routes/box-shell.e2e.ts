@@ -43,7 +43,11 @@ async function openEmptySaves(page: Page) {
 			})
 	);
 	await page.reload();
-	await page.waitForLoadState('networkidle');
+	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready',
+		{ timeout: 60_000 }
+	);
 	await expect(page).toHaveURL(/\/$/);
 	await page.getByRole('button', { name: 'Open Main Menu' }).click();
 	await page
