@@ -391,7 +391,12 @@
 			return;
 		}
 
-		if (appCommand === 'search' && !summonedWorkflow.active && !appChrome.carryActive) {
+		if (
+			appCommand === 'search' &&
+			!summonedWorkflow.active &&
+			!appChrome.carryActive &&
+			!document.querySelector('[data-selection-controls]')
+		) {
 			consumeRootEvent(event);
 			void openQuickSearch();
 			return;
