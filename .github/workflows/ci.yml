@@ -204,12 +204,16 @@ jobs:
 
   pkhex-engine:
     name: PKHeX Engine publish
+    if: always() && needs.web-build.result != 'skipped'
     needs:
       - web-build
       - browser-tests
     runs-on: ubuntu-24.04
     steps:
-      - run: echo 'Engine publish, smoke tests, web build, and all browser shards passed.'
+      - name: Require build and every browser shard
+        run: |
+          test "${{ needs.web-build.result }}" = success
+          test "${{ needs.browser-tests.result }}" = success
 
   release-gate:
     name: Verify release tag
