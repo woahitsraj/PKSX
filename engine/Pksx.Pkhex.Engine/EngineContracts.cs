@@ -607,7 +607,8 @@ internal static class BoxNameEditSupport
 public sealed record SaveFileEditableProjection(
     TrainerProfileProjection TrainerProfile,
     MoneyProjection Money,
-    InventoryProjection Inventory)
+    InventoryProjection Inventory,
+    PokedexProjection Pokedex)
 {
     public static SaveFileEditableProjection From(SaveFile save)
     {
@@ -639,7 +640,8 @@ public sealed record SaveFileEditableProjection(
             new InventoryProjection(
                 inventorySupported,
                 inventorySupported ? null : "Inventory editing is not supported for this Save File format.",
-                inventorySupported ? bag.Pouches.Select(pouch => InventoryPocketProjection.From(save, bag, pouch, itemNames)).ToList() : []));
+                inventorySupported ? bag.Pouches.Select(pouch => InventoryPocketProjection.From(save, bag, pouch, itemNames)).ToList() : []),
+            PokedexProjection.From(save));
     }
 }
 
@@ -919,6 +921,7 @@ public sealed record SaveFileEditOperationRequest(
     List<InventoryEditOperation>? Inventory,
     BoxNameEdit? BoxName,
     BoxMoveEdit? BoxMove,
+    PokedexEdit? Pokedex,
     int ActiveBox);
 
 public sealed record TrainerProfileEdit(string? TrainerName, string? Gender);
