@@ -5,6 +5,7 @@
 	import type { BackupMetadata, StoredSaveFile } from '$lib/pksx/saves';
 	import {
 		createManualBackup,
+		inspectBackup,
 		createRestoredSaveFileName,
 		deleteOwnedBackup,
 		preserveBackupAsSeparateSave,
@@ -59,6 +60,12 @@
 	let backups = $state<BackupMetadata[]>([]);
 	let selectedBackupId = $state<string | null>(null);
 	let errorMessage = $state<string | null>(null);
+	const selectedBackup = $derived(backups.find(({ id }) => id === selectedBackupId));
+	const preview = $derived(
+		owner && selectedBackup
+			? inspectBackup({ storage, engine: getPkhexEngine(), owner, backup: selectedBackup })
+			: null
+	);
 	const busy = $derived(browserState.kind === 'working');
 	const confirming = $derived(
 		browserState.kind === 'confirm-restore' || browserState.kind === 'confirm-delete'
@@ -158,7 +165,7 @@
 				engine: getPkhexEngine(),
 				owner,
 				backup,
-				box: box,
+				box,
 				publish: (state, box) => {
 					if (!document.querySelector('.boxes-route')) selectRecoveredOwner(state);
 					setCachedActiveWorkspace(state, box, {
@@ -209,7 +216,7 @@
 				owner,
 				backup,
 				fileName: createRestoredSaveFileName(owner.originalFileName),
-				box: box,
+				box,
 				publish: (state) => {
 					host.closeAll();
 					selectRecoveredOwner(state);
@@ -369,7 +376,11 @@
 	}
 
 	function getErrorMessage(error: unknown) {
-		return error instanceof Error && error.message
+		return error &&
+			typeof error === 'object' &&
+			'message' in error &&
+			typeof error.message === 'string' &&
+			error.message
 			? error.message
 			: 'PKSX could not complete the operation.';
 	}
@@ -448,6 +459,15 @@
 							<span>{formatTimestamp(backup.createdAt)}</span>
 						</div>
 						<button
+							id={`backup-browser-preview-${backup.id}`}
+							aria-expanded={selectedBackupId === backup.id}
+							data-backup-browser-control
+							type="button"
+							disabled={busy || confirming}
+							onfocus={() => (selectedBackupId = backup.id)}
+							onclick={() => (selectedBackupId = backup.id)}>Preview</button
+						>
+						<button
 							id={`backup-browser-restore-${backup.id}`}
 							data-backup-browser-control
 							type="button"
@@ -480,6 +500,40 @@
 					</div>
 				{/each}
 			</div>
+
+			{#if selectedBackup}
+				<section class="backup-preview" aria-label="Backup preview" aria-live="polite">
+					<p class="preview-caption">
+						{reasonLabels[selectedBackup.reason]} · {formatTimestamp(selectedBackup.createdAt)}
+					</p>
+					{#await preview}
+						<p>Loading Backup preview...</p>
+					{:then details}
+						{#if details}
+							<dl>
+								<div>
+									<dt>Game</dt>
+									<dd>{details.summary.gameVersion || 'Unavailable'}</dd>
+								</div>
+								<div>
+									<dt>Trainer</dt>
+									<dd>{details.summary.trainerName?.trim() || 'Unavailable'}</dd>
+								</div>
+								<div>
+									<dt>Play time</dt>
+									<dd>{details.summary.playTime?.trim() || 'Unavailable'}</dd>
+								</div>
+								<div>
+									<dt>Pokemon</dt>
+									<dd>{details.pokemonCount ?? 'Unavailable'}</dd>
+								</div>
+							</dl>
+						{/if}
+					{:catch error}
+						<p role="alert">Preview unavailable: {getErrorMessage(error)}</p>
+					{/await}
+				</section>
+			{/if}
 
 			{#if browserState.kind === 'confirm-restore'}
 				<div class="confirmation" aria-live="polite">
@@ -522,11 +576,37 @@
 </TakeoverFrame>
 
 <style>
+	.preview-caption {
+		color: var(--pksx-color-text-muted);
+		font-size: var(--pksx-type-caption);
+		margin-bottom: var(--pksx-space-1);
+	}
+	.backup-preview {
+		grid-row: 5;
+		height: calc(var(--pksx-control-height) * 2);
+		overflow: auto;
+		min-width: 0;
+	}
+	dl {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--pksx-space-3);
+		margin: 0;
+	}
+	dt {
+		color: var(--pksx-color-text-muted);
+		font-size: var(--pksx-type-caption);
+	}
+	dd {
+		margin: 0;
+		overflow-wrap: anywhere;
+	}
+
 	.backup-browser {
 		height: 100%;
 		min-height: 0;
 		display: grid;
-		grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+		grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
 		gap: var(--pksx-space-2);
 		padding: var(--pksx-space-3);
 		overflow: hidden;
@@ -550,7 +630,7 @@
 	}
 
 	.confirmation {
-		grid-row: 5;
+		grid-row: 6;
 	}
 
 	header,
@@ -645,6 +725,7 @@
 	}
 
 	article {
+		flex-wrap: wrap;
 		min-width: 0;
 		max-width: 100%;
 		overflow: hidden;
