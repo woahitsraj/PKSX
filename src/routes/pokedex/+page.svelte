@@ -65,6 +65,33 @@
 		if (workspace) searches.set(workspace.file.id, value);
 	}
 
+	function navigateSpecies(event: KeyboardEvent) {
+		if (event.altKey || event.ctrlKey || event.metaKey || !event.key.startsWith('Arrow')) return;
+		if (!(event.target instanceof HTMLButtonElement)) return;
+		const row = event.target.closest('.species-row');
+		if (!row) return;
+		const controls = Array.from(row.querySelectorAll<HTMLButtonElement>('button'));
+		const column = controls.indexOf(event.target);
+		let target: HTMLButtonElement | undefined;
+		if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+			target =
+				controls[
+					Math.max(0, Math.min(controls.length - 1, column + (event.key === 'ArrowLeft' ? -1 : 1)))
+				];
+		} else {
+			const next = event.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
+			target = next?.matches('.species-row')
+				? next.querySelectorAll<HTMLButtonElement>('button')[column]
+				: undefined;
+			if (!target && event.key === 'ArrowUp')
+				document.querySelector<HTMLInputElement>('[data-destination-focus="search"]')?.focus();
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		target?.focus();
+		target?.scrollIntoView({ block: 'nearest' });
+	}
+
 	async function apply(edit: PokedexEdit) {
 		if (!workspace || pending) return;
 		const coordinator = getSaveFileEditCoordinator();
@@ -89,6 +116,8 @@
 		}
 	}
 </script>
+
+<svelte:window onkeydown={navigateSpecies} />
 
 <section
 	class="pokedex pksx-density-container"

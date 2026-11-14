@@ -29,7 +29,7 @@
 		type DestinationFocus
 	} from '$lib/pksx/destination-focus';
 	import { setDestinationFocusIdentityGetter } from '$lib/pksx/destination-focus-context.svelte';
-	import { getSavesStorage, loadActiveWorkspaceFromSaves } from '$lib/pksx/saves-cache';
+	import { getSavesStorage, getCachedActiveWorkspace, getPkhexEngine } from '$lib/pksx/saves-cache';
 	import {
 		createSaveFileLegalityReportHost,
 		setSaveFileLegalityReportHost
@@ -248,13 +248,27 @@
 	async function refreshActiveSaveFileAvailability(request: number) {
 		try {
 			const activeSaveFileId = await storage.getActiveSaveFileId();
-			const available = Boolean(activeSaveFileId && (await storage.getSave(activeSaveFileId)));
-			if (request === activeSaveAvailabilityRequest) hasActiveSaveFile = available;
-			if (available) {
-				const workspace = await loadActiveWorkspaceFromSaves();
-				if (request === activeSaveAvailabilityRequest)
-					pokedexReason = workspace?.workspace.saveFile?.pokedex?.reason ?? null;
+			const saveFile = activeSaveFileId ? await storage.getSave(activeSaveFileId) : null;
+			if (request !== activeSaveAvailabilityRequest) return;
+			hasActiveSaveFile = Boolean(saveFile);
+			pokedexReason = null;
+			if (!saveFile) return;
+			const cached = getCachedActiveWorkspace();
+			if (cached?.file.id === saveFile.id) {
+				pokedexReason = cached.workspace.saveFile?.pokedex?.reason ?? null;
+				return;
 			}
+			const persisted = await storage.getWorkspace(saveFile.id);
+			const bytes = persisted?.bytes ?? (await storage.getSaveBytes(saveFile.id));
+			if (!bytes || request !== activeSaveAvailabilityRequest) return;
+			const result = await getPkhexEngine().loadSaveWorkspace(
+				bytes,
+				saveFile.originalFileName ?? undefined,
+				0,
+				{ background: true }
+			);
+			if (request === activeSaveAvailabilityRequest && result.ok)
+				pokedexReason = result.value.saveFile?.pokedex?.reason ?? null;
 		} catch {
 			if (request === activeSaveAvailabilityRequest) {
 				hasActiveSaveFile = appChrome.hasLoadedSave;
