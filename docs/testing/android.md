@@ -114,3 +114,36 @@ concurrent repeated imports cannot duplicate a linked document. It deliberately
 keeps the imported copy when the source changes. Trainer-based replace/import-as-new
 reconciliation remains separate work in
 [Detect repeated Save File imports and offer replace or import as new](https://github.com/woahitsraj/PKSX/issues/269).
+
+## General emulator discovery
+
+Choose save folder in Settings. Multiple folders stay linked. Scanning starts after
+linking, on startup, when returning to PKSX, and on request. Recognized new saves
+appear automatically in Saves. Background discovery preserves the active Save File,
+Workspace, navigation and controller focus. Unlink removes access, not imported copies.
+Android still requires a user grant, PKSX cannot silently scan other apps' private data.
+
+| Family       | Layout fixture                                                         | Verification scope                                                         |
+| ------------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| RetroArch    | `RetroArch/saves/mGBA/Pokemon.srm`                                     | Flat battery saves, nested per-core folders; ROMs and system assets pruned |
+| melonDS      | `melonDS/roms/Pokemon.sav`                                             | Saves beside ROMs, so ROM directories remain traversable                   |
+| DraStic      | `DraStic/backup/Pokemon.dsv`                                           | Battery save path; save states excluded                                    |
+| Pizza Boy    | `Pizza Boy A/saves/Pokemon.sav`                                        | Accessible battery exports; private folders require emulator export        |
+| Azahar/Citra | `sdmc/Nintendo 3DS/id0/id1/title/00040000/00055e00/data/00000001/main` | Emulated SD layout; content, extdata, databases and NAND pruned            |
+| Dolphin      | `GC/USA/Card A/Pokemon.gci`                                            | Dolphin 2603a on Retroid Pocket 6 verified with the installed XD save      |
+
+The first five rows describe verified layout fixtures, not a promise that every
+emulator version or container format works. Every candidate must pass the existing
+PKHeX Engine. Compressed, encrypted, unknown and inaccessible saves are not claimed
+as supported; link an accessible battery-save export if parsing or access fails.
+Supported filename filters include SAV, SRM, BIN, DAT, GCI, DSV, BAK, MAIN and
+extensionless files. ROM and save-state extensions never qualify. Empty files are
+skipped. Scan entry/depth/read limits remain the same as the linked-folder gate above.
+Cancellation waits for an already-started durable import to settle before releasing
+the scan, so a cancelled scan cannot leave an untracked background import.
+
+Discovery rules were checked against the
+[PKForge linking guide](https://pkforgeapp.com/wiki/linking-your-emulator/) and
+[scanner reference at c1d12b6](https://github.com/sofianeelhor/PKForge/blob/c1d12b6d1b0239e57ead0c1e1add1432d24f7e3a/src/PKForge.App/Platforms/Android/AndroidEmulatorScanner.cs).
+Fixtures simulate directory layouts and reuse engine-readable save bytes. They do
+not emulate those apps or verify platform-specific save containers.

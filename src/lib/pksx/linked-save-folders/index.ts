@@ -1,34 +1,37 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import type { EngineApi } from '$lib/engine';
 import type { SavesStorage } from '$lib/pksx/saves';
+import { folderProfile, skipFolder } from './profiles';
 
-export type FolderMode = 'dolphin' | 'generic';
-export type FolderLink = {
-	tree: string | null;
-	mode: FolderMode;
-	name?: string;
-	cancelled?: boolean;
-};
+export type FolderLink = { tree: string; name: string };
 export type FolderEntry = { id: string; name: string; directory: boolean; size: number };
-export type DiscoveredSave = { id: string; name: string; path: string; imported: boolean };
+export type DiscoveredSave = {
+	id: string;
+	name: string;
+	path: string;
+	imported: boolean;
+	folder: FolderLink;
+	identity: string;
+};
 export interface SaveFoldersPlugin {
-	status(): Promise<FolderLink>;
-	pick(options: { mode: FolderMode }): Promise<FolderLink>;
-	unlink(): Promise<void>;
+	status(): Promise<{ folders: FolderLink[] }>;
+	pick(): Promise<{ cancelled: true } | { cancelled: false; folder: FolderLink }>;
+	unlink(options: { tree: string }): Promise<void>;
 	cancel(): Promise<void>;
-	list(options: { documentId?: string }): Promise<{ entries: FolderEntry[]; truncated: boolean }>;
-	read(options: { documentId: string }): Promise<{ base64: string; identity: string }>;
+	list(options: {
+		tree: string;
+		documentId?: string;
+	}): Promise<{ entries: FolderEntry[]; truncated: boolean }>;
+	read(options: {
+		tree: string;
+		documentId: string;
+	}): Promise<{ base64: string; identity: string }>;
 }
 export const saveFolders = registerPlugin<SaveFoldersPlugin>('SaveFolders');
 export const supportsSaveFolders = () => Capacitor.getPlatform() === 'android';
-const ignoredFolders =
-	/^(?:cache|caches|logs|shaders|textures|covers|screenshots|statesaves|load|dump|wii|games|resourcepacks)$/i;
 
-export function candidateFile(name: string, mode: FolderMode) {
-	if (/\.(?:raw|gcp)$/i.test(name)) return false;
-	return mode === 'dolphin'
-		? /\.gci$/i.test(name)
-		: /(?:\.(?:gci|sav|dat|bin|dsv|srm)$|^[^.]+$)/i.test(name);
+export function candidateFile(name: string) {
+	return /(?:\.(?:gci|sav|dat|bin|dsv|srm|bak|main)$|^[^.]+$)/i.test(name);
 }
 
 export function documentBytes(base64: string) {
@@ -38,25 +41,23 @@ export function documentBytes(base64: string) {
 function cancellable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
 	return new Promise((resolve, reject) => {
 		const abort = () => reject(signal.reason);
-		if (signal.aborted) {
-			reject(signal.reason);
-			return;
-		}
-		signal.addEventListener('abort', abort, { once: true });
 		promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+		if (signal.aborted) abort();
+		else signal.addEventListener('abort', abort, { once: true });
 	});
 }
 
 export async function scanFolder(options: {
 	plugin: SaveFoldersPlugin;
-	mode: FolderMode;
+	folder: FolderLink;
 	engine: EngineApi;
 	storage: SavesStorage;
 	signal: AbortSignal;
-	onSave: (save: DiscoveredSave) => void;
+	onSave: (save: DiscoveredSave, bytes: Uint8Array) => void | Promise<void>;
 	onProgress: (message: string) => void;
 }) {
-	const { plugin, mode, engine, storage, signal, onSave, onProgress } = options;
+	const { plugin, folder: linkedFolder, engine, storage, signal, onSave, onProgress } = options;
+	const profile = folderProfile(linkedFolder.tree, linkedFolder.name);
 	const imported = new Set((await storage.listSaves()).map((save) => save.linkedDocumentId));
 	const queue: { id?: string; path: string; depth: number }[] = [{ path: '', depth: 0 }];
 	const visited = new Set<string>();
@@ -69,7 +70,10 @@ export async function scanFolder(options: {
 		onProgress(`Scanning ${folder.path || 'selected folder'}…`);
 		let listing;
 		try {
-			listing = await cancellable(plugin.list({ documentId: folder.id }), signal);
+			listing = await cancellable(
+				plugin.list({ tree: linkedFolder.tree, documentId: folder.id }),
+				signal
+			);
 		} catch (error) {
 			if (!folder.id) throw error;
 			signal.throwIfAborted();
@@ -87,7 +91,7 @@ export async function scanFolder(options: {
 			}
 			const path = `${folder.path}${entry.name}`;
 			if (entry.directory) {
-				if (mode === 'dolphin' && ignoredFolders.test(entry.name)) continue;
+				if (skipFolder(entry.name, profile, folder.path)) continue;
 				if (folder.depth >= 12) {
 					limited = true;
 					continue;
@@ -95,29 +99,39 @@ export async function scanFolder(options: {
 				queue.push({ id: entry.id, path: path + '/', depth: folder.depth + 1 });
 				continue;
 			}
-			if (!candidateFile(entry.name, mode) || entry.size > 16 * 1024 * 1024) continue;
+			if (!candidateFile(entry.name) || entry.size === 0 || entry.size > 16 * 1024 * 1024) continue;
+			let recognized: DiscoveredSave;
+			let bytes: Uint8Array;
 			try {
-				const document = await cancellable(plugin.read({ documentId: entry.id }), signal);
-				signal.throwIfAborted();
-				const validation = await cancellable(
-					engine.loadSaveWorkspace(documentBytes(document.base64), entry.name, 0, {
-						background: true
-					}),
+				const document = await cancellable(
+					plugin.read({ tree: linkedFolder.tree, documentId: entry.id }),
 					signal
 				);
 				signal.throwIfAborted();
-				if (validation.ok)
-					onSave({
-						id: entry.id,
-						name: entry.name,
-						path,
-						imported: imported.has(document.identity)
-					});
-				else skipped++;
+				bytes = documentBytes(document.base64);
+				const validation = await cancellable(
+					engine.loadSaveWorkspace(bytes, entry.name, 0, { background: true }),
+					signal
+				);
+				signal.throwIfAborted();
+				if (!validation.ok) {
+					skipped++;
+					continue;
+				}
+				recognized = {
+					id: entry.id,
+					name: entry.name,
+					path,
+					folder: linkedFolder,
+					identity: document.identity,
+					imported: imported.has(document.identity)
+				};
 			} catch {
 				signal.throwIfAborted();
 				skipped++;
+				continue;
 			}
+			await onSave(recognized, bytes);
 		}
 	}
 	limited ||= queue.length > 0;
@@ -132,7 +146,7 @@ export async function importLinkedSave(
 	storage: SavesStorage,
 	save: DiscoveredSave
 ) {
-	const document = await plugin.read({ documentId: save.id });
+	const document = await plugin.read({ tree: save.folder.tree, documentId: save.id });
 	const bytes = documentBytes(document.base64);
 	const validation = await engine.loadSaveWorkspace(bytes, save.name, 0, { background: true });
 	if (!validation.ok) throw new Error(validation.error.message);

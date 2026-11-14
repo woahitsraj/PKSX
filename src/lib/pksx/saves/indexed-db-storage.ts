@@ -105,10 +105,12 @@ export class IndexedDbSavesStorage implements SavesStorage {
 				saveFileId: saveFile.id,
 				bytes: copyBytes(input.bytes)
 			} satisfies SaveBytesRecord);
-			transaction.objectStore(appStateStore).put({
-				key: activeSaveFileIdKey,
-				value: saveFile.id
-			} satisfies AppStateRecord);
+			if (input.activate !== false) {
+				transaction.objectStore(appStateStore).put({
+					key: activeSaveFileIdKey,
+					value: saveFile.id
+				} satisfies AppStateRecord);
+			}
 			await transactionDone(transaction);
 		} finally {
 			database.close();
