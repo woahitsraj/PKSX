@@ -4,7 +4,7 @@ For [Define personal Cloud Sync implementation breakdown](https://github.com/woa
 
 ## Decision baseline
 
-Use the accepted provider-neutral [adapter contract](cloud-sync-provider-adapter-contract.md), [intervention workflow](cloud-sync-intervention-workflow.md), CONTEXT.md, and ADRs 0004, 0018, and 0020. The following user-approved specifications are in focused PRs and must land before dependent implementation:
+Use the accepted provider-neutral [adapter contract](cloud-sync-provider-adapter-contract.md), [intervention workflow](cloud-sync-intervention-workflow.md), [CONTEXT.md](../../CONTEXT.md), [Keep save artifacts out of TinyBase](../adr/0004-keep-save-artifacts-out-of-tinybase.md), [Use versioned content-addressed Cloud Sync revisions](../adr/0018-use-versioned-content-addressed-cloud-sync-revisions.md), and [Publish coherent Cloud Sync changes idempotently](../adr/0020-publish-coherent-cloud-sync-changes-idempotently.md). The following user-approved specifications are in focused PRs and must land before dependent implementation:
 
 - [Select Cloudflare and Better Auth for Cloud Sync](https://github.com/woahitsraj/PKSX/pull/465): Workers, SQLite-backed Durable Objects, private R2, Better Auth, and D1; PKSX operates identity and email integration.
 - [Define Cloud Sync account settings and space management](https://github.com/woahitsraj/PKSX/pull/469): one settings Takeover, account controls, usage attribution, and existing domain deletion actions.
