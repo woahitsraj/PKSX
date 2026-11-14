@@ -1,0 +1,5 @@
+# Link Cloud Sync sign-in methods explicitly
+
+PKSX establishes a User Account's primary verified email through Google or Apple on first setup, immediately offers passkey enrollment, and prefers passkeys on return visits. Users explicitly link additional Google or Apple identities while authenticated, even when their provider emails differ, preserving the primary email and one Sync Profile instead of implicitly matching accounts by email or merging existing Saves. This accommodates Apple's private relay and avoids mandatory emailed-code challenges, at the cost of a deliberate linking step; emailed codes remain the explicit last fallback and account recovery still revokes all sessions.
+
+The user approved first setup and explicit linking for [Define first-release Cloud Sync sign-in methods](https://github.com/woahitsraj/PKSX/issues/466). The [sign-in specification](../architecture/cloud-sync-sign-in-methods.md) records behavior and future verification. Authentication does not grant eligibility for the initial personal-only rollout.
