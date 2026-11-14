@@ -1,8 +1,8 @@
-# Cloud Sync intervention workflow proposal
+# Cloud Sync intervention workflow
 
 For [Define exceptional Cloud Sync intervention workflow](https://github.com/woahitsraj/PKSX/issues/360), on [Wayfinder: Cloud Sync for Saves](https://github.com/woahitsraj/PKSX/issues/302).
 
-Status: proposed for discussion, not an accepted decision. This document separates existing rules from recommendations. It does not change `CONTEXT.md` or authorize implementation.
+Status: accepted by the user on 2026-11-14. The interaction relationships are recorded in `CONTEXT.md`. This specification does not authorize runtime implementation.
 
 ## Already settled
 
@@ -10,13 +10,13 @@ Status: proposed for discussion, not an accepted decision. This document separat
 
 [ADR 0012](../adr/0012-draw-durable-state-in-place.md) puts durable state on its owner rather than in a global strip. [ADR 0014](../adr/0014-present-summoned-surfaces-as-menus-and-takeovers.md) requires a Takeover for a focused workflow, inline confirmations, one open surface, and focus restoration. These decisions rule out a new blocking dialog layer or permanent status bar.
 
-## Recommended entry and deferral
+## Entry and deferral
 
 Show an actionable status on the affected Save File or Pokemon Storage item, with a review entry on its existing actions. Opening an affected object shows its local state and the same review action. Do not automatically open review, interrupt a Carry or staged edit, or force a choice before local work can continue. Unrelated objects remain usable and keep syncing.
 
 A user opens a Cloud Sync review Takeover explicitly. Back defers the decision and returns focus to its launcher. Deferral changes no local bytes, pending work, or competing states. The status persists until resolved. The Takeover must not apply incoming changes over staged Pokemon Edits.
 
-## Recommended conflict review
+## Conflict review
 
 List the newest head from every causal branch, including a deletion as a choice. Identify each by the affected Save File or Pokemon Storage item, available game/trainer or entity summary, and whether it is the current local state. Dates may aid recognition but never rank authority. Missing labels must not make a branch unselectable. Do not suggest that the newest timestamp is correct.
 
@@ -26,7 +26,7 @@ The user selects one state's contents and confirms. Explain that other states re
 
 Prepare resolution against the exact heads shown. If a head changes before confirmation, refresh the choices and require confirmation again. Persist the resolution and its recovery references durably before indicating success. Preserve remote-only recovery artifacts on the provider; do not require every recovery byte to fit locally. If the chosen state needs unavailable bytes, keep review read-only until they can be downloaded and validated. Offline confirmation may become durable pending work, but must not claim cross-device completion. Another device's concurrent resolution remains a new conflict under the existing rules.
 
-## Recommended failure actions
+## Failure actions
 
 | Condition                                                                                                      | Presentation and action                                                                                            | Work that continues                                                       |
 | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
@@ -51,9 +51,8 @@ Storage management is an entry point, not a quota amount, payment, or automatic 
 - Sign-in is cancelled: local work and pending changes survive; no adoption into another profile occurs.
 - An outage lasts a month: no timer produces a prompt. A quota rejection offers storage management immediately.
 
-## Approval needed
+## Decision and remaining work
 
-1. Accept explicit review with an in-place status, allowing affected objects to open and remain editable while the decision is deferred?
-2. Accept selection of one coherent state, recovery of every losing state, and refreshed confirmation when the reviewed heads change, without a generic "keep both" action?
+The user accepted explicit review with in-place status, ongoing local editing during deferral, and selection of one coherent state with separate recovery actions. Changed heads require refreshed confirmation. Existing ADRs 0012 and 0014 already establish status placement and Takeover behavior, so this workflow needs no additional presentation ADR.
 
-After approval, record the agreed interaction relationships in `CONTEXT.md`. An ADR is needed only if the final choice adds a durable trade-off beyond ADRs 0012 and 0014. This issue remains open until those decisions are recorded.
+The detailed Cloud Sync settings and space view, quota ownership/payment, provider choice, and implementation breakdown remain separate planning work. Review scenarios above are implementation acceptance boundaries, not tests claimed to have passed.

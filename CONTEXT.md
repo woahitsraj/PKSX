@@ -480,6 +480,14 @@ _Avoid_: setting, option, config
 - New work that diverges from a **Conflict Resolution** creates another conflict.
 - Concurrent **Conflict Resolutions** are competing states and require another explicit **Conflict Resolution**.
 - PKSX retains every unchosen state from a **Conflict Resolution** as a **Conflict Recovery** until the user deletes it.
+- An unresolved Cloud Sync conflict has an actionable status on the affected **Save File** or **Pokemon Storage** item; opening it preserves local work and never forces immediate **Conflict Resolution**.
+- The user explicitly opens conflict review as a **Takeover**; Back defers the decision without changing local content or competing states and restores **Controller Focus** to its launcher.
+- Conflict review presents the latest state from every causal branch, including deletion, with the consequences for the whole coherent change; it never interrupts a **Carry** or overwrites **Staged Pokemon Edits**.
+- The user selects one coherent state's contents; restoring a **Conflict Recovery** or creating a copy is a separate explicit action rather than a generic keep-both choice.
+- If any reviewed competing head changes before confirmation, PKSX refreshes the choices and requires confirmation again.
+- PKSX durably preserves the resolution and all losing-state recovery references before reporting local success; remote-only recovery artifacts need not fit locally, and unavailable chosen bytes must be downloaded and validated before confirmation.
+- An offline **Conflict Resolution** remains durable pending work until published and never claims cross-device completion early.
+- Proven sign-in and **Sync Quota** problems link to actions in Cloud Sync settings, unsupported data links to Update PKSX on the affected object or family, and degraded persistence remains visible in Cloud Sync settings without a global status strip.
 - PKSX replaces a superseded **Sync Revision** with a **Sync Ancestry Record** when a descendant becomes **Shared Sync State**, unless the **Sync Revision** is a competing head, a **Pending Sync Change**, or the content of a **Conflict Recovery**.
 - PKSX never removes a **Save File**, **Workspace**, **Pokemon Storage** record, **Backup**, or **Conflict Recovery** automatically to free space.
 - An incoming state that exactly matches acknowledged state is a duplicate and has no effect.
