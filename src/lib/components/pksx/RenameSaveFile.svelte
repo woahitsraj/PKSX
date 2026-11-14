@@ -38,7 +38,7 @@
 			const controls = Array.from(
 				document.querySelectorAll<HTMLElement>('[data-rename-control]:not(:disabled)')
 			);
-			const index = controls.indexOf(document.activeElement as HTMLElement);
+			const index = controls.findIndex((control) => control === document.activeElement);
 			const offset = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
 			controls[Math.max(0, Math.min(controls.length - 1, index + offset))]?.focus();
 		}

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 
 for (const height of [336, 720]) {
 	test(`rename preserves filenames, cancellation and reset at height ${height}`, async ({
@@ -85,4 +86,84 @@ test('renaming an active save preserves the cached box projection identity', asy
 	await page.getByRole('button', { name: 'Open Renamed box owner in Boxes', exact: true }).click();
 	await expect(page.locator('.box-pane.active-pane')).toHaveAttribute('data-location', 'box-0');
 	await expect(page.locator('#box-0-slot-0')).toHaveAttribute('aria-label', firstSlot!);
+});
+
+test.describe('display names across Save File consumers', () => {
+	test.use({ hasTouch: true });
+	for (const height of [336, 720]) {
+		test(`duplicate names keep context and original Export bytes at height ${height}`, async ({
+			page
+		}) => {
+			await page.setViewportSize({ width: 960, height });
+			await page.goto('/');
+			await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+				'data-initial-state',
+				'ready'
+			);
+			const bytes = await readFile(
+				path.resolve(
+					'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
+				)
+			);
+			await page
+				.locator('#save-file-input')
+				.setInputFiles({ name: 'alpha.sav', mimeType: 'application/octet-stream', buffer: bytes });
+			await expect(
+				page.getByRole('button', { name: 'Open alpha.sav in Boxes', exact: true })
+			).toBeVisible();
+			await page.getByRole('grid', { name: 'Saves collections' }).focus();
+			await page.keyboard.press('x');
+			for (let index = 0; index < 3; index++) await page.keyboard.press('ArrowDown');
+			await page.keyboard.press('Enter');
+			await page.getByLabel('Display name', { exact: true }).fill('  Journey  ');
+			await page.keyboard.press('ArrowDown');
+			await page.keyboard.press('Enter');
+			await expect(
+				page.getByRole('button', { name: 'Open Journey in Boxes', exact: true })
+			).toBeVisible();
+			await page
+				.locator('#save-file-input')
+				.setInputFiles({ name: 'beta.sav', mimeType: 'application/octet-stream', buffer: bytes });
+			await page
+				.getByRole('button', { name: 'Open Save File Menu for beta.sav', exact: true })
+				.tap();
+			await page.getByRole('button', { name: 'Rename', exact: true }).tap();
+			await page.getByLabel('Display name', { exact: true }).fill('Journey');
+			await page.getByRole('button', { name: 'Apply', exact: true }).tap();
+			await page.reload();
+			await expect(
+				page.getByRole('button', { name: 'Open Journey in Boxes', exact: true })
+			).toHaveCount(2);
+			await expect(page.locator('.save-card').filter({ hasText: 'alpha.sav' })).toContainText(
+				'DIXIE'
+			);
+			await expect(page.locator('.save-card').filter({ hasText: 'beta.sav' })).toContainText(
+				'Pokemon Emerald'
+			);
+			await page.locator('.save-card').filter({ hasText: 'alpha.sav' }).locator('.card-main').tap();
+			await page.getByRole('button', { name: 'Open Main Menu' }).tap();
+			await page
+				.getByRole('dialog', { name: 'Main Menu' })
+				.getByRole('button', { name: /^Backups/ })
+				.tap();
+			await expect(page.locator('#backup-browser-description')).toHaveText('Journey');
+			await page.getByRole('button', { name: 'Close Backup Browser' }).tap();
+			await page.getByRole('button', { name: 'Open Box Menu for Journey', exact: true }).tap();
+			await page.getByRole('button', { name: 'Switch', exact: true }).tap();
+			await expect(page.locator('.source-card').filter({ hasText: 'alpha.sav' })).toContainText(
+				'Journey'
+			);
+			await expect(page.locator('.source-card').filter({ hasText: 'beta.sav' })).toContainText(
+				'Journey'
+			);
+			await page.locator('.source-picker-close').tap();
+			const download = page.waitForEvent('download');
+			await page.getByRole('button', { name: 'Export', exact: true }).tap();
+			const exported = await download;
+			expect(exported.suggestedFilename()).toBe('alpha.pksx.sav');
+			const exportedPath = await exported.path();
+			if (!exportedPath) throw new Error('The exported Save File is missing.');
+			expect(await readFile(exportedPath)).toEqual(bytes);
+		});
+	}
 });
