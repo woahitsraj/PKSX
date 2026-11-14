@@ -716,7 +716,10 @@ export type OutgoingLinkTrade = {
 	projection: BoxSlotSummary | null;
 };
 
+export type LinkTradeIdentity = { pid: number; ec: number; tid: number; sid: number };
+
 export type LinkTradePartnerPokemon = {
+	identity: LinkTradeIdentity | null;
 	destinationGame: LinkTradeDestinationGame;
 	parsed: boolean;
 	partnerSha256: string;

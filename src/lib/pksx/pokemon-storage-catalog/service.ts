@@ -317,6 +317,10 @@ export class PokemonStorageService {
 		return this.#putPayload(result.value.bytes, origin, placement, null);
 	}
 
+	async importPayload(bytes: Uint8Array, origin: PokemonOrigin): Promise<PokemonRecord> {
+		return this.#putPayload(bytes, origin, null, null);
+	}
+
 	async copy(recordId: string, placement: Placement = null): Promise<PokemonRecord> {
 		const source = this.#required(recordId);
 		const bytes = await this.readPayload(recordId);

@@ -1072,7 +1072,10 @@ public sealed record LinkTradePartnerPokemonResult(
     string? EntityFormat,
     string? UnparseableReason,
     LegalityReport? Legality,
-    BoxSlotSummary? Projection);
+    BoxSlotSummary? Projection,
+    LinkTradeIdentity? Identity = null);
+
+public sealed record LinkTradeIdentity(uint Pid, uint Ec, ushort Tid, ushort Sid);
 
 public sealed record PreservedPokemonResult(
     string EntityBytesBase64,

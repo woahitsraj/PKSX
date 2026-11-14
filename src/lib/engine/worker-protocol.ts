@@ -868,6 +868,14 @@ export const outgoingLinkTradeSchema = z.object({
 });
 
 export const linkTradePartnerPokemonSchema = z.object({
+	identity: z
+		.object({
+			pid: z.number().int(),
+			ec: z.number().int(),
+			tid: z.number().int(),
+			sid: z.number().int()
+		})
+		.nullable(),
 	destinationGame: linkTradeDestinationGameSchema,
 	parsed: z.boolean(),
 	partnerSha256: z.string().min(1),

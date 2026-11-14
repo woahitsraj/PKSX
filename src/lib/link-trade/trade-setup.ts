@@ -8,6 +8,7 @@ import type { LinkTradeGame, TradeError, TradeWorkerCapabilities } from './contr
 
 export type TradeSource = {
 	owner: 'save-file' | 'pokemon-storage';
+	recordId?: string;
 	/** The Save File or Pokemon Storage that holds the Slot. */
 	collectionId: string | null;
 	slot: SaveSlotRef;
