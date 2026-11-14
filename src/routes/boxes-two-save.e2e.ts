@@ -1,3 +1,4 @@
+import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
 
@@ -18,15 +19,9 @@ test('keeps the original save visible after opening a second save on Android lan
 		'ready'
 	);
 
-	const importInput = page.getByLabel('Import Save File');
-	await importInput.setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
-		timeout: 30_000
-	});
-	await importInput.setInputFiles(xFixturePath);
-	await expect(page.getByText('011020252224.sav imported and made active.')).toBeVisible({
-		timeout: 30_000
-	});
+	await importSaveThroughSaves(page, emeraldFixturePath);
+
+	await importSaveThroughSaves(page, xFixturePath);
 
 	await page.getByRole('button', { name: 'Open emerald-011020251345.sav in Boxes' }).click();
 	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(

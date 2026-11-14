@@ -1,3 +1,4 @@
+import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import path from 'node:path';
@@ -19,10 +20,8 @@ async function openPokemonEditor(page: Page) {
 		'data-initial-state',
 		'ready'
 	);
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
-		timeout: 30_000
-	});
+	await importSaveThroughSaves(page, emeraldFixturePath);
+
 	await page.goto('/boxes');
 	const slot = page.locator('#box-0-slot-0');
 	await expect(slot).toContainText('ARON', { timeout: 15_000 });
@@ -171,7 +170,7 @@ test('fresh Settings reload reports the active Save File in the Main Menu', asyn
 		'data-initial-state',
 		'ready'
 	);
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
+	await importSaveThroughSaves(page, emeraldFixturePath);
 	await expect(page.locator('.save-card.active')).toContainText('011020251345.sav', {
 		timeout: 30_000
 	});
@@ -367,10 +366,8 @@ test('editable focus locks Height Band across pointer transfer and releases afte
 	await openSettings(page, 800, 700);
 	await page.goto('/');
 	await expect(page.getByRole('grid', { name: 'Saves collections' })).toBeFocused();
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
-		timeout: 30_000
-	});
+	await importSaveThroughSaves(page, emeraldFixturePath);
+
 	await page.goto('/trainer');
 	const trainerName = page.getByLabel('Trainer name');
 	await expect(trainerName).toBeVisible({ timeout: 30_000 });

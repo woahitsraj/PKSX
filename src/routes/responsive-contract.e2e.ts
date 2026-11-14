@@ -1,3 +1,4 @@
+import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page, TestInfo } from '@playwright/test';
 import path from 'node:path';
@@ -228,10 +229,7 @@ async function importPublicSave(page: Page) {
 	await page.goto('/');
 	const saves = page.locator('[data-destination-root="saves"]');
 	await expect(saves).toHaveAttribute('data-initial-state', 'ready');
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
-		timeout: 30_000
-	});
+	await importSaveThroughSaves(page, emeraldFixturePath);
 }
 
 async function expectDestinationContract(page: Page, destination: Destination, budget: BudgetCase) {

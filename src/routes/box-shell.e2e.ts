@@ -1,3 +1,4 @@
+import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
@@ -517,10 +518,8 @@ async function importEmeraldThroughSaves(page: Page) {
 		'data-initial-state',
 		'ready'
 	);
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
-		timeout: 15000
-	});
+	await importSaveThroughSaves(page, emeraldFixturePath);
+
 	await page.goto('/boxes');
 	await expect(
 		page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' })
@@ -530,10 +529,8 @@ async function importEmeraldThroughSaves(page: Page) {
 
 async function importPlatinumThroughSaves(page: Page) {
 	await page.goto('/');
-	await page.getByLabel('Import Save File').setInputFiles(platinumFixturePath);
-	await expect(page.getByText('pokemon-platinum-eu.sav imported and made active.')).toBeVisible({
-		timeout: 15000
-	});
+	await importSaveThroughSaves(page, platinumFixturePath);
+
 	await page.goto('/boxes');
 	await expect(
 		page.getByRole('button', { name: 'Open Box Menu for pokemon-platinum-eu.sav' })
@@ -550,10 +547,8 @@ async function importPlatinumThroughSaves(page: Page) {
 
 async function importLetsGoEeveeThroughSaves(page: Page) {
 	await page.goto('/');
-	await page.getByLabel('Import Save File').setInputFiles(letsGoEeveeFixturePath);
-	await expect(
-		page.getByText('pokemon-lets-go-eevee-2025-03-24-savedata.bin imported and made active.')
-	).toBeVisible({ timeout: 15000 });
+	await importSaveThroughSaves(page, letsGoEeveeFixturePath);
+
 	await page.goto('/boxes');
 	await expect(
 		page.getByRole('button', {
@@ -567,12 +562,8 @@ async function importLetsGoEeveeThroughSaves(page: Page) {
 
 async function importScarletThroughSaves(page: Page) {
 	await page.goto('/');
-	await page.getByLabel('Import Save File').setInputFiles(scarletFixturePath);
-	await expect(
-		page.getByText('pokemon-scarlet-2025-03-24-main.sav imported and made active.')
-	).toBeVisible({
-		timeout: 60000
-	});
+	await importSaveThroughSaves(page, scarletFixturePath);
+
 	await page.goto('/boxes');
 	await expect(
 		page.getByRole('button', {
@@ -1747,11 +1738,8 @@ test('primary and secondary Box Sources follow active Save File selection rules'
 }) => {
 	await openEmptySaves(page);
 	await page.goto('/');
-	const importInput = page.getByLabel('Import Save File');
-	await importInput.setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
-		timeout: 15000
-	});
+	await importSaveThroughSaves(page, emeraldFixturePath);
+
 	const emeraldContainer = page
 		.locator('.save-card')
 		.filter({ hasText: 'emerald-011020251345.sav' });
@@ -1760,14 +1748,12 @@ test('primary and secondary Box Sources follow active Save File selection rules'
 	});
 	const emeraldId = (await emeraldContainer.getAttribute('id'))?.replace('saves-target-', '');
 	const bytes = await readFile(emeraldFixturePath);
-	await importInput.setInputFiles({
+	await importSaveThroughSaves(page, {
 		name: 'second-emerald.sav',
 		mimeType: 'application/octet-stream',
 		buffer: bytes
 	});
-	await expect(page.getByText('second-emerald.sav imported and made active.')).toBeVisible({
-		timeout: 15000
-	});
+
 	const secondId = (
 		await page.locator('.save-card').filter({ hasText: 'second-emerald.sav' }).getAttribute('id')
 	)?.replace('saves-target-', '');
@@ -2392,23 +2378,18 @@ test('transfer controls discard a cached source after switching collections', as
 	await page.setViewportSize({ width: 1800, height: 900 });
 	await openEmptySaves(page);
 	await page.goto('/');
-	const importInput = page.getByLabel('Import Save File');
-	await importInput.setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
-		timeout: 15000
-	});
+	await importSaveThroughSaves(page, emeraldFixturePath);
+
 	const firstSave = page
 		.locator('.save-card')
 		.filter({ hasText: 'emerald-011020251345.sav' })
 		.getByRole('button', { name: 'Open emerald-011020251345.sav in Boxes' });
-	await importInput.setInputFiles({
+	await importSaveThroughSaves(page, {
 		name: 'second-emerald.sav',
 		mimeType: 'application/octet-stream',
 		buffer: await readFile(emeraldFixturePath)
 	});
-	await expect(page.getByText('second-emerald.sav imported and made active.')).toBeVisible({
-		timeout: 15000
-	});
+
 	await firstSave.click();
 	const primary = page.locator('.box-pane').first();
 	await primary.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
@@ -6253,14 +6234,12 @@ test('pending Money reaches Boxes Export and the exported bytes contain the conf
 		'data-initial-state',
 		'ready'
 	);
-	await page.getByLabel('Import Save File').setInputFiles({
+	await importSaveThroughSaves(page, {
 		name: 'confirmed-money.sav',
 		mimeType: 'application/octet-stream',
 		buffer: exported
 	});
-	await expect(page.getByText('confirmed-money.sav imported and made active.')).toBeVisible({
-		timeout: 15000
-	});
+
 	await chooseMainMenu(page, 'Trainer');
 	await expect(page.getByRole('spinbutton', { name: 'Money' })).toHaveValue('12345');
 });
@@ -6609,10 +6588,8 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await page.keyboard.press('Escape');
 	await expect(page.locator('[data-destination-focus="saves-grid"]')).toBeFocused();
 
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
-		timeout: 15000
-	});
+	await importSaveThroughSaves(page, emeraldFixturePath);
+
 	browser = await openBackupBrowser(page);
 	await expect(browser).toContainText('No Backups yet');
 	await expect(browser.getByRole('button', { name: 'Create Backup' })).toBeFocused();
@@ -7534,7 +7511,7 @@ test('Saves uses one identity grid with internal scrolling at the landscape floo
 
 	const fixture = await readFile(emeraldFixturePath);
 	for (const name of ['alpha.sav', 'beta.sav', 'gamma.sav', 'delta.sav']) {
-		await page.getByLabel('Import Save File').setInputFiles({
+		await importSaveThroughSaves(page, {
 			name,
 			mimeType: 'application/octet-stream',
 			buffer: fixture
@@ -7603,7 +7580,7 @@ test('portrait Saves keeps the document fixed and the grid at one column', async
 
 	const fixture = await readFile(emeraldFixturePath);
 	for (const name of ['alpha.sav', 'beta.sav', 'gamma.sav']) {
-		await page.getByLabel('Import Save File').setInputFiles({
+		await importSaveThroughSaves(page, {
 			name,
 			mimeType: 'application/octet-stream',
 			buffer: fixture
@@ -7674,7 +7651,7 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await expect(grid).toBeFocused();
 
 	const fixture = await readFile(emeraldFixturePath);
-	await page.getByLabel('Import Save File').setInputFiles({
+	await importSaveThroughSaves(page, {
 		name: 'alpha.sav',
 		mimeType: 'application/octet-stream',
 		buffer: fixture
@@ -7727,7 +7704,7 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await chooseMainMenu(page, 'Saves');
 	await expect(grid).toHaveAttribute('aria-activedescendant', alphaTarget!);
 
-	await page.getByLabel('Import Save File').setInputFiles({
+	await importSaveThroughSaves(page, {
 		name: 'beta.sav',
 		mimeType: 'application/octet-stream',
 		buffer: fixture
@@ -7869,11 +7846,15 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await expectActiveSaveOwner(page, 'alpha.sav');
 
 	await page.goto('/');
-	await page.getByLabel('Import Save File').setInputFiles({
-		name: 'broken.sav',
-		mimeType: 'application/octet-stream',
-		buffer: Buffer.from([1, 2, 3, 4])
-	});
+	await importSaveThroughSaves(
+		page,
+		{
+			name: 'broken.sav',
+			mimeType: 'application/octet-stream',
+			buffer: Buffer.from([1, 2, 3, 4])
+		},
+		'Import failed. Current active Save File was not changed.'
+	);
 
 	await expect(
 		page.getByText('Import failed. Current active Save File was not changed.')
@@ -7897,25 +7878,21 @@ test('Saves menu activates its Save File before opening Trainer or Bag', async (
 	await openEmptySaves(page);
 	await chooseMainMenu(page, 'Saves');
 	const fixture = await readFile(emeraldFixturePath);
-	await page.getByLabel('Import Save File').setInputFiles({
+	await importSaveThroughSaves(page, {
 		name: 'alpha.sav',
 		mimeType: 'application/octet-stream',
 		buffer: fixture
 	});
-	await expect(page.getByText('alpha.sav imported and made active.')).toBeVisible({
-		timeout: 15_000
-	});
+
 	await expect(page.locator('.save-card')).toHaveCount(1);
 	await expect(page.locator('.save-card[aria-busy="true"]')).toHaveCount(0);
 
-	await page.getByLabel('Import Save File').setInputFiles({
+	await importSaveThroughSaves(page, {
 		name: 'beta.sav',
 		mimeType: 'application/octet-stream',
 		buffer: fixture
 	});
-	await expect(page.getByText('beta.sav imported and made active.')).toBeVisible({
-		timeout: 15_000
-	});
+
 	await expect(page.locator('.save-card')).toHaveCount(2);
 	await expect(page.locator('.save-card[aria-busy="true"]')).toHaveCount(0);
 
@@ -7972,14 +7949,12 @@ test('Saves keeps unavailable cards actionable and restores semantic focus after
 	await openEmptySaves(page);
 	await page.goto('/');
 	const fixture = await readFile(emeraldFixturePath);
-	await page.getByLabel('Import Save File').setInputFiles({
+	await importSaveThroughSaves(page, {
 		name: 'unavailable.sav',
 		mimeType: 'application/octet-stream',
 		buffer: fixture
 	});
-	await expect(page.getByText('unavailable.sav imported and made active.')).toBeVisible({
-		timeout: 15_000
-	});
+
 	await removeSaveBytes(page, 'unavailable.sav');
 	await page.reload();
 
