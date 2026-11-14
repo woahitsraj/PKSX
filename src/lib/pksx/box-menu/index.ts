@@ -2,6 +2,7 @@ import type { BoxSourceType } from '$lib/pksx/storage-workbench';
 
 export type BoxMenuCommandKey =
 	| 'export'
+	| 'export-copy'
 	| 'save-backup'
 	| 'legality-report'
 	| 'organize-storage-boxes'
@@ -22,6 +23,7 @@ export function createBoxMenuCommands(input: {
 	workspaceReady: boolean;
 	paneCount: number;
 	undoAvailable: boolean;
+	linkedSource?: boolean;
 }): BoxMenuCommand[] {
 	const unavailable = (key: BoxMenuCommandKey, label: string, reason: string): BoxMenuCommand => ({
 		key,
@@ -45,6 +47,13 @@ export function createBoxMenuCommands(input: {
 			: input.workspaceReady
 				? available('export', 'Export')
 				: unavailable('export', 'Export', workspaceReason),
+		...(input.linkedSource && !storage
+			? [
+					input.workspaceReady
+						? available('export-copy', 'Export a copy')
+						: unavailable('export-copy', 'Export a copy', workspaceReason)
+				]
+			: []),
 		storage
 			? unavailable('save-backup', 'Save a backup', 'Pokemon Storage does not use Backups.')
 			: input.workspaceReady

@@ -39,6 +39,16 @@ vi.mock('$lib/pksx/saves-cache', async () => {
 		invalidateSavesCache: () => {}
 	};
 });
+vi.mock('$lib/pksx/linked-save-sources/runtime', () => ({
+	getLinkedSaveSources: () => ({
+		observe: async (file: import('$lib/pksx/saves').StoredSaveFile) => ({
+			kind: 'current',
+			file,
+			name: 'xd.gci',
+			outcome: 'none'
+		})
+	})
+}));
 let component: ReturnType<typeof mount>;
 let target: HTMLDivElement;
 afterEach(async () => {

@@ -46,7 +46,11 @@
 		'trainer-editing': 'Trainer editing',
 		'inventory-editing': 'Inventory editing',
 		'legality-fix': 'Legality fix',
-		evolution: 'Evolution'
+		evolution: 'Evolution',
+		'linked-source-before-export': 'Emulator source before Export',
+		'linked-workspace-before-refresh': 'PKSX Workspace before loading external save',
+		'linked-import-before-refresh': 'Imported baseline before loading external save',
+		'linked-source-before-recovery': 'External bytes before source recovery'
 	};
 
 	const storage = getSavesStorage();
@@ -397,7 +401,7 @@
 
 			<div class="backup-list" aria-label="Backups">
 				{#each backups as backup (backup.id)}
-					<article class:selected={selectedBackupId === backup.id}>
+					<article class={{ selected: selectedBackupId === backup.id }}>
 						<div>
 							<strong>{reasonLabels[backup.reason]}</strong>
 							<span>{formatTimestamp(backup.createdAt)}</span>

@@ -147,3 +147,20 @@ Discovery rules were checked against the
 [scanner reference at c1d12b6](https://github.com/sofianeelhor/PKForge/blob/c1d12b6d1b0239e57ead0c1e1add1432d24f7e3a/src/PKForge.App/Platforms/Android/AndroidEmulatorScanner.cs).
 Fixtures simulate directory layouts and reuse engine-readable save bytes. They do
 not emulate those apps or verify platform-specific save containers.
+
+## Linked source Export and refresh
+
+This extends folder discovery. New links request read/write grants. Previously read-only links can still scan and import; select the folder again to grant write access. Export on a linked Save File targets its original document. Export a copy stays available when permissions or source conflicts block write-back. Manual imports without a linked document retain copy Export.
+
+Use disposable copies in a user-selected folder, close the emulator before Export, and preserve the original profile package and emulator files. Verify the exact frontend/native head, not only a previous discovery build:
+
+1. Restart and resume with an unchanged source. Confirm no duplicate imports or modal update prompts, and verify navigation stays usable.
+2. Edit only the app Workspace and Export. Check the pre-write external Backup, source byte equality with serialized Workspace bytes, unchanged imported baseline, and no write/extra Backup on identical Export.
+3. Change only the source, then change both source and Workspace. Confirm Export blocks competing bytes, Export a copy works, and external refresh requires confirmation and preserves the prior Workspace and imported baseline in Backups. Open those Backups for the correct owner and restore them through the existing workflow.
+4. Remove the grant and restart. Confirm clear relink guidance, retained local data, and refused write-back. Relink the same document and confirm no duplicate import.
+5. With a controlled test document provider, reject write access, fail after truncation/partial output, and stop the isolated app after durable journal creation and after completed output. Confirm failures never claim success; restart distinguishes unwritten, completed, and indeterminate bytes. Explicit recovery must preserve partial bytes, restore the original external Backup, and verify read-back. A normal filesystem provider alone cannot prove interrupted-provider behavior.
+6. Repeat source Export and reload in Dolphin Pokemon XD when device access is granted. Never overwrite the user's original emulator save during acceptance. General emulator layout fixtures prove discovery/Engine recognition, not write behavior for every emulator version or provider.
+
+SAF provides no portable atomic replace or compare-and-swap. A provider may truncate before a failed write and descriptor sync may be unsupported. The durable journal, pre-write Backup, read-back check, and explicit recovery are the guarantees under test. No automatic retry overwrites a document.
+
+Write-back acceptance for this expansion is pending. Historical read-only Dolphin acceptance does not prove this path.

@@ -1,3 +1,5 @@
+import { getLinkedSaveSources } from '$lib/pksx/linked-save-sources/runtime';
+import type { LinkedSourceStatus } from '$lib/pksx/linked-save-sources';
 import { SvelteSet } from 'svelte/reactivity';
 import { getPkhexEngine, getSavesStorage, invalidateSavesCache } from '$lib/pksx/saves-cache';
 import {
@@ -16,6 +18,8 @@ export class LinkedSaveDiscovery {
 	reports = $state<Record<string, string>>({});
 	scanning = $state(false);
 	picking = $state(false);
+	sources = $state<LinkedSourceStatus[]>([]);
+	sourceBusy = $state(false);
 	#controller: AbortController | undefined;
 	#task: Promise<void> | undefined;
 
@@ -55,6 +59,52 @@ export class LinkedSaveDiscovery {
 		}
 	}
 
+	async loadExternal(
+		status: Extract<LinkedSourceStatus, { kind: 'changed' }>,
+		allowDirty: boolean
+	) {
+		this.sourceBusy = true;
+		try {
+			await getLinkedSaveSources().loadExternal(status.file, status.externalHash, allowDirty);
+			this.message =
+				'External version loaded. Previous Workspace and imported baseline are preserved in Backups.';
+		} catch (error) {
+			this.message = errorMessage(error);
+		} finally {
+			invalidateSavesCache();
+			await this.checkSources().catch((error) => {
+				this.message = errorMessage(error);
+			});
+			this.sourceBusy = false;
+		}
+	}
+
+	async recoverSource(status: Extract<LinkedSourceStatus, { kind: 'recovery' }>) {
+		this.sourceBusy = true;
+		try {
+			await getLinkedSaveSources().recover(status.file, status.externalHash);
+			this.message =
+				'Original external Backup restored and verified. Current Workspace is retained.';
+		} catch (error) {
+			this.message = errorMessage(error);
+		} finally {
+			invalidateSavesCache();
+			await this.checkSources().catch((error) => {
+				this.message = errorMessage(error);
+			});
+			this.sourceBusy = false;
+		}
+	}
+
+	async checkSources(signal?: AbortSignal) {
+		const statuses: LinkedSourceStatus[] = [];
+		for (const file of await getSavesStorage().listSaves()) {
+			if (signal?.aborted) return;
+			if (file.linkedDocumentId) statuses.push(await getLinkedSaveSources().observe(file));
+		}
+		this.sources = statuses;
+	}
+
 	cancel() {
 		this.#controller?.abort();
 		void saveFolders.cancel().catch(() => undefined);
@@ -62,7 +112,6 @@ export class LinkedSaveDiscovery {
 
 	scan(folders = this.folders): Promise<void> {
 		if (this.#task) return this.#task;
-		if (!folders.length) return Promise.resolve();
 		this.#controller = new AbortController();
 		this.scanning = true;
 		const signal = this.#controller.signal;
@@ -123,6 +172,7 @@ export class LinkedSaveDiscovery {
 				this.errors = { ...this.errors, [folder.tree]: errorMessage(error) };
 			}
 		}
+		await this.checkSources(signal);
 		this.message = signal.aborted
 			? `Scan cancelled. ${added} new saves added. Discovered saves remain in Saves.`
 			: `Scan finished. ${added} new saves added. ${unavailable ? `${unavailable} folders need attention. ` : ''}Open them from Saves.`;
