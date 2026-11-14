@@ -127,7 +127,8 @@
 	}
 
 	function focusStop(id: string, column = 0) {
-		const row = route.querySelector<HTMLElement>(`[data-settings-row="${id}"]`) ?? rows()[0];
+		const available = rows();
+		const row = available.find((row) => row.dataset.settingsRow === id) ?? available[0];
 		if (!row) return;
 		const controls = controlsFor(row);
 		const target = controls[Math.min(column, controls.length - 1)];
