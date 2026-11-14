@@ -6,7 +6,9 @@ Accepted by the user on 2026-11-14 for [Define Cloud Sync account settings and s
 
 Eligible users open one Cloud Sync Takeover through the existing settings entry. Eligibility is controlled by the separate access policy; signing in is not itself permission to use Cloud Sync. The initial personal rollout hides the entry from other users. Do not add a public upgrade, sign-in, or waitlist prompt as part of this workflow.
 
-While signed out, explain opt-in, provider-readable storage, and local-only use, then offer enable/sign-in. Existing local Saves enters the profile only through the already-defined Sync Adoption confirmation. Cancelling sign-in or adoption preserves local Saves and leaves the Installation unenrolled. A person can use PKSX locally without an account.
+First sign-in is reached through the restricted owner activation path defined by the personal-access policy; a public settings entry is not exposed just to discover eligibility. After the service verifies the owner and access grant, the normal Cloud Sync settings entry becomes available.
+
+Within that restricted activation flow while signed out, explain opt-in, provider-readable storage, and local-only use, then offer enable/sign-in. Existing local Saves enters the profile only through the already-defined Sync Adoption confirmation. Cancelling sign-in or adoption preserves local Saves and leaves the Installation unenrolled. A person can use PKSX locally without an account.
 
 While enrolled, show the User Account identity, cloud space used and Sync Quota, actionable authentication or quota state, degraded durability if applicable, and Manage storage. Do not show automatic transient retry failures. Exact sign-in methods are specified separately.
 
