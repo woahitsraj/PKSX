@@ -328,3 +328,32 @@ it('stages, cancels and applies a duplicate display name without losing target i
 		.toBe('saves-target-' + file.id);
 	expect(container.querySelectorAll('[aria-label="Open Adventure in Boxes"]').length).toBe(2);
 });
+
+it('returns pointer menus to the remembered grid target', async () => {
+	const storage = getSavesStorage();
+	const file = await storage.importSave({
+		bytes: new Uint8Array([1]),
+		originalFileName: 'menu-owner.sav'
+	});
+	const remembered = await storage.importSave({
+		bytes: new Uint8Array([2]),
+		originalFileName: 'remembered.sav'
+	});
+	fakes.host = createSummonedWorkflowHost();
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(SavesGrid, { target: container });
+	await expect.poll(() => container.querySelectorAll('.save-card').length).toBe(2);
+	const grid = container.querySelector<HTMLElement>('[role="grid"]')!;
+	await expect
+		.poll(() => grid.getAttribute('aria-activedescendant'))
+		.toBe('saves-target-' + remembered.id);
+	container
+		.querySelector<HTMLButtonElement>('[aria-label="Open Save File Menu for menu-owner.sav"]')!
+		.click();
+	await tick();
+	window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+	await tick();
+	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-' + remembered.id);
+	expect((await storage.getSave(file.id))?.originalFileName).toBe('menu-owner.sav');
+});

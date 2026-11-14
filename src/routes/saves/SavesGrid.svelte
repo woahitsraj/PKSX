@@ -32,6 +32,7 @@
 	} from '$lib/pksx/pokemon-storage-catalog';
 	import {
 		getCachedActiveWorkspace,
+		getCachedActiveWorkspaceBox,
 		getCachedSavesSnapshot,
 		getPkhexEngine,
 		getPokemonStorageCatalog,
@@ -717,7 +718,7 @@
 			return;
 		}
 		menuSaveFileId = saveFileId;
-		menuReturnTarget = { kind: 'save-file', id: saveFileId };
+		menuReturnTarget = target;
 		menuIndex = 0;
 		deleteDescription = null;
 		void focusMenuCommand(0);
@@ -874,7 +875,9 @@
 		try {
 			const file = await storage.renameSave(id, name);
 			const workspace = getCachedActiveWorkspace();
-			if (workspace?.file.id === id) setCachedActiveWorkspace({ ...workspace, file });
+			if (workspace?.file.id === id) {
+				setCachedActiveWorkspace({ ...workspace, file }, getCachedActiveWorkspaceBox());
+			}
 			invalidateSavesCache();
 			summonedWorkflow.closeAll();
 			menuSaveFileId = null;
