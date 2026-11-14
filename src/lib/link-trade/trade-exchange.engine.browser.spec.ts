@@ -22,8 +22,9 @@ for (const { script, fault } of [
 	{ script: 'drop-after-ladder' },
 	{ script: 'trade', fault: 'storage' },
 	{ script: 'trade', fault: 'join' },
-	{ script: 'trade', fault: 'radio' }
-] satisfies { script: FakeScript; fault?: 'storage' | 'join' | 'radio' }[]) {
+	{ script: 'trade', fault: 'radio' },
+	{ script: 'trade', fault: 'journal' }
+] satisfies { script: FakeScript; fault?: 'storage' | 'join' | 'radio' | 'journal' }[]) {
 	test(`exchange Takeover follows the real fake-radio ${script} ${fault ?? ''} outcome`, async () => {
 		await page.viewport(
 			fault === 'join' ? 616 : fault === 'storage' ? 360 : 1280,
@@ -53,10 +54,15 @@ for (const { script, fault } of [
 		const storage = new PokemonStorageService(new BrowserCatalogPersistence(name), engine);
 		await storage.initialize();
 		const entries = new Map<string, TradeEntry>();
+		let rejectDispatch = fault === 'journal';
 		const journal = new TradeJournal(
 			{
 				list: async () => structuredClone([...entries.values()]),
 				put: async (entry) => {
+					if (entry.dispatched && rejectDispatch) {
+						rejectDispatch = false;
+						throw new Error('disk full before dispatch');
+					}
 					entries.set(entry.id, structuredClone(entry));
 				}
 			},
@@ -74,7 +80,7 @@ for (const { script, fault } of [
 				return original(...args);
 			});
 		}
-		const client = fakeTradeClient(script, outgoing, fault);
+		const client = fakeTradeClient(script, outgoing, fault === 'journal' ? undefined : fault);
 		if (fault === 'storage')
 			vi.spyOn(storage, 'importPayload').mockRejectedValueOnce(new Error('disk full'));
 		const start = vi.spyOn(client, 'startSession');
@@ -117,6 +123,16 @@ for (const { script, fault } of [
 			await click('Use simulated radio');
 			await click('Sword');
 			await click('Start trade');
+			if (fault === 'journal') {
+				await vi.waitFor(() => expect(host.textContent).toContain('could not prepare this trade'));
+				expect(start).not.toHaveBeenCalled();
+				expect(entries.size).toBe(1);
+				component.dispatch('back');
+				await tick();
+				expect(host.textContent).toContain('Destination game');
+				await click('Sword');
+				await click('Start trade');
+			}
 			const expected = {
 				trade: 'Trade completed',
 				cancel: 'Trade cancelled',

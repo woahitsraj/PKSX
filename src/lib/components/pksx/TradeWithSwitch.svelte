@@ -122,13 +122,14 @@
 		working = true;
 		exchangeMessage = null;
 		try {
-			entry = await journal.prepare(review.reviewed, async () => {
+			const prepared = await journal.prepare(review.reviewed, async () => {
 				const result = await prepare(review!.status === 'ready' ? review!.reviewed.game : 'sword');
 				return result.ok ? reviewedLinkTrade(source, result.value) : null;
 			});
-			step = 'exchange';
-			partnerLabel = null;
-			await journal.dispatch(entry.id, async (saved) => {
+			await journal.dispatch(prepared.id, async (saved) => {
+				entry = saved;
+				step = 'exchange';
+				partnerLabel = null;
 				const result = await client!.startSession(
 					saved.id,
 					saved.review.game,
@@ -142,6 +143,7 @@
 				}
 			});
 		} catch {
+			if (!entry || entry.outcome) step = 'review';
 			exchangeMessage =
 				'PKSX could not prepare this trade. The Pokemon may have changed, or local storage is unavailable. Review it again.';
 		} finally {
