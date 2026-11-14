@@ -11,6 +11,7 @@ test('selects occupied Slots by touch and controller, retains boxes, and exits s
 	page
 }) => {
 	await page.goto('/');
+	await page.waitForLoadState('networkidle');
 	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
 		'data-initial-state',
 		'ready'

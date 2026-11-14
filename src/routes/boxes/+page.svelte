@@ -3904,6 +3904,7 @@
 	}
 
 	function beginPendingSlotOperation(kind: 'move' | 'copy') {
+		if (selection) return;
 		const domSource = validateTransferSource(transferDomSource ?? focusedDomSaveSlot());
 		transferDomSource = null;
 		const slot = domSource?.slot ?? focusedSlot;
@@ -8212,6 +8213,8 @@
 {/if}
 
 <style>
+	.selection-controls button { height: var(--pksx-control-height); }
+
 	.selection-controls {
 		position: fixed;
 		bottom: 48px;
