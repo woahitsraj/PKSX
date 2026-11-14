@@ -173,3 +173,7 @@ Discovery rules were checked against the
 [scanner reference at c1d12b6](https://github.com/sofianeelhor/PKForge/blob/c1d12b6d1b0239e57ead0c1e1add1432d24f7e3a/src/PKForge.App/Platforms/Android/AndroidEmulatorScanner.cs).
 Fixtures simulate directory layouts and reuse engine-readable save bytes. They do
 not emulate those apps or verify platform-specific save containers.
+
+Folder preferences also retain the first link in the legacy single-folder fields.
+A rollback can read that link; the multi-folder array is authoritative in this build.
+Unlink updates both representations and retains imported Saves.

@@ -42,11 +42,15 @@ public class SaveFoldersPlugin extends Plugin {
         return folders;
     }
 
-    private void persistFolders(JSArray folders) {
-        if (!preferences().edit().putString("folders", folders.toString())
-            .remove("tree").remove("mode").remove("name").commit()) {
-            throw new IllegalStateException("Folder links could not be saved.");
+    private void persistFolders(JSArray folders) throws Exception {
+        SharedPreferences.Editor edit = preferences().edit().putString("folders", folders.toString());
+        if (folders.length() == 0) edit.remove("tree").remove("mode").remove("name");
+        else {
+            JSONObject first = folders.getJSONObject(0);
+            edit.putString("tree", first.getString("tree")).putString("name", first.getString("name"))
+                .putString("mode", "generic");
         }
+        if (!edit.commit()) throw new IllegalStateException("Folder links could not be saved.");
     }
 
     @PluginMethod
