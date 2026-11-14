@@ -144,7 +144,7 @@ test.describe('display names across Save File consumers', () => {
 			await page.getByRole('button', { name: 'Open Main Menu' }).tap();
 			await page
 				.getByRole('dialog', { name: 'Main Menu' })
-				.getByRole('button', { name: /^Backups/ })
+				.getByRole('button', { name: /^Backup Browser/ })
 				.tap();
 			await expect(page.locator('#backup-browser-description')).toHaveText('Journey');
 			await page.getByRole('button', { name: 'Close Backup Browser' }).tap();
