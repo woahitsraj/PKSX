@@ -6,6 +6,7 @@ import {
 	saveFolders,
 	supportsSaveFolders,
 	scanFolder,
+	cancellable,
 	type FolderLink,
 	type DiscoveredSave
 } from './index';
@@ -100,7 +101,10 @@ export class LinkedSaveDiscovery {
 		const statuses: LinkedSourceStatus[] = [];
 		for (const file of await getSavesStorage().listSaves()) {
 			if (signal?.aborted) return;
-			if (file.linkedDocumentId) statuses.push(await getLinkedSaveSources().observe(file));
+			if (file.linkedDocumentId) {
+				const observing = getLinkedSaveSources().observe(file);
+				statuses.push(signal ? await cancellable(observing, signal) : await observing);
+			}
 		}
 		this.sources = statuses;
 	}
@@ -172,7 +176,9 @@ export class LinkedSaveDiscovery {
 				this.errors = { ...this.errors, [folder.tree]: errorMessage(error) };
 			}
 		}
-		await this.checkSources(signal);
+		await this.checkSources(signal).catch((error) => {
+			if (!signal.aborted) throw error;
+		});
 		this.message = signal.aborted
 			? `Scan cancelled. ${added} new saves added. Discovered saves remain in Saves.`
 			: `Scan finished. ${added} new saves added. ${unavailable ? `${unavailable} folders need attention. ` : ''}Open them from Saves.`;
