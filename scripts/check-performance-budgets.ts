@@ -18,13 +18,15 @@ const budgets = z
 	.parse(JSON.parse(await readFile('scripts/performance-budgets.json', 'utf8')));
 const totals = Object.fromEntries(groups.map((group) => [group, { raw: 0, gzip: 0, files: 0 }]));
 const assets = [];
-for (const file of (await readdir(root, { recursive: true, withFileTypes: true }))
+const files = (await readdir(root, { recursive: true, withFileTypes: true }))
 	.filter((file) => file.isFile())
-	.sort((a, b) => path.join(a.parentPath, a.name).localeCompare(path.join(b.parentPath, b.name)))) {
-	const absolute = path.join(file.parentPath, file.name);
+	.map((file) => path.join(file.parentPath, file.name))
+	.sort();
+const paths = new Set(files);
+for (const absolute of files) {
 	const name = path.relative(root, absolute).split(path.sep).join('/');
 	// Sidecars encode the same resource; source maps and symbols still count as shipped bytes.
-	if (/\.(gz|br)$/.test(name)) continue;
+	if (/\.(gz|br)$/.test(name) && paths.has(absolute.replace(/\.(gz|br)$/, ''))) continue;
 	const bytes = await readFile(absolute);
 	const group = name.startsWith('pkhex-engine/')
 		? 'engine'
