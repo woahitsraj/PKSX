@@ -15,6 +15,7 @@ export type SummonedWorkflowKind =
 	| 'quick-search'
 	| 'save-file-menu'
 	| 'save-file-delete'
+	| 'save-file-rename'
 	| 'storage-backup-menu'
 	| 'storage-backup-confirmation'
 	| 'source-picker'

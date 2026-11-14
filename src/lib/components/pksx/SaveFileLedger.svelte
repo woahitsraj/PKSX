@@ -826,7 +826,9 @@
 					<header class="workspace-identity">
 						<h1 id={titleId}>{destinationLabel}</h1>
 						<p class="workspace-file">
-							<span class="filename" title={view.originalFilename}>{view.originalFilename}</span>
+							<span class="filename" title={view.originalFilename}
+								>{view.displayName ?? view.originalFilename}</span
+							>
 							<span>{view.summary.gameVersion}</span>
 						</p>
 					</header>

@@ -1,3 +1,4 @@
+export { getSaveDisplayName } from './display-name';
 export { bytesEqual, copyBytes } from './bytes';
 export { stableAutomaticBackupId } from './automatic-backup';
 export { WorkspaceRevisionConflictError } from './workspace-revision';

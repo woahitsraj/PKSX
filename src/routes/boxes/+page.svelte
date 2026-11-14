@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { getSaveDisplayName } from '$lib/pksx/saves';
 	import { dev } from '$app/environment';
 	import { asset } from '$app/paths';
 	import { goto } from '$app/navigation';
@@ -837,7 +838,7 @@
 				saveFiles.length > 0
 					? saveFiles.map((saveFile) => ({
 							id: saveFile.id,
-							fileName: saveFile.originalFileName,
+							fileName: getSaveDisplayName(saveFile),
 							gameLabel:
 								loadedSave?.file.id === saveFile.id
 									? (loadedSave.workspace.summary.gameVersion ?? null)
@@ -855,7 +856,7 @@
 						? [
 								{
 									id: loadedSave.file.id,
-									fileName: loadedSave.file.originalFileName,
+									fileName: getSaveDisplayName(loadedSave.file),
 									gameLabel: loadedSave.workspace.summary.gameVersion ?? null,
 									boxCount,
 									pokemonCount:
@@ -4125,7 +4126,7 @@
 		return {
 			type: 'save-file',
 			id: save?.file.id ?? null,
-			label: save?.file.originalFileName ?? 'Save File',
+			label: save ? getSaveDisplayName(save.file) : 'Save File',
 			dirty: save?.dirty ?? false
 		};
 	}
@@ -4363,7 +4364,11 @@
 		return {
 			type: 'save-file',
 			id: selectedSave?.id ?? loadedSave?.file.id ?? null,
-			label: selectedSave?.originalFileName ?? loadedSave?.file.originalFileName ?? 'Save File',
+			label: selectedSave
+				? getSaveDisplayName(selectedSave)
+				: loadedSave
+					? getSaveDisplayName(loadedSave.file)
+					: 'Save File',
 			dirty:
 				loadedSave !== null && loadedSave.file.id === selectedSave?.id ? loadedSave.dirty : false
 		};
@@ -6704,7 +6709,7 @@
 						saveFiles: saveFiles.map((saveFile) => ({
 							type: 'save-file' as const,
 							id: saveFile.id,
-							label: saveFile.originalFileName ?? 'Save File',
+							label: getSaveDisplayName(saveFile),
 							dirty: restoredActiveSave?.file.id === saveFile.id && restoredActiveSave.dirty
 						})),
 						activeSaveFileId,
@@ -7172,7 +7177,7 @@
 		} else {
 			cacheBoxSlots(state, activeBox);
 		}
-		const label = state.file.originalFileName ?? pane.source.label;
+		const label = getSaveDisplayName(state.file);
 		if (
 			pane.activeBox !== activeBox ||
 			pane.boxCount !== boxCount ||

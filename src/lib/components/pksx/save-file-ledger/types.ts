@@ -12,6 +12,7 @@ export type SaveFileLedgerView =
 	| {
 			status: 'ready';
 			originalFilename: string;
+			displayName?: string;
 			summary: Pick<SaveSummary, 'gameVersion' | 'trainerId' | 'playTime'>;
 			projection: SaveFileEditableProjection;
 			editingUnavailable?: { message: string; retrying?: boolean } | null;
