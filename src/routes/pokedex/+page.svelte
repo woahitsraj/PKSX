@@ -10,6 +10,7 @@
 	import type { PokedexEdit } from '$lib/engine/types';
 	import type { WorkspaceState } from '$lib/pksx/backup-workflow';
 	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
+	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
 	import {
 		getActiveWorkspaceService,
 		getCachedActiveWorkspaceBox,
@@ -67,11 +68,12 @@
 
 	function navigateSpecies(event: KeyboardEvent) {
 		if (event.altKey || event.ctrlKey || event.metaKey || !event.key.startsWith('Arrow')) return;
-		if (!(event.target instanceof HTMLButtonElement)) return;
-		const row = event.target.closest('.species-row');
+		const active = isControllerKeyboardEvent(event) ? document.activeElement : event.target;
+		if (!(active instanceof HTMLButtonElement)) return;
+		const row = active.closest('.species-row');
 		if (!row) return;
 		const controls = Array.from(row.querySelectorAll<HTMLButtonElement>('button'));
-		const column = controls.indexOf(event.target);
+		const column = controls.indexOf(active);
 		let target: HTMLButtonElement | undefined;
 		if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
 			target =

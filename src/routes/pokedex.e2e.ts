@@ -82,8 +82,17 @@ for (const viewport of [
 		await page.getByRole('button', { name: 'Bulbasaur Caught', exact: true }).click();
 		await expect(seen).toHaveAttribute('aria-disabled', 'false');
 		expect(await backupCount(page)).toBe(backups + 1);
+		await search.fill('saur');
 		await seen.focus();
-		for (const key of ['ArrowRight', 'ArrowLeft']) {
+		for (const [key, control] of [
+			['ArrowRight', 'Bulbasaur Caught'],
+			['ArrowRight', 'Bulbasaur Caught'],
+			['ArrowLeft', 'Bulbasaur Seen'],
+			['ArrowLeft', 'Bulbasaur Seen'],
+			['ArrowDown', 'Ivysaur Seen'],
+			['ArrowUp', 'Bulbasaur Seen'],
+			['ArrowUp', null]
+		]) {
 			await page.evaluate((key) => {
 				for (const pressed of [true, false])
 					window.dispatchEvent(
@@ -92,8 +101,12 @@ for (const viewport of [
 						})
 					);
 			}, key);
+			await expect(
+				control ? page.getByRole('button', { name: control, exact: true }) : search
+			).toBeFocused();
 		}
-		await expect(seen).toBeFocused();
+		await search.fill('bulba');
+		await seen.focus();
 		await choose(page, 'Trainer');
 		await choose(page, 'Pokedex');
 		await expect(search).toHaveValue('bulba');
