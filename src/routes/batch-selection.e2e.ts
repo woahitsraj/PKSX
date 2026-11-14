@@ -33,7 +33,14 @@ for (const viewport of [
 				'ready',
 				{ timeout: 60_000 }
 			);
-			await page.keyboard.press('-');
+			await page.evaluate(async () => {
+				const detail = { key: 'Select', pressed: true, discrete: true, id: 'Test controller' };
+				window.dispatchEvent(new CustomEvent('pksxcontroller', { detail }));
+				await new Promise(requestAnimationFrame);
+				window.dispatchEvent(
+					new CustomEvent('pksxcontroller', { detail: { ...detail, pressed: false } })
+				);
+			});
 			const actions = page.getByRole('group', { name: 'Selection actions' });
 			await expect(actions).toContainText('0 selected');
 			const pokemon = page.locator('.box-pane .slot.pokemon').first();
