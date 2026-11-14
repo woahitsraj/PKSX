@@ -486,6 +486,7 @@ export function createSourcePickerCards(input: {
 	saveFiles: Array<{
 		id: SaveFileId;
 		fileName: string | null;
+		originalFileName?: string | null;
 		gameLabel?: string | null;
 		boxCount?: number | null;
 		pokemonCount?: number | null;
@@ -498,6 +499,7 @@ export function createSourcePickerCards(input: {
 		type: 'save-file' as const,
 		label: saveFile.fileName ?? 'Untitled Save File',
 		metadata: [
+			saveFile.originalFileName !== saveFile.fileName ? saveFile.originalFileName : null,
 			saveFile.gameLabel,
 			typeof saveFile.boxCount === 'number' ? `${saveFile.boxCount} boxes` : null,
 			typeof saveFile.pokemonCount === 'number' ? `${saveFile.pokemonCount} Pokemon` : null,

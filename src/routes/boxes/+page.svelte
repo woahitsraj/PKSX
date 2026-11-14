@@ -871,6 +871,7 @@
 					? saveFiles.map((saveFile) => ({
 							id: saveFile.id,
 							fileName: getSaveDisplayName(saveFile),
+							originalFileName: saveFile.originalFileName,
 							gameLabel:
 								loadedSave?.file.id === saveFile.id
 									? (loadedSave.workspace.summary.gameVersion ?? null)
@@ -889,6 +890,7 @@
 								{
 									id: loadedSave.file.id,
 									fileName: getSaveDisplayName(loadedSave.file),
+									originalFileName: loadedSave.file.originalFileName,
 									gameLabel: loadedSave.workspace.summary.gameVersion ?? null,
 									boxCount,
 									pokemonCount:
@@ -3621,7 +3623,7 @@
 				const bytes = await editCoordinator.export(origin);
 				if (!resolveBoxMenuSaveTarget(target)) return;
 				downloadBytes(bytes, createExportFileName(file.originalFileName));
-				statusMessage = `Export ready for ${file.originalFileName ?? 'Save File'}.`;
+				statusMessage = `Export ready for ${getSaveDisplayName(file)}.`;
 			}
 			toastHost.success(statusMessage);
 			if (boxMenuTarget === target) closeBoxMenu();
@@ -3648,7 +3650,7 @@
 			});
 			if (!resolveBoxMenuSaveTarget(target)) return;
 			invalidateSavesCache();
-			statusMessage = `Backup saved for ${resolved.workspace.state.file.originalFileName ?? 'Save File'}.`;
+			statusMessage = `Backup saved for ${getSaveDisplayName(resolved.workspace.state.file)}.`;
 			toastHost.success(statusMessage);
 			closeBoxMenu();
 		} catch (error) {
