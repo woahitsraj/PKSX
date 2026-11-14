@@ -33,11 +33,11 @@ These obligations follow the accepted contract. Selecting the stack does not mar
 
 ## Limits and remaining product decisions
 
-A single SQLite-backed Durable Object has a finite metadata capacity. The current limits document distinguishes 1 GB on Free and 10 GB on Paid; writes fail at the physical limit. **Inference:** raw artifacts belong in R2, and capacity planning must reserve metadata headroom for deletion and ancestry before reaching that limit. No plan, per-user quota, budget, or purchase is selected here. [Durable Object limits](https://developers.cloudflare.com/durable-objects/platform/limits/)
+A single SQLite-backed Durable Object has a finite metadata capacity. The current limits document distinguishes 1 GB on Free and 10 GB on Paid; writes fail at the physical limit. **Inference:** raw artifacts belong in R2, and capacity planning must reserve metadata headroom for deletion and ancestry before reaching that limit. This provider-selection issue selects no plan, quota amount, budget, or purchase; the separate personal-rollout specification selects the initial logical quota. [Durable Object limits](https://developers.cloudflare.com/durable-objects/platform/limits/)
 
 Deletion Markers and Sync Ancestry Records persist under the accepted policy, so metadata can grow even after superseded content is removed. Implementation planning must cover admission limits and a future partitioning path without expiring causal history or pretending a user's artifact quota is the physical database ceiling.
 
-Still unresolved on [Wayfinder: Cloud Sync for Saves](https://github.com/woahitsraj/PKSX/issues/302): settings entry and account controls, quota ownership and payment, the family-level space view, and the final implementation breakdown. The adapter contract now defines test boundaries; the breakdown must turn them into issue-specific acceptance criteria.
+At the time of the provider comparison, settings, quota funding, space management, and the implementation breakdown were still open. Subsequent user-approved planning is recorded in [Cloud Sync account settings](https://github.com/woahitsraj/PKSX/pull/469), [personal access and initial quota](https://github.com/woahitsraj/PKSX/pull/470), [passkey-first sign-in and linking](https://github.com/woahitsraj/PKSX/pull/471), and [the implementation breakdown](https://github.com/woahitsraj/PKSX/pull/474). Those PRs define later decisions without changing this provider-selection result; deployment budget and public pricing remain unresolved.
 
 ## Deeper trade-off review
 
