@@ -62,6 +62,17 @@ for (const { script, fault } of [
 			engine,
 			storage
 		);
+		let finishImport = () => {};
+		if (script === 'trade' && !fault) {
+			const original = storage.importPayload.bind(storage);
+			const pending = new Promise<void>((resolve) => {
+				finishImport = resolve;
+			});
+			vi.spyOn(storage, 'importPayload').mockImplementation(async (...args) => {
+				await pending;
+				return original(...args);
+			});
+		}
 		const client = fakeTradeClient(script, outgoing, fault);
 		if (fault === 'storage')
 			vi.spyOn(storage, 'importPayload').mockRejectedValueOnce(new Error('disk full'));
@@ -118,6 +129,11 @@ for (const { script, fault } of [
 				await click('Retry');
 			}
 			await vi.waitFor(() => expect(host.textContent).toContain(expected), { timeout: 25000 });
+			if (script === 'trade' && !fault) {
+				component.dispatch('back');
+				expect(onClose).not.toHaveBeenCalled();
+				finishImport();
+			}
 			if (fault === 'storage') {
 				await vi.waitFor(() => expect(host.textContent).toContain('has not been saved to Storage'));
 				await click('Retry local import');
@@ -139,6 +155,7 @@ for (const { script, fault } of [
 			component.dispatch('back');
 			expect(onClose).toHaveBeenCalledOnce();
 		} finally {
+			finishImport();
 			await unmount(component);
 			host.remove();
 			await deleteBrowserCatalog(name);

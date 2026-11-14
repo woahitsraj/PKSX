@@ -5759,6 +5759,7 @@
 	function closeTradeWithSwitch() {
 		tradeTarget = null;
 		dismissActiveWorkflow();
+		void refreshCommittedCatalogView();
 		refreshReturnedSlotMenuAvailability();
 	}
 

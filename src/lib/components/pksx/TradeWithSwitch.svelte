@@ -342,7 +342,7 @@
 	}
 
 	function back() {
-		if (installing || working || pendingEvents.length) return;
+		if (installing || working || savingEvents || pendingEvents.length) return;
 		if (running) return void cancelTrade();
 		if (step === 'exchange' || step === 'recovery') return onClose();
 		if (firstStepBack) return onClose();
