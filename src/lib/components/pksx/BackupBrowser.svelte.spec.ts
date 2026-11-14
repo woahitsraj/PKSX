@@ -116,3 +116,17 @@ it('ignores late selected previews, distinguishes missing and parse failure, and
 	expect(container.textContent).toBe('');
 	expect(fakes.putWorkspace).not.toHaveBeenCalled();
 });
+
+it('renders Engine-owned absent trainer and play time as unavailable', async () => {
+	fakes.bytes = new Map([['one', new Uint8Array([1])]]);
+	fakes.summarize.mockResolvedValue({ ok: true, value: details('RSBOX', '', '') });
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(BackupBrowser, { target: container });
+	await expect
+		.poll(() =>
+			Array.from(container.querySelectorAll('.backup-preview dd'), (node) => node.textContent)
+		)
+		.toEqual(['RSBOX', 'Unavailable', 'Unavailable', '7']);
+	expect(fakes.putWorkspace).not.toHaveBeenCalled();
+});
