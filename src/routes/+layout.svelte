@@ -744,6 +744,7 @@
 			'Escape',
 			'PageUp',
 			'PageDown',
+			'Select',
 			'Menu',
 			'x',
 			'y'

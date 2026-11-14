@@ -83,6 +83,15 @@ public class ControllerNavigationTest {
         );
 
         pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_SELECT,
+            "document.querySelector('[data-selection-controls]')?.textContent.includes('0 selected')"
+        );
+        pressGamepadKey(
+            KeyEvent.KEYCODE_BUTTON_B,
+            "!document.querySelector('[data-selection-controls]')"
+        );
+
+        pressGamepadKey(
             KeyEvent.KEYCODE_DPAD_RIGHT,
             "window.__pksxTestControllerEvents?.includes('ArrowRight:true')"
                 + " && "
