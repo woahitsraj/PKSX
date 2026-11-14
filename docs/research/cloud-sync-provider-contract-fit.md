@@ -1,6 +1,6 @@
 # Cloud Sync provider recommendation against the accepted contract
 
-For [Select the Cloud Sync provider](https://github.com/woahitsraj/PKSX/issues/414). Reviewed 2026-11-14 against the [accepted adapter contract](../architecture/cloud-sync-provider-adapter-contract.md). This is a recommendation awaiting the user's provider decision, not an accepted ADR or authorization to deploy, purchase, or change accounts.
+For [Select the Cloud Sync provider](https://github.com/woahitsraj/PKSX/issues/414). Reviewed 2026-11-14 against the [accepted adapter contract](../architecture/cloud-sync-provider-adapter-contract.md). The user accepted the provider selection on 2026-11-14 after the deeper trade-off review. [ADR 0021](../adr/0021-use-cloudflare-and-better-auth-for-cloud-sync.md) records the decision. This research does not authorize deployment, purchases, or account changes.
 
 ## Recommendation
 
@@ -41,7 +41,7 @@ Still unresolved on [Wayfinder: Cloud Sync for Saves](https://github.com/woahits
 
 ## Deeper trade-off review
 
-The user's provisional agreement on 2026-11-14 was followed by a request for more evidence. Provider selection remains pending this review. The strongest comparison is Cloudflare with Better Auth versus managed Supabase. The earlier ranking should not be read as a proven ranking of total engineering effort or total cost.
+The user's provisional agreement on 2026-11-14 was followed by a request for more evidence. The user accepted Cloudflare plus Better Auth after this review. The strongest comparison is Cloudflare with Better Auth versus managed Supabase. The earlier ranking should not be read as a proven ranking of total engineering effort or total cost.
 
 ### What the operator owns
 
@@ -91,10 +91,8 @@ Cloudflare plus Better Auth remains the recommendation if PKSX accepts owning au
 
 More broad vendor research has diminishing value. The remaining technical uncertainty calls for a small acceptance spike after separate implementation authorization: prove durable publication across a lost response, a cleanup/recovery race, bounded access on an already-open socket, and restart-safe native sign-in. This planning thread does not implement that spike. Until then, the recommendation has documentation and source-inspection support, not tested production guarantees.
 
-## Decision frontier
+## Accepted decision and remaining planning
 
-Accept this stack as the first Sync Provider, including PKSX ownership of the passwordless identity service and email-delivery integration?
+The user accepted Cloudflare Workers, SQLite-backed Durable Objects, private R2, and D1 with Better Auth as the first Sync Provider, including PKSX ownership of passwordless authentication operations and email-delivery integration. [ADR 0021](../adr/0021-use-cloudflare-and-better-auth-for-cloud-sync.md) records the reasons and rejected alternative; [CONTEXT.md](../../CONTEXT.md) records the provider boundary.
 
-Recommendation: yes. This chooses the proposed service roles for planning and accepts the operational responsibility. Email vendor, initial sign-in methods, quota, budget, and hosting plan require subsequent focused decisions. If the user instead wants managed identity operations, revisit the managed candidate from the earlier research before selecting a provider.
-
-After approval, record the selected service roles and reasons in an ADR and CONTEXT.md, and complete this focused issue through its PR. Until then, leave the issue open and use no closing keyword.
+Initial sign-in methods, email vendor, settings and space-management workflows, quota, budget, and hosting plan remain separate focused decisions. The implementation breakdown must include the acceptance spikes identified above and cannot treat this research as a passing provider integration test. No infrastructure or runtime work is authorized by this planning decision.

@@ -669,6 +669,9 @@ _Avoid_: setting, option, config
 - Authenticating a **User Account** is sufficient to enroll a **PKSX Installation** in its **Sync Profile**; another Installation does not approve it.
 - Multiple **PKSX Installations** may enroll in one **Sync Profile** concurrently.
 - The **Sync Provider** authenticates the **User Account** and issues the session; a **User Account** has no password.
+- The first **Sync Provider** is a PKSX-operated Cloudflare service: Workers handles the authenticated boundary, SQLite-backed Durable Objects store revision and publication metadata and host TinyBase transport, private R2 stores raw artifacts, and Better Auth with D1 owns identity and sessions.
+- PKSX operates the passwordless identity service and integrates email delivery; an email-delivery service does not own the **Sync Profile** or split its identity and storage authority.
+- The provider-neutral sync coordinator retains schema, migration, causal reconciliation, conflict preservation, and durable local-acceptance authority independently of the selected Cloudflare service.
 - A **User Account** has one verified email address; every sign-in method resolves to the account of that address, and access to the address is sufficient to recover the account.
 - Signing out removes an Installation's credentials and enrollment state but retains its local **Saves** as local-only data.
 - Removing local **Saves** after sign-out is a separate, user-confirmed action.
