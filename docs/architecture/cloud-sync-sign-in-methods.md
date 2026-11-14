@@ -1,6 +1,6 @@
 # Cloud Sync sign-in methods
 
-For [Define first-release Cloud Sync sign-in methods](https://github.com/woahitsraj/PKSX/issues/466). The user selected passkeys first, Google and Apple social sign-in next, and one-time codes last on 2026-11-14. This replaces the earlier recommendation to start with email codes. The user then approved Google/Apple account setup followed by passkey enrollment, and explicit linking across different provider emails. Those decisions are recorded below and in ADR 0022.
+For [Define first-release Cloud Sync sign-in methods](https://github.com/woahitsraj/PKSX/issues/466). The user selected passkeys first, Google and Apple social sign-in next, and one-time codes last on 2026-11-14. This replaces the earlier recommendation to start with email codes. The user then approved Google/Apple account setup followed by passkey enrollment, and explicit linking across different provider emails. Those decisions are recorded below and in [Link Cloud Sync sign-in methods explicitly](../adr/0022-link-cloud-sync-sign-in-methods-explicitly.md).
 
 ## Accepted methods and preference
 
