@@ -16,18 +16,21 @@ async function choose(page: Page, label: string) {
 		.click();
 }
 
-async function backupCount(page: Page) {
+async function readSafetyState(page: Page) {
 	return page.evaluate(
 		() =>
-			new Promise<number>((resolve, reject) => {
+			new Promise<{ backups: number; dirty: boolean }>((resolve, reject) => {
 				const request = indexedDB.open('pksx-saves');
 				request.onerror = () => reject(request.error);
 				request.onsuccess = () => {
 					const db = request.result;
-					const tx = db.transaction('backups', 'readonly');
+					const tx = db.transaction(['backups', 'workspaces'], 'readonly');
 					const count = tx.objectStore('backups').count();
-					count.onsuccess = () => resolve(count.result);
-					tx.oncomplete = () => db.close();
+					const workspaces = tx.objectStore('workspaces').getAll();
+					tx.oncomplete = () => {
+						resolve({ backups: count.result, dirty: workspaces.result[0]?.dirty ?? false });
+						db.close();
+					};
 				};
 			})
 	);
@@ -71,17 +74,20 @@ for (const viewport of [
 		await expect(search).toBeFocused();
 		await search.fill('bulba');
 		const previous = await seen.getAttribute('aria-pressed');
-		const backups = await backupCount(page);
+		const before = await readSafetyState(page);
+		expect(before.dirty).toBe(false);
 		await seen.click();
 		await expect(seen).toHaveAttribute('aria-pressed', previous === 'true' ? 'false' : 'true', {
 			timeout: 90_000
 		});
 		await expect(seen).toBeFocused();
-		await expect(page.getByText('Dirty Workspace')).toBeVisible();
-		await expect.poll(() => backupCount(page)).toBe(backups + 1);
+		await expect
+			.poll(() => readSafetyState(page))
+			.toEqual({ backups: before.backups + 1, dirty: true });
+		await expect(page.getByText(/^(Dirty|Clean) Workspace$/)).toHaveCount(0);
 		await page.getByRole('button', { name: 'Bulbasaur Caught', exact: true }).click();
 		await expect(seen).toHaveAttribute('aria-disabled', 'false');
-		expect(await backupCount(page)).toBe(backups + 1);
+		expect(await readSafetyState(page)).toEqual({ backups: before.backups + 1, dirty: true });
 		await search.fill('saur');
 		await seen.focus();
 		for (const [key, control] of [
