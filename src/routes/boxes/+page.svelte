@@ -7865,93 +7865,97 @@
 		</div>
 
 		<div class="shared-detail" aria-label="Shared Slot summary">
-			{#if workbenchPanes.length === 2}
-				<div class="transfer-controls" aria-label="Transfer controls">
-					<button
-						type="button"
-						tabindex="-1"
-						disabled={activeVirtualLocation === 'recently-deleted' ||
-							(activeVirtualLocation
-								? !virtualFocusedRecord
-								: focusedSlot.kind !== 'pokemon' ||
-									!paneSlotActionsReady(activePane, activeSlotFocus)) ||
-							pendingSlotOperation !== null ||
-							virtualCarry !== null}
-						onpointerdown={(event) =>
-							activeVirtualLocation ? event.preventDefault() : captureTransferSource(event)}
-						onclick={() =>
-							virtualFocusedRecord
-								? beginVirtualCarry(virtualFocusedRecord.recordId, 'move')
-								: beginPendingSlotOperation('move')}>Move</button
-					>
-					<button
-						type="button"
-						tabindex="-1"
-						disabled={activeVirtualLocation === 'recently-deleted' ||
-							(activeVirtualLocation
-								? !virtualFocusedRecord
-								: focusedSlot.kind !== 'pokemon' ||
-									!paneSlotActionsReady(activePane, activeSlotFocus)) ||
-							pendingSlotOperation !== null ||
-							virtualCarry !== null}
-						onpointerdown={(event) =>
-							activeVirtualLocation ? event.preventDefault() : captureTransferSource(event)}
-						onclick={() =>
-							virtualFocusedRecord
-								? beginVirtualCarry(virtualFocusedRecord.recordId, 'copy')
-								: beginPendingSlotOperation('copy')}
-						>{activePane?.source.type === 'pokemon-storage' ? 'Duplicate' : 'Copy'}</button
-					>
-				</div>
+			{#if selection}{@render selectionControls()}{:else}
+				{#if workbenchPanes.length === 2}
+					<div class="transfer-controls" aria-label="Transfer controls">
+						<button
+							type="button"
+							tabindex="-1"
+							disabled={activeVirtualLocation === 'recently-deleted' ||
+								(activeVirtualLocation
+									? !virtualFocusedRecord
+									: focusedSlot.kind !== 'pokemon' ||
+										!paneSlotActionsReady(activePane, activeSlotFocus)) ||
+								pendingSlotOperation !== null ||
+								virtualCarry !== null}
+							onpointerdown={(event) =>
+								activeVirtualLocation ? event.preventDefault() : captureTransferSource(event)}
+							onclick={() =>
+								virtualFocusedRecord
+									? beginVirtualCarry(virtualFocusedRecord.recordId, 'move')
+									: beginPendingSlotOperation('move')}>Move</button
+						>
+						<button
+							type="button"
+							tabindex="-1"
+							disabled={activeVirtualLocation === 'recently-deleted' ||
+								(activeVirtualLocation
+									? !virtualFocusedRecord
+									: focusedSlot.kind !== 'pokemon' ||
+										!paneSlotActionsReady(activePane, activeSlotFocus)) ||
+								pendingSlotOperation !== null ||
+								virtualCarry !== null}
+							onpointerdown={(event) =>
+								activeVirtualLocation ? event.preventDefault() : captureTransferSource(event)}
+							onclick={() =>
+								virtualFocusedRecord
+									? beginVirtualCarry(virtualFocusedRecord.recordId, 'copy')
+									: beginPendingSlotOperation('copy')}
+							>{activePane?.source.type === 'pokemon-storage' ? 'Duplicate' : 'Copy'}</button
+						>
+					</div>
+				{/if}
+				<DetailRail
+					focusedSlot={sharedFocusedSlot}
+					focusZone={activeVirtualLocation ? null : (activeSlotFocus?.zone ?? null)}
+					focusSlot={activeVirtualLocation ? null : (activeSlotFocus?.slot ?? null)}
+					slotHueStyle={slotStyle(sharedFocusedSlot, activePaneBox)}
+					spriteUrl={spriteUrlFor(sharedFocusedSlot)}
+					{saveSummary}
+					activeBoxName={boxNameFor(
+						summonedSlotBox ?? focusedSlotPane?.activeBox ?? activePaneBox,
+						focusedSlotPane
+					)}
+					positionLabel={activeVirtualLocation
+						? activeVirtualLocation === 'unfiled'
+							? 'Unfiled'
+							: 'All Pokemon'
+						: carryState || virtualCarry
+							? `${activeSlotPositionLabel} · ${(carryState?.mode ?? virtualCarry?.mode) === 'move' ? 'Drop' : 'Copy'} target`
+							: activeSlotPositionLabel}
+				/>
 			{/if}
-			<DetailRail
-				focusedSlot={sharedFocusedSlot}
-				focusZone={activeVirtualLocation ? null : (activeSlotFocus?.zone ?? null)}
-				focusSlot={activeVirtualLocation ? null : (activeSlotFocus?.slot ?? null)}
-				slotHueStyle={slotStyle(sharedFocusedSlot, activePaneBox)}
-				spriteUrl={spriteUrlFor(sharedFocusedSlot)}
-				{saveSummary}
-				activeBoxName={boxNameFor(
-					summonedSlotBox ?? focusedSlotPane?.activeBox ?? activePaneBox,
-					focusedSlotPane
-				)}
-				positionLabel={activeVirtualLocation
-					? activeVirtualLocation === 'unfiled'
-						? 'Unfiled'
-						: 'All Pokemon'
-					: carryState || virtualCarry
-						? `${activeSlotPositionLabel} · ${(carryState?.mode ?? virtualCarry?.mode) === 'move' ? 'Drop' : 'Copy'} target`
-						: activeSlotPositionLabel}
-			/>
 		</div>
 	</section>
 </section>
 
-{#if selection}
-	<div
-		data-selection-controls
-		class="selection-controls"
-		role="group"
-		aria-label="Selection actions"
-	>
-		<strong aria-live="polite">{selection.slots.length} selected</strong>
-		<span>A Toggle · B Exit · Y Actions · L/R Boxes</span>
-		<button type="button" onclick={selectCurrentBox}>Select box</button>
-		<button
-			type="button"
-			onclick={() => {
-				if (selection) selection.slots = [];
-			}}>Clear selection</button
+{#snippet selectionControls()}
+	{#if selection}
+		<div
+			data-selection-controls
+			class="selection-controls"
+			role="group"
+			aria-label="Selection actions"
 		>
-		<button
-			type="button"
-			onclick={() => {
-				selection = null;
-				queueMicrotask(focusActiveControl);
-			}}>Exit Select mode</button
-		>
-	</div>
-{/if}
+			<strong aria-live="polite">{selection.slots.length} selected</strong>
+			<span>A Toggle · B Exit · Y Actions · L/R Boxes</span>
+			<button type="button" onclick={selectCurrentBox}>Select box</button>
+			<button
+				type="button"
+				onclick={() => {
+					if (selection) selection.slots = [];
+				}}>Clear selection</button
+			>
+			<button
+				type="button"
+				onclick={() => {
+					selection = null;
+					queueMicrotask(focusActiveControl);
+				}}>Exit Select mode</button
+			>
+		</div>
+	{/if}
+{/snippet}
 
 {#if boxMenuOpen && boxMenuTarget}
 	<BoxMenu
@@ -8218,11 +8222,9 @@
 	}
 
 	.selection-controls {
-		position: fixed;
-		bottom: 48px;
-		left: 8px;
-		right: 8px;
-		z-index: 5;
+		height: 100%;
+		overflow: auto;
+		align-content: start;
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px;
