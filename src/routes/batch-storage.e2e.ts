@@ -61,6 +61,15 @@ for (const mode of ['Copy', 'Move']) {
 		} else await page.keyboard.press('Enter');
 		await expect(dialog).toHaveCount(0, { timeout: 60_000 });
 		await expect(actions).toHaveCount(0);
+		expect(await page.evaluate(() => document.activeElement?.closest('[role="grid"]')?.id)).toBe(
+			'box-grid'
+		);
+		await expect(page.locator('#box-0-slot-1')).toBeFocused();
+		await page.keyboard.press('ArrowRight');
+		await expect(page.locator('#box-grid')).toHaveAttribute(
+			'aria-activedescendant',
+			'box-0-slot-2'
+		);
 		await expect(page.locator('.box-pane .slot.pokemon')).toHaveCount(
 			occupiedBefore - (mode === 'Move' ? 2 : 0)
 		);

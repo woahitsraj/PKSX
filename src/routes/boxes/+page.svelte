@@ -2612,6 +2612,8 @@
 			toastHost.success(
 				`${batch.mode === 'copy' ? 'Copied' : 'Moved'} ${batch.labels.length} Pokemon to Storage.`
 			);
+			navigation = { ...navigation, focus: navigation.locationFocus };
+			queueMicrotask(focusActiveControl);
 		} catch (error) {
 			if (error instanceof BatchCommitUncertainError) window.location.reload();
 			throw error;
