@@ -16,6 +16,34 @@ async function pressController(page: Page, key: string) {
 	}, key);
 }
 
+async function expectRange(page: Page, from: number, to: number) {
+	await expect
+		.poll(() =>
+			page.locator('#box-grid').evaluate(
+				(grid, { from, to }) => {
+					const first = grid
+						.querySelector(`[data-box-slot="${from}"]`)
+						?.closest('.slot-cell')
+						?.getBoundingClientRect();
+					const last = grid
+						.querySelector(`[data-box-slot="${to}"]`)
+						?.closest('.slot-cell')
+						?.getBoundingClientRect();
+					const range = grid.querySelector('.selection-range-box')?.getBoundingClientRect();
+					if (!first || !last || !range) return Infinity;
+					return Math.max(
+						Math.abs(range.x - first.x),
+						Math.abs(range.y - first.y),
+						Math.abs(range.width - (last.right - first.left)),
+						Math.abs(range.height - (last.bottom - first.top))
+					);
+				},
+				{ from, to }
+			)
+		)
+		.toBeLessThan(0.5);
+}
+
 test.use({ hasTouch: true });
 
 for (const viewport of [
@@ -51,6 +79,31 @@ for (const viewport of [
 			await pokemon.focus();
 			await page.clock.install();
 			await pressController(page, 'ArrowRight');
+			await expect(actions).toContainText('2 selected');
+			await expectRange(page, 0, 1);
+			await pressController(page, 'ArrowDown');
+			await expectRange(page, 0, 7);
+			await expect(actions).toContainText('2 selected');
+			await page.screenshot({ path: `/tmp/pksx-range-visuals/controller-${viewport.width}.png` });
+			await pressController(page, 'ArrowLeft');
+			await expectRange(page, 0, 6);
+			await expect(actions).toContainText('1 selected');
+			await pressController(page, 'ArrowUp');
+			await expectRange(page, 0, 0);
+			await pressController(page, 'ArrowRight');
+			await pressController(page, 'Enter');
+			await expect(page.locator('.selection-range-box')).toHaveCount(0);
+			await expect(actions).toContainText('2 selected');
+			await pressController(page, 'ArrowLeft');
+			await expectRange(page, 0, 1);
+			await pressController(page, 'y');
+			const rangeMenu = page.getByRole('dialog', { name: 'Selection actions', exact: true });
+			await expect(rangeMenu).toBeVisible();
+			await expect(page.locator('.selection-range-box')).toHaveCount(0);
+			await pressController(page, 'Escape');
+			await expect(rangeMenu).toHaveCount(0);
+			await expect(actions).toContainText('2 selected');
+			await actions.getByRole('button', { name: 'Clear selection' }).tap();
 			await pressController(page, 'y');
 			await page.clock.runFor(600);
 			await expect(
@@ -181,6 +234,17 @@ test.describe('desktop selection', () => {
 		await expect(page.locator('.location-grid:focus-within')).toHaveCount(1);
 		await page.keyboard.press('ArrowRight');
 		await expect(actions).toContainText('2 selected');
+		const rectangle = page.locator('.selection-range-box');
+		await expect(rectangle).toBeVisible();
+		await expectRange(page, 0, 1);
+		await page.keyboard.press('ArrowDown');
+		await expect(actions).toContainText('2 selected');
+		await expectRange(page, 0, 7);
+		await page.screenshot({ path: '/tmp/pksx-range-visuals/keyboard-range.png' });
+		await page.setViewportSize({ width: 1000, height: 700 });
+		await expectRange(page, 0, 7);
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.keyboard.press('ArrowUp');
 		await page.keyboard.press('ArrowUp');
 		await expect(page.locator('.location-grid:focus-within')).toHaveCount(1);
 		await expect(actions).toContainText('2 selected');
@@ -188,9 +252,17 @@ test.describe('desktop selection', () => {
 		await page.keyboard.press('ArrowLeft');
 		await page.keyboard.press('ArrowLeft');
 		await expect(actions).toContainText('1 selected');
+		await expectRange(page, 0, 0);
 		await page.keyboard.press('ArrowRight');
 		await expect(actions).toContainText('2 selected');
+		await actions.getByRole('button', { name: 'Actions', exact: true }).click();
+		const menu = page.getByRole('dialog', { name: 'Selection actions', exact: true });
+		await expect(rectangle).toHaveCount(0);
+		await menu.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(menu).toHaveCount(0);
+		await expect(rectangle).toHaveCount(0);
 		await page.keyboard.up('Shift');
+		await expect(rectangle).toHaveCount(0);
 		await page.keyboard.press('ArrowRight');
 		await expect(actions).toContainText('2 selected');
 		await page.keyboard.press('Escape');
