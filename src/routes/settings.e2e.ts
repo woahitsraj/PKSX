@@ -1,3 +1,4 @@
+import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
@@ -23,6 +24,7 @@ async function openPokemonEditor(page: Page) {
 	await importSaveThroughSaves(page, emeraldFixturePath);
 
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	const slot = page.locator('#box-0-slot-0');
 	await expect(slot).toContainText('ARON', { timeout: 15_000 });
 	await slot.focus();

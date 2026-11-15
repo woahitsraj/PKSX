@@ -1,3 +1,4 @@
+import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -29,6 +30,7 @@ async function importActiveSaveFile(page: Page) {
 	await importSaveThroughSaves(page, emeraldFixturePath);
 	await expect(page.getByText(/imported and made active/)).toBeVisible({ timeout: 15_000 });
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15_000 });
 }
 

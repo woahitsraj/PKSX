@@ -1,3 +1,4 @@
+import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -55,6 +56,7 @@ async function importSaveFile(page: Page, fixturePath = emeraldFixturePath) {
 async function importActiveSaveFile(page: Page, fixturePath = emeraldFixturePath) {
 	await importSaveFile(page, fixturePath);
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expect(
 		page.getByRole('button', { name: `Open Box Menu for ${path.basename(fixturePath)}` })
 	).toBeVisible({
@@ -442,6 +444,7 @@ test('keeps a secondary Save File report current across Box projection loads', a
 	});
 	await expect(primaryMenuButton).toBeVisible({ timeout: 15_000 });
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expect(primaryMenuButton).toBeVisible({ timeout: 15_000 });
 	await primaryMenuButton.click();
 	await page

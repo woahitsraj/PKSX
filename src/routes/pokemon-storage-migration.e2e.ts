@@ -1,3 +1,4 @@
+import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { expect, test } from '@playwright/test';
 
 const aron =
@@ -148,11 +149,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	await page.keyboard.press('Enter');
 	await expect(page.locator('#box-0-slot-4')).toContainText('ARON');
 	await page.reload();
-	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready',
-		{ timeout: 60_000 }
-	);
+	await expectBoxesReady(page);
 	await expect(page.locator('#box-0-slot-4')).toContainText('ARON');
 	const state = await page.evaluate(async () => {
 		const read = async (name: string, store: string, key: string): Promise<unknown> => {
@@ -187,6 +184,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	await page.getByRole('searchbox', { name: 'Filter Pokemon' }).fill('ARON');
 	await page.getByRole('combobox', { name: 'Sort Pokemon' }).selectOption('level');
 	await page.reload();
+	await expectBoxesReady(page);
 	await expect(page.locator('[data-location="all-pokemon"]')).toBeVisible();
 	await expect(page.getByRole('searchbox', { name: 'Filter Pokemon' })).toHaveValue('ARON');
 	await expect(page.getByRole('combobox', { name: 'Sort Pokemon' })).toHaveValue('level');
@@ -235,6 +233,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		db.close();
 	});
 	await page.reload();
+	await expectBoxesReady(page);
 	await page.getByRole('searchbox', { name: 'Filter Pokemon' }).fill('');
 	await page.getByRole('combobox', { name: 'Sort Pokemon' }).selectOption('recent');
 	const virtualGrid = page.getByRole('grid', { name: 'All Pokemon' });
