@@ -2402,8 +2402,14 @@
 	} | null>(null);
 
 	type SelectedBoxSlot = { box: number; slot: number };
-	let rangeAnchor: { paneId: string; box: number; slot: number; base: SelectedBoxSlot[] } | null =
-		null;
+	let rangeAnchor = $state.raw<{
+		paneId: string;
+		box: number;
+		slot: number;
+		end: number;
+		controller: boolean;
+		base: SelectedBoxSlot[];
+	} | null>(null);
 	let boxDrag = $state.raw<{
 		pane: BoxPaneState;
 		box: number;
@@ -2428,18 +2434,26 @@
 				...slots
 			];
 	}
-	function extendBoxSelection(from: number, to: number) {
+	function extendBoxSelection(from: number, to: number, controller = false) {
 		const pane = activePane;
 		if (!pane) return;
 		if (!selection) beginSelection(pane);
 		if (!selection) return;
-		if (!rangeAnchor || rangeAnchor.paneId !== pane.id || rangeAnchor.box !== activePaneBox)
+		if (
+			!rangeAnchor ||
+			rangeAnchor.paneId !== pane.id ||
+			rangeAnchor.box !== activePaneBox ||
+			rangeAnchor.controller !== controller
+		)
 			rangeAnchor = {
 				paneId: pane.id,
 				box: activePaneBox,
 				slot: from,
+				end: from,
+				controller,
 				base: selection.slots.slice()
 			};
+		rangeAnchor = { ...rangeAnchor, end: to };
 		const start = rangeAnchor.slot,
 			slots: SelectedBoxSlot[] = [];
 		for (
@@ -2551,6 +2565,7 @@
 	$effect(reconcileSelection);
 
 	function reconcileSelection() {
+		if (!selection || activeSummonedWorkflow) rangeAnchor = null;
 		if (!selection) {
 			if (activeSummonedWorkflow?.kind === 'selection-actions') dismissActiveWorkflow();
 			return;
@@ -2787,9 +2802,27 @@
 		if (!action) {
 			return;
 		}
-		if (!event.shiftKey) rangeAnchor = null;
 		if (
-			event.shiftKey &&
+			selection &&
+			!activeSummonedWorkflow &&
+			!busy &&
+			isControllerKeyboardEvent(event) &&
+			action === 'confirm' &&
+			rangeAnchor?.controller
+		) {
+			event.preventDefault();
+			rangeAnchor = null;
+			return;
+		}
+		const controllerRange =
+			isControllerKeyboardEvent(event) &&
+			selection !== null &&
+			navigation.focus.zone === 'box' &&
+			Boolean(document.activeElement?.closest('.location-grid'));
+		const rangeMovement = event.key.startsWith('Arrow') && (event.shiftKey || controllerRange);
+		if (!rangeMovement) rangeAnchor = null;
+		if (
+			rangeMovement &&
 			!event.ctrlKey &&
 			!event.metaKey &&
 			!event.altKey &&
@@ -2806,7 +2839,8 @@
 			syncNavigationFocusFromActiveElement();
 			const from = navigation.locationFocus.slot;
 			if (action !== 'up' || from >= BOX_COLUMNS) dispatchNavigation(action);
-			if (navigation.focus.zone === 'box') extendBoxSelection(from, navigation.focus.slot);
+			if (navigation.focus.zone === 'box')
+				extendBoxSelection(from, navigation.focus.slot, controllerRange);
 			return;
 		}
 
@@ -7851,6 +7885,10 @@
 	onkeyup={(event) => {
 		if (event.key === 'Shift') rangeAnchor = null;
 	}}
+	onblur={() => {
+		rangeAnchor = null;
+		boxDrag = null;
+	}}
 	onpointermove={moveBoxDrag}
 	onpointerup={endBoxDrag}
 	onpointercancel={() => {
@@ -8248,6 +8286,14 @@
 									{/each}
 								</div>
 							{/each}
+							{#if selection && rangeAnchor && !activeSummonedWorkflow && !paneParty && rangeAnchor.paneId === pane.id && rangeAnchor.box === paneGridBox}
+								<div
+									class="selection-range-box"
+									aria-hidden="true"
+									style:grid-column={`${Math.min(rangeAnchor.slot % BOX_COLUMNS, rangeAnchor.end % BOX_COLUMNS) + 1} / ${Math.max(rangeAnchor.slot % BOX_COLUMNS, rangeAnchor.end % BOX_COLUMNS) + 2}`}
+									style:grid-row={`${Math.min(Math.floor(rangeAnchor.slot / BOX_COLUMNS), Math.floor(rangeAnchor.end / BOX_COLUMNS)) + 1} / ${Math.max(Math.floor(rangeAnchor.slot / BOX_COLUMNS), Math.floor(rangeAnchor.end / BOX_COLUMNS)) + 2}`}
+								></div>
+							{/if}
 						</div>
 					{/if}
 				</section>
@@ -8675,6 +8721,15 @@
 {/if}
 
 <style>
+	.selection-range-box {
+		position: absolute;
+		inset: 0;
+		z-index: 3;
+		border: 1px solid var(--rust);
+		background: color-mix(in srgb, var(--rust) 15%, transparent);
+		pointer-events: none;
+	}
+
 	.selection-drag-box {
 		height: var(--drag-height);
 		position: fixed;
@@ -8944,6 +8999,7 @@
 	}
 
 	.location-grid {
+		position: relative;
 		contain: layout paint style;
 		--box-pane-inline-size: calc(min(800px, 100cqw) - var(--pksx-space-1) * 2);
 		--box-pane-block-size: calc(

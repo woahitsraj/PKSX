@@ -59,7 +59,11 @@
 					controller: 'Select / Minus or Box Menu',
 					keyboard: '- or Box Menu'
 				},
-				{ action: 'Toggle focused Pokemon', controller: 'A', keyboard: 'Enter' },
+				{
+					action: 'Toggle focused Pokemon',
+					controller: 'A outside an active range',
+					keyboard: 'Enter'
+				},
 				{
 					action: 'Selection actions',
 					controller: 'Y',
@@ -67,14 +71,15 @@
 				},
 				{
 					action: 'Extend a range',
-					controller: 'Select box for the whole Box',
+					controller: 'D-pad in Select mode',
 					keyboard: 'Shift + Arrow keys'
 				},
 				{
 					action: 'Select a rectangle',
-					controller: 'Select box for the whole Box',
+					controller: 'D-pad in Select mode',
 					keyboard: 'Click and drag'
 				},
+				{ action: 'Finish range', controller: 'A', keyboard: 'Release Shift or mouse button' },
 				{ action: 'Change Box', controller: 'L1 / R1', keyboard: 'PageUp / PageDown' },
 				{ action: 'Exit Select mode', controller: 'B', keyboard: 'Escape' }
 			]
