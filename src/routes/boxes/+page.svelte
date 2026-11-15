@@ -7,7 +7,6 @@
 		type SaveStorageBatch
 	} from '$lib/pksx/save-storage-batch';
 
-	import { dev } from '$app/environment';
 	import { asset } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
