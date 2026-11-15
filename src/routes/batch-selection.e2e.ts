@@ -203,11 +203,13 @@ test('Shift range remains in its originating pane at a shared edge', async ({ pa
 		.getByRole('dialog', { name: 'Open another collection' })
 		.getByRole('button', { name: /011020251345.sav/ })
 		.click();
+	await expect(page.getByRole('dialog', { name: 'Open another collection' })).toHaveCount(0);
 	await expect(page.locator('.box-pane')).toHaveCount(2);
 	const first = page.locator('.box-pane').first();
 	const id = await first.getAttribute('data-pane-id');
 	await expect(first.locator('[data-box-slot="5"]')).toBeEnabled();
 	await first.locator('[data-box-slot="5"]').focus();
+	await expect(first.locator('[data-box-slot="5"]')).toBeFocused();
 	await page.keyboard.press('Shift+ArrowRight');
 	const actions = page.getByRole('group', { name: 'Selection actions' });
 	await expect(actions).toContainText('0 selected');
@@ -242,6 +244,7 @@ test('a rectangle keeps pane geometry until release, including an existing selec
 		.getByRole('dialog', { name: 'Open another collection' })
 		.getByRole('button', { name: /011020251345.sav/ })
 		.click();
+	await expect(page.getByRole('dialog', { name: 'Open another collection' })).toHaveCount(0);
 	await expect(page.locator('.box-pane')).toHaveCount(2);
 	const right = page.locator('.box-pane').nth(1);
 	const id = await right.getAttribute('data-pane-id');
