@@ -125,7 +125,7 @@
 	}
 
 	.slot-command-row button,
-	.close-command {
+	.slot-context > button {
 		width: 100%;
 		min-height: var(--pksx-small-control-height);
 		padding: var(--pksx-space-1) var(--pksx-space-2);
