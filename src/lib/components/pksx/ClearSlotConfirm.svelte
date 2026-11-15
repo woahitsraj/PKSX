@@ -136,7 +136,7 @@
 	}
 
 	.confirm-actions button.controller-focused {
-		outline: 3px solid color-mix(in srgb, var(--rust), transparent 52%);
-		outline-offset: 2px;
+		outline: 3px solid var(--pksx-color-accent-ring);
+		outline-offset: -3px;
 	}
 </style>

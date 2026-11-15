@@ -9233,7 +9233,7 @@
 		display: grid;
 		place-items: center;
 		padding: 18px;
-		background: color-mix(in srgb, var(--ink), transparent 55%);
+		background: var(--pksx-color-backdrop);
 	}
 
 	.source-picker {
@@ -9281,8 +9281,8 @@
 	}
 
 	.source-picker button:focus {
-		outline: 3px solid color-mix(in srgb, var(--rust), transparent 48%);
-		outline-offset: 2px;
+		outline: 3px solid var(--rust-ring);
+		outline-offset: -3px;
 	}
 
 	.source-card-grid {

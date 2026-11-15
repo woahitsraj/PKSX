@@ -127,7 +127,7 @@
 		padding: var(--pksx-space-2) var(--pksx-space-3);
 		border: var(--pksx-border-width) solid transparent;
 		border-radius: var(--pksx-radius-medium);
-		background: var(--paper-deep);
+		background: transparent;
 		color: var(--ink);
 		font: inherit;
 		font-weight: 750;
@@ -137,7 +137,6 @@
 	.commands button:hover,
 	.commands button:focus-visible,
 	.commands button.controller-focused {
-		border-color: color-mix(in srgb, var(--rust), transparent 55%);
 		background: var(--rust-wash);
 		outline: none;
 	}
@@ -151,6 +150,6 @@
 	.recovery-note {
 		margin: 0;
 		color: var(--ink-soft);
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 	}
 </style>

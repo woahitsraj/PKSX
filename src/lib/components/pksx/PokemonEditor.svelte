@@ -2563,7 +2563,7 @@
 				id="pokemon-editor-cancel"
 				type="button"
 				data-pksx-control-category="small"
-				class="close-editor"
+				class="quiet-action"
 				disabled={(!draftDirty && !pendingScratch) || applying}
 				onclick={handleCancelEdits}
 			>
@@ -2619,10 +2619,10 @@
 	.editor-header span,
 	.panel-title small,
 	.editor-actions p {
-		color: var(--ink-mute);
+		color: var(--ink-soft);
 		font:
-			650 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
+			650 var(--pksx-type-label) var(--pksx-font-sans),
+			sans-serif;
 		line-height: 1.2;
 	}
 
@@ -2643,21 +2643,6 @@
 		color: var(--ink);
 		font-size: var(--pksx-type-title);
 		line-height: 1;
-	}
-
-	.icon-close:hover,
-	.icon-close:focus-visible,
-	.icon-close:focus,
-	.close-editor:hover,
-	.close-editor:focus-visible,
-	.close-editor:focus,
-	.unsupported-apply:hover,
-	.unsupported-apply:focus-visible,
-	.unsupported-apply:focus,
-	.pokemon-editor button:focus,
-	.pokemon-editor input:focus {
-		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
-		outline-offset: 1px;
 	}
 
 	.editor-body {
@@ -2686,8 +2671,6 @@
 		grid-template-columns: max-content minmax(0, 1fr);
 		gap: 7px 12px;
 		padding: 10px;
-		border-radius: var(--pksx-radius-md);
-		background: var(--paper-deep);
 	}
 
 	.field-grid span,
@@ -2695,11 +2678,10 @@
 	.nature-edit-summary span,
 	.stat-grid span,
 	.stat-grid em {
-		color: var(--ink-mute);
+		color: var(--ink-soft);
 		font:
-			650 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
-		text-transform: uppercase;
+			650 var(--pksx-type-label) var(--pksx-font-sans),
+			sans-serif;
 	}
 
 	.field-grid strong,
@@ -2720,16 +2702,12 @@
 		display: grid;
 		gap: 5px;
 		padding: 12px;
-		border-radius: var(--pksx-radius-md);
-		background: var(--paper-deep);
 	}
 
 	.battle-field-controls {
 		display: grid;
 		gap: 8px;
 		padding: 12px;
-		border-radius: var(--pksx-radius-md);
-		background: var(--paper-deep);
 	}
 
 	.battle-field-controls label {
@@ -2740,25 +2718,20 @@
 	.battle-field-controls span,
 	.battle-field-controls p {
 		margin: 0;
-		color: var(--ink-mute);
+		color: var(--ink-soft);
 		font:
-			650 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
+			650 var(--pksx-type-label) var(--pksx-font-sans),
+			sans-serif;
 		line-height: 1.2;
-	}
-
-	.battle-field-controls span {
-		text-transform: uppercase;
 	}
 
 	.nickname-panel p {
 		margin: 0;
-		color: var(--ink-mute);
+		color: var(--ink-soft);
 		font:
-			650 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
+			650 var(--pksx-type-label) var(--pksx-font-sans),
+			sans-serif;
 		line-height: 1.2;
-		text-transform: uppercase;
 	}
 
 	.nickname-field input {
@@ -2771,8 +2744,8 @@
 		background: var(--paper-hi);
 		color: var(--ink);
 		font:
-			750 var(--pksx-type-editable) var(--pksx-font-mono),
-			monospace;
+			650 var(--pksx-type-editable) var(--pksx-font-sans),
+			sans-serif;
 	}
 
 	.nickname-field input:disabled {
@@ -2785,8 +2758,6 @@
 		display: grid;
 		gap: 5px;
 		padding: 12px;
-		border-radius: var(--pksx-radius-md);
-		background: var(--paper-deep);
 	}
 
 	.met-data-edit-controls {
@@ -2794,8 +2765,6 @@
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 8px;
 		padding: 12px;
-		border-radius: var(--pksx-radius-md);
-		background: var(--paper-deep);
 	}
 
 	.met-data-edit-controls label {
@@ -2812,18 +2781,11 @@
 	.ability-edit-controls span,
 	.ability-restrictions {
 		margin: 0;
-		color: var(--ink-mute);
+		color: var(--ink-soft);
 		font:
-			650 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
+			650 var(--pksx-type-label) var(--pksx-font-sans),
+			sans-serif;
 		line-height: 1.2;
-	}
-
-	.met-data-edit-controls span,
-	.nature-edit-controls span,
-	.held-item-edit-controls span,
-	.ability-edit-controls span {
-		text-transform: uppercase;
 	}
 
 	.met-data-edit-controls input {
@@ -2836,8 +2798,8 @@
 		background: var(--paper-hi);
 		color: var(--ink);
 		font:
-			750 var(--pksx-type-editable) var(--pksx-font-mono),
-			monospace;
+			650 var(--pksx-type-editable) var(--pksx-font-sans),
+			sans-serif;
 	}
 
 	.met-data-edit-controls input:disabled {
@@ -2850,12 +2812,18 @@
 
 	.level-edit-controls {
 		display: grid;
-		grid-template-columns: 154px minmax(160px, 1fr);
-		align-items: center;
+		grid-template-columns: minmax(0, 1fr);
+		justify-items: start;
 		gap: 12px;
 		padding: 12px;
-		border-radius: var(--pksx-radius-md);
-		background: var(--paper-deep);
+	}
+
+	.level-edit-controls > label {
+		width: min(100%, 420px);
+	}
+
+	.level-edit-controls > .mode-switch {
+		width: 154px;
 	}
 
 	.species-form-controls {
@@ -2863,8 +2831,6 @@
 		grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
 		gap: 12px;
 		padding: 12px;
-		border-radius: var(--pksx-radius-md);
-		background: var(--paper-deep);
 	}
 
 	.species-form-controls label,
@@ -2875,17 +2841,14 @@
 
 	.species-form-controls span,
 	.species-form-preview span {
-		color: var(--ink-mute);
+		color: var(--ink-soft);
 		font:
-			650 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
-		text-transform: uppercase;
+			650 var(--pksx-type-label) var(--pksx-font-sans),
+			sans-serif;
 	}
 
 	.species-form-preview {
 		padding: 12px;
-		border-radius: var(--pksx-radius-md);
-		background: var(--paper-deep);
 	}
 
 	.species-form-preview ul {
@@ -2906,10 +2869,9 @@
 		min-height: var(--pksx-control-height);
 		border-radius: var(--pksx-radius-sm);
 		font:
-			800 var(--pksx-type-label) var(--pksx-font-mono),
-			monospace;
+			750 var(--pksx-type-label) var(--pksx-font-sans),
+			sans-serif;
 		line-height: 1;
-		text-transform: uppercase;
 	}
 
 	.mode-switch {
@@ -2919,7 +2881,7 @@
 		align-items: center;
 		padding: 4px;
 		background: var(--paper-hi);
-		color: var(--ink-mute);
+		color: var(--ink-soft);
 		overflow: hidden;
 		box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--rust), transparent 56%);
 	}
@@ -2950,13 +2912,7 @@
 
 	.mode-switch[aria-checked='false'] span:first-child,
 	.mode-switch[aria-checked='true'] span:nth-child(2) {
-		color: white;
-		text-shadow: 0 1px 0 color-mix(in srgb, var(--ink), transparent 68%);
-	}
-
-	.mode-switch[aria-checked='false'] span:nth-child(2),
-	.mode-switch[aria-checked='true'] span:first-child {
-		opacity: 0.62;
+		color: var(--pksx-color-on-accent);
 	}
 
 	.mode-switch:disabled {
@@ -2976,8 +2932,6 @@
 		display: grid;
 		gap: 8px;
 		padding: 12px;
-		border-radius: var(--pksx-radius-md);
-		background: var(--paper-deep);
 	}
 
 	.stat-edit-controls {
@@ -3014,12 +2968,11 @@
 	.move-picker-field > span,
 	.unsupported-copy {
 		margin: 0;
-		color: var(--ink-mute);
+		color: var(--ink-soft);
 		font:
-			650 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
+			650 var(--pksx-type-label) var(--pksx-font-sans),
+			sans-serif;
 		line-height: 1.1;
-		text-transform: uppercase;
 	}
 
 	.stat-edit-controls input,
@@ -3045,20 +2998,16 @@
 	}
 
 	.unsupported-copy {
-		padding: 10px;
-		border-radius: var(--pksx-radius-md);
-		background: var(--paper-deep);
-		text-transform: none;
+		color: var(--ink-soft);
 	}
 
 	.level-edit-controls label span,
 	.level-edit-controls label em {
-		color: var(--ink-mute);
+		color: var(--ink-soft);
 		font:
-			650 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
+			650 var(--pksx-type-label) var(--pksx-font-sans),
+			sans-serif;
 		line-height: 1.1;
-		text-transform: uppercase;
 	}
 
 	.level-edit-controls input {
@@ -3102,8 +3051,12 @@
 		gap: 3px;
 		padding: 8px;
 		border-radius: var(--pksx-radius-sm);
-		background: oklch(0.9 var(--type-chroma, 0.07) var(--type-hue, 100));
-		color: color-mix(in srgb, var(--ink), black 10%);
+		background: color-mix(
+			in oklch,
+			var(--paper-hi) 80%,
+			oklch(0.72 var(--type-chroma, 0.07) var(--type-hue, 100)) 20%
+		);
+		color: var(--ink);
 	}
 
 	.move-chip strong {
@@ -3115,10 +3068,9 @@
 	.move-chip span,
 	.move-chip em {
 		font:
-			650 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
+			650 var(--pksx-type-label) var(--pksx-font-sans),
+			sans-serif;
 		line-height: 1;
-		text-transform: uppercase;
 	}
 
 	.stat-grid {
@@ -3145,9 +3097,26 @@
 		font-weight: 800;
 	}
 
-	.unsupported-apply {
-		background: var(--paper-deep);
-		color: var(--ink-soft);
+	.unsupported-apply,
+	.quiet-action {
+		border: var(--pksx-border-width) solid var(--rule-hi);
+		background: var(--paper-hi);
+		color: var(--ink);
+	}
+
+	.unsupported-apply:enabled {
+		color: var(--rust);
+	}
+
+	.unsupported-apply:enabled:hover,
+	.quiet-action:enabled:hover,
+	.secondary-action:hover {
+		background: var(--rust-wash);
+	}
+
+	.quiet-action:disabled {
+		cursor: not-allowed;
+		opacity: 0.56;
 	}
 
 	.unsupported-apply:disabled {
@@ -3157,7 +3126,7 @@
 
 	.close-editor {
 		background: var(--rust);
-		color: white;
+		color: var(--pksx-color-on-accent);
 	}
 
 	.editor-header {
@@ -3197,7 +3166,7 @@
 
 	.editor-identity span,
 	.editor-identity strong {
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 	}
 
 	.identity-line {
@@ -3244,19 +3213,22 @@
 		justify-content: space-between;
 		gap: var(--pksx-space-2);
 		flex: 0 0 auto;
-		padding: 0 var(--pksx-space-2);
-		border: var(--pksx-border-width) solid var(--pksx-color-border-subtle);
+		padding: 0 max(8px, var(--pksx-space-2));
+		border: 0;
 		border-radius: var(--pksx-radius-small);
-		background: var(--pksx-color-surface-subtle);
+		background: transparent;
 		color: var(--pksx-color-text-secondary);
-		font: 700 var(--pksx-type-caption) var(--pksx-font-mono);
+		font: 650 var(--pksx-type-label) var(--pksx-font-sans);
 		text-align: left;
 	}
 
-	.editor-rail button[aria-current='page'] {
-		border-color: var(--pksx-color-accent-primary);
-		background: var(--pksx-color-accent-wash);
+	.editor-rail button:hover {
 		color: var(--pksx-color-text-primary);
+	}
+
+	.editor-rail button[aria-current='page'] {
+		background: var(--pksx-color-accent-wash);
+		color: var(--pksx-color-accent-primary);
 	}
 
 	.editor-rail i {
@@ -3311,8 +3283,13 @@
 	.trainer-edit-controls,
 	.move-edit-controls {
 		gap: var(--pksx-space-2);
-		padding: var(--pksx-space-2);
-		border-radius: var(--pksx-radius-medium);
+		padding: 0;
+		border-radius: 0;
+	}
+
+	.field-grid {
+		padding-bottom: var(--pksx-space-3);
+		border-bottom: var(--pksx-border-width) solid var(--rule);
 	}
 
 	.editor-panel {
@@ -3345,7 +3322,7 @@
 	.stat-edit-controls label > span,
 	.stat-grid span,
 	.stat-grid em {
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 	}
 
 	.editor-actions {
@@ -3358,7 +3335,7 @@
 		min-width: 0;
 		flex: 1 1 0;
 		margin-right: 0;
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -3369,21 +3346,22 @@
 	.delta-review button {
 		flex: 0 0 auto;
 		min-height: var(--pksx-small-control-height);
-		padding: 0 var(--pksx-space-2);
+		padding: 0 max(8px, var(--pksx-space-2));
 		border-radius: var(--pksx-radius-small);
-		font-size: var(--pksx-type-caption);
-		font-weight: 800;
+		font-size: var(--pksx-type-label);
+		font-weight: 750;
 		white-space: nowrap;
 	}
 
 	.staged-count,
 	.secondary-action {
-		background: var(--pksx-color-surface-subtle);
+		border: var(--pksx-border-width) solid var(--pksx-color-border-strong);
+		background: var(--pksx-color-surface-panel);
 		color: var(--pksx-color-text-primary);
 	}
 
 	.staged-count {
-		box-shadow: inset 0 0 0 var(--pksx-border-width) var(--pksx-color-accent-primary);
+		border-color: var(--pksx-color-accent-ring);
 		color: var(--pksx-color-accent-primary);
 	}
 
@@ -3403,10 +3381,9 @@
 		grid-template-columns: minmax(7rem, 0.7fr) minmax(0, 1fr) auto minmax(0, 1fr);
 		align-items: center;
 		gap: var(--pksx-space-2);
-		padding: var(--pksx-space-2);
-		border-radius: var(--pksx-radius-medium);
-		background: var(--pksx-color-surface-subtle);
-		font-size: var(--pksx-type-caption);
+		padding: var(--pksx-space-2) 0;
+		border-bottom: var(--pksx-border-width) solid var(--rule);
+		font-size: var(--pksx-type-label);
 	}
 
 	.delta-list span {
@@ -3420,8 +3397,6 @@
 		display: grid;
 		gap: var(--pksx-space-3);
 		padding: var(--pksx-space-4);
-		border-radius: var(--pksx-radius-large);
-		background: var(--pksx-color-surface-subtle);
 		text-align: center;
 	}
 
@@ -3433,29 +3408,22 @@
 
 	.internal-actions .danger {
 		background: var(--pksx-color-feedback-danger);
-		color: white;
+		color: var(--pksx-color-on-accent);
 	}
 
 	.pokemon-editor :is(button, input):focus-visible {
-		outline: var(--pksx-focus-ring) solid var(--pksx-color-accent-ring);
-		outline-offset: 1px;
+		outline: 3px solid var(--pksx-color-accent-ring);
+		outline-offset: -3px;
 	}
 
-	.pokemon-editor input[aria-invalid='true'] {
-		border-color: var(--pksx-color-feedback-danger);
-		box-shadow: inset 0 0 0 1px var(--pksx-color-feedback-danger);
-	}
-
-	.pokemon-editor :is(input, button).staged-field,
-	.move-picker-field.staged-field {
-		box-shadow: inset 3px 0 0 var(--pksx-color-accent-primary);
+	.pokemon-editor :is(input, button).staged-field {
+		border-color: var(--pksx-color-accent-ring);
 		background-color: var(--pksx-color-accent-wash);
 	}
 
+	.pokemon-editor input[aria-invalid='true'],
 	.pokemon-editor input[aria-invalid='true'].staged-field {
-		box-shadow:
-			inset 3px 0 0 var(--pksx-color-accent-primary),
-			inset 0 0 0 1px var(--pksx-color-feedback-danger);
+		border-color: var(--pksx-color-feedback-danger);
 	}
 
 	@container pksx-density (aspect-ratio > 1 / 1) {

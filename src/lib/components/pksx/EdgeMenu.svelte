@@ -89,7 +89,7 @@
 			calc(0px - var(--pksx-safe-area-bottom)) calc(0px - var(--pksx-safe-area-left));
 		border: 0;
 		border-radius: 0;
-		background: color-mix(in srgb, var(--ink), transparent 55%);
+		background: var(--pksx-color-backdrop);
 		box-shadow: none;
 		pointer-events: auto;
 	}

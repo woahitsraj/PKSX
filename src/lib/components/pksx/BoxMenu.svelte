@@ -71,14 +71,10 @@
 
 	header h2 {
 		margin: 0;
-		font-family: var(--pksx-font-mono), monospace;
-		font-size: var(--pksx-type-caption);
+		color: var(--ink-soft);
+		font-size: var(--pksx-type-label);
+		font-weight: 650;
 		line-height: 1.25;
-	}
-
-	header h2 {
-		color: var(--ink-mute);
-		font-weight: 750;
 	}
 
 	.box-menu-commands,
@@ -98,11 +94,11 @@
 		min-height: var(--pksx-small-control-height);
 		display: flex;
 		align-items: center;
-		justify-content: center;
+		justify-content: flex-start;
 		padding: var(--pksx-space-1) var(--pksx-space-2);
 		border: 0;
 		border-radius: var(--pksx-radius-small);
-		background: var(--paper-deep);
+		background: transparent;
 		box-shadow: none;
 		color: var(--ink);
 		font: inherit;
@@ -117,21 +113,23 @@
 	}
 
 	.box-menu-row button[data-availability='available'] {
-		background: var(--paper-hi);
 		cursor: pointer;
 		opacity: 1;
 	}
 
-	.box-menu-row button[data-availability='available']:hover,
-	.box-menu-row button[data-availability='available']:focus-visible {
+	.box-menu-row button[data-availability='available']:hover {
 		background: var(--rust-wash);
 		color: var(--rust);
-		outline: none;
+	}
+
+	.box-menu-row button:focus-visible,
+	.box-menu-row button.controller-focused {
+		color: var(--rust);
+		outline: 3px solid var(--rust-ring);
+		outline-offset: -3px;
 	}
 
 	.box-menu-row button.controller-focused {
-		outline: var(--pksx-focus-ring) solid color-mix(in srgb, var(--rust), transparent 55%);
-		outline-offset: calc(-1 * var(--pksx-focus-ring));
 		opacity: 1;
 	}
 
@@ -142,10 +140,11 @@
 	}
 
 	.box-menu-row span {
-		color: var(--ink-soft);
-		font-size: var(--pksx-type-caption);
-		font-weight: 600;
-		line-height: 1.2;
-		text-align: center;
+		color: var(--ink-mute);
+		font-size: var(--pksx-type-label);
+		font-weight: 550;
+		line-height: 1.25;
+		text-align: left;
+		padding: 0 var(--pksx-space-2) var(--pksx-space-1);
 	}
 </style>

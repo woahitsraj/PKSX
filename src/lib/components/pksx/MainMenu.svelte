@@ -39,7 +39,6 @@
 <EdgeMenu label="Main Menu" onDismiss={onClose}>
 	<div class="main-menu">
 		<header>
-			<p>PKSX</p>
 			<h2>Main Menu</h2>
 		</header>
 
@@ -79,16 +78,8 @@
 		border-bottom: var(--pksx-border-width) solid var(--rule);
 	}
 
-	header p,
 	header h2 {
 		margin: 0;
-	}
-
-	header p {
-		color: var(--rust);
-		font: 750 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
 	}
 
 	header h2 {
@@ -112,7 +103,7 @@
 		padding: var(--pksx-space-2) var(--pksx-space-3);
 		border: var(--pksx-border-width) solid transparent;
 		border-radius: var(--pksx-radius-medium);
-		background: var(--paper-deep);
+		background: transparent;
 		color: var(--ink);
 		font: inherit;
 		text-align: left;
@@ -127,13 +118,12 @@
 	.main-menu-row button:hover,
 	.main-menu-row button:focus-visible,
 	.main-menu-row button.controller-focused {
-		border-color: color-mix(in srgb, var(--rust), transparent 55%);
 		background: var(--rust-wash);
 		outline: none;
 	}
 
-	.main-menu-row button[aria-current='page'] {
-		box-shadow: inset var(--pksx-space-1) 0 0 var(--rust);
+	.main-menu-row button[aria-current='page'] strong {
+		color: var(--rust);
 	}
 
 	.main-menu-row button[aria-current='page'] strong::after {
@@ -150,13 +140,13 @@
 	}
 
 	.main-menu-row strong {
-		font-size: var(--pksx-type-label);
-		font-weight: 780;
+		font-size: var(--pksx-type-body);
+		font-weight: 750;
 	}
 
 	.main-menu-row span {
 		color: var(--ink-soft);
-		font-size: var(--pksx-type-caption);
-		line-height: 1.2;
+		font-size: var(--pksx-type-label);
+		line-height: 1.25;
 	}
 </style>

@@ -136,7 +136,7 @@
 			{#if carried.spriteUrl}
 				<img src={carried.spriteUrl} alt="" width="48" height="48" />
 			{/if}
-			<strong>{carried.mode === 'move' ? 'MOVE' : 'COPY'}</strong>
+			<strong>{carried.mode === 'move' ? 'Move' : 'Copy'}</strong>
 		</span>
 	{/if}
 </button>
@@ -284,11 +284,10 @@
 		top: 4px;
 		left: 5px;
 		z-index: 3;
-		color: color-mix(in srgb, var(--ink), transparent 30%);
+		color: var(--ink-soft);
 		font:
 			700 var(--pksx-type-caption) var(--pksx-font-mono),
 			monospace;
-		letter-spacing: 0.04em;
 	}
 
 	.sprite-stage {
@@ -380,28 +379,27 @@
 	.box-slot .slot-label,
 	.party-slot .slot-label {
 		position: absolute;
-		left: 4px;
-		right: 4px;
-		bottom: 4px;
-		min-height: 17px;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		min-height: 18px;
 		display: none;
 		align-items: center;
 		justify-content: center;
-		gap: 3px;
-		padding: 2px 3px;
-		border-radius: var(--pksx-radius-xs);
-		background: color-mix(in srgb, var(--paper-hi), transparent 26%);
-		color: color-mix(in srgb, var(--ink), transparent 18%);
-		font-size: var(--pksx-type-caption);
-		font-weight: 750;
+		gap: 4px;
+		padding: 2px 6px 3px;
+		border-radius: 0 0 var(--pksx-radius-md) var(--pksx-radius-md);
+		background: color-mix(in srgb, var(--paper-hi), transparent 30%);
+		color: var(--ink);
+		font-size: var(--pksx-type-label);
+		font-weight: 700;
+		line-height: 1.1;
 		text-align: center;
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink), transparent 92%);
 	}
 
-	.slot.empty .slot-label {
-		background: transparent;
-		box-shadow: none;
-		color: color-mix(in srgb, var(--ink), transparent 46%);
+	.slot.empty .slot-label,
+	.slot.empty .empty-sprite {
+		display: none !important;
 	}
 
 	.box-slot .slot-detail,
@@ -414,12 +412,11 @@
 		flex: 0 0 auto;
 		display: inline;
 		margin: 0;
-		color: color-mix(in srgb, var(--ink), transparent 45%);
+		color: var(--ink-soft);
 		font:
-			700 var(--pksx-type-caption) var(--pksx-font-mono),
+			650 var(--pksx-type-label) var(--pksx-font-mono),
 			monospace;
 		font-style: normal;
-		letter-spacing: 0;
 	}
 
 	.box-slot .slot-label span,
@@ -457,8 +454,8 @@
 		padding: var(--pksx-border-width) var(--pksx-space-1);
 		border-radius: var(--pksx-radius-small);
 		background: var(--rust);
-		color: var(--paper-hi);
-		font: 800 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
+		color: var(--pksx-color-on-accent);
+		font: 750 var(--pksx-type-label) / 1 var(--pksx-font-sans);
 	}
 
 	:global(.location-grid[data-slot-density='number']) .slot-number,

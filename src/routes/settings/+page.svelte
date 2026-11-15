@@ -230,7 +230,6 @@
 >
 	<div class="settings-density pksx-density">
 		<header class="settings-header">
-			<p class="eyebrow">Application</p>
 			<h1 id="screen-title">Settings</h1>
 			<p>Theme, controls, and build information.</p>
 		</header>
@@ -238,7 +237,6 @@
 		<div class="settings-scrollport">
 			<section class="settings-card preferences" aria-labelledby="preferences-title">
 				<div class="section-heading">
-					<p class="section-number">01</p>
 					<div>
 						<h2 id="preferences-title">Preferences</h2>
 						<p>Choices that belong to PKSX on this device.</p>
@@ -275,7 +273,6 @@
 
 			<section class="settings-card reference" aria-labelledby="controls-title">
 				<div class="section-heading">
-					<p class="section-number">02</p>
 					<div>
 						<h2 id="controls-title">Controls reference</h2>
 						<p>Generic controller names and keyboard equivalents.</p>
@@ -312,7 +309,6 @@
 				data-settings-row="about"
 			>
 				<div class="section-heading">
-					<p class="section-number">03</p>
 					<div>
 						<h2
 							id="pksx-settings-about"
@@ -403,14 +399,6 @@
 		font-size: var(--pksx-type-label);
 	}
 
-	.eyebrow,
-	.section-number {
-		color: var(--rust);
-		font: 700 var(--pksx-type-caption) / 1.05 var(--pksx-font-mono);
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
-
 	.settings-scrollport {
 		min-height: 0;
 		overflow: auto;
@@ -433,9 +421,7 @@
 
 	.section-heading {
 		display: grid;
-		grid-template-columns: 24px 1fr;
-		gap: var(--pksx-space-2);
-		align-items: start;
+		gap: var(--pksx-space-1);
 		margin-bottom: var(--pksx-space-3);
 	}
 
@@ -497,10 +483,9 @@
 
 	.reference-group h3 {
 		padding: var(--pksx-space-2) 0;
-		color: var(--rust);
-		font-size: var(--pksx-type-label);
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
+		color: var(--ink);
+		font-size: var(--pksx-type-body);
+		font-weight: 750;
 	}
 
 	.reference-table {
@@ -530,15 +515,12 @@
 
 	.about dl div {
 		min-width: 0;
-		padding: var(--pksx-space-2);
-		border-radius: var(--pksx-radius-medium);
-		background: var(--paper-deep);
 	}
 
 	.about dt {
 		color: var(--ink-soft);
-		font-size: var(--pksx-type-caption);
-		text-transform: uppercase;
+		font-size: var(--pksx-type-label);
+		font-weight: 650;
 	}
 
 	.about dd {
@@ -548,8 +530,8 @@
 	}
 
 	.settings-route :focus-visible {
-		outline: var(--pksx-focus-ring) solid var(--rust);
-		outline-offset: var(--pksx-focus-ring);
+		outline: var(--pksx-focus-ring) solid var(--rust-ring);
+		outline-offset: calc(-1 * var(--pksx-focus-ring));
 	}
 
 	@container pksx-density (max-width: 520px) {
@@ -567,7 +549,7 @@
 		.reference-row .action {
 			grid-column: 1 / -1;
 			color: var(--ink-soft);
-			font-size: var(--pksx-type-caption);
+			font-size: var(--pksx-type-label);
 		}
 
 		.reference-row kbd {

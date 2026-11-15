@@ -966,7 +966,6 @@
 	<div class="saves-density pksx-density">
 		<header class="saves-header">
 			<div>
-				<p>On this device</p>
 				<h1 id="saves-title">Saves</h1>
 			</div>
 			<input
@@ -1020,8 +1019,6 @@
 										id={targetDomId({ kind: 'save-file', id: saveFile.id })}
 										class={[
 											'save-card',
-											(index + 1) % 2 === 0 && 'spine-even',
-											(index + 1) % 3 === 0 && 'spine-third',
 											selected && 'controller-focused',
 											saveFile.id === activeSaveFileId && 'active'
 										]}
@@ -1043,7 +1040,6 @@
 												void activateSaveFile(saveFile, 'boxes');
 											}}
 										>
-											<span class="cartridge-spine" aria-hidden="true"></span>
 											<span class="card-heading">
 												<strong>{gameTitle(details, saveFile)}</strong>
 												{#if saveFile.id === activeSaveFileId}<em>Active</em>{/if}
@@ -1117,7 +1113,6 @@
 											onpointerdown={(event) => event.preventDefault()}
 											onclick={() => void openPokemonStorage()}
 										>
-											<span class="cartridge-spine" aria-hidden="true"></span>
 											<span class="card-heading"><strong>Pokemon Storage</strong></span>
 											<span class="storage-persistence">Automatically saved by PKSX</span>
 											<span class="card-stats">
@@ -1268,16 +1263,8 @@
 		gap: 2px;
 	}
 
-	.saves-header p,
 	.saves-header h1 {
 		margin: 0;
-	}
-
-	.saves-header p {
-		color: var(--rust);
-		font: 750 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
 	}
 
 	.saves-header h1 {
@@ -1366,7 +1353,7 @@
 
 	.card-main {
 		padding: var(--pksx-space-2) calc(var(--pksx-control-height) + var(--pksx-space-2))
-			var(--pksx-space-2) calc(var(--pksx-space-3) + 5px);
+			var(--pksx-space-2) var(--pksx-space-3);
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) auto;
 		grid-template-rows: auto auto auto 1fr;
@@ -1391,25 +1378,6 @@
 		bottom: var(--pksx-space-2);
 	}
 
-	.cartridge-spine {
-		position: absolute;
-		inset: -1px auto -1px -1px;
-		width: 7px;
-		background: color-mix(in srgb, var(--ok), var(--ink) 28%);
-	}
-
-	.save-card.spine-even .cartridge-spine {
-		background: color-mix(in srgb, var(--rust), #7563a8 52%);
-	}
-
-	.save-card.spine-third .cartridge-spine {
-		background: color-mix(in srgb, var(--gold), var(--rust) 25%);
-	}
-
-	.storage-card .cartridge-spine {
-		background: color-mix(in srgb, var(--ok), var(--ink) 12%);
-	}
-
 	.card-heading {
 		grid-column: 1 / -1;
 		display: flex;
@@ -1432,19 +1400,17 @@
 
 	.card-heading em {
 		flex: 0 0 auto;
-		padding: 3px 5px;
+		padding: 3px 6px;
 		border-radius: var(--pksx-radius-small);
 		background: var(--rust);
-		color: var(--paper-hi);
-		font: 800 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
+		color: var(--pksx-color-on-accent);
+		font: 750 var(--pksx-type-label) / 1 var(--pksx-font-sans);
 		font-style: normal;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
 	}
 
 	.trainer {
-		font: 800 var(--pksx-type-label) / 1.1 var(--pksx-font-mono);
-		letter-spacing: 0.06em;
+		color: var(--ink-soft);
+		font: 700 var(--pksx-type-label) / 1.2 var(--pksx-font-sans);
 	}
 
 	.file-name,
@@ -1453,7 +1419,7 @@
 	.storage-persistence {
 		grid-column: 1 / -1;
 		color: var(--ink-soft);
-		font: 650 var(--pksx-type-caption) / 1.2 var(--pksx-font-mono);
+		font: 600 var(--pksx-type-label) / 1.25 var(--pksx-font-sans);
 	}
 
 	.source::before {
@@ -1461,6 +1427,7 @@
 	}
 
 	.file-name {
+		font-family: var(--pksx-font-mono);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -1498,7 +1465,6 @@
 		background: var(--paper-deep);
 		color: var(--ink-soft);
 		font: 800 var(--pksx-type-label) / 1 var(--pksx-font-mono);
-		letter-spacing: 1px;
 		cursor: pointer;
 	}
 
@@ -1534,7 +1500,7 @@
 
 	.import-cell small {
 		color: var(--ink-soft);
-		font: 650 var(--pksx-type-caption) / 1.2 var(--pksx-font-mono);
+		font: 600 var(--pksx-type-label) / 1.25 var(--pksx-font-sans);
 	}
 
 	@container pksx-density (min-width: 520px) {

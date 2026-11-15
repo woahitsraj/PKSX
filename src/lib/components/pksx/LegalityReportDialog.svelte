@@ -51,8 +51,8 @@
 <div class="legality-report" class:legal={report?.legal} class:illegal={report && !report.legal}>
 	<header>
 		<div>
-			<p class="kicker">{state.location}</p>
 			<h2 id="legality-report-title">Legality Check</h2>
+			<p class="kicker">{state.location}</p>
 		</div>
 		<button
 			id="legality-report-close"
@@ -252,11 +252,9 @@
 	}
 
 	.kicker {
-		color: var(--ink-mute);
-		font:
-			650 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
-		text-transform: uppercase;
+		margin-top: 2px;
+		color: var(--ink-soft);
+		font: 650 var(--pksx-type-label) var(--pksx-font-sans);
 	}
 
 	h2 {
@@ -266,10 +264,7 @@
 
 	h3 {
 		color: var(--ink);
-		font:
-			720 var(--pksx-type-label)/1.2 var(--pksx-font-mono),
-			monospace;
-		text-transform: uppercase;
+		font: 750 var(--pksx-type-body)/1.2 var(--pksx-font-sans);
 	}
 
 	.icon-close,
@@ -295,15 +290,16 @@
 		min-height: var(--pksx-control-height);
 		padding: var(--pksx-space-1) var(--pksx-space-3);
 		background: var(--rust);
-		color: white;
+		color: var(--pksx-color-on-accent);
 		font-weight: 720;
 	}
 
 	.apply-fix {
 		justify-self: start;
 		min-height: var(--pksx-control-height);
-		padding: var(--pksx-space-1) var(--pksx-space-2);
-		border: 1px solid var(--rule);
+		padding: var(--pksx-space-1) max(8px, var(--pksx-space-2));
+		border: 1px solid var(--rule-hi);
+		background: var(--paper-hi);
 		font-weight: 700;
 	}
 
@@ -323,20 +319,15 @@
 	}
 
 	.proposed-fixes .proposal-label {
-		color: var(--ink-mute);
-		font:
-			700 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
-		text-transform: uppercase;
+		color: var(--ink-soft);
+		font: 700 var(--pksx-type-label) var(--pksx-font-sans);
 	}
 
 	.summary {
 		display: grid;
 		gap: var(--pksx-space-1);
-		padding: var(--pksx-space-2);
-		border: 1px solid var(--rule);
-		border-radius: var(--pksx-radius-medium);
-		background: var(--paper);
+		padding-bottom: var(--pksx-space-2);
+		border-bottom: 1px solid var(--rule);
 	}
 
 	.judgement {
@@ -349,24 +340,21 @@
 
 	.judgement span {
 		color: var(--rust);
-		font:
-			800 var(--pksx-type-label) var(--pksx-font-mono),
-			monospace;
-		text-transform: uppercase;
+		font: 800 var(--pksx-type-body) var(--pksx-font-sans);
 	}
 
 	.legality-report.legal .judgement span {
-		color: oklch(50% 0.13 148);
+		color: var(--pksx-color-feedback-success);
 	}
 
 	.legality-report.illegal .judgement span {
-		color: oklch(48% 0.17 25);
+		color: var(--pksx-color-feedback-danger);
 	}
 
 	.summary p,
 	.empty-copy,
 	li p {
-		color: var(--ink-mute);
+		color: var(--ink-soft);
 		font-size: var(--pksx-type-body);
 		line-height: 1.25;
 	}
@@ -398,28 +386,20 @@
 	li {
 		display: grid;
 		gap: var(--pksx-space-1);
-		padding: var(--pksx-space-2);
-		border: 1px solid var(--rule);
-		border-radius: var(--pksx-radius-medium);
-		background: var(--paper);
+		padding: var(--pksx-space-2) 0;
+		border-bottom: 1px solid var(--rule);
 	}
 
 	li span {
 		color: var(--ink);
-		font:
-			700 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
-		text-transform: uppercase;
+		font: 750 var(--pksx-type-label) var(--pksx-font-sans);
 	}
 
 	.icon-close:focus-visible,
-	.icon-close:focus,
 	.apply-fix:focus-visible,
-	.apply-fix:focus,
-	.close-report:focus-visible,
-	.close-report:focus {
-		outline: 2px solid var(--pksx-color-accent-primary);
-		outline-offset: 2px;
+	.close-report:focus-visible {
+		outline: 3px solid var(--pksx-color-accent-ring);
+		outline-offset: -3px;
 	}
 
 	@container pksx-density (max-width: 640px) {
