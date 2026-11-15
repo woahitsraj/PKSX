@@ -165,7 +165,6 @@
 	.slot-command-row button[data-availability='available']:focus-visible {
 		background: var(--rust-wash);
 		color: var(--rust);
-		outline: none;
 	}
 
 	.slot-command-row button.controller-focused {

@@ -1762,7 +1762,7 @@ test('switches to durable Pokemon Storage with focusable empty Slot actions', as
 
 	const actions = page.getByRole('dialog', { name: 'Slot actions' });
 	await expect(actions).toBeVisible();
-	await expect(actions.locator('.slot-command-row')).toHaveCount(0);
+	await expect(actions.locator('.slot-command-row strong')).toHaveText(['Close']);
 	await expect(actions.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
 	await expect(actions.getByRole('button', { name: 'Move', exact: true })).toHaveCount(0);
 	await expect(actions.getByRole('button', { name: 'Create Pokemon' })).toHaveCount(0);
@@ -3935,7 +3935,7 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toContainText('Box 1, slot 2');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).not.toContainText('Slot Menu');
-	await expect(page.locator('.slot-command-row')).toHaveCount(0);
+	await expect(page.locator('.slot-command-row strong')).toHaveText(['Close']);
 	await expect(page.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
 	for (const unavailableAction of [
 		'Create Pokemon',
@@ -3996,7 +3996,8 @@ test('occupied slot actions expose Edit and Close dismisses', async ({ page }) =
 		'Clear Slot',
 		'Legality Check',
 		'Evolve',
-		'Trade with Switch'
+		'Trade with Switch',
+		'Close'
 	]);
 	await expect(dialog.locator('.slot-command-row button:disabled')).toHaveCount(0);
 	for (const unavailableAction of ['Export', 'Quick Actions', 'Create Pokemon']) {

@@ -148,6 +148,10 @@ for (const entry of ['mouse', 'keyboard', 'controller']) {
 		await pressMenuKey('ArrowDown');
 		await pressMenuKey('ArrowDown');
 		await expect(menu.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
+		await expect(menu.getByRole('button', { name: 'Close', exact: true })).toHaveCSS(
+			'outline-style',
+			'solid'
+		);
 		await pressMenuKey('Enter');
 		await expect(menu).toHaveCount(0);
 		await expect(controls.getByRole('button', { name: 'Actions', exact: true })).toBeFocused();
