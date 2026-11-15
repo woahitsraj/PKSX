@@ -2937,7 +2937,10 @@
 	function focusBoxMenuCommand(index: number) {
 		const clamped = Math.max(0, Math.min(index, boxMenuCommands.length - 1));
 		navigation = { ...navigation, focus: { zone: 'actions', index: clamped } };
-		queueMicrotask(() => document.getElementById(`box-menu-command-${clamped}`)?.focus());
+		queueMicrotask(() => {
+			const latest = navigation.focus.zone === 'actions' ? navigation.focus.index : clamped;
+			document.getElementById(`box-menu-command-${latest}`)?.focus();
+		});
 	}
 
 	function selectBoxMenuCommand(command: BoxMenuCommandKey) {
