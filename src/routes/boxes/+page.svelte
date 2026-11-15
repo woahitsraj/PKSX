@@ -8767,23 +8767,23 @@
 		align-content: start;
 		display: grid;
 		gap: 8px;
-		padding: 8px;
-		background: var(--paper);
-		border: 1px solid var(--rule-hi);
-		border-radius: var(--pksx-radius-md);
+		padding: 14px;
+		border-radius: var(--pksx-radius-xl);
+		background: var(--paper-hi);
+		box-shadow: var(--shadow-deep);
 	}
 
 	.selection-controls > button {
 		min-height: var(--pksx-control-height);
-		padding: var(--pksx-space-1) var(--pksx-space-2);
-		border-radius: var(--pksx-radius-small);
-		background: var(--paper-hi);
+		padding: var(--pksx-space-1) max(8px, var(--pksx-space-2));
+		border-radius: var(--pksx-radius-medium);
+		background: transparent;
+		color: var(--ink);
 		font-weight: 750;
-		text-align: center;
+		text-align: left;
 	}
 
 	.selection-controls > button:disabled {
-		background: var(--paper-deep);
 		opacity: 0.68;
 	}
 
@@ -8791,6 +8791,17 @@
 	.selection-controls > button:focus-visible {
 		background: var(--rust-wash);
 		color: var(--rust);
+	}
+
+	#selection-actions {
+		background: var(--rust);
+		color: var(--pksx-color-on-accent);
+		--pksx-color-accent-ring: var(--pksx-color-on-accent);
+	}
+
+	#selection-actions:focus-visible {
+		outline: 3px solid var(--pksx-color-accent-ring);
+		outline-offset: -3px;
 	}
 
 	.selection-controls strong {

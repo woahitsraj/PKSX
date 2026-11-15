@@ -119,10 +119,11 @@
 	}
 	h3 {
 		margin-top: var(--pksx-space-2);
+		padding-top: var(--pksx-space-2);
+		border-top: var(--pksx-border-width) solid var(--rule);
 		color: var(--ink-soft);
-		font-size: var(--pksx-type-caption);
-		text-transform: uppercase;
-		letter-spacing: 0.12em;
+		font-size: var(--pksx-type-label);
+		font-weight: 700;
 	}
 	.commands {
 		display: grid;
@@ -138,7 +139,7 @@
 		padding: var(--pksx-space-2) var(--pksx-space-3);
 		border: var(--pksx-border-width) solid transparent;
 		border-radius: var(--pksx-radius-medium);
-		background: var(--paper-deep);
+		background: transparent;
 		color: var(--ink);
 		font: inherit;
 		text-align: left;
@@ -146,13 +147,11 @@
 	}
 	button:focus-visible,
 	button.controller-focused {
-		border-color: color-mix(in srgb, var(--rust), transparent 55%);
 		background: var(--rust-wash);
 		outline: none;
 	}
 	@media (hover: hover) {
 		button:hover {
-			border-color: color-mix(in srgb, var(--rust), transparent 55%);
 			background: var(--rust-wash);
 		}
 	}
@@ -168,7 +167,7 @@
 		height: 28px;
 		border-radius: var(--pksx-radius-small);
 		background: var(--rust);
-		color: var(--paper-hi);
+		color: var(--pksx-color-on-accent);
 		font-weight: 800;
 	}
 	strong {
@@ -176,8 +175,9 @@
 	}
 	small {
 		grid-column: 2;
-		color: var(--ink-soft);
-		font-size: var(--pksx-type-caption);
+		color: var(--ink-mute);
+		font-size: var(--pksx-type-label);
+		line-height: 1.25;
 	}
 	button:not(:has(.mark)) :is(strong, small) {
 		grid-column: 1 / -1;

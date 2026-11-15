@@ -306,6 +306,7 @@
 		border-color: var(--rust);
 		background: var(--rust);
 		color: var(--pksx-color-on-accent);
+		--pksx-color-accent-ring: var(--pksx-color-on-accent);
 	}
 
 	@container pksx-density (max-width: 640px) {

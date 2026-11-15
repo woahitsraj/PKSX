@@ -190,5 +190,4 @@
 		text-align: left;
 		padding: 0 var(--pksx-space-2) var(--pksx-space-1);
 	}
-
 </style>

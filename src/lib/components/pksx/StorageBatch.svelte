@@ -115,7 +115,12 @@
 			<footer>
 				<button type="button" disabled={busy} onclick={changeDestination}>Change destination</button
 				>
-				<button id="apply-storage-batch" type="button" disabled={busy} onclick={apply}>Apply</button
+				<button
+					id="apply-storage-batch"
+					class="primary"
+					type="button"
+					disabled={busy}
+					onclick={apply}>Apply</button
 				>
 			</footer>
 		{/if}
@@ -129,7 +134,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--pksx-space-2);
-		padding: var(--pksx-space-2);
+		padding: var(--pksx-space-3);
 	}
 	header,
 	footer {
@@ -138,9 +143,24 @@
 		justify-content: space-between;
 		gap: var(--pksx-space-2);
 	}
+	footer {
+		justify-content: flex-end;
+	}
 	h2,
-	p {
+	p,
+	ol {
 		margin: 0;
+	}
+	h2 {
+		font: 760 var(--pksx-type-title) / 1.1 var(--pksx-font-sans);
+	}
+	p {
+		color: var(--ink-soft);
+		font-size: var(--pksx-type-body);
+		line-height: 1.3;
+	}
+	p[role='alert'] {
+		color: var(--pksx-color-feedback-danger);
 	}
 	.content {
 		flex: 1;
@@ -150,9 +170,41 @@
 		flex-direction: column;
 		gap: var(--pksx-space-2);
 	}
+	ol {
+		padding: 0;
+		list-style: none;
+	}
+	li {
+		padding: var(--pksx-space-2) 0;
+		border-bottom: 1px solid var(--rule);
+		font-size: var(--pksx-type-body);
+	}
 	button {
 		min-height: var(--pksx-control-height);
-		border-radius: var(--pksx-radius-md);
-		padding-inline: var(--pksx-space-2);
+		padding: var(--pksx-space-1) max(8px, var(--pksx-space-2));
+		border: 1px solid var(--rule-hi);
+		border-radius: var(--pksx-radius-medium);
+		background: var(--paper);
+		color: var(--ink);
+		font: inherit;
+		font-weight: 720;
+		cursor: pointer;
+	}
+	.content button {
+		text-align: left;
+	}
+	button:disabled {
+		cursor: not-allowed;
+		opacity: 0.55;
+	}
+	button:focus-visible {
+		outline: 3px solid var(--pksx-color-accent-ring);
+		outline-offset: -3px;
+	}
+	button.primary {
+		border-color: var(--rust);
+		background: var(--rust);
+		color: var(--pksx-color-on-accent);
+		--pksx-color-accent-ring: var(--pksx-color-on-accent);
 	}
 </style>
