@@ -127,3 +127,163 @@ for (const location of ['All Pokemon', 'Unfiled', 'Recently Deleted']) {
 		await expect(actions).toHaveCount(0);
 	});
 }
+
+test.describe('desktop selection', () => {
+	test.use({ viewport: { width: 1280, height: 800 } });
+	test('extends with Shift+Arrow and selects with a mouse rectangle', async ({ page }) => {
+		await page.goto('/');
+		await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+			'data-initial-state',
+			'ready'
+		);
+		await page.getByLabel('Import Save File').setInputFiles(fixture);
+		await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+			timeout: 60000
+		});
+		await page.getByRole('button', { name: /Open .*011020251345.sav in Boxes/ }).click();
+		await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+			'data-initial-state',
+			'ready',
+			{ timeout: 60000 }
+		);
+		const cells = page.locator('.box-pane .location-grid .slot');
+		await cells.nth(1).click();
+		await cells.nth(0).click();
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await page.keyboard.down('Shift');
+		await page.keyboard.press('ArrowUp');
+		const actions = page.getByRole('group', { name: 'Selection actions' });
+		await expect(actions).toContainText('1 selected');
+		await expect(page.locator('.location-grid:focus-within')).toHaveCount(1);
+		await page.keyboard.press('ArrowRight');
+		await expect(actions).toContainText('2 selected');
+		await page.keyboard.press('ArrowUp');
+		await expect(page.locator('.location-grid:focus-within')).toHaveCount(1);
+		await expect(actions).toContainText('2 selected');
+		await page.keyboard.press('ArrowRight');
+		await page.keyboard.press('ArrowLeft');
+		await page.keyboard.press('ArrowLeft');
+		await expect(actions).toContainText('1 selected');
+		await page.keyboard.press('ArrowRight');
+		await expect(actions).toContainText('2 selected');
+		await page.keyboard.up('Shift');
+		await page.keyboard.press('ArrowRight');
+		await expect(actions).toContainText('2 selected');
+		await page.keyboard.press('Escape');
+		await expect(actions).toHaveCount(0);
+		const first = await cells.nth(0).boundingBox(),
+			second = await cells.nth(1).boundingBox();
+		if (!first || !second) throw Error('Visible Box Slots required');
+		await page.mouse.move(first.x + first.width / 2, first.y + first.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(second.x + second.width - 2, second.y + second.height - 2, { steps: 8 });
+		await expect(page.locator('.selection-drag-box')).toBeVisible();
+		await page.mouse.up();
+		await expect(actions).toContainText('2 selected');
+		await expect(page.locator('[data-batch-selected="true"]')).toHaveCount(2);
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await expect(page.locator('.selection-drag-box')).toHaveCount(0);
+	});
+});
+
+test('Shift range remains in its originating pane at a shared edge', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await page.goto('/');
+	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
+	await page.getByLabel('Import Save File').setInputFiles(fixture);
+	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+		timeout: 60000
+	});
+	await page.getByRole('button', { name: /Open .*011020251345.sav in Boxes/ }).click();
+	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready',
+		{ timeout: 60000 }
+	);
+	await page.getByRole('button', { name: /Open Box Menu/ }).click();
+	await page.getByRole('button', { name: 'Open another collection', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /011020251345.sav/ })
+		.click();
+	await expect(page.getByRole('dialog', { name: 'Open another collection' })).toHaveCount(0);
+	await expect(page.locator('.box-pane')).toHaveCount(2);
+	const first = page.locator('.box-pane').first();
+	const id = await first.getAttribute('data-pane-id');
+	await expect(first.locator('[data-box-slot="5"]')).toBeEnabled();
+	await first.locator('[data-box-slot="5"]').focus();
+	await expect(first.locator('[data-box-slot="5"]')).toBeFocused();
+	await expect(first).toHaveClass(/active-pane/);
+	await expect(first).not.toHaveAttribute('aria-busy', 'true');
+	await page.keyboard.press('Shift+ArrowRight');
+	const actions = page.getByRole('group', { name: 'Selection actions' });
+	await expect(actions).toContainText('0 selected');
+	await expect(page.locator('.box-pane')).toHaveCount(1);
+	await expect(page.locator('.box-pane')).toHaveAttribute('data-pane-id', id ?? '');
+	await page.keyboard.press('Escape');
+	await expect(page.locator('.box-pane')).toHaveCount(2);
+});
+
+test('a rectangle keeps pane geometry until release, including an existing selection', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await page.goto('/');
+	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
+	await page.getByLabel('Import Save File').setInputFiles(fixture);
+	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+		timeout: 60000
+	});
+	await page.getByRole('button', { name: /Open .*011020251345.sav in Boxes/ }).click();
+	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready',
+		{ timeout: 60000 }
+	);
+	await page.getByRole('button', { name: /Open Box Menu/ }).click();
+	await page.getByRole('button', { name: 'Open another collection', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /011020251345.sav/ })
+		.click();
+	await expect(page.getByRole('dialog', { name: 'Open another collection' })).toHaveCount(0);
+	await expect(page.locator('.box-pane')).toHaveCount(2);
+	const right = page.locator('.box-pane').nth(1);
+	const id = await right.getAttribute('data-pane-id');
+	await expect(right.locator('[data-box-slot="0"]')).toContainText('ARON');
+	await expect(right.locator('[data-box-slot="0"]')).toBeEnabled();
+	const grid = right.locator('.location-grid');
+	const before = await grid.boundingBox();
+	const first = await right.locator('[data-box-slot="0"]').boundingBox(),
+		second = await right.locator('[data-box-slot="1"]').boundingBox();
+	if (!first || !second) throw new Error('Visible Box Slots required');
+	await page.mouse.move(first.x + first.width / 2, first.y + first.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(second.x + second.width / 2, second.y + second.height / 2, { steps: 8 });
+	await expect(page.getByRole('group', { name: 'Selection actions' })).toContainText('2 selected');
+	await expect(page.locator('.box-pane')).toHaveCount(2);
+	expect(await grid.boundingBox()).toEqual(before);
+	await page.screenshot({ path: '/tmp/pksx-desktop-review/desktop-two-pane-drag.png' });
+	await page.mouse.move(first.x + first.width / 2, first.y + first.height / 2);
+	await expect(page.getByRole('group', { name: 'Selection actions' })).toContainText('1 selected');
+	await page.mouse.up();
+	await expect(page.locator('.box-pane')).toHaveCount(1);
+	const remaining = page.locator('.box-pane');
+	await expect(remaining).toHaveAttribute('data-pane-id', id ?? '');
+	const rect = await remaining.locator('.location-grid').boundingBox();
+	const cell = await remaining.locator('[data-box-slot="1"]').boundingBox();
+	if (!cell) throw new Error('Visible single-pane Slot required');
+	await page.mouse.move(cell.x + cell.width / 2, cell.y + cell.height / 2);
+	await page.mouse.down();
+	await expect(page.locator('.box-pane')).toHaveCount(1);
+	expect(await remaining.locator('.location-grid').boundingBox()).toEqual(rect);
+	await page.mouse.move(cell.x + cell.width - 1, cell.y + cell.height - 1, { steps: 4 });
+	await page.mouse.up();
+	await expect(page.getByRole('group', { name: 'Selection actions' })).toContainText('2 selected');
+});
