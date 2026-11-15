@@ -215,3 +215,61 @@ test('Shift range remains in its originating pane at a shared edge', async ({ pa
 	await page.keyboard.press('Escape');
 	await expect(page.locator('.box-pane')).toHaveCount(2);
 });
+
+test('a rectangle keeps pane geometry until release, including an existing selection', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await page.goto('/');
+	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
+	await page.getByLabel('Import Save File').setInputFiles(fixture);
+	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+		timeout: 60000
+	});
+	await page.getByRole('button', { name: /Open .*011020251345.sav in Boxes/ }).click();
+	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready',
+		{ timeout: 60000 }
+	);
+	await page.getByRole('button', { name: /Open Box Menu/ }).click();
+	await page.getByRole('button', { name: 'Open another', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /011020251345.sav/ })
+		.click();
+	await expect(page.locator('.box-pane')).toHaveCount(2);
+	const right = page.locator('.box-pane').nth(1);
+	const id = await right.getAttribute('data-pane-id');
+	const grid = right.locator('.location-grid');
+	const before = await grid.boundingBox();
+	const first = await right.locator('[data-box-slot="0"]').boundingBox(),
+		second = await right.locator('[data-box-slot="1"]').boundingBox();
+	if (!first || !second) throw new Error('Visible Box Slots required');
+	await page.mouse.move(first.x + first.width / 2, first.y + first.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(second.x + second.width / 2, second.y + second.height / 2, { steps: 8 });
+	await expect(page.getByRole('group', { name: 'Selection actions' })).toContainText('2 selected');
+	await expect(page.locator('.box-pane')).toHaveCount(2);
+	expect(await grid.boundingBox()).toEqual(before);
+	await page.screenshot({ path: '/tmp/pksx-desktop-review/desktop-two-pane-drag.png' });
+	await page.mouse.move(first.x + first.width / 2, first.y + first.height / 2);
+	await expect(page.getByRole('group', { name: 'Selection actions' })).toContainText('1 selected');
+	await page.mouse.up();
+	await expect(page.locator('.box-pane')).toHaveCount(1);
+	const remaining = page.locator('.box-pane');
+	await expect(remaining).toHaveAttribute('data-pane-id', id ?? '');
+	const rect = await remaining.locator('.location-grid').boundingBox();
+	const cell = await remaining.locator('[data-box-slot="1"]').boundingBox();
+	if (!cell) throw new Error('Visible single-pane Slot required');
+	await page.mouse.move(cell.x + cell.width / 2, cell.y + cell.height / 2);
+	await page.mouse.down();
+	await expect(page.locator('.box-pane')).toHaveCount(1);
+	expect(await remaining.locator('.location-grid').boundingBox()).toEqual(rect);
+	await page.mouse.move(cell.x + cell.width - 1, cell.y + cell.height - 1, { steps: 4 });
+	await page.mouse.up();
+	await expect(page.getByRole('group', { name: 'Selection actions' })).toContainText('2 selected');
+});

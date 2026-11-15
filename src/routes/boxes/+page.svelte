@@ -2388,7 +2388,9 @@
 		y: number;
 		base: SelectedBoxSlot[];
 		moved: boolean;
+		keepPanes: boolean;
 	} | null>(null);
+	const singlePaneSelection = $derived(selection !== null && !boxDrag?.keepPanes);
 	let suppressDragClick = false;
 	function applySelectionRange(slots: SelectedBoxSlot[], base: SelectedBoxSlot[]) {
 		if (selection)
@@ -2459,7 +2461,8 @@
 			x: event.clientX,
 			y: event.clientY,
 			base: selection?.slots.slice() ?? [],
-			moved: false
+			moved: false,
+			keepPanes: !selection
 		};
 	}
 	function moveBoxDrag(event: PointerEvent) {
@@ -7737,7 +7740,7 @@
 	<section
 		class={[
 			'storage-workspace pksx-density',
-			{ 'two-pane': workbenchPanes.length === 2 && !selection }
+			{ 'two-pane': workbenchPanes.length === 2 && !singlePaneSelection }
 		]}
 		aria-label="Party and box storage"
 	>
@@ -7745,12 +7748,12 @@
 			class={[
 				'box-pane-strip',
 				{
-					'single-pane': workbenchPanes.length === 1 || !!selection,
+					'single-pane': workbenchPanes.length === 1 || singlePaneSelection,
 					'many-panes': workbenchPanes.length >= 3
 				}
 			]}
 		>
-			{#each selection ? workbenchPanes.filter((pane) => pane.id === activePaneId) : workbenchPanes as pane (pane.id)}
+			{#each singlePaneSelection ? workbenchPanes.filter((pane) => pane.id === activePaneId) : workbenchPanes as pane (pane.id)}
 				{@const paneActive = pane.id === activePaneId}
 				{@const paneBusy =
 					(busy && paneActive) || paneWorkspaceLoadingRequests[pane.id] !== undefined}
