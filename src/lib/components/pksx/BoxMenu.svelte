@@ -29,7 +29,7 @@
 						type="button"
 						data-pksx-control-category="small"
 						class:controller-focused={activeIndex === index}
-						aria-disabled={command.reason ? 'true' : undefined}
+						aria-disabled={command.availability === 'unavailable' ? 'true' : undefined}
 						aria-describedby={command.reason ? `box-menu-command-${index}-reason` : undefined}
 						data-availability={command.availability}
 						onfocus={(event) => {
@@ -39,7 +39,7 @@
 						onclick={(event) => {
 							event.preventDefault();
 							onFocusCommand(index);
-							if (!command.reason) onSelectCommand(command.key);
+							if (command.availability === 'available') onSelectCommand(command.key);
 						}}
 					>
 						<strong>{command.label}</strong>
@@ -131,7 +131,7 @@
 
 	.box-menu-row button.controller-focused {
 		outline: var(--pksx-focus-ring) solid color-mix(in srgb, var(--rust), transparent 55%);
-		outline-offset: 1px;
+		outline-offset: calc(-1 * var(--pksx-focus-ring));
 		opacity: 1;
 	}
 

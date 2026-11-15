@@ -446,7 +446,8 @@
 			event.key === 'Escape' &&
 			!summonedWorkflow.active &&
 			!appChrome.carryActive &&
-			activeRoute !== 'boxes'
+			activeRoute !== 'boxes' &&
+			activeRoute !== 'saves'
 		) {
 			consumeRootEvent(event);
 			if (routeBackHandler?.()) return;
@@ -699,6 +700,7 @@
 				}
 			}
 
+			if (!gamepad && nativeHeld.size === 0 && previousPressed.size === 0) return;
 			const pressed = new SvelteSet<ControllerKey>([
 				...nativeHeld,
 				...(gamepad ? readGamepadKeys(gamepad) : [])

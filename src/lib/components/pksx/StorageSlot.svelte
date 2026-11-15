@@ -117,7 +117,7 @@
 	<span class="slot-number">{slotNumber}</span>
 	<span class="sprite-stage" aria-hidden="true">
 		{#if slot.kind === 'pokemon' && spriteUrl}
-			<img class="slot-sprite" src={spriteUrl} alt="" width="96" height="96" />
+			<img class="slot-sprite" src={spriteUrl} alt="" width="96" height="96" decoding="async" />
 		{:else if slot.kind === 'pokemon'}
 			<span class="slot-sprite missing-sprite"></span>
 		{:else}

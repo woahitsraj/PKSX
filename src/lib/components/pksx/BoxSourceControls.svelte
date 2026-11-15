@@ -99,7 +99,9 @@
 	}
 
 	.box-title {
+		position: relative;
 		min-width: 0;
+		padding: calc(var(--pksx-focus-ring) + 2px) var(--pksx-space-2);
 		display: grid;
 		gap: var(--pksx-border-width);
 		justify-items: center;
@@ -107,7 +109,6 @@
 	}
 
 	.box-title h2 {
-		position: relative;
 		margin: 0;
 		font-size: var(--pksx-type-title);
 		line-height: 1.05;
@@ -125,7 +126,7 @@
 	.box-title h2 button:hover,
 	.box-title h2 button:focus-visible {
 		outline: var(--pksx-focus-ring) solid color-mix(in srgb, var(--rust), transparent 55%);
-		outline-offset: var(--pksx-border-width);
+		outline-offset: calc(-1 * var(--pksx-focus-ring));
 	}
 
 	.box-title span {

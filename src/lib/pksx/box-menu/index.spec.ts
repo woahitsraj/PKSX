@@ -53,11 +53,7 @@ describe('Box Menu commands', () => {
 			},
 			{ key: 'switch', availability: 'available', reason: null },
 			{ key: 'open-another', availability: 'available', reason: null },
-			{
-				key: 'close',
-				availability: 'unavailable',
-				reason: 'Keep at least one collection open.'
-			},
+			{ key: 'close', availability: 'unavailable', reason: null },
 			{ key: 'select', availability: 'available', reason: null },
 			{
 				key: 'undo-storage-organization',

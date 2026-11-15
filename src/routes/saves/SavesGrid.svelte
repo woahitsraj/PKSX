@@ -1037,6 +1037,7 @@
 											data-pksx-control-category="card"
 											tabindex="-1"
 											aria-label={'Open ' + displayName(saveFile) + ' in Boxes'}
+											onpointerdown={(event) => event.preventDefault()}
 											onclick={() => {
 												chooseTarget({ kind: 'save-file', id: saveFile.id }, false);
 												void activateSaveFile(saveFile, 'boxes');
@@ -1113,6 +1114,7 @@
 											data-pksx-control-category="card"
 											tabindex="-1"
 											aria-label="Open Pokemon Storage in Boxes"
+											onpointerdown={(event) => event.preventDefault()}
 											onclick={() => void openPokemonStorage()}
 										>
 											<span class="cartridge-spine" aria-hidden="true"></span>
@@ -1148,6 +1150,7 @@
 											data-pksx-control-category="card"
 											tabindex="-1"
 											aria-label={folderLinking ? 'Add saves' : 'Import a Save File'}
+											onpointerdown={(event) => event.preventDefault()}
 											onclick={openAddSaves}
 										>
 											<span>+</span>
@@ -1375,9 +1378,17 @@
 		padding-right: calc(var(--pksx-control-height) + var(--pksx-space-2));
 	}
 
-	.card-main:hover,
-	.import-cell > button:hover {
-		background: var(--rust-wash);
+	@media (hover: hover) {
+		.card-main:hover,
+		.import-cell > button:hover {
+			background: var(--rust-wash);
+		}
+	}
+
+	.save-card > :global(.delayed-spinner.visible) {
+		position: absolute;
+		right: var(--pksx-space-2);
+		bottom: var(--pksx-space-2);
 	}
 
 	.cartridge-spine {

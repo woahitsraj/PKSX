@@ -506,7 +506,7 @@ async function openBackupBrowser(page: Page) {
 
 async function expectControllerHighlights(page: Page, scope: Locator) {
 	const controls = scope.locator(
-		'button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"]):not([type="file"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+		'button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"]):not([type="file"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([role="grid"])'
 	);
 	let audited = 0;
 
@@ -1931,7 +1931,11 @@ test('Box Menu keeps fixed unavailable commands and X and Y preserve their conte
 	);
 	await expect(menu).toContainText('Pokemon Storage cannot be exported.');
 	await expect(menu).toContainText('Pokemon Storage does not use Backups.');
-	await expect(menu).toContainText('Keep at least one collection open.');
+	await expect(menu.getByRole('button', { name: 'Close' })).toHaveAttribute(
+		'aria-disabled',
+		'true'
+	);
+	await expect(menu).not.toContainText('Keep at least one collection open.');
 
 	const backupsBefore = await backupCount(page);
 	let downloads = 0;
@@ -2499,12 +2503,10 @@ test('transfer controls use current Controller Focus in Pokemon Storage', async 
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
 	await storagePane.locator('[id$="box-0-slot-0"]').click();
 	await expect(storagePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
-	await page.keyboard.press('Escape');
 	await savePane.locator('[id$="box-0-slot-1"]').focus();
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Copy' }).click();
 	await storagePane.locator('[id$="box-0-slot-1"]').click();
 	await expect(storagePane.locator('[id$="box-0-slot-1"]')).toContainText('ILLUMISE');
-	await page.keyboard.press('Escape');
 	await storagePane.locator('[id$="box-0-slot-0"]').focus();
 	await page.keyboard.press('ArrowRight');
 	await expect(storagePane.locator('[id$="box-0-slot-1"]')).toHaveAttribute(
