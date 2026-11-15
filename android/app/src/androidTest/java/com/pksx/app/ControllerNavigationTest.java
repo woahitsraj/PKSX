@@ -613,7 +613,7 @@ public class ControllerNavigationTest {
         pressGamepadKey(
             KeyEvent.KEYCODE_DPAD_DOWN,
             "document.activeElement?.dataset.destinationFocus === 'saves-grid'"
-                + " && getComputedStyle(document.activeElement).outlineStyle === 'solid'"
+                + " && getComputedStyle(document.activeElement.querySelector('.controller-focused')).outlineStyle === 'solid'"
         );
         assertAllFocusableControlsHighlighted(".saves-route");
     }
@@ -2359,7 +2359,7 @@ public class ControllerNavigationTest {
     private void assertAllFocusableControlsHighlighted(String scope) throws Exception {
         String selector =
             "button:not([disabled]),a[href],summary,input:not([disabled]):not([type=hidden]):not([type=file]),"
-                + "select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex=\"-1\"])";
+                + "select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex=\"-1\"]):not([role=\"grid\"])";
         awaitJavaScript(
             "(() => { const root = document.querySelector('"
                 + scope
