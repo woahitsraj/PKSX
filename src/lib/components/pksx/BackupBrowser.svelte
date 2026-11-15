@@ -49,7 +49,11 @@
 		'trainer-editing': 'Trainer editing',
 		'inventory-editing': 'Inventory editing',
 		'legality-fix': 'Legality fix',
-		evolution: 'Evolution'
+		evolution: 'Evolution',
+		'linked-source-before-export': 'Emulator source before Export',
+		'linked-workspace-before-refresh': 'PKSX Workspace before loading external save',
+		'linked-import-before-refresh': 'Imported baseline before loading external save',
+		'linked-source-before-recovery': 'External bytes before source recovery'
 	};
 
 	let mounted = false;

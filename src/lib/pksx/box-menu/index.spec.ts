@@ -101,3 +101,17 @@ describe('Box Menu commands', () => {
 		});
 	});
 });
+
+it('keeps a separate Export a copy command for linked Save Files', () => {
+	const commands = createBoxMenuCommands({
+		source: { type: 'save-file', label: 'XD' },
+		workspaceReady: true,
+		paneCount: 1,
+		undoAvailable: false,
+		linkedSource: true
+	});
+	expect(commands.slice(0, 2).map(({ key, availability }) => ({ key, availability }))).toEqual([
+		{ key: 'export', availability: 'available' },
+		{ key: 'export-copy', availability: 'available' }
+	]);
+});
