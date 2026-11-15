@@ -198,7 +198,7 @@ test('Shift range remains in its originating pane at a shared edge', async ({ pa
 		{ timeout: 60000 }
 	);
 	await page.getByRole('button', { name: /Open Box Menu/ }).click();
-	await page.getByRole('button', { name: 'Open another', exact: true }).click();
+	await page.getByRole('button', { name: 'Open another collection', exact: true }).click();
 	await page
 		.getByRole('dialog', { name: 'Open another collection' })
 		.getByRole('button', { name: /011020251345.sav/ })
@@ -206,6 +206,7 @@ test('Shift range remains in its originating pane at a shared edge', async ({ pa
 	await expect(page.locator('.box-pane')).toHaveCount(2);
 	const first = page.locator('.box-pane').first();
 	const id = await first.getAttribute('data-pane-id');
+	await expect(first.locator('[data-box-slot="5"]')).toBeEnabled();
 	await first.locator('[data-box-slot="5"]').focus();
 	await page.keyboard.press('Shift+ArrowRight');
 	const actions = page.getByRole('group', { name: 'Selection actions' });
@@ -236,7 +237,7 @@ test('a rectangle keeps pane geometry until release, including an existing selec
 		{ timeout: 60000 }
 	);
 	await page.getByRole('button', { name: /Open Box Menu/ }).click();
-	await page.getByRole('button', { name: 'Open another', exact: true }).click();
+	await page.getByRole('button', { name: 'Open another collection', exact: true }).click();
 	await page
 		.getByRole('dialog', { name: 'Open another collection' })
 		.getByRole('button', { name: /011020251345.sav/ })
@@ -244,6 +245,8 @@ test('a rectangle keeps pane geometry until release, including an existing selec
 	await expect(page.locator('.box-pane')).toHaveCount(2);
 	const right = page.locator('.box-pane').nth(1);
 	const id = await right.getAttribute('data-pane-id');
+	await expect(right.locator('[data-box-slot="0"]')).toContainText('ARON');
+	await expect(right.locator('[data-box-slot="0"]')).toBeEnabled();
 	const grid = right.locator('.location-grid');
 	const before = await grid.boundingBox();
 	const first = await right.locator('[data-box-slot="0"]').boundingBox(),
