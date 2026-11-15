@@ -5854,7 +5854,11 @@ test('square Safe Canvas keeps the bottom Menu edge and preserves a pending Clea
 
 	await page.keyboard.press('Escape');
 	await expect(dialog).toBeVisible();
-	await expect(page.locator('#slot-action-3')).toBeFocused();
+	await expect(
+		page
+			.getByRole('dialog', { name: 'Slot actions' })
+			.getByRole('button', { name: 'Clear Slot', exact: true })
+	).toBeFocused();
 	await page.keyboard.press('Escape');
 	await expect(dialog).toBeHidden();
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
@@ -5874,7 +5878,11 @@ test('each Clear and Slot Menu backdrop tap dismisses exactly one level without 
 	await page.getByRole('button', { name: 'Dismiss Clear ARON?' }).click();
 	await expect(page.getByRole('dialog', { name: 'Clear ARON?' })).toBeHidden();
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
-	await expect(page.locator('#slot-action-3')).toBeFocused();
+	await expect(
+		page
+			.getByRole('dialog', { name: 'Slot actions' })
+			.getByRole('button', { name: 'Clear Slot', exact: true })
+	).toBeFocused();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	expect(await backupCount(page)).toBe(backupsBefore);
 
