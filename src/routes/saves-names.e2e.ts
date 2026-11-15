@@ -113,7 +113,7 @@ test.describe('display names across Save File consumers', () => {
 			).toBeVisible();
 			await page.getByRole('grid', { name: 'Saves collections' }).focus();
 			await page.keyboard.press('x');
-			for (let index = 0; index < 3; index++) await page.keyboard.press('ArrowDown');
+			for (let index = 0; index < 4; index++) await page.keyboard.press('ArrowDown');
 			await page.keyboard.press('Enter');
 			await page.getByLabel('Display name', { exact: true }).fill('  Journey  ');
 			await page.keyboard.press('ArrowDown');
