@@ -126,6 +126,8 @@ public class MainActivity extends BridgeActivity {
                 return "x";
             case KeyEvent.KEYCODE_BUTTON_Y:
                 return "y";
+            case KeyEvent.KEYCODE_BUTTON_SELECT:
+                return "Select";
             case KeyEvent.KEYCODE_BUTTON_START:
                 return "Menu";
             case KeyEvent.KEYCODE_BUTTON_L1:

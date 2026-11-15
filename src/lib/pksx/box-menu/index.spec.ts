@@ -3,13 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { createBoxMenuCommands } from './index';
 
 describe('Box Menu commands', () => {
-	it('keeps the six commands in their fixed order', () => {
+	it('keeps collection commands followed by selection', () => {
 		expect(
 			createBoxMenuCommands({
 				source: { type: 'save-file', label: 'emerald.sav' },
 				workspaceReady: true,
 				paneCount: 1,
-				undoAvailable: false
+				undoAvailable: false,
+				selectionUnavailableReason: null
 			}).map((command) => command.label)
 		).toEqual([
 			'Export',
@@ -17,7 +18,8 @@ describe('Box Menu commands', () => {
 			'Legality Report',
 			'Switch',
 			'Open another collection',
-			'Close'
+			'Close',
+			'Select Pokemon'
 		]);
 	});
 
@@ -26,7 +28,8 @@ describe('Box Menu commands', () => {
 			source: { type: 'pokemon-storage', label: 'Pokemon Storage' },
 			workspaceReady: false,
 			paneCount: 1,
-			undoAvailable: false
+			undoAvailable: false,
+			selectionUnavailableReason: null
 		});
 
 		expect(
@@ -55,6 +58,7 @@ describe('Box Menu commands', () => {
 				availability: 'unavailable',
 				reason: 'Keep at least one collection open.'
 			},
+			{ key: 'select', availability: 'available', reason: null },
 			{
 				key: 'undo-storage-organization',
 				availability: 'unavailable',
@@ -68,7 +72,8 @@ describe('Box Menu commands', () => {
 			source: { type: 'save-file', label: 'emerald.sav' },
 			workspaceReady: true,
 			paneCount: 2,
-			undoAvailable: false
+			undoAvailable: false,
+			selectionUnavailableReason: null
 		});
 
 		expect(commands[3]).toMatchObject({ availability: 'available', reason: null });
@@ -84,7 +89,8 @@ describe('Box Menu commands', () => {
 			source: { type: 'save-file', label: 'secondary.sav' },
 			workspaceReady: false,
 			paneCount: 2,
-			undoAvailable: false
+			undoAvailable: false,
+			selectionUnavailableReason: null
 		});
 
 		expect(commands[0]).toMatchObject({
@@ -100,6 +106,19 @@ describe('Box Menu commands', () => {
 			reason: 'secondary.sav is still loading.'
 		});
 	});
+	it('explains why selection is unavailable in a virtual Storage view', () => {
+		const commands = createBoxMenuCommands({
+			source: { type: 'pokemon-storage', label: 'Pokemon Storage' },
+			workspaceReady: false,
+			paneCount: 1,
+			undoAvailable: false,
+			selectionUnavailableReason: 'Choose a physical Storage Box to select Pokemon.'
+		});
+		expect(commands.find(({ key }) => key === 'select')).toMatchObject({
+			availability: 'unavailable',
+			reason: 'Choose a physical Storage Box to select Pokemon.'
+		});
+	});
 });
 
 it('keeps a separate Export a copy command for linked Save Files', () => {
@@ -108,6 +127,7 @@ it('keeps a separate Export a copy command for linked Save Files', () => {
 		workspaceReady: true,
 		paneCount: 1,
 		undoAvailable: false,
+		selectionUnavailableReason: null,
 		linkedSource: 'Dolphin'
 	});
 	expect(commands.slice(0, 2).map(({ key, label }) => ({ key, label }))).toEqual([

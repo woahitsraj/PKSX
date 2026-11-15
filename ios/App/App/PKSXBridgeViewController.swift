@@ -115,6 +115,9 @@ final class PKSXBridgeViewController: CAPBridgeViewController {
         bind(gamepad.leftTrigger, to: "PageUp", controller: controller)
         bind(gamepad.rightTrigger, to: "PageDown", controller: controller)
         bind(gamepad.buttonMenu, to: "Menu", controller: controller)
+        if let select = gamepad.buttonOptions {
+            bind(select, to: "Select", controller: controller)
+        }
     }
 
     private func bind(
@@ -169,6 +172,11 @@ final class PKSXBridgeViewController: CAPBridgeViewController {
         for (button, key) in buttons {
             button.pressedChangedHandler = nil
             send(key: key, pressed: false, discrete: true, controller: controller)
+        }
+
+        if let select = gamepad.buttonOptions {
+            select.pressedChangedHandler = nil
+            send(key: "Select", pressed: false, discrete: true, controller: controller)
         }
 
         let controllerID = ObjectIdentifier(controller).hashValue
