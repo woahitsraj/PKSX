@@ -78,6 +78,7 @@ export class IndexedDbSavesStorage implements SavesStorage {
 		const saveFile: StoredSaveFile = {
 			id: this.#idFactory(),
 			originalFileName: input.originalFileName ?? null,
+			...(input.linkedDocumentId ? { linkedDocumentId: input.linkedDocumentId } : {}),
 			byteLength: input.bytes.byteLength,
 			importedAt: timestamp,
 			updatedAt: timestamp
@@ -89,6 +90,16 @@ export class IndexedDbSavesStorage implements SavesStorage {
 				[saveFilesStore, saveBytesStore, appStateStore],
 				'readwrite'
 			);
+			if (input.linkedDocumentId) {
+				const saves = await requestToPromise<StoredSaveFile[]>(
+					transaction.objectStore(saveFilesStore).getAll()
+				);
+				const existing = saves.find((save) => save.linkedDocumentId === input.linkedDocumentId);
+				if (existing) {
+					await transactionDone(transaction);
+					return existing;
+				}
+			}
 			transaction.objectStore(saveFilesStore).put(saveFile);
 			transaction.objectStore(saveBytesStore).put({
 				saveFileId: saveFile.id,

@@ -5,12 +5,12 @@
 
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import LinkedSaveFolders from '$lib/components/pksx/LinkedSaveFolders.svelte';
 	import { asset } from '$app/paths';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
 	import { appCommands } from '$lib/pksx/app-commands';
 	import { appPlatformLabel, getAppMetadata } from '$lib/pksx/app-metadata';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
-	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
 	import { getPkhexEngine } from '$lib/pksx/saves-cache';
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 	import { theme } from '$lib/pksx/theme.svelte';
@@ -116,15 +116,18 @@
 	}
 
 	function controlsFor(row: Element) {
-		return Array.from(row.querySelectorAll<HTMLElement>('[data-settings-control]'));
+		return Array.from(row.querySelectorAll<HTMLElement>('[data-settings-control]:not(:disabled)'));
 	}
 
 	function rows() {
-		return Array.from(route.querySelectorAll<HTMLElement>('[data-settings-row]'));
+		return Array.from(route.querySelectorAll<HTMLElement>('[data-settings-row]')).filter(
+			(row) => controlsFor(row).length > 0
+		);
 	}
 
 	function focusStop(id: string, column = 0) {
-		const row = route.querySelector<HTMLElement>(`[data-settings-row="${id}"]`) ?? rows()[0];
+		const available = rows();
+		const row = available.find((row) => row.dataset.settingsRow === id) ?? available[0];
 		if (!row) return;
 		const controls = controlsFor(row);
 		const target = controls[Math.min(column, controls.length - 1)];
@@ -147,7 +150,7 @@
 		if (summonedWorkflow.active) return;
 		const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 		if (!active || !route.contains(active)) {
-			if (isControllerKeyboardEvent(event) && event.key.startsWith('Arrow')) {
+			if (event.key.startsWith('Arrow')) {
 				focusStop(rememberedStop, rememberedThemeControl);
 				event.preventDefault();
 			}
@@ -200,6 +203,7 @@
 		</header>
 
 		<div class="settings-scrollport">
+			<LinkedSaveFolders />
 			<section class="settings-card preferences" aria-labelledby="preferences-title">
 				<div class="section-heading">
 					<p class="section-number">01</p>

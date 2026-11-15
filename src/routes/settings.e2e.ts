@@ -482,3 +482,21 @@ test('shared density keeps focused Pokemon Editor controls at 16px across budget
 		await comboboxInput.press('Escape');
 	}
 });
+
+test('Settings recovers directional focus when the remembered row loses all enabled controls', async ({
+	page
+}) => {
+	await openSettings(page);
+	const light = page.getByRole('button', { name: 'Use light theme' });
+	await light.focus();
+	await page.locator('[data-settings-row="theme"]').evaluate((row) => {
+		for (const button of row.querySelectorAll('button')) button.disabled = true;
+		if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+	});
+	await page.keyboard.press('ArrowDown');
+	await expect(
+		page.locator(
+			'[data-settings-row]:not([data-settings-row="theme"]) [data-settings-control]:focus'
+		)
+	).toHaveCount(1);
+});
