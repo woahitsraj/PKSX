@@ -1,6 +1,6 @@
 # Cloud Sync personal access and initial quota
 
-For [Set Cloud Sync beta funding and initial quota](https://github.com/woahitsraj/PKSX/issues/468). The user approved the personal rollout, hidden access, maintainer funding, and initial allowance on 2026-11-14. Future public billing and the deployment budget remain open. This document authorizes planning only.
+For [Define personal Cloud Sync access and initial quota](https://github.com/woahitsraj/PKSX/issues/468). The user approved the personal rollout, hidden access, maintainer funding, and initial allowance on 2026-11-14. On 2026-11-15, the user approved moving deployment budget and public pricing to separate follow-up tickets; they do not block completion of this policy specification. This document authorizes planning only.
 
 ## Accepted initial rollout
 
@@ -20,11 +20,11 @@ The maintainer funds the personal rollout. There is no initial user billing. The
 
 Existing retention, artifact-size, offline-editing, Export, and full-quota rules remain unchanged. There is no automatic deletion of user-visible content or silent reduction of the allowance. The deployment plan must specify accounting and metadata limits without expiring causal history.
 
-## Unresolved public product and deployment decisions
+## Separate deployment and public-product follow-ups
 
-The user raised a paid public feature as a possibility. No price, subscription, payment vendor, public availability, trial, or payment platform is selected. Recommendation for discussion: public Cloud Sync can be an optional recurring paid service while local Saves, editing, and Export remain usable without it. Do not treat this recommendation as an approved business model or implement checkout.
+[Decide public Cloud Sync availability and pricing](https://github.com/woahitsraj/PKSX/issues/502) owns the future public-product decision. The user raised a paid public feature as a possibility. No price, subscription, payment vendor, public availability, trial, or payment platform is selected. Recommendation for discussion: public Cloud Sync can be an optional recurring paid service while local Saves, editing, and Export remain usable without it. Do not treat this recommendation as an approved business model or implement checkout.
 
-Before any deployment or purchase, establish the total operating budget, hosting plan, email-delivery choice, and capacity alerts. These are not authorized by the approval of maintainer funding. With only the maintainer eligible, there is no public enrollment to pause; broader admission rules belong to a later public rollout decision.
+[Set personal Cloud Sync deployment budget and prerequisites](https://github.com/woahitsraj/PKSX/issues/501) owns the total operating budget, hosting plan, email-delivery choice, accounting limits, capacity alerts, and authenticated owner provisioning. Settle those inputs before deployment or purchase. These are not authorized by the approval of maintainer funding. With only the maintainer eligible, there is no public enrollment to pause; broader admission rules belong to a later public rollout decision.
 
 ## Future acceptance boundaries
 
@@ -35,4 +35,4 @@ Before any deployment or purchase, establish the total operating budget, hosting
 - Account deletion and recreation at the same email do not transfer the deleted account's access grant or Sync Profile.
 - Full content quota preserves pending changes, downloads, Deletion Markers, and local editing/Export under the accepted policy.
 
-These are future implementation requirements, not tests claimed to have passed. The issue remains open for the outstanding deployment budget and public monetization decision.
+These are future implementation requirements, not tests claimed to have passed. The follow-up tickets remain open for deployment and future public-product decisions. Completing this specification does not settle or authorize those follow-ups.
