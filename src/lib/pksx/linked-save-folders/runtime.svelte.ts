@@ -2,6 +2,7 @@ import { getLinkedSaveSources } from '$lib/pksx/linked-save-sources/runtime';
 import type { LinkedSourceStatus } from '$lib/pksx/linked-save-sources';
 import type { StoredSaveFile } from '$lib/pksx/saves';
 import { SvelteSet } from 'svelte/reactivity';
+import { confirmReplaceDirty } from '$lib/pksx/save-file-edit-coordinator';
 import {
 	getPkhexEngine,
 	getSavesStorage,
@@ -76,10 +77,19 @@ export class LinkedSaveDiscovery {
 		if (file.linkedDocumentId) writeDismissed([...readDismissed(), file.linkedDocumentId]);
 	}
 
-	async loadExternal(source: SourceAttention & { kind: 'changed' }) {
+	/** Returns false when unexported edits need confirmation first. */
+	async loadExternal(source: SourceAttention & { kind: 'changed' }, confirmed: boolean) {
+		let needsConfirm = false;
 		await this.#sourceAction('Loaded from emulator', () =>
-			getLinkedSaveSources().loadExternal(source.file, source.externalHash, true)
+			getLinkedSaveSources()
+				.loadExternal(source.file, source.externalHash, confirmed)
+				.catch((error) => {
+					if (confirmed || errorMessage(error) !== confirmReplaceDirty) throw error;
+					needsConfirm = true;
+					return false;
+				})
 		);
+		return !needsConfirm;
 	}
 
 	async recoverSource(source: SourceAttention & { kind: 'recovery' }) {
@@ -91,8 +101,7 @@ export class LinkedSaveDiscovery {
 	async #sourceAction(done: string, action: () => Promise<unknown>) {
 		this.sourceBusy = true;
 		try {
-			await action();
-			this.notify('success', done);
+			if ((await action()) !== false) this.notify('success', done);
 		} catch (error) {
 			this.notify('error', errorMessage(error));
 		} finally {

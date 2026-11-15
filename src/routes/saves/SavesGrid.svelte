@@ -854,7 +854,7 @@
 				if (menuIndex === 0 && menuSaveFile) void activateSaveFile(menuSaveFile, 'trainer');
 				else if (menuIndex === 1 && menuSaveFile) void activateSaveFile(menuSaveFile, 'bag');
 				else if (menuIndex === 3) openBackups();
-				else if (menuIndex === 4) runSourceAction();
+				else if (menuIndex === 4) void runSourceAction();
 				else void requestDelete();
 			}
 			return;
@@ -864,17 +864,19 @@
 		void focusMenuCommand(menuIndex);
 	}
 
-	function runSourceAction() {
+	async function runSourceAction() {
 		const source = menuSource;
-		if (!source) return;
-		if (source.kind === 'changed' && source.localChanges && !replaceEdits) {
+		if (!source || discovery.sourceBusy) return;
+		if (source.kind === 'recovery') {
+			dismissSaveFileWorkflow();
+			return discovery.recoverSource(source);
+		}
+		if (source.localChanges && !replaceEdits) {
 			replaceEdits = true;
 			return;
 		}
-		dismissSaveFileWorkflow();
-		void (source.kind === 'changed'
-			? discovery.loadExternal(source)
-			: discovery.recoverSource(source));
+		if (await discovery.loadExternal(source, replaceEdits)) dismissSaveFileWorkflow();
+		else replaceEdits = true;
 	}
 
 	function dismissSaveFileWorkflow() {
@@ -1189,7 +1191,7 @@
 				: (menuSource.kind === 'changed' ? 'Load from ' : 'Restore file in ') +
 					(fileEmulator(menuSaveFile) ?? 'emulator')
 			: undefined}
-		onSourceAction={runSourceAction}
+		onSourceAction={() => void runSourceAction()}
 		onDelete={() => (deleteOpen ? void confirmDelete() : void requestDelete())}
 		onCancelDelete={cancelDelete}
 		onClose={dismissSaveFileWorkflow}
