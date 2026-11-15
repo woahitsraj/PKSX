@@ -1102,7 +1102,7 @@
 				searchControls = node;
 			}}
 		>
-			<label class="visually-hidden" for="saves-search">Search Saves</label>
+			<label class="sr-only" for="saves-search">Search Saves</label>
 			<input
 				id="saves-search"
 				type="search"
