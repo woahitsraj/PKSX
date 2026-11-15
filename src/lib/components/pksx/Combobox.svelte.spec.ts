@@ -29,6 +29,7 @@ function render(
 			options,
 			placeholder: 'Choose',
 			searchLabel: 'Search choices',
+			searchable: true,
 			onSelect: selected
 		}
 	});
@@ -287,4 +288,26 @@ test('remeasures an open picker when the viewport changes', async () => {
 	await new Promise(requestAnimationFrame);
 	await tick();
 	expect(document.querySelector('.pksx-combobox-popover')).toHaveClass('above');
+});
+
+test('short lists open without search and focus the selected option', async () => {
+	component = mount(Combobox, {
+		target: document.body,
+		props: {
+			id: 'short-picker',
+			value: 'b',
+			options: [
+				{ value: 'a', label: 'A' },
+				{ value: 'b', label: 'B' }
+			],
+			placeholder: 'Choose',
+			onSelect: vi.fn()
+		}
+	});
+	await tick();
+	document.querySelector<HTMLButtonElement>('#short-picker')!.click();
+	await vi.waitFor(() =>
+		expect(document.activeElement).toBe(document.querySelector('[data-combobox-option-value="b"]'))
+	);
+	expect(document.querySelector('[data-combobox-search]')).toBeNull();
 });

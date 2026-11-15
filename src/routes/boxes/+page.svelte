@@ -2042,6 +2042,12 @@
 			candidate.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 			return;
 		}
+		if (document.querySelector('.pokemon-editor [data-combobox-open="true"]')) {
+			const wrapped = action === 'down' || action === 'right' ? controls[0] : controls.at(-1);
+			wrapped?.focus();
+			wrapped?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+			return;
+		}
 		const rail = document.getElementById(`pokemon-editor-section-${pokemonEditorSession.section}`);
 		if (rail instanceof HTMLElement && closestDirectionalControl(active, [rail], action)) {
 			focusPokemonEditorRail();
@@ -2173,7 +2179,7 @@
 
 		const controls = Array.from(
 			document.querySelectorAll<HTMLElement>(
-				'.pokemon-editor .editor-content button:not([disabled]), .pokemon-editor .editor-content input:not([disabled]), .pokemon-editor .editor-content select:not([disabled]), .pokemon-editor .editor-content [tabindex="0"]'
+				'.pokemon-editor .editor-content button:not([disabled]), .pokemon-editor .editor-content input:not([disabled]), .pokemon-editor .editor-content [tabindex="0"]'
 			)
 		).filter((control) => {
 			return (
@@ -2244,14 +2250,6 @@
 		}
 
 		if (
-			field instanceof HTMLSelectElement &&
-			(action === 'left' || action === 'right' || action === 'up' || action === 'down')
-		) {
-			changeEnteredPokemonEditorSelect(field, action === 'left' || action === 'up' ? -1 : 1);
-			return true;
-		}
-
-		if (
 			field instanceof HTMLInputElement &&
 			field.type === 'number' &&
 			(action === 'up' || action === 'down')
@@ -2266,19 +2264,6 @@
 			field instanceof HTMLInputElement &&
 			(action === 'left' || action === 'right' || action === 'up' || action === 'down')
 		);
-	}
-
-	function changeEnteredPokemonEditorSelect(select: HTMLSelectElement, offset: -1 | 1) {
-		const options = Array.from(select.options).filter((option) => !option.disabled);
-		if (options.length === 0) return;
-		const current = Math.max(
-			0,
-			options.findIndex((option) => option.value === select.value)
-		);
-		const next = options[(current + offset + options.length) % options.length];
-		if (!next) return;
-		select.value = next.value;
-		select.dispatchEvent(new Event('change', { bubbles: true }));
 	}
 
 	function exitPokemonEditorEnteredField() {
@@ -2321,18 +2306,6 @@
 				return;
 			}
 			return;
-		}
-
-		if (activeElement instanceof HTMLSelectElement && !activeElement.disabled) {
-			try {
-				activeElement.showPicker();
-			} catch {
-				activeElement.focus();
-			}
-		}
-
-		if (activeElement instanceof HTMLSelectElement && activeElement.closest('.pokemon-editor')) {
-			activeElement.click();
 		}
 	}
 

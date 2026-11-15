@@ -185,11 +185,15 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: /All Pokemon: All Pokemon/ }).click();
 	await page.getByRole('searchbox', { name: 'Filter Pokemon' }).fill('ARON');
-	await page.getByRole('combobox', { name: 'Sort Pokemon' }).selectOption('level');
+	await page.getByRole('combobox', { name: 'Sort Pokemon' }).click();
+	await page.getByRole('option', { name: 'Highest level' }).click();
 	await page.reload();
 	await expect(page.locator('[data-location="all-pokemon"]')).toBeVisible();
 	await expect(page.getByRole('searchbox', { name: 'Filter Pokemon' })).toHaveValue('ARON');
-	await expect(page.getByRole('combobox', { name: 'Sort Pokemon' })).toHaveValue('level');
+	await expect(page.getByRole('combobox', { name: 'Sort Pokemon' })).toHaveAttribute(
+		'data-combobox-value',
+		'level'
+	);
 	await page.getByRole('button', { name: 'Open Main Menu' }).click();
 	await page
 		.getByRole('dialog', { name: 'Main Menu' })
@@ -236,7 +240,8 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	});
 	await page.reload();
 	await page.getByRole('searchbox', { name: 'Filter Pokemon' }).fill('');
-	await page.getByRole('combobox', { name: 'Sort Pokemon' }).selectOption('recent');
+	await page.getByRole('combobox', { name: 'Sort Pokemon' }).click();
+	await page.getByRole('option', { name: 'Recently added' }).click();
 	const virtualGrid = page.getByRole('grid', { name: 'All Pokemon' });
 	const firstRecord = virtualGrid.locator('[data-record-id="virtual-000"]');
 	await firstRecord.focus();
@@ -258,21 +263,13 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 				})
 			)
 			.toBeGreaterThan(0);
-		const sort = await page.getByRole('combobox', { name: 'Sort Pokemon' }).evaluate((node) => {
-			const style = getComputedStyle(node);
-			const label = document.createElement('span');
-			label.style.font = style.font;
-			label.textContent = (node as HTMLSelectElement).selectedOptions[0].textContent;
-			document.body.append(label);
-			const textWidth = label.getBoundingClientRect().width;
-			label.remove();
-			return {
-				available:
-					node.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
-				textWidth
-			};
-		});
-		expect(sort.available).toBeGreaterThanOrEqual(sort.textWidth);
+		for (const name of ['Sort Pokemon', 'Origin game', 'Entry mode']) {
+			const label = page.getByRole('combobox', { name }).locator('span');
+			expect(
+				await label.evaluate((node) => node.scrollWidth - node.clientWidth),
+				name
+			).toBeLessThanOrEqual(0);
+		}
 		await expect(page.getByRole('checkbox', { name: 'Shiny' })).toHaveCSS('appearance', 'auto');
 		const shiny = await page.getByRole('checkbox', { name: 'Shiny' }).evaluate((node) => {
 			const bounds = node.getBoundingClientRect();

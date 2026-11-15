@@ -3,6 +3,7 @@
 	import type { VirtualViewPreferences } from '$lib/pksx/pokemon-storage-catalog/virtual-views';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 	import { asset } from '$app/paths';
+	import Combobox, { type ComboboxOption } from './Combobox.svelte';
 	import {
 		VIRTUAL_POKEMON_ROW_HEIGHT,
 		virtualRecordControlId
@@ -54,6 +55,12 @@
 			)
 		].sort()
 	);
+	const sortOptions: ComboboxOption[] = [
+		{ value: 'recent', label: 'Recently added' },
+		{ value: 'oldest', label: 'Oldest first' },
+		{ value: 'species', label: 'Species' },
+		{ value: 'level', label: 'Highest level' }
+	];
 	const entryModeLabels: Record<PokemonRecord['origin']['entryMode'], string> = {
 		'moved-in': 'Moved',
 		'copied-in': 'Copied',
@@ -102,38 +109,41 @@
 				value={preferences.filters.query}
 				oninput={(event) => updateFilters({ query: event.currentTarget.value })}
 			/>
-			<select
-				aria-label="Sort Pokemon"
-				value={preferences.sort}
-				onchange={(event) =>
-					onPreferences({
-						...preferences,
-						sort: event.currentTarget.value as VirtualViewPreferences['sort']
-					})}
-			>
-				<option value="recent">Recently added</option>
-				<option value="oldest">Oldest first</option>
-				<option value="species">Species</option>
-				<option value="level">Highest level</option>
-			</select>
-			<select
-				aria-label="Origin game"
-				value={preferences.filters.originGame}
-				onchange={(event) => updateFilters({ originGame: event.currentTarget.value })}
-			>
-				<option value="">All games</option>
-				{#each games as game (game)}<option value={game}>{game}</option>{/each}
-			</select>
-			<select
-				aria-label="Entry mode"
-				value={preferences.filters.entryMode}
-				onchange={(event) => updateFilters({ entryMode: event.currentTarget.value })}
-			>
-				<option value="">All origins</option>
-				{#each Object.entries(entryModeLabels) as [mode, label] (mode)}<option value={mode}
-						>{label}</option
-					>{/each}
-			</select>
+			<div class="filter-choice">
+				<Combobox
+					ariaLabel="Sort Pokemon"
+					value={preferences.sort}
+					options={sortOptions}
+					placeholder="Sort"
+					onSelect={(sort) =>
+						onPreferences({ ...preferences, sort: sort as VirtualViewPreferences['sort'] })}
+				/>
+			</div>
+			<div class="filter-choice">
+				<Combobox
+					ariaLabel="Origin game"
+					value={preferences.filters.originGame}
+					options={[
+						{ value: '', label: 'All games' },
+						...games.map((game) => ({ value: game, label: game }))
+					]}
+					placeholder="All games"
+					searchLabel="Search games"
+					onSelect={(originGame) => updateFilters({ originGame })}
+				/>
+			</div>
+			<div class="filter-choice">
+				<Combobox
+					ariaLabel="Entry mode"
+					value={preferences.filters.entryMode}
+					options={[
+						{ value: '', label: 'All origins' },
+						...Object.entries(entryModeLabels).map(([value, label]) => ({ value, label }))
+					]}
+					placeholder="All origins"
+					onSelect={(entryMode) => updateFilters({ entryMode })}
+				/>
+			</div>
 			<label class="shiny"
 				><input
 					type="checkbox"
@@ -249,7 +259,6 @@
 		min-width: 160px;
 		flex: 1 1 220px;
 	}
-	.filters select,
 	.filters input {
 		min-height: var(--pksx-control-height);
 		border: 1px solid var(--rule);
@@ -258,15 +267,10 @@
 		color: var(--ink);
 		font: inherit;
 	}
-	.filters select {
-		min-width: 110px;
-		max-width: 130px;
-		flex: 1 1 110px;
-	}
-	.filters select[aria-label='Sort Pokemon'] {
-		min-width: 180px;
-		max-width: none;
-		flex: 0 0 180px;
+	.filter-choice {
+		flex: 1 1 0;
+		min-width: max-content;
+		max-width: 100%;
 	}
 	.shiny {
 		display: flex;

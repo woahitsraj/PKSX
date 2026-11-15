@@ -21,8 +21,9 @@
 		value?: string;
 		options: ComboboxOption[];
 		placeholder: string;
-		searchLabel: string;
+		searchLabel?: string;
 		searchPlaceholder?: string;
+		searchable?: boolean;
 		disabled?: boolean;
 		ariaInvalid?: boolean;
 		describedBy?: string;
@@ -43,8 +44,9 @@
 		value = '',
 		options,
 		placeholder,
-		searchLabel,
+		searchLabel = 'Search options',
 		searchPlaceholder = 'Search',
+		searchable,
 		disabled = false,
 		ariaInvalid = false,
 		describedBy,
@@ -63,11 +65,15 @@
 	const listId = $derived(`${triggerId}-list`);
 	let root: HTMLDivElement | undefined;
 	let trigger: HTMLButtonElement | undefined;
+	let popover: HTMLDivElement | undefined = $state();
 	let open = $state(false);
 	let search = $state('');
 	let activeIndex = $state(0);
 	let popoverAbove = $state(false);
-	let popoverMaxHeight = $state(240);
+	let popoverMaxHeight = $state(320);
+	let popoverAlignEnd = $state(false);
+	let popoverMaxWidth = $state(420);
+	const showSearch = $derived(searchable ?? options.length >= 7);
 	const selected = $derived(options.find((option) => option.value === value));
 	const showImages = $derived(options.some((option) => Object.hasOwn(option, 'imageSrc')));
 	const filtered = $derived.by(() => {
@@ -102,7 +108,7 @@
 		activeIndex = selectedIndex >= 0 ? selectedIndex : firstEnabledIndex(filtered);
 		void tick().then(() => {
 			measurePopover();
-			if (focusSearch) document.getElementById(`${triggerId}-search`)?.focus();
+			if (focusSearch && showSearch) document.getElementById(`${triggerId}-search`)?.focus();
 			else focusOption(activeIndex);
 		});
 	}
@@ -110,11 +116,32 @@
 	function measurePopover() {
 		if (!trigger) return;
 		const triggerRect = trigger.getBoundingClientRect();
-		const bounds = (scrollOwner(trigger) ?? document.body).getBoundingClientRect();
+		const bounds = clipBounds(trigger);
 		const below = bounds.bottom - triggerRect.bottom - 8;
 		const above = triggerRect.top - bounds.top - 8;
 		popoverAbove = above > below;
-		popoverMaxHeight = Math.max(0, Math.min(240, popoverAbove ? above : below));
+		popoverMaxHeight = Math.max(0, Math.min(320, popoverAbove ? above : below));
+		popoverMaxWidth = Math.max(0, Math.min(420, bounds.right - bounds.left - 16));
+		popoverAlignEnd = !!popover && triggerRect.left + popover.offsetWidth > bounds.right - 8;
+	}
+
+	function clipBounds(node: HTMLElement) {
+		const clips: HTMLElement[] = [];
+		for (let parent = node.parentElement; parent; parent = parent.parentElement) {
+			const style = getComputedStyle(parent);
+			if (style.overflowX !== 'visible' || style.overflowY !== 'visible') clips.push(parent);
+		}
+		return (clips.length > 0 ? clips : [document.body])
+			.map((element) => element.getBoundingClientRect())
+			.reduce(
+				(bounds, rect) => ({
+					top: Math.max(bounds.top, rect.top),
+					left: Math.max(bounds.left, rect.left),
+					right: Math.min(bounds.right, rect.right),
+					bottom: Math.min(bounds.bottom, rect.bottom)
+				}),
+				{ top: -Infinity, left: -Infinity, right: Infinity, bottom: Infinity }
+			);
 	}
 
 	function scrollOwner(node: HTMLElement) {
@@ -384,23 +411,26 @@
 
 	{#if open}
 		<div
+			bind:this={popover}
 			class="pksx-combobox-popover"
 			class:above={popoverAbove}
-			style={`--combobox-popover-max-height: ${popoverMaxHeight}px`}
+			class:end={popoverAlignEnd}
+			class:searchable={showSearch}
+			style={`--combobox-popover-max-height: ${popoverMaxHeight}px; --combobox-popover-max-width: ${popoverMaxWidth}px`}
 		>
-			<input
-				id={`${triggerId}-search`}
-				type="search"
-				data-combobox-search
-				data-controller-editing="true"
-				aria-label={searchLabel}
-				aria-controls={listId}
-				aria-activedescendant={activeOptionId()}
-				placeholder={searchPlaceholder}
-				value={search}
-				oninput={handleSearchInput}
-				onkeydown={handleSearchKeydown}
-			/>
+			{#if showSearch}<input
+					id={`${triggerId}-search`}
+					type="search"
+					data-combobox-search
+					data-controller-editing="true"
+					aria-label={searchLabel}
+					aria-controls={listId}
+					aria-activedescendant={activeOptionId()}
+					placeholder={searchPlaceholder}
+					value={search}
+					oninput={handleSearchInput}
+					onkeydown={handleSearchKeydown}
+				/>{/if}
 			<div id={listId} class="pksx-combobox-list" role="listbox" aria-label={ariaLabel}>
 				{#each filtered as option, optionIndex (option.value)}
 					<button
@@ -507,8 +537,9 @@
 		z-index: 80;
 		top: calc(100% + 6px);
 		left: 0;
-		width: clamp(280px, 100%, 420px);
-		max-width: 100%;
+		min-width: max(100%, 200px);
+		width: max-content;
+		max-width: max(100%, var(--combobox-popover-max-width, 420px));
 		display: grid;
 		gap: 7px;
 		padding: 8px;
@@ -516,6 +547,11 @@
 		border-radius: var(--pksx-radius-md);
 		background: var(--paper-hi);
 		box-shadow: var(--shadow-deep);
+	}
+
+	.pksx-combobox-popover.end {
+		left: auto;
+		right: 0;
 	}
 
 	.pksx-combobox-popover.above {
@@ -529,13 +565,17 @@
 	}
 
 	.pksx-combobox-list {
+		max-height: max(0px, calc(var(--combobox-popover-max-height) - 18px));
+		display: grid;
+		gap: 4px;
+		overflow-y: auto;
+	}
+
+	.pksx-combobox-popover.searchable .pksx-combobox-list {
 		max-height: max(
 			0px,
 			calc(var(--combobox-popover-max-height) - var(--pksx-control-height) - 23px)
 		);
-		display: grid;
-		gap: 4px;
-		overflow-y: auto;
 	}
 
 	.pksx-combobox-option {
