@@ -213,3 +213,47 @@ Accepted for #372 and #373. Measure p90 with the fixtures and build above.
 | Main Menu to Boxes or Saves          | ≤ 500 ms                                               |
 | Main Menu, Slot Menu, Pokemon Editor | ≤ 200 ms plus their animation                          |
 | 30-minute scripted session           | no renderer crash                                      |
+
+## Renderer recovery verification
+
+[Keep the Android app open when the WebView renderer runs out of memory](https://github.com/woahitsraj/PKSX/issues/399)
+was checked on the Retroid Pocket 6 on 2026-11-14. Android 13, WebView 109.0.5414.123,
+`armeabi-v7a` renderer, 833 by 421 CSS viewport, profile builds. The device was unplugged,
+with battery at 78% before setup and 74% after the baseline. Both APKs contained identical
+web payloads across all 3,794 bundled files. Only the native renderer-recovery callback differed.
+
+| Build                | Duration   | Completed cycles | Heap samples | Sampled main-thread heap peak | Natural renderer losses |
+| -------------------- | ---------- | ---------------- | ------------ | ----------------------------- | ----------------------- |
+| Baseline, `2df9fdd0` | 30 minutes | 180              | 1,763        | 27.4 MiB                      | 0                       |
+| Recovery, `8d820f17` | 30 minutes | 180              | 1,790        | 26.5 MiB                      | 0                       |
+
+![Observed main-thread heap peaks](android-renderer-memory.svg)
+
+These are single stability runs, not evidence of a memory reduction. Sampling used
+`Runtime.getHeapUsage.usedSize` on the WebView page with a one-second target cadence and no
+forced garbage collection. The median interval was 1,023 ms in both runs; the largest gaps
+were 4,006 ms before and 2,167 ms after. These are sampled V8 used-heap maxima, excluding
+the engine worker and native allocations. Samples stayed on the host, with no accumulating
+tracing arrays injected into the WebView.
+
+Each ten-second cycle rotated through the Scarlet, Sword, and HeartGold fixtures above,
+opened the Save File, sent five Next Location actions 90 ms apart, moved focus in four
+directions, and visited Trainer, Boxes, and Saves. Navigation waited for route readiness and
+idle controls, and each cycle checked that the app process had not changed. A 30-second
+warmup preceded each measured run. Both runs completed without workload errors. The three
+fixture baseline SHA-256 hashes matched the repository before and after testing. The
+pre-existing fourth Save File remained in Saves and was not part of the scripted workload.
+
+After its timed run, a forced `Page.crash` closed the baseline app with the original
+unhandled-renderer fatal message. The recovery APK survived two forced renderer losses in
+the same app process, with a replacement WebView target each time. A new copy of the 4.4 MB
+Scarlet fixture had Money changed to `12345`; the value and persisted Workspace SHA-256
+survived both recoveries. The test copy and its Backup were then deleted. The original
+Save-family, Backup, and Storage metadata matched the pre-test snapshot, and the original
+active Save File and temporary screen-timeout setting were restored.
+
+[Machine-readable results](android-renderer-recovery.json) include APK hashes, fixture hashes,
+sampling intervals, and the persisted Workspace digest. The measurement harness digest is
+recorded there. No further memory tuning was added because the prescribed baseline run did
+not reproduce the historical out-of-memory event. The callback handles renderer loss when it
+occurs; the observations do not establish crash-free operation beyond these two windows.

@@ -4,8 +4,11 @@ import android.os.Bundle;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.ViewGroup;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.WebViewListener;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -21,6 +24,18 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        bridgeBuilder.addWebViewListener(new WebViewListener() {
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                android.util.Log.w("PKSX", "Recovering lost WebView renderer, crashed=" + detail.didCrash());
+                if (view.getParent() instanceof ViewGroup) {
+                    ((ViewGroup) view.getParent()).removeView(view);
+                }
+                view.destroy();
+                getWindow().getDecorView().post(MainActivity.this::recreate);
+                return true;
+            }
+        });
         super.onCreate(savedInstanceState);
         if (getPackageName().endsWith(".profile")) WebView.setWebContentsDebuggingEnabled(true);
     }

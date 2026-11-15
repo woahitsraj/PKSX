@@ -65,6 +65,46 @@ public class ControllerNavigationTest {
     }
 
     @Test
+    public void rendererCrashRestoresPersistedWorkspace() throws Exception {
+        awaitControllerSurface();
+        importEmeraldSave();
+        chooseMainMenu("Trainer");
+        awaitJavaScript("document.querySelector('[aria-label=Money]')?.disabled === false",
+            ENGINE_TIMEOUT_SECONDS);
+        runJavaScript("(() => { const field = document.querySelector('[aria-label=Money]');"
+            + " field.focus(); field.value = '12345';"
+            + " field.dispatchEvent(new Event('input', {bubbles:true}));"
+            + " field.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',bubbles:true})); })()");
+        awaitJavaScript("document.querySelector('[aria-label=Money]')?.value === '12345'"
+            + " && document.querySelector('[aria-label=Money]')?.readOnly === false",
+            ENGINE_TIMEOUT_SECONDS);
+        chooseMainMenu("Boxes");
+        chooseMainMenu("Trainer");
+        awaitJavaScript("document.querySelector('[aria-label=Money]')?.value === '12345'",
+            ENGINE_TIMEOUT_SECONDS);
+
+        for (int attempt = 0; attempt < 2; attempt++) {
+            AtomicReference<WebView> lostView = new AtomicReference<>();
+            activityRule.getScenario().onActivity(activity -> {
+                lostView.set(activity.getBridge().getWebView());
+                lostView.get().loadUrl("chrome://crash");
+            });
+            long deadline = SystemClock.uptimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+            AtomicReference<Boolean> replaced = new AtomicReference<>(false);
+            while (!replaced.get() && SystemClock.uptimeMillis() < deadline) {
+                SystemClock.sleep(100);
+                activityRule.getScenario().onActivity(activity ->
+                    replaced.set(activity.getBridge().getWebView() != lostView.get()));
+            }
+            if (!replaced.get()) fail("Renderer loss did not replace the WebView");
+            awaitControllerSurface();
+            chooseMainMenu("Trainer");
+            awaitJavaScript("document.querySelector('[aria-label=Money]')?.value === '12345'",
+                ENGINE_TIMEOUT_SECONDS);
+        }
+    }
+
+    @Test
     public void gamepadNavigatesAndHighlightsSlotActions() throws Exception {
         awaitControllerSurface();
         runJavaScript("location.assign('/boxes?source=pokemon-storage')");

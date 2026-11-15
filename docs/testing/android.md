@@ -74,3 +74,29 @@ It traces the fixed API 36 Pixel 2 baseline to BUDGET-2, keyboard-open rotation 
 to RESP-2, pane and Carry identity to FOCUS-2 and FOCUS-3, and destination, Menu, and Takeover
 ownership to FOCUS-4. Together with the deterministic browser coverage, it supplies the native
 acceptance assigned to #205.
+
+## Renderer recovery
+
+Run the focused recovery test on an emulator or disposable test installation:
+
+```sh
+pnpm native:sync:android
+cd android
+./gradlew :app:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.pksx.app.ControllerNavigationTest#rendererCrashRestoresPersistedWorkspace
+```
+
+It imports Emerald, confirms a Money edit, crashes the renderer with `chrome://crash`, and
+checks that a replacement WebView restores the edited Workspace. It repeats the crash to
+check that recovery also works in the replacement Activity. This deliberately tests renderer
+loss, not the memory-pressure threshold of a physical device.
+
+Recovery recreates the Capacitor Activity and lets normal Saves startup restore the last
+persisted Workspace. A draft or operation that had not finished persisting may be lost. The
+native catalog journal selects a complete committed revision after restart; recovery does not
+clear Saves, remove Backups, or overwrite the imported baseline.
+
+The Retroid Pocket 6 acceptance run still requires the same profile build configuration and
+Scarlet, Sword, and HeartGold fixtures described in [Android performance](android-performance.md).
+Record a 30-minute scripted session and the peak main-thread heap for both the baseline and
+recovery builds. A forced-crash test or an emulator result does not replace those measurements.
