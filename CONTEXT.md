@@ -692,6 +692,9 @@ _Avoid_: setting, option, config
 - The active **Save File**, **Controller Focus**, caches, validation output, credentials, enrollment state, and **Preferences** remain local to the **PKSX Installation**.
 - A **Dirty Workspace** received through **Cloud Sync** can be opened and **Exported** on another device.
 - **Cloud Sync** never writes to the original user-controlled file; **Export** does.
+- Eligible users manage **Cloud Sync** in one settings **Takeover**, with enable/sign-in, **Sync Adoption**, account controls, actionable state, and a Manage storage workflow; unauthorized users have no Cloud Sync entry.
+- Cloud Sync space management shows profile usage and **Sync Quota**, attributed to **Save File Families**, **Pokemon Storage**, and **Conflict Recoveries**; it uses existing domain deletion actions and inline confirmations rather than deleting raw artifacts independently.
+- Cloud space usage is distinct from local storage usage; offline estimates and pending deletions never claim confirmed freed provider space.
 - The **PKHeX Engine** provides a **Facade** that the Svelte app uses.
 - **Export** writes data from **Saves** back to user-controlled storage.
 - Moving, copying, or clearing a **Slot** in a **Save File** is a **Risky Change** to the **Workspace**.
