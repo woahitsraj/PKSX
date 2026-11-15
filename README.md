@@ -11,6 +11,8 @@ The first milestone is a browser/PWA tracer bullet: prove that the Svelte app ca
 | Production  | [pksx.app](https://pksx.app/)                 | Signed `vX.Y.Z` release tags from `main` |
 | Staging     | [staging.pksx.app](https://staging.pksx.app/) | Every push to `main`                     |
 
+To load test Save Files on staging, a pull request preview, or a local server, open `/dev/test-saves`. It imports one Save File for each generation, skips any that are already present, and opens the saves screen. Production does not load them.
+
 ## Project Shape
 
 - **Frontend**: SvelteKit 2, Svelte 5, Tailwind CSS, static adapter
