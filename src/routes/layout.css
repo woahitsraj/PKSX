@@ -259,7 +259,19 @@ strong {
 
 html[data-input-modality='controller']
 	body
-	:focus:not([data-pksx-control-category='slot']):not(.location-grid) {
+	:focus:not([data-pksx-control-category='slot']):not([role='grid']):not(
+		a,
+		summary,
+		[type='checkbox'],
+		[type='radio']
+	) {
+	outline: 3px solid var(--pksx-color-accent-ring) !important;
+	outline-offset: -3px !important;
+}
+
+html[data-input-modality='controller']
+	body
+	:is(a, summary, [type='checkbox'], [type='radio']):focus {
 	outline: 3px solid var(--pksx-color-accent-ring) !important;
 	outline-offset: 3px !important;
 }

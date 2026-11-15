@@ -30,7 +30,11 @@ export function createBoxMenuCommands(input: {
 	confirmExport?: boolean;
 	selectionUnavailableReason: string | null;
 }): BoxMenuCommand[] {
-	const unavailable = (key: BoxMenuCommandKey, label: string, reason: string): BoxMenuCommand => ({
+	const unavailable = (
+		key: BoxMenuCommandKey,
+		label: string,
+		reason: string | null = null
+	): BoxMenuCommand => ({
 		key,
 		label,
 		availability: 'unavailable',
@@ -79,9 +83,7 @@ export function createBoxMenuCommands(input: {
 		input.paneCount >= 2
 			? unavailable('open-another', 'Open another collection', 'Two collections are already open.')
 			: available('open-another', 'Open another collection'),
-		input.paneCount <= 1
-			? unavailable('close', 'Close', 'Keep at least one collection open.')
-			: available('close', 'Close'),
+		input.paneCount <= 1 ? unavailable('close', 'Close') : available('close', 'Close'),
 		selectionReason
 			? unavailable('select', 'Select Pokemon', selectionReason)
 			: available('select', 'Select Pokemon'),

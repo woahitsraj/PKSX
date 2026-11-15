@@ -913,7 +913,7 @@
 		if (!initialStateReady) return;
 		void workbenchPanes;
 		void activePaneId;
-		persistBoxesSession();
+		untrack(scheduleBoxesSessionPersist);
 	}
 
 	function persistBoxesSession() {
@@ -1092,6 +1092,10 @@
 	function dispatchNavigation(action: NavigationAction) {
 		if (selection && action === 'back') {
 			selection = null;
+			return;
+		}
+		if (action === 'back') {
+			void goto(resolve('/'), { keepFocus: true });
 			return;
 		}
 		if (selection && action === 'confirm' && isSlotFocus(navigation.focus)) {
@@ -7065,6 +7069,7 @@
 	onMount(() => {
 		const persistSessionBeforeUnload = () => persistBoxesSession();
 		window.addEventListener('beforeunload', persistSessionBeforeUnload);
+		window.addEventListener('pagehide', persistSessionBeforeUnload);
 		const unregisterQuickSearch = quickSearchHost.register({
 			captureActiveSaveFile: captureActiveQuickSearchSaveFile
 		});
@@ -7092,6 +7097,7 @@
 		void restoreInitialState();
 		return () => {
 			window.removeEventListener('beforeunload', persistSessionBeforeUnload);
+			window.removeEventListener('pagehide', persistSessionBeforeUnload);
 			resizeObserver?.disconnect();
 			unregisterQuickSearch();
 			unregisterSaveFileLegality();
@@ -7495,11 +7501,12 @@
 			while (!destroyed && queue.generation === generation && queue.pending) {
 				const quietFor = performance.now() - queue.pending.requestedAt;
 				const recentlyCompleted = performance.now() - queue.lastCompletedAt < 500;
-				if (recentlyCompleted && quietFor < 300) {
+				if (recentlyCompleted && quietFor < 300 && !isBoxSlotsCached(queue.pending)) {
 					await new Promise((resolve) => setTimeout(resolve, 300 - quietFor));
 				}
 				if (queue.generation !== generation || !queue.pending) return;
 				if (
+					!isBoxSlotsCached(queue.pending) &&
 					performance.now() - queue.lastCompletedAt < 500 &&
 					performance.now() - queue.pending.requestedAt < 300
 				) {
@@ -7515,6 +7522,10 @@
 			if (queue.pending && !destroyed) void drainPaneBoxLoads(queue);
 			else setPaneBoxLoadPending(queue.paneId, false);
 		}
+	}
+
+	function isBoxSlotsCached(target: PendingPaneBoxLoad) {
+		return Boolean(boxSlotLoads.get(target.state.bytes)?.[target.box]);
 	}
 
 	function setPaneBoxLoadPending(paneId: string | null, pending: boolean) {
@@ -7589,11 +7600,11 @@
 		return load;
 	}
 
-	function primeBoxSlots(state: WorkspaceState, box: number) {
+	function primeBoxSlots(state: WorkspaceState, box: number, step = 1) {
 		cacheBoxSlots(state, box);
-		if (state.workspace.summary.boxCount < 2) return;
-		const nextBox = (box + 1) % state.workspace.summary.boxCount;
-		void loadCachedBoxSlots(state, nextBox).catch(() => {});
+		const count = state.workspace.summary.boxCount;
+		if (count < 2) return;
+		void loadCachedBoxSlots(state, (box + step + count) % count).catch(() => {});
 	}
 
 	function cacheBoxSlots(state: WorkspaceState, box: number) {
@@ -7602,7 +7613,7 @@
 			loads = {};
 			boxSlotLoads.set(state.bytes, loads);
 		}
-		loads[box] = Promise.resolve(state.workspace.boxSlots);
+		loads[box] ??= Promise.resolve(state.workspace.boxSlots);
 	}
 
 	function loadCachedSlotEditData(state: WorkspaceState, source: SaveSlotRef) {
@@ -7676,16 +7687,19 @@
 
 		const boxCount = Math.max(1, state.workspace.summary.boxCount);
 		const activeBox = Math.min(box, boxCount - 1);
-		const previousWorkspace = savePaneWorkspaces[paneId]?.state;
+		const previousBox = savePaneWorkspaces[paneId]?.loadedBox;
+		const step = previousBox === (activeBox + 1) % boxCount ? -1 : 1;
 		savePaneWorkspaces = {
 			...savePaneWorkspaces,
 			[paneId]: { state, loadedBox: activeBox }
 		};
-		if (!previousWorkspace || previousWorkspace.bytes !== state.bytes) {
-			primeBoxSlots(state, activeBox);
-		} else {
-			cacheBoxSlots(state, activeBox);
-		}
+		cacheBoxSlots(state, activeBox);
+		setTimeout(() => {
+			const current = savePaneWorkspaces[paneId];
+			if (current?.state.bytes === state.bytes && current.loadedBox === activeBox) {
+				primeBoxSlots(state, activeBox, step);
+			}
+		}, 300);
 		const label = state.file.originalFileName ?? pane.source.label;
 		if (
 			pane.activeBox !== activeBox ||
