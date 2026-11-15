@@ -8243,20 +8243,20 @@
 			<strong aria-live="polite">{selection.slots.length} selected</strong>
 			<span>A Toggle · B Exit · Y Actions · L/R Boxes</span>
 			<span>Shift + arrows extend selection. Drag a rectangle to select Pokemon.</span>
-		{#if selection.source.type === 'save-file'}
-			<button
-				id="batch-copy"
-				type="button"
-				disabled={!selection.slots.length}
-				onclick={() => openStorageBatch('copy')}>Copy to Storage</button
-			>
-			<button
-				id="batch-move"
-				type="button"
-				disabled={!selection.slots.length}
-				onclick={() => openStorageBatch('move')}>Move to Storage</button
-			>
-		{/if}
+			{#if selection.source.type === 'save-file'}
+				<button
+					id="batch-copy"
+					type="button"
+					disabled={!selection.slots.length}
+					onclick={() => openStorageBatch('copy')}>Copy to Storage</button
+				>
+				<button
+					id="batch-move"
+					type="button"
+					disabled={!selection.slots.length}
+					onclick={() => openStorageBatch('move')}>Move to Storage</button
+				>
+			{/if}
 			<button type="button" onclick={selectCurrentBox}>Select box</button>
 			<button
 				type="button"
