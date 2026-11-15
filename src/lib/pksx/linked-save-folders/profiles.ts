@@ -1,46 +1,31 @@
 export const emulatorProfiles = [
-	{
-		id: 'retroarch',
-		name: 'RetroArch',
-		folder: 'RetroArch/saves, including per-core folders',
-		example: 'RetroArch/saves/mGBA/Pokemon.srm'
-	},
-	{
-		id: 'melonds',
-		name: 'melonDS',
-		folder: 'Configured save folder, or the folder beside your ROMs',
-		example: 'melonDS/roms/Pokemon.sav'
-	},
-	{
-		id: 'drastic',
-		name: 'DraStic',
-		folder: 'DraStic/backup',
-		example: 'DraStic/backup/Pokemon.dsv'
-	},
-	{
-		id: 'pizza',
-		name: 'Pizza Boy',
-		folder: 'Folder containing exported or accessible battery saves',
-		example: 'Pizza Boy A/Pokemon.sav'
-	},
-	{
-		id: 'azahar',
-		name: 'Azahar / Citra',
-		folder: 'User folder containing sdmc/Nintendo 3DS',
-		example: 'sdmc/Nintendo 3DS/id0/id1/title/00040000/00055e00/data/00000001/main'
-	},
-	{
-		id: 'dolphin',
-		name: 'Dolphin',
-		folder: 'GC, a region folder, or Card A / Card B',
-		example: 'GC/USA/Card A/Pokemon.gci'
-	}
+	{ id: 'dolphin', name: 'Dolphin' },
+	{ id: 'retroarch', name: 'RetroArch' },
+	{ id: 'melonds', name: 'melonDS' },
+	{ id: 'drastic', name: 'DraStic' },
+	{ id: 'pizza', name: 'Pizza Boy' },
+	{ id: 'azahar', name: 'Azahar' }
 ] as const;
 
 export type EmulatorProfile = (typeof emulatorProfiles)[number]['id'] | 'generic';
 
+export function emulatorName(id: string | undefined) {
+	return emulatorProfiles.find((profile) => profile.id === id)?.name;
+}
+
+export function fileEmulator(file: { emulator?: string; linkedDocumentId?: string }) {
+	if (file.emulator) return emulatorName(file.emulator);
+	return file.linkedDocumentId ? emulatorName(folderProfile(file.linkedDocumentId, '')) : undefined;
+}
+
 export function folderProfile(tree: string, name: string): EmulatorProfile {
-	const label = (decodeURIComponent(tree) + '/' + name).toLowerCase();
+	let path = tree;
+	try {
+		path = decodeURIComponent(tree);
+	} catch {
+		// Raw document ids can hold a literal '%'.
+	}
+	const label = (path + '/' + name).toLowerCase();
 	if (label.includes('retroarch')) return 'retroarch';
 	if (label.includes('melonds')) return 'melonds';
 	if (label.includes('drastic')) return 'drastic';

@@ -108,10 +108,10 @@ it('keeps a separate Export a copy command for linked Save Files', () => {
 		workspaceReady: true,
 		paneCount: 1,
 		undoAvailable: false,
-		linkedSource: true
+		linkedSource: 'Dolphin'
 	});
-	expect(commands.slice(0, 2).map(({ key, availability }) => ({ key, availability }))).toEqual([
-		{ key: 'export', availability: 'available' },
-		{ key: 'export-copy', availability: 'available' }
+	expect(commands.slice(0, 2).map(({ key, label }) => ({ key, label }))).toEqual([
+		{ key: 'export', label: 'Export to Dolphin' },
+		{ key: 'export-copy', label: 'Export a copy' }
 	]);
 });

@@ -123,9 +123,8 @@ describe('linked save folders', () => {
 	});
 
 	it('retains source identity across restart, serializes repeated imports, and preserves same-named distinct documents', async () => {
-		const plugin = pluginFixture();
-		const engine = createMockEngine();
 		const { storage, fileStore } = storageFixture();
+		const bytes = new Uint8Array([1, 2, 3, 4]);
 		const save = {
 			id: 'xd',
 			name: 'same.gci',
@@ -135,19 +134,23 @@ describe('linked save folders', () => {
 			identity: 'xd'
 		};
 		const [first, repeated] = await Promise.all([
-			importLinkedSave(plugin, engine, storage, save),
-			importLinkedSave(plugin, engine, storage, save)
+			importLinkedSave(storage, save, bytes),
+			importLinkedSave(storage, save, bytes)
 		]);
 		expect(repeated.id).toBe(first.id);
 		const restarted = new CapacitorSavesStorage({ fileStore });
-		const distinct = await importLinkedSave(plugin, engine, restarted, { ...save, id: 'other-xd' });
+		const distinct = await importLinkedSave(
+			restarted,
+			{ ...save, id: 'other-xd', identity: 'other-xd' },
+			bytes
+		);
 		expect(distinct.id).not.toBe(first.id);
 		expect(await restarted.listSaves()).toHaveLength(2);
 		expect((await restarted.getSave(first.id))?.linkedDocumentId).toBe('xd');
 		await expect(restarted.getSaveBytes(first.id)).resolves.toEqual(new Uint8Array([1, 2, 3, 4]));
 	});
 
-	it('rejects invalid candidates and imports, accepts generic save names, and reports scan bounds', async () => {
+	it('rejects invalid candidates, accepts generic save names, and reports scan bounds', async () => {
 		const plugin = pluginFixture();
 		plugin.list = async () => ({
 			entries: [{ id: 'main', name: 'main', directory: false, size: 4 }],
@@ -174,16 +177,6 @@ describe('linked save folders', () => {
 		expect(engine.loadSaveWorkspace).toHaveBeenCalledOnce();
 		expect(onSave).not.toHaveBeenCalled();
 		expect(onProgress).toHaveBeenLastCalledWith(expect.stringContaining('Scan limit reached'));
-		await expect(
-			importLinkedSave(plugin, engine, storage, {
-				id: 'main',
-				name: 'main',
-				path: 'main',
-				folder,
-				identity: 'main',
-				imported: false
-			})
-		).rejects.toThrow('Invalid save');
 		expect(await storage.listSaves()).toEqual([]);
 	});
 });

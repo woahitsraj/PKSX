@@ -237,6 +237,7 @@
 		type SaveFileLegalityReportTarget
 	} from '$lib/pksx/save-file-legality-report/host.svelte';
 	import { supportsSaveFolders } from '$lib/pksx/linked-save-folders';
+	import { fileEmulator } from '$lib/pksx/linked-save-folders/profiles';
 	import { getLinkedSaveSources } from '$lib/pksx/linked-save-sources/runtime';
 	import { createBoxMenuCommands, type BoxMenuCommandKey } from '$lib/pksx/box-menu';
 	import type { TradeSource } from '$lib/link-trade/trade-setup';
@@ -563,13 +564,18 @@
 		const target = boxMenuTarget;
 		return target ? workbenchPanes.find((pane) => matchesBoxMenuTarget(pane, target)) : undefined;
 	});
+	const boxMenuLinkedFile = $derived.by(() => {
+		const file = saveWorkspaceForPane(boxMenuPane)?.state.file;
+		return supportsSaveFolders() && file?.linkedDocumentId ? file : null;
+	});
+	let exportTarget = $state<BoxMenuTarget | null>(null);
+	const exportConfirmation = $derived(exportTarget !== null && exportTarget === boxMenuTarget);
 	const boxMenuCommands = $derived(
 		createBoxMenuCommands({
 			source: boxMenuTarget?.source ?? pokemonStorageSource(),
 			workspaceReady: saveWorkspaceForPane(boxMenuPane) !== null,
-			linkedSource:
-				supportsSaveFolders() &&
-				Boolean(saveWorkspaceForPane(boxMenuPane)?.state.file.linkedDocumentId),
+			linkedSource: boxMenuLinkedFile ? (fileEmulator(boxMenuLinkedFile) ?? 'emulator') : undefined,
+			confirmExport: exportConfirmation,
 			paneCount: workbenchPanes.length,
 			undoAvailable:
 				Boolean(catalogManifest) &&
@@ -2931,7 +2937,10 @@
 	function focusBoxMenuCommand(index: number) {
 		const clamped = Math.max(0, Math.min(index, boxMenuCommands.length - 1));
 		navigation = { ...navigation, focus: { zone: 'actions', index: clamped } };
-		queueMicrotask(() => document.getElementById(`box-menu-command-${clamped}`)?.focus());
+		queueMicrotask(() => {
+			const latest = navigation.focus.zone === 'actions' ? navigation.focus.index : clamped;
+			document.getElementById(`box-menu-command-${latest}`)?.focus();
+		});
 	}
 
 	function selectBoxMenuCommand(command: BoxMenuCommandKey) {
@@ -2948,7 +2957,18 @@
 				void exportBoxMenuSave(true);
 				break;
 			case 'export':
+				if (boxMenuLinkedFile) {
+					exportTarget = boxMenuTarget;
+					focusBoxMenuCommand(0);
+				} else void exportBoxMenuSave();
+				break;
+			case 'export-confirm':
+				exportTarget = null;
 				void exportBoxMenuSave();
+				break;
+			case 'export-cancel':
+				exportTarget = null;
+				focusBoxMenuCommand(0);
 				break;
 			case 'save-backup':
 				void saveBoxMenuBackup();
@@ -3095,23 +3115,23 @@
 				resolved.workspace.state,
 				resolved.pane.activeBox
 			);
-			if (!resolveBoxMenuSaveTarget(target)) return;
 			const file = resolved.workspace.state.file;
 			if (!copy && supportsSaveFolders() && file.linkedDocumentId) {
 				const exported = await getLinkedSaveSources().export(file, () =>
 					editCoordinator.export(origin)
 				);
 				statusMessage = exported.written
-					? `Exported to ${exported.name}. Source Backup saved.`
-					: `${exported.name} already matches this Workspace.`;
+					? `Exported ${exported.name}`
+					: `${exported.name} is up to date`;
 				invalidateSavesCache();
 			} else {
 				const bytes = await editCoordinator.export(origin);
+				if (!resolveBoxMenuSaveTarget(target)) return;
 				downloadBytes(bytes, createExportFileName(file.originalFileName));
 				statusMessage = `Export ready for ${file.originalFileName ?? 'Save File'}.`;
 			}
 			toastHost.success(statusMessage);
-			closeBoxMenu();
+			if (boxMenuTarget === target) closeBoxMenu();
 		} catch (error) {
 			importError = getErrorMessage(error);
 			statusMessage = 'Export failed.';
@@ -7808,7 +7828,9 @@
 
 {#if boxMenuOpen && boxMenuTarget}
 	<BoxMenu
-		collection={boxMenuTarget.source.label}
+		collection={exportConfirmation
+			? `Overwrite ${boxMenuLinkedFile?.originalFileName ?? 'save'}?`
+			: boxMenuTarget.source.label}
 		commands={boxMenuCommands}
 		activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
 		onFocusCommand={focusBoxMenuCommand}

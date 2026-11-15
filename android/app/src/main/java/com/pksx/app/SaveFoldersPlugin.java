@@ -53,13 +53,13 @@ public class SaveFoldersPlugin extends Plugin {
             edit.putString("tree", first.getString("tree")).putString("name", first.getString("name"))
                 .putString("mode", "generic");
         }
-        if (!edit.commit()) throw new IllegalStateException("Folder links could not be saved.");
+        if (!edit.commit()) throw new IllegalStateException("Couldn't save folders.");
     }
 
     @PluginMethod
     public void status(PluginCall call) {
         try { call.resolve(new JSObject().put("folders", folders())); }
-        catch (Exception e) { call.reject("Folder links could not be read.", e); }
+        catch (Exception e) { call.reject("Couldn't read folders.", e); }
     }
 
     @PluginMethod
@@ -93,10 +93,16 @@ public class SaveFoldersPlugin extends Plugin {
                 if (linked.getJSONObject(i).getString("tree").equals(tree.toString())) exists = true;
             }
             JSObject folder = new JSObject().put("tree", tree.toString()).put("name", name);
-            if (!exists) linked.put(folder);
+            JSArray updated = new JSArray();
+            for (int i = 0; i < linked.length(); i++) {
+                JSONObject item = linked.getJSONObject(i);
+                updated.put(item.getString("tree").equals(tree.toString()) ? folder : item);
+            }
+            if (!exists) updated.put(folder);
+            linked = updated;
             persistFolders(linked);
             call.resolve(new JSObject().put("cancelled", false).put("folder", folder));
-        } catch (Exception e) { call.reject("Folder access could not be retained. Choose the folder again.", e); }
+        } catch (Exception e) { call.reject("Couldn't link folder.", e); }
     }
 
     private void release(String tree) {
@@ -122,7 +128,7 @@ public class SaveFoldersPlugin extends Plugin {
             persistFolders(remaining);
             if (tree != null) release(tree);
             call.resolve();
-        } catch (Exception e) { call.reject("Folder could not be unlinked.", e); }
+        } catch (Exception e) { call.reject("Couldn't unlink folder.", e); }
     }
 
     @PluginMethod
@@ -138,7 +144,7 @@ public class SaveFoldersPlugin extends Plugin {
         for (int i = 0; i < linked.length(); i++) {
             if (linked.getJSONObject(i).getString("tree").equals(value)) return Uri.parse(value);
         }
-        throw new SecurityException("Choose or relink this folder first.");
+        throw new SecurityException("Folder not linked.");
     }
 
     @PluginMethod
@@ -164,7 +170,7 @@ public class SaveFoldersPlugin extends Plugin {
                     }
                 }
                 call.resolve(new JSObject().put("entries", entries).put("truncated", truncated));
-            } catch (Exception e) { call.reject("Folder unavailable or scan cancelled. Relink if access was removed.", e); }
+            } catch (Exception e) { call.reject("Couldn't read folder.", e); }
             finally { if (signal == current) signal = null; }
         });
     }
@@ -192,7 +198,7 @@ public class SaveFoldersPlugin extends Plugin {
                     String identity = new JSArray().put(tree.getAuthority()).put(id).toString();
                     call.resolve(new JSObject().put("base64", Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)).put("identity", identity));
                 }
-            } catch (Exception e) { call.reject("File unavailable or read cancelled. Relink if access was removed.", e); }
+            } catch (Exception e) { call.reject("Couldn't read file.", e); }
             finally { if (signal == current) signal = null; }
         });
     }

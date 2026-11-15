@@ -103,7 +103,8 @@ recovery builds. A forced-crash test or an emulator result does not replace thos
 
 ## Linked Dolphin save folders
 
-Settings > Linked save folder uses Android's system folder picker. Choose the
+Saves > Add saves offers Import file and Link folder. Link folder opens Android's
+system folder picker. PKSX detects the emulator from the folder path. Choose the
 Dolphin location exported by its document provider, then GC or a GCI save subfolder.
 No direct Android/data path or broad storage permission is required. If Dolphin
 is absent from the picker, export individual GCI files into a selectable folder.
@@ -125,10 +126,10 @@ provider behavior.
 4. Cancel during discovery. Confirm the UI remains responsive and partial results
    remain importable. Check that Cache, shaders, textures and unrelated Dolphin
    folders are skipped. Select a smaller folder when entry or depth limits appear.
-5. Remove the grant or move the selected folder. Confirm scan errors explain
-   relinking. Relink and rescan. Unlink and verify previously imported Saves remain.
+5. Remove the grant or move the selected folder. Confirm Add saves marks the folder
+   as unreadable. Link it again and rescan. Unlink and verify previously imported Saves remain.
 6. Choose another save folder and discover a recognized non-GCI save. Check invalid
-   files do not appear as importable saves, and RAW/GCP guidance stays visible.
+   files do not appear as importable saves.
 
 Native discovery and reads use a background executor and cancellable provider
 queries. Scans stop after 2,000 entries or 12 nested folder levels, with per-folder
@@ -143,7 +144,7 @@ reconciliation remains separate work in
 
 ## General emulator discovery
 
-Choose save folder in Settings. Multiple folders stay linked. Scanning starts after
+Link folders from Saves > Add saves. Multiple folders stay linked. Scanning starts after
 linking, on startup, when returning to PKSX, and on request. Recognized new saves
 appear automatically in Saves. Background discovery preserves the active Save File,
 Workspace, navigation and controller focus. Unlink removes access, not imported copies.
@@ -184,14 +185,14 @@ grid selection and focus when returning from an emulator.
 
 ## Linked source Export and refresh
 
-This extends folder discovery. New links request read/write grants. Previously read-only links can still scan and import; select the folder again to grant write access. Export on a linked Save File targets its original document. Export a copy stays available when permissions or source conflicts block write-back. Manual imports without a linked document retain copy Export.
+This extends folder discovery. New links request read/write grants. Previously read-only links can still scan and import; select the folder again to grant write access. Box Menu > Export to {emulator} asks to overwrite, then targets the original document. Saves that changed in the emulator show Updated, and the Save File Menu offers Load from {emulator}. An interrupted Export shows Restore and offers Restore file in {emulator}. Export a copy stays available when permissions or source conflicts block write-back. Manual imports without a linked document retain copy Export.
 
 Use disposable copies in a user-selected folder, close the emulator before Export, and preserve the original profile package and emulator files. Verify the exact frontend/native head, not only a previous discovery build:
 
 1. Restart and resume with an unchanged source. Confirm no duplicate imports or modal update prompts, and verify navigation stays usable.
 2. Edit only the app Workspace and Export. Check the pre-write external Backup, source byte equality with serialized Workspace bytes, unchanged imported baseline, and no write/extra Backup on identical Export.
 3. Change only the source, then change both source and Workspace. Confirm Export blocks competing bytes, Export a copy works, and external refresh requires confirmation and preserves the prior Workspace and imported baseline in Backups. Open those Backups for the correct owner and restore them through the existing workflow.
-4. Remove the grant and restart. Confirm clear relink guidance, retained local data, and refused write-back. Relink the same document and confirm no duplicate import.
+4. Remove the grant and restart. Confirm a short error on Export, retained local data, and refused write-back. Relink the same document and confirm no duplicate import.
 5. With a controlled test document provider, reject write access, fail after truncation/partial output, and stop the isolated app after durable journal creation and after completed output. Confirm failures never claim success; restart distinguishes unwritten, completed, and indeterminate bytes. Explicit recovery must preserve partial bytes, restore the original external Backup, and verify read-back. A normal filesystem provider alone cannot prove interrupted-provider behavior.
 6. Repeat source Export and reload in Dolphin Pokemon XD when device access is granted. Never overwrite the user's original emulator save during acceptance. General emulator layout fixtures prove discovery/Engine recognition, not write behavior for every emulator version or provider.
 

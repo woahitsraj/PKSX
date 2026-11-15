@@ -20,6 +20,7 @@ import {
 	WorkspaceRevisionConflictError
 } from '$lib/pksx/saves';
 
+export const confirmReplaceDirty = 'Confirm replacing the Dirty Workspace first.';
 export type SaveFileEditOrigin = {
 	saveFileId: SaveFileId;
 	workspaceId: string;
@@ -275,8 +276,7 @@ export class SaveFileEditCoordinator {
 			assertCurrent();
 			const latest = await this.loadLatest(record);
 			if (bytesEqual(latest.bytes, incoming)) return latest;
-			if (latest.dirty && !allowDirty)
-				throw new Error('Confirm replacing the Dirty Workspace first.');
+			if (latest.dirty && !allowDirty) throw new Error(confirmReplaceDirty);
 			const parsed = await this.engine.loadSaveWorkspace(
 				incoming,
 				latest.file.originalFileName ?? undefined,

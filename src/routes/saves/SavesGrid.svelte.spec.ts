@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import { page } from 'vitest/browser';
 import { flushSync, mount, tick, unmount } from 'svelte';
 import type { EngineApi } from '$lib/engine';
 import SavesGrid from './SavesGrid.svelte';
@@ -357,4 +358,21 @@ it('publishes background discovery into a mounted grid without changing selectio
 	expect(await storage.getActiveSaveFileId()).toBe(active.id);
 	expect(grid.getAttribute('aria-activedescendant')).toBe(selected);
 	expect(document.activeElement).toBe(grid);
+});
+
+it('opens Add saves with file and folder options and labels discovered saves by emulator', async () => {
+	await getSavesStorage().importSave({
+		bytes: new Uint8Array([1]),
+		originalFileName: 'xd.gci',
+		linkedDocumentId: 'fixture:xd',
+		emulator: 'dolphin'
+	});
+	fakes.host = createSummonedWorkflowHost();
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(SavesGrid, { target: container });
+	await expect.element(page.getByText('Dolphin', { exact: true })).toBeVisible();
+	container.querySelector<HTMLButtonElement>('[aria-label="Add saves"]')!.click();
+	await expect.element(page.getByRole('button', { name: /^Import file/ })).toBeVisible();
+	await expect.element(page.getByRole('button', { name: /^Link folder/ })).toBeVisible();
 });

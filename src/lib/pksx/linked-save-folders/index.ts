@@ -1,9 +1,9 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import type { EngineApi } from '$lib/engine';
 import type { SavesStorage } from '$lib/pksx/saves';
-import { folderProfile, skipFolder } from './profiles';
+import { folderProfile, skipFolder, type EmulatorProfile } from './profiles';
 
-export type FolderLink = { tree: string; name: string };
+export type FolderLink = { tree: string; name: string; emulator?: EmulatorProfile };
 export type FolderEntry = { id: string; name: string; directory: boolean; size: number | null };
 export type DiscoveredSave = {
 	id: string;
@@ -57,7 +57,7 @@ export async function scanFolder(options: {
 	onProgress: (message: string) => void;
 }) {
 	const { plugin, folder: linkedFolder, engine, storage, signal, onSave, onProgress } = options;
-	const profile = folderProfile(linkedFolder.tree, linkedFolder.name);
+	const profile = linkedFolder.emulator ?? folderProfile(linkedFolder.tree, linkedFolder.name);
 	const imported = new Set((await storage.listSaves()).map((save) => save.linkedDocumentId));
 	const queue: { id?: string; path: string; depth: number }[] = [{ path: '', depth: 0 }];
 	const visited = new Set<string>();
@@ -145,19 +145,29 @@ export async function scanFolder(options: {
 	);
 }
 
-export async function importLinkedSave(
-	plugin: SaveFoldersPlugin,
-	engine: EngineApi,
-	storage: SavesStorage,
-	save: DiscoveredSave
-) {
-	const document = await plugin.read({ tree: save.folder.tree, documentId: save.id });
-	const bytes = documentBytes(document.base64);
-	const validation = await engine.loadSaveWorkspace(bytes, save.name, 0, { background: true });
-	if (!validation.ok) throw new Error(validation.error.message);
+export function importLinkedSave(storage: SavesStorage, save: DiscoveredSave, bytes: Uint8Array) {
 	return storage.importSave({
 		bytes,
 		originalFileName: save.name,
-		linkedDocumentId: document.identity
+		linkedDocumentId: save.identity,
+		emulator: save.folder.emulator ?? folderProfile(save.folder.tree, save.folder.name),
+		activate: false
+	});
+}
+
+export function folderOf(identity: string | undefined, folders: FolderLink[]) {
+	let parts: unknown;
+	try {
+		parts = identity && JSON.parse(identity);
+	} catch {
+		return undefined;
+	}
+	if (!Array.isArray(parts)) return undefined;
+	const [authority, id] = parts as [string, string];
+	return folders.find((folder) => {
+		const match = /^content:\/\/([^/]+)\/tree\/([^/?#]+)/.exec(folder.tree);
+		if (match?.[1] !== authority) return false;
+		const root = decodeURIComponent(match[2]);
+		return id === root || id.startsWith(/[:/]$/.test(root) ? root : root + '/');
 	});
 }

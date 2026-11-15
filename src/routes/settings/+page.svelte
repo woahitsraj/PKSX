@@ -5,7 +5,6 @@
 
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import LinkedSaveFolders from '$lib/components/pksx/LinkedSaveFolders.svelte';
 	import { asset } from '$app/paths';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
 	import { appCommands } from '$lib/pksx/app-commands';
@@ -150,7 +149,7 @@
 		if (summonedWorkflow.active) return;
 		const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 		if (!active || !route.contains(active)) {
-			if (event.key.startsWith('Arrow')) {
+			if ((!active || active === document.body) && event.key.startsWith('Arrow')) {
 				focusStop(rememberedStop, rememberedThemeControl);
 				event.preventDefault();
 			}
@@ -203,7 +202,6 @@
 		</header>
 
 		<div class="settings-scrollport">
-			<LinkedSaveFolders />
 			<section class="settings-card preferences" aria-labelledby="preferences-title">
 				<div class="section-heading">
 					<p class="section-number">01</p>
