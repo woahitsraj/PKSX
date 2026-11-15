@@ -12,6 +12,7 @@
 	import StorageBackupMenu from '$lib/components/pksx/StorageBackupMenu.svelte';
 	import AddSavesMenu from '$lib/components/pksx/AddSavesMenu.svelte';
 	import { folderOf, supportsSaveFolders } from '$lib/pksx/linked-save-folders';
+	import { recoveryBackupId } from '$lib/pksx/linked-save-sources/runtime';
 	import { fileEmulator } from '$lib/pksx/linked-save-folders/profiles';
 	import { linkedSaveDiscovery as discovery } from '$lib/pksx/linked-save-folders/runtime.svelte';
 	import type { EngineError } from '$lib/engine';
@@ -813,6 +814,7 @@
 			if (!(await storage.getSave(saveFile.id))) {
 				throw new Error('The selected Save File is no longer available.');
 			}
+			if (await recoveryBackupId(saveFile)) throw new Error('Restore the emulator file first.');
 			await getSaveFileEditCoordinator().deleteSave(saveFile);
 			discovery.forget(saveFile);
 			invalidateSavesCache();

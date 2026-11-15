@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { recoveryBackupId } from '$lib/pksx/linked-save-sources/runtime';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount, tick } from 'svelte';
@@ -196,6 +197,8 @@
 		browserState = { kind: 'working', action: 'delete', backup };
 		errorMessage = null;
 		try {
+			if ((await recoveryBackupId(owner)) === backup.id)
+				throw new Error('Restore the emulator file first.');
 			await deleteOwnedBackup({ storage, owner, backup });
 			invalidateSavesCache();
 			await reloadBackups();

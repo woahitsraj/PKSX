@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+import type { StoredSaveFile } from '$lib/pksx/saves';
 import { LinkedSaveSources, linkedSavesPlugin } from './index';
 import {
 	getCachedActiveWorkspace,
@@ -17,4 +19,10 @@ export function getLinkedSaveSources() {
 		boxForSave: (id) =>
 			getCachedActiveWorkspace()?.file.id === id ? getCachedActiveWorkspaceBox() : 0
 	}));
+}
+
+export async function recoveryBackupId(file: StoredSaveFile) {
+	if (Capacitor.getPlatform() !== 'android' || !file.linkedDocumentId) return undefined;
+	const status = await getLinkedSaveSources().observe(file);
+	return status.kind === 'recovery' ? status.backupId : undefined;
 }
