@@ -216,6 +216,8 @@ test('Shift range remains in its originating pane at a shared edge', async ({ pa
 	await expect(first.locator('[data-box-slot="5"]')).toBeEnabled();
 	await first.locator('[data-box-slot="5"]').focus();
 	await expect(first.locator('[data-box-slot="5"]')).toBeFocused();
+	await expect(first).toHaveClass(/active-pane/);
+	await expect(first).not.toHaveAttribute('aria-busy', 'true');
 	await page.keyboard.press('Shift+ArrowRight');
 	const actions = page.getByRole('group', { name: 'Selection actions' });
 	await expect(actions).toContainText('0 selected');
