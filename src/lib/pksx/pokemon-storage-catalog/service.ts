@@ -664,23 +664,25 @@ export class PokemonStorageService {
 			throw new Error('Select Pokemon before choosing a destination.');
 		const start = manifest.boxOrder.indexOf(startingBoxId);
 		if (start < 0) throw new Error('Choose an available Storage Box.');
-		if (resolvePlacements(manifest).some((item) => item.overflow))
+		const resolved = resolvePlacements(manifest);
+		if (resolved.some((item) => item.overflow))
 			throw new Error('Resolve Storage overflow before adding Pokemon.');
+		const noSpace =
+			'Not enough empty Storage Slots. Select fewer Pokemon or choose an earlier Storage Box.';
+		if (manifest.records.length + count > manifest.boxes.length * 30) throw new Error(noSpace);
+		const occupied = new Set(
+			[...manifest.records, ...resolved].flatMap(({ placement }) =>
+				placement ? [`${placement.storageBoxId}:${placement.slot}`] : []
+			)
+		);
 		const placements: NonNullable<Placement>[] = [];
 		for (const storageBoxId of manifest.boxOrder.slice(start)) {
 			for (let slot = 0; slot < 30; slot++) {
-				const placement = { storageBoxId, slot };
-				if (!this.#occupied(manifest, placement, '')) placements.push(placement);
-				if (
-					placements.length === count &&
-					manifest.records.length + count <= manifest.boxes.length * 30
-				)
-					return placements;
+				if (!occupied.has(`${storageBoxId}:${slot}`)) placements.push({ storageBoxId, slot });
+				if (placements.length === count) return placements;
 			}
 		}
-		throw new Error(
-			'Not enough empty Storage Slots. Select fewer Pokemon or choose an earlier Storage Box.'
-		);
+		throw new Error(noSpace);
 	}
 
 	async prepareSaveBatch(
