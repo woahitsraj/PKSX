@@ -319,6 +319,7 @@ test.afterEach(async ({ page }) => {
 test('workspace response hold targets requests started after it is armed', async ({ page }) => {
 	await installWorkspaceResponseHold(page);
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await page.evaluate(() => {
 		const worker = new Worker(
 			URL.createObjectURL(
@@ -545,10 +546,10 @@ async function importPlatinumThroughSaves(page: Page) {
 	await importSaveThroughSaves(page, platinumFixturePath);
 
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expect(
 		page.getByRole('button', { name: 'Open Box Menu for pokemon-platinum-eu.sav' })
 	).toBeVisible({ timeout: 15000 });
-	await expectBoxesReady(page);
 	await page.getByRole('button', { name: 'Next Location' }).click();
 	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible({ timeout: 15000 });
 	await page.getByRole('button', { name: 'Next Location' }).click();
@@ -567,7 +568,6 @@ async function importLetsGoEeveeThroughSaves(page: Page) {
 			name: 'Open Box Menu for pokemon-lets-go-eevee-2025-03-24-savedata.bin'
 		})
 	).toBeVisible({ timeout: 15000 });
-	await expectBoxesReady(page);
 }
 
 async function importScarletThroughSaves(page: Page) {
@@ -7897,6 +7897,7 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await menu.getByRole('button', { name: 'Open Trainer' }).click();
 	await expect(page).toHaveURL(/\/trainer$/);
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expectActiveSaveOwner(page, 'alpha.sav');
 
 	await page.goto('/');

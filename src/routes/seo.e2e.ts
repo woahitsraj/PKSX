@@ -1,3 +1,4 @@
+import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
@@ -49,6 +50,7 @@ test('old Saves links work, Boxes opens directly, and only public content is in 
 	await page.goto('/saves');
 	await expect(page).toHaveURL(/\/$/);
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expect(page.getByRole('grid', { name: 'All Pokemon', exact: true })).toBeVisible();
 	await expect(page).toHaveURL(/\/boxes$/);
 	for (const route of ['/boxes', '/prototype/density']) {
