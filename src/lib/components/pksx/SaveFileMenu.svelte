@@ -12,6 +12,7 @@
 		onOpenTrainer: () => void;
 		onOpenBag: () => void;
 		onBackups: () => void;
+		onRename: () => void;
 		onDelete: () => void;
 		onCancelDelete: () => void;
 		onClose: () => void;
@@ -27,6 +28,7 @@
 		onOpenTrainer,
 		onOpenBag,
 		onBackups,
+		onRename,
 		onDelete,
 		onCancelDelete,
 		onClose
@@ -79,6 +81,15 @@
 					onfocus={() => onFocusCommand(3)}
 					onclick={onBackups}><strong>Backups</strong></button
 				>
+				<button
+					id="save-file-menu-command-4"
+					type="button"
+					class={{ 'controller-focused': activeIndex === 4 }}
+					onfocus={() => onFocusCommand(4)}
+					onclick={onRename}
+				>
+					<strong>Rename</strong>
+				</button>
 				<DelayedSpinner active={busy} label="Opening Save File" />
 			{:else}
 				<button

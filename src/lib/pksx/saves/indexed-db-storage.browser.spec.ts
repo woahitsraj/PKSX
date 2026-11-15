@@ -32,6 +32,29 @@ describe('IndexedDbSavesStorage', () => {
 		await deleteIndexedDbSaves(databaseName);
 	});
 
+	it('renames legacy metadata and resets without touching artifacts across restart', async () => {
+		const bytes = new Uint8Array([1, 2, 3]);
+		const file = await storage.importSave({ bytes, originalFileName: 'original.sav' });
+		await storage.putWorkspace({
+			saveFileId: file.id,
+			bytes: new Uint8Array([4, 5]),
+			dirty: true,
+			automaticBackupCreated: false
+		});
+		await storage.createBackup({ saveFileId: file.id, bytes, reason: 'manual' });
+		const workspace = await storage.getWorkspace(file.id);
+		const backups = await storage.listBackups(file.id);
+		await storage.renameSave(file.id, '  Adventure  ');
+		const restarted = new IndexedDbSavesStorage({ databaseName });
+		expect(await restarted.getSave(file.id)).toEqual({ ...file, displayName: 'Adventure' });
+		expect(await restarted.getWorkspace(file.id)).toEqual(workspace);
+		expect(await restarted.listBackups(file.id)).toEqual(backups);
+		expect(await restarted.getSaveBytes(file.id)).toEqual(bytes);
+		await expect(restarted.renameSave(file.id, '   ')).rejects.toThrow('Enter a name');
+		await restarted.renameSave(file.id, null);
+		expect(await restarted.getSave(file.id)).toEqual({ ...file, displayName: null });
+	});
+
 	it('imports save bytes and retrieves them unchanged', async () => {
 		const importedBytes = new Uint8Array([0, 1, 2, 253, 254, 255]);
 

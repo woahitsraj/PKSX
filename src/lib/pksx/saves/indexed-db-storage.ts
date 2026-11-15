@@ -1,3 +1,4 @@
+import { normalizeSaveDisplayName } from './display-name';
 import { stableAutomaticBackupId } from './automatic-backup';
 import { requireCarrySource } from '$lib/pksx/pokemon-storage-catalog/service';
 import { bytesEqual, copyBytes } from './bytes';
@@ -132,6 +133,23 @@ export class IndexedDbSavesStorage implements SavesStorage {
 			return saveFiles
 				.map((saveFile) => ({ ...saveFile }))
 				.sort((left, right) => right.importedAt.localeCompare(left.importedAt));
+		} finally {
+			database.close();
+		}
+	}
+
+	async renameSave(saveFileId: SaveFileId, name: string | null): Promise<StoredSaveFile> {
+		const displayName = normalizeSaveDisplayName(name);
+		const database = await openSavesDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction(saveFilesStore, 'readwrite');
+			const store = transaction.objectStore(saveFilesStore);
+			const existing = await requestToPromise<StoredSaveFile | undefined>(store.get(saveFileId));
+			if (!existing) throw new Error('The selected Save File is no longer available.');
+			const updated = { ...existing, displayName };
+			store.put(updated);
+			await transactionDone(transaction);
+			return updated;
 		} finally {
 			database.close();
 		}

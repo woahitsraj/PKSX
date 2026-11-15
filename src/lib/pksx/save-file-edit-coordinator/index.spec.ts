@@ -39,6 +39,7 @@ function createHarness(...states: WorkspaceState[]) {
 	let timestamp = 1;
 
 	const storage = {
+		renameSave: vi.fn(),
 		getSave: vi.fn(async (id: string) => files.get(id) ?? null),
 		getSaveBytes: vi.fn(async (id: string) => imported.get(id) ?? null),
 		getWorkspace: vi.fn(async (id: string) => {

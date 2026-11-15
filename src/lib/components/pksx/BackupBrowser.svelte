@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount, tick } from 'svelte';
-	import type { BackupMetadata, StoredSaveFile } from '$lib/pksx/saves';
+	import { getSaveDisplayName, type BackupMetadata, type StoredSaveFile } from '$lib/pksx/saves';
 	import {
 		createManualBackup,
 		createRestoredSaveFileName,
@@ -409,7 +409,9 @@
 			<div>
 				<h2 id="backup-browser-title">Backup Browser</h2>
 				<span id="backup-browser-description">
-					{owner?.originalFileName ?? 'Create and restore snapshots of the active Workspace.'}
+					{owner
+						? getSaveDisplayName(owner)
+						: 'Create and restore snapshots of the active Workspace.'}
 				</span>
 			</div>
 			<div class="header-controls">

@@ -308,7 +308,11 @@ export async function loadActiveWorkspaceFromSaves() {
 
 	const service = await startActiveWorkspaceService();
 	const activeWorkspace = service.current;
-	if (activeWorkspace && activeWorkspace.file.id === fallbackSaveFile.id) return activeWorkspace;
+	if (activeWorkspace && activeWorkspace.file.id === fallbackSaveFile.id) {
+		const current = { ...activeWorkspace, file: fallbackSaveFile };
+		service.project(current);
+		return current;
+	}
 
 	const workspace = await service.hydrate(fallbackSaveFile.id, 0);
 	activeWorkspaceBox = 0;
@@ -319,7 +323,13 @@ export async function loadActiveWorkspaceFromSaves() {
 export async function loadWorkspaceForOpening(saveFileId: SaveFileId) {
 	const service = await startActiveWorkspaceService();
 	const current = service.current;
-	if (current?.file.id === saveFileId) return { state: current, published: true };
+	if (current?.file.id === saveFileId) {
+		const file = await storage.getSave(saveFileId);
+		if (!file) return null;
+		const state = { ...current, file };
+		service.project(state);
+		return { state, published: true };
+	}
 	const state = await service.load(saveFileId, 0);
 	return state ? { state, published: false } : null;
 }
