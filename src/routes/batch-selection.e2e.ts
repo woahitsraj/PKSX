@@ -151,8 +151,14 @@ test.describe('desktop selection', () => {
 		await cells.nth(0).click();
 		await expect(page.getByRole('dialog')).toHaveCount(0);
 		await page.keyboard.down('Shift');
-		await page.keyboard.press('ArrowRight');
+		await page.keyboard.press('ArrowUp');
 		const actions = page.getByRole('group', { name: 'Selection actions' });
+		await expect(actions).toContainText('1 selected');
+		await expect(page.locator('.location-grid:focus-within')).toHaveCount(1);
+		await page.keyboard.press('ArrowRight');
+		await expect(actions).toContainText('2 selected');
+		await page.keyboard.press('ArrowUp');
+		await expect(page.locator('.location-grid:focus-within')).toHaveCount(1);
 		await expect(actions).toContainText('2 selected');
 		await page.keyboard.press('ArrowRight');
 		await page.keyboard.press('ArrowLeft');

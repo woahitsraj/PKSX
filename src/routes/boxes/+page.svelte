@@ -2663,9 +2663,8 @@
 			event.preventDefault();
 			syncNavigationFocusFromActiveElement();
 			const from = navigation.locationFocus.slot;
-			dispatchNavigation(action);
-			if (navigation.locationFocus.zone === 'box')
-				extendBoxSelection(from, navigation.locationFocus.slot);
+			if (action !== 'up' || from >= BOX_COLUMNS) dispatchNavigation(action);
+			if (navigation.focus.zone === 'box') extendBoxSelection(from, navigation.focus.slot);
 			return;
 		}
 
