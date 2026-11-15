@@ -9,6 +9,7 @@ import {
 	remapSummonedWorkflowLaunchers,
 	type SummonedWorkflow,
 	type SummonedWorkflowKind,
+	type SummonedWorkflowLaunch,
 	type SummonedWorkflowLauncher,
 	type SummonedWorkflowOwner
 } from './index';
@@ -18,7 +19,7 @@ const hostContextKey = Symbol('pksx-summoned-workflow-host');
 export type SummonedWorkflowHost = {
 	readonly active: SummonedWorkflow | null;
 	subscribe(listener: (active: SummonedWorkflow | null) => void): () => void;
-	open(kind: SummonedWorkflowKind, launcher: SummonedWorkflowLauncher): boolean;
+	open(...launch: SummonedWorkflowLaunch): boolean;
 	openRelated(kind: SummonedWorkflowKind, launcher: SummonedWorkflowLauncher): void;
 	dismiss(): SummonedWorkflowLauncher | null;
 	remapLaunchers(map: (launcher: SummonedWorkflowLauncher) => SummonedWorkflowLauncher): void;
@@ -43,8 +44,8 @@ export function createSummonedWorkflowHost(): SummonedWorkflowHost {
 			listener(owner.active);
 			return () => listeners.delete(listener);
 		},
-		open(kind, launcher) {
-			const next = openSummonedWorkflow(owner, kind, launcher);
+		open(...launch) {
+			const next = openSummonedWorkflow(owner, ...launch);
 			if (next === owner) return false;
 			publish(next);
 			return true;

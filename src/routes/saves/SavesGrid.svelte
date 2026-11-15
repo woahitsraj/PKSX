@@ -719,6 +719,20 @@
 		void focusMenuCommand(0);
 	}
 
+	function openBackups() {
+		const owner = menuSaveFile;
+		if (!owner || busyTarget) return;
+		chooseTarget({ kind: 'save-file', id: owner.id }, false);
+		summonedWorkflow.closeAll();
+		summonedWorkflow.open(
+			'backup-browser',
+			{ type: 'control', id: gridElement?.id ?? 'saves-grid' },
+			owner
+		);
+		menuSaveFileId = null;
+		menuReturnTarget = null;
+	}
+
 	async function requestDelete() {
 		const saveFile = menuSaveFile;
 		const launchingWorkflow = summonedWorkflow.active;
@@ -810,12 +824,13 @@
 			} else if (menuOpen) {
 				if (menuIndex === 0 && menuSaveFile) void activateSaveFile(menuSaveFile, 'trainer');
 				else if (menuIndex === 1 && menuSaveFile) void activateSaveFile(menuSaveFile, 'bag');
+				else if (menuIndex === 3) openBackups();
 				else void requestDelete();
 			}
 			return;
 		}
 		const offset = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
-		menuIndex = Math.max(0, Math.min(deleteOpen ? 1 : 2, menuIndex + offset));
+		menuIndex = Math.max(0, Math.min(deleteOpen ? 1 : 3, menuIndex + offset));
 		void focusMenuCommand(menuIndex);
 	}
 
@@ -1092,6 +1107,7 @@
 		onFocusCommand={(index) => (menuIndex = index)}
 		onOpenTrainer={() => void activateSaveFile(menuSaveFile, 'trainer')}
 		onOpenBag={() => void activateSaveFile(menuSaveFile, 'bag')}
+		onBackups={openBackups}
 		onDelete={() => (deleteOpen ? void confirmDelete() : void requestDelete())}
 		onCancelDelete={cancelDelete}
 		onClose={dismissSaveFileWorkflow}
