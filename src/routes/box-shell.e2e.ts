@@ -4502,16 +4502,11 @@ test('Pokemon Editor preserves arrow navigation until an editable field is enter
 	for (const section of ['held-item', 'ability'] as const) {
 		await choosePokemonEditorSection(page, section);
 		const field = editor.locator(`#pokemon-editor-${section}`);
-		const originalValue =
-			section === 'held-item' ? await comboboxValue(field) : await field.inputValue();
+		const originalValue = await comboboxValue(field);
 		await field.focus();
 		await page.keyboard.press('ArrowLeft');
 		await expect(page.locator(`#pokemon-editor-section-${section}`)).toBeFocused();
-		if (section === 'held-item') {
-			await expect(field).toHaveAttribute('data-combobox-value', originalValue);
-		} else {
-			await expect(field).toHaveValue(originalValue);
-		}
+		await expect(field).toHaveAttribute('data-combobox-value', originalValue);
 	}
 
 	await choosePokemonEditorSection(page, 'nickname');
@@ -5005,7 +5000,7 @@ test('Pokemon Editor changes Ability and returns focus to the command stack', as
 	await expect(editor).toContainText('Ability');
 	await expect(ability).toBeEnabled();
 	await expect(editor.locator('#pokemon-editor-species')).toBeEnabled({ timeout: 15000 });
-	const originalAbility = await ability.inputValue();
+	const originalAbility = await comboboxValue(ability);
 
 	await ability.focus();
 	await pressController(page, 'Enter');
@@ -5013,15 +5008,16 @@ test('Pokemon Editor changes Ability and returns focus to the command stack', as
 		'data-editor-entered-field',
 		'pokemon-editor-ability'
 	);
+	await expect(editor.locator('[data-combobox-option]:focus')).toHaveCount(1);
 	await pressController(page, 'ArrowDown');
-	await expect(ability).not.toHaveValue(originalAbility);
-	await pressController(page, 'Escape');
-	const changedAbility = await ability.inputValue();
+	await pressController(page, 'Enter');
+	await expect(ability).not.toHaveAttribute('data-combobox-value', originalAbility);
+	const changedAbility = await comboboxValue(ability);
 	await expect(editor.locator('#pokemon-editor-staged-count')).toHaveText('1 staged');
 
 	await editor.getByRole('button', { name: 'Apply edits' }).click();
 	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
-	await expect(ability).toHaveValue(changedAbility);
+	await expect(ability).toHaveAttribute('data-combobox-value', changedAbility);
 	await expect(page.locator('#pokemon-editor-close')).toBeFocused();
 
 	await page.keyboard.press('Escape');
