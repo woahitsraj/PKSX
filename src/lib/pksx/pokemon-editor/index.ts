@@ -1243,12 +1243,12 @@ function validateOriginalTrainerEdit(
 		(!constraints.supportsSecretId ||
 			!Number.isInteger(payload.secretId) ||
 			payload.secretId < constraints.minTrainerId ||
-			payload.secretId > constraints.maxTrainerId)
+			payload.secretId > constraints.maxSecretId)
 	) {
 		return {
 			ok: false,
 			message: constraints.supportsSecretId
-				? `Secret ID must be between ${constraints.minTrainerId} and ${constraints.maxTrainerId}.`
+				? `Secret ID must be between ${constraints.minTrainerId} and ${constraints.maxSecretId}.`
 				: 'Secret ID editing is not supported for this Pokemon.'
 		};
 	}

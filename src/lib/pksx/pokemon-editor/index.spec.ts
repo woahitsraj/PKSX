@@ -116,6 +116,7 @@ const editablePokemonSlot: SlotView = {
 		maxNameLength: 7,
 		minTrainerId: 0,
 		maxTrainerId: 65535,
+		maxSecretId: 65535,
 		supportsSecretId: true,
 		supportsGender: true,
 		supportsLanguage: true,
