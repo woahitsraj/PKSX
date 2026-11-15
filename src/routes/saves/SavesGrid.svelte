@@ -1102,7 +1102,7 @@
 				searchControls = node;
 			}}
 		>
-			<label for="saves-search">Search Saves</label>
+			<label class="visually-hidden" for="saves-search">Search Saves</label>
 			<input
 				id="saves-search"
 				type="search"
@@ -1129,9 +1129,12 @@
 			</button>
 		</div>
 		<div class="saves-scrollport">
-			{#if query.trim() && visibleSaveFiles.length === 0}<p role="status">
-					No Save Files match your search. Clear search to show all Save Files.
-				</p>{/if}
+			{#if query.trim() && visibleSaveFiles.length === 0}
+				<div class="search-empty" role="status">
+					<strong>Try another search</strong>
+					<p>Look for a name, game, trainer or filename.</p>
+				</div>
+			{/if}
 			<div
 				id="saves-grid"
 				{@attach savesGridOwner}
@@ -1391,11 +1394,11 @@
 
 <style>
 	.library-controls {
-		display: flex;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto auto;
 		align-items: center;
-		gap: var(--pksx-space-1);
-		flex-wrap: wrap;
-		padding: var(--pksx-space-2);
+		gap: var(--pksx-space-2);
+		padding: 0 var(--pksx-space-2);
 	}
 	.library-controls label,
 	.library-controls button {
@@ -1404,7 +1407,7 @@
 	.library-controls input {
 		font-size: var(--pksx-type-editable);
 		min-width: 0;
-		flex: 1;
+		width: 100%;
 	}
 	.library-controls input,
 	.library-controls button {
@@ -1417,6 +1420,33 @@
 	}
 	.library-controls :focus-visible {
 		outline: 2px solid var(--rust);
+	}
+
+	.search-empty {
+		margin-bottom: var(--pksx-space-3);
+		padding: var(--pksx-space-3);
+		border: var(--pksx-border-width) solid var(--rule);
+		border-radius: var(--pksx-radius-medium);
+		background: var(--paper-hi);
+	}
+	.search-empty strong {
+		font-size: var(--pksx-type-title);
+	}
+	.search-empty p {
+		margin: var(--pksx-space-1) 0 0;
+		font-size: var(--pksx-type-body);
+		color: var(--ink-soft);
+	}
+	@container (max-width: 40rem) {
+		.library-controls {
+			grid-template-columns: 1fr auto;
+		}
+		.library-controls input {
+			grid-column: 1 / -1;
+		}
+		.library-controls button:first-of-type {
+			justify-self: start;
+		}
 	}
 
 	:global(.app-shell:has(.saves-route)) {
