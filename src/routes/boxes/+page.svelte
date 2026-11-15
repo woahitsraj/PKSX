@@ -2649,6 +2649,7 @@
 			!event.metaKey &&
 			!event.altKey &&
 			event.key.startsWith('Arrow') &&
+			!busy &&
 			!activeSummonedWorkflow &&
 			!activeVirtualLocation &&
 			!pendingSlotOperation &&
@@ -2659,7 +2660,7 @@
 			event.preventDefault();
 			syncNavigationFocusFromActiveElement();
 			const from = navigation.locationFocus.slot;
-			dispatch(action);
+			dispatchNavigation(action);
 			if (navigation.locationFocus.zone === 'box')
 				extendBoxSelection(from, navigation.locationFocus.slot);
 			return;

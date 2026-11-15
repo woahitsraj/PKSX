@@ -179,3 +179,39 @@ test.describe('desktop selection', () => {
 		await expect(page.locator('.selection-drag-box')).toHaveCount(0);
 	});
 });
+
+test('Shift range remains in its originating pane at a shared edge', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await page.goto('/');
+	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
+	await page.getByLabel('Import Save File').setInputFiles(fixture);
+	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+		timeout: 60000
+	});
+	await page.getByRole('button', { name: /Open .*011020251345.sav in Boxes/ }).click();
+	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready',
+		{ timeout: 60000 }
+	);
+	await page.getByRole('button', { name: /Open Box Menu/ }).click();
+	await page.getByRole('button', { name: 'Open another', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Open another collection' })
+		.getByRole('button', { name: /011020251345.sav/ })
+		.click();
+	await expect(page.locator('.box-pane')).toHaveCount(2);
+	const first = page.locator('.box-pane').first();
+	const id = await first.getAttribute('data-pane-id');
+	await first.locator('[data-box-slot="5"]').focus();
+	await page.keyboard.press('Shift+ArrowRight');
+	const actions = page.getByRole('group', { name: 'Selection actions' });
+	await expect(actions).toContainText('0 selected');
+	await expect(page.locator('.box-pane')).toHaveCount(1);
+	await expect(page.locator('.box-pane')).toHaveAttribute('data-pane-id', id ?? '');
+	await page.keyboard.press('Escape');
+	await expect(page.locator('.box-pane')).toHaveCount(2);
+});
