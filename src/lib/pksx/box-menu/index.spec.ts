@@ -127,6 +127,7 @@ it('keeps a separate Export a copy command for linked Save Files', () => {
 		workspaceReady: true,
 		paneCount: 1,
 		undoAvailable: false,
+		selectionUnavailableReason: null,
 		linkedSource: 'Dolphin'
 	});
 	expect(commands.slice(0, 2).map(({ key, label }) => ({ key, label }))).toEqual([
