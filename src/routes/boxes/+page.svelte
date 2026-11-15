@@ -2594,6 +2594,8 @@
 		)
 			return;
 		if (summonedWorkflow.open('selection-actions', controlLauncher('selection-actions'))) {
+			if (slotDomFocusTimer) clearTimeout(slotDomFocusTimer);
+			slotDomFocusTimer = null;
 			selectionMenuIndex = 0;
 			queueMicrotask(() => document.getElementById('selection-action-0')?.focus());
 		}
