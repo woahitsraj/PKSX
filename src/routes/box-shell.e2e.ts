@@ -1,3 +1,4 @@
+import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
@@ -62,9 +63,7 @@ async function openEmptySaves(page: Page) {
 		.click();
 	await expect(page.locator('#box-grid')).toBeVisible({ timeout: 15000 });
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
-		timeout: 60_000
-	});
+	await expectBoxesReady(page);
 }
 
 async function pressController(page: Page, key: string) {
@@ -320,6 +319,7 @@ test.afterEach(async ({ page }) => {
 test('workspace response hold targets requests started after it is armed', async ({ page }) => {
 	await installWorkspaceResponseHold(page);
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await page.evaluate(() => {
 		const worker = new Worker(
 			URL.createObjectURL(
@@ -534,6 +534,7 @@ async function importEmeraldThroughSaves(page: Page) {
 	await importSaveThroughSaves(page, emeraldFixturePath);
 
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expect(
 		page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' })
 	).toBeVisible({ timeout: 15000 });
@@ -545,12 +546,10 @@ async function importPlatinumThroughSaves(page: Page) {
 	await importSaveThroughSaves(page, platinumFixturePath);
 
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expect(
 		page.getByRole('button', { name: 'Open Box Menu for pokemon-platinum-eu.sav' })
 	).toBeVisible({ timeout: 15000 });
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
-		timeout: 15000
-	});
 	await page.getByRole('button', { name: 'Next Location' }).click();
 	await expect(page.getByRole('heading', { name: 'Box 02' })).toBeVisible({ timeout: 15000 });
 	await page.getByRole('button', { name: 'Next Location' }).click();
@@ -563,14 +562,12 @@ async function importLetsGoEeveeThroughSaves(page: Page) {
 	await importSaveThroughSaves(page, letsGoEeveeFixturePath);
 
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expect(
 		page.getByRole('button', {
 			name: 'Open Box Menu for pokemon-lets-go-eevee-2025-03-24-savedata.bin'
 		})
 	).toBeVisible({ timeout: 15000 });
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
-		timeout: 15000
-	});
 }
 
 async function importScarletThroughSaves(page: Page) {
@@ -578,6 +575,7 @@ async function importScarletThroughSaves(page: Page) {
 	await importSaveThroughSaves(page, scarletFixturePath);
 
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expect(
 		page.getByRole('button', {
 			name: 'Open Box Menu for pokemon-scarlet-2025-03-24-main.sav'
@@ -1346,7 +1344,7 @@ test('compact box controls and keyboard shortcuts update the active box label', 
 	await openEmptySaves(page);
 	await seedPokemonStorageBoxes(page, 3);
 	await page.reload();
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready');
+	await expectBoxesReady(page);
 	await page.locator('#box-grid').focus();
 
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
@@ -1507,6 +1505,7 @@ test('Save File Box rename validates atomically, persists, and updates picker an
 	await expect(picker.getByRole('button', { name: /^Box 01: FRIENDS/ })).toBeVisible();
 	await picker.getByRole('button', { name: 'Close Box Picker' }).click();
 	await page.reload();
+	await expectBoxesReady(page);
 	await expect(page.getByRole('heading', { name: 'FRIENDS' })).toBeVisible({ timeout: 15000 });
 	await page.getByRole('button', { name: `Open Box Picker for ${fileName}` }).click();
 	await expect(
@@ -1551,6 +1550,7 @@ test('Save File Box reorder persists atomically and keeps panes on the moved Box
 	await picker.getByRole('button', { name: 'Close Box Picker' }).click();
 	await expect(page.getByRole('heading', { name: 'BOX1' })).toBeVisible();
 	await page.reload();
+	await expectBoxesReady(page);
 	await expect(page.getByRole('heading', { name: 'BOX1' })).toBeVisible({ timeout: 15000 });
 	await pickerControl.click();
 	picker = page.getByRole('dialog', { name: 'Choose a Box' });
@@ -1736,10 +1736,7 @@ test('switches to durable Pokemon Storage with focusable empty Slot actions', as
 	await seedPokemonStorageBoxes(page, 5);
 	await page.goto('/?source=pokemon-storage');
 	await expect(page).toHaveURL(/\/boxes$/);
-	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await expectBoxesReady(page);
 	await expect(page.getByRole('heading', { name: 'Box 01' })).toBeVisible();
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
@@ -1894,6 +1891,7 @@ test('Boxes keeps session composition across navigation and restores only the pr
 	await expect(primary.getByRole('heading', { name: 'Box 02' })).toBeVisible();
 
 	await page.reload();
+	await expectBoxesReady(page);
 	await expect(page).toHaveURL(/\/boxes$/);
 	await expect(page.locator('.box-pane')).toHaveCount(1);
 	await expect(
@@ -2030,9 +2028,7 @@ test('a completed import does not move focus in a newer Boxes instance', async (
 	await chooseMainMenu(page, 'Trainer');
 	await expect(page).toHaveURL(/\/trainer$/);
 	await chooseMainMenu(page, 'Boxes');
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
-		timeout: 15000
-	});
+	await expectBoxesReady(page);
 	await page.locator('#box-0-slot-17').click();
 	await expect(page.locator('#box-0-slot-17')).toBeFocused();
 	await page.evaluate(() =>
@@ -3097,6 +3093,7 @@ test('Pokemon Storage opens as an independent second pane and persists copied Po
 
 	await page.setViewportSize({ width: 1800, height: 900 });
 	await page.goto('/?source=pokemon-storage');
+	await expectBoxesReady(page);
 	await expect(page).toHaveURL(/\/boxes$/);
 	await expect(
 		page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' })
@@ -3145,6 +3142,7 @@ test('a committed Storage move cannot be retried when its projection refresh fai
 	await page.keyboard.press('Enter');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toHaveCount(0);
 	await page.goto('/?source=pokemon-storage');
+	await expectBoxesReady(page);
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
 	await expect(page.locator('#box-0-slot-1')).toContainText('ARON');
 });
@@ -3155,6 +3153,7 @@ test('Save File Carry rejects an occupied Pokemon Storage destination', async ({
 	await importEmeraldThroughSaves(page);
 	await seedOccupiedPokemonStorageSlot(page);
 	await page.reload();
+	await expectBoxesReady(page);
 	await expectActiveSaveOwner(page, 'emerald-011020251345.sav');
 
 	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
@@ -3223,14 +3222,10 @@ test('moves a Save File Pokemon into durable Storage and clears its source', asy
 	expect((await backupRecords(page)).map(({ reason }) => reason)).toEqual(['pokemon-movement']);
 
 	await page.reload();
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
-		timeout: 60_000
-	});
+	await expectBoxesReady(page);
 	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('Empty');
 	await page.goto('/?source=pokemon-storage');
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
-		timeout: 60_000
-	});
+	await expectBoxesReady(page);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	const persisted = await page.evaluate(async () => {
 		const saves = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -3285,9 +3280,7 @@ for (const mode of ['Move', 'Duplicate'] as const) {
 		await importEmeraldThroughSaves(page);
 		await seedOccupiedPokemonStorageSlot(page);
 		await page.reload();
-		await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
-			timeout: 60_000
-		});
+		await expectBoxesReady(page);
 		await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
 		await page
 			.getByRole('dialog', { name: 'Box Menu' })
@@ -3355,6 +3348,7 @@ test('virtual Carry keeps Save Box locations available but blocks Box edits', as
 	await importEmeraldThroughSaves(page);
 	await seedOccupiedPokemonStorageSlot(page);
 	await page.reload();
+	await expectBoxesReady(page);
 	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
 	await page
 		.getByRole('dialog', { name: 'Box Menu' })
@@ -3451,8 +3445,10 @@ test('keeps a virtual Storage source after Save commits but retirement fails', a
 	).toHaveCount(1);
 	await expect(page.locator('.carry-at-focus')).toHaveCount(0);
 	await page.reload();
+	await expectBoxesReady(page);
 	await expect(savePane.locator('[id$="box-0-slot-0"]')).toContainText('ARON');
 	await page.goto('/?source=pokemon-storage');
+	await expectBoxesReady(page);
 	await expect(page.locator('.box-pane.active-pane')).toHaveAttribute(
 		'data-source-id',
 		'pokemon-storage'
@@ -3528,6 +3524,7 @@ test('shared Carry and arrows use the focused virtual record in a Save and Stora
 		db.close();
 	});
 	await page.reload();
+	await expectBoxesReady(page);
 	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
 	await page
 		.getByRole('dialog', { name: 'Box Menu' })
@@ -3693,9 +3690,7 @@ test('keeps both Pokemon recoverable when Save clearing fails after Storage comm
 	expect(await backupCount(page)).toBe(0);
 
 	await page.reload();
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
-		timeout: 60_000
-	});
+	await expectBoxesReady(page);
 	await expect(page.locator('.box-pane.active-pane')).toHaveAttribute(
 		'aria-label',
 		/emerald-011020251345\.sav/
@@ -3716,6 +3711,7 @@ test('keeps both Pokemon recoverable when Save clearing fails after Storage comm
 	await expect(page.locator('#box-0-slot-0')).toContainText('Empty');
 	expect((await backupRecords(page)).map(({ reason }) => reason)).toEqual(['pokemon-movement']);
 	await page.goto('/?source=pokemon-storage');
+	await expectBoxesReady(page);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 });
 
@@ -3762,6 +3758,7 @@ test('retries a move after Pokemon Storage persistence fails without clearing th
 	expect(await backupCount(page)).toBe(0);
 
 	await page.reload();
+	await expectBoxesReady(page);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
 	await page
@@ -6664,6 +6661,7 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await page.keyboard.press('Escape');
 
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 	await moveFirstEmeraldBoxSlotToThirdSlot(page);
 	await page.goto('/');
@@ -6688,6 +6686,7 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await expect(restoredCard.locator('.trainer')).toHaveText(/\S+/);
 	await expect(restoredCard).toContainText('7 Pokemon');
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 	await expect(page.locator('#box-0-slot-2')).toContainText('Empty');
 
@@ -6723,7 +6722,7 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await chooseMainMenu(page, 'Boxes');
 	await expect(page).toHaveURL(/\/boxes$/);
 	const boxesRoute = page.locator('.boxes-route');
-	await expect(boxesRoute).toHaveAttribute('data-initial-state', 'ready');
+	await expectBoxesReady(page);
 	await expect(boxesRoute).toHaveAttribute('data-active-save-file-id', /.+/);
 	const previousOwnerId = await boxesRoute.getAttribute('data-active-save-file-id');
 	expect(previousOwnerId).toBeTruthy();
@@ -6738,7 +6737,7 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 		.getByRole('button', { name: /Pokemon Storage/ })
 		.click();
 	await expect(page).toHaveURL(/\/boxes$/);
-	await expect(boxesRoute).toHaveAttribute('data-initial-state', 'ready');
+	await expectBoxesReady(page);
 	const storageGrid = page.getByRole('grid', { name: 'Pokemon Storage Box 01' });
 	await expect(storageGrid).toBeVisible();
 	const preMenuSlot = storageGrid.getByRole('gridcell').first();
@@ -6791,6 +6790,7 @@ test('Backup Browser owns active Save File recovery, fresh focus, guarded Back, 
 	await expect(trainerName).toBeFocused();
 
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
@@ -6854,6 +6854,7 @@ test('reload preserves unexported slot changes from the active workspace', async
 	await expect(page.locator('.toolbar-status-strip')).toHaveCount(0);
 
 	await page.reload();
+	await expectBoxesReady(page);
 	await expectActiveSaveOwner(page, 'emerald-011020251345.sav');
 	await expect(
 		page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' })
@@ -6965,6 +6966,7 @@ test('clear slot cancellation and confirmation use the in-app confirmation surfa
 	expect(await backupCount(page)).toBe(backupsBefore + 1);
 
 	await page.goto('/?source=pokemon-storage');
+	await expectBoxesReady(page);
 	await expect(page).toHaveURL(/\/boxes$/);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
@@ -6992,7 +6994,7 @@ test('two Recently Deleted panes keep distinct focus targets and location header
 	await seedOccupiedPokemonStorageSlot(page);
 	await page.goto('/?source=pokemon-storage');
 	await expect(page).toHaveURL(/\/boxes$/);
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready');
+	await expectBoxesReady(page);
 	await expect(page.locator('.box-pane.active-pane')).toHaveAttribute(
 		'data-source-id',
 		'pokemon-storage'
@@ -7051,6 +7053,7 @@ test('Clear uses its Pokemon Storage owner without mutating the loaded Save File
 	const backupsBefore = await backupCount(page);
 
 	await page.goto('/?source=pokemon-storage');
+	await expectBoxesReady(page);
 	await expect(page).toHaveURL(/\/boxes$/);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	await page.locator('#box-grid').focus();
@@ -7082,6 +7085,7 @@ test('Store Automatically keeps Record ID and starts from the last physical Stor
 	await importEmeraldThroughSaves(page);
 	await seedOccupiedPokemonStorageSlot(page);
 	await page.goto('/?source=pokemon-storage');
+	await expectBoxesReady(page);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	const savesBefore = await persistedSavesStateSnapshot(page);
 	const readManifest = () =>
@@ -7124,6 +7128,7 @@ test('Store Automatically keeps Record ID and starts from the last physical Stor
 		.getByRole('button', { name: /All Pokemon/ })
 		.click();
 	await page.reload();
+	await expectBoxesReady(page);
 	const card = page
 		.getByRole('grid', { name: 'All Pokemon' })
 		.getByRole('gridcell', { name: /ARON/ });
@@ -7150,6 +7155,7 @@ test('Store Automatically follows physical Storage source switches and activatio
 	await importEmeraldThroughSaves(page);
 	await seedOccupiedPokemonStorageSlot(page);
 	await page.reload();
+	await expectBoxesReady(page);
 	const primary = page.locator('.box-pane').first();
 	await primary.getByRole('button', { name: /Open Box Menu for .*\.sav/ }).click();
 	await page
@@ -7242,6 +7248,7 @@ test('Store Automatically follows the active physical pane when both panes show 
 	await importEmeraldThroughSaves(page);
 	await seedOccupiedPokemonStorageSlot(page);
 	await page.reload();
+	await expectBoxesReady(page);
 	const primary = page.locator('.box-pane').first();
 	await primary.getByRole('button', { name: /Open Box Menu for .*\.sav/ }).click();
 	await page
@@ -7300,9 +7307,7 @@ test('Store Automatically restores virtual focus after a failed write and focuse
 	await openEmptySaves(page);
 	await seedOccupiedPokemonStorageSlot(page);
 	await page.goto('/?source=pokemon-storage');
-	await expect(page.locator('.boxes-route')).toHaveAttribute('data-initial-state', 'ready', {
-		timeout: 60_000
-	});
+	await expectBoxesReady(page);
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page
 		.getByRole('dialog', { name: 'Choose a Box' })
@@ -7349,6 +7354,7 @@ test('Store Automatically restores virtual focus after a failed write and focuse
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
 	await page.keyboard.press('Escape');
 	await page.reload();
+	await expectBoxesReady(page);
 	card = page.getByRole('grid', { name: 'Unfiled' }).getByRole('gridcell', { name: /ARON/ });
 	await card.getByRole('button', { name: /ARON/ }).focus();
 	await page.keyboard.press('Enter');
@@ -7379,6 +7385,7 @@ test('Box Menu undoes a Storage Box rename in the session', async ({ page }) => 
 		'true'
 	);
 	await page.reload();
+	await expectBoxesReady(page);
 	await page.getByRole('button', { name: 'Open Box Menu for Pokemon Storage' }).click();
 	await expect(menu.getByRole('button', { name: 'Undo Storage organization' })).toHaveAttribute(
 		'aria-disabled',
@@ -7886,6 +7893,7 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await menu.getByRole('button', { name: 'Open Trainer' }).click();
 	await expect(page).toHaveURL(/\/trainer$/);
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expectActiveSaveOwner(page, 'alpha.sav');
 
 	await page.goto('/');
@@ -8035,10 +8043,12 @@ test('reloads the most recent imported Save File while offline', async ({ page, 
 		await navigator.serviceWorker.ready;
 	});
 	await page.reload();
+	await expectBoxesReady(page);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 
 	await context.setOffline(true);
 	await page.reload();
+	await expectBoxesReady(page);
 
 	await expectActiveSaveOwner(page, 'emerald-011020251345.sav');
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });

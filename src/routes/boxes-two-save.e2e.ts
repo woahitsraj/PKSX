@@ -1,3 +1,4 @@
+import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
@@ -24,11 +25,7 @@ test('keeps the original save visible after opening a second save on Android lan
 	await importSaveThroughSaves(page, xFixturePath);
 
 	await page.getByRole('button', { name: 'Open emerald-011020251345.sav in Boxes' }).click();
-	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready',
-		{ timeout: 30_000 }
-	);
+	await expectBoxesReady(page);
 	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
 	await page
 		.getByRole('dialog', { name: 'Box Menu' })

@@ -1,3 +1,4 @@
+import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
@@ -42,11 +43,7 @@ test('one root Toast host delivers across Saves and Boxes without moving focus o
 		.getByRole('dialog', { name: 'Main Menu' })
 		.getByRole('button', { name: /^Boxes/ })
 		.click();
-	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready',
-		{ timeout: 15_000 }
-	);
+	await expectBoxesReady(page);
 	const invokingSlot = page.locator('#box-0-slot-0');
 	await expect(invokingSlot).toBeFocused();
 	const before = await page.locator('.app-shell').evaluate((shell) => ({

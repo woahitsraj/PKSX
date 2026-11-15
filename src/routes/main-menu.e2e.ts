@@ -1,3 +1,4 @@
+import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
@@ -187,7 +188,7 @@ test('destination navigation uses directional native page transitions and honors
 	await choose(page, 'Saves');
 	await page.goBack();
 	await expect(page).toHaveURL(/\/boxes$/);
-	await expectDestinationReady(page, 'boxes');
+	await expectBoxesReady(page);
 	await page.goForward();
 	await expect(page).toHaveURL(/\/$/);
 	await expectDestinationReady(page, 'saves');
@@ -387,7 +388,7 @@ test('reloading with the Main Menu open does not prompt and resets session focus
 	});
 	await page.reload();
 
-	await expectDestinationReady(page, 'boxes');
+	await expectBoxesReady(page);
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	expect(unloadDialogs).toBe(0);
 });

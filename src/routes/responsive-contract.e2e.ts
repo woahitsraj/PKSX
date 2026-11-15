@@ -1,3 +1,4 @@
+import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page, TestInfo } from '@playwright/test';
@@ -804,10 +805,7 @@ test('[RESP-1][RESP-2] 559/560 reflow preserves pane, focus, Carry, and Menu ide
 	await page.setViewportSize({ width: 640, height: 559 });
 	await chooseMainMenu(page, 'Boxes');
 	await setSafeArea(page, { top: 10, right: 10, bottom: 10, left: 10 });
-	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await expectBoxesReady(page);
 	const panes = page.locator('.box-pane');
 	const paneState = await panes.evaluateAll((elements) =>
 		elements.map((element) => ({
@@ -911,10 +909,7 @@ test('[LARGE-1][SURFACE-1] large caps and representative surfaces use bounded ge
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await chooseMainMenu(page, 'Boxes');
 	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });
-	await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await expectBoxesReady(page);
 	let boxes = await page.evaluate(() => {
 		const workspaceElement = document.querySelector<HTMLElement>('.storage-workspace')!;
 		const workspace = workspaceElement.getBoundingClientRect();
@@ -1054,6 +1049,7 @@ test('[DENSITY-1][SURFACE-1] portrait Pokemon Editor audits focused and open com
 	skipNonChromium(testInfo);
 	await importPublicSave(page);
 	await page.goto('/boxes');
+	await expectBoxesReady(page);
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 30_000 });
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
