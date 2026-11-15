@@ -80,7 +80,11 @@ for (const viewport of [
 			await expect(page.locator('.box-pane')).toHaveAttribute('data-location', 'box-0');
 			await expect(page.locator('.box-pane .slot').first()).toBeEnabled();
 			await pressController(page, 'y');
-			await expect(actions.locator('button:focus')).toHaveCount(1);
+			await expect(
+				page.getByRole('dialog', { name: 'Selection actions', exact: true })
+			).toBeVisible();
+			await page.keyboard.press('Escape');
+			await expect(page.getByRole('dialog')).toHaveCount(0);
 			await actions.getByRole('button', { name: 'Clear selection' }).focus();
 			await pressController(page, 'Enter');
 			await expect(actions).toContainText('0 selected');

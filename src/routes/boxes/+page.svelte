@@ -251,6 +251,7 @@
 	import type { TradeSource } from '$lib/link-trade/trade-setup';
 	import {
 		createSlotMenuCommands,
+		storageTransferCommands,
 		type SlotMenuCommand,
 		type SlotMenuCommandKey
 	} from '$lib/pksx/slot-menu';
@@ -836,7 +837,8 @@
 				) ?? false,
 			// The review has no start action until #437, so production builds hide the entry.
 			trade: focusedSlot.kind === 'pokemon' && Boolean(focusedSlot.entityBytesBase64),
-			storage: focusedSlotOwner.type === 'pokemon-storage'
+			storage: focusedSlotOwner.type === 'pokemon-storage',
+			saveStorage: focusedSlotOwner.type === 'save-file' && focusedPaneWorkspace !== null
 		}).map((command) =>
 			command.key === 'copy' && focusedSlotOwner.type === 'pokemon-storage'
 				? { ...command, label: 'Duplicate' }
@@ -952,6 +954,22 @@
 	}
 
 	function dispatchToActiveSurface(action: NavigationAction): boolean {
+		if (activeSummonedWorkflow?.kind === 'selection-actions') {
+			const result = dispatchSlotMenuAction(
+				{ zone: 'actions', index: selectionMenuIndex },
+				action,
+				storageTransferCommands.length + 1
+			);
+			selectionMenuIndex = result.focus.zone === 'actions' ? result.focus.index : 0;
+			if (result.effect === 'dismiss') dismissActiveWorkflow();
+			else if (result.effect === 'activate')
+				openStorageBatch(selectionMenuIndex === 0 ? 'copy' : 'move');
+			else
+				queueMicrotask(() =>
+					document.getElementById(`selection-action-${selectionMenuIndex}`)?.focus()
+				);
+			return true;
+		}
 		if (activeSummonedWorkflow?.kind === 'recently-deleted-menu') {
 			if (action === 'back' || action === 'sourceAction') closeDeletedMenu();
 			else if (action === 'up' || action === 'down')
@@ -998,7 +1016,8 @@
 			return true;
 		}
 		if (selection && !activeSummonedWorkflow && action === 'carryMode') {
-			focusSelectionControls();
+			if (selection.source.type === 'save-file' && selection.slots.length) openSelectionActions();
+			else focusSelectionControls();
 			return true;
 		}
 		if (action === 'carryMode') {
@@ -2532,7 +2551,10 @@
 	$effect(reconcileSelection);
 
 	function reconcileSelection() {
-		if (!selection) return;
+		if (!selection) {
+			if (activeSummonedWorkflow?.kind === 'selection-actions') dismissActiveWorkflow();
+			return;
+		}
 		const pane = activePane;
 		if (
 			!pane ||
@@ -2562,46 +2584,95 @@
 			?.focus();
 	}
 
+	let selectionMenuIndex = $state(0);
+	function openSelectionActions() {
+		if (
+			!selection?.slots.length ||
+			selection.source.type !== 'save-file' ||
+			busy ||
+			activeSummonedWorkflow
+		)
+			return;
+		if (summonedWorkflow.open('selection-actions', controlLauncher('selection-actions'))) {
+			selectionMenuIndex = 0;
+			queueMicrotask(() => document.getElementById('selection-action-0')?.focus());
+		}
+	}
 	let batchMode = $state<'copy' | 'move'>('copy');
-	function openStorageBatch(mode: 'copy' | 'move') {
-		if (!selection?.slots.length || selection.source.type !== 'save-file' || busy) return;
+	let batchSource = $state.raw<{
+		paneId: string;
+		state: WorkspaceState;
+		sources: SaveSlotRef[];
+	} | null>(null);
+	function openStorageBatch(mode: 'copy' | 'move', single = false) {
+		const pane = single ? summonedSlotPane : activePane;
+		const state = saveWorkspaceForPane(pane)?.state;
+		const launcher = summonedSlotLauncher;
+		const sources: SaveSlotRef[] | undefined =
+			single && launcher
+				? [slotRefForLauncher(launcher)]
+				: selection?.slots.map((ref) => ({ zone: 'box', ...ref }));
+		if (
+			!pane ||
+			!state ||
+			!sources?.length ||
+			busy ||
+			(!single && (!selection?.bytes || !bytesEqual(state.bytes, selection.bytes)))
+		)
+			return;
+		batchSource = { paneId: pane.id, state, sources };
 		batchMode = mode;
-		if (summonedWorkflow.open('storage-batch', controlLauncher(`batch-${mode}`)))
-			queueMicrotask(() => document.querySelector<HTMLButtonElement>('.batch button')?.focus());
+		if (activeSummonedWorkflow)
+			openRelatedWorkflow(
+				'storage-batch',
+				single
+					? slotCommandLauncherId(mode === 'copy' ? 'copy-to-storage' : 'move-to-storage')
+					: `selection-action-${selectionMenuIndex}`
+			);
+		else summonedWorkflow.open('storage-batch', controlLauncher(`batch-${mode}`));
+		queueMicrotask(() => document.querySelector<HTMLButtonElement>('.batch button')?.focus());
 	}
 	function closeStorageBatch() {
 		if (busy) return;
-		summonedWorkflow.dismiss();
-		queueMicrotask(() => document.getElementById(`batch-${batchMode}`)?.focus());
+		batchSource = null;
+		dismissActiveWorkflow();
+	}
+	function currentBatchState() {
+		const state = saveWorkspaceForPane(
+			workbenchPanes.find((pane) => pane.id === batchSource?.paneId)
+		)?.state;
+		if (
+			!batchSource ||
+			!state ||
+			state.file.id !== batchSource.state.file.id ||
+			!bytesEqual(state.bytes, batchSource.state.bytes)
+		)
+			throw new Error('Source changed. Preview again.');
+		return state;
 	}
 	async function previewSelectedStorageBatch(startingBoxId: string) {
-		const state = saveWorkspaceForPane(activePane)?.state;
-		if (
-			!selection ||
-			!state ||
-			!engine ||
-			!selection.bytes ||
-			!bytesEqual(state.bytes, selection.bytes)
-		)
-			throw new Error('Selection changed. Select Pokemon again.');
+		const state = currentBatchState();
+		if (!engine || !batchSource) throw new Error('Source unavailable.');
 		return previewSaveStorageBatch({
 			state,
-			sources: selection.slots,
+			sources: batchSource.sources,
 			mode: batchMode,
 			startingBoxId,
 			engine,
 			catalog: getPokemonStorageCatalog()
 		});
 	}
+
 	async function applySelectedStorageBatch(batch: SaveStorageBatch) {
-		const state = saveWorkspaceForPane(activePane)?.state;
-		if (!selection || !state || !bytesEqual(state.bytes, batch.state.bytes))
+		const state = currentBatchState();
+		if (!bytesEqual(state.bytes, batch.state.bytes))
 			throw new Error('Selection changed. Preview again.');
 		busy = true;
 		try {
 			const next = await applySaveStorageBatch(batch, storage, getPokemonStorageCatalog());
 			selection = null;
-			summonedWorkflow.dismiss();
+			batchSource = null;
+			summonedWorkflow.closeAll();
 			if (loadedSave?.file.id === next.file.id) {
 				loadedSave = next;
 				setCachedActiveWorkspace(next, next.workspace.boxSlots[0]?.box ?? activePaneBox);
@@ -5053,6 +5124,12 @@
 				break;
 			case 'copy':
 				beginPendingSlotOperation('copy');
+				break;
+			case 'copy-to-storage':
+				openStorageBatch('copy', true);
+				break;
+			case 'move-to-storage':
+				openStorageBatch('move', true);
 				break;
 			case 'store-automatically': {
 				const launcher = summonedSlotLauncher;
@@ -8032,6 +8109,16 @@
 							id={paneActive ? 'box-grid' : `box-grid-${pane.id}`}
 							class={['location-grid', paneParty && 'party-grid']}
 							onpointerdown={(event) => beginBoxDrag(event, pane, paneParty)}
+							oncontextmenu={(event) => {
+								if (
+									selection?.slots.length &&
+									selection.source.id === pane.source.id &&
+									selection.source.type === pane.source.type
+								) {
+									event.preventDefault();
+									openSelectionActions();
+								}
+							}}
 							ondragstart={(event) => event.preventDefault()}
 							role="grid"
 							tabindex={paneActive ? 0 : -1}
@@ -8246,6 +8333,12 @@
 			<span>Shift + arrows extend selection. Drag a rectangle to select Pokemon.</span>
 			{#if selection.source.type === 'save-file'}
 				<button
+					id="selection-actions"
+					type="button"
+					disabled={!selection.slots.length}
+					onclick={openSelectionActions}>Actions</button
+				>
+				<button
 					id="batch-copy"
 					type="button"
 					disabled={!selection.slots.length}
@@ -8285,6 +8378,19 @@
 		style:width={`${Math.abs(boxDrag.x - boxDrag.startX)}px`}
 		style:--drag-height={`${Math.abs(boxDrag.y - boxDrag.startY)}px`}
 	></div>{/if}
+
+{#if activeSummonedWorkflow?.kind === 'selection-actions' && selection}
+	<SlotActionMenu
+		label="Selection actions"
+		idPrefix="selection-action"
+		location={`${selection.slots.length} selected Pokemon`}
+		commands={storageTransferCommands}
+		activeIndex={selectionMenuIndex}
+		onFocusCommand={(index) => (selectionMenuIndex = index)}
+		onSelectCommand={(command) => openStorageBatch(command === 'copy-to-storage' ? 'copy' : 'move')}
+		onClose={dismissActiveWorkflow}
+	/>
+{/if}
 
 {#if activeSummonedWorkflow?.kind === 'storage-batch'}
 	{#key activeSummonedWorkflow}

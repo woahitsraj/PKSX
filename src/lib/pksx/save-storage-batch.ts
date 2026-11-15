@@ -1,4 +1,4 @@
-import { base64ToBytes, type EngineApi } from '$lib/engine';
+import { base64ToBytes, type EngineApi, type SaveSlotRef } from '$lib/engine';
 import type { WorkspaceState } from '$lib/pksx/backup-workflow';
 import type { PokemonStorageService } from '$lib/pksx/pokemon-storage-catalog';
 import { bytesEqual, type SavesStorage } from '$lib/pksx/saves';
@@ -9,12 +9,11 @@ export class BatchCommitUncertainError extends Error {
 	}
 }
 
-export type BatchSource = { box: number; slot: number };
 export type SaveStorageBatch = Awaited<ReturnType<typeof previewSaveStorageBatch>>;
 
 export async function previewSaveStorageBatch(input: {
 	state: WorkspaceState;
-	sources: BatchSource[];
+	sources: SaveSlotRef[];
 	mode: 'copy' | 'move';
 	startingBoxId: string;
 	engine: EngineApi;
@@ -23,21 +22,24 @@ export async function previewSaveStorageBatch(input: {
 	const { state, sources, mode, startingBoxId, engine, catalog } = input;
 	if (
 		!sources.length ||
-		new Set(sources.map((ref) => `${ref.box}:${ref.slot}`)).size !== sources.length
+		new Set(sources.map((ref) => `${ref.zone}:${ref.zone === 'box' ? ref.box : ''}:${ref.slot}`))
+			.size !== sources.length
 	)
-		throw new Error('Select distinct occupied Box Slots.');
+		throw new Error('Select distinct occupied Slots.');
+	if (sources.some((ref) => ref.zone === 'party') && sources.length !== 1)
+		throw new Error('Party transfers support one Pokemon at a time.');
 	const items = [];
 	const labels: string[] = [];
-	for (const box of new Set(sources.map((ref) => ref.box))) {
+	for (const box of new Set(sources.map((ref) => (ref.zone === 'box' ? ref.box : 0)))) {
 		const loaded = await engine.loadSaveWorkspace(
 			state.bytes,
 			state.file.originalFileName ?? undefined,
 			box
 		);
 		if (!loaded.ok) throw loaded.error;
-		for (const source of sources.filter((ref) => ref.box === box)) {
-			const slot = loaded.value.boxSlots.find(
-				(item) => item.box === box && item.slot === source.slot
+		for (const source of sources.filter((ref) => (ref.zone === 'box' ? ref.box : 0) === box)) {
+			const slot = (source.zone === 'party' ? loaded.value.partySlots : loaded.value.boxSlots).find(
+				(item) => item.slot === source.slot
 			);
 			if (!slot || slot.isEmpty || !slot.entityBytesBase64)
 				throw new Error('A selected Slot changed or has no Pokemon bytes. Select Pokemon again.');
@@ -46,7 +48,7 @@ export async function previewSaveStorageBatch(input: {
 				origin: {
 					entryMode: mode === 'move' ? ('moved-in' as const) : ('copied-in' as const),
 					originSaveFileId: state.file.id,
-					originSaveSlot: { zone: 'box' as const, ...source },
+					originSaveSlot: source,
 					originSaveFileName: state.file.originalFileName,
 					originGame: loaded.value.summary.gameVersion,
 					originalTrainer: slot.originalTrainer ?? loaded.value.summary.trainerName ?? null,
@@ -54,7 +56,11 @@ export async function previewSaveStorageBatch(input: {
 					enteredAt: new Date().toISOString()
 				}
 			});
-			labels.push(`Box ${box + 1}, Slot ${source.slot + 1}`);
+			labels.push(
+				source.zone === 'party'
+					? `Party Slot ${source.slot + 1}`
+					: `Box ${box + 1}, Slot ${source.slot + 1}`
+			);
 		}
 	}
 	const prepared = await catalog.prepareSaveBatch(items, startingBoxId);
@@ -65,16 +71,18 @@ export async function previewSaveStorageBatch(input: {
 			const result = await engine.applySlotOperation(
 				bytes,
 				state.file.originalFileName ?? undefined,
-				{ kind: 'clear', source: { zone: 'box', ...source } },
-				source.box
+				{ kind: 'clear', source },
+				source.zone === 'box' ? source.box : 0
 			);
 			if (!result.ok) throw result.error;
-			if (
-				!result.value.mutated ||
-				!result.value.workspace.boxSlots.find(
-					(slot) => slot.box === source.box && slot.slot === source.slot
-				)?.isEmpty
-			)
+			const cleared =
+				source.zone === 'party'
+					? result.value.workspace.partySlots.filter((slot) => !slot.isEmpty).length ===
+						workspace.partySlots.filter((slot) => !slot.isEmpty).length - 1
+					: result.value.workspace.boxSlots.find(
+							(slot) => slot.box === source.box && slot.slot === source.slot
+						)?.isEmpty;
+			if (!result.value.mutated || !cleared)
 				throw new Error('The engine could not clear a selected Slot. Nothing was applied.');
 			bytes = result.value.bytes;
 			workspace = result.value.workspace;

@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'vitest';
-import { createPkhexEngine } from '$lib/engine';
+import { base64ToBytes, createPkhexEngine } from '$lib/engine';
 import { createCleanWorkspaceState } from '$lib/pksx/backup-workflow';
 import {
 	BrowserCatalogPersistence,
@@ -54,8 +54,8 @@ async function setup() {
 			workspace: copied.value.workspace
 		}),
 		sources: [
-			{ box: 0, slot: source.slot },
-			{ box: 1, slot: empty.slot }
+			{ zone: 'box' as const, box: 0, slot: source.slot },
+			{ zone: 'box' as const, box: 1, slot: empty.slot }
 		],
 		startingBoxId: catalog.listBoxes()[0].id
 	};
@@ -129,4 +129,38 @@ test('rejects a source edit during preview and leaves the edit intact', async ()
 	expect((await input.storage.getWorkspace(input.state.file.id))?.bytes).toEqual(
 		new Uint8Array([1, 2])
 	);
+});
+
+test.each(['copy', 'move'] as const)('preserves a single Party Pokemon with %s', async (mode) => {
+	const input = await setup();
+	const source = input.state.workspace.partySlots.find((slot) => !slot.isEmpty);
+	if (!source?.entityBytesBase64) throw new Error('Fixture needs a Party Pokemon.');
+	const count = input.state.workspace.partySlots.filter((slot) => !slot.isEmpty).length;
+	const batch = await previewSaveStorageBatch({
+		...input,
+		mode,
+		sources: [{ zone: 'party', slot: source.slot }]
+	});
+	const next = await applySaveStorageBatch(batch, input.storage, input.catalog);
+	expect(next.workspace.partySlots.filter((slot) => !slot.isEmpty)).toHaveLength(
+		count - (mode === 'move' ? 1 : 0)
+	);
+	const record = input.catalog.listRecords()[0];
+	expect(record.origin.originSaveSlot).toEqual({ zone: 'party', slot: source.slot });
+	const payload = await input.engine.readPreservationPayload(
+		await input.catalog.readPayload(record.recordId)
+	);
+	expect(payload.ok).toBe(true);
+	if (!payload.ok) throw payload.error;
+	const hash = await crypto.subtle.digest(
+		'SHA-256',
+		new Uint8Array(base64ToBytes(source.entityBytesBase64)).buffer
+	);
+	expect(payload.value.summary.originalEntitySha256).toBe(
+		[...new Uint8Array(hash)].map((value) => value.toString(16).padStart(2, '0')).join('')
+	);
+	expect(await input.storage.listBackups(input.state.file.id)).toHaveLength(
+		mode === 'move' ? 1 : 0
+	);
+	if (mode === 'copy') expect(await input.storage.getWorkspace(input.state.file.id)).toBeNull();
 });

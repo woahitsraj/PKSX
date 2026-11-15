@@ -6,6 +6,8 @@ export type SlotMenuCommandKey =
 	| 'create-pokemon'
 	| 'move'
 	| 'copy'
+	| 'copy-to-storage'
+	| 'move-to-storage'
 	| 'store-automatically'
 	| 'clear'
 	| 'export'
@@ -19,6 +21,11 @@ export type SlotMenuCommand = {
 	reason: string | null;
 };
 
+export const storageTransferCommands: SlotMenuCommand[] = [
+	{ key: 'copy-to-storage', label: 'Copy to Storage', availability: 'available', reason: null },
+	{ key: 'move-to-storage', label: 'Move to Storage', availability: 'available', reason: null }
+];
+
 export function createSlotMenuCommands(
 	slot: SlotView,
 	createPokemonReason: string | null,
@@ -28,6 +35,7 @@ export function createSlotMenuCommands(
 		evolve: boolean;
 		trade: boolean;
 		storage?: boolean;
+		saveStorage?: boolean;
 	}
 ): SlotMenuCommand[] {
 	if (slot.kind === 'empty') {
@@ -51,6 +59,7 @@ export function createSlotMenuCommands(
 			: []),
 		{ key: 'move', label: 'Move', availability: 'available', reason: null },
 		{ key: 'copy', label: 'Copy', availability: 'available', reason: null },
+		...(capabilities.saveStorage ? storageTransferCommands : []),
 		...(capabilities.storage
 			? ([
 					{

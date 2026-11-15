@@ -5,6 +5,8 @@
 
 	interface Props {
 		location: string;
+		label?: string;
+		idPrefix?: string;
 		commands: SlotMenuCommand[];
 		activeIndex: number;
 		availabilityPending?: boolean;
@@ -16,6 +18,8 @@
 
 	let {
 		location,
+		label = 'Slot actions',
+		idPrefix = 'slot-action',
 		commands,
 		activeIndex,
 		availabilityPending = false,
@@ -28,23 +32,27 @@
 	const pending = $derived(availabilityPending || pendingLabel !== null);
 </script>
 
-<EdgeMenu label="Slot actions" onDismiss={onClose}>
+<EdgeMenu {label} onDismiss={onClose}>
 	<div class="slot-context" aria-busy={pending ? 'true' : undefined}>
 		<div class="slot-context-header">
 			<p class="slot-context-location">{location}</p>
 			<DelayedSpinner active={pending} label={pendingLabel ?? 'Loading Slot actions'} />
 		</div>
 
-		<div class="slot-command-stack" role="list" aria-label="Slot Menu commands">
+		<div
+			class="slot-command-stack"
+			role="list"
+			aria-label={label === 'Slot actions' ? 'Slot Menu commands' : 'Selection Menu commands'}
+		>
 			{#each commands as command, index (command.label)}
 				<div class="slot-command-row" role="listitem">
 					<button
-						id={`slot-action-${index}`}
+						id={`${idPrefix}-${index}`}
 						type="button"
 						data-pksx-control-category="small"
-						class:controller-focused={activeIndex === index}
+						class={{ 'controller-focused': activeIndex === index }}
 						aria-disabled={command.reason ? 'true' : undefined}
-						aria-describedby={command.reason ? `slot-action-${index}-reason` : undefined}
+						aria-describedby={command.reason ? `${idPrefix}-${index}-reason` : undefined}
 						data-availability={command.availability}
 						onfocus={(event) => {
 							onFocusCommand(index);
@@ -61,7 +69,7 @@
 						<strong>{command.label}</strong>
 					</button>
 					{#if command.reason}
-						<span id={`slot-action-${index}-reason`} class="slot-command-reason"
+						<span id={`${idPrefix}-${index}-reason`} class="slot-command-reason"
 							>{command.reason}</span
 						>
 					{/if}
@@ -70,11 +78,10 @@
 		</div>
 
 		<button
-			id={`slot-action-${commands.length}`}
+			id={`${idPrefix}-${commands.length}`}
 			type="button"
 			data-pksx-control-category="small"
-			class="close-command"
-			class:controller-focused={activeIndex === commands.length}
+			class={['close-command', { 'controller-focused': activeIndex === commands.length }]}
 			onfocus={() => onFocusCommand(commands.length)}
 			onclick={onClose}>Close</button
 		>

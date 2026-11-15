@@ -22,6 +22,7 @@ export type SummonedWorkflowKind =
 	| 'source-picker'
 	| 'box-picker'
 	| 'storage-batch'
+	| 'selection-actions'
 	| 'storage-box-organizer'
 	| 'clear-slot-confirmation'
 	| 'pokemon-editor'
