@@ -1,3 +1,4 @@
+import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import path from 'node:path';
@@ -278,10 +279,8 @@ test('Trainer and Bag report the persisted active Save File while Pokemon Storag
 	page
 }) => {
 	await resetEmptyStorage(page);
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
-		timeout: 15000
-	});
+	await importSaveThroughSaves(page, emeraldFixturePath);
+
 	await choose(page, 'Boxes');
 	await page.getByRole('button', { name: 'Open Box Menu for emerald-011020251345.sav' }).click();
 	await page
@@ -374,10 +373,8 @@ test('reloading with the Main Menu open does not prompt and resets session focus
 	page
 }) => {
 	await resetEmptyStorage(page);
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
-		timeout: 15000
-	});
+	await importSaveThroughSaves(page, emeraldFixturePath);
+
 	await choose(page, 'Boxes');
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 	await page.locator('#box-0-slot-17').focus();
@@ -481,10 +478,8 @@ test('stored Pokemon keeps the default entry on Saves with a compact introductio
 
 test('Saves restores an asynchronously loaded control by stable identity', async ({ page }) => {
 	await resetEmptyStorage(page);
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
-		timeout: 15000
-	});
+	await importSaveThroughSaves(page, emeraldFixturePath);
+
 	await page.reload();
 	await expectDestinationReady(page, 'saves');
 	const grid = await expectSavesFocus(page, /saves-target-.+/);
@@ -501,10 +496,8 @@ test('Trainer and Bag keep independent semantic focus within their separate dest
 	page
 }) => {
 	await resetEmptyStorage(page);
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
-		timeout: 15000
-	});
+	await importSaveThroughSaves(page, emeraldFixturePath);
+
 	await choose(page, 'Trainer');
 
 	const trainerRoot = page.locator('[data-destination-root="trainer"]');
@@ -678,10 +671,7 @@ test('Saves deletion workflow owns shortcuts, controller Back, and browser histo
 	page
 }) => {
 	await resetEmptyStorage(page);
-	await page.getByLabel('Import Save File').setInputFiles(emeraldFixturePath);
-	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
-		timeout: 15000
-	});
+	await importSaveThroughSaves(page, emeraldFixturePath);
 
 	const activeCard = page.locator('.save-card.active');
 	await activeCard.getByRole('button', { name: /Open Save File Menu/ }).click();

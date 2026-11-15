@@ -1,3 +1,4 @@
+import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
 
@@ -25,11 +26,10 @@ test('saved collections compact the introduction and open at the dedicated Boxes
 }) => {
 	await page.goto('/');
 	await expect(page.locator('.saves-route')).toHaveAttribute('data-initial-state', 'ready');
-	await page
-		.getByLabel('Import Save File', { exact: true })
-		.setInputFiles(
-			path.resolve('test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav')
-		);
+	await importSaveThroughSaves(
+		page,
+		path.resolve('test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav')
+	);
 	await expect(page.locator('.save-card')).toHaveCount(1, { timeout: 30_000 });
 	await expect(page.locator('#about-pksx details')).not.toHaveAttribute('open');
 	await page.locator('.save-card .card-main').click();
