@@ -149,7 +149,7 @@
 		if (summonedWorkflow.active) return;
 		const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 		if (!active || !route.contains(active)) {
-			if (event.key.startsWith('Arrow')) {
+			if ((!active || active === document.body) && event.key.startsWith('Arrow')) {
 				focusStop(rememberedStop, rememberedThemeControl);
 				event.preventDefault();
 			}

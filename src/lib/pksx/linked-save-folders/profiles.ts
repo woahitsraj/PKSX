@@ -19,7 +19,13 @@ export function fileEmulator(file: { emulator?: string; linkedDocumentId?: strin
 }
 
 export function folderProfile(tree: string, name: string): EmulatorProfile {
-	const label = (decodeURIComponent(tree) + '/' + name).toLowerCase();
+	let path = tree;
+	try {
+		path = decodeURIComponent(tree);
+	} catch {
+		// Raw document ids can hold a literal '%'.
+	}
+	const label = (path + '/' + name).toLowerCase();
 	if (label.includes('retroarch')) return 'retroarch';
 	if (label.includes('melonds')) return 'melonds';
 	if (label.includes('drastic')) return 'drastic';

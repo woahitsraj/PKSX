@@ -28,22 +28,24 @@ it('discovers and explicitly imports real XD bytes without duplicating linked do
 	};
 	try {
 		const saves: DiscoveredSave[] = [];
+		const read: Uint8Array[] = [];
 		await scanFolder({
 			plugin,
 			engine,
 			storage,
 			folder,
 			signal: new AbortController().signal,
-			onSave: (save) => {
+			onSave: (save, found) => {
 				saves.push(save);
+				read.push(found);
 			},
 			onProgress: () => {}
 		});
 		expect(saves).toHaveLength(1);
 		expect(await storage.listSaves()).toHaveLength(0);
 		const [first, second] = await Promise.all([
-			importLinkedSave(plugin, engine, storage, saves[0]),
-			importLinkedSave(plugin, engine, storage, saves[0])
+			importLinkedSave(storage, saves[0], read[0]),
+			importLinkedSave(storage, saves[0], read[0])
 		]);
 		expect(first.id).toBe(second.id);
 		expect(await storage.listSaves()).toHaveLength(1);

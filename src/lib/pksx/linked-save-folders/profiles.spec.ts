@@ -46,3 +46,7 @@ it('matches a linked save to the folder that contains it', () => {
 	expect(folderOf(id('primary:Other/a.gci'), [gc])).toBeUndefined();
 	expect(folderOf(undefined, [gc])).toBeUndefined();
 });
+
+it('reads an emulator from a raw id with a literal percent sign', () => {
+	expect(folderProfile('["a","primary:RetroArch/saves/100%.srm"]', '')).toBe('retroarch');
+});

@@ -145,20 +145,13 @@ export async function scanFolder(options: {
 	);
 }
 
-export async function importLinkedSave(
-	plugin: SaveFoldersPlugin,
-	engine: EngineApi,
-	storage: SavesStorage,
-	save: DiscoveredSave
-) {
-	const document = await plugin.read({ tree: save.folder.tree, documentId: save.id });
-	const bytes = documentBytes(document.base64);
-	const validation = await engine.loadSaveWorkspace(bytes, save.name, 0, { background: true });
-	if (!validation.ok) throw new Error(validation.error.message);
+export function importLinkedSave(storage: SavesStorage, save: DiscoveredSave, bytes: Uint8Array) {
 	return storage.importSave({
 		bytes,
 		originalFileName: save.name,
-		linkedDocumentId: document.identity
+		linkedDocumentId: save.identity,
+		emulator: save.folder.emulator ?? folderProfile(save.folder.tree, save.folder.name),
+		activate: false
 	});
 }
 

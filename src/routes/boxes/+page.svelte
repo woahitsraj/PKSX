@@ -568,7 +568,8 @@
 		const file = saveWorkspaceForPane(boxMenuPane)?.state.file;
 		return supportsSaveFolders() && file?.linkedDocumentId ? file : null;
 	});
-	let exportConfirmation = $state(false);
+	let exportTarget = $state<BoxMenuTarget | null>(null);
+	const exportConfirmation = $derived(exportTarget !== null && exportTarget === boxMenuTarget);
 	const boxMenuCommands = $derived(
 		createBoxMenuCommands({
 			source: boxMenuTarget?.source ?? pokemonStorageSource(),
@@ -2677,7 +2678,6 @@
 
 	function closeBoxMenu() {
 		boxMenuTarget = null;
-		exportConfirmation = false;
 		dismissActiveWorkflow();
 	}
 
@@ -2958,16 +2958,16 @@
 				break;
 			case 'export':
 				if (boxMenuLinkedFile) {
-					exportConfirmation = true;
+					exportTarget = boxMenuTarget;
 					focusBoxMenuCommand(0);
 				} else void exportBoxMenuSave();
 				break;
 			case 'export-confirm':
-				exportConfirmation = false;
+				exportTarget = null;
 				void exportBoxMenuSave();
 				break;
 			case 'export-cancel':
-				exportConfirmation = false;
+				exportTarget = null;
 				focusBoxMenuCommand(0);
 				break;
 			case 'save-backup':
@@ -3115,7 +3115,6 @@
 				resolved.workspace.state,
 				resolved.pane.activeBox
 			);
-			if (!resolveBoxMenuSaveTarget(target)) return;
 			const file = resolved.workspace.state.file;
 			if (!copy && supportsSaveFolders() && file.linkedDocumentId) {
 				const exported = await getLinkedSaveSources().export(file, () =>
@@ -3127,11 +3126,12 @@
 				invalidateSavesCache();
 			} else {
 				const bytes = await editCoordinator.export(origin);
+				if (!resolveBoxMenuSaveTarget(target)) return;
 				downloadBytes(bytes, createExportFileName(file.originalFileName));
 				statusMessage = `Export ready for ${file.originalFileName ?? 'Save File'}.`;
 			}
 			toastHost.success(statusMessage);
-			closeBoxMenu();
+			if (boxMenuTarget === target) closeBoxMenu();
 		} catch (error) {
 			importError = getErrorMessage(error);
 			statusMessage = 'Export failed.';

@@ -13,11 +13,14 @@ import {
 	supportsSaveFolders,
 	scanFolder,
 	cancellable,
+	folderOf,
+	importLinkedSave,
 	type FolderLink
 } from './index';
-import { folderProfile } from './profiles';
 
 type Notice = (tone: 'success' | 'error', text: string) => void;
+const dismissedKey = 'pksx.linked-saves.dismissed';
+const rescanAfter = 5 * 60_000;
 export type SourceAttention = Extract<LinkedSourceStatus, { kind: 'changed' | 'recovery' }>;
 
 export class LinkedSaveDiscovery {
@@ -30,12 +33,14 @@ export class LinkedSaveDiscovery {
 	notify: Notice = () => {};
 	#controller: AbortController | undefined;
 	#task: Promise<void> | undefined;
+	#scannedAt = 0;
 
 	async initialize() {
 		if (!supportsSaveFolders()) return;
 		try {
 			this.folders = (await saveFolders.status()).folders;
-			await this.scan();
+			if (Date.now() - this.#scannedAt < rescanAfter) await this.checkSources();
+			else await this.scan();
 		} catch (error) {
 			this.notify('error', errorMessage(error));
 		}
@@ -46,6 +51,7 @@ export class LinkedSaveDiscovery {
 		try {
 			const result = await saveFolders.pick();
 			if (result.cancelled) return;
+			writeDismissed(readDismissed().filter((id) => !folderOf(id, [result.folder])));
 			this.folders = (await saveFolders.status()).folders;
 			this.picking = false;
 			await this.scan([result.folder], true);
@@ -66,23 +72,27 @@ export class LinkedSaveDiscovery {
 		}
 	}
 
+	forget(file: StoredSaveFile) {
+		if (file.linkedDocumentId) writeDismissed([...readDismissed(), file.linkedDocumentId]);
+	}
+
 	async loadExternal(source: SourceAttention & { kind: 'changed' }) {
-		await this.#sourceAction(() =>
+		await this.#sourceAction('Loaded from emulator', () =>
 			getLinkedSaveSources().loadExternal(source.file, source.externalHash, true)
 		);
 	}
 
 	async recoverSource(source: SourceAttention & { kind: 'recovery' }) {
-		await this.#sourceAction(() =>
+		await this.#sourceAction('Restored emulator file', () =>
 			getLinkedSaveSources().recover(source.file, source.externalHash)
 		);
 	}
 
-	async #sourceAction(action: () => Promise<unknown>) {
+	async #sourceAction(done: string, action: () => Promise<unknown>) {
 		this.sourceBusy = true;
 		try {
 			await action();
-			this.notify('success', 'Loaded from emulator');
+			this.notify('success', done);
 		} catch (error) {
 			this.notify('error', errorMessage(error));
 		} finally {
@@ -111,13 +121,17 @@ export class LinkedSaveDiscovery {
 	}
 
 	scan(folders = this.folders, announce = false): Promise<void> {
-		if (this.#task) return this.#task;
+		if (this.#task)
+			return folders === this.folders
+				? this.#task
+				: this.#task.then(() => this.scan(folders, announce));
 		this.#controller = new AbortController();
 		this.scanning = true;
 		const signal = this.#controller.signal;
 		this.#task = this.#scan(folders, signal, announce)
 			.catch((error) => this.notify('error', errorMessage(error)))
 			.finally(() => {
+				this.#scannedAt = Date.now();
 				this.scanning = false;
 				this.#task = undefined;
 			});
@@ -126,7 +140,10 @@ export class LinkedSaveDiscovery {
 
 	async #scan(folders: FolderLink[], signal: AbortSignal, announce: boolean) {
 		const storage = getSavesStorage();
-		const known = new SvelteSet((await storage.listSaves()).map((save) => save.linkedDocumentId));
+		const known = new SvelteSet([
+			...(await storage.listSaves()).map((save) => save.linkedDocumentId),
+			...readDismissed()
+		]);
 		let added = 0;
 		let failed = false;
 		for (const folder of folders) {
@@ -141,13 +158,7 @@ export class LinkedSaveDiscovery {
 					onProgress: () => {},
 					onSave: async (save, bytes) => {
 						if (known.has(save.identity)) return;
-						await storage.importSave({
-							bytes,
-							originalFileName: save.name,
-							linkedDocumentId: save.identity,
-							emulator: folder.emulator ?? folderProfile(folder.tree, folder.name),
-							activate: false
-						});
+						await importLinkedSave(storage, save, bytes);
 						known.add(save.identity);
 						added++;
 						invalidateSavesCache();
@@ -170,6 +181,22 @@ export class LinkedSaveDiscovery {
 
 export function sourceFor(file: StoredSaveFile) {
 	return linkedSaveDiscovery.sources[file.id];
+}
+
+function readDismissed(): string[] {
+	try {
+		return JSON.parse(localStorage.getItem(dismissedKey) ?? '[]');
+	} catch {
+		return [];
+	}
+}
+
+function writeDismissed(ids: string[]) {
+	try {
+		localStorage.setItem(dismissedKey, JSON.stringify([...new Set(ids)]));
+	} catch {
+		// Storage can be unavailable; deleted saves may then be found again.
+	}
 }
 
 function errorMessage(error: unknown) {

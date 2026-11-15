@@ -119,6 +119,7 @@
 		saveFiles.find((saveFile) => saveFile.id === menuSaveFileId) ?? null
 	);
 	const menuSource = $derived(menuSaveFile ? discovery.sources[menuSaveFile.id] : undefined);
+	let replaceEdits = $state(false);
 	const menuOpen = $derived(summonedWorkflow.active?.kind === 'save-file-menu');
 	const deleteOpen = $derived(summonedWorkflow.active?.kind === 'save-file-delete');
 	const addSavesOpen = $derived(summonedWorkflow.active?.kind === 'add-saves-menu');
@@ -739,6 +740,7 @@
 		menuSaveFileId = saveFileId;
 		menuReturnTarget = target;
 		menuIndex = 0;
+		replaceEdits = false;
 		deleteDescription = null;
 		void focusMenuCommand(0);
 	}
@@ -812,6 +814,7 @@
 				throw new Error('The selected Save File is no longer available.');
 			}
 			await getSaveFileEditCoordinator().deleteSave(saveFile);
+			discovery.forget(saveFile);
 			invalidateSavesCache();
 			invalidateActiveWorkspaceCache(saveFile.id);
 			summonedWorkflow.closeAll();
@@ -862,6 +865,10 @@
 	function runSourceAction() {
 		const source = menuSource;
 		if (!source) return;
+		if (source.kind === 'changed' && source.localChanges && !replaceEdits) {
+			replaceEdits = true;
+			return;
+		}
 		dismissSaveFileWorkflow();
 		void (source.kind === 'changed'
 			? discovery.loadExternal(source)
@@ -1175,8 +1182,10 @@
 		onOpenBag={() => void activateSaveFile(menuSaveFile, 'bag')}
 		onBackups={openBackups}
 		sourceAction={menuSource
-			? (menuSource.kind === 'changed' ? 'Load from ' : 'Restore file in ') +
-				(fileEmulator(menuSaveFile) ?? 'emulator')
+			? replaceEdits
+				? 'Replace your edits?'
+				: (menuSource.kind === 'changed' ? 'Load from ' : 'Restore file in ') +
+					(fileEmulator(menuSaveFile) ?? 'emulator')
 			: undefined}
 		onSourceAction={runSourceAction}
 		onDelete={() => (deleteOpen ? void confirmDelete() : void requestDelete())}
