@@ -913,6 +913,8 @@
 		if (!initialStateReady) return;
 		void workbenchPanes;
 		void activePaneId;
+		void virtualPaneIds;
+		void virtualPaneViews;
 		untrack(scheduleBoxesSessionPersist);
 	}
 
