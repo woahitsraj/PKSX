@@ -60,6 +60,13 @@ for (const viewport of [
 			await actions.getByRole('button', { name: 'Select box', exact: true }).tap();
 			const occupied = await page.locator('.box-pane .slot.pokemon').count();
 			await expect(page.locator('[data-batch-selected="true"]')).toHaveCount(occupied);
+			await pressController(page, 'PageDown');
+			await expect(page.locator('.box-pane')).toHaveAttribute('data-location', 'box-1');
+			await expect(page.locator('.box-pane .slot').first()).toBeEnabled();
+			await expect(actions).toContainText(`${occupied} selected`);
+			await pressController(page, 'PageUp');
+			await expect(page.locator('.box-pane')).toHaveAttribute('data-location', 'box-0');
+			await expect(page.locator('.box-pane .slot').first()).toBeEnabled();
 			await pressController(page, 'y');
 			await expect(actions.locator('button:focus')).toHaveCount(1);
 			await actions.getByRole('button', { name: 'Clear selection' }).focus();

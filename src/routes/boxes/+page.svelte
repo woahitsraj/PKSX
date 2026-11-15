@@ -2462,7 +2462,11 @@
 			document.activeElement instanceof HTMLElement &&
 			document.activeElement.closest('[data-selection-controls]')
 		) {
-			if (event.key === 'Escape') {
+			const action = keyboardAction(event);
+			if (action === 'previousBox' || action === 'nextBox') {
+				event.preventDefault();
+				dispatch(action);
+			} else if (event.key === 'Escape') {
 				event.preventDefault();
 				selection = null;
 				queueMicrotask(focusActiveControl);
