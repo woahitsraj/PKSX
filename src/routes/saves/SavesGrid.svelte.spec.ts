@@ -41,11 +41,30 @@ vi.mock('$lib/pksx/summoned-workflow/host.svelte', async (importOriginal) => ({
 vi.mock('$lib/pksx/toast/host.svelte', () => ({
 	getToastHost: () => fakes.toastHost
 }));
-vi.mock('$lib/engine', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/engine')>()),
-	createPkhexWorkerEngine: () => ({
-		summarizeSaveCard: () => fakes.detailsRequest ?? Promise.resolve({ ok: false } as CardResult)
-	})
+vi.mock('$lib/engine', async (importOriginal) => {
+	const { createMockEngine } = await import('$lib/engine/mock-engine');
+	return {
+		...(await importOriginal<typeof import('$lib/engine')>()),
+		createPkhexWorkerEngine: () => ({
+			...createMockEngine(),
+			summarizeSaveCard: () => fakes.detailsRequest ?? Promise.resolve({ ok: false } as CardResult)
+		})
+	};
+});
+vi.mock('$lib/pksx/linked-save-folders', async (original) => ({
+	...(await original<typeof import('$lib/pksx/linked-save-folders')>()),
+	supportsSaveFolders: () => true,
+	saveFolders: {
+		status: async () => ({ folders: [{ tree: 'content://fixture/tree/saves', name: 'Fixture' }] }),
+		pick: async () => ({ cancelled: true }),
+		unlink: async () => {},
+		cancel: async () => {},
+		list: async () => ({
+			entries: [{ id: 'new', name: 'discovered.sav', directory: false, size: 4 }],
+			truncated: false
+		}),
+		read: async () => ({ identity: 'fixture:new', base64: 'AQIDBA==' })
+	}
 }));
 
 let component: ReturnType<typeof mount> | null = null;
@@ -315,4 +334,27 @@ it('opens Backups for the chosen inactive Save File without activating it', asyn
 		'saves-target-' + owner.id
 	);
 	expect(await storage.getActiveSaveFileId()).toBe(active.id);
+});
+
+it('publishes background discovery into a mounted grid without changing selection or focus', async () => {
+	const storage = getSavesStorage();
+	const active = await storage.importSave({
+		bytes: new Uint8Array([1]),
+		originalFileName: 'active.sav'
+	});
+	fakes.host = createSummonedWorkflowHost();
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(SavesGrid, { target: container });
+	await expect.poll(() => container.querySelectorAll('.save-card').length).toBe(1);
+	const grid = container.querySelector<HTMLElement>('#saves-grid')!;
+	grid.focus();
+	const selected = grid.getAttribute('aria-activedescendant');
+	const { linkedSaveDiscovery } = await import('$lib/pksx/linked-save-folders/runtime.svelte');
+	await linkedSaveDiscovery.initialize();
+	await expect.poll(() => container.querySelectorAll('.save-card').length).toBe(2);
+	expect(container.textContent).toContain('discovered.sav');
+	expect(await storage.getActiveSaveFileId()).toBe(active.id);
+	expect(grid.getAttribute('aria-activedescendant')).toBe(selected);
+	expect(document.activeElement).toBe(grid);
 });

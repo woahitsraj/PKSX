@@ -11,9 +11,10 @@ it('discovers and explicitly imports real XD bytes without duplicating linked do
 	const databaseName = `linked-xd-${crypto.randomUUID()}`;
 	const storage = new IndexedDbSavesStorage({ databaseName });
 	const engine = createPkhexWorkerEngine();
+	const folder = { tree: 'dolphin', name: 'Dolphin' };
 	const plugin: SaveFoldersPlugin = {
-		status: async () => ({ tree: 'dolphin', mode: 'dolphin' }),
-		pick: async () => ({ tree: 'dolphin', mode: 'dolphin' }),
+		status: async () => ({ folders: [folder] }),
+		pick: async () => ({ cancelled: false, folder }),
 		unlink: async () => {},
 		cancel: async () => {},
 		list: async () => ({
@@ -31,9 +32,11 @@ it('discovers and explicitly imports real XD bytes without duplicating linked do
 			plugin,
 			engine,
 			storage,
-			mode: 'dolphin',
+			folder,
 			signal: new AbortController().signal,
-			onSave: (save) => saves.push(save),
+			onSave: (save) => {
+				saves.push(save);
+			},
 			onProgress: () => {}
 		});
 		expect(saves).toHaveLength(1);
@@ -50,9 +53,11 @@ it('discovers and explicitly imports real XD bytes without duplicating linked do
 			plugin,
 			engine,
 			storage,
-			mode: 'dolphin',
+			folder,
 			signal: new AbortController().signal,
-			onSave: (save) => rescanned.push(save),
+			onSave: (save) => {
+				rescanned.push(save);
+			},
 			onProgress: () => {}
 		});
 		expect(rescanned[0].imported).toBe(true);

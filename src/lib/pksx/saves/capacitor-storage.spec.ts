@@ -121,6 +121,17 @@ describe('CapacitorSavesStorage', () => {
 		});
 	});
 
+	it('keeps the active Save File when discovery imports another document in the background', async () => {
+		const active = await storage.importSave({ bytes: new Uint8Array([1]) });
+		await storage.importSave({
+			bytes: new Uint8Array([2]),
+			linkedDocumentId: 'other-document',
+			activate: false
+		});
+		expect(await storage.getActiveSaveFileId()).toBe(active.id);
+		expect(await storage.listSaves()).toHaveLength(2);
+	});
+
 	it('preserves imported, exported, and backup bytes with their metadata', async () => {
 		const importedBytes = new Uint8Array([0, 1, 2, 253, 254, 255]);
 		const saveFile = await storage.importSave({
