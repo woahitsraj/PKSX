@@ -33,6 +33,11 @@ export function emulatorName(id: string | undefined) {
 	return emulatorProfiles.find((profile) => profile.id === id)?.name;
 }
 
+export function fileEmulator(file: { emulator?: string; linkedDocumentId?: string }) {
+	if (file.emulator) return emulatorName(file.emulator);
+	return file.linkedDocumentId ? emulatorName(folderProfile(file.linkedDocumentId, '')) : undefined;
+}
+
 export function folderProfile(tree: string, name: string): EmulatorProfile {
 	const label = (decodeURIComponent(tree) + '/' + name).toLowerCase();
 	if (label.includes('retroarch')) return 'retroarch';

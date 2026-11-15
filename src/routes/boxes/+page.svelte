@@ -237,7 +237,7 @@
 		type SaveFileLegalityReportTarget
 	} from '$lib/pksx/save-file-legality-report/host.svelte';
 	import { supportsSaveFolders } from '$lib/pksx/linked-save-folders';
-	import { emulatorName } from '$lib/pksx/linked-save-folders/profiles';
+	import { fileEmulator } from '$lib/pksx/linked-save-folders/profiles';
 	import { getLinkedSaveSources } from '$lib/pksx/linked-save-sources/runtime';
 	import { createBoxMenuCommands, type BoxMenuCommandKey } from '$lib/pksx/box-menu';
 	import type { TradeSource } from '$lib/link-trade/trade-setup';
@@ -573,9 +573,7 @@
 		createBoxMenuCommands({
 			source: boxMenuTarget?.source ?? pokemonStorageSource(),
 			workspaceReady: saveWorkspaceForPane(boxMenuPane) !== null,
-			linkedSource: boxMenuLinkedFile
-				? (emulatorName(boxMenuLinkedFile.emulator) ?? 'emulator')
-				: undefined,
+			linkedSource: boxMenuLinkedFile ? (fileEmulator(boxMenuLinkedFile) ?? 'emulator') : undefined,
 			confirmExport: exportConfirmation,
 			paneCount: workbenchPanes.length,
 			undoAvailable:

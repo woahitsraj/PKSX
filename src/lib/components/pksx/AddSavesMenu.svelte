@@ -132,12 +132,17 @@
 		text-align: left;
 		cursor: pointer;
 	}
-	button:hover,
 	button:focus-visible,
 	button.controller-focused {
 		border-color: color-mix(in srgb, var(--rust), transparent 55%);
 		background: var(--rust-wash);
 		outline: none;
+	}
+	@media (hover: hover) {
+		button:hover {
+			border-color: color-mix(in srgb, var(--rust), transparent 55%);
+			background: var(--rust-wash);
+		}
 	}
 	button:disabled {
 		cursor: not-allowed;

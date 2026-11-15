@@ -12,7 +12,7 @@
 	import StorageBackupMenu from '$lib/components/pksx/StorageBackupMenu.svelte';
 	import AddSavesMenu from '$lib/components/pksx/AddSavesMenu.svelte';
 	import { supportsSaveFolders } from '$lib/pksx/linked-save-folders';
-	import { emulatorName } from '$lib/pksx/linked-save-folders/profiles';
+	import { fileEmulator } from '$lib/pksx/linked-save-folders/profiles';
 	import { linkedSaveDiscovery as discovery } from '$lib/pksx/linked-save-folders/runtime.svelte';
 	import type { EngineError } from '$lib/engine';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
@@ -898,7 +898,7 @@
 	}
 
 	function emulatorLabel(saveFile: StoredSaveFile) {
-		const name = emulatorName(saveFile.emulator);
+		const name = fileEmulator(saveFile);
 		return name ? name + ' · ' : '';
 	}
 
@@ -1158,7 +1158,7 @@
 		onBackups={openBackups}
 		sourceAction={menuSource
 			? (menuSource.kind === 'changed' ? 'Load from ' : 'Restore file in ') +
-				(emulatorName(menuSaveFile.emulator) ?? 'emulator')
+				(fileEmulator(menuSaveFile) ?? 'emulator')
 			: undefined}
 		onSourceAction={runSourceAction}
 		onDelete={() => (deleteOpen ? void confirmDelete() : void requestDelete())}
