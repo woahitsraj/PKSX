@@ -520,9 +520,15 @@ export function catalogContract(
 			expect(service.listRecords()).toHaveLength(30);
 			await expect(service.add(bytes(5), origin)).rejects.toThrow(/capacity/);
 			await expect(service.copy(first.recordId)).rejects.toThrow(/capacity/);
+			const boxId = service.listBoxes()[0].id;
+			expect(() => service.planBatchPlacement(1, boxId)).toThrow(/Not enough empty/);
 			await service.addBox();
 			await service.copy(first.recordId);
 			expect(service.listRecords()).toHaveLength(31);
+			await service.place(first.recordId, { storageBoxId: boxId, slot: 0 });
+			const planned = service.planBatchPlacement(29, boxId);
+			expect(planned).toHaveLength(29);
+			expect(planned[0]).toEqual({ storageBoxId: boxId, slot: 1 });
 		});
 		it('moves, swaps, and duplicates through a checked Carry', async () => {
 			const service = new PokemonStorageService(create(), fakeEngine());

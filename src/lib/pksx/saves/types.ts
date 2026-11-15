@@ -158,6 +158,8 @@ export type CommitPreservedSaveDeletionInput = CommitRiskyWorkspaceMutationInput
 	expectedCatalogRevision: number;
 	manifest: PokemonStorageManifest;
 	payload: StagedBlob;
+	additionalPayloads?: StagedBlob[];
+	preserveWorkspace?: boolean;
 };
 
 export type SavesStorage = {

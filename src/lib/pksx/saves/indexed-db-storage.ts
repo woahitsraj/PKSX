@@ -589,7 +589,8 @@ export class IndexedDbSavesStorage implements SavesStorage {
 		input: CommitPreservedSaveDeletionInput
 	): Promise<CommitRiskyWorkspaceMutationResult> {
 		assertManifest(input.manifest);
-		await verifyBlob(input.payload.reference, input.payload.bytes);
+		for (const payload of [input.payload, ...(input.additionalPayloads ?? [])])
+			await verifyBlob(payload.reference, payload.bytes);
 		if (input.manifest.revision !== input.expectedCatalogRevision + 1)
 			throw new CatalogConflictError();
 		const database = await openSavesDatabase(this.#databaseName);
@@ -639,7 +640,7 @@ export class IndexedDbSavesStorage implements SavesStorage {
 				current.storageId !== input.manifest.storageId
 			)
 				throw new CatalogConflictError();
-			const backupEstablished = !previous?.automaticBackupCreated;
+			const backupEstablished = !input.preserveWorkspace && !previous?.automaticBackupCreated;
 			if (backupEstablished) {
 				const backupId = stableAutomaticBackupId({
 					saveFileId: input.saveFileId,
@@ -681,10 +682,9 @@ export class IndexedDbSavesStorage implements SavesStorage {
 				automaticBackupCreated: true,
 				updatedAt: nextWorkspaceRevision(previous?.updatedAt, this.#now())
 			};
-			workspaceStore.put(workspace);
-			transaction
-				.objectStore('blobs')
-				.put(new Uint8Array(input.payload.bytes), input.payload.reference.id);
+			if (!input.preserveWorkspace) workspaceStore.put(workspace);
+			for (const payload of [input.payload, ...(input.additionalPayloads ?? [])])
+				transaction.objectStore('blobs').put(new Uint8Array(payload.bytes), payload.reference.id);
 			manifestStore.put(cloneManifest(input.manifest), 'current');
 			await transactionDone(transaction);
 			return { workspace: cloneWorkspace(workspace), backupEstablished };
