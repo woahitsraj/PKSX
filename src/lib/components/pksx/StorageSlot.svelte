@@ -48,7 +48,7 @@
 			.join(', ')
 	);
 	const accessibleLabel = $derived(
-		`${zone === 'party' ? 'Party' : 'Box'} Slot ${slot.slot + 1}, row ${rowIndex}, column ${colIndex}: ${accessibleDetails}${carried ? `. Carry ${carried.mode === 'move' ? 'Move' : 'Copy'} ${carried.label}` : ''}`
+		`${zone === 'party' ? 'Party' : 'Box'} Slot ${slot.slot + 1}, row ${rowIndex}, column ${colIndex}: ${accessibleDetails}${selected ? '. Included in selection.' : ''}${carried ? `. Carry ${carried.mode === 'move' ? 'Move' : 'Copy'} ${carried.label}` : ''}`
 	);
 	let focusedAtPointerDown: boolean | null = null;
 

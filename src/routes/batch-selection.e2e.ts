@@ -51,6 +51,7 @@ for (const viewport of [
 			await pokemon.tap();
 			await expect(actions).toContainText('1 selected');
 			await expect(pokemon).toHaveAttribute('data-batch-selected', 'true');
+			await expect(pokemon).toHaveAccessibleName(/Included in selection/);
 			await page.keyboard.press('ArrowRight');
 			await expect(actions).toContainText('1 selected');
 			await page.keyboard.press('PageDown');
@@ -72,6 +73,7 @@ for (const viewport of [
 			await actions.getByRole('button', { name: 'Clear selection' }).focus();
 			await pressController(page, 'Enter');
 			await expect(actions).toContainText('0 selected');
+			await expect(pokemon).not.toHaveAccessibleName(/Included in selection/);
 			await pokemon.focus();
 			await pressController(page, 'Enter');
 			await expect(actions).toContainText('1 selected');
