@@ -1,9 +1,9 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import type { EngineApi } from '$lib/engine';
 import type { SavesStorage } from '$lib/pksx/saves';
-import { folderProfile, skipFolder } from './profiles';
+import { folderProfile, skipFolder, type EmulatorProfile } from './profiles';
 
-export type FolderLink = { tree: string; name: string };
+export type FolderLink = { tree: string; name: string; emulator?: EmulatorProfile };
 export type FolderEntry = { id: string; name: string; directory: boolean; size: number | null };
 export type DiscoveredSave = {
 	id: string;
@@ -15,7 +15,9 @@ export type DiscoveredSave = {
 };
 export interface SaveFoldersPlugin {
 	status(): Promise<{ folders: FolderLink[] }>;
-	pick(): Promise<{ cancelled: true } | { cancelled: false; folder: FolderLink }>;
+	pick(options?: {
+		emulator?: EmulatorProfile;
+	}): Promise<{ cancelled: true } | { cancelled: false; folder: FolderLink }>;
 	unlink(options: { tree: string }): Promise<void>;
 	cancel(): Promise<void>;
 	list(options: {
@@ -57,7 +59,7 @@ export async function scanFolder(options: {
 	onProgress: (message: string) => void;
 }) {
 	const { plugin, folder: linkedFolder, engine, storage, signal, onSave, onProgress } = options;
-	const profile = folderProfile(linkedFolder.tree, linkedFolder.name);
+	const profile = linkedFolder.emulator ?? folderProfile(linkedFolder.tree, linkedFolder.name);
 	const imported = new Set((await storage.listSaves()).map((save) => save.linkedDocumentId));
 	const queue: { id?: string; path: string; depth: number }[] = [{ path: '', depth: 0 }];
 	const visited = new Set<string>();

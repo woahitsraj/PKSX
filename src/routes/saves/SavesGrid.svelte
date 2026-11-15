@@ -10,6 +10,10 @@
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
 	import StorageBackupMenu from '$lib/components/pksx/StorageBackupMenu.svelte';
+	import AddSavesMenu from '$lib/components/pksx/AddSavesMenu.svelte';
+	import { supportsSaveFolders } from '$lib/pksx/linked-save-folders';
+	import { emulatorName } from '$lib/pksx/linked-save-folders/profiles';
+	import { linkedSaveDiscovery as discovery } from '$lib/pksx/linked-save-folders/runtime.svelte';
 	import type { EngineError } from '$lib/engine';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import { getBoxesSession } from '$lib/pksx/boxes-session';
@@ -114,8 +118,11 @@
 	const menuSaveFile = $derived(
 		saveFiles.find((saveFile) => saveFile.id === menuSaveFileId) ?? null
 	);
+	const menuSource = $derived(menuSaveFile ? discovery.sources[menuSaveFile.id] : undefined);
 	const menuOpen = $derived(summonedWorkflow.active?.kind === 'save-file-menu');
 	const deleteOpen = $derived(summonedWorkflow.active?.kind === 'save-file-delete');
+	const addSavesOpen = $derived(summonedWorkflow.active?.kind === 'add-saves-menu');
+	const folderLinking = supportsSaveFolders();
 	const storageBackupOpen = $derived(summonedWorkflow.active?.kind === 'storage-backup-menu');
 	const storageConfirmOpen = $derived(
 		summonedWorkflow.active?.kind === 'storage-backup-confirmation'
@@ -309,6 +316,7 @@
 		) {
 			return;
 		}
+		if (addSavesOpen) return;
 		if (storageBackupOpen || storageConfirmOpen) {
 			handleStorageBackupKeydown(event);
 			return;
@@ -386,7 +394,7 @@
 		if (busyTarget) return;
 		const currentTarget = target;
 		if (currentTarget.kind === 'import') {
-			openImportPicker();
+			openAddSaves();
 			return;
 		}
 		if (currentTarget.kind === 'pokemon-storage') {
@@ -603,6 +611,22 @@
 	async function focusStorageBackupCommand() {
 		await tick();
 		document.getElementById(`storage-backup-command-${storageBackupIndex}`)?.focus();
+	}
+
+	function openAddSaves() {
+		if (!folderLinking) return openImportPicker();
+		if (
+			busyTarget ||
+			!summonedWorkflow.open('add-saves-menu', { type: 'control', id: 'saves-target-import' })
+		)
+			return;
+		chooseTarget({ kind: 'import' }, false);
+	}
+
+	function closeAddSaves(then?: () => void) {
+		summonedWorkflow.dismiss();
+		void focusGrid();
+		then?.();
 	}
 
 	function openImportPicker() {
@@ -825,13 +849,23 @@
 				if (menuIndex === 0 && menuSaveFile) void activateSaveFile(menuSaveFile, 'trainer');
 				else if (menuIndex === 1 && menuSaveFile) void activateSaveFile(menuSaveFile, 'bag');
 				else if (menuIndex === 3) openBackups();
+				else if (menuIndex === 4) runSourceAction();
 				else void requestDelete();
 			}
 			return;
 		}
 		const offset = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
-		menuIndex = Math.max(0, Math.min(deleteOpen ? 1 : 3, menuIndex + offset));
+		menuIndex = Math.max(0, Math.min(deleteOpen ? 1 : menuSource ? 4 : 3, menuIndex + offset));
 		void focusMenuCommand(menuIndex);
+	}
+
+	function runSourceAction() {
+		const source = menuSource;
+		if (!source) return;
+		dismissSaveFileWorkflow();
+		void (source.kind === 'changed'
+			? discovery.loadExternal(source)
+			: discovery.recoverSource(source));
 	}
 
 	function dismissSaveFileWorkflow() {
@@ -861,6 +895,11 @@
 		await tick();
 		const prefix = deleteOpen ? 'save-file-delete-command-' : 'save-file-menu-command-';
 		document.getElementById(prefix + index)?.focus();
+	}
+
+	function emulatorLabel(saveFile: StoredSaveFile) {
+		const name = emulatorName(saveFile.emulator);
+		return name ? name + ' · ' : '';
 	}
 
 	function displayName(saveFile: StoredSaveFile) {
@@ -984,13 +1023,18 @@
 											<span class="card-heading">
 												<strong>{gameTitle(details, saveFile)}</strong>
 												{#if saveFile.id === activeSaveFileId}<em>Active</em>{/if}
+												{#if discovery.sources[saveFile.id]}<em class="attention"
+														>{discovery.sources[saveFile.id].kind === 'changed'
+															? 'Updated'
+															: 'Restore'}</em
+													>{/if}
 											</span>
 											{#if details.status === 'ready'}
 												<span class="trainer"
 													>{details.details.summary.trainerName ?? 'Unknown Trainer'}</span
 												>
 												<span class="file-name" elementtiming="save-card"
-													>{displayName(saveFile)}</span
+													>{emulatorLabel(saveFile)}{displayName(saveFile)}</span
 												>
 												<span class="card-stats">
 													<b>{details.details.summary.boxCount}</b> boxes
@@ -999,7 +1043,7 @@
 												</span>
 											{:else}
 												<span class="file-name" elementtiming="save-card"
-													>{displayName(saveFile)}</span
+													>{emulatorLabel(saveFile)}{displayName(saveFile)}</span
 												>
 												<span class="detail-state">
 													{#if details.status === 'loading'}
@@ -1074,16 +1118,20 @@
 											type="button"
 											data-pksx-control-category="card"
 											tabindex="-1"
-											aria-label="Import a Save File"
-											onclick={openImportPicker}
+											aria-label={folderLinking ? 'Add saves' : 'Import a Save File'}
+											onclick={openAddSaves}
 										>
 											<span>+</span>
-											<strong>Import a Save File</strong>
+											<strong>{folderLinking ? 'Add saves' : 'Import a Save File'}</strong>
 											<DelayedSpinner
-												active={busyTarget === 'import'}
-												label="Importing Save File"
+												active={busyTarget === 'import' || discovery.scanning}
+												label={discovery.scanning ? 'Finding saves' : 'Importing Save File'}
 											/>
-											<small>Choose a compatible file from this device.</small>
+											<small
+												>{folderLinking
+													? 'Link an emulator or import a file'
+													: 'Choose a compatible file from this device.'}</small
+											>
 										</button>
 									</div>
 								{/if}
@@ -1108,9 +1156,28 @@
 		onOpenTrainer={() => void activateSaveFile(menuSaveFile, 'trainer')}
 		onOpenBag={() => void activateSaveFile(menuSaveFile, 'bag')}
 		onBackups={openBackups}
+		sourceAction={menuSource
+			? (menuSource.kind === 'changed' ? 'Load from ' : 'Restore file in ') +
+				(emulatorName(menuSaveFile.emulator) ?? 'emulator')
+			: undefined}
+		onSourceAction={runSourceAction}
 		onDelete={() => (deleteOpen ? void confirmDelete() : void requestDelete())}
 		onCancelDelete={cancelDelete}
 		onClose={dismissSaveFileWorkflow}
+	/>
+{/if}
+
+{#if addSavesOpen}
+	<AddSavesMenu
+		folders={discovery.folders}
+		failed={discovery.failed}
+		scanning={discovery.scanning}
+		busy={discovery.picking || discovery.sourceBusy}
+		onLink={(emulator) => closeAddSaves(() => void discovery.link(emulator))}
+		onImport={() => closeAddSaves(openImportPicker)}
+		onScan={() => (discovery.scanning ? discovery.cancel() : void discovery.scan(undefined, true))}
+		onUnlink={(folder) => void discovery.unlink(folder)}
+		onClose={() => closeAddSaves()}
 	/>
 {/if}
 
@@ -1314,6 +1381,10 @@
 		line-height: 1.1;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.card-heading em.attention {
+		background: var(--ink);
 	}
 
 	.card-heading em {

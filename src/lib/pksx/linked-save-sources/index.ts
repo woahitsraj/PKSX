@@ -94,7 +94,7 @@ export class LinkedSaveSources {
 		const { storage, plugin } = this.options;
 		const owner = await storage.getSave(file.id);
 		if (!owner || owner.importedAt !== file.importedAt || !owner.linkedDocumentId)
-			throw new Error('This Save File is no longer linked.');
+			throw new Error('Folder not linked.');
 		const baseline = await storage.getSaveBytes(owner.id);
 		if (!baseline) throw new Error('The imported baseline is missing.');
 		const inspection = inspectionSchema.parse(
@@ -168,10 +168,7 @@ export class LinkedSaveSources {
 		return this.#run(file, async () => {
 			const bytes = await serialize();
 			const { owner, inspection, external } = await this.#inspect(file);
-			if (inspection.source.pending)
-				throw new Error(
-					'An interrupted Export needs recovery. Open Linked save folders in Settings.'
-				);
+			if (inspection.source.pending) throw new Error('Restore the emulator file first.');
 			const valid = await this.options.engine.loadSaveWorkspace(bytes, inspection.name, 0, {
 				background: true
 			});
@@ -185,17 +182,14 @@ export class LinkedSaveSources {
 				return { name: inspection.name, written: false };
 			}
 			if (inspection.hash !== inspection.source.baselineHash)
-				throw new Error(
-					'The emulator changed this save. Both versions are preserved. Review the external version in Settings, or use Export a copy.'
-				);
+				throw new Error('The emulator changed this save. Load its version first.');
 			const sourceValid = await this.options.engine.loadSaveWorkspace(
 				external,
 				inspection.name,
 				0,
 				{ background: true }
 			);
-			if (!sourceValid.ok)
-				throw new Error('The external save is no longer valid. Export a separate copy.');
+			if (!sourceValid.ok) throw new Error('The emulator file is damaged. Export a copy instead.');
 			const backup = await this.options.storage.createBackup({
 				saveFileId: owner.id,
 				bytes: external,
@@ -210,9 +204,7 @@ export class LinkedSaveSources {
 			});
 			const verified = await this.#inspect(owner);
 			if (!bytesEqual(verified.external, bytes) || verified.inspection.source.pending)
-				throw new Error(
-					'Export outcome is not verified. Its backup is retained; review recovery in Settings.'
-				);
+				throw new Error("Export couldn't be verified.");
 			return { name: inspection.name, written: true };
 		});
 	}
@@ -220,10 +212,8 @@ export class LinkedSaveSources {
 	loadExternal(file: StoredSaveFile, expectedHash: string, allowDirty: boolean) {
 		return this.#run(file, async () => {
 			const { owner, baseline, inspection, external } = await this.#inspect(file);
-			if (inspection.source.pending)
-				throw new Error('Resolve interrupted Export before loading external data.');
-			if (inspection.hash !== expectedHash)
-				throw new Error('The source changed again. Rescan before loading it.');
+			if (inspection.source.pending) throw new Error('Restore the emulator file first.');
+			if (inspection.hash !== expectedHash) throw new Error('The file changed again. Try again.');
 			const persisted = await this.options.storage.getWorkspace(owner.id);
 			const local = persisted?.bytes ?? baseline;
 			const box = this.options.boxForSave?.(owner.id) ?? 0;

@@ -1,5 +1,6 @@
 import { getLinkedSaveSources } from '$lib/pksx/linked-save-sources/runtime';
 import type { LinkedSourceStatus } from '$lib/pksx/linked-save-sources';
+import type { StoredSaveFile } from '$lib/pksx/saves';
 import { SvelteSet } from 'svelte/reactivity';
 import {
 	getPkhexEngine,
@@ -12,20 +13,21 @@ import {
 	supportsSaveFolders,
 	scanFolder,
 	cancellable,
-	type FolderLink,
-	type DiscoveredSave
+	type FolderLink
 } from './index';
+import { folderProfile, type EmulatorProfile } from './profiles';
+
+type Notice = (tone: 'success' | 'error', text: string) => void;
+export type SourceAttention = Extract<LinkedSourceStatus, { kind: 'changed' | 'recovery' }>;
 
 export class LinkedSaveDiscovery {
 	folders = $state<FolderLink[]>([]);
-	saves = $state<DiscoveredSave[]>([]);
-	message = $state('');
-	errors = $state<Record<string, string>>({});
-	reports = $state<Record<string, string>>({});
+	failed = $state<Record<string, boolean>>({});
 	scanning = $state(false);
 	picking = $state(false);
-	sources = $state<LinkedSourceStatus[]>([]);
+	sources = $state<Record<string, SourceAttention>>({});
 	sourceBusy = $state(false);
+	notify: Notice = () => {};
 	#controller: AbortController | undefined;
 	#task: Promise<void> | undefined;
 
@@ -35,20 +37,20 @@ export class LinkedSaveDiscovery {
 			this.folders = (await saveFolders.status()).folders;
 			await this.scan();
 		} catch (error) {
-			this.message = errorMessage(error);
+			this.notify('error', errorMessage(error));
 		}
 	}
 
-	async chooseFolder() {
+	async link(emulator?: EmulatorProfile) {
 		this.picking = true;
 		try {
-			const result = await saveFolders.pick();
+			const result = await saveFolders.pick(emulator ? { emulator } : undefined);
 			if (result.cancelled) return;
 			this.folders = (await saveFolders.status()).folders;
 			this.picking = false;
-			await this.scan([result.folder]);
+			await this.scan([result.folder], true);
 		} catch (error) {
-			this.message = errorMessage(error);
+			this.notify('error', errorMessage(error));
 		} finally {
 			this.picking = false;
 		}
@@ -58,60 +60,49 @@ export class LinkedSaveDiscovery {
 		try {
 			await saveFolders.unlink({ tree: folder.tree });
 			this.folders = this.folders.filter((item) => item.tree !== folder.tree);
-			this.saves = this.saves.filter((item) => item.folder.tree !== folder.tree);
-			this.message = `${folder.name} unlinked. Imported Saves are retained.`;
+			this.notify('success', `Unlinked ${folder.name}`);
 		} catch (error) {
-			this.message = errorMessage(error);
+			this.notify('error', errorMessage(error));
 		}
 	}
 
-	async loadExternal(
-		status: Extract<LinkedSourceStatus, { kind: 'changed' }>,
-		allowDirty: boolean
-	) {
-		this.sourceBusy = true;
-		try {
-			await getLinkedSaveSources().loadExternal(status.file, status.externalHash, allowDirty);
-			this.message =
-				'External version loaded. Previous Workspace and imported baseline are preserved in Backups.';
-		} catch (error) {
-			this.message = errorMessage(error);
-		} finally {
-			invalidateSavesCache();
-			await this.checkSources().catch((error) => {
-				this.message = errorMessage(error);
-			});
-			this.sourceBusy = false;
-		}
+	async loadExternal(source: SourceAttention & { kind: 'changed' }) {
+		await this.#sourceAction(() =>
+			getLinkedSaveSources().loadExternal(source.file, source.externalHash, true)
+		);
 	}
 
-	async recoverSource(status: Extract<LinkedSourceStatus, { kind: 'recovery' }>) {
+	async recoverSource(source: SourceAttention & { kind: 'recovery' }) {
+		await this.#sourceAction(() =>
+			getLinkedSaveSources().recover(source.file, source.externalHash)
+		);
+	}
+
+	async #sourceAction(action: () => Promise<unknown>) {
 		this.sourceBusy = true;
 		try {
-			await getLinkedSaveSources().recover(status.file, status.externalHash);
-			this.message =
-				'Original external Backup restored and verified. Current Workspace is retained.';
+			await action();
+			this.notify('success', 'Loaded from emulator');
 		} catch (error) {
-			this.message = errorMessage(error);
+			this.notify('error', errorMessage(error));
 		} finally {
 			invalidateSavesCache();
-			await this.checkSources().catch((error) => {
-				this.message = errorMessage(error);
-			});
+			await this.checkSources().catch(() => undefined);
 			this.sourceBusy = false;
 		}
 	}
 
 	async checkSources(signal?: AbortSignal) {
-		const statuses: LinkedSourceStatus[] = [];
+		const sources: Record<string, SourceAttention> = {};
 		for (const file of await getSavesStorage().listSaves()) {
 			if (signal?.aborted) return;
-			if (file.linkedDocumentId) {
-				const observing = getLinkedSaveSources().observe(file);
-				statuses.push(signal ? await cancellable(observing, signal) : await observing);
-			}
+			if (!file.linkedDocumentId) continue;
+			const observing = getLinkedSaveSources().observe(file);
+			const status = signal ? await cancellable(observing, signal) : await observing;
+			if ((status.kind === 'changed' && status.valid) || status.kind === 'recovery')
+				sources[file.id] = status;
 		}
-		this.sources = statuses;
+		this.sources = sources;
 	}
 
 	cancel() {
@@ -119,15 +110,13 @@ export class LinkedSaveDiscovery {
 		void saveFolders.cancel().catch(() => undefined);
 	}
 
-	scan(folders = this.folders): Promise<void> {
+	scan(folders = this.folders, announce = false): Promise<void> {
 		if (this.#task) return this.#task;
 		this.#controller = new AbortController();
 		this.scanning = true;
 		const signal = this.#controller.signal;
-		this.#task = this.#scan(folders, signal)
-			.catch((error) => {
-				this.message = errorMessage(error);
-			})
+		this.#task = this.#scan(folders, signal, announce)
+			.catch((error) => this.notify('error', errorMessage(error)))
 			.finally(() => {
 				this.scanning = false;
 				this.#task = undefined;
@@ -135,14 +124,13 @@ export class LinkedSaveDiscovery {
 		return this.#task;
 	}
 
-	async #scan(folders: FolderLink[], signal: AbortSignal) {
+	async #scan(folders: FolderLink[], signal: AbortSignal, announce: boolean) {
 		const storage = getSavesStorage();
 		const known = new SvelteSet((await storage.listSaves()).map((save) => save.linkedDocumentId));
 		let added = 0;
-		let unavailable = 0;
+		let failed = false;
 		for (const folder of folders) {
 			if (signal.aborted) break;
-			this.saves = this.saves.filter((item) => item.folder.tree !== folder.tree);
 			try {
 				await scanFolder({
 					plugin: saveFolders,
@@ -150,45 +138,38 @@ export class LinkedSaveDiscovery {
 					engine: getPkhexEngine(),
 					storage,
 					signal,
-					onProgress: (message) => {
-						this.message = `${folder.name}: ${message}`;
-						this.reports = { ...this.reports, [folder.tree]: message };
-					},
+					onProgress: () => {},
 					onSave: async (save, bytes) => {
-						if (!known.has(save.identity)) {
-							await storage.importSave({
-								bytes,
-								originalFileName: save.name,
-								linkedDocumentId: save.identity,
-								activate: false
-							});
-							known.add(save.identity);
-							added++;
-							invalidateSavesCache();
-						}
+						if (known.has(save.identity)) return;
+						await storage.importSave({
+							bytes,
+							originalFileName: save.name,
+							linkedDocumentId: save.identity,
+							emulator: folder.emulator ?? folderProfile(folder.tree, folder.name),
+							activate: false
+						});
+						known.add(save.identity);
+						added++;
+						invalidateSavesCache();
 						await getSavesSnapshot();
-						this.saves = [
-							...this.saves.filter((item) => item.identity !== save.identity),
-							{ ...save, imported: true }
-						];
 					}
 				});
-				const { [folder.tree]: cleared, ...remaining } = this.errors;
-				void cleared;
-				this.errors = remaining;
-			} catch (error) {
+				this.failed = { ...this.failed, [folder.tree]: false };
+			} catch {
 				if (signal.aborted) break;
-				unavailable++;
-				this.errors = { ...this.errors, [folder.tree]: errorMessage(error) };
+				failed = true;
+				this.failed = { ...this.failed, [folder.tree]: true };
+				if (announce) this.notify('error', `Couldn't read ${folder.name}`);
 			}
 		}
-		await this.checkSources(signal).catch((error) => {
-			if (!signal.aborted) throw error;
-		});
-		this.message = signal.aborted
-			? `Scan cancelled. ${added} new saves added. Discovered saves remain in Saves.`
-			: `Scan finished. ${added} new saves added. ${unavailable ? `${unavailable} folders need attention. ` : ''}Open them from Saves.`;
+		await this.checkSources(signal).catch(() => undefined);
+		if (added) this.notify('success', `Found ${added} new ${added === 1 ? 'save' : 'saves'}`);
+		else if (announce && !failed && !signal.aborted) this.notify('success', 'No new saves');
 	}
+}
+
+export function sourceFor(file: StoredSaveFile) {
+	return linkedSaveDiscovery.sources[file.id];
 }
 
 function errorMessage(error: unknown) {

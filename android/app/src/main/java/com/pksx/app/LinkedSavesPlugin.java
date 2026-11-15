@@ -56,7 +56,7 @@ public class LinkedSavesPlugin extends Plugin {
     private byte[] read(Uri uri) throws Exception {
         try (InputStream input = getContext().getContentResolver().openInputStream(uri);
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            if (input == null) throw new IllegalStateException("Source is unavailable.");
+            if (input == null) throw new IllegalStateException("File not found.");
             byte[] buffer = new byte[32768];
             int count;
             while ((count = input.read(buffer)) != -1) {
@@ -80,7 +80,7 @@ public class LinkedSavesPlugin extends Plugin {
         String authority = parts.getString(0);
         String id = parts.getString(1);
         JSArray folders = SaveFoldersPlugin.linkedFolders(getContext());
-        Exception last = new SecurityException("Source folder is not linked. Choose it again to restore access.");
+        Exception last = new SecurityException("Folder not linked.");
         for (int i = 0; i < folders.length(); i++) {
             Uri tree = Uri.parse(folders.getJSONObject(i).getString("tree"));
             if (!authority.equals(tree.getAuthority())) continue;
@@ -90,7 +90,7 @@ public class LinkedSavesPlugin extends Plugin {
                 document.bytes = read(document.uri);
                 document.hash = hash(document.bytes);
                 try (Cursor cursor = getContext().getContentResolver().query(document.uri, new String[]{"_display_name"}, null, null, null)) {
-                    if (cursor == null || !cursor.moveToFirst()) throw new IllegalStateException("Source is missing.");
+                    if (cursor == null || !cursor.moveToFirst()) throw new IllegalStateException("File not found.");
                     document.name = cursor.getString(0);
                 }
                 return document;
@@ -137,7 +137,7 @@ public class LinkedSavesPlugin extends Plugin {
                 call.resolve(new JSObject().put("source", source).put("hash", document.hash)
                     .put("name", document.name).put("base64", Base64.encodeToString(document.bytes, Base64.NO_WRAP))
                     .put("outcome", outcome));
-            } catch (Exception e) { call.reject("Source could not be checked. Relink its folder if access was removed. " + e.getMessage(), e); }
+            } catch (Exception e) { call.reject(e.getMessage(), e); }
         });
     }
 
@@ -149,9 +149,9 @@ public class LinkedSavesPlugin extends Plugin {
                 JSONObject sources = sources();
                 JSONObject source = sources.getJSONObject(identity);
                 if (!source.getString("saveFileId").equals(required(call, "saveFileId"))) throw new IllegalStateException("Source owner changed.");
-                if (source.has("pending")) throw new IllegalStateException("Resolve interrupted Export first.");
+                if (source.has("pending")) throw new IllegalStateException("Restore the emulator file first.");
                 String expected = required(call, "hash");
-                if (!document(identity).hash.equals(expected)) throw new IllegalStateException("The emulator changed the source again. Rescan before continuing.");
+                if (!document(identity).hash.equals(expected)) throw new IllegalStateException("File changed in the emulator.");
                 source.put("baselineHash", expected);
                 persist(sources);
                 call.resolve();
@@ -175,7 +175,7 @@ public class LinkedSavesPlugin extends Plugin {
                 if (bytes.length == 0 || bytes.length > MAX_BYTES) throw new IllegalArgumentException("Invalid Export size.");
                 String target = hash(bytes);
                 Document before = document(identity);
-                if (!before.hash.equals(expected)) throw new IllegalStateException("The source changed. Both versions are preserved. Rescan before Export.");
+                if (!before.hash.equals(expected)) throw new IllegalStateException("File changed in the emulator.");
                 JSONObject oldPending = source.optJSONObject("pending");
                 String recoveryBackup = backupId;
                 String recoveryHash = before.hash;
@@ -187,26 +187,26 @@ public class LinkedSavesPlugin extends Plugin {
                     recoveryBackup = oldPending.getString("recoveryBackupId");
                     recoveryHash = oldPending.getString("recoveryHash");
                 } else {
-                    if (oldPending != null) throw new IllegalStateException("An interrupted Export needs recovery first.");
-                    if (!source.getString("baselineHash").equals(expected)) throw new IllegalStateException("The emulator changed the source. Load its version or export a separate copy.");
+                    if (oldPending != null) throw new IllegalStateException("Restore the emulator file first.");
+                    if (!source.getString("baselineHash").equals(expected)) throw new IllegalStateException("File changed in the emulator.");
                 }
                 JSONObject pending = new JSONObject().put("beforeHash", before.hash).put("afterHash", target)
                     .put("backupId", backupId).put("recoveryBackupId", recoveryBackup).put("recoveryHash", recoveryHash);
                 source.put("pending", pending);
                 persist(sources);
                 ParcelFileDescriptor descriptor = getContext().getContentResolver().openFileDescriptor(before.uri, "rwt");
-                if (descriptor == null) throw new IllegalStateException("Provider refused write access. Relink for read/write access or export a copy.");
+                if (descriptor == null) throw new IllegalStateException("Folder is read-only.");
                 try (OutputStream output = new ParcelFileDescriptor.AutoCloseOutputStream(descriptor)) {
                     output.write(bytes);
                     output.flush();
                     descriptor.getFileDescriptor().sync();
                 }
-                if (!hash(read(before.uri)).equals(target)) throw new IllegalStateException("Export verification failed. The external backup is available for recovery.");
+                if (!hash(read(before.uri)).equals(target)) throw new IllegalStateException("Export couldn't be verified.");
                 source.put("baselineHash", target).remove("pending");
                 source.put("exportedAt", System.currentTimeMillis());
                 persist(sources);
                 call.resolve(new JSObject().put("name", before.name).put("hash", target));
-            } catch (Exception e) { call.reject("Export did not complete with verified success. Source backup retained. " + e.getMessage(), e); }
+            } catch (Exception e) { call.reject(e.getMessage(), e); }
         });
     }
 

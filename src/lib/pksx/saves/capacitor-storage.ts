@@ -77,6 +77,7 @@ export class CapacitorSavesStorage implements SavesStorage {
 				id: this.#idFactory(),
 				originalFileName: input.originalFileName ?? null,
 				...(input.linkedDocumentId ? { linkedDocumentId: input.linkedDocumentId } : {}),
+				...(input.emulator ? { emulator: input.emulator } : {}),
 				byteLength: input.bytes.byteLength,
 				importedAt: timestamp,
 				updatedAt: timestamp

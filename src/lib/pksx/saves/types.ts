@@ -23,6 +23,7 @@ export type StoredSaveFile = {
 	id: SaveFileId;
 	originalFileName: string | null;
 	linkedDocumentId?: string;
+	emulator?: string;
 	byteLength: number;
 	importedAt: string;
 	updatedAt: string;
@@ -106,6 +107,7 @@ export type ImportSaveInput = {
 	bytes: Uint8Array;
 	originalFileName?: string | null;
 	linkedDocumentId?: string;
+	emulator?: string;
 };
 
 export type CreateBackupInput = {

@@ -3,6 +3,8 @@ import type { BoxSourceType } from '$lib/pksx/storage-workbench';
 export type BoxMenuCommandKey =
 	| 'export'
 	| 'export-copy'
+	| 'export-confirm'
+	| 'export-cancel'
 	| 'save-backup'
 	| 'legality-report'
 	| 'organize-storage-boxes'
@@ -23,7 +25,8 @@ export function createBoxMenuCommands(input: {
 	workspaceReady: boolean;
 	paneCount: number;
 	undoAvailable: boolean;
-	linkedSource?: boolean;
+	linkedSource?: string;
+	confirmExport?: boolean;
 }): BoxMenuCommand[] {
 	const unavailable = (key: BoxMenuCommandKey, label: string, reason: string): BoxMenuCommand => ({
 		key,
@@ -39,14 +42,17 @@ export function createBoxMenuCommands(input: {
 	});
 	const workspaceReason = `${input.source.label} is still loading.`;
 	const storage = input.source.type === 'pokemon-storage';
+	const exportLabel = input.linkedSource && !storage ? 'Export to ' + input.linkedSource : 'Export';
+	if (input.confirmExport)
+		return [available('export-confirm', 'Overwrite'), available('export-cancel', 'Cancel')];
 
 	return [
 		...(storage ? [available('organize-storage-boxes', 'Organize Storage Boxes')] : []),
 		storage
 			? unavailable('export', 'Export', 'Pokemon Storage cannot be exported.')
 			: input.workspaceReady
-				? available('export', 'Export')
-				: unavailable('export', 'Export', workspaceReason),
+				? available('export', exportLabel)
+				: unavailable('export', exportLabel, workspaceReason),
 		...(input.linkedSource && !storage
 			? [
 					input.workspaceReady

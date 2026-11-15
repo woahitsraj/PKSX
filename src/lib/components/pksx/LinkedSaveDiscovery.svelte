@@ -3,9 +3,13 @@
 	import { App } from '@capacitor/app';
 	import { supportsSaveFolders } from '$lib/pksx/linked-save-folders';
 	import { linkedSaveDiscovery } from '$lib/pksx/linked-save-folders/runtime.svelte';
+	import { getToastHost } from '$lib/pksx/toast/host.svelte';
+
+	const toastHost = getToastHost();
 
 	onMount(() => {
 		if (!supportsSaveFolders()) return;
+		linkedSaveDiscovery.notify = (tone, text) => toastHost[tone](text);
 		void linkedSaveDiscovery.initialize();
 		const listener = App.addListener('appStateChange', ({ isActive }) => {
 			if (isActive && !linkedSaveDiscovery.picking) void linkedSaveDiscovery.initialize();

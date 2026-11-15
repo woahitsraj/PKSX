@@ -237,6 +237,7 @@
 		type SaveFileLegalityReportTarget
 	} from '$lib/pksx/save-file-legality-report/host.svelte';
 	import { supportsSaveFolders } from '$lib/pksx/linked-save-folders';
+	import { emulatorName } from '$lib/pksx/linked-save-folders/profiles';
 	import { getLinkedSaveSources } from '$lib/pksx/linked-save-sources/runtime';
 	import { createBoxMenuCommands, type BoxMenuCommandKey } from '$lib/pksx/box-menu';
 	import type { TradeSource } from '$lib/link-trade/trade-setup';
@@ -563,13 +564,19 @@
 		const target = boxMenuTarget;
 		return target ? workbenchPanes.find((pane) => matchesBoxMenuTarget(pane, target)) : undefined;
 	});
+	const boxMenuLinkedFile = $derived.by(() => {
+		const file = saveWorkspaceForPane(boxMenuPane)?.state.file;
+		return supportsSaveFolders() && file?.linkedDocumentId ? file : null;
+	});
+	let exportConfirmation = $state(false);
 	const boxMenuCommands = $derived(
 		createBoxMenuCommands({
 			source: boxMenuTarget?.source ?? pokemonStorageSource(),
 			workspaceReady: saveWorkspaceForPane(boxMenuPane) !== null,
-			linkedSource:
-				supportsSaveFolders() &&
-				Boolean(saveWorkspaceForPane(boxMenuPane)?.state.file.linkedDocumentId),
+			linkedSource: boxMenuLinkedFile
+				? (emulatorName(boxMenuLinkedFile.emulator) ?? 'emulator')
+				: undefined,
+			confirmExport: exportConfirmation,
 			paneCount: workbenchPanes.length,
 			undoAvailable:
 				Boolean(catalogManifest) &&
@@ -2672,6 +2679,7 @@
 
 	function closeBoxMenu() {
 		boxMenuTarget = null;
+		exportConfirmation = false;
 		dismissActiveWorkflow();
 	}
 
@@ -2948,7 +2956,18 @@
 				void exportBoxMenuSave(true);
 				break;
 			case 'export':
+				if (boxMenuLinkedFile) {
+					exportConfirmation = true;
+					focusBoxMenuCommand(0);
+				} else void exportBoxMenuSave();
+				break;
+			case 'export-confirm':
+				exportConfirmation = false;
 				void exportBoxMenuSave();
+				break;
+			case 'export-cancel':
+				exportConfirmation = false;
+				focusBoxMenuCommand(0);
 				break;
 			case 'save-backup':
 				void saveBoxMenuBackup();
@@ -3102,8 +3121,8 @@
 					editCoordinator.export(origin)
 				);
 				statusMessage = exported.written
-					? `Exported to ${exported.name}. Source Backup saved.`
-					: `${exported.name} already matches this Workspace.`;
+					? `Exported ${exported.name}`
+					: `${exported.name} is up to date`;
 				invalidateSavesCache();
 			} else {
 				const bytes = await editCoordinator.export(origin);
@@ -7808,7 +7827,9 @@
 
 {#if boxMenuOpen && boxMenuTarget}
 	<BoxMenu
-		collection={boxMenuTarget.source.label}
+		collection={exportConfirmation
+			? `Overwrite ${boxMenuLinkedFile?.originalFileName ?? 'save'}?`
+			: boxMenuTarget.source.label}
 		commands={boxMenuCommands}
 		activeIndex={navigation.focus.zone === 'actions' ? navigation.focus.index : 0}
 		onFocusCommand={focusBoxMenuCommand}

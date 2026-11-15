@@ -1,14 +1,15 @@
 export const emulatorProfiles = [
+	{ id: 'dolphin', name: 'Dolphin', folder: 'GC or Card A', example: 'GC/USA/Card A/Pokemon.gci' },
 	{
 		id: 'retroarch',
 		name: 'RetroArch',
-		folder: 'RetroArch/saves, including per-core folders',
+		folder: 'RetroArch/saves',
 		example: 'RetroArch/saves/mGBA/Pokemon.srm'
 	},
 	{
 		id: 'melonds',
 		name: 'melonDS',
-		folder: 'Configured save folder, or the folder beside your ROMs',
+		folder: 'Save or ROM folder',
 		example: 'melonDS/roms/Pokemon.sav'
 	},
 	{
@@ -17,27 +18,20 @@ export const emulatorProfiles = [
 		folder: 'DraStic/backup',
 		example: 'DraStic/backup/Pokemon.dsv'
 	},
-	{
-		id: 'pizza',
-		name: 'Pizza Boy',
-		folder: 'Folder containing exported or accessible battery saves',
-		example: 'Pizza Boy A/Pokemon.sav'
-	},
+	{ id: 'pizza', name: 'Pizza Boy', folder: 'Exported saves', example: 'Pizza Boy A/Pokemon.sav' },
 	{
 		id: 'azahar',
-		name: 'Azahar / Citra',
-		folder: 'User folder containing sdmc/Nintendo 3DS',
+		name: 'Azahar',
+		folder: 'Folder with sdmc',
 		example: 'sdmc/Nintendo 3DS/id0/id1/title/00040000/00055e00/data/00000001/main'
-	},
-	{
-		id: 'dolphin',
-		name: 'Dolphin',
-		folder: 'GC, a region folder, or Card A / Card B',
-		example: 'GC/USA/Card A/Pokemon.gci'
 	}
 ] as const;
 
 export type EmulatorProfile = (typeof emulatorProfiles)[number]['id'] | 'generic';
+
+export function emulatorName(id: string | undefined) {
+	return emulatorProfiles.find((profile) => profile.id === id)?.name;
+}
 
 export function folderProfile(tree: string, name: string): EmulatorProfile {
 	const label = (decodeURIComponent(tree) + '/' + name).toLowerCase();

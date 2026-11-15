@@ -5,7 +5,6 @@
 
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import LinkedSaveFolders from '$lib/components/pksx/LinkedSaveFolders.svelte';
 	import { asset } from '$app/paths';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
 	import { appCommands } from '$lib/pksx/app-commands';
@@ -203,7 +202,6 @@
 		</header>
 
 		<div class="settings-scrollport">
-			<LinkedSaveFolders />
 			<section class="settings-card preferences" aria-labelledby="preferences-title">
 				<div class="section-heading">
 					<p class="section-number">01</p>
