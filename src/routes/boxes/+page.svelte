@@ -2402,7 +2402,9 @@
 	function focusSelectionControls() {
 		if (slotDomFocusTimer) clearTimeout(slotDomFocusTimer);
 		slotDomFocusTimer = null;
-		document.querySelector<HTMLButtonElement>('[data-selection-controls] button')?.focus();
+		document
+			.querySelector<HTMLButtonElement>('[data-selection-controls] button:not(:disabled)')
+			?.focus();
 	}
 
 	function beginSelection(pane: BoxPaneState | undefined = activePane) {
