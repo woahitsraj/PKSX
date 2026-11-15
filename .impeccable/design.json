@@ -1,0 +1,596 @@
+{
+	"schemaVersion": 2,
+	"generatedAt": "2026-11-15T08:19:28.796Z",
+	"title": "Design System: PKSX",
+	"extensions": {
+		"colorMeta": {
+			"parchment": {
+				"role": "neutral",
+				"displayName": "Parchment",
+				"canonical": "#f4ecdf",
+				"tonalRamp": [
+					"oklch(15% 0.003 80.118)",
+					"oklch(26.429% 0.008 80.118)",
+					"oklch(37.857% 0.013 80.118)",
+					"oklch(49.286% 0.019 80.118)",
+					"oklch(60.714% 0.019 80.118)",
+					"oklch(72.143% 0.013 80.118)",
+					"oklch(83.571% 0.008 80.118)",
+					"oklch(95% 0.003 80.118)"
+				]
+			},
+			"cream-paper": {
+				"role": "neutral",
+				"displayName": "Cream Paper",
+				"canonical": "#fbf6ec",
+				"tonalRamp": [
+					"oklch(15% 0.002 84.583)",
+					"oklch(26.429% 0.006 84.583)",
+					"oklch(37.857% 0.01 84.583)",
+					"oklch(49.286% 0.014 84.583)",
+					"oklch(60.714% 0.014 84.583)",
+					"oklch(72.143% 0.01 84.583)",
+					"oklch(83.571% 0.006 84.583)",
+					"oklch(95% 0.002 84.583)"
+				]
+			},
+			"sunken-paper": {
+				"role": "neutral",
+				"displayName": "Sunken Paper",
+				"canonical": "#ebe2d2",
+				"tonalRamp": [
+					"oklch(15% 0.004 82.119)",
+					"oklch(26.429% 0.01 82.119)",
+					"oklch(37.857% 0.016 82.119)",
+					"oklch(49.286% 0.023 82.119)",
+					"oklch(60.714% 0.023 82.119)",
+					"oklch(72.143% 0.016 82.119)",
+					"oklch(83.571% 0.01 82.119)",
+					"oklch(95% 0.004 82.119)"
+				]
+			},
+			"ink": {
+				"role": "neutral",
+				"displayName": "Ink",
+				"canonical": "#2a241c",
+				"tonalRamp": [
+					"oklch(15% 0.003 74.882)",
+					"oklch(26.429% 0.007 74.882)",
+					"oklch(37.857% 0.012 74.882)",
+					"oklch(49.286% 0.017 74.882)",
+					"oklch(60.714% 0.017 74.882)",
+					"oklch(72.143% 0.012 74.882)",
+					"oklch(83.571% 0.007 74.882)",
+					"oklch(95% 0.003 74.882)"
+				]
+			},
+			"ink-soft": {
+				"role": "neutral",
+				"displayName": "Ink Soft",
+				"canonical": "#5a4d3b",
+				"tonalRamp": [
+					"oklch(15% 0.005 75.675)",
+					"oklch(26.429% 0.014 75.675)",
+					"oklch(37.857% 0.023 75.675)",
+					"oklch(49.286% 0.033 75.675)",
+					"oklch(60.714% 0.033 75.675)",
+					"oklch(72.143% 0.023 75.675)",
+					"oklch(83.571% 0.014 75.675)",
+					"oklch(95% 0.005 75.675)"
+				]
+			},
+			"ink-mute": {
+				"role": "neutral",
+				"displayName": "Ink Mute",
+				"canonical": "#72634c",
+				"tonalRamp": [
+					"oklch(15% 0.006 78.271)",
+					"oklch(26.429% 0.016 78.271)",
+					"oklch(37.857% 0.027 78.271)",
+					"oklch(49.286% 0.039 78.271)",
+					"oklch(60.714% 0.039 78.271)",
+					"oklch(72.143% 0.027 78.271)",
+					"oklch(83.571% 0.016 78.271)",
+					"oklch(95% 0.006 78.271)"
+				]
+			},
+			"rust": {
+				"role": "primary",
+				"displayName": "Rust",
+				"canonical": "#a14a2c",
+				"tonalRamp": [
+					"oklch(15% 0.019 39.191)",
+					"oklch(26.429% 0.051 39.191)",
+					"oklch(37.857% 0.086 39.191)",
+					"oklch(49.286% 0.121 39.191)",
+					"oklch(60.714% 0.121 39.191)",
+					"oklch(72.143% 0.086 39.191)",
+					"oklch(83.571% 0.051 39.191)",
+					"oklch(95% 0.019 39.191)"
+				]
+			},
+			"brass": {
+				"role": "secondary",
+				"displayName": "Brass",
+				"canonical": "#c89a3e",
+				"tonalRamp": [
+					"oklch(15% 0.018 81.73)",
+					"oklch(26.429% 0.05 81.73)",
+					"oklch(37.857% 0.084 81.73)",
+					"oklch(49.286% 0.119 81.73)",
+					"oklch(60.714% 0.119 81.73)",
+					"oklch(72.143% 0.084 81.73)",
+					"oklch(83.571% 0.05 81.73)",
+					"oklch(95% 0.018 81.73)"
+				]
+			},
+			"sage": {
+				"role": "tertiary",
+				"displayName": "Sage",
+				"canonical": "#4a7340",
+				"tonalRamp": [
+					"oklch(15% 0.013 139.612)",
+					"oklch(26.429% 0.037 139.612)",
+					"oklch(37.857% 0.063 139.612)",
+					"oklch(49.286% 0.088 139.612)",
+					"oklch(60.714% 0.088 139.612)",
+					"oklch(72.143% 0.063 139.612)",
+					"oklch(83.571% 0.037 139.612)",
+					"oklch(95% 0.013 139.612)"
+				]
+			},
+			"amber": {
+				"role": "tertiary",
+				"displayName": "Amber",
+				"canonical": "#8a5600",
+				"tonalRamp": [
+					"oklch(15% 0.016 69.626)",
+					"oklch(26.429% 0.045 69.626)",
+					"oklch(37.857% 0.076 69.626)",
+					"oklch(49.286% 0.107 69.626)",
+					"oklch(60.714% 0.107 69.626)",
+					"oklch(72.143% 0.076 69.626)",
+					"oklch(83.571% 0.045 69.626)",
+					"oklch(95% 0.016 69.626)"
+				]
+			},
+			"signal-red": {
+				"role": "tertiary",
+				"displayName": "Signal Red",
+				"canonical": "#b03232",
+				"tonalRamp": [
+					"oklch(15% 0.024 25.069)",
+					"oklch(26.429% 0.067 25.069)",
+					"oklch(37.857% 0.113 25.069)",
+					"oklch(49.286% 0.16 25.069)",
+					"oklch(60.714% 0.16 25.069)",
+					"oklch(72.143% 0.113 25.069)",
+					"oklch(83.571% 0.067 25.069)",
+					"oklch(95% 0.024 25.069)"
+				]
+			},
+			"night-ink": {
+				"role": "neutral",
+				"displayName": "Night Ink",
+				"canonical": "#0e0f12",
+				"tonalRamp": [
+					"oklch(15% 0.001 271.014)",
+					"oklch(26.429% 0.003 271.014)",
+					"oklch(37.857% 0.004 271.014)",
+					"oklch(49.286% 0.006 271.014)",
+					"oklch(60.714% 0.006 271.014)",
+					"oklch(72.143% 0.004 271.014)",
+					"oklch(83.571% 0.003 271.014)",
+					"oklch(95% 0.001 271.014)"
+				]
+			},
+			"night-panel": {
+				"role": "neutral",
+				"displayName": "Night Panel",
+				"canonical": "#181a1e",
+				"tonalRamp": [
+					"oklch(15% 0.001 264.384)",
+					"oklch(26.429% 0.003 264.384)",
+					"oklch(37.857% 0.006 264.384)",
+					"oklch(49.286% 0.008 264.384)",
+					"oklch(60.714% 0.008 264.384)",
+					"oklch(72.143% 0.006 264.384)",
+					"oklch(83.571% 0.003 264.384)",
+					"oklch(95% 0.001 264.384)"
+				]
+			},
+			"night-sunken": {
+				"role": "neutral",
+				"displayName": "Night Sunken",
+				"canonical": "#08090b",
+				"tonalRamp": [
+					"oklch(15% 0.001 262.802)",
+					"oklch(26.429% 0.002 262.802)",
+					"oklch(37.857% 0.003 262.802)",
+					"oklch(49.286% 0.005 262.802)",
+					"oklch(60.714% 0.005 262.802)",
+					"oklch(72.143% 0.003 262.802)",
+					"oklch(83.571% 0.002 262.802)",
+					"oklch(95% 0.001 262.802)"
+				]
+			},
+			"moonlight": {
+				"role": "neutral",
+				"displayName": "Moonlight",
+				"canonical": "#f4f5f7",
+				"tonalRamp": [
+					"oklch(15% 0 264.542)",
+					"oklch(26.429% 0.001 264.542)",
+					"oklch(37.857% 0.002 264.542)",
+					"oklch(49.286% 0.003 264.542)",
+					"oklch(60.714% 0.003 264.542)",
+					"oklch(72.143% 0.002 264.542)",
+					"oklch(83.571% 0.001 264.542)",
+					"oklch(95% 0 264.542)"
+				]
+			},
+			"moonlight-soft": {
+				"role": "neutral",
+				"displayName": "Moonlight Soft",
+				"canonical": "#b8bcc4",
+				"tonalRamp": [
+					"oklch(15% 0.002 264.498)",
+					"oklch(26.429% 0.005 264.498)",
+					"oklch(37.857% 0.008 264.498)",
+					"oklch(49.286% 0.012 264.498)",
+					"oklch(60.714% 0.012 264.498)",
+					"oklch(72.143% 0.008 264.498)",
+					"oklch(83.571% 0.005 264.498)",
+					"oklch(95% 0.002 264.498)"
+				]
+			},
+			"moonlight-mute": {
+				"role": "neutral",
+				"displayName": "Moonlight Mute",
+				"canonical": "#959baa",
+				"tonalRamp": [
+					"oklch(15% 0.003 268.338)",
+					"oklch(26.429% 0.009 268.338)",
+					"oklch(37.857% 0.016 268.338)",
+					"oklch(49.286% 0.023 268.338)",
+					"oklch(60.714% 0.023 268.338)",
+					"oklch(72.143% 0.016 268.338)",
+					"oklch(83.571% 0.009 268.338)",
+					"oklch(95% 0.003 268.338)"
+				]
+			},
+			"ember": {
+				"role": "primary",
+				"displayName": "Ember",
+				"canonical": "#ff8a5c",
+				"tonalRamp": [
+					"oklch(15% 0.023 41.643)",
+					"oklch(26.429% 0.064 41.643)",
+					"oklch(37.857% 0.108 41.643)",
+					"oklch(49.286% 0.152 41.643)",
+					"oklch(60.714% 0.152 41.643)",
+					"oklch(72.143% 0.108 41.643)",
+					"oklch(83.571% 0.064 41.643)",
+					"oklch(95% 0.023 41.643)"
+				]
+			},
+			"night-brass": {
+				"role": "secondary",
+				"displayName": "Night Brass",
+				"canonical": "#f0c060",
+				"tonalRamp": [
+					"oklch(15% 0.019 82.757)",
+					"oklch(26.429% 0.052 82.757)",
+					"oklch(37.857% 0.088 82.757)",
+					"oklch(49.286% 0.124 82.757)",
+					"oklch(60.714% 0.124 82.757)",
+					"oklch(72.143% 0.088 82.757)",
+					"oklch(83.571% 0.052 82.757)",
+					"oklch(95% 0.019 82.757)"
+				]
+			},
+			"night-sage": {
+				"role": "tertiary",
+				"displayName": "Night Sage",
+				"canonical": "#7ed99a",
+				"tonalRamp": [
+					"oklch(15% 0.019 152.651)",
+					"oklch(26.429% 0.052 152.651)",
+					"oklch(37.857% 0.087 152.651)",
+					"oklch(49.286% 0.123 152.651)",
+					"oklch(60.714% 0.123 152.651)",
+					"oklch(72.143% 0.087 152.651)",
+					"oklch(83.571% 0.052 152.651)",
+					"oklch(95% 0.019 152.651)"
+				]
+			},
+			"night-amber": {
+				"role": "tertiary",
+				"displayName": "Night Amber",
+				"canonical": "#e0a43a",
+				"tonalRamp": [
+					"oklch(15% 0.021 77.684)",
+					"oklch(26.429% 0.056 77.684)",
+					"oklch(37.857% 0.096 77.684)",
+					"oklch(49.286% 0.135 77.684)",
+					"oklch(60.714% 0.135 77.684)",
+					"oklch(72.143% 0.096 77.684)",
+					"oklch(83.571% 0.056 77.684)",
+					"oklch(95% 0.021 77.684)"
+				]
+			},
+			"night-red": {
+				"role": "tertiary",
+				"displayName": "Night Red",
+				"canonical": "#ff6f6a",
+				"tonalRamp": [
+					"oklch(15% 0.027 24.558)",
+					"oklch(26.429% 0.073 24.558)",
+					"oklch(37.857% 0.123 24.558)",
+					"oklch(49.286% 0.174 24.558)",
+					"oklch(60.714% 0.174 24.558)",
+					"oklch(72.143% 0.123 24.558)",
+					"oklch(83.571% 0.073 24.558)",
+					"oklch(95% 0.027 24.558)"
+				]
+			}
+		},
+		"typographyMeta": {
+			"display": {
+				"displayName": "Display",
+				"purpose": "Screen headings. 28px in containers of at least 900×700."
+			},
+			"title": {
+				"displayName": "Title",
+				"purpose": "Card headings and Takeover section titles. 18px in large containers."
+			},
+			"body": {
+				"displayName": "Body",
+				"purpose": "Running text. 15px in large containers."
+			},
+			"label": {
+				"displayName": "Label",
+				"purpose": "Menu rows, buttons, Toasts, field labels. 13px in large containers."
+			},
+			"caption": {
+				"displayName": "Caption (mono)",
+				"purpose": "Slot indexes, counters, location captions, filenames. 11px in large containers."
+			},
+			"editable": {
+				"displayName": "Editable floor",
+				"purpose": "Minimum computed size of every editable control."
+			}
+		},
+		"shadows": [
+			{
+				"name": "subtle",
+				"value": "0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 2px 6px -3px rgba(70, 50, 30, 0.16)",
+				"purpose": "Slots, cards, and small chips at rest."
+			},
+			{
+				"name": "raised",
+				"value": "0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 4px 12px -6px rgba(70, 50, 30, 0.18), 0 2px 4px -2px rgba(70, 50, 30, 0.14)",
+				"purpose": "Hovered Slots and emphasized controls."
+			},
+			{
+				"name": "panel",
+				"value": "0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 14px 36px -16px rgba(70, 50, 30, 0.26), 0 4px 10px -6px rgba(70, 50, 30, 0.18)",
+				"purpose": "Menu panels, Takeovers, and rails."
+			},
+			{
+				"name": "toast",
+				"value": "0 18px 44px rgba(0, 0, 0, 0.18), 0 5px 14px rgba(0, 0, 0, 0.12)",
+				"purpose": "Toasts only."
+			},
+			{
+				"name": "controller-focus",
+				"value": "outline: 3px solid var(--pksx-color-accent-ring); outline-offset: -3px",
+				"purpose": "Shared focus ring in controller modality."
+			}
+		],
+		"motion": [
+			{
+				"name": "ease-out",
+				"value": "cubic-bezier(0.23, 1, 0.32, 1)",
+				"purpose": "State changes and route transitions."
+			},
+			{
+				"name": "ease-drawer",
+				"value": "cubic-bezier(0.32, 0.72, 0, 1)",
+				"purpose": "Menus that slide from an edge."
+			},
+			{
+				"name": "route-out",
+				"value": "140ms, 4px slide",
+				"purpose": "Outgoing route view."
+			},
+			{
+				"name": "route-in",
+				"value": "180ms, 8px slide",
+				"purpose": "Incoming route view. Removed under reduced motion."
+			},
+			{
+				"name": "micro",
+				"value": "120ms",
+				"purpose": "Slot hover and press feedback; press scales to 0.97."
+			}
+		],
+		"breakpoints": [
+			{
+				"name": "height-band-tall",
+				"value": "min-height: 560px"
+			},
+			{
+				"name": "large-container",
+				"value": "container min-width: 900px and min-height: 700px"
+			}
+		]
+	},
+	"components": [
+		{
+			"name": "Slot (filled)",
+			"kind": "custom",
+			"refersTo": "slot",
+			"description": "Type-tinted tray cell that frames one pixel sprite. The signature component.",
+			"html": "<button class=\"ds-slot\"><span class=\"ds-slot-index\">07</span><span class=\"ds-slot-sprite\"></span></button>",
+			"css": ".ds-slot { --slot-hue: 145; --slot-chroma: 0.09; position: relative; width: 64px; height: 64px; display: grid; place-items: center; padding: 4px; border: 0; border-radius: 11px; background: oklch(0.9 var(--slot-chroma) var(--slot-hue)); box-shadow: var(--pksx-shadow-subtle); color: var(--pksx-color-text-primary); outline: 2px solid transparent; outline-offset: -2px; transition: transform 120ms ease, box-shadow 120ms ease; } .ds-slot:hover { transform: translateY(-1px); box-shadow: inset 0 0 0 2px var(--pksx-color-accent-primary), var(--pksx-shadow-raised); } .ds-slot:focus-visible { outline-color: var(--pksx-color-accent-primary); } .ds-slot-index { position: absolute; top: 4px; left: 5px; font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.04em; opacity: 0.7; } .ds-slot-sprite { width: 60%; height: 60%; border-radius: 2px; background: color-mix(in srgb, var(--pksx-color-text-primary), transparent 75%); }"
+		},
+		{
+			"name": "Slot (dual type)",
+			"kind": "custom",
+			"refersTo": "slot",
+			"description": "Two type tints split on a 135 degree diagonal at 55%.",
+			"html": "<button class=\"ds-slot-dual\"></button>",
+			"css": ".ds-slot-dual { width: 64px; height: 64px; border: 0; border-radius: 11px; background: linear-gradient(135deg, oklch(0.9 0.09 30) 0 55%, oklch(0.9 0.09 250) 55% 100%); box-shadow: var(--pksx-shadow-subtle); outline: 2px solid transparent; outline-offset: -2px; } .ds-slot-dual:focus-visible { outline-color: var(--pksx-color-accent-primary); }"
+		},
+		{
+			"name": "Slot (empty)",
+			"kind": "custom",
+			"refersTo": "slot-empty",
+			"description": "Recessed dashed cell; the dash turns solid Rust on focus.",
+			"html": "<button class=\"ds-slot-empty\"><span></span></button>",
+			"css": ".ds-slot-empty { width: 64px; height: 64px; display: grid; place-items: center; border: 1.5px dashed var(--pksx-color-border-strong); border-radius: 11px; background: color-mix(in srgb, var(--pksx-color-surface-subtle), transparent 35%); } .ds-slot-empty span { width: 50%; height: 50%; border: 1.25px dashed var(--pksx-color-border-strong); border-radius: 8px; } .ds-slot-empty:focus-visible { border-style: solid; border-color: var(--pksx-color-accent-primary); outline: none; }"
+		},
+		{
+			"name": "Menu row",
+			"kind": "button",
+			"refersTo": "menu-row",
+			"description": "Pressable, plain command row in a Menu. Rust wash on hover and focus.",
+			"html": "<button class=\"ds-menu-row\">Move</button>",
+			"css": ".ds-menu-row { width: 220px; height: 28px; padding: 2px 8px; border: 0; border-radius: 4px; background: var(--pksx-color-surface-panel); color: var(--pksx-color-text-primary); font: 750 12px/1.15 var(--pksx-font-sans); transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); cursor: pointer; } .ds-menu-row:hover, .ds-menu-row:focus-visible { background: var(--pksx-color-accent-wash); color: var(--pksx-color-accent-primary); outline: none; } .ds-menu-row:active { transform: scale(0.97); }"
+		},
+		{
+			"name": "Menu row (unavailable)",
+			"kind": "button",
+			"refersTo": "menu-row-unavailable",
+			"description": "Unavailable command stays visible with its reason.",
+			"html": "<div class=\"ds-unavail\"><button aria-disabled=\"true\">Evolve</button><span>Needs a trade</span></div>",
+			"css": ".ds-unavail { display: grid; gap: 1px; width: 220px; } .ds-unavail button { height: 28px; border: 0; border-radius: 4px; background: var(--pksx-color-surface-subtle); color: var(--pksx-color-text-primary); font: 750 12px/1.15 var(--pksx-font-sans); opacity: 0.68; cursor: not-allowed; } .ds-unavail span { color: var(--pksx-color-text-secondary); font: 600 10px/1.2 var(--pksx-font-sans); text-align: center; }"
+		},
+		{
+			"name": "Primary action",
+			"kind": "button",
+			"refersTo": "button-primary",
+			"description": "The one filled Rust action on a surface.",
+			"html": "<button class=\"ds-btn-primary\">Close</button>",
+			"css": ".ds-btn-primary { width: 220px; height: 28px; border: 0; border-radius: 4px; background: var(--pksx-color-accent-primary); color: #fff; font: 750 12px/1.15 var(--pksx-font-sans); cursor: pointer; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); } .ds-btn-primary:hover, .ds-btn-primary:focus-visible { background: var(--pksx-color-accent-ring); outline: none; } .ds-btn-primary:active { transform: scale(0.97); }"
+		},
+		{
+			"name": "Save File card",
+			"kind": "card",
+			"refersTo": "card-save-file",
+			"description": "Tab-corner card: small leading radius, large trailing radius.",
+			"html": "<button class=\"ds-card\"><strong>Emerald</strong><span>MAY · 12:41:07 · 6 badges</span></button>",
+			"css": ".ds-card { min-width: 240px; min-height: 112px; display: grid; align-content: start; gap: 4px; padding: 8px 12px; border: 1px solid var(--pksx-color-border-subtle); border-radius: 4px 14px 14px 4px; background: var(--pksx-color-surface-panel); box-shadow: var(--pksx-shadow-subtle); color: var(--pksx-color-text-primary); text-align: left; cursor: pointer; } .ds-card strong { font: 800 16px/1.1 var(--pksx-font-sans); } .ds-card span { color: var(--pksx-color-text-muted); font: 650 10px/1.25 var(--pksx-font-mono); } .ds-card:hover { background: linear-gradient(var(--pksx-color-accent-wash), var(--pksx-color-accent-wash)), var(--pksx-color-surface-panel); } .ds-card:focus-visible { outline: 3px solid var(--pksx-color-accent-ring); outline-offset: -3px; }"
+		},
+		{
+			"name": "Toast",
+			"kind": "custom",
+			"refersTo": "toast",
+			"description": "Bottom-trailing notice with a colored status dot. Never takes focus.",
+			"html": "<div class=\"ds-toast\"><span class=\"ds-toast-mark\"></span><span>Backup created</span></div>",
+			"css": ".ds-toast { width: 320px; min-height: 42px; display: flex; align-items: center; gap: 9px; padding: 9px 8px 9px 10px; border: 1px solid color-mix(in srgb, var(--pksx-color-text-primary), transparent 88%); border-radius: 11px; background: color-mix(in srgb, var(--pksx-color-surface-panel), white 8%); box-shadow: 0 18px 44px color-mix(in srgb, black, transparent 82%), 0 5px 14px color-mix(in srgb, black, transparent 88%); color: var(--pksx-color-text-primary); font: 700 12px/1.25 var(--pksx-font-sans); } .ds-toast-mark { width: 8px; height: 8px; border-radius: 999px; background: var(--pksx-color-feedback-success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--pksx-color-feedback-success), transparent 84%); }"
+		}
+	],
+	"narrative": {
+		"northStar": "The Collector's Case",
+		"overview": "PKSX is a display case for a collection. Each Box is a tray, and each Slot is a small tinted cell that frames one specimen: a pixel sprite from the offline Sprite Catalog. Everything around the tray is quiet so that the Pokemon carry the color. The light theme is warm paper and dark ink with one rust accent. The dark theme is near-black with an ember accent. Both themes keep the same structure.\n\nThe mood is warm, tactile, and quiet. Surfaces feel like paper with a soft lift. A faint diagonal grain and two very soft radial washes give the canvas texture without pattern noise. Density follows the container, not the device: room grows with height, and the type scale stays fixed. The shell reserves no chrome, so the collection fills the Safe Canvas.\n\nPKSX rejects the dense PKHeX-style desktop form. No screen is a wall of labelled fields. Editing happens in focused Takeovers, and the Box grid is always the home position.",
+		"keyCharacteristics": [
+			"Type-tinted Slots are the main source of color. Chrome stays neutral.",
+			"One accent (Rust in light, Ember in dark) marks focus, the active item, and the primary action.",
+			"Mono numerals for indexes, levels, stats, captions, and filenames.",
+			"Soft structural shadows with a 1px inner highlight. No glows.",
+			"Fixed type ladder; spacing and control height scale with container height.",
+			"Every target is reachable by controller and shows a clear focus ring."
+		],
+		"rules": [
+			{
+				"name": "The Specimen Color Rule",
+				"body": "Pokemon carry the color. Chrome uses neutrals and the one accent. Do not add decorative hues to panels, headers, or buttons.",
+				"section": "colors"
+			},
+			{
+				"name": "The One Accent Rule",
+				"body": "Rust (or Ember) means \"here\" or \"do this\". If two things on screen are rust, one of them is wrong.",
+				"section": "colors"
+			},
+			{
+				"name": "The Readable Contrast Rule",
+				"body": "Every text token passes WCAG AA (4.5:1) on Parchment, Cream Paper, and Sunken Paper, and the dark equivalents. Text on a Rust or Ember fill uses On Rust or On Ember, never a fixed white.",
+				"section": "colors"
+			},
+			{
+				"name": "The Shared Token Rule",
+				"body": "Components read `--pksx-color-*` tokens, or the shell aliases (`--paper`, `--ink`, `--rust`, and so on) that map to them. Dark mode swaps the tokens on `:root`. Never hard-code a theme color in a component.",
+				"section": "colors"
+			},
+			{
+				"name": "The Fixed Ladder Rule",
+				"body": "Use only the semantic type tokens (`--pksx-type-caption` to `--pksx-type-display`). Raw font sizes fail the design-contract lint.",
+				"section": "typography"
+			},
+			{
+				"name": "The Sentence Case Rule",
+				"body": "No `text-transform: uppercase` and no added letter-spacing. Labels are sentence case in the source. Words are at least 12px (Label).",
+				"section": "typography"
+			},
+			{
+				"name": "The No Kicker Rule",
+				"body": "No eyebrow label above a heading and no section numbers (01, 02, 03). The heading carries its own weight.",
+				"section": "typography"
+			},
+			{
+				"name": "The Mono Numerals Rule",
+				"body": "Numbers that a user compares (indexes, levels, stats, counts, IDs) use the mono family.",
+				"section": "typography"
+			},
+			{
+				"name": "The Zero Chrome Rule",
+				"body": "If a region repeats on every route, it is chrome. Remove it, or summon it.",
+				"section": "layout"
+			},
+			{
+				"name": "The One Surface Rule",
+				"body": "A panel, rail, Menu, or Takeover is the only card. Groups inside it have no fill, border, or shadow of their own; they separate by spacing, a heading, and at most a 1px Rule. Option lists are rows, not boxes.",
+				"section": "layout"
+			},
+			{
+				"name": "The Height Owns Density Rule",
+				"body": "Read height, never width, to decide how much room things get.",
+				"section": "layout"
+			},
+			{
+				"name": "The Soft Lift Rule",
+				"body": "Shadows say \"this layer is above that one\". Never use a shadow as a glow, a color, or decoration.",
+				"section": "elevation"
+			},
+			{
+				"name": "The One Summoned Surface Rule",
+				"body": "At most one Menu or Takeover is visible, over one Backdrop.",
+				"section": "elevation"
+			}
+		],
+		"dos": [
+			"Do let Slot type tints and sprites carry the color. Keep chrome on Parchment, Cream Paper, and Ink.",
+			"Do use the semantic type tokens and the mono family for numbers.",
+			"Do size controls with `--pksx-control-height` or the small control token, and mark custom controls with `data-pksx-control-category`.",
+			"Do render sprites pixelated and unclipped at 78 to 92% of the Slot.",
+			"Do keep the 16px floor on every editable control.",
+			"Do show unavailable commands with a reason, not by hiding them.",
+			"Do use container queries for layout, and the Height Band for the one Short/Tall switch."
+		],
+		"donts": [
+			"Don't build dense PKHeX-style desktop forms. Put editing in a focused Takeover.",
+			"Don't reserve space for headers, tab bars, or status strips.",
+			"Don't use width, aspect, or orientation media queries in shipping code.",
+			"Don't use a second accent color for actions. Brass marks a source, not an action.",
+			"Don't use shadows as glows or color effects.",
+			"Don't show more than one Menu or Takeover at a time.",
+			"Don't use Nintendo, Game Freak, or The Pokemon Company marks, or look-alike official game UI.",
+			"Don't hard-code theme colors in components. Read the shared tokens.",
+			"Don't put a card inside a card, or a colored side stripe on a card, row, or field.",
+			"Don't uppercase or letter-space text, or set words below 12px.",
+			"Don't add an eyebrow label or section numbers above a heading."
+		]
+	}
+}
