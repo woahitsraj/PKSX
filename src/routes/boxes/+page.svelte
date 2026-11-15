@@ -2475,7 +2475,7 @@
 			document.activeElement.closest('[data-selection-controls]')
 		) {
 			const action = keyboardAction(event);
-			if (action === 'previousBox' || action === 'nextBox') {
+			if (action === 'previousBox' || action === 'nextBox' || action === 'carryMode') {
 				event.preventDefault();
 				dispatch(action);
 			} else if (event.key === 'Escape') {
