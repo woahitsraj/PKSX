@@ -65,6 +65,11 @@ for (const zone of ['Box', 'Party'])
 			await page.keyboard.press('Enter');
 			await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 60000 });
 			await expect(occupied).toHaveCount(count - (mode === 'Move' ? 1 : 0));
+			await page.keyboard.press('ArrowRight');
+			await expect(page.locator('#box-grid')).toHaveAttribute(
+				'aria-activedescendant',
+				zone === 'Party' ? 'party-slot-1' : 'box-0-slot-1'
+			);
 			await page.reload();
 			await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
 				'data-initial-state',
