@@ -8704,7 +8704,22 @@
 
 	.selection-controls > button {
 		min-height: var(--pksx-control-height);
-		text-align: left;
+		padding: var(--pksx-space-1) var(--pksx-space-2);
+		border-radius: var(--pksx-radius-small);
+		background: var(--paper-hi);
+		font-weight: 750;
+		text-align: center;
+	}
+
+	.selection-controls > button:disabled {
+		background: var(--paper-deep);
+		opacity: 0.68;
+	}
+
+	.selection-controls > button:enabled:hover,
+	.selection-controls > button:focus-visible {
+		background: var(--rust-wash);
+		color: var(--rust);
 	}
 
 	.selection-controls strong {

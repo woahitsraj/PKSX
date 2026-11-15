@@ -95,23 +95,43 @@ for (const entry of ['mouse', 'keyboard', 'controller']) {
 		await page.keyboard.press('Shift+ArrowRight');
 		const controls = page.getByRole('group', { name: 'Selection actions', exact: true });
 		await expect(controls).toContainText('2 selected');
-		if (entry === 'mouse') await cells.nth(0).click({ button: 'right' });
-		else if (entry === 'keyboard') await page.keyboard.press('y');
-		else
-			await page.evaluate(() => {
+		async function pressMenuKey(key: string) {
+			if (entry !== 'controller') return page.keyboard.press(key);
+			await page.evaluate((key) => {
 				for (const pressed of [true, false])
 					window.dispatchEvent(
 						new CustomEvent('pksxcontroller', {
-							detail: { key: 'y', pressed, discrete: true, id: 'Test controller' }
+							detail: { key, pressed, discrete: true, id: 'Test controller' }
 						})
 					);
-			});
+			}, key);
+		}
+		if (entry === 'mouse') await cells.nth(0).click({ button: 'right' });
+		else await pressMenuKey('y');
 		const menu = page.getByRole('dialog', { name: 'Selection actions', exact: true });
 		await expect(menu.getByRole('button', { name: 'Copy to Storage', exact: true })).toBeFocused();
-		await page.keyboard.press('ArrowDown');
+		await pressMenuKey('ArrowDown');
 		await expect(menu.getByRole('button', { name: 'Move to Storage', exact: true })).toBeFocused();
+		const rows = menu.getByRole('listitem');
+		await expect(rows).toHaveCount(3);
+		const styles = await rows.locator('button').evaluateAll((buttons) =>
+			buttons.map((button) => {
+				const style = getComputedStyle(button);
+				const label = button.querySelector('strong') ?? button;
+				return {
+					justify: style.justifyContent,
+					height: button.getBoundingClientRect().height,
+					font: getComputedStyle(label).fontWeight,
+					background: style.backgroundColor
+				};
+			})
+		);
+		expect(styles[2]).toEqual(styles[0]);
+		await expect(menu.getByRole('button', { name: 'Close', exact: true })).toBeInViewport({
+			ratio: 1
+		});
 		await page.screenshot({ path: `/tmp/pksx-desktop-review/selection-menu-${entry}.png` });
-		await page.keyboard.press('Enter');
+		await pressMenuKey('Enter');
 		const preview = page.getByRole('dialog', { name: 'Move to Storage', exact: true });
 		await preview.getByRole('button', { name: /Storage Box 1/ }).click();
 		await expect(preview.locator('li')).toHaveCount(2);
@@ -125,7 +145,12 @@ for (const entry of ['mouse', 'keyboard', 'controller']) {
 		await expect(controls.getByRole('button', { name: 'Actions', exact: true })).toBeFocused();
 		await page.keyboard.press('y');
 		await expect(menu).toBeVisible();
-		await page.keyboard.press('Escape');
+		await pressMenuKey('ArrowDown');
+		await pressMenuKey('ArrowDown');
+		await expect(menu.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
+		await pressMenuKey('Enter');
 		await expect(menu).toHaveCount(0);
+		await expect(controls.getByRole('button', { name: 'Actions', exact: true })).toBeFocused();
+		await expect(controls).toContainText('2 selected');
 	});
 }

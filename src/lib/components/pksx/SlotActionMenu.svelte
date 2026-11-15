@@ -75,16 +75,21 @@
 					{/if}
 				</div>
 			{/each}
+			<div class="slot-command-row" role="listitem">
+				<button
+					id={`${idPrefix}-${commands.length}`}
+					type="button"
+					data-pksx-control-category="small"
+					data-availability="available"
+					class={{ 'controller-focused': activeIndex === commands.length }}
+					onfocus={(event) => {
+						onFocusCommand(commands.length);
+						event.currentTarget.parentElement?.scrollIntoView({ block: 'nearest' });
+					}}
+					onclick={onClose}><strong>Close</strong></button
+				>
+			</div>
 		</div>
-
-		<button
-			id={`${idPrefix}-${commands.length}`}
-			type="button"
-			data-pksx-control-category="small"
-			class={['close-command', { 'controller-focused': activeIndex === commands.length }]}
-			onfocus={() => onFocusCommand(commands.length)}
-			onclick={onClose}>Close</button
-		>
 	</div>
 </EdgeMenu>
 
@@ -124,8 +129,7 @@
 		gap: 1px;
 	}
 
-	.slot-command-row button,
-	.slot-context > button {
+	.slot-command-row button {
 		width: 100%;
 		min-height: var(--pksx-small-control-height);
 		padding: var(--pksx-space-1) var(--pksx-space-2);
@@ -139,8 +143,7 @@
 		transition: transform 120ms var(--pksx-ease-out);
 	}
 
-	.slot-command-row button:active:not([aria-disabled='true']),
-	.close-command:active {
+	.slot-command-row button:active:not([aria-disabled='true']) {
 		transform: scale(0.97);
 	}
 
@@ -165,15 +168,13 @@
 		outline: none;
 	}
 
-	.slot-command-row button.controller-focused,
-	.close-command.controller-focused {
+	.slot-command-row button.controller-focused {
 		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
 		outline-offset: 1px;
 		opacity: 1;
 	}
 
-	.slot-command-row strong,
-	.close-command {
+	.slot-command-row strong {
 		font-size: var(--pksx-type-label);
 		font-weight: 750;
 		line-height: 1.15;
@@ -189,18 +190,5 @@
 		font-weight: 600;
 		line-height: 1.2;
 		text-align: center;
-	}
-
-	.close-command {
-		background: var(--rust);
-		color: white;
-		cursor: pointer;
-		text-align: center;
-	}
-
-	.close-command:hover,
-	.close-command:focus-visible:not(.controller-focused) {
-		background: var(--rust-ring);
-		outline: none;
 	}
 </style>
