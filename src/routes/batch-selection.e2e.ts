@@ -48,6 +48,17 @@ for (const viewport of [
 			const actions = page.getByRole('group', { name: 'Selection actions' });
 			await expect(actions).toContainText('0 selected');
 			const pokemon = page.locator('.box-pane .slot.pokemon').first();
+			await pokemon.focus();
+			await page.clock.install();
+			await pressController(page, 'ArrowRight');
+			await pressController(page, 'y');
+			await page.clock.runFor(600);
+			await expect(actions.getByRole('button', { name: 'Select box', exact: true })).toBeFocused();
+			await pressController(page, 'Enter');
+			await expect(page.locator('[data-batch-selected="true"]')).toHaveCount(
+				await page.locator('.box-pane .slot.pokemon').count()
+			);
+			await actions.getByRole('button', { name: 'Clear selection' }).tap();
 			await pokemon.tap();
 			await expect(actions).toContainText('1 selected');
 			await expect(pokemon).toHaveAttribute('data-batch-selected', 'true');

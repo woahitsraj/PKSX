@@ -986,7 +986,7 @@
 			return true;
 		}
 		if (selection && !activeSummonedWorkflow && action === 'carryMode') {
-			document.querySelector<HTMLButtonElement>('[data-selection-controls] button')?.focus();
+			focusSelectionControls();
 			return true;
 		}
 		if (action === 'carryMode') {
@@ -1060,7 +1060,7 @@
 
 	function dispatchNavigation(action: NavigationAction) {
 		if (selection && action === 'carryMode') {
-			document.querySelector<HTMLButtonElement>('[data-selection-controls] button')?.focus();
+			focusSelectionControls();
 			return;
 		}
 		if (selection && action === 'back') {
@@ -2397,6 +2397,12 @@
 			selection = null;
 			statusMessage = 'Selection cleared because its contents changed. Select Pokemon again.';
 		}
+	}
+
+	function focusSelectionControls() {
+		if (slotDomFocusTimer) clearTimeout(slotDomFocusTimer);
+		slotDomFocusTimer = null;
+		document.querySelector<HTMLButtonElement>('[data-selection-controls] button')?.focus();
 	}
 
 	function beginSelection(pane: BoxPaneState | undefined = activePane) {
