@@ -197,6 +197,12 @@ test('Settings uses one clamped vertical Focus Zone and reveals its focused stop
 	page
 }) => {
 	await openSettings(page, 1280, 800);
+	await expect(page.getByRole('table', { name: 'Selecting Pokemon controls' })).toContainText(
+		'Shift + Arrow keys'
+	);
+	await expect(page.getByRole('table', { name: 'Selecting Pokemon controls' })).toContainText(
+		'Click and drag'
+	);
 	const scrollport = page.locator('.settings-scrollport');
 	const stops = page.locator('[data-settings-stop]');
 	const light = page.getByRole('button', { name: 'Use light theme' });

@@ -51,6 +51,35 @@
 			]
 		},
 		{
+			id: 'selection',
+			title: 'Selecting Pokemon',
+			rows: [
+				{
+					action: 'Enter Select mode',
+					controller: 'Select / Minus or Box Menu',
+					keyboard: '- or Box Menu'
+				},
+				{ action: 'Toggle focused Pokemon', controller: 'A', keyboard: 'Enter' },
+				{
+					action: 'Selection actions',
+					controller: 'Y',
+					keyboard: 'Y or right-click the selected grid'
+				},
+				{
+					action: 'Extend a range',
+					controller: 'Select box for the whole Box',
+					keyboard: 'Shift + Arrow keys'
+				},
+				{
+					action: 'Select a rectangle',
+					controller: 'Select box for the whole Box',
+					keyboard: 'Click and drag'
+				},
+				{ action: 'Change Box', controller: 'L1 / R1', keyboard: 'PageUp / PageDown' },
+				{ action: 'Exit Select mode', controller: 'B', keyboard: 'Escape' }
+			]
+		},
+		{
 			id: 'carry',
 			title: 'Carry',
 			rows: [

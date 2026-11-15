@@ -53,14 +53,34 @@ for (const viewport of [
 			await pressController(page, 'ArrowRight');
 			await pressController(page, 'y');
 			await page.clock.runFor(600);
-			await expect(actions.getByRole('button', { name: 'Select box', exact: true })).toBeFocused();
+			await expect(
+				actions.getByRole('button', { name: 'Clear selection', exact: true })
+			).toBeFocused();
 			await pressController(page, 'Enter');
-			await expect(page.locator('[data-batch-selected="true"]')).toHaveCount(
-				await page.locator('.box-pane .slot.pokemon').count()
-			);
+			await expect(actions).toContainText('0 selected');
 			await actions.getByRole('button', { name: 'Clear selection' }).tap();
 			await pokemon.tap();
 			await expect(actions).toContainText('1 selected');
+			await expect(actions.getByRole('button')).toHaveText([
+				'Actions',
+				'Clear selection',
+				'Select box',
+				'Exit Select mode'
+			]);
+			await expect(actions).not.toContainText('Toggle');
+			const bounds = await actions.getByRole('button').evaluateAll((buttons) =>
+				buttons.map((button) => {
+					const { x, y, width, height } = button.getBoundingClientRect();
+					return { x, y, width, height };
+				})
+			);
+			for (let index = 1; index < bounds.length; index++) {
+				expect(bounds[index].x).toBe(bounds[0].x);
+				expect(bounds[index].y).toBeGreaterThanOrEqual(
+					bounds[index - 1].y + bounds[index - 1].height
+				);
+			}
+
 			await expect(pokemon).toHaveAttribute('data-batch-selected', 'true');
 			await expect(pokemon).toHaveAccessibleName(/Included in selection/);
 			await page.keyboard.press('ArrowRight');

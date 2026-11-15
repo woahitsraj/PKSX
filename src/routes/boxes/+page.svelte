@@ -2631,7 +2631,7 @@
 					? slotCommandLauncherId(mode === 'copy' ? 'copy-to-storage' : 'move-to-storage')
 					: `selection-action-${selectionMenuIndex}`
 			);
-		else summonedWorkflow.open('storage-batch', controlLauncher(`batch-${mode}`));
+		else summonedWorkflow.open('storage-batch', controlLauncher('selection-actions'));
 		queueMicrotask(() => document.querySelector<HTMLButtonElement>('.batch button')?.focus());
 	}
 	function closeStorageBatch() {
@@ -8254,9 +8254,6 @@
 			{/each}
 		</div>
 
-		{#if !selection}<span class="desktop-selection-hint"
-				>Select Pokemon: Shift + arrows or drag a rectangle.</span
-			>{/if}
 		<div class="shared-detail" aria-label="Shared Slot summary">
 			{#if selection}{@render selectionControls()}{:else}
 				{#if workbenchPanes.length === 2}
@@ -8331,8 +8328,6 @@
 			aria-label="Selection actions"
 		>
 			<strong aria-live="polite">{selection.slots.length} selected</strong>
-			<span>A Toggle · B Exit · Y Actions · L/R Boxes</span>
-			<span>Shift + arrows extend selection. Drag a rectangle to select Pokemon.</span>
 			{#if selection.source.type === 'save-file'}
 				<button
 					id="selection-actions"
@@ -8340,20 +8335,7 @@
 					disabled={!selection.slots.length}
 					onclick={openSelectionActions}>Actions</button
 				>
-				<button
-					id="batch-copy"
-					type="button"
-					disabled={!selection.slots.length}
-					onclick={() => openStorageBatch('copy')}>Copy to Storage</button
-				>
-				<button
-					id="batch-move"
-					type="button"
-					disabled={!selection.slots.length}
-					onclick={() => openStorageBatch('move')}>Move to Storage</button
-				>
 			{/if}
-			<button type="button" onclick={selectCurrentBox}>Select box</button>
 			<button
 				type="button"
 				onclick={() => {
@@ -8361,6 +8343,7 @@
 					rangeAnchor = null;
 				}}>Clear selection</button
 			>
+			<button type="button" onclick={selectCurrentBox}>Select box</button>
 			<button
 				type="button"
 				onclick={() => {
@@ -8700,18 +8683,6 @@
 		background: color-mix(in srgb, var(--rust) 15%, transparent);
 		pointer-events: none;
 	}
-	.desktop-selection-hint {
-		position: absolute;
-		bottom: var(--pksx-space-1);
-		left: var(--pksx-space-2);
-		font-size: var(--pksx-type-caption);
-		pointer-events: none;
-	}
-	@container boxes-route (max-width: 899px) {
-		.desktop-selection-hint {
-			display: none;
-		}
-	}
 
 	.selection-controls button {
 		height: var(--pksx-control-height);
@@ -8723,25 +8694,21 @@
 		height: 100%;
 		overflow: auto;
 		align-content: start;
-		display: flex;
-		flex-wrap: wrap;
+		display: grid;
 		gap: 8px;
-		align-items: center;
 		padding: 8px;
 		background: var(--paper);
 		border: 1px solid var(--rule-hi);
 		border-radius: var(--pksx-radius-md);
 	}
 
-	.selection-controls strong {
-		flex-basis: 100%;
-		font-size: var(--pksx-type-body);
+	.selection-controls > button {
+		min-height: var(--pksx-control-height);
+		text-align: left;
 	}
 
-	.selection-controls > span {
-		flex-basis: 100%;
-		font-size: var(--pksx-type-caption);
-		color: var(--ink-soft);
+	.selection-controls strong {
+		font-size: var(--pksx-type-body);
 	}
 
 	.source-picker-import {

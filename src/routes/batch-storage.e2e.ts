@@ -30,7 +30,11 @@ for (const mode of ['Copy', 'Move']) {
 		await page.locator('.box-pane .slot.pokemon').nth(1).tap();
 		const actions = page.getByRole('group', { name: 'Selection actions' });
 		await expect(actions).toContainText('2 selected');
-		await actions.getByRole('button', { name: `${mode} to Storage` }).tap();
+		await actions.getByRole('button', { name: 'Actions', exact: true }).tap();
+		await page
+			.getByRole('dialog', { name: 'Selection actions', exact: true })
+			.getByRole('button', { name: `${mode} to Storage`, exact: true })
+			.click();
 		let dialog = page.getByRole('dialog', { name: `${mode} to Storage` });
 		await dialog.getByRole('button', { name: /Storage Box 1/ }).tap();
 		await expect(dialog.locator('li')).toHaveCount(2);
@@ -38,9 +42,15 @@ for (const mode of ['Copy', 'Move']) {
 		await expect(dialog.locator('li').nth(1)).toContainText('Storage Box 1, Slot 2');
 		await page.keyboard.press('Escape');
 		await expect(dialog).toHaveCount(0);
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog')).toHaveCount(0);
 		await expect(actions).toContainText('2 selected');
 		await expect(page.locator('.box-pane .slot.pokemon')).toHaveCount(occupiedBefore);
-		await actions.getByRole('button', { name: `${mode} to Storage` }).tap();
+		await actions.getByRole('button', { name: 'Actions', exact: true }).tap();
+		await page
+			.getByRole('dialog', { name: 'Selection actions', exact: true })
+			.getByRole('button', { name: `${mode} to Storage`, exact: true })
+			.click();
 		dialog = page.getByRole('dialog', { name: `${mode} to Storage` });
 		await dialog.getByRole('button', { name: /Storage Box 1/ }).tap();
 		await expect(dialog.locator('li')).toHaveCount(2);
