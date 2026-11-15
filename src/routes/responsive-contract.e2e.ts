@@ -819,7 +819,7 @@ test('[RESP-1][RESP-2] 559/560 reflow preserves pane, focus, Carry, and Menu ide
 	await page.keyboard.press('Enter');
 	await page
 		.getByRole('dialog', { name: 'Slot actions' })
-		.getByRole('button', { name: 'Move' })
+		.getByRole('button', { name: 'Move', exact: true })
 		.click();
 	await expect(page.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
 

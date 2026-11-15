@@ -1762,9 +1762,9 @@ test('switches to durable Pokemon Storage with focusable empty Slot actions', as
 
 	const actions = page.getByRole('dialog', { name: 'Slot actions' });
 	await expect(actions).toBeVisible();
-	await expect(actions.locator('.slot-command-row')).toHaveCount(0);
+	await expect(actions.locator('.slot-command-row strong')).toHaveText(['Close']);
 	await expect(actions.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
-	await expect(actions.getByRole('button', { name: 'Move' })).toHaveCount(0);
+	await expect(actions.getByRole('button', { name: 'Move', exact: true })).toHaveCount(0);
 	await expect(actions.getByRole('button', { name: 'Create Pokemon' })).toHaveCount(0);
 });
 
@@ -1884,7 +1884,7 @@ test('Boxes keeps session composition across navigation and restores only the pr
 	await page.keyboard.press('Enter');
 	await page
 		.getByRole('dialog', { name: 'Slot actions' })
-		.getByRole('button', { name: 'Move' })
+		.getByRole('button', { name: 'Move', exact: true })
 		.click();
 	await expect(primary.locator('[id$="box-0-slot-0"]')).toHaveAccessibleName(/Carry Move/);
 	await primary.getByRole('button', { name: 'Next Location' }).click();
@@ -2082,7 +2082,7 @@ test('Box Menu exports and backs up the captured secondary Save File Workspace',
 	await page.keyboard.press('Escape');
 	await page.locator('#box-0-slot-2').click();
 	await page.keyboard.press('Enter');
-	await secondarySlotMenu.getByRole('button', { name: 'Move' }).click();
+	await secondarySlotMenu.getByRole('button', { name: 'Move', exact: true }).click();
 	await page.locator('#box-0-slot-3').click();
 	await expect(page.locator('#box-0-slot-2')).toContainText('Empty');
 	await expect(page.locator('#box-0-slot-3')).toContainText('ARON');
@@ -2925,7 +2925,7 @@ test('two Box Panes keep Controller Focus and Carry through rotation, mutation, 
 	await page.keyboard.press('Enter');
 	await page
 		.getByRole('dialog', { name: 'Slot actions' })
-		.getByRole('button', { name: 'Copy' })
+		.getByRole('button', { name: 'Copy', exact: true })
 		.click();
 	await panes.nth(0).locator('[id$="box-0-slot-2"]').click();
 	await expect(panes.nth(0).locator('[id$="box-0-slot-2"]')).toContainText('ARON', {
@@ -3307,7 +3307,7 @@ for (const mode of ['Move', 'Duplicate'] as const) {
 		const slotActions = page.getByRole('dialog', { name: 'Slot actions' });
 		await expect(slotActions).toBeVisible();
 		await settleMotion(page);
-		await slotActions.getByRole('button', { name: mode }).click();
+		await slotActions.getByRole('button', { name: mode, exact: true }).click();
 		await secondTab.evaluate(
 			() =>
 				new Promise<void>((resolve, reject) => {
@@ -3832,7 +3832,7 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
 	const slotMenu = page.getByRole('dialog', { name: 'Slot actions' });
-	await slotMenu.getByRole('button', { name: 'Move' }).click();
+	await slotMenu.getByRole('button', { name: 'Move', exact: true }).click();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await expect(page.locator('#box-0-slot-0')).toHaveAccessibleName(
 		'Box Slot 1, row 1, column 1: ARON, Lv. 11. Carry Move ARON'
@@ -3912,7 +3912,7 @@ test('Carry suppresses the Box Menu and Y only toggles Move and Copy', async ({ 
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15000 });
 	await expect(page.locator('.carry-at-focus')).toHaveCount(0);
 	await page.keyboard.press('Enter');
-	await slotMenu.getByRole('button', { name: 'Move' }).click();
+	await slotMenu.getByRole('button', { name: 'Move', exact: true }).click();
 	await pressController(page, 'PageUp');
 	await expect(page.getByRole('heading', { name: 'Party' })).toBeVisible();
 	await expect(page.locator('#party-slot-0')).toBeFocused();
@@ -3935,13 +3935,15 @@ test('confirm opens slot actions and back restores the grid focus', async ({ pag
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toContainText('Box 1, slot 2');
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).not.toContainText('Slot Menu');
-	await expect(page.locator('.slot-command-row')).toHaveCount(0);
+	await expect(page.locator('.slot-command-row strong')).toHaveText(['Close']);
 	await expect(page.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
 	for (const unavailableAction of [
 		'Create Pokemon',
 		'Edit',
 		'Move',
 		'Copy',
+		'Copy to Storage',
+		'Move to Storage',
 		'Clear Slot',
 		'Legality Check',
 		'Evolve'
@@ -3989,10 +3991,13 @@ test('occupied slot actions expose Edit and Close dismisses', async ({ page }) =
 		'Edit',
 		'Move',
 		'Copy',
+		'Copy to Storage',
+		'Move to Storage',
 		'Clear Slot',
 		'Legality Check',
 		'Evolve',
-		'Trade with Switch'
+		'Trade with Switch',
+		'Close'
 	]);
 	await expect(dialog.locator('.slot-command-row button:disabled')).toHaveCount(0);
 	for (const unavailableAction of ['Export', 'Quick Actions', 'Create Pokemon']) {
@@ -5850,7 +5855,11 @@ test('square Safe Canvas keeps the bottom Menu edge and preserves a pending Clea
 
 	await page.keyboard.press('Escape');
 	await expect(dialog).toBeVisible();
-	await expect(page.locator('#slot-action-3')).toBeFocused();
+	await expect(
+		page
+			.getByRole('dialog', { name: 'Slot actions' })
+			.getByRole('button', { name: 'Clear Slot', exact: true })
+	).toBeFocused();
 	await page.keyboard.press('Escape');
 	await expect(dialog).toBeHidden();
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
@@ -5870,7 +5879,11 @@ test('each Clear and Slot Menu backdrop tap dismisses exactly one level without 
 	await page.getByRole('button', { name: 'Dismiss Clear ARON?' }).click();
 	await expect(page.getByRole('dialog', { name: 'Clear ARON?' })).toBeHidden();
 	await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
-	await expect(page.locator('#slot-action-3')).toBeFocused();
+	await expect(
+		page
+			.getByRole('dialog', { name: 'Slot actions' })
+			.getByRole('button', { name: 'Clear Slot', exact: true })
+	).toBeFocused();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	expect(await backupCount(page)).toBe(backupsBefore);
 
@@ -5968,7 +5981,7 @@ test('@mobile-touch Slot selection, Menu commands, and dismissal remain touch ac
 
 	await slot.tap();
 	menu = page.getByRole('dialog', { name: 'Slot actions' });
-	await menu.getByRole('button', { name: 'Move' }).tap();
+	await menu.getByRole('button', { name: 'Move', exact: true }).tap();
 	await expect(menu).toBeHidden();
 	await expect(slot).toHaveAccessibleName(/Carry Move/);
 });
@@ -6875,7 +6888,7 @@ test('can perform another slot mutation after the first move changes workspace b
 	await moveFirstEmeraldBoxSlotToThirdSlot(page);
 	await page.locator('#box-0-slot-1').click();
 	await page.keyboard.press('Enter');
-	await page.getByRole('button', { name: 'Copy' }).click();
+	await page.getByRole('button', { name: 'Copy', exact: true }).click();
 	await page.locator('#box-0-slot-3').click();
 
 	await expect(page.locator('#box-0-slot-3')).toContainText('ILLUMISE');

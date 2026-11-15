@@ -295,7 +295,9 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		await page.keyboard.press('Enter');
 		await expect(page.getByRole('dialog', { name: 'Slot actions' })).toBeVisible();
 		await expect(
-			page.getByRole('dialog', { name: 'Slot actions' }).getByRole('button', { name: 'Move' })
+			page
+				.getByRole('dialog', { name: 'Slot actions' })
+				.getByRole('button', { name: 'Move', exact: true })
 		).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Open Main Menu' })).toHaveCount(0);
 		await page.keyboard.press('Control+k');

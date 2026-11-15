@@ -54,3 +54,19 @@ describe('Slot Menu commands', () => {
 		).toContain('Evolve');
 	});
 });
+
+it('offers explicit Storage transfers only for an occupied Save File Slot', () => {
+	const saveStorage = { ...noDynamicActions, saveStorage: true };
+	const labels = createSlotMenuCommands(occupied, null, saveStorage).map(
+		(command) => command.label
+	);
+	expect(labels).toEqual(expect.arrayContaining(['Copy to Storage', 'Move to Storage']));
+	expect(createSlotMenuCommands(empty, null, saveStorage).map((command) => command.label)).toEqual([
+		'Create Pokemon'
+	]);
+	expect(
+		createSlotMenuCommands(occupied, null, { ...noDynamicActions, storage: true }).map(
+			(command) => command.label
+		)
+	).not.toContain('Copy to Storage');
+});
