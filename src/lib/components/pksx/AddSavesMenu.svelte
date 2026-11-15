@@ -6,6 +6,7 @@
 
 	interface Props {
 		folders: FolderLink[];
+		counts: Record<string, number>;
 		failed: Record<string, boolean>;
 		scanning: boolean;
 		busy: boolean;
@@ -16,8 +17,18 @@
 		onClose: () => void;
 	}
 
-	let { folders, failed, scanning, busy, onLink, onImport, onScan, onUnlink, onClose }: Props =
-		$props();
+	let {
+		folders,
+		counts,
+		failed,
+		scanning,
+		busy,
+		onLink,
+		onImport,
+		onScan,
+		onUnlink,
+		onClose
+	}: Props = $props();
 
 	type Command = { id: string; label: string; detail?: string; mark?: string; run: () => void };
 	const commands = $derived<Command[]>([
@@ -37,11 +48,17 @@
 			label: 'Unlink ' + folder.name,
 			detail: failed[folder.tree]
 				? "Can't read. Link it again."
-				: (emulatorName(folder.emulator ?? folderProfile(folder.tree, folder.name)) ?? 'Folder'),
+				: [
+						emulatorName(folder.emulator ?? folderProfile(folder.tree, folder.name)),
+						saveCount(counts[folder.tree] ?? 0)
+					]
+						.filter(Boolean)
+						.join(' · '),
 			run: () => onUnlink(folder)
 		}))
 	]);
 	const linkedCount = 2;
+	const saveCount = (count: number) => `${count} ${count === 1 ? 'save' : 'saves'}`;
 	let index = $state(0);
 
 	async function focus(next: number) {

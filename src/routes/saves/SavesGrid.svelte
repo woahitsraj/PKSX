@@ -11,7 +11,7 @@
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
 	import StorageBackupMenu from '$lib/components/pksx/StorageBackupMenu.svelte';
 	import AddSavesMenu from '$lib/components/pksx/AddSavesMenu.svelte';
-	import { supportsSaveFolders } from '$lib/pksx/linked-save-folders';
+	import { folderOf, supportsSaveFolders } from '$lib/pksx/linked-save-folders';
 	import { fileEmulator } from '$lib/pksx/linked-save-folders/profiles';
 	import { linkedSaveDiscovery as discovery } from '$lib/pksx/linked-save-folders/runtime.svelte';
 	import type { EngineError } from '$lib/engine';
@@ -897,9 +897,21 @@
 		document.getElementById(prefix + index)?.focus();
 	}
 
-	function emulatorLabel(saveFile: StoredSaveFile) {
-		const name = fileEmulator(saveFile);
-		return name ? name + ' · ' : '';
+	const linkedCounts = $derived(
+		saveFiles.reduce<Record<string, number>>((counts, file) => {
+			const tree = folderOf(file.linkedDocumentId, discovery.folders)?.tree;
+			if (tree) counts[tree] = (counts[tree] ?? 0) + 1;
+			return counts;
+		}, {})
+	);
+
+	function sourceLabel(saveFile: StoredSaveFile) {
+		const emulator = fileEmulator(saveFile);
+		const folder = folderOf(saveFile.linkedDocumentId, discovery.folders)?.name;
+		if (!folder) return emulator;
+		return emulator && !folder.toLowerCase().includes(emulator.toLowerCase())
+			? `${emulator} · ${folder}`
+			: folder;
 	}
 
 	function displayName(saveFile: StoredSaveFile) {
@@ -1034,8 +1046,11 @@
 													>{details.details.summary.trainerName ?? 'Unknown Trainer'}</span
 												>
 												<span class="file-name" elementtiming="save-card"
-													>{emulatorLabel(saveFile)}{displayName(saveFile)}</span
+													>{displayName(saveFile)}</span
 												>
+												{#if sourceLabel(saveFile)}<span class="file-name source"
+														>{sourceLabel(saveFile)}</span
+													>{/if}
 												<span class="card-stats">
 													<b>{details.details.summary.boxCount}</b> boxes
 													<i aria-hidden="true"></i>
@@ -1043,8 +1058,11 @@
 												</span>
 											{:else}
 												<span class="file-name" elementtiming="save-card"
-													>{emulatorLabel(saveFile)}{displayName(saveFile)}</span
+													>{displayName(saveFile)}</span
 												>
+												{#if sourceLabel(saveFile)}<span class="file-name source"
+														>{sourceLabel(saveFile)}</span
+													>{/if}
 												<span class="detail-state">
 													{#if details.status === 'loading'}
 														<DelayedSpinner active label={`Reading ${displayName(saveFile)}`} />
@@ -1170,6 +1188,7 @@
 {#if addSavesOpen}
 	<AddSavesMenu
 		folders={discovery.folders}
+		counts={linkedCounts}
 		failed={discovery.failed}
 		scanning={discovery.scanning}
 		busy={discovery.picking || discovery.sourceBusy}
@@ -1411,6 +1430,10 @@
 		grid-column: 1 / -1;
 		color: var(--ink-soft);
 		font: 650 var(--pksx-type-caption) / 1.2 var(--pksx-font-mono);
+	}
+
+	.source::before {
+		content: '⇄ ' / '';
 	}
 
 	.file-name {

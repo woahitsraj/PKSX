@@ -161,3 +161,20 @@ export async function importLinkedSave(
 		linkedDocumentId: document.identity
 	});
 }
+
+export function folderOf(identity: string | undefined, folders: FolderLink[]) {
+	let parts: unknown;
+	try {
+		parts = identity && JSON.parse(identity);
+	} catch {
+		return undefined;
+	}
+	if (!Array.isArray(parts)) return undefined;
+	const [authority, id] = parts as [string, string];
+	return folders.find((folder) => {
+		const match = /^content:\/\/([^/]+)\/tree\/([^/?#]+)/.exec(folder.tree);
+		if (match?.[1] !== authority) return false;
+		const root = decodeURIComponent(match[2]);
+		return id === root || id.startsWith(/[:/]$/.test(root) ? root : root + '/');
+	});
+}

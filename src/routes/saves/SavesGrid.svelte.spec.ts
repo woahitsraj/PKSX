@@ -371,7 +371,7 @@ it('opens Add saves with file and folder options and labels discovered saves by 
 	container = document.createElement('div');
 	document.body.append(container);
 	component = mount(SavesGrid, { target: container });
-	await expect.element(page.getByText('Dolphin · xd.gci')).toBeVisible();
+	await expect.element(page.getByText('Dolphin', { exact: true })).toBeVisible();
 	container.querySelector<HTMLButtonElement>('[aria-label="Add saves"]')!.click();
 	await expect.element(page.getByRole('button', { name: /^Import file/ })).toBeVisible();
 	await expect.element(page.getByRole('button', { name: /^Link folder/ })).toBeVisible();
