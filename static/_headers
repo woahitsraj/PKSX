@@ -9,3 +9,6 @@ https://:version.:subdomain.workers.dev/*
 
 /native*
   X-Robots-Tag: noindex
+
+/dev/*
+  X-Robots-Tag: noindex
