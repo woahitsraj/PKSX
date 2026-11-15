@@ -103,8 +103,8 @@ recovery builds. A forced-crash test or an emulator result does not replace thos
 
 ## Linked Dolphin save folders
 
-Saves > Add saves lists emulators, Other folder, and Import a file. Choosing an
-emulator opens Android's system folder picker and tags the folder with it. Choose the
+Saves > Add saves offers Import file and Link folder. Link folder opens Android's
+system folder picker. PKSX detects the emulator from the folder path. Choose the
 Dolphin location exported by its document provider, then GC or a GCI save subfolder.
 No direct Android/data path or broad storage permission is required. If Dolphin
 is absent from the picker, export individual GCI files into a selectable folder.

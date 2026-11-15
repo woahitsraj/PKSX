@@ -1173,7 +1173,7 @@
 		failed={discovery.failed}
 		scanning={discovery.scanning}
 		busy={discovery.picking || discovery.sourceBusy}
-		onLink={(emulator) => closeAddSaves(() => void discovery.link(emulator))}
+		onLink={() => closeAddSaves(() => void discovery.link())}
 		onImport={() => closeAddSaves(openImportPicker)}
 		onScan={() => (discovery.scanning ? discovery.cancel() : void discovery.scan(undefined, true))}
 		onUnlink={(folder) => void discovery.unlink(folder)}

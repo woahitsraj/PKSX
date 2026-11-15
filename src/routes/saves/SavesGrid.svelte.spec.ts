@@ -360,7 +360,7 @@ it('publishes background discovery into a mounted grid without changing selectio
 	expect(document.activeElement).toBe(grid);
 });
 
-it('opens Add saves with emulators and labels discovered saves by emulator', async () => {
+it('opens Add saves with file and folder options and labels discovered saves by emulator', async () => {
 	await getSavesStorage().importSave({
 		bytes: new Uint8Array([1]),
 		originalFileName: 'xd.gci',
@@ -373,6 +373,6 @@ it('opens Add saves with emulators and labels discovered saves by emulator', asy
 	component = mount(SavesGrid, { target: container });
 	await expect.element(page.getByText('Dolphin · xd.gci')).toBeVisible();
 	container.querySelector<HTMLButtonElement>('[aria-label="Add saves"]')!.click();
-	await expect.element(page.getByRole('button', { name: /^Dolphin/ })).toBeVisible();
-	await expect.element(page.getByRole('button', { name: /Import a file/ })).toBeVisible();
+	await expect.element(page.getByRole('button', { name: /^Import file/ })).toBeVisible();
+	await expect.element(page.getByRole('button', { name: /^Link folder/ })).toBeVisible();
 });

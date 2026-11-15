@@ -1,30 +1,10 @@
 export const emulatorProfiles = [
-	{ id: 'dolphin', name: 'Dolphin', folder: 'GC or Card A', example: 'GC/USA/Card A/Pokemon.gci' },
-	{
-		id: 'retroarch',
-		name: 'RetroArch',
-		folder: 'RetroArch/saves',
-		example: 'RetroArch/saves/mGBA/Pokemon.srm'
-	},
-	{
-		id: 'melonds',
-		name: 'melonDS',
-		folder: 'Save or ROM folder',
-		example: 'melonDS/roms/Pokemon.sav'
-	},
-	{
-		id: 'drastic',
-		name: 'DraStic',
-		folder: 'DraStic/backup',
-		example: 'DraStic/backup/Pokemon.dsv'
-	},
-	{ id: 'pizza', name: 'Pizza Boy', folder: 'Exported saves', example: 'Pizza Boy A/Pokemon.sav' },
-	{
-		id: 'azahar',
-		name: 'Azahar',
-		folder: 'Folder with sdmc',
-		example: 'sdmc/Nintendo 3DS/id0/id1/title/00040000/00055e00/data/00000001/main'
-	}
+	{ id: 'dolphin', name: 'Dolphin' },
+	{ id: 'retroarch', name: 'RetroArch' },
+	{ id: 'melonds', name: 'melonDS' },
+	{ id: 'drastic', name: 'DraStic' },
+	{ id: 'pizza', name: 'Pizza Boy' },
+	{ id: 'azahar', name: 'Azahar' }
 ] as const;
 
 export type EmulatorProfile = (typeof emulatorProfiles)[number]['id'] | 'generic';

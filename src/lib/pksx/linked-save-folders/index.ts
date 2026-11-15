@@ -15,9 +15,7 @@ export type DiscoveredSave = {
 };
 export interface SaveFoldersPlugin {
 	status(): Promise<{ folders: FolderLink[] }>;
-	pick(options?: {
-		emulator?: EmulatorProfile;
-	}): Promise<{ cancelled: true } | { cancelled: false; folder: FolderLink }>;
+	pick(): Promise<{ cancelled: true } | { cancelled: false; folder: FolderLink }>;
 	unlink(options: { tree: string }): Promise<void>;
 	cancel(): Promise<void>;
 	list(options: {

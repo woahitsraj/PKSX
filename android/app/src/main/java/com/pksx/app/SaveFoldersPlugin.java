@@ -93,8 +93,6 @@ public class SaveFoldersPlugin extends Plugin {
                 if (linked.getJSONObject(i).getString("tree").equals(tree.toString())) exists = true;
             }
             JSObject folder = new JSObject().put("tree", tree.toString()).put("name", name);
-            String emulator = call.getString("emulator");
-            if (emulator != null) folder.put("emulator", emulator);
             JSArray updated = new JSArray();
             for (int i = 0; i < linked.length(); i++) {
                 JSONObject item = linked.getJSONObject(i);

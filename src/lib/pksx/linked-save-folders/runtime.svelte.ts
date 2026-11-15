@@ -15,7 +15,7 @@ import {
 	cancellable,
 	type FolderLink
 } from './index';
-import { folderProfile, type EmulatorProfile } from './profiles';
+import { folderProfile } from './profiles';
 
 type Notice = (tone: 'success' | 'error', text: string) => void;
 export type SourceAttention = Extract<LinkedSourceStatus, { kind: 'changed' | 'recovery' }>;
@@ -41,10 +41,10 @@ export class LinkedSaveDiscovery {
 		}
 	}
 
-	async link(emulator?: EmulatorProfile) {
+	async link() {
 		this.picking = true;
 		try {
-			const result = await saveFolders.pick(emulator ? { emulator } : undefined);
+			const result = await saveFolders.pick();
 			if (result.cancelled) return;
 			this.folders = (await saveFolders.status()).folders;
 			this.picking = false;

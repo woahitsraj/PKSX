@@ -2,18 +2,14 @@
 	import { onMount, tick } from 'svelte';
 	import EdgeMenu from './EdgeMenu.svelte';
 	import type { FolderLink } from '$lib/pksx/linked-save-folders';
-	import {
-		emulatorName,
-		emulatorProfiles,
-		type EmulatorProfile
-	} from '$lib/pksx/linked-save-folders/profiles';
+	import { emulatorName, folderProfile } from '$lib/pksx/linked-save-folders/profiles';
 
 	interface Props {
 		folders: FolderLink[];
 		failed: Record<string, boolean>;
 		scanning: boolean;
 		busy: boolean;
-		onLink: (emulator?: EmulatorProfile) => void;
+		onLink: () => void;
 		onImport: () => void;
 		onScan: () => void;
 		onUnlink: (folder: FolderLink) => void;
@@ -25,15 +21,14 @@
 
 	type Command = { id: string; label: string; detail?: string; mark?: string; run: () => void };
 	const commands = $derived<Command[]>([
-		...emulatorProfiles.map((profile) => ({
-			id: profile.id,
-			label: profile.name,
-			detail: profile.folder,
-			mark: profile.name[0],
-			run: () => onLink(profile.id)
-		})),
-		{ id: 'other', label: 'Other folder', mark: '…', run: () => onLink() },
-		{ id: 'file', label: 'Import a file', mark: '+', run: onImport },
+		{ id: 'file', label: 'Import file', mark: '+', run: onImport },
+		{
+			id: 'folder',
+			label: 'Link folder',
+			detail: "Pick an emulator's save folder, like Dolphin's GC",
+			mark: '⇄',
+			run: onLink
+		},
 		...(folders.length
 			? [{ id: 'scan', label: scanning ? 'Stop scan' : 'Scan again', run: onScan }]
 			: []),
@@ -42,11 +37,11 @@
 			label: 'Unlink ' + folder.name,
 			detail: failed[folder.tree]
 				? "Can't read. Link it again."
-				: (emulatorName(folder.emulator) ?? 'Folder'),
+				: (emulatorName(folder.emulator ?? folderProfile(folder.tree, folder.name)) ?? 'Folder'),
 			run: () => onUnlink(folder)
 		}))
 	]);
-	const linkedCount = $derived(emulatorProfiles.length + 2);
+	const linkedCount = 2;
 	let index = $state(0);
 
 	async function focus(next: number) {
