@@ -347,7 +347,7 @@ Pressable and plain.
 
 ### Focus
 
-When input is from a controller, every focused control except Slots and the Location grid gets a 3px Rust Ring outline drawn inside the control (`outline-offset: -3px`), so it never covers neighbouring rows or text. Grids that use `aria-activedescendant` keep the ring transparent and paint focus on the active item. Exactly one focus indicator per control: never stack an outline, a border change, and an underline. Focusable rows keep at least 6px horizontal padding so the inset ring clears the text.
+When input is from a controller, every focused control except Slots and the Location grid gets a 3px Rust Ring outline drawn inside the control (`outline-offset: -3px`), so it never covers neighbouring rows or text. Grids that use `aria-activedescendant` keep the ring transparent and paint focus on the active item. Exactly one focus indicator per control: never stack an outline, a border change, and an underline. Every focusable element keeps at least 5px between its text and its edge (the 3px ring plus 2px of air). Rows and buttons get this from padding. Headings and disclosures that take focus get 8px of inline padding, with a matching negative margin so their text stays aligned. Inline text links are the one exception: they ring outside the text (`outline-offset: 2px`).
 
 ### Motion
 

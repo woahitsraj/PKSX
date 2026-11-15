@@ -280,6 +280,11 @@ html[data-input-modality='controller']
 	outline-offset: -3px !important;
 }
 
+/* Inline text links ring outside the text; an inset ring would cross the glyphs. */
+html[data-input-modality='controller'] body a:focus {
+	outline-offset: 2px !important;
+}
+
 /* Active-descendant grids paint focus on the active item, not around themselves. */
 html[data-input-modality='controller'] body [role='grid'][aria-activedescendant]:focus {
 	outline-color: transparent !important;

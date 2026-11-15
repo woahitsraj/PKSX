@@ -481,6 +481,18 @@
 		color: inherit;
 	}
 
+	.settings-route h2[data-settings-control],
+	.settings-route h3[data-settings-control] {
+		margin-inline: -8px;
+		padding-inline: 8px;
+		border-radius: var(--pksx-radius-small);
+	}
+
+	.settings-route h2[data-settings-control] {
+		margin-block: -7px;
+		padding-block: 7px;
+	}
+
 	.reference-group h3 {
 		padding: var(--pksx-space-2) 0;
 		color: var(--ink);

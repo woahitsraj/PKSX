@@ -2660,7 +2660,6 @@
 		flex-direction: column;
 		gap: 12px;
 		overflow-y: auto;
-		padding-right: 2px;
 	}
 
 	.field-grid,
@@ -3257,7 +3256,7 @@
 		flex-direction: column;
 		gap: var(--pksx-space-2);
 		overflow: auto;
-		padding: var(--pksx-focus-ring);
+		padding: calc(var(--pksx-focus-ring) + 5px);
 		scrollbar-width: thin;
 	}
 

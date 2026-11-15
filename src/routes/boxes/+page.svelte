@@ -8973,7 +8973,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: var(--pksx-space-1);
-		padding: 0 var(--pksx-space-2);
+		padding: 0 max(8px, var(--pksx-space-2));
 		border-radius: var(--pksx-radius-medium);
 		background: var(--paper);
 		box-shadow: inset 0 0 0 var(--pksx-border-width) var(--rule);

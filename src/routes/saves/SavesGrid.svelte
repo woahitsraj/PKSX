@@ -1457,9 +1457,9 @@
 		position: absolute;
 		top: var(--pksx-space-2);
 		right: var(--pksx-space-2);
-		width: var(--pksx-small-control-height);
+		min-width: var(--pksx-small-control-height);
 		height: var(--pksx-small-control-height);
-		padding: 0;
+		padding: 0 7px;
 		border: 0;
 		border-radius: var(--pksx-radius-small);
 		background: var(--paper-deep);
