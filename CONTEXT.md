@@ -681,6 +681,9 @@ _Avoid_: setting, option, config
 - A **User Account** created after a deletion is a different account with a new **Sync Profile**, even when it uses the same email address.
 - The first Cloud Sync release has no PKSX-managed Installation directory, per-Installation revocation, or product-level Installation limit.
 - A **Sync Provider** may read all content and metadata that **Cloud Sync** synchronizes.
+- The first **Sync Provider** is a PKSX-operated Cloudflare service: Workers handles the authenticated boundary, SQLite-backed Durable Objects store revision and publication metadata and host TinyBase transport, private R2 stores raw artifacts, and Better Auth with D1 owns identity and sessions.
+- PKSX operates the passwordless identity service and integrates email delivery; an email-delivery service does not own the **Sync Profile** or split its identity and storage authority.
+- The provider-neutral sync coordinator retains schema, migration, causal reconciliation, conflict preservation, and durable local-acceptance authority independently of the selected Cloudflare service.
 - Metadata needed to interpret or present a **Sync Object** travels with that object.
 - Synced metadata belongs to exactly one **Sync Object** or **Sync Profile**; it does not exist as an unowned record.
 - The active **Save File**, **Controller Focus**, caches, validation output, credentials, enrollment state, and **Preferences** remain local to the **PKSX Installation**.
