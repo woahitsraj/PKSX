@@ -8077,6 +8077,11 @@ test.describe('Owner Backups with touch', () => {
 			let browser = page.getByRole('dialog', { name: 'Backup Browser' });
 			await browser.getByRole('button', { name: 'Create Backup' }).tap();
 			await expect(browser.locator('article')).toHaveCount(1);
+			const preview = browser.getByRole('region', { name: 'Backup preview' });
+			await expect(preview).toContainText('DIXIE');
+			await expect(preview).toContainText('5ː45ː26');
+			await expect(preview.locator('dd').last()).toHaveText('7');
+			await settleMotion(page);
 			await page.screenshot({ path: '/tmp/pksx-owner-backups-' + height + '.png' });
 			await page.keyboard.press('Escape');
 			await expect(page.locator('[data-destination-focus="saves-grid"]')).toBeFocused();
@@ -8102,6 +8107,7 @@ test.describe('Owner Backups with touch', () => {
 			await chooseMainMenu(page, 'Trainer');
 			const platinumTrainer = page.getByLabel('Trainer name');
 			await expect(platinumTrainer).toBeVisible();
+			const originalPlatinumTrainer = await platinumTrainer.inputValue();
 			await platinumTrainer.fill('DIRTY');
 			await platinumTrainer.press('Enter');
 			await expect
@@ -8143,6 +8149,23 @@ test.describe('Owner Backups with touch', () => {
 			await expect(browser.locator('article').filter({ hasText: 'Save File editing' })).toHaveCount(
 				1
 			);
+			await browser.getByRole('button', { name: 'Create Backup' }).tap();
+			await expect(browser.locator('article')).toHaveCount(3);
+			await expect(preview.getByText('DIRTY', { exact: true })).toBeVisible();
+			await settleMotion(page);
+			await page.screenshot({ path: '/tmp/pksx-backup-dirty-' + height + '.png' });
+			await browser
+				.locator('article')
+				.filter({ hasText: 'Manual' })
+				.last()
+				.getByRole('button', { name: 'Preview', exact: true })
+				.tap();
+			await expect(preview.getByText(originalPlatinumTrainer, { exact: true })).toBeVisible();
+			expect(await workspaceBytesHashForFile(page, 'pokemon-platinum-eu.sav')).toBe(
+				dirtyPlatinumHash
+			);
+			await settleMotion(page);
+			await page.screenshot({ path: '/tmp/pksx-backup-original-' + height + '.png' });
 			await browser.getByRole('button', { name: 'Close Backup Browser' }).tap();
 			await emerald.tap();
 			await page.getByRole('button', { name: 'Backups', exact: true }).tap();
@@ -8227,4 +8250,36 @@ test.describe('Owner Backups with touch', () => {
 			await page.screenshot({ path: '/tmp/pksx-owner-deleted-' + height + '.png' });
 		});
 	}
+
+	test('Pokemon Box Backup preview exposes unavailable metadata without mutation', async ({
+		page
+	}) => {
+		await page.setViewportSize({ width: 900, height: 360 });
+		await openEmptySaves(page);
+		await chooseMainMenu(page, 'Saves');
+		await page
+			.getByLabel('Import Save File', { exact: true })
+			.setInputFiles(
+				path.resolve('test-fixtures/save-files/pkmds-blazor/pokemon-box-ruby-sapphire.gci')
+			);
+		await page
+			.getByRole('button', {
+				name: 'Open Save File Menu for pokemon-box-ruby-sapphire.gci',
+				exact: true
+			})
+			.tap();
+		const ownerId = await activeSaveFileId(page);
+		await page.getByRole('button', { name: 'Backups', exact: true }).tap();
+		const browser = page.getByRole('dialog', { name: 'Backup Browser' });
+		await browser.getByRole('button', { name: 'Create Backup' }).tap();
+		const fields = browser.getByRole('region', { name: 'Backup preview' }).locator('dd');
+		await expect(fields.nth(1)).toHaveText('Unavailable');
+		await expect(fields.nth(2)).toHaveText('Unavailable');
+		await expect(fields.last()).toHaveText(/^[1-9]\d*$/);
+		expect(await activeSaveFileId(page)).toBe(ownerId);
+		await settleMotion(page);
+		await page.screenshot({ path: '/tmp/pksx-backup-unavailable.png' });
+		await pressController(page, 'Escape');
+		await expect(page.locator('[data-destination-focus="saves-grid"]')).toBeFocused();
+	});
 });
