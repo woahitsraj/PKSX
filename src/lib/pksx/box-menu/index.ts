@@ -28,6 +28,7 @@ export function createBoxMenuCommands(input: {
 	undoAvailable: boolean;
 	linkedSource?: string;
 	confirmExport?: boolean;
+	selectionUnavailableReason: string | null;
 }): BoxMenuCommand[] {
 	const unavailable = (key: BoxMenuCommandKey, label: string, reason: string): BoxMenuCommand => ({
 		key,
@@ -46,6 +47,9 @@ export function createBoxMenuCommands(input: {
 	const exportLabel = input.linkedSource && !storage ? 'Export to ' + input.linkedSource : 'Export';
 	if (input.confirmExport)
 		return [available('export-confirm', 'Overwrite'), available('export-cancel', 'Cancel')];
+	const selectionReason =
+		input.selectionUnavailableReason ??
+		(!storage && !input.workspaceReady ? workspaceReason : null);
 
 	return [
 		...(storage ? [available('organize-storage-boxes', 'Organize Storage Boxes')] : []),
@@ -78,7 +82,9 @@ export function createBoxMenuCommands(input: {
 		input.paneCount <= 1
 			? unavailable('close', 'Close', 'Keep at least one collection open.')
 			: available('close', 'Close'),
-		available('select', 'Select Pokemon'),
+		selectionReason
+			? unavailable('select', 'Select Pokemon', selectionReason)
+			: available('select', 'Select Pokemon'),
 		...(storage
 			? [
 					input.undoAvailable

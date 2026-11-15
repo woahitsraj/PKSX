@@ -117,5 +117,13 @@ for (const location of ['All Pokemon', 'Unfiled', 'Recently Deleted']) {
 		await expect(
 			page.getByRole('region', { name: `Pokemon Storage, ${location}`, exact: true })
 		).toBeVisible();
+		await page.getByRole('button', { name: /Open Box Menu/ }).click();
+		const select = page.getByRole('button', { name: 'Select Pokemon', exact: true });
+		await expect(select).toHaveAttribute('aria-disabled', 'true');
+		await expect(page.getByText('Choose a physical Storage Box to select Pokemon.')).toBeVisible();
+		await select.focus();
+		await page.keyboard.press('Enter');
+		await expect(select).toBeVisible();
+		await expect(actions).toHaveCount(0);
 	});
 }

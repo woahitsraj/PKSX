@@ -9,7 +9,8 @@ describe('Box Menu commands', () => {
 				source: { type: 'save-file', label: 'emerald.sav' },
 				workspaceReady: true,
 				paneCount: 1,
-				undoAvailable: false
+				undoAvailable: false,
+				selectionUnavailableReason: null
 			}).map((command) => command.label)
 		).toEqual([
 			'Export',
@@ -27,7 +28,8 @@ describe('Box Menu commands', () => {
 			source: { type: 'pokemon-storage', label: 'Pokemon Storage' },
 			workspaceReady: false,
 			paneCount: 1,
-			undoAvailable: false
+			undoAvailable: false,
+			selectionUnavailableReason: null
 		});
 
 		expect(
@@ -70,7 +72,8 @@ describe('Box Menu commands', () => {
 			source: { type: 'save-file', label: 'emerald.sav' },
 			workspaceReady: true,
 			paneCount: 2,
-			undoAvailable: false
+			undoAvailable: false,
+			selectionUnavailableReason: null
 		});
 
 		expect(commands[3]).toMatchObject({ availability: 'available', reason: null });
@@ -86,7 +89,8 @@ describe('Box Menu commands', () => {
 			source: { type: 'save-file', label: 'secondary.sav' },
 			workspaceReady: false,
 			paneCount: 2,
-			undoAvailable: false
+			undoAvailable: false,
+			selectionUnavailableReason: null
 		});
 
 		expect(commands[0]).toMatchObject({
@@ -100,6 +104,19 @@ describe('Box Menu commands', () => {
 		expect(commands[2]).toMatchObject({
 			availability: 'unavailable',
 			reason: 'secondary.sav is still loading.'
+		});
+	});
+	it('explains why selection is unavailable in a virtual Storage view', () => {
+		const commands = createBoxMenuCommands({
+			source: { type: 'pokemon-storage', label: 'Pokemon Storage' },
+			workspaceReady: false,
+			paneCount: 1,
+			undoAvailable: false,
+			selectionUnavailableReason: 'Choose a physical Storage Box to select Pokemon.'
+		});
+		expect(commands.find(({ key }) => key === 'select')).toMatchObject({
+			availability: 'unavailable',
+			reason: 'Choose a physical Storage Box to select Pokemon.'
 		});
 	});
 });

@@ -577,6 +577,10 @@
 			linkedSource: boxMenuLinkedFile ? (fileEmulator(boxMenuLinkedFile) ?? 'emulator') : undefined,
 			confirmExport: exportConfirmation,
 			paneCount: workbenchPanes.length,
+			selectionUnavailableReason:
+				boxMenuPane && virtualPaneIds.includes(boxMenuPane.id)
+					? 'Choose a physical Storage Box to select Pokemon.'
+					: null,
 			undoAvailable:
 				Boolean(catalogManifest) &&
 				getPokemonStorageCatalog().canUndo &&
