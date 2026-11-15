@@ -93,9 +93,7 @@ for (const height of [336, 720]) {
 		await page.getByRole('button', { name: 'Sort: Alphabetical', exact: true }).click();
 		await expect(grid).toHaveAttribute('aria-activedescendant', before!);
 		await search.fill('nothing-matches');
-		await expect(
-			page.getByText('No Save Files match your search.', { exact: false })
-		).toBeVisible();
+		await expect(page.getByText('Try another search', { exact: false })).toBeVisible();
 		await expect(
 			page.getByRole('button', { name: 'Import a Save File', exact: true })
 		).toBeVisible();
@@ -278,3 +276,40 @@ test.describe('display names across Save File consumers', () => {
 		});
 	}
 });
+
+for (const viewport of [
+	{ width: 390, height: 844 },
+	{ width: 1280, height: 800 },
+	{ width: 960, height: 336 }
+]) {
+	test(`search controls keep room for input at ${viewport.width}x${viewport.height}`, async ({
+		page
+	}) => {
+		await page.setViewportSize(viewport);
+		await page.goto('/saves');
+		const search = page.getByRole('searchbox', { name: 'Search Saves' });
+		await search.fill('nothing-matches');
+		await expect(page.getByRole('status').filter({ hasText: 'Try another search' })).toBeVisible();
+		const input = await search.boundingBox();
+		const sort = await page
+			.getByRole('button', { name: 'Sort: Alphabetical', exact: true })
+			.boundingBox();
+		expect(input).not.toBeNull();
+		expect(sort).not.toBeNull();
+		if (viewport.width === 390) {
+			expect(input!.width).toBeGreaterThan(viewport.width * 0.8);
+			expect(sort!.y).toBeGreaterThanOrEqual(input!.y + input!.height);
+		} else expect(sort!.y).toBe(input!.y);
+		await page.keyboard.press('ArrowDown');
+		await expect(page.getByRole('grid', { name: 'Saves collections' })).toBeFocused();
+		await expect(
+			page.getByRole('button', { name: 'Import a Save File', exact: true })
+		).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: 'Open Pokemon Storage in Boxes', exact: true })
+		).toBeVisible();
+		await page.getByRole('button', { name: 'Clear search', exact: true }).click();
+		await expect(search).toHaveValue('');
+		await expect(page.locator('.search-empty')).toHaveCount(0);
+	});
+}

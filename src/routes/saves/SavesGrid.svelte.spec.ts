@@ -358,7 +358,7 @@ it('retains target identity through filtering and sorting and keeps empty-result
 	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-' + file.id);
 	await filter('no-such-save');
 	expect(container.querySelectorAll('.save-card').length).toBe(0);
-	expect(container.textContent).toContain('No Save Files match');
+	expect(container.textContent).toContain('Try another search');
 	expect(container.querySelector('#saves-target-import')).not.toBeNull();
 	expect(container.querySelector('#saves-target-pokemon-storage')).not.toBeNull();
 	expect(container.querySelector('#' + grid.getAttribute('aria-activedescendant'))).not.toBeNull();
