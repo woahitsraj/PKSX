@@ -127,3 +127,55 @@ for (const location of ['All Pokemon', 'Unfiled', 'Recently Deleted']) {
 		await expect(actions).toHaveCount(0);
 	});
 }
+
+test.describe('desktop selection', () => {
+	test.use({ viewport: { width: 1280, height: 800 } });
+	test('extends with Shift+Arrow and selects with a mouse rectangle', async ({ page }) => {
+		await page.goto('/');
+		await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+			'data-initial-state',
+			'ready'
+		);
+		await page.getByLabel('Import Save File').setInputFiles(fixture);
+		await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
+			timeout: 60000
+		});
+		await page.getByRole('button', { name: /Open .*011020251345.sav in Boxes/ }).click();
+		await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+			'data-initial-state',
+			'ready',
+			{ timeout: 60000 }
+		);
+		const cells = page.locator('.box-pane .location-grid .slot');
+		await cells.nth(1).click();
+		await cells.nth(0).click();
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await page.keyboard.down('Shift');
+		await page.keyboard.press('ArrowRight');
+		const actions = page.getByRole('group', { name: 'Selection actions' });
+		await expect(actions).toContainText('2 selected');
+		await page.keyboard.press('ArrowRight');
+		await page.keyboard.press('ArrowLeft');
+		await page.keyboard.press('ArrowLeft');
+		await expect(actions).toContainText('1 selected');
+		await page.keyboard.press('ArrowRight');
+		await expect(actions).toContainText('2 selected');
+		await page.keyboard.up('Shift');
+		await page.keyboard.press('ArrowRight');
+		await expect(actions).toContainText('2 selected');
+		await page.keyboard.press('Escape');
+		await expect(actions).toHaveCount(0);
+		const first = await cells.nth(0).boundingBox(),
+			second = await cells.nth(1).boundingBox();
+		if (!first || !second) throw Error('Visible Box Slots required');
+		await page.mouse.move(first.x + first.width / 2, first.y + first.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(second.x + second.width - 2, second.y + second.height - 2, { steps: 8 });
+		await expect(page.locator('.selection-drag-box')).toBeVisible();
+		await page.mouse.up();
+		await expect(actions).toContainText('2 selected');
+		await expect(page.locator('[data-batch-selected="true"]')).toHaveCount(2);
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await expect(page.locator('.selection-drag-box')).toHaveCount(0);
+	});
+});

@@ -1063,10 +1063,6 @@
 	}
 
 	function dispatchNavigation(action: NavigationAction) {
-		if (selection && action === 'carryMode') {
-			focusSelectionControls();
-			return;
-		}
 		if (selection && action === 'back') {
 			selection = null;
 			return;
@@ -2378,6 +2374,150 @@
 		slots: { box: number; slot: number }[];
 	} | null>(null);
 
+	type SelectedBoxSlot = { box: number; slot: number };
+	let rangeAnchor: { paneId: string; box: number; slot: number; base: SelectedBoxSlot[] } | null =
+		null;
+	let boxDrag = $state.raw<{
+		pane: BoxPaneState;
+		box: number;
+		grid: HTMLElement;
+		pointerId: number;
+		startX: number;
+		startY: number;
+		x: number;
+		y: number;
+		base: SelectedBoxSlot[];
+		moved: boolean;
+	} | null>(null);
+	let suppressDragClick = false;
+	function applySelectionRange(slots: SelectedBoxSlot[], base: SelectedBoxSlot[]) {
+		if (selection)
+			selection.slots = [
+				...base.filter(
+					(item) => !slots.some((ref) => ref.box === item.box && ref.slot === item.slot)
+				),
+				...slots
+			];
+	}
+	function extendBoxSelection(from: number, to: number) {
+		const pane = activePane;
+		if (!pane) return;
+		if (!selection) beginSelection(pane);
+		if (!selection) return;
+		if (!rangeAnchor || rangeAnchor.paneId !== pane.id || rangeAnchor.box !== activePaneBox)
+			rangeAnchor = {
+				paneId: pane.id,
+				box: activePaneBox,
+				slot: from,
+				base: selection.slots.slice()
+			};
+		const start = rangeAnchor.slot,
+			slots: SelectedBoxSlot[] = [];
+		for (
+			let row = Math.min(Math.floor(start / BOX_COLUMNS), Math.floor(to / BOX_COLUMNS));
+			row <= Math.max(Math.floor(start / BOX_COLUMNS), Math.floor(to / BOX_COLUMNS));
+			row++
+		)
+			for (
+				let col = Math.min(start % BOX_COLUMNS, to % BOX_COLUMNS);
+				col <= Math.max(start % BOX_COLUMNS, to % BOX_COLUMNS);
+				col++
+			) {
+				const slot = row * BOX_COLUMNS + col;
+				if (slotForRef({ zone: 'box', box: activePaneBox, slot }, pane)?.kind === 'pokemon')
+					slots.push({ box: activePaneBox, slot });
+			}
+		applySelectionRange(slots, rangeAnchor.base);
+	}
+	function beginBoxDrag(event: PointerEvent, pane: BoxPaneState, party: boolean) {
+		suppressDragClick = false;
+		if (
+			event.pointerType !== 'mouse' ||
+			event.button !== 0 ||
+			party ||
+			busy ||
+			activeSummonedWorkflow ||
+			pendingSlotOperation ||
+			virtualCarry ||
+			!(event.currentTarget instanceof HTMLElement)
+		)
+			return;
+		if (
+			selection &&
+			(selection.source.id !== pane.source.id || selection.source.type !== pane.source.type)
+		)
+			return;
+		activatePane(pane, false);
+		rangeAnchor = null;
+		boxDrag = {
+			pane,
+			box: pane.activeBox,
+			grid: event.currentTarget,
+			pointerId: event.pointerId,
+			startX: event.clientX,
+			startY: event.clientY,
+			x: event.clientX,
+			y: event.clientY,
+			base: selection?.slots.slice() ?? [],
+			moved: false
+		};
+	}
+	function moveBoxDrag(event: PointerEvent) {
+		const drag = boxDrag;
+		if (!drag || event.pointerId !== drag.pointerId) return;
+		if (
+			busy ||
+			activeSummonedWorkflow ||
+			!drag.grid.isConnected ||
+			activePane?.source.type !== drag.pane.source.type ||
+			activePane?.source.id !== drag.pane.source.id ||
+			activePaneBox !== drag.box
+		) {
+			boxDrag = null;
+			return;
+		}
+		if (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 4)
+			return;
+		if (!selection) beginSelection(drag.pane);
+		if (!selection) return;
+		drag.grid.setPointerCapture(event.pointerId);
+		const left = Math.min(drag.startX, event.clientX),
+			right = Math.max(drag.startX, event.clientX),
+			top = Math.min(drag.startY, event.clientY),
+			bottom = Math.max(drag.startY, event.clientY);
+		const slots = [...drag.grid.querySelectorAll<HTMLButtonElement>('.slot.pokemon[data-box-slot]')]
+			.filter((button) => {
+				const rect = button.getBoundingClientRect();
+				return rect.left < right && rect.right > left && rect.top < bottom && rect.bottom > top;
+			})
+			.map((button) => ({ box: drag.box, slot: Number(button.dataset.boxSlot) }));
+		applySelectionRange(slots, drag.base);
+		boxDrag = { ...drag, x: event.clientX, y: event.clientY, moved: true };
+	}
+	function endBoxDrag(event: PointerEvent) {
+		if (!boxDrag || event.pointerId !== boxDrag.pointerId) return;
+		suppressDragClick = boxDrag.moved;
+		const button = document
+			.elementFromPoint(event.clientX, event.clientY)
+			?.closest<HTMLButtonElement>('[data-box-slot]');
+		if (boxDrag.moved && button && boxDrag.grid.contains(button))
+			focusBox(Number(button.dataset.boxSlot));
+		boxDrag = null;
+	}
+	function consumeDragClick(event: MouseEvent) {
+		const suppress = suppressDragClick;
+		suppressDragClick = false;
+		if (
+			suppress &&
+			event.detail > 0 &&
+			event.target instanceof Element &&
+			event.target.closest('.location-grid')
+		) {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		}
+	}
+
 	$effect(reconcileSelection);
 
 	function reconcileSelection() {
@@ -2414,6 +2554,7 @@
 	function beginSelection(pane: BoxPaneState | undefined = activePane) {
 		if (!pane || busy || pendingSlotOperation || virtualCarry || virtualPaneIds.includes(pane.id))
 			return;
+		rangeAnchor = null;
 		const state = saveWorkspaceForPane(pane)?.state;
 		if (pane.source.type === 'save-file' && !state) return;
 		selection = {
@@ -2437,6 +2578,7 @@
 			slotForRef(ref, pane)?.kind !== 'pokemon'
 		)
 			return;
+		rangeAnchor = null;
 		const found = selection.slots.some((item) => item.box === ref.box && item.slot === ref.slot);
 		selection.slots = found
 			? selection.slots.filter((item) => item.box !== ref.box || item.slot !== ref.slot)
@@ -2453,6 +2595,7 @@
 	}
 
 	function handleAppKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape') boxDrag = null;
 		if (
 			activeSummonedWorkflow?.kind === 'backup-browser' ||
 			activeSummonedWorkflow?.kind === 'quick-search'
@@ -2497,6 +2640,28 @@
 			return;
 
 		if (!action) {
+			return;
+		}
+		if (!event.shiftKey) rangeAnchor = null;
+		if (
+			event.shiftKey &&
+			!event.ctrlKey &&
+			!event.metaKey &&
+			!event.altKey &&
+			event.key.startsWith('Arrow') &&
+			!activeSummonedWorkflow &&
+			!activeVirtualLocation &&
+			!pendingSlotOperation &&
+			!virtualCarry &&
+			navigation.focus.zone === 'box' &&
+			document.activeElement?.closest('.location-grid')
+		) {
+			event.preventDefault();
+			syncNavigationFocusFromActiveElement();
+			const from = navigation.locationFocus.slot;
+			dispatch(action);
+			if (navigation.locationFocus.zone === 'box')
+				extendBoxSelection(from, navigation.locationFocus.slot);
 			return;
 		}
 
@@ -7530,7 +7695,18 @@
 	}
 </script>
 
-<svelte:window onkeydown={handleAppKeydown} />
+<svelte:window
+	onkeydown={handleAppKeydown}
+	onkeyup={(event) => {
+		if (event.key === 'Shift') rangeAnchor = null;
+	}}
+	onpointermove={moveBoxDrag}
+	onpointerup={endBoxDrag}
+	onpointercancel={() => {
+		boxDrag = null;
+	}}
+	onclickcapture={consumeDragClick}
+/>
 
 <div class="status-announcer" role="status" aria-live="polite">{statusMessage}</div>
 <input
@@ -7783,6 +7959,8 @@
 						<div
 							id={paneActive ? 'box-grid' : `box-grid-${pane.id}`}
 							class={['location-grid', paneParty && 'party-grid']}
+							onpointerdown={(event) => beginBoxDrag(event, pane, paneParty)}
+							ondragstart={(event) => event.preventDefault()}
 							role="grid"
 							tabindex={paneActive ? 0 : -1}
 							aria-label={`${pane.source.label} ${paneParty ? 'Party' : boxNameFor(paneBox, pane)}`}
@@ -7915,6 +8093,9 @@
 			{/each}
 		</div>
 
+		{#if !selection}<span class="desktop-selection-hint"
+				>Select Pokemon: Shift + arrows or drag a rectangle.</span
+			>{/if}
 		<div class="shared-detail" aria-label="Shared Slot summary">
 			{#if selection}{@render selectionControls()}{:else}
 				{#if workbenchPanes.length === 2}
@@ -7990,11 +8171,13 @@
 		>
 			<strong aria-live="polite">{selection.slots.length} selected</strong>
 			<span>A Toggle · B Exit · Y Actions · L/R Boxes</span>
+			<span>Shift + arrows extend selection. Drag a rectangle to select Pokemon.</span>
 			<button type="button" onclick={selectCurrentBox}>Select box</button>
 			<button
 				type="button"
 				onclick={() => {
 					if (selection) selection.slots = [];
+					rangeAnchor = null;
 				}}>Clear selection</button
 			>
 			<button
@@ -8007,6 +8190,15 @@
 		</div>
 	{/if}
 {/snippet}
+
+{#if boxDrag?.moved}<div
+		class="selection-drag-box"
+		aria-hidden="true"
+		style:left={`${Math.min(boxDrag.startX, boxDrag.x)}px`}
+		style:top={`${Math.min(boxDrag.startY, boxDrag.y)}px`}
+		style:width={`${Math.abs(boxDrag.x - boxDrag.startX)}px`}
+		style:--drag-height={`${Math.abs(boxDrag.y - boxDrag.startY)}px`}
+	></div>{/if}
 
 {#if boxMenuOpen && boxMenuTarget}
 	<BoxMenu
@@ -8294,6 +8486,27 @@
 {/if}
 
 <style>
+	.selection-drag-box {
+		height: var(--drag-height);
+		position: fixed;
+		z-index: 400;
+		border: 1px solid var(--rust);
+		background: color-mix(in srgb, var(--rust) 15%, transparent);
+		pointer-events: none;
+	}
+	.desktop-selection-hint {
+		position: absolute;
+		bottom: var(--pksx-space-1);
+		left: var(--pksx-space-2);
+		font-size: var(--pksx-type-caption);
+		pointer-events: none;
+	}
+	@container boxes-route (max-width: 899px) {
+		.desktop-selection-hint {
+			display: none;
+		}
+	}
+
 	.selection-controls button {
 		height: var(--pksx-control-height);
 	}

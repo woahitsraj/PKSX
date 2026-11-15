@@ -106,6 +106,7 @@
 	aria-rowindex={rowIndex}
 	aria-colindex={colIndex}
 	data-batch-selected={selected || undefined}
+	data-box-slot={zone === 'box' ? slot.slot : undefined}
 	data-destination-state={destinationState ?? undefined}
 	onpointerdown={handlePointerDown}
 	onpointercancel={() => (focusedAtPointerDown = null)}
