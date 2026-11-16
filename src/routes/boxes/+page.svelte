@@ -4078,7 +4078,8 @@
 				if (!pending.storageSource) throw new Error('Pokemon Storage source changed.');
 				await catalog.commitCarry(pending.storageSource, pending.kind, placement);
 			} else {
-				if (!sourceSlot.entityBytesBase64) throw new Error('Pokemon Entity bytes are unavailable.');
+				if (!sourceSlot.entityBytesBase64)
+					throw new Error('Pokemon Storage cannot hold Pokemon from this Save File.');
 				const sourcePokemon = storedPokemonFromSlot(sourceSlot, carryState);
 				await catalog.add(
 					base64ToBytes(sourceSlot.entityBytesBase64),
