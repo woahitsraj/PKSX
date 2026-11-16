@@ -1434,13 +1434,19 @@ test('holding Next Box shows each Save File Box while the key repeats', async ({
 		record();
 	});
 
-	for (let press = 0; press < 6; press += 1) {
+	// The queue loads only the latest Box, so slow runners skip some; real repeats come about every 33 ms.
+	const readTitles = async () => {
+		const shown = await page.evaluate(
+			() => (window as typeof window & { __boxTitles?: string[] }).__boxTitles ?? []
+		);
+		return [...new Set(shown.filter((title) => /^BOX\d+$/.test(title)))];
+	};
+	let titles: string[] = [];
+	for (let press = 0; press < 30 && titles.length < 5; press += 1) {
 		await page.keyboard.down(']');
-		await page.waitForTimeout(100);
+		await page.waitForTimeout(33);
+		titles = await readTitles();
 	}
-	const titles = await page.evaluate(
-		() => (window as typeof window & { __boxTitles?: string[] }).__boxTitles ?? []
-	);
 	await page.keyboard.up(']');
 
 	expect(titles.length, `titles shown while held: ${titles.join(', ')}`).toBeGreaterThanOrEqual(5);
