@@ -453,7 +453,7 @@ describe('PKHeX Engine Save File coverage', () => {
 		const rawBefore = unboundItemIds(original, unboundLiveSlot(original));
 		const rawAfter = unboundItemIds(edited.value.bytes, live);
 		expect(rawAfter).toHaveLength(rawBefore.length - 1);
-		expect(rawAfter.every((id) => rawBefore.includes(id))).toBe(true);
+		expect(rawAfter).toEqual(rawBefore.filter((id) => rawAfter.includes(id)));
 	});
 });
 
