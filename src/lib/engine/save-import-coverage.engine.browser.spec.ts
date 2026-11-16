@@ -259,7 +259,7 @@ describe('PKHeX Engine Save File coverage', () => {
 			createPkhexEngine('/pkhex-engine'),
 			readFixture(`${raj}/gba/${fileName}`)
 		]);
-		let bytes = original;
+		let bytes: Uint8Array = original;
 		const operations: SlotOperation[] = [
 			{
 				kind: 'move',
