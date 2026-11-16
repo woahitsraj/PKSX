@@ -59,7 +59,7 @@ internal sealed record UnboundSpecies(ushort Id, ushort National, byte Form, Per
 internal sealed class IdTable
 {
     private readonly Dictionary<int, int> toPkhex = [];
-    private readonly HashSet<int> pkhexIds = [];
+    private readonly Dictionary<int, int> fromPkhex = [];
     private readonly Dictionary<int, int> extra = [];
 
     public IdTable(string name)
@@ -72,11 +72,16 @@ internal sealed class IdTable
             if (pkhex == 0)
                 continue;
             toPkhex[id] = pkhex;
-            pkhexIds.Add(pkhex);
+            fromPkhex.TryAdd(pkhex, id);
         }
     }
 
-    public IEnumerable<ushort> PkhexIds => pkhexIds.Select(id => (ushort)id);
+    public IEnumerable<ushort> PkhexIds => fromPkhex.Keys.Select(id => (ushort)id);
+
+    public bool HasPkhex(int id) => fromPkhex.ContainsKey(id);
+
+    public int FromPkhex(int id) =>
+        id == 0 ? 0 : fromPkhex.TryGetValue(id, out var unbound) ? unbound : throw new ArgumentException($"Pokémon Unbound has no id for {id}.");
 
     public int ToPkhex(int id) => toPkhex.GetValueOrDefault(id);
     public int Extra(int id) => extra.GetValueOrDefault(id);

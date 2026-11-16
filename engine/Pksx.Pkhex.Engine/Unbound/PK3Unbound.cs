@@ -105,7 +105,7 @@ public sealed class PK3Unbound : PKM
 
     public override ushort Species { get => Entry.National; set { } }
     public override byte Form { get => Entry.Form; set { } }
-    public override int HeldItem { get => UnboundTables.Items.ToPkhex(UnboundHeldItem); set { } }
+    public override int HeldItem { get => UnboundTables.Items.ToPkhex(UnboundHeldItem); set => UnboundHeldItem = (ushort)UnboundTables.Items.FromPkhex(value); }
     public ushort UnboundHeldItem { get => ReadUInt16LittleEndian(Data[0x22..]); set => WriteUInt16LittleEndian(Data[0x22..], value); }
     public override uint EXP { get => ReadUInt32LittleEndian(Data[0x24..]); set => WriteUInt32LittleEndian(Data[0x24..], value); }
     private byte PPUps { get => Data[0x28]; set => Data[0x28] = value; }
@@ -116,14 +116,22 @@ public sealed class PK3Unbound : PKM
     public override byte CurrentFriendship { get => Data[0x29]; set => Data[0x29] = value; }
     public override byte OriginalTrainerFriendship { get => Data[0x29]; set => Data[0x29] = value; }
     public byte UnboundBall { get => Data[0x2A]; set => Data[0x2A] = value; }
-    public override byte Ball { get => UnboundBalls.ToPkhex(UnboundBall); set { } }
+    public override byte Ball { get => UnboundBalls.ToPkhex(UnboundBall); set => UnboundBall = UnboundBalls.FromPkhex(value); }
 
     public ushort GetUnboundMove(int index) => ReadUInt16LittleEndian(Data[(0x2C + (index * 2))..]);
     private ushort PkhexMove(int index) => (ushort)UnboundTables.Moves.ToPkhex(GetUnboundMove(index));
-    public override ushort Move1 { get => PkhexMove(0); set { } }
-    public override ushort Move2 { get => PkhexMove(1); set { } }
-    public override ushort Move3 { get => PkhexMove(2); set { } }
-    public override ushort Move4 { get => PkhexMove(3); set { } }
+    private void SetPkhexMove(int index, ushort move) =>
+        WriteUInt16LittleEndian(Data[(0x2C + (index * 2))..], (ushort)UnboundTables.Moves.FromPkhex(move));
+    public override ushort Move1 { get => PkhexMove(0); set => SetPkhexMove(0, value); }
+    public override ushort Move2 { get => PkhexMove(1); set => SetPkhexMove(1, value); }
+    public override ushort Move3 { get => PkhexMove(2); set => SetPkhexMove(2, value); }
+    public override ushort Move4 { get => PkhexMove(3); set => SetPkhexMove(3, value); }
+
+    public int GetUnboundMaxPp(ushort move, int ppUps)
+    {
+        var basePp = UnboundTables.GetPp((ushort)UnboundTables.Moves.FromPkhex(move));
+        return basePp + (basePp * ppUps / 5);
+    }
     public override int Move1_PP { get => Data[0x34]; set => Data[0x34] = (byte)value; }
     public override int Move2_PP { get => Data[0x35]; set => Data[0x35] = (byte)value; }
     public override int Move3_PP { get => Data[0x36]; set => Data[0x36] = (byte)value; }
@@ -176,9 +184,45 @@ public sealed class PK3Unbound : PKM
     }
 
     public bool HiddenAbility { get => (IV32 & (1u << 31)) != 0; set => IV32 = value ? IV32 | (1u << 31) : IV32 & ~(1u << 31); }
-    public override int AbilityNumber { get => HiddenAbility ? 4 : 1 << (int)(PID & 1); set { } }
+    public override int AbilityNumber
+    {
+        get => HiddenAbility ? 4 : 1 << (int)(PID & 1);
+        set
+        {
+            HiddenAbility = value == 4;
+            var slot = value == 2 ? 1u : 0u;
+            if (!HiddenAbility && (PID & 1) != slot)
+                RerollPid(Nature, slot);
+        }
+    }
     public override int Ability { get => PersonalInfo.GetAbilityAtIndex(HiddenAbility ? 2 : (int)(PID & 1)) is var a && a != 0 ? a : PersonalInfo.GetAbilityAtIndex(0); set { } }
-    public override Nature Nature { get => (Nature)(PID % 25); set { } }
+    public override Nature Nature { get => (Nature)(PID % 25); set => RerollPid(value, PID & 1); }
+
+    // Nature, ability slot, gender and shininess all come from the PID, so a new PID keeps the other three.
+    private void RerollPid(Nature nature, uint abilitySlot)
+    {
+        var shiny = IsShiny;
+        var gender = Gender;
+        var ratio = PersonalInfo.Gender;
+        var trainer = (uint)(TID16 ^ SID16);
+        for (uint step = 0; step < 0x10000; step++)
+        {
+            var low = (PID + step) & 0xFFFF;
+            if ((low & 1) != abilitySlot || EntityGender.GetFromPIDAndRatio(low, ratio) != gender)
+                continue;
+            for (uint candidate = 0; candidate < (shiny ? 16u : 0x10000u); candidate++)
+            {
+                var high = shiny ? trainer ^ low ^ candidate : ((PID >> 16) + candidate) & 0xFFFF;
+                var pid = (high << 16) | low;
+                if (pid % 25 == (uint)nature && (trainer ^ high ^ low) < 16 == shiny)
+                {
+                    PID = pid;
+                    return;
+                }
+            }
+        }
+        throw new InvalidOperationException("No PID keeps this Pokémon's gender, ability and shininess with that nature.");
+    }
     public override byte Gender { get => EntityGender.GetFromPIDAndRatio(PID, PersonalInfo.Gender); set { } }
 
     public override int Status_Condition { get => ReadInt32LittleEndian(Data[0x50..]); set => WriteInt32LittleEndian(Data[0x50..], value); }
