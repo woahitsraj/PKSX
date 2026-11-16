@@ -41,6 +41,7 @@ const saves = [
 	[`${bl1nd}/emerald-011020251345.sav`, 'SAV3E', 'E'],
 	[`${pkmds}/pokemon-firered.sav`, 'SAV3FRLG', 'FR'],
 	[`${pkmds}/pokemon-leafgreen.sav`, 'SAV3FRLG', 'FR'],
+	[`${raj}/gba/pokemon-unbound-2.1.1.1.sav`, 'SAV3Unbound', 'Pokémon Unbound'],
 	[`${bl1nd}/colosseum/011020251345.gci`, 'SAV3Colosseum', 'COLO'],
 	['libpkmn-test-files/pokemon-xd.gci', 'SAV3XD', 'XD'],
 	[`${pkmds}/pokemon-box-ruby-sapphire.gci`, 'SAV3RSBox', 'RSBOX'],
@@ -184,20 +185,78 @@ describe('PKHeX Engine Save File coverage', () => {
 		}
 	);
 
-	test('refuses a Pokemon Unbound Save File instead of reading it as FireRed', async () => {
+	test('reads the party and all 25 boxes of a Pokemon Unbound Save File', async () => {
 		const fileName = 'pokemon-unbound-2.1.1.1.sav';
 		const [engine, bytes] = await Promise.all([
 			createPkhexEngine('/pkhex-engine'),
 			readFixture(`${raj}/gba/${fileName}`)
 		]);
-		const unbound = {
+
+		const [workspace, card, exported] = await Promise.all([
+			engine.loadSaveWorkspace(bytes, fileName, 24),
+			engine.summarizeSaveCard(bytes, fileName),
+			engine.serializeSave(bytes, fileName)
+		]);
+		if (!workspace.ok || !card.ok || !exported.ok) throw new Error('Unbound save did not load.');
+
+		expect(workspace.value.summary).toMatchObject({
+			trainerName: 'Luna',
+			boxCount: 25,
+			partyCount: 6
+		});
+		expect(card.value.pokemonCount).toBe(92);
+		expect(workspace.value.boxNames.names).toHaveLength(25);
+		expect(workspace.value.boxNames.names[0]).toBe('Box1');
+		expect(workspace.value.boxNames.names[24]).toBe('Preset');
+		const [metang, , , , , luxray] = workspace.value.partySlots;
+		expect(metang).toMatchObject({
+			speciesName: 'Metang',
+			level: 44,
+			heldItem: 'Eviolite',
+			ability: 'Clear Body'
+		});
+		expect(metang).toMatchObject({ nickname: 'Metang', nature: 'Impish' });
+		expect(metang.stats[0]).toMatchObject({ key: 'HP', value: 121, iv: 18, ev: 60 });
+		expect(luxray.moves.map((move) => move.name)).toEqual([
+			'Volt Switch',
+			'Crunch',
+			'Thunder Fang',
+			'Electric Terrain'
+		]);
+		expect(workspace.value.boxSlots[24]).toMatchObject({ speciesName: 'Mawile', level: 34 });
+		expect(workspace.value.boxSlots[24].entityBytesBase64 ?? null).toBeNull();
+		expect(workspace.value.boxSlots[24].moves[0]).toMatchObject({ name: 'Crunch', pp: 15 });
+		expect(decodeBase64(exported.value.bytesBase64)).toEqual(bytes);
+		expect(
+			await engine.applySlotOperation(
+				bytes,
+				fileName,
+				{ kind: 'clear', source: { zone: 'party', slot: 0 } },
+				0
+			)
+		).toMatchObject({ ok: false, error: { code: 'unsupported-save-file-edit' } });
+		expect(
+			await engine.checkSlotLegality(bytes, fileName, { zone: 'party', slot: 0 })
+		).toMatchObject({
 			ok: false,
 			error: { code: 'unsupported-save', message: expect.stringContaining('Pokémon Unbound') }
-		};
+		});
+	});
 
-		expect(await engine.summarizeSave(bytes, fileName)).toMatchObject(unbound);
-		expect(await engine.summarizeSaveCard(bytes, fileName)).toMatchObject(unbound);
-		expect(await engine.loadSaveWorkspace(bytes, fileName, 0)).toMatchObject(unbound);
-		expect(await engine.serializeSave(bytes, fileName)).toMatchObject(unbound);
+	test('reads the intact older slot when the newer Pokemon Unbound slot is damaged', async () => {
+		const fileName = 'pokemon-unbound-2.1.1.1.sav';
+		const [engine, damaged] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			readFixture(`${raj}/gba/${fileName}`)
+		]);
+		const counter = (slot: number) => new DataView(damaged.buffer).getUint32(slot + 0xffc, true);
+		const live = counter(0xe000) > counter(0) ? 0xe000 : 0;
+		const trainerSector = [...Array(14).keys()]
+			.map((sector) => live + sector * 0x1000)
+			.find((offset) => damaged[offset + 0xff4] === 0)!;
+		damaged[trainerSector] ^= 0xff;
+
+		const summary = await engine.summarizeSave(damaged, fileName);
+		expect(summary).toMatchObject({ ok: true, value: { trainerName: 'Luna' } });
 	});
 });

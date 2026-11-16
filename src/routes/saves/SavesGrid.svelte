@@ -77,6 +77,7 @@
 	const toastHost = getToastHost();
 	const gameNames: Record<string, string> = {
 		E: 'Pokemon Emerald',
+		'Pokémon Unbound': 'Pokémon Unbound',
 		COLO: 'Pokemon Colosseum',
 		XD: 'Pokemon XD',
 		X: 'Pokemon X',

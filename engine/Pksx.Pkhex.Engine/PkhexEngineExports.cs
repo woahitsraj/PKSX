@@ -139,7 +139,7 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -165,7 +165,7 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -200,7 +200,7 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -233,7 +233,7 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -269,7 +269,7 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -287,7 +287,7 @@ public static partial class PkhexEngineExports
                 }
 
                 return EngineJson.Serialize(
-                    EngineResult.Ok(PartySlotSummary.From(save.GetPartySlotAtIndex(reference.Slot), save, reference.Slot)),
+                    EngineResult.Ok(PartySlotSummary.From(save.GetPartySlotAtIndex(reference.Slot), save, reference.Slot, save is not SAV3Unbound)),
                     EngineJsonContext.Default.EngineResultPartySlotSummary);
             }
 
@@ -304,7 +304,8 @@ public static partial class PkhexEngineExports
                     source.Value.Get(save),
                     save,
                     source.Value.Box,
-                    source.Value.Slot)),
+                    source.Value.Slot,
+                    save is not SAV3Unbound)),
                 EngineJsonContext.Default.EngineResultBoxSlotSummary);
         }
         catch (Exception ex)
@@ -325,7 +326,7 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -353,9 +354,12 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
+
+            if (RefuseUnboundEdit(save) is { } refused)
+                return refused;
 
             var operation = System.Text.Json.JsonSerializer.Deserialize(
                 operationJson,
@@ -405,9 +409,12 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
+
+            if (RefuseUnboundEdit(save) is { } refused)
+                return refused;
 
             var request = System.Text.Json.JsonSerializer.Deserialize(
                 requestJson,
@@ -481,9 +488,12 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
+
+            if (RefuseUnboundEdit(save) is { } refused)
+                return refused;
 
             var operation = System.Text.Json.JsonSerializer.Deserialize(
                 operationJson,
@@ -538,7 +548,14 @@ public static partial class PkhexEngineExports
             if (baselineSave is null || candidateSave is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult<bool>.Failure("unsupported-save", UnsupportedSaveMessage(baselineSave is null ? baselineBytes : candidateBytes)),
+                    EngineResult<bool>.Failure("unsupported-save", UnsupportedSaveMessage),
+                    EngineJsonContext.Default.EngineResultBoolean);
+            }
+
+            if (baselineSave is SAV3Unbound)
+            {
+                return EngineJson.Serialize(
+                    EngineResult<bool>.Failure("unsupported-save-file-edit", "Changes to Pokémon Unbound Save Files are not supported yet."),
                     EngineJsonContext.Default.EngineResultBoolean);
             }
 
@@ -623,9 +640,12 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
+
+            if (RefuseUnboundEdit(save) is { } refused)
+                return refused;
 
             var operation = System.Text.Json.JsonSerializer.Deserialize(
                 operationJson,
@@ -672,7 +692,7 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -697,9 +717,12 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
+
+            if (RefuseUnboundEdit(save) is { } refused)
+                return refused;
 
             var template = save.BlankPKM;
             EntityTemplates.TemplateFields(template, save);
@@ -735,9 +758,12 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
+
+            if (RefuseUnboundEdit(save) is { } refused)
+                return refused;
 
             var operation = System.Text.Json.JsonSerializer.Deserialize(
                 operationJson,
@@ -784,10 +810,12 @@ public static partial class PkhexEngineExports
         {
             var save = LoadSave(bytes, fileName);
 
-            if (save is null)
+            if (save is null or SAV3Unbound)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail(
+                        "unsupported-save",
+                        save is null ? UnsupportedSaveMessage : "Legality is unavailable for Pokémon Unbound, because PKHeX has no rules for it."),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -839,9 +867,12 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
+
+            if (RefuseUnboundEdit(save) is { } refused)
+                return refused;
 
             var source = System.Text.Json.JsonSerializer.Deserialize(
                 sourceJson,
@@ -883,9 +914,12 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
+
+            if (RefuseUnboundEdit(save) is { } refused)
+                return refused;
 
             var request = System.Text.Json.JsonSerializer.Deserialize(
                 actionJson,
@@ -1037,9 +1071,12 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
+
+            if (RefuseUnboundEdit(save) is { } refused)
+                return refused;
 
             var request = System.Text.Json.JsonSerializer.Deserialize(
                 importJson,
@@ -1110,12 +1147,17 @@ public static partial class PkhexEngineExports
     }
 
     private static SaveFile? LoadSave(byte[] bytes, string? fileName) =>
-        UnboundSave.IsUnbound(bytes) ? null : SaveUtil.GetSaveFile(bytes, fileName);
+        UnboundSave.IsUnbound(bytes) ? new SAV3Unbound(bytes) : SaveUtil.GetSaveFile(bytes, fileName);
 
-    private static string UnsupportedSaveMessage(byte[] bytes) =>
-        UnboundSave.IsUnbound(bytes)
-            ? "Pokémon Unbound Save Files are not supported yet. PKSX will not open them, to keep the save safe."
-            : "This file is not a supported Save File.";
+    private const string UnsupportedSaveMessage = "This file is not a supported Save File.";
+
+    // Unbound saves stay read-only until each kind of change is supported.
+    private static string? RefuseUnboundEdit(SaveFile save) =>
+        save is SAV3Unbound
+            ? EngineJson.Serialize(
+                EngineResult.Fail("unsupported-save-file-edit", "Changes to Pokémon Unbound Save Files are not supported yet."),
+                EngineJsonContext.Default.EngineResultObject)
+            : null;
 
     private static SaveWorkspace CreateWorkspace(SaveFile save, string? fileName, int box, bool includeEditData = true)
     {

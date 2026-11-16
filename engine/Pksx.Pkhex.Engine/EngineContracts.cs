@@ -1,4 +1,5 @@
 using PKHeX.Core;
+using Pksx.Pkhex.Engine.Unbound;
 using System.Text.Json.Serialization;
 
 namespace Pksx.Pkhex.Engine;
@@ -42,7 +43,7 @@ public sealed record SaveSummary(
         new(
             fileName,
             save.GetType().Name,
-            save.Version.ToString(),
+            save is SAV3Unbound ? "Pokémon Unbound" : save.Version.ToString(),
             (int)save.Version,
             save.Generation,
             save is SAV3RSBox ? string.Empty : save.OT,
@@ -1591,7 +1592,8 @@ internal static class SlotDetailProjection
 
     public static string? EntityBytesBase64(PKM pokemon)
     {
-        if (pokemon.Species == 0)
+        // Unbound bytes would read as a garbage PK3 in Pokemon Storage, so they stay in their save.
+        if (pokemon.Species == 0 || pokemon is PK3Unbound)
             return null;
 
         return Convert.ToBase64String(pokemon.Data.ToArray());
