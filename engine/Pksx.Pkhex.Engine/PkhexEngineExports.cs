@@ -637,9 +637,6 @@ public static partial class PkhexEngineExports
                     EngineJsonContext.Default.EngineResultObject);
             }
 
-            if (RefuseUnboundEdit(save) is { } refused)
-                return refused;
-
             var operation = System.Text.Json.JsonSerializer.Deserialize(
                 operationJson,
                 EngineJsonContext.Default.SaveFileEditOperationRequest);

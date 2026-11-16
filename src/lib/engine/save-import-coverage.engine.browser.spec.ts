@@ -397,6 +397,66 @@ describe('PKHeX Engine Save File coverage', () => {
 		const reset = await engine.loadSlotEditData(cleared.value.bytes, fileName, source);
 		expect(reset.ok && reset.value.nickname).toBe('Snorunt');
 	});
+	test('reads and edits the Pokemon Unbound bag', async () => {
+		const fileName = 'pokemon-unbound-2.1.1.1.sav';
+		const [engine, original] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			readFixture(`${raj}/gba/${fileName}`)
+		]);
+		const pockets = async (bytes: Uint8Array) => {
+			const loaded = await engine.loadSaveWorkspace(bytes, fileName, 0);
+			if (!loaded.ok) throw loaded.error;
+			const found = loaded.value.saveFile?.inventory.pockets ?? [];
+			const item = (pocket: string, name: string) =>
+				found.find((entry) => entry.key === pocket)?.items.find((entry) => entry.name === name);
+			return { found, item };
+		};
+
+		const before = await pockets(original);
+		expect(before.found.map((pocket) => pocket.key)).toEqual([
+			'Items',
+			'KeyItems',
+			'Balls',
+			'TMHMs',
+			'Berries'
+		]);
+		expect(before.item('Items', 'Revive')?.quantity).toBe(12);
+		expect(before.item('Balls', 'Ultra Ball')?.quantity).toBe(27);
+		expect(before.item('KeyItems', 'Town Map')?.quantity).toBe(1);
+		expect(before.item('TMHMs', 'HM01')?.quantity).toBe(1);
+		expect(before.item('Berries', 'Kee Berry')?.quantity).toBe(5);
+
+		const ultraBall = before.item('Balls', 'Ultra Ball')!.id;
+		const revive = before.item('Items', 'Revive')!.id;
+		const edited = await engine.applySaveFileEditOperation(
+			original,
+			fileName,
+			{
+				inventory: [
+					{ kind: 'set', pocket: 'Balls', itemId: ultraBall, quantity: 99 },
+					{ kind: 'remove', pocket: 'Items', itemId: revive },
+					{ kind: 'add', pocket: 'Berries', itemId: 151, quantity: 3 }
+				]
+			},
+			0
+		);
+		if (!edited.ok) throw edited.error;
+
+		const after = await pockets(edited.value.bytes);
+		expect(after.item('Balls', 'Ultra Ball')?.quantity).toBe(99);
+		expect(after.item('Items', 'Revive')).toBeUndefined();
+		expect(after.item('Berries', 'Pecha Berry')?.quantity).toBe(3);
+		expect(after.item('Items', 'Max Repel')?.quantity).toBe(2);
+		const live = unboundLiveSlot(edited.value.bytes);
+		for (const [id, offset] of unboundSections(edited.value.bytes, live))
+			expect(unboundChecksum(edited.value.bytes, offset, id), `section ${id}`).toBe(
+				readU16(edited.value.bytes, offset + 0xff6)
+			);
+		const rawBefore = unboundItemIds(original, unboundLiveSlot(original));
+		const rawAfter = unboundItemIds(edited.value.bytes, live);
+		expect(rawAfter).toHaveLength(rawBefore.length - 1);
+		expect(rawAfter).toEqual(rawBefore.filter((id) => rawAfter.includes(id)));
+	});
 });
 
 // Sectors 30 and 31 hold boxes 20 to 22 for both save slots.
@@ -417,4 +477,15 @@ function unboundChecksum(bytes: Uint8Array, offset: number, id: number) {
 	for (let index = 0; index < length; index += 4)
 		sum = (sum + readU32(bytes, offset + index)) >>> 0;
 	return ((sum >>> 16) + (sum & 0xffff)) & 0xffff;
+}
+// Raw Unbound ids in the Items pocket, including items PKHeX has no id for.
+function unboundItemIds(bytes: Uint8Array, live: number) {
+	const section13 = unboundSections(bytes, live).find(([id]) => id === 13)![1];
+	const ids: number[] = [];
+	for (let slot = 0; slot < 100; slot++) {
+		const id = readU16(bytes, section13 + 0xad8 + slot * 4);
+		if (id === 0) break;
+		ids.push(id);
+	}
+	return ids;
 }
