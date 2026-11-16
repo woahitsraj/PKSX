@@ -510,7 +510,7 @@ public static partial class PkhexEngineExports
 
             var serialized = save.Write(BinaryExportSetting.None).ToArray();
             var activeBox = ClampActiveBox(operation.ActiveBox, save);
-            var workspace = CreateWorkspace(save, fileName, activeBox);
+            var workspace = CreateWorkspace(save, fileName, activeBox, editedSlot: operation.Source);
 
             return EngineJson.Serialize(
                 EngineResult.Ok(new PokemonEditOperationResult(
@@ -1158,15 +1158,25 @@ public static partial class PkhexEngineExports
                 EngineJsonContext.Default.EngineResultObject)
             : null;
 
-    private static SaveWorkspace CreateWorkspace(SaveFile save, string? fileName, int box, bool includeEditData = true)
+    private static SaveWorkspace CreateWorkspace(
+        SaveFile save,
+        string? fileName,
+        int box,
+        bool includeEditData = true,
+        SaveSlotRef? editedSlot = null)
     {
+        // Every Unbound Pokémon lists every Unbound move, so only the edited slot carries edit data.
+        bool EditData(string zone, int slot) =>
+            includeEditData && (save is not SAV3Unbound ||
+                editedSlot is not null && editedSlot.Zone == zone && editedSlot.Slot == slot && (zone == "party" || editedSlot.Box == box));
+
         var partySlots = new List<PartySlotSummary>(save.PartyCount);
         for (var slot = 0; slot < save.PartyCount; slot++)
-            partySlots.Add(PartySlotSummary.From(save.GetPartySlotAtIndex(slot), save, slot, includeEditData));
+            partySlots.Add(PartySlotSummary.From(save.GetPartySlotAtIndex(slot), save, slot, EditData("party", slot)));
 
         var boxSlots = new List<BoxSlotSummary>(save.BoxSlotCount);
         for (var slot = 0; slot < save.BoxSlotCount; slot++)
-            boxSlots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), save, box, slot, includeEditData));
+            boxSlots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), save, box, slot, EditData("box", slot)));
 
         return new SaveWorkspace(
             SaveSummary.From(save, fileName),
@@ -2144,7 +2154,7 @@ public static partial class PkhexEngineExports
             if (edit.Slot < 0 || edit.Slot >= moves.Length)
                 return SlotMutationResult.Fail("invalid-pokemon-edit", "Move Set slot must be between 1 and 4.");
 
-            if (edit.Move > pokemon.MaxMoveID || (edit.Move != 0 && MoveInfo.IsDummiedMove(pokemon, edit.Move)))
+            if (edit.Move > pokemon.MaxMoveID || (edit.Move != 0 && unbound is null && MoveInfo.IsDummiedMove(pokemon, edit.Move)))
                 return SlotMutationResult.Fail("invalid-pokemon-edit", $"Move {edit.Move} is not supported by this Pokemon format.");
 
             if (edit.Move != 0 && (unbound is null ? !legalMoves.CanLearn(edit.Move) : !UnboundTables.Moves.HasPkhex(edit.Move)))

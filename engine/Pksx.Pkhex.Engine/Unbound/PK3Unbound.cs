@@ -11,9 +11,9 @@ public sealed class PK3Unbound : PKM
     private const int HeaderSize = 0x1C;
     public const int NicknameLength = 10;
     public const int TrainerNameLength = 7;
-    // Gen 8 limits: Eerie Spell, Reins of Unity, As One and Enamorus are the last ids Unbound maps.
-    public const ushort LastMove = 826;
-    public const int LastItem = 1607;
+    public static readonly ushort LastMove = UnboundTables.Moves.PkhexIds.Max();
+    public static readonly int LastItem = UnboundTables.Items.PkhexIds.Max();
+    // As One (Glastrier) is the last ability Unbound maps.
     public const int LastAbility = 267;
     public const ushort LastSpecies = (ushort)PKHeX.Core.Species.Enamorus;
 
