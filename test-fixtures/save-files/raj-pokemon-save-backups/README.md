@@ -1,15 +1,17 @@
 # Raj Pokemon Save Backup Fixtures
 
-These Save File fixtures were moved from local Pokemon save backup folders for PKHeX Engine smoke coverage across Nintendo DS and Switch games.
+These Save File fixtures were moved from local Pokemon save backup folders for PKHeX Engine smoke coverage across Game Boy Advance, Nintendo DS and Switch games.
 
 - Original Switch backup root: `/Users/rsingh/Games/Switch/Save Backups`
 - Original NDS backup root: `/Users/rsingh/Games/NDS Save Backups`
 - Moved into this repository on: 2026-06-01
+- Pokemon Unbound source: iCloud Drive `Pokemon Save Recovery` folder, added on 2026-11-16
 
-The full save files are covered by `src/lib/engine/pkhex-engine.browser.spec.ts`. The small `poke-trade` and `main2` files are retained with meaningful names because they were part of the Pokemon backup folders, but they are not expected to parse as full PKHeX save files.
+The full save files are covered by `src/lib/engine/pkhex-engine.browser.spec.ts` and `src/lib/engine/save-import-coverage.engine.browser.spec.ts`. The small `poke-trade` and `main2` files are retained with meaningful names because they were part of the Pokemon backup folders, but they are not expected to parse as full PKHeX save files.
 
 | Fixture                                                      | Original game folder         | Byte length | SHA-256                                                            |
 | ------------------------------------------------------------ | ---------------------------- | ----------: | ------------------------------------------------------------------ |
+| `gba/pokemon-unbound-2.1.1.1.sav`                            | Pokemon Unbound 2.1.1.1      |      131072 | `83e6734f19eb9027a1c27f76182eef5495b8f4439ba73866abe9d0104894b924` |
 | `nds/pocket-monsters-white-2-jp.sav`                         | Pocket Monsters White 2 (JP) |      524288 | `5a1442abfe594464c9f64cd57d4e94c107d37e94a61a121fd93a36b4c96cf5e6` |
 | `nds/pokemon-heartgold.sav`                                  | Pokemon Heart Gold           |      524288 | `2da7b027556edaf55ce99bec04c7357fc177f62247942334b45938e0bd664284` |
 | `nds/pokemon-platinum-eu.sav`                                | Pokemon Platinum (E)         |      524288 | `29d16eaf5fc5ff1d2e8e96f4830300c4db7c453055c70272239bc168541b6cb6` |

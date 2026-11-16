@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices.JavaScript;
 using System.Runtime.Versioning;
 using PKHeX.Core;
+using Pksx.Pkhex.Engine.Unbound;
 
 namespace Pksx.Pkhex.Engine;
 
@@ -138,7 +139,7 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -164,7 +165,7 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -199,7 +200,7 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -232,7 +233,7 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -268,7 +269,7 @@ public static partial class PkhexEngineExports
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -319,12 +320,12 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = LoadSave(bytes, fileName);
 
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -347,12 +348,12 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = LoadSave(bytes, fileName);
 
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -400,11 +401,11 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = LoadSave(bytes, fileName);
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -475,12 +476,12 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = LoadSave(bytes, fileName);
 
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -532,12 +533,12 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var baselineSave = SaveUtil.GetSaveFile(baselineBytes, fileName);
-            var candidateSave = SaveUtil.GetSaveFile(candidateBytes, fileName);
+            var baselineSave = LoadSave(baselineBytes, fileName);
+            var candidateSave = LoadSave(candidateBytes, fileName);
             if (baselineSave is null || candidateSave is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult<bool>.Failure("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineResult<bool>.Failure("unsupported-save", UnsupportedSaveMessage(baselineSave is null ? baselineBytes : candidateBytes)),
                     EngineJsonContext.Default.EngineResultBoolean);
             }
 
@@ -618,11 +619,11 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = LoadSave(bytes, fileName);
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -667,11 +668,11 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = LoadSave(bytes, fileName);
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -692,11 +693,11 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = LoadSave(bytes, fileName);
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "PKHeX.Core could not recognize this save file."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -730,11 +731,11 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = LoadSave(bytes, fileName);
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -781,12 +782,12 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = LoadSave(bytes, fileName);
 
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -834,11 +835,11 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = LoadSave(bytes, fileName);
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -878,11 +879,11 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = LoadSave(bytes, fileName);
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -1031,12 +1032,12 @@ public static partial class PkhexEngineExports
     {
         try
         {
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = LoadSave(bytes, fileName);
 
             if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", "This file is not a supported Save File."),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage(bytes)),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -1096,7 +1097,7 @@ public static partial class PkhexEngineExports
 
             // Some formats decrypt the input in place, so keep an untouched copy as the key.
             var key = cache ? bytes.ToArray() : bytes;
-            var save = SaveUtil.GetSaveFile(bytes, fileName);
+            var save = LoadSave(bytes, fileName);
             if (save is not null && cache)
             {
                 ReadOnlySaveCache.RemoveAll(cached => cached.FileName == fileName);
@@ -1107,6 +1108,14 @@ public static partial class PkhexEngineExports
             return save;
         }
     }
+
+    private static SaveFile? LoadSave(byte[] bytes, string? fileName) =>
+        UnboundSave.IsUnbound(bytes) ? null : SaveUtil.GetSaveFile(bytes, fileName);
+
+    private static string UnsupportedSaveMessage(byte[] bytes) =>
+        UnboundSave.IsUnbound(bytes)
+            ? "Pokémon Unbound Save Files are not supported yet. PKSX will not open them, to keep the save safe."
+            : "This file is not a supported Save File.";
 
     private static SaveWorkspace CreateWorkspace(SaveFile save, string? fileName, int box, bool includeEditData = true)
     {
