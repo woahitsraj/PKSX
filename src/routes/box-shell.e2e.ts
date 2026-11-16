@@ -1385,6 +1385,7 @@ test('focus and rapid Box switching stay within engine work budgets', async ({
 			return methods;
 		}, reset);
 	await page.locator('#box-grid').focus();
+	await expect.poll(() => requests()).toContain('listBoxSlots');
 	await requests(true);
 	for (let move = 0; move < 20; move += 1) {
 		await pressController(page, move % 2 === 0 ? 'ArrowRight' : 'ArrowLeft');
@@ -6608,6 +6609,10 @@ test('controller reaches and applies a Pokemon Editor change', async ({ page }) 
 	await expect(page.locator('#pokemon-editor-staged-count')).toBeFocused();
 	await pressController(page, 'ArrowRight');
 	await expect(page.locator('#pokemon-editor-legality')).toBeFocused();
+	await pressController(page, 'ArrowRight');
+	await expect(page.locator('#pokemon-editor-cancel')).toBeFocused();
+	await pressController(page, 'ArrowRight');
+	await expect(page.locator('#pokemon-editor-close-footer')).toBeFocused();
 	await pressController(page, 'ArrowRight');
 	await expect(page.locator('#pokemon-editor-apply')).toBeFocused();
 	await pressController(page, 'Enter');
