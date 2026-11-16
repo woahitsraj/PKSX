@@ -271,7 +271,12 @@ describe('PKHeX Engine Save File coverage', () => {
 				source: { zone: 'box', box: 0, slot: 1 },
 				destination: { zone: 'box', box: 19, slot: 21 }
 			},
-			{ kind: 'clear', source: { zone: 'box', box: 0, slot: 0 } }
+			{ kind: 'clear', source: { zone: 'box', box: 0, slot: 0 } },
+			{
+				kind: 'move',
+				source: { zone: 'box', box: 0, slot: 2 },
+				destination: { zone: 'party', slot: 0 }
+			}
 		];
 		for (const operation of operations) {
 			const result = await engine.applySlotOperation(bytes, fileName, operation, 0);
@@ -285,6 +290,8 @@ describe('PKHeX Engine Save File coverage', () => {
 		if (!box0.ok || !box18.ok || !box19.ok) throw new Error('Edited Unbound save did not load.');
 		expect(box0.value.summary.partyCount).toBe(5);
 		expect(box0.value.boxSlots[0].isEmpty).toBe(true);
+		expect(box0.value.partySlots[0]).toMatchObject({ speciesName: 'Sandshrew', level: 13 });
+		expect(box0.value.boxSlots[2]).toMatchObject({ speciesName: 'Metang', level: 44 });
 		expect(box18.value.boxSlots[29]).toMatchObject({ speciesName: 'Luxray', level: 45 });
 		expect(box19.value.boxSlots[21]).toMatchObject({ speciesName: 'Spheal', level: 15 });
 
@@ -296,12 +303,16 @@ describe('PKHeX Engine Save File coverage', () => {
 			);
 		const changed = bytes.findIndex(
 			(byte, index) =>
-				byte !== original[index] && (index < live || index >= live + 0xe000) && index < 0x1e000
+				byte !== original[index] &&
+				(index < live || index >= live + 0xe000) &&
+				index < unboundSharedSectors
 		);
 		expect(changed, 'only the live slot and sectors 30 and 31 change').toBe(-1);
 	});
 });
 
+// Sectors 30 and 31 hold boxes 20 to 22 for both save slots.
+const unboundSharedSectors = 0x1e000;
 const readU16 = (bytes: Uint8Array, offset: number) => bytes[offset] | (bytes[offset + 1] << 8);
 const readU32 = (bytes: Uint8Array, offset: number) =>
 	(readU16(bytes, offset) | (readU16(bytes, offset + 2) << 16)) >>> 0;

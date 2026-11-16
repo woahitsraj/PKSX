@@ -141,10 +141,9 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
 
     protected override void SetPartyValues(PKM pk, bool isParty)
     {
-        if (!isParty || pk.PartyStatsPresent)
-            return;
-        pk.ResetPartyStats();
-        ((PK3Unbound)pk).RestorePp();
+        // Empty party slots stay zeroed, as the game writes them.
+        if (isParty && pk.Species != 0 && !pk.PartyStatsPresent)
+            pk.ResetPartyStats();
     }
 
     public override string OT

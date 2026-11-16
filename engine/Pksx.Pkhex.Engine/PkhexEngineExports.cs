@@ -812,7 +812,7 @@ public static partial class PkhexEngineExports
                 return EngineJson.Serialize(
                     EngineResult.Fail(
                         "unsupported-save",
-                        save is null ? UnsupportedSaveMessage : "Legality is unavailable for Pokémon Unbound, because PKHeX has no rules for it."),
+                        save is null ? UnsupportedSaveMessage : UnboundLegalityMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -868,8 +868,12 @@ public static partial class PkhexEngineExports
                     EngineJsonContext.Default.EngineResultObject);
             }
 
-            if (RefuseUnboundEdit(save) is { } refused)
-                return refused;
+            if (save is SAV3Unbound)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", UnboundLegalityMessage),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
 
             var source = System.Text.Json.JsonSerializer.Deserialize(
                 sourceJson,
@@ -1147,6 +1151,7 @@ public static partial class PkhexEngineExports
         UnboundSave.IsUnbound(bytes) ? new SAV3Unbound(bytes) : SaveUtil.GetSaveFile(bytes, fileName);
 
     private const string UnsupportedSaveMessage = "This file is not a supported Save File.";
+    private const string UnboundLegalityMessage = "Legality is unavailable for Pokémon Unbound, because PKHeX has no rules for it.";
 
     // Unbound saves stay read-only until each kind of change is supported.
     private static string? RefuseUnboundEdit(SaveFile save) =>
