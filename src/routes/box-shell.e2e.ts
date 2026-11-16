@@ -1419,6 +1419,33 @@ test('focus and rapid Box switching stay within engine work budgets', async ({
 	);
 });
 
+test('holding Next Box shows each Save File Box while the key repeats', async ({ page }) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.locator('#box-grid').focus();
+	await page.evaluate(() => {
+		const titles: string[] = [];
+		(window as typeof window & { __boxTitles?: string[] }).__boxTitles = titles;
+		const record = () => {
+			const title = document.querySelector('.box-pane.active-pane h2')?.textContent?.trim() ?? '';
+			if (title !== titles.at(-1)) titles.push(title);
+			requestAnimationFrame(record);
+		};
+		record();
+	});
+
+	for (let press = 0; press < 6; press += 1) {
+		await page.keyboard.down(']');
+		await page.waitForTimeout(100);
+	}
+	const titles = await page.evaluate(
+		() => (window as typeof window & { __boxTitles?: string[] }).__boxTitles ?? []
+	);
+	await page.keyboard.up(']');
+
+	expect(titles.length, `titles shown while held: ${titles.join(', ')}`).toBeGreaterThanOrEqual(5);
+});
+
 test('direct Box Picker jumps across every Save File Box and restores focus', async ({ page }) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);

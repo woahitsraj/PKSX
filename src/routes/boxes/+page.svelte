@@ -305,7 +305,6 @@
 		box: number;
 		state: WorkspaceState;
 		request: number;
-		requestedAt: number;
 	};
 
 	type PaneBoxLoadQueue = {
@@ -313,7 +312,6 @@
 		generation: number;
 		running: boolean;
 		pending: PendingPaneBoxLoad | null;
-		lastCompletedAt: number;
 	};
 
 	const noSelectedSlot: SlotView = {
@@ -7494,16 +7492,14 @@
 			paneId,
 			generation: 0,
 			running: false,
-			pending: null,
-			lastCompletedAt: 0
+			pending: null
 		});
 		queue.pending = {
 			paneId,
 			sourceId: pane.source.id,
 			box,
 			state,
-			request,
-			requestedAt: performance.now()
+			request
 		};
 		setPaneBoxLoadPending(paneId, true);
 		if (!queue.running) void drainPaneBoxLoads(queue);
@@ -7514,33 +7510,15 @@
 		const generation = queue.generation;
 		try {
 			while (!destroyed && queue.generation === generation && queue.pending) {
-				const quietFor = performance.now() - queue.pending.requestedAt;
-				const recentlyCompleted = performance.now() - queue.lastCompletedAt < 500;
-				if (recentlyCompleted && quietFor < 300 && !isBoxSlotsCached(queue.pending)) {
-					await new Promise((resolve) => setTimeout(resolve, 300 - quietFor));
-				}
-				if (queue.generation !== generation || !queue.pending) return;
-				if (
-					!isBoxSlotsCached(queue.pending) &&
-					performance.now() - queue.lastCompletedAt < 500 &&
-					performance.now() - queue.pending.requestedAt < 300
-				) {
-					continue;
-				}
 				const target = queue.pending;
 				queue.pending = null;
 				await loadPaneBox(target);
-				queue.lastCompletedAt = performance.now();
 			}
 		} finally {
 			queue.running = false;
 			if (queue.pending && !destroyed) void drainPaneBoxLoads(queue);
 			else setPaneBoxLoadPending(queue.paneId, false);
 		}
-	}
-
-	function isBoxSlotsCached(target: PendingPaneBoxLoad) {
-		return Boolean(boxSlotLoads.get(target.state.bytes)?.[target.box]);
 	}
 
 	function setPaneBoxLoadPending(paneId: string | null, pending: boolean) {

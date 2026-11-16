@@ -19,6 +19,7 @@ const adb = resolve(
 	process.env.ANDROID_HOME ?? `${process.env.HOME}/Library/Android/sdk`,
 	'platform-tools/adb'
 );
+const cdpPort = process.env.CDP_PORT ?? '9222';
 const results: Record<string, Result[]> = {};
 
 let cdp!: Cdp;
@@ -56,7 +57,7 @@ function record(name: string, result: Result) {
 	);
 }
 
-// Force-stops the profile app, launches it, and forwards its DevTools socket to :9222.
+// Force-stops the profile app, launches it, and forwards its DevTools socket to CDP_PORT (default 9222).
 async function coldStart() {
 	cdp?.close();
 	execFileSync(adb, ['shell', 'am', 'force-stop', pkg]);
@@ -70,9 +71,9 @@ async function coldStart() {
 		`${pkg}/com.pksx.app.MainActivity`
 	]);
 	const pid = execFileSync(adb, ['shell', 'pidof', pkg]).toString().trim();
-	execFileSync(adb, ['forward', 'tcp:9222', `localabstract:webview_devtools_remote_${pid}`]);
+	execFileSync(adb, ['forward', `tcp:${cdpPort}`, `localabstract:webview_devtools_remote_${pid}`]);
 	for (;;) {
-		const page = await fetch('http://localhost:9222/json')
+		const page = await fetch(`http://localhost:${cdpPort}/json`)
 			.then((response) => response.text())
 			.catch(() => '');
 		if (page.includes('"page"')) break;
@@ -108,11 +109,15 @@ async function closeDialogs() {
 }
 
 async function chooseDestination(label: string) {
+	const item = `[...document.querySelectorAll('[role=dialog][aria-label="Main Menu"] button')].find((b) => b.innerText.trim().startsWith(${JSON.stringify(label)}))`;
+	await poll(
+		`document.querySelector('.boxes-route[data-initial-state="ready"], [data-destination-root][data-initial-state="ready"]')`
+	);
 	await cdp.run(`P.tap('Menu')`);
-	await measure('', `return document.querySelector('[role=dialog][aria-label="Main Menu"]')`);
+	await measure('', `return ${item}`);
 	const root = label === 'Saves' ? 'saves' : label.toLowerCase();
 	return measure(
-		`[...document.querySelectorAll('[role=dialog][aria-label="Main Menu"] button')].find((b) => b.innerText.trim().startsWith(${JSON.stringify(label)})).click()`,
+		`${item}.click()`,
 		`const route = document.querySelector('[data-destination-root="${root}"][data-initial-state="ready"]');
 		if (!route || document.querySelector('[role=dialog][aria-label="Main Menu"]')) return false;
 		if ('${root}' === 'boxes') return P.boxesSettled();
@@ -229,6 +234,49 @@ const scenarios: Record<string, () => Promise<void>> = {
 			rapid.note = `after-last=${Math.max(0, Math.round((rapid.ms ?? 0) - actionMs))}`;
 			record(`box:rapid5-${save}`, rapid);
 			await sleep(800);
+		}
+	},
+	// Hold ] for 20 key repeats 33 ms apart; record each Box shown and the settle after release.
+	async heldBox() {
+		const throttle = Number(process.env.CPU_THROTTLE ?? 1);
+		for (const save of saves) {
+			await goSaves();
+			await openSave(save);
+			await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle });
+			for (let i = 0; i < runs; i++) {
+				await cdp.run(
+					`document.querySelector('section.box-pane.active-pane [id$="-slot-0"]').focus();
+					window.__boxes = [];
+					const tick = () => { const l = ${activeLocation}; if (l !== window.__boxes.at(-1)?.l) window.__boxes.push({ l, t: performance.now() }); window.__boxRaf = requestAnimationFrame(tick); };
+					tick();`
+				);
+				const key = { key: ']', code: 'BracketRight', windowsVirtualKeyCode: 221 };
+				const t0 = await cdp.evaluate<number>('performance.now()');
+				for (let press = 0; press < 20; press++) {
+					await cdp.send('Input.dispatchKeyEvent', {
+						type: 'keyDown',
+						...key,
+						text: ']',
+						autoRepeat: press > 0
+					});
+					await sleep(33);
+				}
+				await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...key });
+				const released = await cdp.evaluate<number>('performance.now()');
+				const settled = await poll<number>(
+					`window.__perf.boxesSettled() && !document.querySelector('[data-box-load-pending]') && Math.round(performance.now())`
+				);
+				const boxes = await cdp.run<{ l: string; t: number }[]>(
+					`cancelAnimationFrame(window.__boxRaf); return window.__boxes;`
+				);
+				const during = boxes.filter((box) => box.t <= released).length - 1;
+				record(`box:held20-${save}-x${throttle}`, {
+					ms: settled ? Math.round(settled - released) : null,
+					note: `shown-during-hold=${during} hold=${Math.round(released - t0)} final=${boxes.at(-1)?.l}`
+				});
+				await sleep(800);
+			}
+			await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 		}
 	},
 	async focus() {
