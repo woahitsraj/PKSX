@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { createPkhexEngine } from './pkhex-engine';
+import type { SlotOperation } from './types';
 
 const fixtureUrls = import.meta.glob('../../../test-fixtures/save-files/**/*.{sav,bin,gci,dat}', {
 	query: '?url',
@@ -228,14 +229,6 @@ describe('PKHeX Engine Save File coverage', () => {
 		expect(workspace.value.boxSlots[24].moves[0]).toMatchObject({ name: 'Crunch', pp: 15 });
 		expect(decodeBase64(exported.value.bytesBase64)).toEqual(bytes);
 		expect(
-			await engine.applySlotOperation(
-				bytes,
-				fileName,
-				{ kind: 'clear', source: { zone: 'party', slot: 0 } },
-				0
-			)
-		).toMatchObject({ ok: false, error: { code: 'unsupported-save-file-edit' } });
-		expect(
 			await engine.checkSlotLegality(bytes, fileName, { zone: 'party', slot: 0 })
 		).toMatchObject({
 			ok: false,
@@ -259,4 +252,70 @@ describe('PKHeX Engine Save File coverage', () => {
 		const summary = await engine.summarizeSave(damaged, fileName);
 		expect(summary).toMatchObject({ ok: true, value: { trainerName: 'Luna' } });
 	});
+
+	test('moves, copies and clears Pokemon Unbound slots with valid checksums', async () => {
+		const fileName = 'pokemon-unbound-2.1.1.1.sav';
+		const [engine, original] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			readFixture(`${raj}/gba/${fileName}`)
+		]);
+		let bytes = original;
+		const operations: SlotOperation[] = [
+			{
+				kind: 'move',
+				source: { zone: 'party', slot: 5 },
+				destination: { zone: 'box', box: 18, slot: 29 }
+			},
+			{
+				kind: 'copy',
+				source: { zone: 'box', box: 0, slot: 1 },
+				destination: { zone: 'box', box: 19, slot: 21 }
+			},
+			{ kind: 'clear', source: { zone: 'box', box: 0, slot: 0 } }
+		];
+		for (const operation of operations) {
+			const result = await engine.applySlotOperation(bytes, fileName, operation, 0);
+			if (!result.ok) throw result.error;
+			bytes = result.value.bytes;
+		}
+
+		const [box0, box18, box19] = await Promise.all(
+			[0, 18, 19].map((box) => engine.loadSaveWorkspace(bytes, fileName, box))
+		);
+		if (!box0.ok || !box18.ok || !box19.ok) throw new Error('Edited Unbound save did not load.');
+		expect(box0.value.summary.partyCount).toBe(5);
+		expect(box0.value.boxSlots[0].isEmpty).toBe(true);
+		expect(box18.value.boxSlots[29]).toMatchObject({ speciesName: 'Luxray', level: 45 });
+		expect(box19.value.boxSlots[21]).toMatchObject({ speciesName: 'Spheal', level: 15 });
+
+		const live = unboundLiveSlot(bytes);
+		expect(live).toBe(unboundLiveSlot(original));
+		for (const [id, offset] of unboundSections(bytes, live))
+			expect(unboundChecksum(bytes, offset, id), `section ${id}`).toBe(
+				readU16(bytes, offset + 0xff6)
+			);
+		const changed = bytes.findIndex(
+			(byte, index) =>
+				byte !== original[index] && (index < live || index >= live + 0xe000) && index < 0x1e000
+		);
+		expect(changed, 'only the live slot and sectors 30 and 31 change').toBe(-1);
+	});
 });
+
+const readU16 = (bytes: Uint8Array, offset: number) => bytes[offset] | (bytes[offset + 1] << 8);
+const readU32 = (bytes: Uint8Array, offset: number) =>
+	(readU16(bytes, offset) | (readU16(bytes, offset + 2) << 16)) >>> 0;
+const unboundLiveSlot = (bytes: Uint8Array) =>
+	readU32(bytes, 0xe000 + 0xffc) > readU32(bytes, 0xffc) ? 0xe000 : 0;
+const unboundSections = (bytes: Uint8Array, live: number) =>
+	Array.from({ length: 14 }, (_, sector) => {
+		const offset = live + sector * 0x1000;
+		return [readU16(bytes, offset + 0xff4), offset] as const;
+	});
+function unboundChecksum(bytes: Uint8Array, offset: number, id: number) {
+	const length = id === 0 ? 0xf24 : id === 4 ? 0xd98 : id === 13 ? 0x450 : 0xff0;
+	let sum = 0;
+	for (let index = 0; index < length; index += 4)
+		sum = (sum + readU32(bytes, offset + index)) >>> 0;
+	return ((sum >>> 16) + (sum & 0xffff)) & 0xffff;
+}

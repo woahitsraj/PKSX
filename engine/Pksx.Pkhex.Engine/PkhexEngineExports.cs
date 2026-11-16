@@ -358,9 +358,6 @@ public static partial class PkhexEngineExports
                     EngineJsonContext.Default.EngineResultObject);
             }
 
-            if (RefuseUnboundEdit(save) is { } refused)
-                return refused;
-
             var operation = System.Text.Json.JsonSerializer.Deserialize(
                 operationJson,
                 EngineJsonContext.Default.SlotOperationRequest);
@@ -1161,6 +1158,8 @@ public static partial class PkhexEngineExports
 
     private static SaveWorkspace CreateWorkspace(SaveFile save, string? fileName, int box, bool includeEditData = true)
     {
+        // Unbound slots are not editable yet, and their edit data would run PKHeX legality.
+        includeEditData &= save is not SAV3Unbound;
         var partySlots = new List<PartySlotSummary>(save.PartyCount);
         for (var slot = 0; slot < save.PartyCount; slot++)
             partySlots.Add(PartySlotSummary.From(save.GetPartySlotAtIndex(slot), save, slot, includeEditData));
