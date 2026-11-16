@@ -221,6 +221,9 @@ public sealed class PK3Unbound : PKM
     // Nature, ability slot, gender and shininess all come from the PID, so a new PID keeps the other three.
     private void RerollPid(Nature nature, uint abilitySlot)
     {
+        // These species also read their letter, evolution or spots from the PID.
+        if (Species is (ushort)PKHeX.Core.Species.Unown or (ushort)PKHeX.Core.Species.Wurmple or (ushort)PKHeX.Core.Species.Spinda)
+            throw new InvalidOperationException($"Changing nature or ability would change this {SpeciesName.GetSpeciesName(Species, (int)LanguageID.English)}'s PID-based traits.");
         var shiny = IsShiny;
         var gender = Gender;
         var ratio = PersonalInfo.Gender;
