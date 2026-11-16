@@ -41,7 +41,7 @@ const saves = [
 	[`${bl1nd}/emerald-011020251345.sav`, 'SAV3E', 'E'],
 	[`${pkmds}/pokemon-firered.sav`, 'SAV3FRLG', 'FR'],
 	[`${pkmds}/pokemon-leafgreen.sav`, 'SAV3FRLG', 'FR'],
-	[`${raj}/gba/pokemon-unbound-2.1.1.1.sav`, 'SAV3Unbound', 'Unbound'],
+	[`${raj}/gba/pokemon-unbound-2.1.1.1.sav`, 'SAV3Unbound', 'Pokémon Unbound'],
 	[`${bl1nd}/colosseum/011020251345.gci`, 'SAV3Colosseum', 'COLO'],
 	['libpkmn-test-files/pokemon-xd.gci', 'SAV3XD', 'XD'],
 	[`${pkmds}/pokemon-box-ruby-sapphire.gci`, 'SAV3RSBox', 'RSBOX'],
@@ -206,6 +206,7 @@ describe('PKHeX Engine Save File coverage', () => {
 		});
 		expect(card.value.pokemonCount).toBe(92);
 		expect(workspace.value.boxNames.names).toHaveLength(25);
+		expect(workspace.value.boxNames.names.slice(0, 2)).toEqual(['Preset', 'Box24']);
 		const [metang, , , , , luxray] = workspace.value.partySlots;
 		expect(metang).toMatchObject({
 			speciesName: 'Metang',
@@ -213,6 +214,8 @@ describe('PKHeX Engine Save File coverage', () => {
 			heldItem: 'Eviolite',
 			ability: 'Clear Body'
 		});
+		expect(metang).toMatchObject({ nickname: 'Metang', nature: 'Impish' });
+		expect(metang.stats[0]).toMatchObject({ key: 'HP', value: 121, iv: 18, ev: 60 });
 		expect(luxray.moves.map((move) => move.name)).toEqual([
 			'Volt Switch',
 			'Crunch',
@@ -220,6 +223,8 @@ describe('PKHeX Engine Save File coverage', () => {
 			'Electric Terrain'
 		]);
 		expect(workspace.value.boxSlots[24]).toMatchObject({ speciesName: 'Mawile', level: 34 });
+		expect(workspace.value.boxSlots[24].entityBytesBase64 ?? null).toBeNull();
+		expect(workspace.value.boxSlots[24].moves[0]).toMatchObject({ name: 'Crunch', pp: 15 });
 		expect(decodeBase64(exported.value.bytesBase64)).toEqual(bytes);
 		expect(
 			await engine.applySlotOperation(

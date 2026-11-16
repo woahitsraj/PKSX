@@ -1,5 +1,4 @@
-// Builds engine/Pksx.Pkhex.Engine/Unbound/Data from PUSE's Unbound 2.1.1.1 ROM dump (MIT).
-// Usage: dotnet run --project scripts/data/unbound-tables -- <PUSE>/backend/data <CFRU>/include/constants <output dir>
+// Builds Unbound/Data from PUSE (MIT): dotnet run --project scripts/data/unbound-tables -- <PUSE>/backend/data <CFRU>/include/constants <out>
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -73,7 +72,6 @@ Directory.CreateDirectory(output);
 File.WriteAllText(Path.Combine(output, "species.tsv"), species.ToString());
 File.WriteAllText(Path.Combine(output, "moves.tsv"), moves.Table("pp", movePp));
 File.WriteAllText(Path.Combine(output, "items.tsv"), items.Table(null, null));
-File.WriteAllText(Path.Combine(output, "abilities.tsv"), abilities.Table(null, null));
 
 foreach (var failure in failures)
     Console.Error.WriteLine(failure);

@@ -3,13 +3,19 @@ using static System.Buffers.Binary.BinaryPrimitives;
 
 namespace Pksx.Pkhex.Engine.Unbound;
 
-// A CFRU Pokémon held in the unencrypted 100-byte party layout; boxes store a 58-byte compressed copy.
-// Species, form, moves, items and abilities read as PKHeX ids; unmapped Unbound ids keep their raw value.
+// A CFRU Pokémon in the unencrypted 100-byte party layout; boxes keep a 58-byte copy and ids read as PKHeX ids.
 public sealed class PK3Unbound : PKM
 {
     public const int SizeParty = 100;
     public const int SizeStored = 58;
     private const int HeaderSize = 0x1C;
+    public const int NicknameLength = 10;
+    public const int TrainerNameLength = 7;
+    // Gen 8 limits: Eerie Spell, Reins of Unity, As One and Enamorus are the last ids Unbound maps.
+    public const ushort LastMove = 826;
+    public const int LastItem = 1607;
+    public const int LastAbility = 267;
+    public const ushort LastSpecies = (ushort)PKHeX.Core.Species.Enamorus;
 
     public PK3Unbound() : base(SizeParty) { }
 
@@ -19,13 +25,15 @@ public sealed class PK3Unbound : PKM
     {
         var party = new byte[SizeParty];
         stored[..HeaderSize].CopyTo(party);
-        stored.Slice(0x1C, 11).CopyTo(party.AsSpan(0x20));
+        stored.Slice(HeaderSize, 11).CopyTo(party.AsSpan(0x20));
         var moves = ReadUInt64LittleEndian([.. stored.Slice(0x27, 5), 0, 0, 0]);
         for (var i = 0; i < 4; i++)
             WriteUInt16LittleEndian(party.AsSpan(0x2C + (i * 2)), (ushort)((moves >> (10 * i)) & 0x3FF));
         stored.Slice(0x2C, 6).CopyTo(party.AsSpan(0x38));
         stored.Slice(0x32, 8).CopyTo(party.AsSpan(0x44));
-        return new PK3Unbound(party);
+        var pokemon = new PK3Unbound(party);
+        pokemon.RestorePp();
+        return pokemon;
     }
 
     public static PK3Unbound FromParty(ReadOnlySpan<byte> party) => new(party[..SizeParty].ToArray());
@@ -33,7 +41,7 @@ public sealed class PK3Unbound : PKM
     public void WriteStored(Span<byte> stored)
     {
         Data[..HeaderSize].CopyTo(stored);
-        Data.Slice(0x20, 11).CopyTo(stored[0x1C..]);
+        Data.Slice(0x20, 11).CopyTo(stored[HeaderSize..]);
         ulong moves = 0;
         for (var i = 0; i < 4; i++)
             moves |= (ulong)(ReadUInt16LittleEndian(Data[(0x2C + (i * 2))..]) & 0x3FF) << (10 * i);
@@ -80,8 +88,8 @@ public sealed class PK3Unbound : PKM
     public override Span<byte> OriginalTrainerTrash => Data.Slice(0x14, 7);
     public override int TrashCharCountNickname => 10;
     public override int TrashCharCountTrainer => 7;
-    public override int MaxStringLengthNickname => 10;
-    public override int MaxStringLengthTrainer => 7;
+    public override int MaxStringLengthNickname => NicknameLength;
+    public override int MaxStringLengthTrainer => TrainerNameLength;
     public override string Nickname { get => GetString(NicknameTrash); set => SetString(NicknameTrash, value, 10, StringConverterOption.None); }
     public override string OriginalTrainerName { get => GetString(OriginalTrainerTrash); set => SetString(OriginalTrainerTrash, value, 7, StringConverterOption.None); }
     public override int Language { get => Data[0x12]; set => Data[0x12] = (byte)value; }
@@ -111,7 +119,6 @@ public sealed class PK3Unbound : PKM
     public override byte Ball { get => UnboundBalls.ToPkhex(UnboundBall); set { } }
 
     public ushort GetUnboundMove(int index) => ReadUInt16LittleEndian(Data[(0x2C + (index * 2))..]);
-    public void SetUnboundMove(int index, ushort move) => WriteUInt16LittleEndian(Data[(0x2C + (index * 2))..], move);
     private ushort PkhexMove(int index) => (ushort)UnboundTables.Moves.ToPkhex(GetUnboundMove(index));
     public override ushort Move1 { get => PkhexMove(0); set { } }
     public override ushort Move2 { get => PkhexMove(1); set { } }
@@ -121,6 +128,16 @@ public sealed class PK3Unbound : PKM
     public override int Move2_PP { get => Data[0x35]; set => Data[0x35] = (byte)value; }
     public override int Move3_PP { get => Data[0x36]; set => Data[0x36] = (byte)value; }
     public override int Move4_PP { get => Data[0x37]; set => Data[0x37] = (byte)value; }
+
+    // Boxes drop PP, and the game refills it from Unbound's move table.
+    public void RestorePp()
+    {
+        for (var i = 0; i < 4; i++)
+        {
+            var basePp = UnboundTables.GetPp(GetUnboundMove(i));
+            Data[0x34 + i] = (byte)(basePp + (basePp * ((PPUps >> (i * 2)) & 3) / 5));
+        }
+    }
 
     public override int EV_HP { get => Data[0x38]; set => Data[0x38] = (byte)value; }
     public override int EV_ATK { get => Data[0x39]; set => Data[0x39] = (byte)value; }
@@ -179,11 +196,10 @@ public sealed class PK3Unbound : PKM
     public override byte CurrentHandler { get => 0; set { } }
     public override int Characteristic => -1;
 
-    // Gen 8 limits: Eerie Spell, Reins of Unity and As One are the last ids Unbound maps.
-    public override ushort MaxMoveID => 826;
-    public override ushort MaxSpeciesID => (ushort)PKHeX.Core.Species.Enamorus;
-    public override int MaxItemID => 1607;
-    public override int MaxAbilityID => 267;
+    public override ushort MaxMoveID => LastMove;
+    public override ushort MaxSpeciesID => LastSpecies;
+    public override int MaxItemID => LastItem;
+    public override int MaxAbilityID => LastAbility;
     public override int MaxBallID => (int)PKHeX.Core.Ball.Beast;
     public override GameVersion MaxGameID => GameVersion.CXD;
     public override int MaxIV => 31;

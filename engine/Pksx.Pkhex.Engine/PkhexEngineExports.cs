@@ -287,7 +287,7 @@ public static partial class PkhexEngineExports
                 }
 
                 return EngineJson.Serialize(
-                    EngineResult.Ok(PartySlotSummary.From(save.GetPartySlotAtIndex(reference.Slot), save, reference.Slot)),
+                    EngineResult.Ok(PartySlotSummary.From(save.GetPartySlotAtIndex(reference.Slot), save, reference.Slot, save is not SAV3Unbound)),
                     EngineJsonContext.Default.EngineResultPartySlotSummary);
             }
 
@@ -304,7 +304,8 @@ public static partial class PkhexEngineExports
                     source.Value.Get(save),
                     save,
                     source.Value.Box,
-                    source.Value.Slot)),
+                    source.Value.Slot,
+                    save is not SAV3Unbound)),
                 EngineJsonContext.Default.EngineResultBoxSlotSummary);
         }
         catch (Exception ex)
@@ -548,6 +549,13 @@ public static partial class PkhexEngineExports
             {
                 return EngineJson.Serialize(
                     EngineResult<bool>.Failure("unsupported-save", UnsupportedSaveMessage),
+                    EngineJsonContext.Default.EngineResultBoolean);
+            }
+
+            if (baselineSave is SAV3Unbound)
+            {
+                return EngineJson.Serialize(
+                    EngineResult<bool>.Failure("unsupported-save-file-edit", "Changes to Pokémon Unbound Save Files are not supported yet."),
                     EngineJsonContext.Default.EngineResultBoolean);
             }
 

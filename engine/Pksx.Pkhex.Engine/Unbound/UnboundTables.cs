@@ -9,7 +9,6 @@ internal static class UnboundTables
     public static readonly UnboundSpecies[] Species = LoadSpecies();
     public static readonly IdTable Moves = new("moves");
     public static readonly IdTable Items = new("items");
-    public static readonly IdTable Abilities = new("abilities");
 
     private static readonly Dictionary<(ushort, byte), ushort> SpeciesByNational = Species
         .Where(s => s.National != 0)
@@ -36,7 +35,7 @@ internal static class UnboundTables
         return result;
     }
 
-    internal static List<int[]> ReadRows(string name) =>
+    private static List<int[]> ReadRows(string name) =>
         ReadLines(name).Select(r => r.Select(v => int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0).ToArray()).ToList();
 
     internal static List<string[]> ReadLines(string name)
@@ -60,9 +59,8 @@ internal sealed record UnboundSpecies(ushort Id, ushort National, byte Form, Per
 internal sealed class IdTable
 {
     private readonly Dictionary<int, int> toPkhex = [];
-    private readonly Dictionary<int, int> fromPkhex = [];
+    private readonly HashSet<int> pkhexIds = [];
     private readonly Dictionary<int, int> extra = [];
-    private readonly Dictionary<int, string> names = [];
 
     public IdTable(string name)
     {
@@ -70,19 +68,16 @@ internal sealed class IdTable
         {
             var id = int.Parse(line[0], CultureInfo.InvariantCulture);
             var pkhex = int.Parse(line[1], CultureInfo.InvariantCulture);
-            names[id] = line[2];
             extra[id] = line.Length > 3 ? int.Parse(line[3], CultureInfo.InvariantCulture) : 0;
             if (pkhex == 0)
                 continue;
             toPkhex[id] = pkhex;
-            fromPkhex.TryAdd(pkhex, id);
+            pkhexIds.Add(pkhex);
         }
     }
 
-    public string? Name(int id) => names.GetValueOrDefault(id);
-    public IEnumerable<ushort> PkhexIds => fromPkhex.Keys.Select(id => (ushort)id);
+    public IEnumerable<ushort> PkhexIds => pkhexIds.Select(id => (ushort)id);
 
     public int ToPkhex(int id) => toPkhex.GetValueOrDefault(id);
-    public int FromPkhex(int id) => fromPkhex.GetValueOrDefault(id);
     public int Extra(int id) => extra.GetValueOrDefault(id);
 }

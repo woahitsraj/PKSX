@@ -29,7 +29,11 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
     public SAV3Unbound(Memory<byte> data) : base(data)
     {
         var span = data.Span;
-        var live = ReadUInt32LittleEndian(span[(SlotSize + 0xFFC)..]) > ReadUInt32LittleEndian(span[0xFFC..]) ? SlotSize : 0;
+        var first = ReadUInt32LittleEndian(span[0xFFC..]);
+        var second = ReadUInt32LittleEndian(span[(SlotSize + 0xFFC)..]);
+        // Blank flash reads as 0xFFFFFFFF, so a slot the game never wrote is never live.
+        var live = second != uint.MaxValue && (first == uint.MaxValue || second > first) ? SlotSize : 0;
+        Array.Fill(sectionOffsets, -1);
         for (var sector = 0; sector < 14; sector++)
         {
             var offset = live + (sector * SectorSize);
@@ -37,6 +41,8 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
             if (id < 14)
                 sectionOffsets[id] = offset;
         }
+        if (sectionOffsets.Contains(-1))
+            throw new InvalidDataException("This Pokémon Unbound Save File is missing a save section.");
 
         var cursor = 0;
         foreach (var region in BoxRegions)
@@ -45,8 +51,6 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
             cursor += region.End - region.Start;
         }
     }
-
-    public static bool IsUnbound(ReadOnlySpan<byte> data) => UnboundSave.IsUnbound(data);
 
     private Span<byte> Section(int id) => Data.Slice(sectionOffsets[id], SectorSize);
 
@@ -96,12 +100,12 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
     public override int SIZE_PARTY => PK3Unbound.SizeParty;
     public override int MaxEV => 255;
     public override ReadOnlySpan<ushort> HeldItems => UnboundTables.HeldItems;
-    public override int MaxStringLengthTrainer => 7;
-    public override int MaxStringLengthNickname => 10;
-    public override ushort MaxMoveID => 826;
-    public override ushort MaxSpeciesID => (ushort)Species.Enamorus;
-    public override int MaxAbilityID => 267;
-    public override int MaxItemID => 1607;
+    public override int MaxStringLengthTrainer => PK3Unbound.TrainerNameLength;
+    public override int MaxStringLengthNickname => PK3Unbound.NicknameLength;
+    public override ushort MaxMoveID => PK3Unbound.LastMove;
+    public override ushort MaxSpeciesID => PK3Unbound.LastSpecies;
+    public override int MaxAbilityID => PK3Unbound.LastAbility;
+    public override int MaxItemID => PK3Unbound.LastItem;
     public override int MaxBallID => (int)Ball.Beast;
     public override GameVersion MaxGameID => GameVersion.CXD;
     public override int BoxCount => BoxCountUnbound;
@@ -114,7 +118,7 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
 
     public override int PartyCount
     {
-        get => Section(1)[0x34];
+        get => Math.Min((int)Section(1)[0x34], 6);
         protected set => Section(1)[0x34] = (byte)value;
     }
 
@@ -128,12 +132,12 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
         if (!isParty || pk.PartyStatsPresent)
             return;
         pk.ResetPartyStats();
-        pk.HealPP();
+        ((PK3Unbound)pk).RestorePp();
     }
 
     public override string OT
     {
-        get => GetString(Section(0)[..7]);
+        get => GetString(Section(0)[..8]);
         set => SetString(Section(0)[..8], value, 7, StringConverterOption.ClearFF);
     }
 

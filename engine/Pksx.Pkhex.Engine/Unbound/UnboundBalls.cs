@@ -16,13 +16,4 @@ internal static class UnboundBalls
         Dream => (byte)PKHeX.Core.Ball.Dream,
         _ => (byte)PKHeX.Core.Ball.Poke,
     };
-
-    public static int FromPkhex(byte ball) => ball switch
-    {
-        >= 1 and <= 16 => ball - 1,
-        >= 17 and <= 24 => ball,
-        (byte)PKHeX.Core.Ball.Beast => Beast,
-        (byte)PKHeX.Core.Ball.Dream => Dream,
-        _ => -1,
-    };
 }
