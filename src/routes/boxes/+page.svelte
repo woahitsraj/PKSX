@@ -822,17 +822,17 @@
 	);
 	const focusedSlotOwner = $derived(focusedSlotPane?.source ?? pokemonStorageSource());
 	const focusedPaneWorkspace = $derived(saveWorkspaceForPane(focusedSlotPane));
-	// Unbound saves support slot moves only; editing and creation arrive in later steps.
-	const focusedPaneEditable = $derived(
+	// PKSX cannot create Pokemon for Unbound saves.
+	const focusedPaneCanCreate = $derived(
 		focusedPaneWorkspace !== null &&
 			focusedPaneWorkspace.state.workspace.summary.saveType !== 'SAV3Unbound'
 	);
 	const createPokemonAvailability = $derived(
-		pokemonCreationAvailability(focusedSlotOwner.type, focusedSlot, focusedPaneEditable)
+		pokemonCreationAvailability(focusedSlotOwner.type, focusedSlot, focusedPaneCanCreate)
 	);
 	const slotMenuCommands = $derived(
 		createSlotMenuCommands(focusedSlot, createPokemonAvailability.reason, {
-			edit: focusedSlotOwner.type === 'save-file' && focusedPaneEditable,
+			edit: focusedSlotOwner.type === 'save-file' && focusedPaneWorkspace !== null,
 			legality:
 				(focusedSlotOwner.type === 'save-file' && focusedPaneWorkspace !== null) ||
 				(focusedSlotOwner.type === 'pokemon-storage' && Boolean(focusedSlot.entityBytesBase64)),

@@ -1248,6 +1248,14 @@ internal static class SlotDetailProjection
                 "Original Trainer Data Editing needs an occupied Slot.");
         }
 
+        // A new Trainer ID would change an Unbound Pokémon's shininess, which comes from its PID.
+        if (pokemon is PK3Unbound)
+        {
+            return new PokemonOriginalTrainerEditConstraints(
+                false, pokemon.OriginalTrainerName, 0, 0, 0, 0, 0, 0, ushort.MaxValue, ushort.MaxValue, false, false, false, [], [],
+                "Original Trainer Data Editing is not supported for Pokémon Unbound.");
+        }
+
         var supportsExtendedFields = pokemon.Format >= 3;
         var languages = supportsExtendedFields
             ? GameInfo.LanguageDataSource(pokemon.Format, pokemon.Context)
@@ -1314,9 +1322,11 @@ internal static class SlotDetailProjection
     public static PokemonMetDataEditConstraints MetDataEditConstraints(PKM pokemon)
     {
         var supported = pokemon.Species != 0 && pokemon.Format >= 2;
-        var supportsOriginGame = supported && pokemon.Format >= 3;
+        // Unbound keeps its own met locations and games, so only the ball is editable.
+        var unbound = pokemon is PK3Unbound;
+        var supportsOriginGame = supported && pokemon.Format >= 3 && !unbound;
         var supportsBall = supported && pokemon.Format >= 3;
-        var supportsMetDate = supported && pokemon.Format >= 4;
+        var supportsMetDate = supported && pokemon.Format >= 4 && !unbound;
         var originGames = supportsOriginGame
             ? GameUtil.GetVersionsWithinRange(pokemon, pokemon.Context)
                 .Select(version => new PokemonMetDataOption((int)version, GameInfo.GetVersionName(version)))
@@ -1329,7 +1339,9 @@ internal static class SlotDetailProjection
         var locationVersions = supportsOriginGame
             ? originGames.Select(option => (GameVersion)option.Id)
             : [pokemon.Version];
-        var locationGroups = locationVersions
+        var locationGroups = unbound
+            ? [new PokemonMetLocationGroup((int)pokemon.Version, [new PokemonMetDataOption(pokemon.MetLocation, $"Location {pokemon.MetLocation}")])]
+            : locationVersions
             .Distinct()
             .Select(version => new PokemonMetLocationGroup(
                 (int)version,
@@ -1350,7 +1362,7 @@ internal static class SlotDetailProjection
 
         var balls = supportsBall
             ? GameInfo.Sources.BallDataSource
-                .Where(option => option.Value > 0 && option.Value <= pokemon.MaxBallID)
+                .Where(option => option.Value > 0 && option.Value <= pokemon.MaxBallID && (!unbound || UnboundBalls.IsMapped((byte)option.Value)))
                 .Select(option => new PokemonMetDataOption(option.Value, option.Text))
                 .ToList()
             : [];
@@ -1517,6 +1529,11 @@ internal static class SlotDetailProjection
         }
 
         var options = new List<PokemonMoveOption> { MoveOption(pokemon, 0) };
+        if (pokemon is PK3Unbound)
+        {
+            options.AddRange(UnboundTables.Moves.PkhexIds.Order().Select(move => MoveOption(pokemon, move)));
+            return new PokemonMoveSetEditConstraints(true, 4, options, null);
+        }
 
         try
         {
@@ -1627,7 +1644,7 @@ internal static class SlotDetailProjection
     }
 
     private static string? HeldItemUnavailableReason(PKM pokemon, ushort item, string name) =>
-        ItemRestrictions.IsHeldItemAllowed(item, pokemon.Context)
+        pokemon is PK3Unbound || ItemRestrictions.IsHeldItemAllowed(item, pokemon.Context)
             ? null
             : $"{name} is not supported for this Pokemon.";
 

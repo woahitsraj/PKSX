@@ -287,7 +287,7 @@ public static partial class PkhexEngineExports
                 }
 
                 return EngineJson.Serialize(
-                    EngineResult.Ok(PartySlotSummary.From(save.GetPartySlotAtIndex(reference.Slot), save, reference.Slot, save is not SAV3Unbound)),
+                    EngineResult.Ok(PartySlotSummary.From(save.GetPartySlotAtIndex(reference.Slot), save, reference.Slot)),
                     EngineJsonContext.Default.EngineResultPartySlotSummary);
             }
 
@@ -304,8 +304,7 @@ public static partial class PkhexEngineExports
                     source.Value.Get(save),
                     save,
                     source.Value.Box,
-                    source.Value.Slot,
-                    save is not SAV3Unbound)),
+                    source.Value.Slot)),
                 EngineJsonContext.Default.EngineResultBoxSlotSummary);
         }
         catch (Exception ex)
@@ -489,9 +488,6 @@ public static partial class PkhexEngineExports
                     EngineJsonContext.Default.EngineResultObject);
             }
 
-            if (RefuseUnboundEdit(save) is { } refused)
-                return refused;
-
             var operation = System.Text.Json.JsonSerializer.Deserialize(
                 operationJson,
                 EngineJsonContext.Default.PokemonEditOperationRequest);
@@ -513,7 +509,7 @@ public static partial class PkhexEngineExports
 
             var serialized = save.Write(BinaryExportSetting.None).ToArray();
             var activeBox = ClampActiveBox(operation.ActiveBox, save);
-            var workspace = CreateWorkspace(save, fileName, activeBox);
+            var workspace = CreateWorkspace(save, fileName, activeBox, editedSlot: operation.Source);
 
             return EngineJson.Serialize(
                 EngineResult.Ok(new PokemonEditOperationResult(
@@ -1161,17 +1157,25 @@ public static partial class PkhexEngineExports
                 EngineJsonContext.Default.EngineResultObject)
             : null;
 
-    private static SaveWorkspace CreateWorkspace(SaveFile save, string? fileName, int box, bool includeEditData = true)
+    private static SaveWorkspace CreateWorkspace(
+        SaveFile save,
+        string? fileName,
+        int box,
+        bool includeEditData = true,
+        SaveSlotRef? editedSlot = null)
     {
-        // Unbound slots are not editable yet, and their edit data would run PKHeX legality.
-        includeEditData &= save is not SAV3Unbound;
+        // Every Unbound Pokémon lists every Unbound move, so only the edited slot carries edit data.
+        bool EditData(string zone, int slot) =>
+            includeEditData && (save is not SAV3Unbound ||
+                editedSlot is not null && editedSlot.Zone == zone && editedSlot.Slot == slot && (zone == "party" || editedSlot.Box == box));
+
         var partySlots = new List<PartySlotSummary>(save.PartyCount);
         for (var slot = 0; slot < save.PartyCount; slot++)
-            partySlots.Add(PartySlotSummary.From(save.GetPartySlotAtIndex(slot), save, slot, includeEditData));
+            partySlots.Add(PartySlotSummary.From(save.GetPartySlotAtIndex(slot), save, slot, EditData("party", slot)));
 
         var boxSlots = new List<BoxSlotSummary>(save.BoxSlotCount);
         for (var slot = 0; slot < save.BoxSlotCount; slot++)
-            boxSlots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), save, box, slot, includeEditData));
+            boxSlots.Add(BoxSlotSummary.From(save.GetBoxSlotAtIndex(box, slot), save, box, slot, EditData("box", slot)));
 
         return new SaveWorkspace(
             SaveSummary.From(save, fileName),
@@ -1239,6 +1243,12 @@ public static partial class PkhexEngineExports
         if (operation.SpeciesId is null != operation.Form is null)
             return SlotMutationResult.Fail("invalid-pokemon-edit", "Species and Form edits require both values.");
 
+        // PKHeX has no Unbound rules, so Unbound edits skip legality and keep their species.
+        var unbound = pokemon is PK3Unbound;
+        if (unbound && (operation.SpeciesId is not null || operation.OriginalTrainer is not null))
+            return SlotMutationResult.Fail("unsupported-pokemon-edit", "Species and Original Trainer editing are not supported for Pokémon Unbound.");
+        validateLegality &= !unbound;
+
         var originalSpecies = pokemon.Species;
         var originalForm = pokemon.Form;
         var originalNickname = pokemon.Nickname;
@@ -1285,7 +1295,11 @@ public static partial class PkhexEngineExports
 
         if (operation.Nickname is string nickname)
         {
-            if (nickname.Length == 0)
+            if (nickname.Length == 0 && pokemon is PK3Unbound unboundPokemon)
+            {
+                unboundPokemon.ClearNickname();
+            }
+            else if (nickname.Length == 0)
             {
                 CommonEdits.SetDefaultNickname(pokemon);
             }
@@ -1367,7 +1381,7 @@ public static partial class PkhexEngineExports
                     option.UnavailableReason ?? $"{option.Name} is not available for this Pokemon.");
 
             pokemon.HeldItem = heldItemId;
-            var invalidItem = CreateLegalityMessages(
+            var invalidItem = unbound ? null : CreateLegalityMessages(
                 new LegalityAnalysis(pokemon, source.StorageSlotType),
                 includeGeneric: true).FirstOrDefault(message =>
                     StringComparer.Ordinal.Equals(message.Identifier, CheckIdentifier.HeldItem.ToString()) &&
@@ -2133,25 +2147,27 @@ public static partial class PkhexEngineExports
         var pp = new[] { pokemon.Move1_PP, pokemon.Move2_PP, pokemon.Move3_PP, pokemon.Move4_PP };
         var ppUps = new[] { pokemon.Move1_PPUps, pokemon.Move2_PPUps, pokemon.Move3_PPUps, pokemon.Move4_PPUps };
         var changedEdits = new List<PokemonMoveSlotEdit>();
+        var unbound = pokemon as PK3Unbound;
         var legalMoves = new LegalMoveInfo();
-        legalMoves.ReloadMoves(new LegalityAnalysis(pokemon, storageSlotType));
+        if (unbound is null)
+            legalMoves.ReloadMoves(new LegalityAnalysis(pokemon, storageSlotType));
 
         foreach (var edit in edits)
         {
             if (edit.Slot < 0 || edit.Slot >= moves.Length)
                 return SlotMutationResult.Fail("invalid-pokemon-edit", "Move Set slot must be between 1 and 4.");
 
-            if (edit.Move > pokemon.MaxMoveID || (edit.Move != 0 && MoveInfo.IsDummiedMove(pokemon, edit.Move)))
+            if (edit.Move > pokemon.MaxMoveID || (edit.Move != 0 && unbound is null && MoveInfo.IsDummiedMove(pokemon, edit.Move)))
                 return SlotMutationResult.Fail("invalid-pokemon-edit", $"Move {edit.Move} is not supported by this Pokemon format.");
 
-            if (edit.Move != 0 && !legalMoves.CanLearn(edit.Move))
+            if (edit.Move != 0 && (unbound is null ? !legalMoves.CanLearn(edit.Move) : !UnboundTables.Moves.HasPkhex(edit.Move)))
                 return SlotMutationResult.Fail("invalid-pokemon-edit", $"{MoveName(edit.Move)} is not available for this Pokemon.");
 
             var nextPpUps = edit.PpUps ?? ppUps[edit.Slot];
             if (nextPpUps < 0 || nextPpUps > 3)
                 return SlotMutationResult.Fail("invalid-pokemon-edit", "PP Ups must be between 0 and 3.");
 
-            var maxPp = edit.Move == 0 ? 0 : pokemon.GetMovePP(edit.Move, nextPpUps);
+            var maxPp = edit.Move == 0 ? 0 : unbound?.GetUnboundMaxPp(edit.Move, nextPpUps) ?? pokemon.GetMovePP(edit.Move, nextPpUps);
             var nextPp = edit.Pp ?? maxPp;
             if (nextPp < 0 || nextPp > maxPp)
                 return SlotMutationResult.Fail("invalid-pokemon-edit", $"PP for {MoveName(edit.Move)} must be between 0 and {maxPp}.");
@@ -2174,8 +2190,11 @@ public static partial class PkhexEngineExports
         pokemon.Move3_PP = pp[2];
         pokemon.Move4_PP = pp[3];
 
+        if (!validateLegality)
+            return SlotMutationResult.Success(true);
+
         var analysis = new LegalityAnalysis(pokemon, storageSlotType);
-        if (validateLegality && !analysis.Valid)
+        if (!analysis.Valid)
             return SlotMutationResult.Fail(
                 "invalid-pokemon-edit",
                 CreateIllegalMoveSetMessage(analysis, changedEdits.Count == 0 ? edits : changedEdits));

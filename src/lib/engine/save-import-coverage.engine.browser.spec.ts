@@ -332,6 +332,71 @@ describe('PKHeX Engine Save File coverage', () => {
 		);
 		expect(changed, 'the damaged slot stays as it was').toBe(-1);
 	});
+
+	test('edits a Pokemon Unbound Pokemon without changing its gender or shininess', async () => {
+		const fileName = 'pokemon-unbound-2.1.1.1.sav';
+		const [engine, original] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			readFixture(`${raj}/gba/${fileName}`)
+		]);
+		const source = { zone: 'box', box: 0, slot: 0 } as const;
+		const before = await engine.loadSlotEditData(original, fileName, source);
+		const met = before.ok ? before.value.metDataEditConstraints : undefined;
+		if (!met) throw new Error('Unbound slot has no met data.');
+		const edited = await engine.applyPokemonEditOperation(
+			original,
+			fileName,
+			{
+				source,
+				nickname: 'Frosty',
+				level: 20,
+				natureId: 3,
+				heldItemId: 234,
+				abilityIndex: 2,
+				ivs: { HP: 31, ATK: 31, DEF: 31, SPA: 31, SPD: 31, SPE: 31 },
+				evs: { HP: 252, ATK: 252, DEF: 4, SPA: 0, SPD: 0, SPE: 0 },
+				moves: [
+					{ slot: 2, move: 301 },
+					{ slot: 3, move: 57 }
+				],
+				metData: { locationId: met.currentLocationId, metLevel: met.currentMetLevel, ballId: 2 }
+			},
+			0
+		);
+		if (!edited.ok) throw edited.error;
+
+		const slot = await engine.loadSlotEditData(edited.value.bytes, fileName, source);
+		if (!slot.ok) throw slot.error;
+		expect(slot.value).toMatchObject({
+			nickname: 'Frosty',
+			level: 20,
+			nature: 'Adamant',
+			heldItem: 'Leftovers',
+			ability: 'Moody',
+			gender: '♀',
+			spriteIdentity: { isShiny: false }
+		});
+		expect(slot.value.moves[3]).toMatchObject({ name: 'Surf', pp: 15 });
+		expect(slot.value.stats.map((stat) => [stat.iv, stat.ev ?? 0])).toEqual([
+			[31, 252],
+			[31, 252],
+			[31, 4],
+			[31, 0],
+			[31, 0],
+			[31, 0]
+		]);
+		expect(slot.value.metDataEditConstraints?.currentBallId).toBe(2);
+
+		const cleared = await engine.applyPokemonEditOperation(
+			edited.value.bytes,
+			fileName,
+			{ source, nickname: '' },
+			0
+		);
+		if (!cleared.ok) throw cleared.error;
+		const reset = await engine.loadSlotEditData(cleared.value.bytes, fileName, source);
+		expect(reset.ok && reset.value.nickname).toBe('Snorunt');
+	});
 });
 
 // Sectors 30 and 31 hold boxes 20 to 22 for both save slots.
