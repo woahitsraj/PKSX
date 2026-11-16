@@ -1,6 +1,6 @@
 {
 	"schemaVersion": 2,
-	"generatedAt": "2026-11-15T08:19:28.796Z",
+	"generatedAt": "2026-11-16T09:06:03.000Z",
 	"title": "Design System: PKSX",
 	"extensions": {
 		"colorMeta": {
@@ -423,6 +423,10 @@
 			{
 				"name": "large-container",
 				"value": "container min-width: 900px and min-height: 700px"
+			},
+			{
+				"name": "portrait-container",
+				"value": "container aspect-ratio <= 1 / 1"
 			}
 		]
 	},
@@ -471,9 +475,17 @@
 			"name": "Primary action",
 			"kind": "button",
 			"refersTo": "button-primary",
-			"description": "The one filled Rust action on a surface.",
-			"html": "<button class=\"ds-btn-primary\">Close</button>",
-			"css": ".ds-btn-primary { width: 220px; height: 28px; border: 0; border-radius: 4px; background: var(--pksx-color-accent-primary); color: #fff; font: 750 12px/1.15 var(--pksx-font-sans); cursor: pointer; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); } .ds-btn-primary:hover, .ds-btn-primary:focus-visible { background: var(--pksx-color-accent-ring); outline: none; } .ds-btn-primary:active { transform: scale(0.97); }"
+			"description": "The one filled Rust action on a surface: the action that commits the task, such as Apply edits. Sits at the trailing end after its dismissal partner. Disabled drops to a Sunken fill with muted text.",
+			"html": "<button class=\"ds-btn-primary\">Apply edits</button> <button class=\"ds-btn-primary\" disabled>Apply edits</button>",
+			"css": ".ds-btn-primary { --pksx-color-accent-ring: var(--pksx-color-on-accent); min-height: 28px; padding: 0 8px; border: 1px solid transparent; border-radius: 4px; background: var(--pksx-color-accent-primary); color: var(--pksx-color-on-accent); font: 750 12px/1.15 var(--pksx-font-sans); white-space: nowrap; cursor: pointer; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); } .ds-btn-primary:enabled:hover { background: color-mix(in oklch, var(--pksx-color-accent-primary) 86%, black); } .ds-btn-primary:focus-visible { outline: 3px solid var(--pksx-color-accent-ring); outline-offset: -3px; } .ds-btn-primary:enabled:active { transform: scale(0.97); } .ds-btn-primary:disabled { cursor: not-allowed; background: var(--pksx-color-surface-subtle); color: var(--pksx-color-text-muted); }"
+		},
+		{
+			"name": "Quiet action",
+			"kind": "button",
+			"refersTo": "button-primary",
+			"description": "Every other action on a surface that has a primary: no fill, 1px Rule Strong border, Ink text, Rust Wash on hover. Disabled drops the border and mutes the text.",
+			"html": "<button class=\"ds-btn-quiet\">Close</button> <button class=\"ds-btn-quiet\" disabled>Cancel edits</button>",
+			"css": ".ds-btn-quiet { min-height: 28px; padding: 0 8px; border: 1px solid var(--pksx-color-border-strong); border-radius: 4px; background: transparent; color: var(--pksx-color-text-primary); font: 750 12px/1.15 var(--pksx-font-sans); white-space: nowrap; cursor: pointer; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); } .ds-btn-quiet:enabled:hover { background: var(--pksx-color-accent-wash); } .ds-btn-quiet:focus-visible { outline: 3px solid var(--pksx-color-accent-ring); outline-offset: -3px; } .ds-btn-quiet:enabled:active { transform: scale(0.97); } .ds-btn-quiet:disabled { cursor: not-allowed; border-color: transparent; color: var(--pksx-color-text-muted); }"
 		},
 		{
 			"name": "Save File card",
