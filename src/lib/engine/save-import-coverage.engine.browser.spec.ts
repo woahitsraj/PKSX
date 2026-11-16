@@ -309,6 +309,29 @@ describe('PKHeX Engine Save File coverage', () => {
 		);
 		expect(changed, 'only the live slot and sectors 30 and 31 change').toBe(-1);
 	});
+
+	test('edits only the intact older slot when the newer Pokemon Unbound slot is damaged', async () => {
+		const fileName = 'pokemon-unbound-2.1.1.1.sav';
+		const [engine, original] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			readFixture(`${raj}/gba/${fileName}`)
+		]);
+		const damaged = original.slice();
+		const live = unboundLiveSlot(damaged);
+		damaged[live + 0x100] ^= 0xff;
+
+		const result = await engine.applySlotOperation(
+			damaged,
+			fileName,
+			{ kind: 'clear', source: { zone: 'box', box: 0, slot: 0 } },
+			0
+		);
+		if (!result.ok) throw result.error;
+		const changed = result.value.bytes.findIndex(
+			(byte, index) => byte !== damaged[index] && index >= live && index < live + 0xe000
+		);
+		expect(changed, 'the damaged slot stays as it was').toBe(-1);
+	});
 });
 
 // Sectors 30 and 31 hold boxes 20 to 22 for both save slots.
