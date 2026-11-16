@@ -198,9 +198,6 @@ describe('PKHeX Engine Save File coverage', () => {
 		expect(await engine.summarizeSave(bytes, fileName)).toMatchObject(unbound);
 		expect(await engine.summarizeSaveCard(bytes, fileName)).toMatchObject(unbound);
 		expect(await engine.loadSaveWorkspace(bytes, fileName, 0)).toMatchObject(unbound);
-		expect(await engine.serializeSave(bytes, fileName)).toMatchObject({
-			ok: false,
-			error: { code: 'unsupported-save' }
-		});
+		expect(await engine.serializeSave(bytes, fileName)).toMatchObject(unbound);
 	});
 });

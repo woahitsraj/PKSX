@@ -538,7 +538,7 @@ public static partial class PkhexEngineExports
             if (baselineSave is null || candidateSave is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult<bool>.Failure("unsupported-save", UnsupportedSaveMessage(baselineBytes)),
+                    EngineResult<bool>.Failure("unsupported-save", UnsupportedSaveMessage(baselineSave is null ? baselineBytes : candidateBytes)),
                     EngineJsonContext.Default.EngineResultBoolean);
             }
 
@@ -1081,14 +1081,6 @@ public static partial class PkhexEngineExports
     }
 
     // Read-only requests share the Save Files shown in the two Box panes; mutations parse their own.
-    private static SaveFile? LoadSave(byte[] bytes, string? fileName) =>
-        UnboundSave.IsUnbound(bytes) ? null : SaveUtil.GetSaveFile(bytes, fileName);
-
-    private static string UnsupportedSaveMessage(byte[] bytes) =>
-        UnboundSave.IsUnbound(bytes)
-            ? "Pokémon Unbound Save Files are not supported yet. PKSX will not open them, to keep the save safe."
-            : "This file is not a supported Save File.";
-
     private static SaveFile? GetReadOnlySave(byte[] bytes, string? fileName, bool cache)
     {
         lock (ReadOnlySaveCacheLock)
@@ -1116,6 +1108,14 @@ public static partial class PkhexEngineExports
             return save;
         }
     }
+
+    private static SaveFile? LoadSave(byte[] bytes, string? fileName) =>
+        UnboundSave.IsUnbound(bytes) ? null : SaveUtil.GetSaveFile(bytes, fileName);
+
+    private static string UnsupportedSaveMessage(byte[] bytes) =>
+        UnboundSave.IsUnbound(bytes)
+            ? "Pokémon Unbound Save Files are not supported yet. PKSX will not open them, to keep the save safe."
+            : "This file is not a supported Save File.";
 
     private static SaveWorkspace CreateWorkspace(SaveFile save, string? fileName, int box, bool includeEditData = true)
     {

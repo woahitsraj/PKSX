@@ -7,7 +7,7 @@ These Save File fixtures were moved from local Pokemon save backup folders for P
 - Moved into this repository on: 2026-06-01
 - Pokemon Unbound source: iCloud Drive `Pokemon Save Recovery` folder, added on 2026-11-16
 
-The full save files are covered by `src/lib/engine/pkhex-engine.browser.spec.ts`. The small `poke-trade` and `main2` files are retained with meaningful names because they were part of the Pokemon backup folders, but they are not expected to parse as full PKHeX save files.
+The full save files are covered by `src/lib/engine/pkhex-engine.browser.spec.ts` and `src/lib/engine/save-import-coverage.engine.browser.spec.ts`. The small `poke-trade` and `main2` files are retained with meaningful names because they were part of the Pokemon backup folders, but they are not expected to parse as full PKHeX save files.
 
 | Fixture                                                      | Original game folder         | Byte length | SHA-256                                                            |
 | ------------------------------------------------------------ | ---------------------------- | ----------: | ------------------------------------------------------------------ |

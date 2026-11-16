@@ -43,7 +43,8 @@ type SavesSnapshotOptions = {
 	force?: boolean;
 };
 
-const storedCardDetailsKey = 'pksx-save-card-details-v1';
+// Bump when the engine summarizes a Save File format differently.
+const storedCardDetailsKey = 'pksx-save-card-details-v2';
 const storage = createSavesStorage();
 const detailsCache = new Map<SaveFileId, SaveDetailsCacheEntry>();
 const snapshotListeners = new Set<(snapshot: SavesSnapshot) => void>();
