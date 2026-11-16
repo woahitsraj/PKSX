@@ -93,6 +93,23 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## Pokemon Unbound data tables
+
+The tables in `engine/Pksx.Pkhex.Engine/Unbound/Data` come from the Pokemon Unbound 2.1.1.1 ROM tables that PUSE published. `scripts/data/unbound-tables` builds them and links each Unbound id to a PKHeX id. To match ids it reads the identifier names in the CFRU constant headers. The tables include no CFRU file.
+
+- PUSE revision `2c624440fb24940480a3430fa17214942d4ba04a`, copyright (c) 2026 the PUSE authors
+- License: MIT
+- Source: https://github.com/Zannael/PUSE/tree/2c624440fb24940480a3430fa17214942d4ba04a/backend/data
+- CFRU revision `b637a27898b14e25dd24d0f69a3e302f0069deb8`: https://github.com/Skeli789/Complete-Fire-Red-Upgrade
+
+PUSE license:
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 ## Other Pokemon save fixtures
 
 The folders under `test-fixtures/save-files` record the source of each file:

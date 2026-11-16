@@ -15,5 +15,6 @@
 
   <ItemGroup>
     <PackageReference Include="PKHeX.Core" />
+    <EmbeddedResource Include="Unbound/Data/*.tsv" LogicalName="Unbound.%(Filename).tsv" />
   </ItemGroup>
 </Project>

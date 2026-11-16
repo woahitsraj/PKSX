@@ -1,0 +1,729 @@
+# unbound	pkhex	name
+1	1	Master Ball
+2	2	Ultra Ball
+3	3	Great Ball
+4	4	Poké Ball
+5	5	Safari Ball
+6	6	Net Ball
+7	7	Dive Ball
+8	8	Nest Ball
+9	9	Repeat Ball
+10	10	Timer Ball
+11	11	Luxury Ball
+12	12	Premier Ball
+13	17	Potion
+14	18	Antidote
+15	19	Burn Heal
+16	20	Ice Heal
+17	21	Awakening
+18	22	Paralyze Heal
+19	23	Full Restore
+20	24	Max Potion
+21	25	Hyper Potion
+22	26	Super Potion
+23	27	Full Heal
+24	28	Revive
+25	29	Max Revive
+26	30	Fresh Water
+27	31	Soda Pop
+28	32	Lemonade
+29	33	Moomoo Milk
+30	34	Energy Powder
+31	35	Energy Root
+32	36	Heal Powder
+33	37	Revival Herb
+34	38	Ether
+35	39	Max Ether
+36	40	Elixir
+37	41	Max Elixir
+38	42	Lava Cookie
+39	65	Blue Flute
+40	66	Yellow Flute
+41	67	Red Flute
+42	68	Black Flute
+43	69	White Flute
+44	43	Berry Juice
+45	44	Sacred Ash
+46	70	Sea Salt
+47	71	Sea Shell
+48	72	Red Shard
+49	73	Blue Shard
+50	74	Yellow Shard
+51	75	Green Shard
+52	500	Park Ball
+53	16	Cherish Ball
+54	0	unknown
+55	270	Life Orb
+56	272	Toxic Orb
+57	273	Flame Orb
+58	281	Black Sludge
+59	0	Max Powder
+60	13	Dusk Ball
+61	14	Heal Ball
+62	15	Quick Ball
+63	45	HP Up
+64	46	Protein
+65	47	Iron
+66	48	Carbos
+67	49	Calcium
+68	50	Rare Candy
+69	51	PP Up
+70	52	Zinc
+71	53	PP Max
+72	94	Honey
+73	55	Guard Spec.
+74	56	Dire Hit
+75	57	X Attack
+76	58	X Defense
+77	59	X Speed
+78	60	X Accuracy
+79	61	X Sp. Atk
+80	63	Poké Doll
+81	64	Fluffy Tail
+82	62	X Sp. Def
+83	76	Super Repel
+84	77	Max Repel
+85	78	Escape Rope
+86	79	Repel
+87	0	unknown
+88	1252	Wishing Piece
+89	0	Dream Mist
+90	269	Light Clay
+91	0	Link Stone
+92	458	Magma Stone
+93	80	Sun Stone
+94	81	Moon Stone
+95	82	Fire Stone
+96	83	Thunder Stone
+97	84	Water Stone
+98	85	Leaf Stone
+99	108	Dusk Stone
+100	109	Dawn Stone
+101	107	Shiny Stone
+102	110	Oval Stone
+103	86	Tiny Mushroom
+104	87	Big Mushroom
+105	849	Ice Stone
+106	88	Pearl
+107	89	Big Pearl
+108	90	Stardust
+109	91	Star Piece
+110	92	Nugget
+111	93	Heart Scale
+112	321	Protector
+113	323	Magmarizer
+114	106	Rare Bone
+115	537	Prism Scale
+116	647	Sachet
+117	0	Whip Dream
+118	208	Enigma Berry
+119	766	Mega Cuff
+120	749	Mega Tiara
+121	0	Orange Mail
+122	0	Harbor Mail
+123	0	Glitter Mail
+124	0	Mech Mail
+125	0	Wood Mail
+126	0	Wave Mail
+127	0	Bead Mail
+128	0	Shadow Mail
+129	0	Tropic Mail
+130	0	Dream Mail
+131	0	Fab Mail
+132	0	Retro Mail
+133	149	Cheri Berry
+134	150	Chesto Berry
+135	151	Pecha Berry
+136	152	Rawst Berry
+137	153	Aspear Berry
+138	154	Leppa Berry
+139	155	Oran Berry
+140	156	Persim Berry
+141	157	Lum Berry
+142	158	Sitrus Berry
+143	159	Figy Berry
+144	160	Wiki Berry
+145	161	Mago Berry
+146	162	Aguav Berry
+147	163	Iapapa Berry
+148	164	Razz Berry
+149	165	Bluk Berry
+150	166	Nanab Berry
+151	167	Wepear Berry
+152	168	Pinap Berry
+153	169	Pomeg Berry
+154	170	Kelpsy Berry
+155	171	Qualot Berry
+156	172	Hondew Berry
+157	173	Grepa Berry
+158	174	Tamato Berry
+159	175	Cornn Berry
+160	176	Magost Berry
+161	177	Rabuta Berry
+162	178	Nomel Berry
+163	179	Spelon Berry
+164	180	Pamtre Berry
+165	181	Watmel Berry
+166	182	Durin Berry
+167	183	Belue Berry
+168	201	Liechi Berry
+169	202	Ganlon Berry
+170	203	Salac Berry
+171	204	Petaya Berry
+172	205	Apicot Berry
+173	206	Lansat Berry
+174	206	Lansat Berry
+175	207	Starf Berry
+176	220	Choice Band
+177	297	Choice Specs
+178	287	Choice Scarf
+179	213	Bright Powder
+180	214	White Herb
+181	215	Macho Brace
+182	216	Exp. Share
+183	217	Quick Claw
+184	218	Soothe Bell
+185	219	Mental Herb
+186	220	Choice Band
+187	221	King's Rock
+188	222	SilverPowder
+189	223	Amulet Coin
+190	224	Cleanse Tag
+191	225	Soul Dew
+192	226	Deep Sea Tooth
+193	227	Deep Sea Scale
+194	228	Smoke Ball
+195	229	Everstone
+196	230	Focus Band
+197	231	Lucky Egg
+198	232	Scope Lens
+199	233	Metal Coat
+200	234	Leftovers
+201	235	Dragon Scale
+202	236	Light Ball
+203	237	Soft Sand
+204	238	Hard Stone
+205	239	Miracle Seed
+206	240	Black Glasses
+207	241	Black Belt
+208	242	Magnet
+209	243	Mystic Water
+210	244	Sharp Beak
+211	245	Poison Barb
+212	246	Never-Melt Ice
+213	247	Spell Tag
+214	248	Twisted Spoon
+215	249	Charcoal
+216	250	Dragon Fang
+217	251	Silk Scarf
+218	252	Up-Grade
+219	253	Shell Bell
+220	254	Sea Incense
+221	255	Lax Incense
+222	256	Lucky Punch
+223	257	Metal Powder
+224	258	Thick Club
+225	259	Leek
+226	540	Rocky Helmet
+227	639	Weak Policy
+228	582	Pearl String
+229	581	Big Nugget
+230	326	Razor Claw
+231	327	Razor Fang
+232	325	Reaper Cloth
+233	324	Dubious Disc
+234	322	Electirizier
+235	268	Expert Belt
+236	271	Power Herb
+237	265	Wide Lens
+238	276	Zoom Lens
+239	280	Destiny Knot
+240	283	Smooth rock
+241	285	Damp Rock
+242	284	Heat Rock
+243	282	Icy Rock
+244	289	Power Bracer
+245	290	Power Belt
+246	291	Power Lens
+247	292	Power Band
+248	293	Power Anklet
+249	294	Power Weight
+250	296	Big Root
+251	111	Odd Keystone
+252	319	Luck Incense
+253	316	Full Incense
+254	314	Odd Incense
+255	320	Pure Incense
+256	315	Rock Incense
+257	318	Rose Incense
+258	317	Wave Incense
+259	718	Mach Bike
+260	444	Coin Case
+261	471	Dowsing Machine
+262	445	Old Rod
+263	446	Good Rod
+264	447	Super Rod
+265	0	S.S. Ticket
+266	634	Grubby Hanky
+267	0	Uniform
+268	1077	Dynamax Band
+269	0	Braille Converter
+270	435	Fashion Case
+271	0	Basement Key
+272	719	Frontier Card
+273	4	Poké Ball
+274	725	Letter
+275	726	Eon Ticket
+276	534	Red Orb
+277	535	Blue Orb
+278	727	Stat Scanner
+279	728	Go-Goggles
+280	2554	Meteorite
+281	0	Barrier Key
+282	0	Key Card: 2
+283	0	Key Card: 3
+284	0	Rm. 6 Key
+285	0	Storage Key
+286	99	Root Fossil
+287	100	Claw Fossil
+288	735	Devon Scope
+289	328	TM 01
+290	329	TM 02
+291	330	TM 03
+292	331	TM 04
+293	332	TM 05
+294	333	TM 06
+295	334	TM 07
+296	335	TM 08
+297	336	TM 09
+298	337	TM 10
+299	338	TM 11
+300	339	TM 12
+301	340	TM 13
+302	341	TM 14
+303	342	TM 15
+304	343	TM 16
+305	344	TM 17
+306	345	TM 18
+307	346	TM 19
+308	347	TM 20
+309	348	TM 21
+310	349	TM 22
+311	350	TM 23
+312	351	TM 24
+313	352	TM 25
+314	353	TM 26
+315	354	TM 27
+316	355	TM 28
+317	356	TM 29
+318	357	TM 30
+319	358	TM 31
+320	359	TM 32
+321	360	TM 33
+322	361	TM 34
+323	362	TM 35
+324	363	TM 36
+325	364	TM 37
+326	365	TM 38
+327	366	TM 39
+328	367	TM 40
+329	368	TM 41
+330	369	TM 42
+331	370	TM 43
+332	371	TM 44
+333	372	TM 45
+334	373	TM 46
+335	374	TM 47
+336	375	TM 48
+337	376	TM 49
+338	377	TM 50
+339	378	TM 51
+340	379	TM 52
+341	380	TM 53
+342	381	TM 54
+343	382	TM 55
+344	383	TM 56
+345	384	TM 57
+346	385	TM 58
+347	0	unknown
+348	0	Costume Box
+349	875	Parcel
+350	532	Jade Orb
+351	872	Grimy Socks
+352	0	Package
+353	696	Mega Ring
+354	103	Old Amber
+355	876	Key Card: 1
+356	0	Time Turner
+357	101	Helix Fossil
+358	102	Dome Fossil
+359	874	Baby Monitor
+360	0	Motorcycle
+361	442	Town Map
+362	443	Vs. Seeker
+363	0	Oddisch Leaves
+364	123	TM Case
+365	0	Berry Pouch
+366	0	ADM
+367	0	Notebook
+368	0	Porta-PC
+369	113	Trainer Catalogue
+370	0	Glimmer Ticket
+371	1267	Catching Charm
+372	0	Powder Jar
+373	0	Lunar Wing
+374	454	Member Card
+375	386	TM59
+376	387	TM60
+377	388	TM61
+378	389	TM62
+379	390	TM63
+380	391	TM64
+381	392	TM65
+382	393	TM66
+383	394	TM67
+384	395	TM68
+385	396	TM69
+386	397	TM70
+387	398	TM71
+388	399	TM72
+389	400	TM73
+390	401	TM74
+391	402	TM75
+392	403	TM76
+393	404	TM77
+394	405	TM78
+395	406	TM79
+396	407	TM80
+397	408	TM81
+398	409	TM82
+399	410	TM83
+400	411	TM84
+401	412	TM85
+402	413	TM86
+403	414	TM87
+404	415	TM88
+405	416	TM89
+406	417	TM90
+407	418	TM91
+408	419	TM92
+409	618	TM93
+410	619	TM94
+411	620	TM95
+412	690	TM96
+413	691	TM97
+414	692	TM98
+415	693	TM99
+416	2160	TM100
+417	2161	TM101
+418	2162	TM102
+419	2163	TM103
+420	2164	TM104
+421	2165	TM105
+422	2166	TM106
+423	2167	TM107
+424	2168	TM108
+425	2169	TM109
+426	2170	TM110
+427	2171	TM111
+428	2172	TM112
+429	2173	TM113
+430	2174	TM114
+431	2175	TM115
+432	2176	TM116
+433	2177	TM117
+434	2178	TM118
+435	2179	TM119
+436	2180	TM120
+437	420	HM01
+438	421	HM02
+439	422	HM03
+440	423	HM04
+441	424	HM05
+442	425	HM06
+443	737	HM07
+444	0	HM08
+445	923	Necrozium Z
+446	659	Venusaurite
+447	660	Charizite X
+448	678	Charizite Y
+449	661	Blastoisite
+450	770	Beedrillite
+451	762	Pidgeotite
+452	679	Alakazite
+453	760	Slowbronite
+454	656	Gengarite
+455	675	Kangashite
+456	671	Pinsirite
+457	676	Gyaradosite
+458	672	Aerodactite
+459	662	Mewtwonite X
+460	663	Mewtwonite Y
+461	658	Ampharosite
+462	761	Steelixite
+463	670	Scizorite
+464	680	Heracronite
+465	666	Houndoomite
+466	669	Tyranitarite
+467	753	Sceptilite
+468	664	Blazikenite
+469	752	Swampertite
+470	657	Gardevoirite
+471	754	Sablenite
+472	681	Mawilite
+473	667	Aggronite
+474	665	Medichamite
+475	682	Manectite
+476	759	Sharpedonite
+477	767	Cameruptite
+478	755	Altarianite
+479	668	Banettite
+480	677	Absolite
+481	763	Glalitite
+482	769	Salamencite
+483	758	Metagrossite
+484	684	Latiasite
+485	685	Latiosite
+486	768	Lopunnite
+487	683	Garchompite
+488	673	Lucarionite
+489	674	Abomasite
+490	756	Galladite
+491	757	Audinite
+492	764	Diancite
+493	650	Safety Googles
+494	640	Assault Vest
+495	538	Eviolite
+496	303	Fist Plate
+497	306	Sky Plate
+498	304	Toxic Plate
+499	305	Earth Plate
+500	309	Stone Plate
+501	308	Insect Plate
+502	310	Spooky Plate
+503	313	Iron Plate
+504	298	Flame Plate
+505	299	Splash Plate
+506	301	Meadow Plate
+507	300	Zap Plate
+508	307	Mind Plate
+509	302	Icicle plate
+510	311	Draco Plate
+511	312	Dread Plate
+512	644	Pixie Plate
+513	583	Comet Shard
+514	580	Balm Mushroom
+515	852	Big Malasada
+516	591	Casteliacone
+517	708	Lumiose Gale
+518	504	Ragecandybar
+519	709	Shalour Sable
+520	54	Old Gateau
+521	105	Skull Fossil
+522	104	Armor Fossil
+523	572	Cover Fossil
+524	573	Plume Fossil
+525	710	Jaw Fossil
+526	711	Sail Fossil
+527	0	Mega Earing
+528	716	Mega Charm
+529	744	Mega Bracelet
+530	750	Mega Anklet
+531	745	Mega Pendant
+532	135	Adamant Orb
+533	136	Lustrous Orb
+534	112	Griseous Orb
+535	466	Gracidea
+536	628	DNA Splicers
+537	638	Reveal Glass
+538	765	Prison Bottle
+539	184	Occa Berry
+540	185	Passho Berry
+541	186	Wacan Berry
+542	187	Rindo Berry
+543	188	Yache Berry
+544	189	Chople Berry
+545	190	Kebia Berry
+546	191	Shuca Berry
+547	192	Coba Berry
+548	193	Payapa Berry
+549	194	Tanga Berry
+550	195	Charti Berry
+551	196	Kasib Berry
+552	197	Haban Berry
+553	198	Colbur Berry
+554	199	Babiri Berry
+555	200	Chilan Berry
+556	209	Micle Berry
+557	210	Custap Berry
+558	211	Jaboca Berry
+559	212	Rowap Berry
+560	686	Roseli Berry
+561	687	Kee Berry
+562	688	Marang Berry
+563	545	Absorb Bulb
+564	541	Air Balloon
+565	846	Adrenal Orb
+566	544	Binding Band
+567	546	Cell Battery
+568	547	Eject Button
+569	539	Float Stone
+570	275	Focus Sash
+571	286	Grip Claw
+572	278	Iron Ball
+573	279	Lagging Tail
+574	648	Luminous Moss
+575	274	Quick Powder
+576	277	Metronome
+577	266	Muscle Band
+578	880	Protect Pads
+579	542	Red Card
+580	543	Ring Target
+581	295	Shed Shell
+582	649	Snowball
+583	288	Sticky Barb
+584	879	Terrain Ext.
+585	267	Wise Glasses
+586	881	Electric Seed
+587	884	Grassy Seed
+588	883	Misty Seed
+589	882	Psychic Seed
+590	564	Normal Gem
+591	553	Fightin Gem
+592	556	Flying Gem
+593	554	Poison Gem
+594	555	Ground Gem
+595	559	Rock Gem
+596	558	Bug Gem
+597	560	Ghost Gem
+598	563	Steel Gem
+599	548	Fire Gem
+600	549	Water Gem
+601	551	Grass Gem
+602	550	Electric Gem
+603	557	Psychic Gem
+604	552	Ice Gem
+605	561	Dragon Gem
+606	562	Dark Gem
+607	715	Fairy Gem
+608	645	Ability Capsule
+609	565	Health Wing
+610	566	Muscle Wing
+611	567	Resist Wing
+612	568	Genius Wing
+613	569	Clever Wing
+614	570	Swift Wing
+615	571	Pretty Wing
+616	795	Bottle Cap
+617	796	Gold Bottle Cap
+618	853	Red Nectar
+619	854	Ylw Nectar
+620	855	Pink Nectar
+621	856	Purp Nectar
+622	492	Fast Ball
+623	493	Level Ball
+624	494	Lure Ball
+625	495	Heavy Ball
+626	496	Love Ball
+627	497	Friend Ball
+628	498	Moon Ball
+629	499	Sport Ball
+630	851	Beast Ball
+631	576	Dream Ball
+632	631	Oval Charm
+633	632	Shiny Charm
+634	118	Burn Drive
+635	116	Douse Drive
+636	117	Shock Drive
+637	119	Chill Drive
+638	904	Fist Memory
+639	905	Sky Memory
+640	906	Toxic Memory
+641	907	Earth Memory
+642	908	Rock Memory
+643	909	Bug Memory
+644	910	Ghost Memory
+645	911	Steel Memory
+646	912	Fire Memory
+647	913	Water Memory
+648	914	Grass Memory
+649	915	Zap Memory
+650	916	Psych Memory
+651	917	Ice Memory
+652	918	Draco Memory
+653	919	Dark Memory
+654	920	Fairy Memory
+655	0	Rainbow Wing
+656	0	Silver Wing
+657	943	N-Solarizer
+658	944	N-Lunarizer
+659	857	Sun Flute
+660	858	Moon Flute
+661	616	Light Stone
+662	617	Dark Stone
+663	584	Relic Copper
+664	585	Relic Silver
+665	586	Relic Gold
+666	587	Relic Vase
+667	588	Relic Band
+668	589	Relic Statue
+669	590	Relic Crown
+670	776	Normalium Z
+671	782	Fightinium Z
+672	785	Flyinium Z
+673	783	Poisonium Z
+674	784	Groundium Z
+675	788	Rockium Z
+676	787	Buginium Z
+677	789	Ghostium Z
+678	792	Steelium Z
+679	777	Firium Z
+680	778	Waterium Z
+681	780	Grassium Z
+682	779	Electrium Z
+683	786	Psychium Z
+684	781	Icium Z
+685	790	Dragonium Z
+686	791	Darkinium Z
+687	793	Fairium Z
+688	803	Alorichium Z
+689	798	Decidium Z
+690	805	Eevium Z
+691	799	Incinium Z
+692	926	Kommonium Z
+693	922	Lunalium Z
+694	925	Lycanium Z
+695	802	Marshadium Z
+696	806	Mewnium Z
+697	924	Mimikium Z
+698	794	Pikanium Z
+699	836	Pikasunium Z
+700	800	Primarium Z
+701	804	Snorlium Z
+702	921	Solganium Z
+703	801	Tapunium Z
+704	1119	Eject Pack
+705	1122	Room Service
+706	1121	Blunder Policy
+707	1120	Heavy Boots
+708	1123	Utility Parasol
+709	1118	Throat Spray
+710	1103	Rusted Sword
+711	1104	Rusted Shield
+712	1116	Sweet Apple
+713	1117	Tart Apple
+714	1253	Cracked Pot
+715	1254	Chipped Pot
+716	1109	Strawberry Sweet
+717	1111	Berry Sweet
+718	1110	Love Sweet
+719	1112	Clover Sweet
+720	1113	Flower Sweet
+721	1115	Ribbon Sweet
+722	1114	Star Sweet
+723	1582	Galarica Cuff
+724	1592	Galarica Wreath
+725	0	Reins of Uni
+726	1691	Black Augurite
+727	1692	Peat Block
+728	0	Hisui Rock

@@ -1,4 +1,5 @@
 using PKHeX.Core;
+using Pksx.Pkhex.Engine.Unbound;
 using System.Text.Json.Serialization;
 
 namespace Pksx.Pkhex.Engine;
@@ -42,7 +43,7 @@ public sealed record SaveSummary(
         new(
             fileName,
             save.GetType().Name,
-            save.Version.ToString(),
+            save is SAV3Unbound ? "Unbound" : save.Version.ToString(),
             (int)save.Version,
             save.Generation,
             save is SAV3RSBox ? string.Empty : save.OT,
