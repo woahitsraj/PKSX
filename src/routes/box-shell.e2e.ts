@@ -5727,9 +5727,9 @@ test('landscape-floor Slot Menu uses the trailing Safe Canvas edge without shell
 	const menuBounds = await edgeSurfaceBounds(page);
 	expectSafeCanvas(menuBounds, viewport, insets);
 	expectBackdropCoversViewport(menuBounds, viewport);
-	expect(menuBounds.panel?.right).toBe(menuBounds.layer.right);
-	expect(menuBounds.panel?.top).toBe(menuBounds.layer.top);
-	expect(menuBounds.panel?.bottom).toBe(menuBounds.layer.bottom);
+	expect(menuBounds.panel?.right).toBe(viewport.width);
+	expect(menuBounds.panel?.top).toBe(0);
+	expect(menuBounds.panel?.bottom).toBe(viewport.height);
 	expect(menuBounds.panel?.width ?? 0).toBeLessThan(menuBounds.layer.width);
 	expect(await shellExtents(page)).toEqual(beforeOpen);
 
@@ -5738,9 +5738,9 @@ test('landscape-floor Slot Menu uses the trailing Safe Canvas edge without shell
 	await expect(page.getByRole('dialog', { name: 'Clear ARON?' })).toContainText('BOX1 Slot 1');
 	const clearBounds = await edgeSurfaceBounds(page);
 	expectSafeCanvas(clearBounds, viewport, insets);
-	expect(clearBounds.panel?.right).toBe(clearBounds.layer.right);
-	expect(clearBounds.panel?.top).toBe(clearBounds.layer.top);
-	expect(clearBounds.panel?.bottom).toBe(clearBounds.layer.bottom);
+	expect(clearBounds.panel?.right).toBe(viewport.width);
+	expect(clearBounds.panel?.top).toBe(0);
+	expect(clearBounds.panel?.bottom).toBe(viewport.height);
 	expect(await shellExtents(page)).toEqual(beforeOpen);
 });
 
@@ -5775,9 +5775,9 @@ test('portrait-floor Slot Menu uses the bottom Safe Canvas edge without shell gr
 	const menuBounds = await edgeSurfaceBounds(page);
 	expectSafeCanvas(menuBounds, viewport, insets);
 	expectBackdropCoversViewport(menuBounds, viewport);
-	expect(menuBounds.panel?.left).toBe(menuBounds.layer.left);
-	expect(menuBounds.panel?.right).toBe(menuBounds.layer.right);
-	expect(menuBounds.panel?.bottom).toBe(menuBounds.layer.bottom);
+	expect(menuBounds.panel?.left).toBe(0);
+	expect(menuBounds.panel?.right).toBe(viewport.width);
+	expect(menuBounds.panel?.bottom).toBe(viewport.height);
 	expect(await shellExtents(page)).toEqual(beforeOpen);
 
 	await page.getByRole('button', { name: 'Clear Slot' }).click();
@@ -5785,9 +5785,9 @@ test('portrait-floor Slot Menu uses the bottom Safe Canvas edge without shell gr
 	await expect(page.getByRole('dialog', { name: 'Clear ARON?' })).toContainText('BOX1 Slot 1');
 	const clearBounds = await edgeSurfaceBounds(page);
 	expectSafeCanvas(clearBounds, viewport, insets);
-	expect(clearBounds.panel?.left).toBe(clearBounds.layer.left);
-	expect(clearBounds.panel?.right).toBe(clearBounds.layer.right);
-	expect(clearBounds.panel?.bottom).toBe(clearBounds.layer.bottom);
+	expect(clearBounds.panel?.left).toBe(0);
+	expect(clearBounds.panel?.right).toBe(viewport.width);
+	expect(clearBounds.panel?.bottom).toBe(viewport.height);
 	expect(await shellExtents(page)).toEqual(beforeOpen);
 });
 
@@ -5834,9 +5834,9 @@ test('square Safe Canvas keeps the bottom Menu edge and preserves a pending Clea
 	let edges = await edgeSurfaceBounds(page);
 	expectSafeCanvas(edges, squareViewport, insets);
 	expect(edges.layer.width).toBe(edges.layer.height);
-	expect(edges.panel?.left).toBe(edges.layer.left);
-	expect(edges.panel?.right).toBe(edges.layer.right);
-	expect(edges.panel?.bottom).toBe(edges.layer.bottom);
+	expect(edges.panel?.left).toBe(0);
+	expect(edges.panel?.right).toBe(squareViewport.width);
+	expect(edges.panel?.bottom).toBe(squareViewport.height);
 	expect(await shellExtents(page)).toEqual(squareBaseline);
 
 	await page.getByRole('button', { name: 'Clear Slot' }).click();
@@ -5850,9 +5850,9 @@ test('square Safe Canvas keeps the bottom Menu edge and preserves a pending Clea
 	await expect(page.getByRole('dialog')).toHaveCount(1);
 	edges = await edgeSurfaceBounds(page);
 	expectSafeCanvas(edges, landscapeViewport, insets);
-	expect(edges.panel?.right).toBe(edges.layer.right);
-	expect(edges.panel?.top).toBe(edges.layer.top);
-	expect(edges.panel?.bottom).toBe(edges.layer.bottom);
+	expect(edges.panel?.right).toBe(landscapeViewport.width);
+	expect(edges.panel?.top).toBe(0);
+	expect(edges.panel?.bottom).toBe(landscapeViewport.height);
 	expect(await shellExtents(page)).toEqual(landscapeBaseline);
 
 	await page.keyboard.press('Escape');
@@ -5894,6 +5894,36 @@ test('each Clear and Slot Menu backdrop tap dismisses exactly one level without 
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON');
 	expect(await backupCount(page)).toBe(backupsBefore);
+});
+
+test('dragging the bottom Menu handle snaps back on a short drag and dismisses on a long one', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+	await page.setViewportSize({ width: 360, height: 640 });
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	const dialog = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(dialog).toBeVisible();
+	const handle = dialog.locator('.edge-menu-handle');
+	const drag = async (distance: number) => {
+		await settleMotion(page);
+		const box = (await handle.boundingBox())!;
+		const x = box.x + box.width / 2;
+		const y = box.y + box.height / 2;
+		await page.mouse.move(x, y);
+		await page.mouse.down();
+		await page.mouse.move(x, y + distance, { steps: 8 });
+		await page.waitForTimeout(150);
+		await page.mouse.up();
+	};
+
+	await drag(20);
+	await expect(dialog).toBeVisible();
+	await drag(300);
+	await expect(page.getByRole('dialog')).toHaveCount(0);
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 });
 
 test('the first Slot tap moves Controller Focus and the second opens the Slot Menu', async ({
