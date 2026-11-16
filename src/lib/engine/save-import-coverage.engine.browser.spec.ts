@@ -206,7 +206,8 @@ describe('PKHeX Engine Save File coverage', () => {
 		});
 		expect(card.value.pokemonCount).toBe(92);
 		expect(workspace.value.boxNames.names).toHaveLength(25);
-		expect(workspace.value.boxNames.names.slice(0, 2)).toEqual(['Preset', 'Box24']);
+		expect(workspace.value.boxNames.names[0]).toBe('Box1');
+		expect(workspace.value.boxNames.names[24]).toBe('Preset');
 		const [metang, , , , , luxray] = workspace.value.partySlots;
 		expect(metang).toMatchObject({
 			speciesName: 'Metang',
@@ -240,5 +241,22 @@ describe('PKHeX Engine Save File coverage', () => {
 			ok: false,
 			error: { code: 'unsupported-save', message: expect.stringContaining('Pokémon Unbound') }
 		});
+	});
+
+	test('reads the intact older slot when the newer Pokemon Unbound slot is damaged', async () => {
+		const fileName = 'pokemon-unbound-2.1.1.1.sav';
+		const [engine, damaged] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			readFixture(`${raj}/gba/${fileName}`)
+		]);
+		const counter = (slot: number) => new DataView(damaged.buffer).getUint32(slot + 0xffc, true);
+		const live = counter(0xe000) > counter(0) ? 0xe000 : 0;
+		const trainerSector = [...Array(14).keys()]
+			.map((sector) => live + sector * 0x1000)
+			.find((offset) => damaged[offset + 0xff4] === 0)!;
+		damaged[trainerSector] ^= 0xff;
+
+		const summary = await engine.summarizeSave(damaged, fileName);
+		expect(summary).toMatchObject({ ok: true, value: { trainerName: 'Luna' } });
 	});
 });

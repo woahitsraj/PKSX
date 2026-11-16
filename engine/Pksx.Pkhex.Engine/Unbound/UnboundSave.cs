@@ -4,7 +4,7 @@ namespace Pksx.Pkhex.Engine.Unbound;
 
 public static class UnboundSave
 {
-    private const uint Signature = 0x01121999;
+    internal const uint Signature = 0x01121999;
     private const int SaveSize = 0x20000;
     private const int SaveSizeWithFooter = 0x20010;
     private const int SectorSize = 0x1000;

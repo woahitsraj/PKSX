@@ -28,21 +28,9 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
 
     public SAV3Unbound(Memory<byte> data) : base(data)
     {
-        var span = data.Span;
-        var first = ReadUInt32LittleEndian(span[0xFFC..]);
-        var second = ReadUInt32LittleEndian(span[(SlotSize + 0xFFC)..]);
-        // Blank flash reads as 0xFFFFFFFF, so a slot the game never wrote is never live.
-        var live = second != uint.MaxValue && (first == uint.MaxValue || second > first) ? SlotSize : 0;
-        Array.Fill(sectionOffsets, -1);
+        var live = LiveSlot(data.Span) ?? throw new InvalidDataException("Neither save slot in this Pokémon Unbound Save File is intact.");
         for (var sector = 0; sector < 14; sector++)
-        {
-            var offset = live + (sector * SectorSize);
-            var id = ReadUInt16LittleEndian(span[(offset + 0xFF4)..]);
-            if (id < 14)
-                sectionOffsets[id] = offset;
-        }
-        if (sectionOffsets.Contains(-1))
-            throw new InvalidDataException("This Pokémon Unbound Save File is missing a save section.");
+            sectionOffsets[ReadUInt16LittleEndian(data.Span[(live + (sector * SectorSize) + 0xFF4)..])] = live + (sector * SectorSize);
 
         var cursor = 0;
         foreach (var region in BoxRegions)
@@ -50,6 +38,30 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
             Region(region).CopyTo(storage.AsSpan(cursor));
             cursor += region.End - region.Start;
         }
+    }
+
+    // Like the game, load the newer slot whose 14 sections all carry the signature and a valid checksum.
+    private static int? LiveSlot(ReadOnlySpan<byte> data)
+    {
+        uint? first = SlotCounter(data, 0), second = SlotCounter(data, SlotSize);
+        if (first is null || second is null)
+            return first is not null ? 0 : second is not null ? SlotSize : null;
+        var wrapped = first == uint.MaxValue && second == 0;
+        return wrapped || (second > first && !(second == uint.MaxValue && first == 0)) ? SlotSize : 0;
+    }
+
+    private static uint? SlotCounter(ReadOnlySpan<byte> data, int slot)
+    {
+        var seen = 0;
+        for (var sector = 0; sector < 14; sector++)
+        {
+            var span = data.Slice(slot + (sector * SectorSize), SectorSize);
+            var id = ReadUInt16LittleEndian(span[0xFF4..]);
+            if (id >= 14 || ReadUInt32LittleEndian(span[0xFF8..]) != UnboundSave.Signature || ReadUInt16LittleEndian(span[0xFF6..]) != Checksum(id, span))
+                return null;
+            seen |= 1 << id;
+        }
+        return seen == 0x3FFF ? ReadUInt32LittleEndian(data[(slot + 0xFFC)..]) : null;
     }
 
     private Span<byte> Section(int id) => Data.Slice(sectionOffsets[id], SectorSize);
@@ -75,16 +87,13 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
     protected override void SetChecksums()
     {
         for (var id = 0; id < 14; id++)
-            WriteUInt16LittleEndian(Section(id)[0xFF6..], Checksum(id));
+            WriteUInt16LittleEndian(Section(id)[0xFF6..], Checksum(id, Section(id)));
     }
 
-    private ushort Checksum(int id)
-    {
-        var length = id switch { 0 => 0xF24, 4 => 0xD98, 13 => 0x450, _ => DataSize };
-        return Checksums.CheckSum32(Section(id)[..length]);
-    }
+    private static ushort Checksum(int id, ReadOnlySpan<byte> section) =>
+        Checksums.CheckSum32(section[..(id switch { 0 => 0xF24, 4 => 0xD98, 13 => 0x450, _ => DataSize })]);
 
-    public override bool ChecksumsValid => Enumerable.Range(0, 14).All(id => ReadUInt16LittleEndian(Section(id)[0xFF6..]) == Checksum(id));
+    public override bool ChecksumsValid => Enumerable.Range(0, 14).All(id => ReadUInt16LittleEndian(Section(id)[0xFF6..]) == Checksum(id, Section(id)));
     public override string ChecksumInfo => ChecksumsValid ? "Checksums are valid." : "One or more section checksums are invalid.";
 
     protected override SaveFile CloneInternal() => new SAV3Unbound(GetFinalData().ToArray());
@@ -114,7 +123,8 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
     protected override Span<byte> PartyBuffer => Section(1)[0x38..(0x38 + (6 * PK3Unbound.SizeParty))];
     public override int GetBoxOffset(int box) => box * BoxBytes;
     public override int GetPartyOffset(int slot) => slot * PK3Unbound.SizeParty;
-    public override bool IsPKMPresent(ReadOnlySpan<byte> data) => ReadUInt16LittleEndian(data[(data.Length >= PK3Unbound.SizeParty ? 0x20 : 0x1C)..]) != 0;
+    // PKHeX asks only about box storage here, with spans longer than one record.
+    public override bool IsPKMPresent(ReadOnlySpan<byte> data) => ReadUInt16LittleEndian(data[0x1C..]) != 0;
 
     public override int PartyCount
     {
@@ -152,10 +162,14 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
     public override uint Money { get => ReadUInt32LittleEndian(Section(1)[0x290..]) ^ SecurityKey; set => WriteUInt32LittleEndian(Section(1)[0x290..], value ^ SecurityKey); }
     public override int CurrentBox { get => Section(5)[0]; set => Section(5)[0] = (byte)value; }
 
-    public string GetBoxName(int box) => GetString(Section(13).Slice(0x361 + (box * BoxNameLength), BoxNameLength));
+    // CFRU keeps names for boxes 1-14 forward from 0x3C4 and boxes 15-25 backward below it.
+    private Span<byte> BoxNameSpan(int box) =>
+        Section(13).Slice(0x3C4 + ((box < 14 ? box : 13 - box) * BoxNameLength), BoxNameLength);
+
+    public string GetBoxName(int box) => GetString(BoxNameSpan(box));
 
     public void SetBoxName(int box, ReadOnlySpan<char> value) =>
-        SetString(Section(13).Slice(0x361 + (box * BoxNameLength), BoxNameLength), value, BoxNameLength - 1, StringConverterOption.ClearFF);
+        SetString(BoxNameSpan(box), value, BoxNameLength - 1, StringConverterOption.ClearFF);
 
     public override string GetString(ReadOnlySpan<byte> data) => StringConverter3.GetString(data, (int)LanguageID.English);
     public override int LoadString(ReadOnlySpan<byte> data, Span<char> result) => StringConverter3.LoadString(data, result, (int)LanguageID.English);
