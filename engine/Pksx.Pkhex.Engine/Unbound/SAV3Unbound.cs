@@ -123,6 +123,8 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
     protected override Span<byte> PartyBuffer => Section(1)[0x38..(0x38 + (6 * PK3Unbound.SizeParty))];
     public override int GetBoxOffset(int box) => box * BoxBytes;
     public override int GetPartyOffset(int slot) => slot * PK3Unbound.SizeParty;
+    public override bool HasParty => true;
+    public override bool HasBox => true;
     // PKHeX asks only about box storage here, with spans longer than one record.
     public override bool IsPKMPresent(ReadOnlySpan<byte> data) => ReadUInt16LittleEndian(data[0x1C..]) != 0;
 
@@ -139,10 +141,9 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
 
     protected override void SetPartyValues(PKM pk, bool isParty)
     {
-        if (!isParty || pk.PartyStatsPresent)
-            return;
-        pk.ResetPartyStats();
-        ((PK3Unbound)pk).RestorePp();
+        // Empty party slots stay zeroed, as the game writes them.
+        if (isParty && pk.Species != 0 && !pk.PartyStatsPresent)
+            pk.ResetPartyStats();
     }
 
     public override string OT

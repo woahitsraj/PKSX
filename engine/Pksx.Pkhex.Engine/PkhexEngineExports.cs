@@ -358,9 +358,6 @@ public static partial class PkhexEngineExports
                     EngineJsonContext.Default.EngineResultObject);
             }
 
-            if (RefuseUnboundEdit(save) is { } refused)
-                return refused;
-
             var operation = System.Text.Json.JsonSerializer.Deserialize(
                 operationJson,
                 EngineJsonContext.Default.SlotOperationRequest);
@@ -815,7 +812,7 @@ public static partial class PkhexEngineExports
                 return EngineJson.Serialize(
                     EngineResult.Fail(
                         "unsupported-save",
-                        save is null ? UnsupportedSaveMessage : "Legality is unavailable for Pokémon Unbound, because PKHeX has no rules for it."),
+                        save is null ? UnsupportedSaveMessage : UnboundLegalityMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -871,8 +868,12 @@ public static partial class PkhexEngineExports
                     EngineJsonContext.Default.EngineResultObject);
             }
 
-            if (RefuseUnboundEdit(save) is { } refused)
-                return refused;
+            if (save is SAV3Unbound)
+            {
+                return EngineJson.Serialize(
+                    EngineResult.Fail("unsupported-save", UnboundLegalityMessage),
+                    EngineJsonContext.Default.EngineResultObject);
+            }
 
             var source = System.Text.Json.JsonSerializer.Deserialize(
                 sourceJson,
@@ -1150,6 +1151,7 @@ public static partial class PkhexEngineExports
         UnboundSave.IsUnbound(bytes) ? new SAV3Unbound(bytes) : SaveUtil.GetSaveFile(bytes, fileName);
 
     private const string UnsupportedSaveMessage = "This file is not a supported Save File.";
+    private const string UnboundLegalityMessage = "Legality is unavailable for Pokémon Unbound, because PKHeX has no rules for it.";
 
     // Unbound saves stay read-only until each kind of change is supported.
     private static string? RefuseUnboundEdit(SaveFile save) =>
@@ -1161,6 +1163,8 @@ public static partial class PkhexEngineExports
 
     private static SaveWorkspace CreateWorkspace(SaveFile save, string? fileName, int box, bool includeEditData = true)
     {
+        // Unbound slots are not editable yet, and their edit data would run PKHeX legality.
+        includeEditData &= save is not SAV3Unbound;
         var partySlots = new List<PartySlotSummary>(save.PartyCount);
         for (var slot = 0; slot < save.PartyCount; slot++)
             partySlots.Add(PartySlotSummary.From(save.GetPartySlotAtIndex(slot), save, slot, includeEditData));

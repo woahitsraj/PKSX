@@ -822,12 +822,17 @@
 	);
 	const focusedSlotOwner = $derived(focusedSlotPane?.source ?? pokemonStorageSource());
 	const focusedPaneWorkspace = $derived(saveWorkspaceForPane(focusedSlotPane));
+	// Unbound saves support slot moves only; editing and creation arrive in later steps.
+	const focusedPaneEditable = $derived(
+		focusedPaneWorkspace !== null &&
+			focusedPaneWorkspace.state.workspace.summary.saveType !== 'SAV3Unbound'
+	);
 	const createPokemonAvailability = $derived(
-		pokemonCreationAvailability(focusedSlotOwner.type, focusedSlot, focusedPaneWorkspace !== null)
+		pokemonCreationAvailability(focusedSlotOwner.type, focusedSlot, focusedPaneEditable)
 	);
 	const slotMenuCommands = $derived(
 		createSlotMenuCommands(focusedSlot, createPokemonAvailability.reason, {
-			edit: focusedSlotOwner.type === 'save-file' && focusedPaneWorkspace !== null,
+			edit: focusedSlotOwner.type === 'save-file' && focusedPaneEditable,
 			legality:
 				(focusedSlotOwner.type === 'save-file' && focusedPaneWorkspace !== null) ||
 				(focusedSlotOwner.type === 'pokemon-storage' && Boolean(focusedSlot.entityBytesBase64)),
@@ -838,7 +843,10 @@
 			// The review has no start action until #437, so production builds hide the entry.
 			trade: focusedSlot.kind === 'pokemon' && Boolean(focusedSlot.entityBytesBase64),
 			storage: focusedSlotOwner.type === 'pokemon-storage',
-			saveStorage: focusedSlotOwner.type === 'save-file' && focusedPaneWorkspace !== null
+			saveStorage:
+				focusedSlotOwner.type === 'save-file' &&
+				focusedPaneWorkspace !== null &&
+				Boolean(focusedSlot.entityBytesBase64)
 		}).map((command) =>
 			command.key === 'copy' && focusedSlotOwner.type === 'pokemon-storage'
 				? { ...command, label: 'Duplicate' }
@@ -4070,7 +4078,8 @@
 				if (!pending.storageSource) throw new Error('Pokemon Storage source changed.');
 				await catalog.commitCarry(pending.storageSource, pending.kind, placement);
 			} else {
-				if (!sourceSlot.entityBytesBase64) throw new Error('Pokemon Entity bytes are unavailable.');
+				if (!sourceSlot.entityBytesBase64)
+					throw new Error('Pokemon Storage cannot hold Pokemon from this Save File.');
 				const sourcePokemon = storedPokemonFromSlot(sourceSlot, carryState);
 				await catalog.add(
 					base64ToBytes(sourceSlot.entityBytesBase64),
@@ -4590,16 +4599,20 @@
 			toastHost.error('The source Save File is no longer available.');
 			return false;
 		}
-		try {
-			await ensurePokemonStorageCatalog();
-		} catch (error) {
-			toastHost.error(getErrorMessage(error));
-			return false;
+		// Pokemon Storage cannot hold Unbound Pokemon, so they clear after the automatic backup instead.
+		const preserveDeletion = workspace.workspace.summary.saveType !== 'SAV3Unbound';
+		if (preserveDeletion) {
+			try {
+				await ensurePokemonStorageCatalog();
+			} catch (error) {
+				toastHost.error(getErrorMessage(error));
+				return false;
+			}
 		}
 
 		return applySlotOperation(
 			{ kind: 'clear', source: pending.source },
-			{ state: workspace, paneId: pending.paneId, preserveDeletion: true }
+			{ state: workspace, paneId: pending.paneId, preserveDeletion }
 		);
 	}
 
