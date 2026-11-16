@@ -1125,27 +1125,13 @@ test('[SURFACE-1][SURFACE-2] Menu and Backup Browser follow Safe Canvas edges wi
 			bottom: budget.viewport.height - budget.insets.bottom,
 			left: budget.insets.left
 		});
-		if (budget.portrait) {
-			expect(geometry.panel.left, `[SURFACE-1] ${budget.name} Menu uses the left edge`).toBe(
-				geometry.layer.left
-			);
-			expect(geometry.panel.right, `[SURFACE-1] ${budget.name} Menu uses the right edge`).toBe(
-				geometry.layer.right
-			);
-			expect(geometry.panel.bottom, `[SURFACE-1] ${budget.name} Menu uses the bottom edge`).toBe(
-				geometry.layer.bottom
-			);
-		} else {
-			expect(geometry.panel.top, `[SURFACE-1] ${budget.name} Menu uses the top edge`).toBe(
-				geometry.layer.top
-			);
-			expect(geometry.panel.right, `[SURFACE-1] ${budget.name} Menu uses the right edge`).toBe(
-				geometry.layer.right
-			);
-			expect(geometry.panel.bottom, `[SURFACE-1] ${budget.name} Menu uses the bottom edge`).toBe(
-				geometry.layer.bottom
-			);
-		}
+		const edges = budget.portrait
+			? { left: 0, right: budget.viewport.width, bottom: budget.viewport.height }
+			: { top: 0, right: budget.viewport.width, bottom: budget.viewport.height };
+		expect(
+			geometry.panel,
+			`[SURFACE-1] ${budget.name} Menu bleeds past the safe area`
+		).toMatchObject(edges);
 		expect(
 			await page.locator('.app-shell').evaluate((shell) => ({
 				width: shell.scrollWidth,
