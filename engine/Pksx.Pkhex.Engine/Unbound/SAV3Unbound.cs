@@ -165,14 +165,27 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
 
     public override PlayerBag Inventory => new UnboundBag(this);
 
-    internal Span<byte> GetPocket(InventoryType type) => type switch
+    // CFRU's bag (ram_locs.h): Items span section 13 and sector 30; the other pockets sit in sector 30.
+    private (int Offset, int Length)[] PocketRegions(InventoryType type) => type switch
     {
-        InventoryType.Items => Section(13).Slice(0xAD8, 100 * 4),
-        InventoryType.Balls => Data.Slice(0x1E31C, 50 * 4),
-        InventoryType.TMHMs => Data.Slice(0x1E3E4, 128 * 4),
-        // 75 Berry slots end at 0x1E710; the bytes after hold other state.
-        _ => Data.Slice(0x1E5E4, 75 * 4),
+        InventoryType.Items => [(sectionOffsets[13] + 0xAD8, DataSize - 0xAD8), (0x1E000, 0x1F0)],
+        InventoryType.KeyItems => [(0x1E1F0, 75 * 4)],
+        InventoryType.Balls => [(0x1E31C, 50 * 4)],
+        InventoryType.TMHMs => [(0x1E3E4, 128 * 4)],
+        _ => [(0x1E5E4, 75 * 4)],
     };
+
+    internal byte[] ReadPocket(InventoryType type) =>
+        [.. PocketRegions(type).SelectMany(region => Data.Slice(region.Offset, region.Length).ToArray())];
+
+    internal void WritePocket(InventoryType type, ReadOnlySpan<byte> pocket)
+    {
+        foreach (var (offset, length) in PocketRegions(type))
+        {
+            pocket[..length].CopyTo(Data.Slice(offset, length));
+            pocket = pocket[length..];
+        }
+    }
 
     // CFRU keeps names for boxes 1-14 forward from 0x3C4 and boxes 15-25 backward below it.
     private Span<byte> BoxNameSpan(int box) =>

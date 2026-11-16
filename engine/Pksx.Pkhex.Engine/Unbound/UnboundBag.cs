@@ -3,7 +3,7 @@ using static System.Buffers.Binary.BinaryPrimitives;
 
 namespace Pksx.Pkhex.Engine.Unbound;
 
-// CFRU's bag: Items in section 13 at 0xAD8; Balls, TMs and Berries in the shared sector 30. Slots are (item u16, count u16).
+// CFRU's bag pockets; each slot is (Unbound item u16, count u16).
 public sealed class UnboundBag : PlayerBag
 {
     private const int MaxQuantity = 999;
@@ -13,10 +13,10 @@ public sealed class UnboundBag : PlayerBag
     public UnboundBag(SAV3Unbound save)
     {
         this.save = save;
-        pouches = [.. new[] { InventoryType.Items, InventoryType.Balls, InventoryType.TMHMs, InventoryType.Berries }
-            .Select(type => new UnboundPouch(type, save.GetPocket(type).Length / 4))];
+        pouches = [.. new[] { InventoryType.Items, InventoryType.KeyItems, InventoryType.Balls, InventoryType.TMHMs, InventoryType.Berries }
+            .Select(type => new UnboundPouch(type, save.ReadPocket(type).Length / 4))];
         foreach (var pouch in pouches)
-            pouch.GetPouch(save.GetPocket(pouch.Type));
+            pouch.GetPouch(save.ReadPocket(pouch.Type));
     }
 
     public override IReadOnlyList<InventoryPouch> Pouches => pouches;
@@ -25,7 +25,11 @@ public sealed class UnboundBag : PlayerBag
     public override void CopyTo(SaveFile sav)
     {
         foreach (var pouch in pouches)
-            pouch.SetPouch(save.GetPocket(pouch.Type));
+        {
+            var data = save.ReadPocket(pouch.Type);
+            pouch.SetPouch(data);
+            save.WritePocket(pouch.Type, data);
+        }
     }
 
     private sealed class UnboundPouch(InventoryType type, int capacity)
@@ -97,8 +101,8 @@ internal sealed class UnboundItemStorage : IItemStorage
 
     private static readonly Dictionary<InventoryType, ushort[]> ItemsByPouch = new()
     {
-        // Unbound keeps key items in the Items pocket.
-        [InventoryType.Items] = [.. ItemsIn(0), .. ItemsIn(4)],
+        [InventoryType.Items] = ItemsIn(0),
+        [InventoryType.KeyItems] = ItemsIn(4),
         [InventoryType.Balls] = ItemsIn(1),
         [InventoryType.TMHMs] = ItemsIn(2),
         [InventoryType.Berries] = ItemsIn(3),

@@ -415,12 +415,14 @@ describe('PKHeX Engine Save File coverage', () => {
 		const before = await pockets(original);
 		expect(before.found.map((pocket) => pocket.key)).toEqual([
 			'Items',
+			'KeyItems',
 			'Balls',
 			'TMHMs',
 			'Berries'
 		]);
 		expect(before.item('Items', 'Revive')?.quantity).toBe(12);
 		expect(before.item('Balls', 'Ultra Ball')?.quantity).toBe(27);
+		expect(before.item('KeyItems', 'Town Map')?.quantity).toBe(1);
 		expect(before.item('TMHMs', 'HM01')?.quantity).toBe(1);
 		expect(before.item('Berries', 'Kee Berry')?.quantity).toBe(5);
 
