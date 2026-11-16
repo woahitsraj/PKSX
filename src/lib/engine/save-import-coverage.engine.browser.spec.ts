@@ -183,4 +183,24 @@ describe('PKHeX Engine Save File coverage', () => {
 			expect(reimported.value.workspace.boxNames.names[0]).toBe('PKSX');
 		}
 	);
+
+	test('refuses a Pokemon Unbound Save File instead of reading it as FireRed', async () => {
+		const fileName = 'pokemon-unbound-2.1.1.1.sav';
+		const [engine, bytes] = await Promise.all([
+			createPkhexEngine('/pkhex-engine'),
+			readFixture(`${raj}/gba/${fileName}`)
+		]);
+		const unbound = {
+			ok: false,
+			error: { code: 'unsupported-save', message: expect.stringContaining('Pokémon Unbound') }
+		};
+
+		expect(await engine.summarizeSave(bytes, fileName)).toMatchObject(unbound);
+		expect(await engine.summarizeSaveCard(bytes, fileName)).toMatchObject(unbound);
+		expect(await engine.loadSaveWorkspace(bytes, fileName, 0)).toMatchObject(unbound);
+		expect(await engine.serializeSave(bytes, fileName)).toMatchObject({
+			ok: false,
+			error: { code: 'unsupported-save' }
+		});
+	});
 });
