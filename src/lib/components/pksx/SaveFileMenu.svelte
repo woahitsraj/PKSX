@@ -165,7 +165,7 @@
 		padding: var(--pksx-space-2) var(--pksx-space-3);
 		border: var(--pksx-border-width) solid transparent;
 		border-radius: var(--pksx-radius-medium);
-		background: var(--paper-deep);
+		background: transparent;
 		color: var(--ink);
 		font: inherit;
 		text-align: left;
@@ -180,7 +180,6 @@
 	.commands button:hover,
 	.commands button:focus-visible,
 	.commands button.controller-focused {
-		border-color: color-mix(in srgb, var(--rust), transparent 55%);
 		background: var(--rust-wash);
 		outline: none;
 	}

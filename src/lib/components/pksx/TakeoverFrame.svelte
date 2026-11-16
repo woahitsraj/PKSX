@@ -69,7 +69,7 @@
 		overflow: hidden;
 		padding: var(--pksx-safe-area-top) var(--pksx-safe-area-right) var(--pksx-safe-area-bottom)
 			var(--pksx-safe-area-left);
-		background: color-mix(in oklch, var(--pksx-color-text-primary) 48%, transparent);
+		background: var(--pksx-color-backdrop);
 	}
 
 	.takeover-safe-canvas {

@@ -22,8 +22,8 @@
 <div class="pokemon-action-dialog">
 	<header>
 		<div>
-			<p>{state.location}</p>
 			<h2 id="pokemon-action-title">Evolve</h2>
+			<p>{state.location}</p>
 		</div>
 		<button
 			id="pokemon-action-close"
@@ -173,11 +173,9 @@
 	}
 
 	header p {
-		color: var(--rust);
-		font:
-			700 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
-		text-transform: uppercase;
+		margin-top: 2px;
+		color: var(--ink-soft);
+		font: 650 var(--pksx-type-label) var(--pksx-font-sans);
 	}
 
 	h2 {
@@ -192,8 +190,8 @@
 
 	button {
 		min-height: var(--pksx-control-height);
-		padding: var(--pksx-space-1) var(--pksx-space-2);
-		border: 1px solid var(--rule);
+		padding: var(--pksx-space-1) max(8px, var(--pksx-space-2));
+		border: 1px solid var(--rule-hi);
 		border-radius: var(--pksx-radius-medium);
 		background: var(--paper);
 		color: var(--ink);
@@ -213,8 +211,8 @@
 	}
 
 	button:focus-visible {
-		outline: 3px solid color-mix(in srgb, var(--rust), transparent 50%);
-		outline-offset: 2px;
+		outline: 3px solid var(--pksx-color-accent-ring);
+		outline-offset: -3px;
 	}
 
 	header button {
@@ -228,10 +226,8 @@
 	.message,
 	.action-list section,
 	.preview {
-		padding: var(--pksx-space-2);
-		border: 1px solid var(--rule);
-		border-radius: var(--pksx-radius-medium);
-		background: var(--paper);
+		padding-bottom: var(--pksx-space-2);
+		border-bottom: 1px solid var(--rule);
 	}
 
 	.subject {
@@ -241,7 +237,7 @@
 	.subject span,
 	.action-list section > p,
 	.message {
-		color: var(--ink-mute);
+		color: var(--ink-soft);
 		font-size: var(--pksx-type-body);
 		line-height: 1.25;
 	}
@@ -276,7 +272,7 @@
 	}
 
 	.evolution-list span {
-		color: var(--ink-mute);
+		color: var(--ink-soft);
 		font-size: var(--pksx-type-label);
 	}
 
@@ -293,15 +289,13 @@
 		grid-template-columns: minmax(90px, 0.7fr) 1fr auto 1fr;
 		align-items: center;
 		gap: var(--pksx-space-1);
-		padding: var(--pksx-space-2);
-		border-radius: var(--pksx-radius-medium);
-		background: var(--paper-deep);
+		padding: var(--pksx-space-1) 0;
 		font-size: var(--pksx-type-label);
 	}
 
 	.preview li span {
 		overflow-wrap: anywhere;
-		color: var(--ink-mute);
+		color: var(--ink-soft);
 	}
 
 	footer {
@@ -311,7 +305,8 @@
 	button.primary {
 		border-color: var(--rust);
 		background: var(--rust);
-		color: white;
+		color: var(--pksx-color-on-accent);
+		--pksx-color-accent-ring: var(--pksx-color-on-accent);
 	}
 
 	@container pksx-density (max-width: 640px) {

@@ -146,8 +146,8 @@
 	<div class="save-legality-report">
 		<header>
 			<div>
-				<p class="kicker">{fileName}</p>
 				<h2 id="save-legality-title">Save File Legality Report</h2>
+				<p class="kicker">{fileName}</p>
 				<p id="save-legality-description">Party and occupied Box Slots</p>
 			</div>
 			<button
@@ -421,17 +421,16 @@
 	.state p,
 	.loading p {
 		color: var(--pksx-color-text-secondary);
-		font-size: var(--pksx-type-caption);
-	}
-
-	.kicker,
-	.classification {
-		font: 700 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
-		text-transform: uppercase;
+		font-size: var(--pksx-type-label);
 	}
 
 	.kicker {
-		color: var(--pksx-color-accent-primary);
+		font: 700 var(--pksx-type-label) var(--pksx-font-mono);
+	}
+
+	.classification {
+		font: 750 var(--pksx-type-label) / 1.2 var(--pksx-font-sans);
+		text-transform: capitalize;
 	}
 
 	.close,
@@ -454,15 +453,18 @@
 	.stale button,
 	.actions button,
 	.batch-panel button {
-		padding: 0 var(--pksx-space-2);
+		padding: 0 max(8px, var(--pksx-space-2));
 	}
 
 	button:hover:not(:disabled),
-	button:focus-visible,
 	.summary button.active {
-		border-color: var(--pksx-color-accent-primary);
+		border-color: var(--pksx-color-accent-ring);
 		background: var(--pksx-color-accent-wash);
-		outline: none;
+	}
+
+	button:focus-visible {
+		outline: 3px solid var(--pksx-color-accent-ring);
+		outline-offset: -3px;
 	}
 
 	.loading,
@@ -504,16 +506,14 @@
 	}
 
 	.summary span {
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 	}
 
 	.batch-panel {
 		display: grid;
 		gap: var(--pksx-space-2);
-		padding: var(--pksx-space-2);
-		border: var(--pksx-border-width) solid var(--pksx-color-border-strong);
-		border-radius: var(--pksx-radius-small);
-		background: var(--pksx-color-surface-panel);
+		padding-block: var(--pksx-space-2);
+		border-block: var(--pksx-border-width) solid var(--pksx-color-border-subtle);
 	}
 
 	.batch-intro,
@@ -533,7 +533,7 @@
 	.batch-panel li,
 	.batch-progress span {
 		color: var(--pksx-color-text-secondary);
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 	}
 
 	.batch-progress {
@@ -548,12 +548,12 @@
 		overflow-y: auto;
 	}
 
-	.batch-entries article {
-		border-left-color: var(--pksx-color-accent-primary);
+	.batch-entries .classification {
+		color: var(--pksx-color-accent-primary);
 	}
 
-	.batch-entries article.unfixable {
-		border-left-color: var(--pksx-color-feedback-danger);
+	.batch-entries article.unfixable .classification {
+		color: var(--pksx-color-feedback-danger);
 	}
 
 	.batch-entries ul {
@@ -574,27 +574,24 @@
 		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
 		gap: var(--pksx-space-3);
-		padding: var(--pksx-space-2);
-		border: var(--pksx-border-width) solid var(--pksx-color-border-subtle);
-		border-left-width: var(--pksx-space-1);
-		border-radius: var(--pksx-radius-small);
-		background: var(--pksx-color-surface-subtle);
-	}
-
-	article.legal {
-		border-left-color: var(--pksx-color-feedback-success);
-	}
-
-	article.warning {
-		border-left-color: var(--pksx-color-feedback-warning);
-	}
-
-	article.illegal {
-		border-left-color: var(--pksx-color-feedback-danger);
+		padding: var(--pksx-space-2) 0;
+		border-bottom: var(--pksx-border-width) solid var(--pksx-color-border-subtle);
 	}
 
 	.classification {
 		color: var(--pksx-color-text-secondary);
+	}
+
+	article.legal .classification {
+		color: var(--pksx-color-feedback-success);
+	}
+
+	article.warning .classification {
+		color: var(--pksx-color-feedback-warning);
+	}
+
+	article.illegal .classification {
+		color: var(--pksx-color-feedback-danger);
 	}
 
 	.actions {

@@ -348,7 +348,7 @@
 	}
 
 	.box-name-unavailable {
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 	}
 
 	.reorder-status {
@@ -450,14 +450,13 @@
 	.box-picker-grid button:hover,
 	.box-picker-grid button:focus-visible,
 	.box-picker-grid button.controller-focused {
-		border-color: color-mix(in srgb, var(--rust), transparent 55%);
 		background: var(--rust-wash);
 		color: var(--rust);
 		outline: none;
 	}
 
 	.box-picker-grid button[aria-current='true'] {
-		box-shadow: inset 0 0 0 2px var(--rust);
+		border-color: var(--rust);
 	}
 
 	.box-picker-grid button.reorder-source {
@@ -472,6 +471,6 @@
 
 	.box-picker-grid span {
 		color: var(--ink-soft);
-		font: 650 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
+		font: 600 var(--pksx-type-label) / 1.1 var(--pksx-font-sans);
 	}
 </style>

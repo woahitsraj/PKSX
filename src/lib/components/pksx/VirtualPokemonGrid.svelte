@@ -346,7 +346,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 	}
 	.card small {
 		color: var(--ink-soft);
@@ -359,7 +359,7 @@
 		border-radius: var(--pksx-radius-small);
 		background: var(--paper-hi);
 		color: var(--ink);
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 		min-height: var(--pksx-small-control-height);
 		cursor: pointer;
 	}
@@ -375,7 +375,7 @@
 		border-radius: var(--pksx-radius-small);
 		background: var(--paper-hi);
 		color: var(--ink);
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 		min-height: var(--pksx-small-control-height);
 		cursor: pointer;
 	}
@@ -383,6 +383,6 @@
 	.empty {
 		margin: 0;
 		color: var(--ink-soft);
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 	}
 </style>

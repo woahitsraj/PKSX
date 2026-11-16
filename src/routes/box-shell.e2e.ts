@@ -4652,7 +4652,7 @@ test('Pokemon Editor keeps staged state through review, Legality, guarded Back, 
 	});
 	expect(dimensions.editorScrollWidth).toBeLessThanOrEqual(dimensions.editorClientWidth);
 	expect(dimensions.controlHeight).toBe(32);
-	expect(dimensions.columnHeaderSize).toBe(10);
+	expect(dimensions.columnHeaderSize).toBe(12);
 	expect(dimensions.labelSize).toBe(12);
 
 	await choosePokemonEditorSection(page, 'nickname');
@@ -5597,7 +5597,7 @@ test('Box Pane owns the viewport budget at floors, target, and large thresholds'
 		expect(metrics.pane.width).toBeLessThanOrEqual(800);
 		expect(metrics.rail.width).toBeLessThanOrEqual(260);
 	}
-	await expect(page.locator('#box-0-slot-0 .slot-label')).toHaveCSS('display', 'flex');
+	await expect(page.locator('.location-grid').first()).toHaveAttribute('data-slot-density', 'full');
 });
 
 test('Box slot density follows pane allocation without a viewport resize', async ({ page }) => {
@@ -5996,7 +5996,7 @@ test('active slot detail rail follows controller focus', async ({ page }) => {
 	await page.locator('#box-grid').focus();
 	await expect(rail).toContainText('ARON');
 	await expect(rail).toContainText('Species #0304');
-	await expect(rail).toContainText('LEVEL');
+	await expect(rail).toContainText('Level');
 	await expect(rail).toContainText('11');
 	await expect(rail).toContainText('BOX1 · Slot 1 · Row A / Col 1');
 	await expect(rail).toContainText('Sassy');

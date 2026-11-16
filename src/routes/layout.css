@@ -121,17 +121,19 @@
 	--pksx-color-surface-panel: #fbf6ec;
 	--pksx-color-surface-subtle: #ebe2d2;
 	--pksx-color-text-primary: #2a241c;
-	--pksx-color-text-secondary: #6b5d4a;
-	--pksx-color-text-muted: #9b8d76;
+	--pksx-color-text-secondary: #5a4d3b;
+	--pksx-color-text-muted: #72634c;
 	--pksx-color-border-subtle: rgba(42, 36, 28, 0.08);
 	--pksx-color-border-strong: rgba(42, 36, 28, 0.14);
-	--pksx-color-accent-primary: #b85838;
-	--pksx-color-accent-wash: rgba(184, 88, 56, 0.1);
-	--pksx-color-accent-ring: rgba(184, 88, 56, 0.35);
+	--pksx-color-accent-primary: #a14a2c;
+	--pksx-color-accent-wash: rgba(161, 74, 44, 0.1);
+	--pksx-color-accent-ring: rgba(161, 74, 44, 0.55);
+	--pksx-color-on-accent: #ffffff;
+	--pksx-color-backdrop: rgba(42, 36, 28, 0.45);
 	--pksx-color-accent-gold: #c89a3e;
-	--pksx-color-feedback-success: #7aa86a;
-	--pksx-color-feedback-warning: #a66b00;
-	--pksx-color-feedback-danger: #c93d3d;
+	--pksx-color-feedback-success: #4a7340;
+	--pksx-color-feedback-warning: #8a5600;
+	--pksx-color-feedback-danger: #b03232;
 
 	--pksx-radius-xs: 4px;
 	--pksx-radius-sm: 8px;
@@ -222,12 +224,14 @@
 	--pksx-color-surface-subtle: #08090b;
 	--pksx-color-text-primary: #f4f5f7;
 	--pksx-color-text-secondary: #b8bcc4;
-	--pksx-color-text-muted: #7a8090;
+	--pksx-color-text-muted: #959baa;
 	--pksx-color-border-subtle: rgba(255, 255, 255, 0.08);
 	--pksx-color-border-strong: rgba(255, 255, 255, 0.18);
 	--pksx-color-accent-primary: #ff8a5c;
 	--pksx-color-accent-wash: rgba(255, 138, 92, 0.14);
-	--pksx-color-accent-ring: rgba(255, 138, 92, 0.55);
+	--pksx-color-accent-ring: rgba(255, 138, 92, 0.7);
+	--pksx-color-on-accent: #1a120d;
+	--pksx-color-backdrop: rgba(0, 0, 0, 0.6);
 	--pksx-color-accent-gold: #f0c060;
 	--pksx-color-feedback-success: #7ed99a;
 	--pksx-color-feedback-warning: #e0a43a;
@@ -273,7 +277,17 @@ html[data-input-modality='controller']
 	body
 	:is(a, summary, [type='checkbox'], [type='radio']):focus {
 	outline: 3px solid var(--pksx-color-accent-ring) !important;
-	outline-offset: 3px !important;
+	outline-offset: -3px !important;
+}
+
+/* Inline text links ring outside the text; an inset ring would cross the glyphs. */
+html[data-input-modality='controller'] body a:focus {
+	outline-offset: 2px !important;
+}
+
+/* Active-descendant grids paint focus on the active item, not around themselves. */
+html[data-input-modality='controller'] body [role='grid'][aria-activedescendant]:focus {
+	outline-color: transparent !important;
 }
 
 .app-shell,
@@ -312,7 +326,7 @@ html[data-input-modality='controller']
 	overflow: hidden;
 	background:
 		radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.5), transparent 40%),
-		radial-gradient(circle at 80% 90%, rgba(184, 88, 56, 0.05), transparent 50%),
+		radial-gradient(circle at 80% 90%, rgba(161, 74, 44, 0.05), transparent 50%),
 		repeating-linear-gradient(45deg, transparent 0 6px, rgba(70, 50, 30, 0.012) 6px 7px),
 		var(--paper);
 	color: var(--ink);

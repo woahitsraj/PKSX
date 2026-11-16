@@ -883,7 +883,6 @@
 									{#if trainerVisible || moneyVisible}
 										<section class="details-section" aria-labelledby="ledger-trainer-title">
 											<header class="details-heading">
-												<p class="section-number">01</p>
 												<h2 id="ledger-trainer-title">Trainer</h2>
 											</header>
 											<dl class="trainer-facts">
@@ -1028,7 +1027,6 @@
 											aria-labelledby="ledger-money-title"
 										>
 											<header class="details-heading">
-												<p class="section-number">02</p>
 												<div>
 													<h2 id="ledger-money-title">Money</h2>
 													<p>Maximum {view.projection.money.max.toLocaleString()}</p>
@@ -1132,7 +1130,6 @@
 							{:else if bagVisible}
 								<section class="bag-block" aria-labelledby="ledger-bag-title">
 									<header class="bag-heading">
-										<p class="section-number">01</p>
 										<h2 id="ledger-bag-title">Bag</h2>
 									</header>
 
@@ -1666,16 +1663,12 @@
 		font-size: var(--pksx-type-body);
 	}
 
-	.section-number,
 	.field-row > span,
 	.add-command label > span,
 	.trainer-facts dt {
-		font-family: var(--pksx-font-mono, monospace);
-		font-size: var(--pksx-type-caption);
-		font-weight: 700;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--pksx-color-text-muted, #9b8d76);
+		font-size: var(--pksx-type-label);
+		font-weight: 650;
+		color: var(--pksx-color-text-secondary);
 	}
 
 	.workspace-file {
@@ -1754,7 +1747,7 @@
 	}
 
 	.details-heading > div p {
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 		color: var(--pksx-color-text-secondary, #6b5d4a);
 	}
 
@@ -1823,7 +1816,7 @@
 
 	.field-error {
 		grid-column: 1 / -1;
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 		color: var(--pksx-color-feedback-danger, #c93d3d);
 	}
 
@@ -1857,7 +1850,7 @@
 	.pocket-heading span,
 	.item-copy span,
 	.catalogue-status {
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 		color: var(--pksx-color-text-secondary, #6b5d4a);
 	}
 

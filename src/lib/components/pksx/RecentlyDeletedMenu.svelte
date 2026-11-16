@@ -78,6 +78,7 @@
 	}
 	.deleted-menu button.controller-focused,
 	.deleted-menu button:focus-visible {
-		outline: 2px solid var(--rust);
+		background: var(--rust-wash);
+		outline: none;
 	}
 </style>

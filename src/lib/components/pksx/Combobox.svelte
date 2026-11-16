@@ -520,12 +520,9 @@
 
 	.pksx-combobox-trigger em,
 	.pksx-combobox-trigger i {
-		color: var(--ink-mute);
-		font:
-			700 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
+		color: var(--ink-soft);
+		font: 650 var(--pksx-type-label) var(--pksx-font-sans);
 		font-style: normal;
-		text-transform: uppercase;
 	}
 
 	.pksx-combobox-trigger i {
@@ -587,9 +584,9 @@
 		align-items: center;
 		gap: 8px;
 		padding: 9px 10px;
-		border: 1px solid transparent;
+		border: 0;
 		border-radius: var(--pksx-radius-sm);
-		background: var(--paper-deep);
+		background: transparent;
 		color: var(--ink);
 		text-align: left;
 	}
@@ -597,7 +594,7 @@
 	.pksx-combobox-option.tinted {
 		background: color-mix(
 			in srgb,
-			var(--paper-deep),
+			var(--paper-hi),
 			oklch(0.72 var(--option-chroma, 0.08) var(--option-hue, 100)) 24%
 		);
 	}
@@ -610,17 +607,18 @@
 	.pksx-combobox-option em,
 	.pksx-combobox-list p {
 		margin: 0;
-		color: var(--ink-mute);
-		font:
-			650 var(--pksx-type-caption) var(--pksx-font-mono),
-			monospace;
+		color: var(--ink-soft);
+		font: 650 var(--pksx-type-label) var(--pksx-font-sans);
 		font-style: normal;
-		text-transform: uppercase;
+	}
+
+	.pksx-combobox-option:hover {
+		background: var(--rust-wash);
 	}
 
 	.pksx-combobox-option[aria-selected='true'] {
-		border-color: color-mix(in srgb, var(--rust), transparent 35%);
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rust), transparent 50%);
+		background: var(--rust-wash);
+		color: var(--rust);
 	}
 
 	.pksx-combobox-option:disabled {
@@ -633,9 +631,8 @@
 	.pksx-combobox-option.active,
 	.pksx-combobox-option:focus-visible,
 	.pksx-combobox-popover input:focus-visible {
-		border-color: color-mix(in srgb, var(--rust), transparent 20%);
-		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
-		outline-offset: 1px;
+		outline: 3px solid var(--pksx-color-accent-ring);
+		outline-offset: -3px;
 	}
 
 	.pksx-combobox-trigger:disabled {
@@ -644,18 +641,15 @@
 	}
 
 	.pksx-combobox-trigger.staged-field {
-		box-shadow: inset 3px 0 0 var(--pksx-color-accent-primary);
+		border-color: var(--pksx-color-accent-ring);
 		background-color: var(--pksx-color-accent-wash);
 	}
 
 	.pksx-combobox-trigger.staged-field[aria-invalid='true'] {
-		box-shadow:
-			inset 3px 0 0 var(--pksx-color-accent-primary),
-			inset 0 0 0 1px var(--pksx-color-feedback-danger);
+		border-color: var(--pksx-color-feedback-danger);
 	}
 
 	.pksx-combobox-list p {
 		padding: 10px;
-		text-transform: none;
 	}
 </style>

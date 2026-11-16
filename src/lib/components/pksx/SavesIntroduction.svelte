@@ -105,7 +105,9 @@
 	}
 	summary {
 		width: fit-content;
-		padding: var(--pksx-space-2) 0;
+		margin-inline: -8px;
+		padding: var(--pksx-space-2) 8px;
+		border-radius: var(--pksx-radius-small);
 		color: var(--rust);
 		font-weight: 650;
 		cursor: pointer;

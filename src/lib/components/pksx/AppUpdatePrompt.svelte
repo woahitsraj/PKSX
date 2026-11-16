@@ -133,7 +133,7 @@
 		border-radius: var(--pksx-radius-md);
 		background: var(--pksx-color-accent-primary);
 		box-shadow: var(--pksx-shadow-subtle);
-		color: white;
+		color: var(--pksx-color-on-accent);
 		font: inherit;
 		font-size: var(--pksx-type-label);
 		font-weight: 800;

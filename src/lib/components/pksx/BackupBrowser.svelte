@@ -593,8 +593,8 @@
 
 <style>
 	.preview-caption {
-		color: var(--pksx-color-text-muted);
-		font-size: var(--pksx-type-caption);
+		color: var(--pksx-color-text-secondary);
+		font-size: var(--pksx-type-label);
 		margin-bottom: var(--pksx-space-1);
 	}
 	.backup-preview {
@@ -610,8 +610,8 @@
 		margin: 0;
 	}
 	dt {
-		color: var(--pksx-color-text-muted);
-		font-size: var(--pksx-type-caption);
+		color: var(--pksx-color-text-secondary);
+		font-size: var(--pksx-type-label);
 	}
 	dd {
 		margin: 0;
@@ -679,9 +679,8 @@
 
 	.backup-toolbar span,
 	article span {
-		color: var(--pksx-color-text-muted);
-		font: 700 var(--pksx-type-caption) / 1.2 var(--pksx-font-mono);
-		text-transform: uppercase;
+		color: var(--pksx-color-text-secondary);
+		font: 600 var(--pksx-type-label) / 1.25 var(--pksx-font-sans);
 	}
 
 	h2 {

@@ -65,15 +65,15 @@
 		<span>
 			<em
 				>{source.location === 'virtual'
-					? 'COLLECTION'
+					? 'Collection'
 					: source.location === 'party'
-						? 'PARTY'
-						: `BOX ${String(source.activeBoxNumber).padStart(2, '0')}/${source.boxCount}`}</em
+						? 'Party'
+						: `Box ${source.activeBoxNumber}/${source.boxCount}`}</em
 			>
 			<b
 				>{source.location === 'virtual'
 					? `${source.occupied} Pokemon`
-					: `${source.occupied} / ${source.capacity} occupied`}</b
+					: `${source.occupied}/${source.capacity} occupied`}</b
 			>
 		</span>
 	</div>
@@ -125,7 +125,7 @@
 
 	.box-title h2 button:hover,
 	.box-title h2 button:focus-visible {
-		outline: var(--pksx-focus-ring) solid color-mix(in srgb, var(--rust), transparent 55%);
+		outline: var(--pksx-focus-ring) solid var(--rust-ring);
 		outline-offset: calc(-1 * var(--pksx-focus-ring));
 	}
 
@@ -133,10 +133,9 @@
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: center;
-		gap: var(--pksx-space-1);
-		color: var(--ink-mute);
-		font: 650 var(--pksx-type-caption) / 1.05 var(--pksx-font-mono);
-		letter-spacing: 0.04em;
+		gap: 0 var(--pksx-space-3);
+		color: var(--ink-soft);
+		font: 600 var(--pksx-type-label) / 1.05 var(--pksx-font-sans);
 	}
 
 	.box-title em {

@@ -112,8 +112,7 @@
 	.slot-context-location {
 		margin: 0;
 		color: var(--ink-mute);
-		font-family: var(--pksx-font-mono), monospace;
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 		font-weight: 650;
 		line-height: 1.25;
 	}
@@ -135,7 +134,7 @@
 		padding: var(--pksx-space-1) var(--pksx-space-2);
 		border: 0;
 		border-radius: var(--pksx-radius-small);
-		background: var(--paper-hi);
+		background: transparent;
 		box-shadow: none;
 		color: var(--ink);
 		font: inherit;
@@ -151,7 +150,7 @@
 		height: var(--pksx-small-control-height);
 		display: flex;
 		align-items: center;
-		justify-content: center;
+		justify-content: flex-start;
 		cursor: not-allowed;
 		opacity: 0.68;
 	}
@@ -161,15 +160,19 @@
 		opacity: 1;
 	}
 
-	.slot-command-row button[data-availability='available']:hover,
-	.slot-command-row button[data-availability='available']:focus-visible {
+	.slot-command-row button[data-availability='available']:hover {
 		background: var(--rust-wash);
 		color: var(--rust);
 	}
 
+	.slot-command-row button:focus-visible,
 	.slot-command-row button.controller-focused {
-		outline: 3px solid color-mix(in srgb, var(--rust), transparent 55%);
-		outline-offset: 1px;
+		color: var(--rust);
+		outline: 3px solid var(--rust-ring);
+		outline-offset: -3px;
+	}
+
+	.slot-command-row button.controller-focused {
 		opacity: 1;
 	}
 
@@ -179,15 +182,12 @@
 		line-height: 1.15;
 	}
 
-	.slot-command-row button:not([data-availability='available']) {
-		background: var(--paper-deep);
-	}
-
 	.slot-command-reason {
-		color: var(--ink-soft);
-		font-size: var(--pksx-type-caption);
+		color: var(--ink-mute);
+		font-size: var(--pksx-type-label);
 		font-weight: 600;
-		line-height: 1.2;
-		text-align: center;
+		line-height: 1.25;
+		text-align: left;
+		padding: 0 var(--pksx-space-2) var(--pksx-space-1);
 	}
 </style>

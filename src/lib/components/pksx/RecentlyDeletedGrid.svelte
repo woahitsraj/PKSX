@@ -90,7 +90,7 @@
 	.toolbar span,
 	.grid-viewport p {
 		color: var(--ink-soft);
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 	}
 	.grid-viewport {
 		min-height: 0;
@@ -123,7 +123,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 	}
 	.toolbar button {
 		min-height: var(--pksx-small-control-height);
@@ -132,7 +132,7 @@
 		background: var(--paper-hi);
 		color: var(--ink);
 		font: inherit;
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 		cursor: pointer;
 	}
 </style>

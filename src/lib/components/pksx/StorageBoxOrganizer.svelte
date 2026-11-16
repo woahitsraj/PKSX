@@ -283,7 +283,7 @@
 	}
 	.row span {
 		color: var(--ink-soft);
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 	}
 	button,
 	input {

@@ -231,7 +231,7 @@
 		border-radius: var(--pksx-radius-small);
 		background: var(--pksx-color-surface-subtle);
 		color: var(--pksx-color-text-secondary);
-		font: 700 var(--pksx-type-caption) / 1 var(--pksx-font-mono);
+		font: 700 var(--pksx-type-label) / 1 var(--pksx-font-mono);
 		cursor: pointer;
 	}
 
@@ -307,7 +307,7 @@
 	.state,
 	footer {
 		color: var(--pksx-color-text-secondary);
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
 		line-height: 1.25;
 	}
 
