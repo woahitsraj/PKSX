@@ -16,7 +16,7 @@ export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve
 const probe = readFileSync(new URL('./probe.js', import.meta.url), 'utf8');
 
 // Minimal Chrome DevTools Protocol client for the forwarded profile WebView page.
-export async function connect(port = 9222) {
+export async function connect(port = Number(process.env.CDP_PORT ?? 9222)) {
 	const targets = (await (await fetch(`http://localhost:${port}/json`)).json()) as {
 		type: string;
 		webSocketDebuggerUrl: string;

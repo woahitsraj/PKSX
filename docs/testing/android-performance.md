@@ -42,6 +42,7 @@ File.
 ## Run
 
 Keep the device awake and on charge. Close other apps. `ANDROID_SERIAL` selects the device.
+`CDP_PORT` (default 9222) sets the forwarded DevTools port, and `CPU_THROTTLE` slows `heldBox`.
 
 ```sh
 # Each scenario repeats RUNS times. SAVES are substrings of the Save File names.
@@ -61,6 +62,7 @@ p50 and p90. Each sample also lists its engine requests, long tasks and the larg
 | `boxSwitch`    | One `PageDown`, and five `PageDown` presses 90 ms apart                  |
 | `focus`        | One D-pad move until Controller Focus moves                              |
 | `held`         | Hold Right for five moves; expected cadence is 0/280/390/500/610 ms      |
+| `heldBox`      | Hold `]` for 20 key repeats 33 ms apart; Boxes shown and settle time     |
 | `destinations` | Main Menu to Bag, Trainer, Boxes, Settings and Saves                     |
 | `menus`        | Main Menu, Slot Menu and Pokemon Editor opening                          |
 | `twoPane`      | Open a second Box Pane, then switch Boxes and move focus in each pane    |
