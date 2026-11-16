@@ -488,7 +488,6 @@ public static partial class PkhexEngineExports
                     EngineJsonContext.Default.EngineResultObject);
             }
 
-
             var operation = System.Text.Json.JsonSerializer.Deserialize(
                 operationJson,
                 EngineJsonContext.Default.PokemonEditOperationRequest);
@@ -1246,8 +1245,8 @@ public static partial class PkhexEngineExports
 
         // PKHeX has no Unbound rules, so Unbound edits skip legality and keep their species.
         var unbound = pokemon is PK3Unbound;
-        if (unbound && operation.SpeciesId is not null)
-            return SlotMutationResult.Fail("unsupported-pokemon-edit", "Species editing is not supported for Pokémon Unbound.");
+        if (unbound && (operation.SpeciesId is not null || operation.OriginalTrainer is not null))
+            return SlotMutationResult.Fail("unsupported-pokemon-edit", "Species and Original Trainer editing are not supported for Pokémon Unbound.");
         validateLegality &= !unbound;
 
         var originalSpecies = pokemon.Species;
@@ -1296,7 +1295,11 @@ public static partial class PkhexEngineExports
 
         if (operation.Nickname is string nickname)
         {
-            if (nickname.Length == 0)
+            if (nickname.Length == 0 && pokemon is PK3Unbound unboundPokemon)
+            {
+                unboundPokemon.ClearNickname();
+            }
+            else if (nickname.Length == 0)
             {
                 CommonEdits.SetDefaultNickname(pokemon);
             }

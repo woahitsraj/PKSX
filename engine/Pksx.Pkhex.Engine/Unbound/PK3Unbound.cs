@@ -105,7 +105,16 @@ public sealed class PK3Unbound : PKM
 
     public override ushort Species { get => Entry.National; set { } }
     public override byte Form { get => Entry.Form; set { } }
-    public override int HeldItem { get => UnboundTables.Items.ToPkhex(UnboundHeldItem); set => UnboundHeldItem = (ushort)UnboundTables.Items.FromPkhex(value); }
+    // Setters write only on change, so ids PKHeX lacks or shares (Park Ball, a second Choice Band) survive edits.
+    public override int HeldItem
+    {
+        get => UnboundTables.Items.ToPkhex(UnboundHeldItem);
+        set
+        {
+            if (value != HeldItem)
+                UnboundHeldItem = (ushort)UnboundTables.Items.FromPkhex(value);
+        }
+    }
     public ushort UnboundHeldItem { get => ReadUInt16LittleEndian(Data[0x22..]); set => WriteUInt16LittleEndian(Data[0x22..], value); }
     public override uint EXP { get => ReadUInt32LittleEndian(Data[0x24..]); set => WriteUInt32LittleEndian(Data[0x24..], value); }
     private byte PPUps { get => Data[0x28]; set => Data[0x28] = value; }
@@ -116,12 +125,23 @@ public sealed class PK3Unbound : PKM
     public override byte CurrentFriendship { get => Data[0x29]; set => Data[0x29] = value; }
     public override byte OriginalTrainerFriendship { get => Data[0x29]; set => Data[0x29] = value; }
     public byte UnboundBall { get => Data[0x2A]; set => Data[0x2A] = value; }
-    public override byte Ball { get => UnboundBalls.ToPkhex(UnboundBall); set => UnboundBall = UnboundBalls.FromPkhex(value); }
+    public override byte Ball
+    {
+        get => UnboundBalls.ToPkhex(UnboundBall);
+        set
+        {
+            if (value != Ball)
+                UnboundBall = UnboundBalls.FromPkhex(value);
+        }
+    }
 
     public ushort GetUnboundMove(int index) => ReadUInt16LittleEndian(Data[(0x2C + (index * 2))..]);
     private ushort PkhexMove(int index) => (ushort)UnboundTables.Moves.ToPkhex(GetUnboundMove(index));
-    private void SetPkhexMove(int index, ushort move) =>
-        WriteUInt16LittleEndian(Data[(0x2C + (index * 2))..], (ushort)UnboundTables.Moves.FromPkhex(move));
+    private void SetPkhexMove(int index, ushort move)
+    {
+        if (move != PkhexMove(index))
+            WriteUInt16LittleEndian(Data[(0x2C + (index * 2))..], (ushort)UnboundTables.Moves.FromPkhex(move));
+    }
     public override ushort Move1 { get => PkhexMove(0); set => SetPkhexMove(0, value); }
     public override ushort Move2 { get => PkhexMove(1); set => SetPkhexMove(1, value); }
     public override ushort Move3 { get => PkhexMove(2); set => SetPkhexMove(2, value); }
@@ -252,7 +272,9 @@ public sealed class PK3Unbound : PKM
     public override string GetString(ReadOnlySpan<byte> data) => StringConverter3.GetString(data, (int)LanguageID.English);
     public override int LoadString(ReadOnlySpan<byte> data, Span<char> destBuffer) => StringConverter3.LoadString(data, destBuffer, (int)LanguageID.English);
     public override int SetString(Span<byte> destBuffer, ReadOnlySpan<char> value, int maxLength, StringConverterOption option) =>
-        StringConverter3.SetString(destBuffer, value, maxLength, (int)LanguageID.English, option);
+        StringConverter3.SetString(destBuffer, value, Math.Min(maxLength, destBuffer.Length), (int)LanguageID.English, option);
+
+    public void ClearNickname() => Nickname = SpeciesName.GetSpeciesNameGeneration(Species, (int)LanguageID.English, 9);
     public override int GetStringTerminatorIndex(ReadOnlySpan<byte> data) => TrashBytes8.GetTerminatorIndex(data);
     public override int GetStringLength(ReadOnlySpan<byte> data) => TrashBytes8.GetStringLength(data);
     public override int GetBytesPerChar() => 1;

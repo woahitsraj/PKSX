@@ -1248,6 +1248,14 @@ internal static class SlotDetailProjection
                 "Original Trainer Data Editing needs an occupied Slot.");
         }
 
+        // A new Trainer ID would change an Unbound Pokémon's shininess, which comes from its PID.
+        if (pokemon is PK3Unbound)
+        {
+            return new PokemonOriginalTrainerEditConstraints(
+                false, pokemon.OriginalTrainerName, 0, 0, 0, 0, 0, 0, ushort.MaxValue, ushort.MaxValue, false, false, false, [], [],
+                "Original Trainer Data Editing is not supported for Pokémon Unbound.");
+        }
+
         var supportsExtendedFields = pokemon.Format >= 3;
         var languages = supportsExtendedFields
             ? GameInfo.LanguageDataSource(pokemon.Format, pokemon.Context)
