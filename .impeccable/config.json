@@ -1,0 +1,28 @@
+{
+	"detector": {
+		"ignoreRules": [],
+		"ignoreFiles": [],
+		"ignoreValues": [
+			{
+				"rule": "overused-font",
+				"value": "inter",
+				"createdAt": "2026-11-16T08:29:17.023Z",
+				"reason": "DESIGN.md: Inter when the device has it, PKSX ships no web font"
+			},
+			{
+				"rule": "cramped-padding",
+				"value": "*",
+				"files": ["android/app/src/main/assets/public/**", "ios/App/App/public/**"],
+				"createdAt": "2026-11-16T08:29:17.035Z",
+				"reason": "Agent: generated Capacitor web copy; container-query spacing reads as minimum in static HTML, live render of the same routes reports 0 findings"
+			},
+			{
+				"rule": "cream-palette",
+				"value": "*",
+				"files": ["android/app/src/main/assets/public/**", "ios/App/App/public/**"],
+				"createdAt": "2026-11-16T08:29:21.697Z",
+				"reason": "DESIGN.md: Parchment #f4ecdf is the documented light canvas; these folders are generated Capacitor copies"
+			}
+		]
+	}
+}

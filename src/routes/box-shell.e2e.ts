@@ -6579,6 +6579,10 @@ test('controller reaches and applies a Pokemon Editor change', async ({ page }) 
 	await pressController(page, 'ArrowRight');
 	await expect(page.locator('#pokemon-editor-legality')).toBeFocused();
 	await pressController(page, 'ArrowRight');
+	await expect(page.locator('#pokemon-editor-cancel')).toBeFocused();
+	await pressController(page, 'ArrowRight');
+	await expect(page.locator('#pokemon-editor-close-footer')).toBeFocused();
+	await pressController(page, 'ArrowRight');
 	await expect(page.locator('#pokemon-editor-apply')).toBeFocused();
 	await pressController(page, 'Enter');
 	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });

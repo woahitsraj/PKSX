@@ -2530,7 +2530,7 @@
 					id="pokemon-editor-staged-count"
 					type="button"
 					data-pksx-control-category="small"
-					class="staged-count"
+					class="quiet-action"
 					onclick={onShowReview}>{draftEditCount} staged</button
 				>
 			{/if}
@@ -2538,27 +2538,9 @@
 				id="pokemon-editor-legality"
 				type="button"
 				data-pksx-control-category="small"
-				class="secondary-action"
+				class="quiet-action"
 				onclick={onOpenLegality}>Legality</button
 			>
-			<button
-				id="pokemon-editor-apply"
-				type="button"
-				data-pksx-control-category="small"
-				class="unsupported-apply"
-				disabled={(mode === 'edit' && !draftDirty && !pendingScratch) ||
-					applying ||
-					draftValidation !== null}
-				aria-describedby={statusText ? 'pokemon-editor-status' : undefined}
-				title={draftValidationText ?? undefined}
-				onclick={handleApply}
-			>
-				{mode === 'create' ? 'Create Pokemon' : 'Apply edits'}
-			</button>
-			<DelayedSpinner
-				active={applying}
-				label={mode === 'create' ? 'Creating Pokemon' : 'Applying Pokemon edits'}
-			/>
 			<button
 				id="pokemon-editor-cancel"
 				type="button"
@@ -2569,15 +2551,35 @@
 			>
 				Cancel edits
 			</button>
-			<button
-				id="pokemon-editor-close-footer"
-				type="button"
-				data-pksx-control-category="small"
-				class="close-editor"
-				onclick={onClose}
-			>
-				Close
-			</button>
+			<div class="commit-actions">
+				<button
+					id="pokemon-editor-close-footer"
+					type="button"
+					data-pksx-control-category="small"
+					class="quiet-action close-editor"
+					onclick={onClose}
+				>
+					Close
+				</button>
+				<DelayedSpinner
+					active={applying}
+					label={mode === 'create' ? 'Creating Pokemon' : 'Applying Pokemon edits'}
+				/>
+				<button
+					id="pokemon-editor-apply"
+					type="button"
+					data-pksx-control-category="small"
+					class="primary-action"
+					disabled={(mode === 'edit' && !draftDirty && !pendingScratch) ||
+						applying ||
+						draftValidation !== null}
+					aria-describedby={statusText ? 'pokemon-editor-status' : undefined}
+					title={draftValidationText ?? undefined}
+					onclick={handleApply}
+				>
+					{mode === 'create' ? 'Create Pokemon' : 'Apply edits'}
+				</button>
+			</div>
 		</footer>
 	{/if}
 </div>
@@ -3087,45 +3089,43 @@
 		margin-right: auto;
 	}
 
-	.unsupported-apply,
-	.close-editor {
-		min-height: var(--pksx-control-height);
-		padding: 7px 12px;
-		border-radius: var(--pksx-radius-sm);
-		font-size: var(--pksx-type-label);
-		font-weight: 800;
-	}
-
-	.unsupported-apply,
 	.quiet-action {
-		border: var(--pksx-border-width) solid var(--rule-hi);
-		background: var(--paper-hi);
-		color: var(--ink);
+		border: var(--pksx-border-width) solid var(--pksx-color-border-strong);
+		background: transparent;
+		color: var(--pksx-color-text-primary);
 	}
 
-	.unsupported-apply:enabled {
-		color: var(--rust);
+	.quiet-action:enabled:hover {
+		background: var(--pksx-color-accent-wash);
 	}
 
-	.unsupported-apply:enabled:hover,
-	.quiet-action:enabled:hover,
-	.secondary-action:hover {
-		background: var(--rust-wash);
+	.commit-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--pksx-space-1);
+		margin-left: var(--pksx-space-2);
 	}
 
-	.quiet-action:disabled {
-		cursor: not-allowed;
-		opacity: 0.56;
-	}
-
-	.unsupported-apply:disabled {
-		cursor: not-allowed;
-		opacity: 0.56;
-	}
-
-	.close-editor {
-		background: var(--rust);
+	.primary-action {
+		--pksx-color-accent-ring: var(--pksx-color-on-accent);
+		border: var(--pksx-border-width) solid transparent;
+		background: var(--pksx-color-accent-primary);
 		color: var(--pksx-color-on-accent);
+	}
+
+	.primary-action:enabled:hover {
+		background: color-mix(in oklch, var(--pksx-color-accent-primary) 86%, black);
+	}
+
+	.quiet-action:disabled,
+	.primary-action:disabled {
+		cursor: not-allowed;
+		border-color: transparent;
+		color: var(--pksx-color-text-muted);
+	}
+
+	.primary-action:disabled {
+		background: var(--pksx-color-surface-subtle);
 	}
 
 	.editor-header {
@@ -3352,18 +3352,6 @@
 		white-space: nowrap;
 	}
 
-	.staged-count,
-	.secondary-action {
-		border: var(--pksx-border-width) solid var(--pksx-color-border-strong);
-		background: var(--pksx-color-surface-panel);
-		color: var(--pksx-color-text-primary);
-	}
-
-	.staged-count {
-		border-color: var(--pksx-color-accent-ring);
-		color: var(--pksx-color-accent-primary);
-	}
-
 	.delta-review h3,
 	.editor-internal-state h3,
 	.editor-internal-state span {
@@ -3472,6 +3460,19 @@
 
 		.editor-actions p {
 			flex-basis: 100%;
+		}
+
+		.commit-actions {
+			flex-basis: 100%;
+			margin-left: 0;
+		}
+
+		.commit-actions .close-editor {
+			flex: 1 1 0;
+		}
+
+		.commit-actions .primary-action {
+			flex: 2 1 0;
 		}
 
 		.met-data-edit-controls,

@@ -7,6 +7,7 @@
 		describedby?: string;
 		busy?: boolean;
 		variant?: 'takeover' | 'command';
+		fullHeight?: boolean;
 		commandRows?: number;
 		onBack: () => void;
 		children: Snippet;
@@ -17,6 +18,7 @@
 		describedby,
 		busy = false,
 		variant = 'takeover',
+		fullHeight = false,
 		commandRows = 1,
 		onBack,
 		children
@@ -44,6 +46,7 @@
 		<div
 			class="takeover-frame pksx-density-container"
 			class:command={variant === 'command'}
+			class:full-height={fullHeight}
 			style:--pksx-command-rows={Math.max(1, commandRows)}
 			role="dialog"
 			aria-modal="true"
@@ -132,6 +135,12 @@
 
 		.takeover-content {
 			border-radius: var(--pksx-radius-large);
+		}
+	}
+
+	@container pksx-takeover style(--pksx-height-band: tall) and (aspect-ratio <= 1 / 1) {
+		.takeover-frame.full-height {
+			height: 100%;
 		}
 	}
 </style>

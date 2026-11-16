@@ -199,6 +199,11 @@
 	font-size: max(16px, var(--pksx-type-editable)) !important;
 }
 
+:where(input, textarea)::placeholder {
+	color: var(--pksx-color-text-secondary);
+	opacity: 1;
+}
+
 @container pksx-density (min-width: 900px) and (min-height: 700px) {
 	.pksx-density {
 		--pksx-type-caption: 11px;

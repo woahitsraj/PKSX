@@ -8613,6 +8613,7 @@
 {#if activeSummonedWorkflow?.kind === 'pokemon-editor' && pokemonEditor}
 	<TakeoverFrame
 		labelledby="pokemon-editor-title"
+		fullHeight
 		describedby="pokemon-editor-status"
 		{busy}
 		onBack={requestClosePokemonEditor}

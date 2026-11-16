@@ -246,7 +246,7 @@ Bounded sizes on large canvases:
 - One Box Pane: 800px maximum. Active Slot Detail Rail: 260px maximum.
 - Two-pane composition (opened only by the user): 640px per pane around the same rail.
 - Saves: 1200px and four columns maximum, top-aligned.
-- Tall Takeover: 760×560 maximum. Short Takeover fills the Safe Canvas.
+- Tall Takeover: 760×560 maximum; the Pokemon Editor uses full height in a portrait container. Short Takeover fills the Safe Canvas.
 
 Box Slots never shrink below 44px; the pane scrolls first. Slot labels drop as the Slot gets smaller: name and level above 66px, index above 46px, then the sprite fills 78 to 92% of the Slot.
 
@@ -316,7 +316,9 @@ Pressable and plain.
 
 - **Style:** filled Rust with white label text, small control height, small radius.
 - **Hover / Focus:** fill moves to Rust Ring.
-- **Use:** one per surface, such as Close in a Slot Menu or the Pokemon Editor. Other actions on the same surface are quiet buttons: no fill, 1px Rule border, Ink text.
+- **Use:** one per surface, on the action that commits the task: Apply edits (or Create Pokemon) in the Pokemon Editor, Close in a Slot Menu. Dismissal is never primary when a commit action exists. Other actions on the same surface are quiet buttons: no fill, 1px Rule border, Ink text.
+- **Placement:** the primary action sits at the trailing end, after its dismissal partner. In a portrait container they take their own full-width row, with the primary twice as wide.
+- **Disabled:** quiet buttons drop their border; the primary keeps a Sunken fill. Both use Ink Mute text, so Rust appears only when the action can run.
 
 ### Cards (Save File, Pokemon Storage)
 
@@ -336,7 +338,7 @@ Pressable and plain.
 
 - **Style:** Cream Paper with the Panel shadow and a 1px inset Rule Strong edge.
 - **Short band:** fills the Safe Canvas with no radius.
-- **Tall band:** up to 760×560, centered, large radius.
+- **Tall band:** up to 760×560, centered, large radius. The Pokemon Editor fills the Safe Canvas height in a portrait container (phones and upright tablets) and keeps 760×560 in landscape.
 - **Command variant:** 680px wide, top-aligned, sized by row count.
 
 ### Toasts
