@@ -1385,6 +1385,7 @@ test('focus and rapid Box switching stay within engine work budgets', async ({
 			return methods;
 		}, reset);
 	await page.locator('#box-grid').focus();
+	await expect.poll(() => requests()).toContain('listBoxSlots');
 	await requests(true);
 	for (let move = 0; move < 20; move += 1) {
 		await pressController(page, move % 2 === 0 ? 'ArrowRight' : 'ArrowLeft');
