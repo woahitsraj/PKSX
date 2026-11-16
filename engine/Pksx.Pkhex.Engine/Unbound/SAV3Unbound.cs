@@ -163,6 +163,17 @@ public sealed class SAV3Unbound : SaveFile, IBoxDetailName
     public override uint Money { get => ReadUInt32LittleEndian(Section(1)[0x290..]) ^ SecurityKey; set => WriteUInt32LittleEndian(Section(1)[0x290..], value ^ SecurityKey); }
     public override int CurrentBox { get => Section(5)[0]; set => Section(5)[0] = (byte)value; }
 
+    public override PlayerBag Inventory => new UnboundBag(this);
+
+    internal Span<byte> GetPocket(InventoryType type) => type switch
+    {
+        InventoryType.Items => Section(13).Slice(0xAD8, 100 * 4),
+        InventoryType.Balls => Data.Slice(0x1E31C, 50 * 4),
+        InventoryType.TMHMs => Data.Slice(0x1E3E4, 128 * 4),
+        // 75 Berry slots end at 0x1E710; the bytes after hold other state.
+        _ => Data.Slice(0x1E5E4, 75 * 4),
+    };
+
     // CFRU keeps names for boxes 1-14 forward from 0x3C4 and boxes 15-25 backward below it.
     private Span<byte> BoxNameSpan(int box) =>
         Section(13).Slice(0x3C4 + ((box < 14 ? box : 13 - box) * BoxNameLength), BoxNameLength);

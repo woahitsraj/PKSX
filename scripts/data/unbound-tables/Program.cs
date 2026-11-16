@@ -71,7 +71,15 @@ foreach (var (id, name) in speciesNames.OrderBy(p => p.Key))
 Directory.CreateDirectory(output);
 File.WriteAllText(Path.Combine(output, "species.tsv"), species.ToString());
 File.WriteAllText(Path.Combine(output, "moves.tsv"), moves.Table("pp", movePp));
-File.WriteAllText(Path.Combine(output, "items.tsv"), items.Table(null, null));
+// Pocket: 0 items, 1 balls, 2 TMs and HMs, 3 berries, 4 key items.
+var pockets = JsonDocument.Parse(File.ReadAllText(Path.Combine(source, "item_pocket_map.json"))).RootElement.GetProperty("pockets");
+var pocketOf = new Dictionary<int, int>();
+foreach (var (name, code) in new[] { ("ball", 1), ("tm", 2), ("hm", 2), ("berry", 3), ("key", 4) })
+{
+    foreach (var id in pockets.GetProperty(name).GetProperty("ids").EnumerateArray())
+        pocketOf[id.GetInt32()] = code;
+}
+File.WriteAllText(Path.Combine(output, "items.tsv"), items.Table("pocket", pocketOf));
 
 foreach (var failure in failures)
     Console.Error.WriteLine(failure);
