@@ -8,6 +8,7 @@
 			| 'save-file-legality-report'
 			| 'trainer'
 			| 'bag'
+			| 'pokedex'
 			| 'saves'
 			| 'settings'
 			| 'backup-browser';

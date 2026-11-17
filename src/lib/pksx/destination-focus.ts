@@ -4,7 +4,7 @@ export type DestinationFocus = {
 	fallbackIdentities: readonly string[];
 };
 
-export type Destination = 'boxes' | 'trainer' | 'bag' | 'saves' | 'settings';
+export type Destination = 'boxes' | 'trainer' | 'bag' | 'pokedex' | 'saves' | 'settings';
 
 export function isFocusableTarget(target: HTMLElement | null): target is HTMLElement {
 	return Boolean(
