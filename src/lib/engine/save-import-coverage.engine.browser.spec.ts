@@ -343,6 +343,10 @@ describe('PKHeX Engine Save File coverage', () => {
 		const before = await engine.loadSlotEditData(original, fileName, source);
 		const met = before.ok ? before.value.metDataEditConstraints : undefined;
 		if (!met) throw new Error('Unbound slot has no met data.');
+		const leechLife = before.ok
+			? before.value.moveSetEditConstraints?.availableMoves.find((move) => move.id === 141)
+			: undefined;
+		expect(leechLife?.maxPp, 'move options use Unbound PP').toBe(15);
 		const edited = await engine.applyPokemonEditOperation(
 			original,
 			fileName,

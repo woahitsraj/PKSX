@@ -2154,6 +2154,10 @@ public static partial class PkhexEngineExports
             if (edit.Slot < 0 || edit.Slot >= moves.Length)
                 return SlotMutationResult.Fail("invalid-pokemon-edit", "Move Set slot must be between 1 and 4.");
 
+            // The editor shows an unmapped Unbound move as empty; keep it and its PP.
+            if (edit.Move == 0 && moves[edit.Slot] == 0 && unbound?.GetUnboundMove(edit.Slot) is > 0)
+                continue;
+
             if (edit.Move > pokemon.MaxMoveID || (edit.Move != 0 && unbound is null && MoveInfo.IsDummiedMove(pokemon, edit.Move)))
                 return SlotMutationResult.Fail("invalid-pokemon-edit", $"Move {edit.Move} is not supported by this Pokemon format.");
 

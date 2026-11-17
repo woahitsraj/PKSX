@@ -51,8 +51,9 @@ public sealed class UnboundBag : PlayerBag
                 var count = ReadUInt16LittleEndian(data[(slot * 4 + 2)..]);
                 if (raw == 0)
                     break;
+                // A second raw id for the same PKHeX item stays hidden so each shown item has one identity.
                 var pkhex = UnboundTables.Items.ToPkhex(raw);
-                var item = pkhex == 0 ? null : GetEmpty(pkhex, count);
+                var item = pkhex == 0 || mapped.Any(shown => shown.Index == pkhex) ? null : GetEmpty(pkhex, count);
                 saved.Add((item, raw, count));
                 if (item is not null)
                     mapped.Add(item);
@@ -75,13 +76,13 @@ public sealed class UnboundBag : PlayerBag
                 }
                 else if (item.Index > 0 && item.Count > 0 && items.Contains(item, ReferenceEqualityComparer.Instance))
                 {
-                    var id = UnboundTables.Items.ToPkhex(raw) == item.Index ? raw : (ushort)UnboundTables.Items.FromPkhex(item.Index);
+                    var id = UnboundTables.Items.ToPkhex(raw) == item.Index ? raw : UnboundItemStorage.RawIn(Type, item.Index);
                     WriteSlot(data, slot++, id, (ushort)item.Count);
                     written.Add(item);
                 }
             }
             foreach (var item in items.Where(item => item.Index > 0 && item.Count > 0 && !written.Contains(item)))
-                WriteSlot(data, slot++, (ushort)UnboundTables.Items.FromPkhex(item.Index), (ushort)item.Count);
+                WriteSlot(data, slot++, UnboundItemStorage.RawIn(Type, item.Index), (ushort)item.Count);
             data[(slot * 4)..(capacity * 4)].Clear();
         }
 
@@ -99,17 +100,29 @@ internal sealed class UnboundItemStorage : IItemStorage
 {
     public static readonly UnboundItemStorage Instance = new();
 
-    private static readonly Dictionary<InventoryType, ushort[]> ItemsByPouch = new()
+    // Several raw ids can share a PKHeX id, so each pocket keeps its own reverse map.
+    private static readonly Dictionary<InventoryType, Dictionary<ushort, ushort>> RawByPouch = new()
     {
-        [InventoryType.Items] = ItemsIn(0),
-        [InventoryType.KeyItems] = ItemsIn(4),
-        [InventoryType.Balls] = ItemsIn(1),
-        [InventoryType.TMHMs] = ItemsIn(2),
-        [InventoryType.Berries] = ItemsIn(3),
+        [InventoryType.Items] = RawIn(0),
+        [InventoryType.KeyItems] = RawIn(4),
+        [InventoryType.Balls] = RawIn(1),
+        [InventoryType.TMHMs] = RawIn(2),
+        [InventoryType.Berries] = RawIn(3),
     };
 
-    private static ushort[] ItemsIn(int pocket) =>
-        [.. UnboundTables.Items.PkhexIds.Where(id => UnboundTables.Items.Extra(UnboundTables.Items.FromPkhex(id)) == pocket).Order()];
+    private static readonly Dictionary<InventoryType, ushort[]> ItemsByPouch =
+        RawByPouch.ToDictionary(pair => pair.Key, pair => pair.Value.Keys.Order().ToArray());
+
+    private static Dictionary<ushort, ushort> RawIn(int pocket)
+    {
+        var map = new Dictionary<ushort, ushort>();
+        foreach (var raw in UnboundTables.Items.MappedIds.Where(raw => UnboundTables.Items.Extra(raw) == pocket).Order())
+            map.TryAdd((ushort)UnboundTables.Items.ToPkhex(raw), (ushort)raw);
+        return map;
+    }
+
+    public static ushort RawIn(InventoryType type, int pkhex) =>
+        RawByPouch.TryGetValue(type, out var map) && map.TryGetValue((ushort)pkhex, out var raw) ? raw : (ushort)UnboundTables.Items.FromPkhex(pkhex);
 
     public bool IsLegal(InventoryType type, int itemIndex, int itemCount) => GetItems(type).Contains((ushort)itemIndex);
 

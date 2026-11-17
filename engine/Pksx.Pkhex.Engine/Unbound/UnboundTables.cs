@@ -77,6 +77,7 @@ internal sealed class IdTable
     }
 
     public IEnumerable<ushort> PkhexIds => fromPkhex.Keys.Select(id => (ushort)id);
+    public IEnumerable<int> MappedIds => toPkhex.Keys;
 
     public bool HasPkhex(int id) => fromPkhex.ContainsKey(id);
 

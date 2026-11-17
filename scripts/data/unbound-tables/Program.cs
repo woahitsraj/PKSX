@@ -27,7 +27,7 @@ var items = Bridge(ReadNames("items.txt"), ReadConstants("items.h", "ITEM_"), st
     ["Pikasunium Z"] = "Pikashunium Z", ["Health Wing"] = "Health Feather", ["Muscle Wing"] = "Muscle Feather",
     ["Resist Wing"] = "Resist Feather", ["Genius Wing"] = "Genius Feather", ["Clever Wing"] = "Clever Feather",
     ["Swift Wing"] = "Swift Feather", ["Pretty Wing"] = "Pretty Feather", ["Rainbow Wing"] = "Rainbow Wing",
-    ["Silver Wing"] = "Silver Wing", ["S.S. Ticket"] = "S.S. Ticket", ["HM08"] = "HM08",
+    ["Silver Wing"] = "Silver Wing", ["S.S. Ticket"] = "S.S. Ticket", ["HM08"] = "HM08", ["Whip Dream"] = "Whipped Dream",
 }));
 var movePp = JsonDocument.Parse(File.ReadAllText(Path.Combine(source, "move_table_from_rom.json"))).RootElement
     .GetProperty("moves").EnumerateArray().ToDictionary(m => m.GetProperty("move_id").GetInt32(), m => m.GetProperty("base_pp").GetInt32());
