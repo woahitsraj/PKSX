@@ -142,6 +142,10 @@ for (const viewport of [
 			await expect(actions).toContainText('1 selected');
 			await page.keyboard.press('PageUp');
 			await expect(pokemon).toHaveAttribute('data-batch-selected', 'true');
+			// Select box acts on the loaded slots, so wait for Box 1 to finish loading again.
+			const pane = page.locator('.box-pane');
+			await expect(pane).toHaveAttribute('data-location', 'box-0');
+			await expect(pane).not.toHaveAttribute('data-box-load-pending');
 			await actions.getByRole('button', { name: 'Select box', exact: true }).tap();
 			const occupied = await page.locator('.box-pane .slot.pokemon').count();
 			await expect(page.locator('[data-batch-selected="true"]')).toHaveCount(occupied);
