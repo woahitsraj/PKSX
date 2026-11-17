@@ -1628,7 +1628,7 @@ internal static class SlotDetailProjection
             TypeName(typeId) ?? "Move",
             TypeHue(typeId),
             TypeChroma(typeId),
-            MoveInfo.GetPP(pokemon.Context, move));
+            pokemon is PK3Unbound unbound ? unbound.GetUnboundMaxPp(move, 0) : MoveInfo.GetPP(pokemon.Context, move));
     }
 
     private static int CurrentAbilityIndex(PKM pokemon)
