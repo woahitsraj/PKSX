@@ -56,6 +56,27 @@ for (const viewport of [
 		});
 		await choose(page, 'Pokedex');
 		const search = page.getByRole('searchbox');
+		await search.focus();
+		await page.evaluate(
+			(key) => {
+				for (const pressed of [true, false])
+					window.dispatchEvent(
+						new CustomEvent('pksxcontroller', {
+							detail: { key, pressed, discrete: true, id: 'Pokedex rail' }
+						})
+					);
+			},
+			viewport.width === 640 ? 'ArrowLeft' : 'ArrowUp'
+		);
+		if (viewport.width === 640) {
+			await expect(page.locator(':focus')).toHaveAttribute(
+				'data-destination-focus',
+				/^(field|apply)-/
+			);
+		} else {
+			await expect(page.getByRole('button', { name: /Game-specific values/ })).toBeFocused();
+		}
+
 		await search.fill('bulba');
 		await expect(page.locator('.species-row')).toHaveCount(1);
 		const seen = page.getByRole('button', { name: 'Bulbasaur Seen', exact: true });
@@ -129,9 +150,22 @@ for (const viewport of [
 				true
 			);
 		}
+		const field = page.locator('[data-destination-focus="field-national"]');
+		await page.setViewportSize({ width: 640, height: 360 });
+		await field.focus();
+		await page.setViewportSize({ width: 360, height: 640 });
+		await expect(field).toBeFocused();
+		await choose(page, 'Trainer');
+		await choose(page, 'Pokedex');
+		await expect(field).toBeFocused();
 		await search.fill('no such species');
 		await expect(page.getByText('No matching species.')).toBeVisible();
 		await expect(search).toBeFocused();
+		await page.getByRole('button', { name: 'Clear search' }).click();
+		await expect(search).toHaveValue('');
+		await expect(search).toBeFocused();
+		await page.keyboard.press('ArrowDown');
+		await expect(seen).toBeFocused();
 		await choose(page, 'Boxes');
 		await page
 			.getByRole('button', { name: /Open Box Menu for/ })

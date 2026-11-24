@@ -1,12 +1,14 @@
 <script module lang="ts">
 	import { SvelteMap } from 'svelte/reactivity';
 	const searches = new SvelteMap<string, string>();
+	let fieldsOpenMemory = false;
 </script>
 
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
+	import { asset, resolve } from '$app/paths';
 	import { onMount } from 'svelte';
+	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
 	import type { PokedexEdit } from '$lib/engine/types';
 	import type { WorkspaceState } from '$lib/pksx/backup-workflow';
 	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
@@ -17,19 +19,27 @@
 		getSaveFileEditCoordinator,
 		loadActiveWorkspaceFromSaves
 	} from '$lib/pksx/saves-cache';
+	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
+	import { getToastHost } from '$lib/pksx/toast/host.svelte';
 
+	const toast = getToastHost();
 	let workspace = $state.raw<WorkspaceState | null>(null);
 	let loading = $state(true);
-	let message = $state('');
-	let pending = $state(false);
+	let loadError = $state('');
+	let pendingKey = $state<string | null>(null);
+	let fieldErrors = $state<Record<string, string>>({});
+	let fieldsOpen = $state(fieldsOpenMemory);
 	let query = $state('');
 	let mounted = false;
 	const pokedex = $derived(workspace?.workspace.saveFile?.pokedex);
+	const all = $derived(pokedex?.species ?? []);
 	const species = $derived(
-		pokedex?.species.filter((s) =>
-			`${s.id} ${s.name}`.toLowerCase().includes(query.trim().toLowerCase())
-		) ?? []
+		all.filter((s) => `${s.id} ${s.name}`.toLowerCase().includes(query.trim().toLowerCase()))
 	);
+	const totals = $derived([
+		{ label: 'Seen', count: all.filter((s) => s.seen).length },
+		{ label: 'Caught', count: all.filter((s) => s.caught).length }
+	]);
 
 	onMount(() => {
 		mounted = true;
@@ -50,15 +60,22 @@
 
 	async function load() {
 		loading = true;
-		message = '';
+		loadError = '';
 		try {
 			const next = await loadActiveWorkspaceFromSaves();
 			if (mounted) acceptWorkspace(next);
 		} catch (error) {
-			if (mounted) message = error instanceof Error ? error.message : String(error);
+			if (mounted) loadError = error instanceof Error ? error.message : String(error);
 		} finally {
 			if (mounted) loading = false;
 		}
+	}
+
+	const searchInput = () =>
+		document.querySelector<HTMLInputElement>('[data-destination-focus="search"]');
+
+	function openFields(open: boolean) {
+		fieldsOpen = fieldsOpenMemory = open;
 	}
 
 	function search(value: string) {
@@ -66,27 +83,47 @@
 		if (workspace) searches.set(workspace.file.id, value);
 	}
 
+	function spriteUrl(speciesId: number) {
+		const entry = resolveSpriteCatalogEntry({
+			speciesId,
+			form: 0,
+			isEgg: false,
+			isShiny: false,
+			displaySex: 'default'
+		});
+		return entry ? asset(entry.path) : null;
+	}
+
 	function navigateSpecies(event: KeyboardEvent) {
 		if (event.altKey || event.ctrlKey || event.metaKey || !event.key.startsWith('Arrow')) return;
 		const active = isControllerKeyboardEvent(event) ? document.activeElement : event.target;
-		if (!(active instanceof HTMLButtonElement)) return;
-		const row = active.closest('.species-row');
-		if (!row) return;
-		const controls = Array.from(row.querySelectorAll<HTMLButtonElement>('button'));
-		const column = controls.indexOf(active);
-		let target: HTMLButtonElement | undefined;
-		if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-			target =
-				controls[
-					Math.max(0, Math.min(controls.length - 1, column + (event.key === 'ArrowLeft' ? -1 : 1)))
-				];
+		let target: HTMLElement | null | undefined;
+		if (active === searchInput()) {
+			if (event.key !== 'ArrowDown') return;
+			target = document.querySelector<HTMLElement>('.species-row button');
+			if (!target) return;
 		} else {
-			const next = event.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
-			target = next?.matches('.species-row')
-				? next.querySelectorAll<HTMLButtonElement>('button')[column]
-				: undefined;
-			if (!target && event.key === 'ArrowUp')
-				document.querySelector<HTMLInputElement>('[data-destination-focus="search"]')?.focus();
+			if (!(active instanceof HTMLButtonElement)) return;
+			const row = active.closest('.species-row');
+			if (!row) return;
+			const controls = Array.from(row.querySelectorAll<HTMLButtonElement>('button'));
+			const column = controls.indexOf(active);
+			if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+				target =
+					controls[
+						Math.max(
+							0,
+							Math.min(controls.length - 1, column + (event.key === 'ArrowLeft' ? -1 : 1))
+						)
+					];
+			} else {
+				const next = event.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
+				target = next?.matches('.species-row')
+					? next.querySelectorAll<HTMLButtonElement>('button')[column]
+					: event.key === 'ArrowUp'
+						? searchInput()
+						: undefined;
+			}
 		}
 		event.preventDefault();
 		event.stopPropagation();
@@ -94,136 +131,265 @@
 		target?.scrollIntoView({ block: 'nearest' });
 	}
 
-	async function apply(edit: PokedexEdit) {
-		if (!workspace || pending) return;
+	async function apply(key: string, edit: PokedexEdit) {
+		if (!workspace || pendingKey) return;
 		const coordinator = getSaveFileEditCoordinator();
 		const origin = coordinator.openWorkspace(workspace, getCachedActiveWorkspaceBox());
-		pending = true;
-		message = '';
+		pendingKey = key;
+		fieldErrors = {};
+		let failure = '';
 		try {
 			const result = await coordinator.enqueueEdit(origin, {
 				key: 'pokedex',
 				operation: { pokedex: edit }
 			});
 			if (!mounted) return;
-			if (result.ok) acceptWorkspace(result.workspace);
-			else {
-				if (result.workspace) acceptWorkspace(result.workspace);
-				message = result.message;
-			}
+			if (result.workspace) acceptWorkspace(result.workspace);
+			if (!result.ok) failure = result.message;
 		} catch (error) {
-			if (mounted) message = error instanceof Error ? error.message : String(error);
+			failure = error instanceof Error ? error.message : String(error);
 		} finally {
-			if (mounted) pending = false;
+			if (mounted) pendingKey = null;
 		}
+		if (!mounted || !failure) return;
+		if (edit.kind === 'field') fieldErrors = { [edit.field]: failure };
+		else toast.error(failure);
 	}
 </script>
 
 <svelte:window onkeydown={navigateSpecies} />
 
+{#snippet flag(name: string, id: number, label: 'Seen' | 'Caught', on: boolean, edit: PokedexEdit)}
+	{@const key = `species-${id}-${label.toLowerCase()}`}
+	<button
+		type="button"
+		class={['flag', label.toLowerCase()]}
+		aria-label={`${name} ${label}`}
+		aria-pressed={on}
+		aria-disabled={pendingKey !== null}
+		aria-busy={pendingKey === key}
+		data-destination-focus={key}
+		data-destination-fallbacks={JSON.stringify(['search'])}
+		onclick={() => apply(key, edit)}
+	>
+		<svg class="mark" viewBox="0 0 12 12" aria-hidden="true">
+			<rect x="1" y="1" width="10" height="10" rx="2.5" />
+			{#if on}<path d="M3.4 6.3 5.3 8l3.4-4" />{/if}
+		</svg>
+		{label}
+	</button>
+{/snippet}
+
+{#snippet routeState(heading: string, body: string, retry: boolean)}
+	<div class="route-state" role={retry ? 'alert' : undefined}>
+		<h1 id="pokedex-title">Pokedex</h1>
+		<strong>{heading}</strong>
+		<p>{body}</p>
+		<div class="state-actions">
+			{#if retry}
+				<button type="button" data-destination-initial data-destination-focus="retry" onclick={load}
+					>Retry</button
+				>
+			{/if}
+			<button
+				type="button"
+				data-destination-initial={retry ? undefined : ''}
+				data-destination-focus="back-boxes"
+				onclick={() => goto(resolve('/boxes'), { keepFocus: true })}>Back to Boxes</button
+			>
+		</div>
+	</div>
+{/snippet}
+
 <section
 	class="pokedex pksx-density-container"
 	data-destination-root="pokedex"
 	data-initial-state={loading ? 'loading' : 'ready'}
-	aria-label="Pokedex"
+	aria-labelledby="pokedex-title"
+	aria-busy={loading}
 >
-	<header>
-		<button data-destination-focus="back" data-back-control onclick={() => goto(resolve('/boxes'))}
-			>Back to Boxes</button
-		>
-		<h1>Pokedex</h1>
-	</header>
-	{#if message}<p role="alert">{message} <button onclick={load}>Reload</button></p>{/if}
-	{#if loading}
-		<p role="status">Loading Pokedex…</p>
-	{:else if !workspace}
-		<p>No active Save File. Import or choose one in Saves.</p>
-	{:else if !pokedex || pokedex.status === 'unavailable'}
-		<p>
-			{pokedex?.reason ??
-				'Pokedex capabilities are unavailable. Reload the Save File to try again.'}
-		</p>
-	{:else}
-		<label class="search"
-			>Search species
-			<input
-				type="search"
-				value={query}
-				oninput={(event) => search(event.currentTarget.value)}
-				data-destination-focus="search"
-				data-destination-initial
-			/>
-		</label>
-		<div class="content">
-			<div class="species" aria-label="Species">
-				<div class="list-heading">
-					<p>{species.length} species</p>
-					{#if pokedex.fields.length}<button
-							data-destination-focus="game-fields"
-							onclick={() => {
-								document
-									.querySelector<HTMLInputElement>('[data-destination-focus^="field-"]')
-									?.focus();
-							}}>Game-specific state</button
-						>{/if}
+	<div class="pokedex-density pksx-density">
+		<div class="pokedex-container">
+			{#if loading}
+				<div class="route-state" aria-live="polite">
+					<h1 id="pokedex-title">Pokedex</h1>
+					<DelayedSpinner active label="Loading Pokedex" />
 				</div>
-				{#each species as entry (entry.id)}
-					<div class="species-row">
-						<strong>{String(entry.id).padStart(3, '0')} {entry.name}</strong>
-						<button
-							aria-label={`${entry.name} Seen`}
-							aria-pressed={entry.seen}
-							aria-disabled={pending}
-							data-destination-focus={`species-${entry.id}-seen`}
-							data-destination-fallbacks={JSON.stringify(['search'])}
-							onclick={() => apply({ kind: 'seen', species: entry.id, seen: !entry.seen })}
-							>Seen {entry.seen ? '✓' : '·'}</button
-						>
-						<button
-							aria-label={`${entry.name} Caught`}
-							aria-pressed={entry.caught}
-							aria-disabled={pending}
-							data-destination-focus={`species-${entry.id}-caught`}
-							data-destination-fallbacks={JSON.stringify(['search'])}
-							onclick={() => apply({ kind: 'caught', species: entry.id, caught: !entry.caught })}
-							>Caught {entry.caught ? '✓' : '·'}</button
-						>
-					</div>
-				{:else}<p>No matching species.</p>{/each}
-			</div>
-			{#if pokedex.fields.length}
-				<aside aria-label="Game-specific Pokedex fields">
-					<h2>Game-specific state</h2>
-					{#each pokedex.fields as field (field.key)}
-						<form
-							onsubmit={(event) => {
-								event.preventDefault();
-								const value = new FormData(event.currentTarget).get('value');
-								if (typeof value === 'string')
-									void apply({ kind: 'field', field: field.key, value: Number(value) });
-							}}
-						>
-							<label
-								>{field.label}<input
-									name="value"
-									type="number"
-									min={field.min}
-									max={field.max}
-									step="1"
-									value={field.value}
-									required
-									data-destination-focus={`field-${field.key}`}
-								/></label
+			{:else if loadError}
+				{@render routeState('Could not load this Save File', loadError, true)}
+			{:else if !workspace}
+				{@render routeState('No active Save File', 'Import or choose one in Saves.', false)}
+			{:else if !pokedex || pokedex.status === 'unavailable'}
+				{@render routeState(
+					'Pokedex not available',
+					pokedex?.reason ??
+						'Pokedex capabilities are unavailable. Reload the Save File to try again.',
+					false
+				)}
+			{:else}
+				<div class="screen">
+					<header class="identity">
+						<h1 id="pokedex-title">Pokedex</h1>
+						<p class="file">
+							<span class="filename" title={workspace.file.originalFileName}
+								>{workspace.file.originalFileName ?? 'Untitled Save File'}</span
 							>
-							<button aria-disabled={pending} data-destination-focus={`apply-${field.key}`}
-								>Apply</button
+						</p>
+					</header>
+
+					<dl class="totals">
+						{#each totals as total (total.label)}
+							<div class={['total', total.label.toLowerCase()]}>
+								<dt>{total.label}</dt>
+								<dd><strong>{total.count}</strong> of {all.length}</dd>
+								<dd class="meter" aria-hidden="true">
+									<span style:inline-size={`${(total.count / all.length) * 100}%`}></span>
+								</dd>
+							</div>
+						{/each}
+					</dl>
+
+					{#if pokedex.fields.length}
+						<section class="fields" aria-label="Game-specific Pokedex values">
+							<h2>Game-specific values</h2>
+							<button
+								type="button"
+								class="fields-toggle"
+								aria-expanded={fieldsOpen}
+								aria-controls="pokedex-fields"
+								data-destination-focus="game-fields"
+								onclick={() => openFields(!fieldsOpen)}
 							>
-						</form>
-					{/each}
-				</aside>
+								Game-specific values
+								<span class="fields-count">{pokedex.fields.length}</span>
+								<svg class="chevron" viewBox="0 0 12 12" aria-hidden="true"
+									><path d="m3 4.5 3 3 3-3" /></svg
+								>
+							</button>
+							<div
+								id="pokedex-fields"
+								class={['fields-body', fieldsOpen && 'open']}
+								onfocusin={() => openFields(true)}
+							>
+								{#each pokedex.fields as field (field.key)}
+									{@const error = fieldErrors[field.key]}
+									<form
+										class="field"
+										onsubmit={(event) => {
+											event.preventDefault();
+											const value = new FormData(event.currentTarget).get('value');
+											if (typeof value === 'string')
+												void apply(`field-${field.key}`, {
+													kind: 'field',
+													field: field.key,
+													value: Number(value)
+												});
+										}}
+									>
+										<label for={`pokedex-field-${field.key}`}>{field.label}</label>
+										<input
+											id={`pokedex-field-${field.key}`}
+											name="value"
+											type="number"
+											inputmode="numeric"
+											enterkeyhint="done"
+											min={field.min}
+											max={field.max}
+											step="1"
+											value={field.value}
+											required
+											style:--field-ch={String(field.max).length}
+											aria-invalid={error ? 'true' : undefined}
+											aria-describedby={error ? `pokedex-field-${field.key}-error` : undefined}
+											data-destination-focus={`field-${field.key}`}
+										/>
+										<button
+											aria-disabled={pendingKey !== null}
+											aria-busy={pendingKey === `field-${field.key}`}
+											data-destination-focus={`apply-${field.key}`}>Apply</button
+										>
+										{#if error}<small
+												id={`pokedex-field-${field.key}-error`}
+												class="field-error"
+												role="alert">{error}</small
+											>{/if}
+									</form>
+								{/each}
+							</div>
+						</section>
+					{/if}
+
+					<section class="species" aria-label="Species">
+						<div class="search-row">
+							<label class="search">
+								<svg viewBox="0 0 16 16" aria-hidden="true"
+									><circle cx="7" cy="7" r="4.25" /><path d="m10.2 10.2 3.3 3.3" /></svg
+								>
+								<input
+									type="search"
+									aria-label="Search species"
+									placeholder="Name or number"
+									autocomplete="off"
+									enterkeyhint="search"
+									value={query}
+									oninput={(event) => search(event.currentTarget.value)}
+									data-destination-focus="search"
+									data-destination-initial
+								/>
+							</label>
+							<p class="count" aria-live="polite">
+								{species.length === all.length
+									? `${all.length} species`
+									: `${species.length} of ${all.length}`}
+							</p>
+						</div>
+						<div class="species-list">
+							{#each species as entry (entry.id)}
+								{@const sprite = spriteUrl(entry.id)}
+								<div class={['species-row', !entry.seen && !entry.caught && 'unseen']}>
+									<span class="number">{String(entry.id).padStart(3, '0')}</span>
+									{#if sprite}
+										<img
+											class="sprite"
+											src={sprite}
+											alt=""
+											width="256"
+											height="256"
+											loading="lazy"
+											decoding="async"
+										/>
+									{:else}<span class="sprite"></span>{/if}
+									<strong class="name">{entry.name}</strong>
+									{@render flag(entry.name, entry.id, 'Seen', entry.seen, {
+										kind: 'seen',
+										species: entry.id,
+										seen: !entry.seen
+									})}
+									{@render flag(entry.name, entry.id, 'Caught', entry.caught, {
+										kind: 'caught',
+										species: entry.id,
+										caught: !entry.caught
+									})}
+								</div>
+							{:else}
+								<div class="empty">
+									<p>No matching species.</p>
+									<button
+										type="button"
+										data-destination-focus="clear-search"
+										onclick={() => {
+											search('');
+											searchInput()?.focus();
+										}}>Clear search</button
+									>
+								</div>
+							{/each}
+						</div>
+					</section>
+				</div>
 			{/if}
 		</div>
-	{/if}
+	</div>
 </section>
 
 <style>
@@ -232,80 +398,534 @@
 		min-height: 100dvh;
 		overflow: hidden;
 	}
+
 	.pokedex {
-		font-size: var(--pksx-type-body);
-		flex: 1;
-		min-height: 0;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-		gap: var(--pksx-space-2);
-		padding: var(--pksx-space-3);
+		flex: 1 1 0;
 		overflow: hidden;
 	}
-	header {
-		padding-right: calc(var(--pksx-control-height) + var(--pksx-space-2));
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: var(--pksx-space-2);
-	}
-	h1 {
-		font-size: var(--pksx-type-title);
-		margin: 0;
-	}
-	h2 {
-		font-size: var(--pksx-type-body);
-	}
-	.list-heading {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--pksx-space-2);
-	}
-	.search {
-		display: flex;
-		align-items: center;
-		gap: var(--pksx-space-2);
-	}
-	.content {
-		overflow: auto;
+
+	.pokedex,
+	.pokedex-density,
+	.pokedex-container,
+	.screen {
+		width: 100%;
+		height: 100%;
+		min-width: 0;
 		min-height: 0;
 	}
+
+	.pokedex-container {
+		container: pokedex / size;
+		font-size: var(--pksx-type-body);
+		color: var(--pksx-color-text-primary);
+	}
+
+	.pokedex ::selection {
+		background: var(--pksx-color-accent-ring);
+	}
+
+	.screen {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: auto auto auto minmax(0, 1fr);
+		gap: var(--pksx-space-2);
+	}
+
+	h1,
+	h2,
+	p,
+	dl,
+	dd {
+		margin: 0;
+	}
+
+	h1 {
+		font-size: var(--pksx-type-display);
+		line-height: 1.05;
+	}
+
+	.identity {
+		display: grid;
+		gap: var(--pksx-space-1);
+		min-width: 0;
+		padding-inline: var(--pksx-space-1) calc(var(--pksx-control-height) + var(--pksx-space-3));
+	}
+
+	.file {
+		min-width: 0;
+		color: var(--pksx-color-text-secondary);
+	}
+
+	.filename {
+		display: block;
+		font-family: var(--pksx-font-mono);
+		font-size: var(--pksx-type-label);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.totals {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--pksx-space-3);
+		padding-inline: var(--pksx-space-1);
+	}
+
+	.total,
+	.flag {
+		--tone: var(--pksx-color-accent-gold);
+	}
+
+	.total {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		align-items: baseline;
+		gap: var(--pksx-space-1) var(--pksx-space-2);
+	}
+
+	.total.caught,
+	.flag.caught {
+		--tone: var(--pksx-color-accent-primary);
+	}
+
+	.total dt {
+		font-size: var(--pksx-type-label);
+		font-weight: 700;
+	}
+
+	.total dd {
+		justify-self: end;
+		font-family: var(--pksx-font-mono);
+		font-size: var(--pksx-type-label);
+		font-variant-numeric: tabular-nums;
+		color: var(--pksx-color-text-secondary);
+	}
+
+	.total strong {
+		font-size: var(--pksx-type-title);
+		color: var(--pksx-color-text-primary);
+	}
+
+	.total .meter {
+		justify-self: stretch;
+		grid-column: 1 / -1;
+		block-size: 4px;
+		border-radius: 2px;
+		background: var(--pksx-color-border-strong);
+		overflow: hidden;
+	}
+
+	.meter span {
+		display: block;
+		block-size: 100%;
+		border-radius: inherit;
+		background: var(--tone);
+		transition: inline-size 200ms var(--pksx-ease-out);
+	}
+
+	.fields,
+	.species,
+	.route-state {
+		border: var(--pksx-border-width) solid var(--pksx-color-border-strong);
+		border-radius: var(--pksx-radius-large);
+		background: var(--pksx-color-surface-panel);
+		box-shadow: var(--pksx-shadow-subtle);
+	}
+
+	.fields {
+		display: grid;
+		grid-template-rows: auto minmax(0, 1fr);
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	.fields h2 {
+		display: none;
+		padding: var(--pksx-space-2) var(--pksx-space-2) 0;
+		font-size: var(--pksx-type-title);
+		line-height: 1.05;
+	}
+
+	.fields-toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--pksx-space-2);
+		border: 0;
+		border-radius: 0;
+		background: none;
+		text-align: start;
+	}
+
+	.fields-count {
+		font-family: var(--pksx-font-mono);
+		color: var(--pksx-color-text-secondary);
+	}
+
+	.chevron {
+		margin-inline-start: auto;
+		transition: rotate 160ms var(--pksx-ease-out);
+	}
+
+	.fields-toggle[aria-expanded='true'] .chevron {
+		rotate: 180deg;
+	}
+
+	.fields-body {
+		display: none;
+		align-content: start;
+		gap: var(--pksx-space-2);
+		min-height: 0;
+		max-block-size: 40cqh;
+		padding: var(--pksx-space-2);
+		overflow-y: auto;
+		overscroll-behavior-block: contain;
+	}
+
+	.fields-body.open {
+		display: grid;
+	}
+
+	.field {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--pksx-space-1);
+		min-width: 0;
+	}
+
+	.field label,
+	.field-error {
+		flex-basis: 100%;
+	}
+
+	.field label {
+		font-size: var(--pksx-type-label);
+		font-weight: 650;
+		line-height: 1.25;
+		color: var(--pksx-color-text-secondary);
+	}
+
+	.field input {
+		inline-size: min(100%, calc(var(--field-ch) * 1ch + 2rem));
+		font-family: var(--pksx-font-mono);
+		font-variant-numeric: tabular-nums;
+		appearance: textfield;
+	}
+
+	.field input::-webkit-inner-spin-button,
+	.field input::-webkit-outer-spin-button {
+		margin: 0;
+		-webkit-appearance: none;
+	}
+
+	.field-error {
+		font-size: var(--pksx-type-caption);
+		color: var(--pksx-color-feedback-danger);
+	}
+
+	.species {
+		display: grid;
+		grid-template-rows: auto minmax(0, 1fr);
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	.search-row {
+		display: flex;
+		align-items: center;
+		gap: var(--pksx-space-3);
+		padding: var(--pksx-space-2);
+		border-bottom: var(--pksx-border-width) solid var(--pksx-color-border-strong);
+	}
+
+	.search {
+		position: relative;
+		flex: 1 1 0;
+		min-width: 0;
+	}
+
+	.search svg {
+		position: absolute;
+		inset-block: 0;
+		inset-inline-start: var(--pksx-space-2);
+		margin-block: auto;
+		color: var(--pksx-color-text-secondary);
+		pointer-events: none;
+	}
+
+	.search input {
+		inline-size: 100%;
+		padding-inline: calc(var(--pksx-icon-size) + var(--pksx-space-2) * 2) var(--pksx-space-2);
+		background: var(--pksx-color-surface-canvas);
+	}
+
+	.search input::-webkit-search-cancel-button {
+		filter: grayscale(1);
+		cursor: pointer;
+	}
+
+	.search input::placeholder {
+		color: var(--pksx-color-text-secondary);
+	}
+
+	.count {
+		font-family: var(--pksx-font-mono);
+		font-size: var(--pksx-type-label);
+		font-variant-numeric: tabular-nums;
+		color: var(--pksx-color-text-secondary);
+		white-space: nowrap;
+	}
+
+	.species-list,
+	.fields-body {
+		scrollbar-width: thin;
+		scrollbar-color: var(--pksx-color-border-strong) transparent;
+	}
+
+	.species-list {
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior-block: contain;
+		scroll-padding-block: var(--pksx-space-2);
+	}
+
 	.species-row {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto auto;
-		gap: var(--pksx-space-2);
+		grid-template-columns: 3ch var(--pksx-control-height) minmax(0, 1fr) auto auto;
 		align-items: center;
-		border-bottom: 1px solid var(--rule);
-		padding-block: var(--pksx-space-1);
+		gap: var(--pksx-space-2);
+		padding: var(--pksx-space-1) var(--pksx-space-2);
+		border-bottom: var(--pksx-border-width) solid var(--pksx-color-border-subtle);
 	}
+
+	.species-row:focus-within {
+		background: var(--pksx-color-surface-subtle);
+	}
+
+	.number {
+		font-family: var(--pksx-font-mono);
+		font-size: var(--pksx-type-label);
+		font-variant-numeric: tabular-nums;
+		color: var(--pksx-color-text-secondary);
+	}
+
+	.sprite {
+		inline-size: var(--pksx-control-height);
+		block-size: var(--pksx-control-height);
+		object-fit: contain;
+		transition:
+			filter 200ms var(--pksx-ease-out),
+			opacity 200ms var(--pksx-ease-out);
+	}
+
+	.unseen .sprite {
+		filter: brightness(0);
+		opacity: 0.3;
+	}
+
+	:global(:is(.app-shell.dark, :root[data-pksx-theme='dark'] .app-shell)) .unseen .sprite {
+		filter: brightness(0) invert(1);
+	}
+
+	.name {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.unseen .name {
+		font-weight: 500;
+		color: var(--pksx-color-text-secondary);
+	}
+
+	.empty {
+		display: grid;
+		justify-items: start;
+		gap: var(--pksx-space-2);
+		padding: var(--pksx-space-3) var(--pksx-space-2);
+		color: var(--pksx-color-text-secondary);
+	}
+
+	.route-state {
+		display: grid;
+		place-content: center;
+		justify-items: start;
+		gap: var(--pksx-space-2);
+		height: 100%;
+		padding: var(--pksx-space-4);
+	}
+
+	.state-actions {
+		display: flex;
+		gap: var(--pksx-space-1);
+	}
+
 	button,
 	input {
 		min-height: var(--pksx-control-height);
-		border: 1px solid var(--rule);
+		border: var(--pksx-border-width) solid var(--pksx-color-border-strong);
 		border-radius: var(--pksx-radius-small);
-		padding: var(--pksx-space-1) var(--pksx-space-2);
+		background: var(--pksx-color-surface-panel);
+		color: inherit;
+		font: inherit;
+		caret-color: var(--pksx-color-accent-primary);
 	}
-	button[aria-pressed='true'] {
-		background: var(--rust-wash);
-		color: var(--ink);
+
+	button {
+		padding-inline: var(--pksx-space-2);
+		font-size: var(--pksx-type-label);
+		font-weight: 700;
+		cursor: pointer;
 	}
-	button[aria-disabled='true'] {
-		opacity: 0.6;
+
+	button:hover {
+		border-color: var(--pksx-color-accent-primary);
+		background: var(--pksx-color-accent-wash);
 	}
-	form,
-	form label {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--pksx-space-2);
-	}
-	form {
-		padding-block: var(--pksx-space-2);
-	}
+
 	input {
-		min-width: 0;
-		max-width: 100%;
+		padding-block: 0;
+	}
+
+	input:focus {
+		border-color: var(--pksx-color-accent-primary);
+		box-shadow: none;
+	}
+
+	.flag {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--pksx-space-1);
+		border-color: var(--pksx-color-border-subtle);
+		background: none;
+		color: var(--pksx-color-text-secondary);
+	}
+
+	.flag[aria-pressed='true'] {
+		border-color: var(--tone);
+		background: color-mix(in srgb, var(--tone) 16%, transparent);
+		color: var(--pksx-color-text-primary);
+	}
+
+	.flag:hover {
+		border-color: var(--tone);
+	}
+
+	svg {
+		inline-size: var(--pksx-icon-size);
+		block-size: var(--pksx-icon-size);
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.5;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	.mark {
+		inline-size: var(--pksx-small-icon-size);
+		block-size: var(--pksx-small-icon-size);
+		stroke-width: 1.5;
+	}
+
+	.flag[aria-pressed='true'] .mark rect {
+		fill: var(--tone);
+		stroke: var(--tone);
+	}
+
+	.mark path {
+		stroke: var(--pksx-color-surface-panel);
+	}
+
+	button[aria-busy='true'] {
+		animation: busy 700ms 250ms ease-in-out infinite alternate;
+	}
+
+	@keyframes busy {
+		to {
+			opacity: 0.45;
+		}
+	}
+
+	:is(button, input):focus-visible {
+		outline: var(--pksx-focus-ring) solid var(--pksx-color-accent-ring);
+		outline-offset: 1px;
+	}
+
+	@container pokedex (min-width: 540px) {
+		.screen {
+			grid-template-columns: clamp(200px, 32cqw, 300px) minmax(0, 44rem);
+			grid-template-rows: auto auto minmax(0, 1fr);
+			column-gap: var(--pksx-space-3);
+		}
+
+		.identity {
+			padding-inline-end: 0;
+		}
+
+		.totals {
+			grid-template-columns: minmax(0, 1fr);
+			gap: var(--pksx-space-2);
+		}
+
+		.species {
+			grid-column: 2;
+			grid-row: 1 / -1;
+		}
+
+		.search-row {
+			padding-inline-end: calc(var(--pksx-control-height) + var(--pksx-space-3));
+		}
+
+		.fields {
+			align-self: start;
+			max-block-size: 100%;
+		}
+
+		.fields h2 {
+			display: block;
+		}
+
+		.fields-toggle {
+			display: none;
+		}
+
+		.fields-body {
+			display: grid;
+			max-block-size: none;
+		}
+	}
+
+	@container pokedex (max-width: 430px) {
+		.species-row {
+			grid-template-columns: 3ch var(--pksx-small-control-height) minmax(0, 1fr) auto auto;
+			column-gap: var(--pksx-space-1);
+		}
+
+		.sprite {
+			inline-size: var(--pksx-small-control-height);
+			block-size: var(--pksx-small-control-height);
+		}
+
+		.flag {
+			padding-inline: var(--pksx-space-1);
+		}
+	}
+
+	@container pokedex (min-width: 1100px) {
+		.search-row {
+			padding-inline-end: var(--pksx-space-2);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.meter span,
+		.sprite,
+		.chevron,
+		button[aria-busy='true'] {
+			transition: none;
+			animation: none;
+		}
 	}
 </style>
