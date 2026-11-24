@@ -89,6 +89,7 @@
 	let query = $state('');
 	let sort = $state<SavesSort>('alphabetical');
 	let searchControls: HTMLElement;
+	let tabDirection: 'forward' | 'backward' | null = null;
 	let saveFiles = $state<StoredSaveFile[]>([]);
 	let activeSaveFileId = $state<SaveFileId | null>(null);
 	let detailsBySaveFileId = $state<Record<SaveFileId, SaveCardDetailsState>>({});
@@ -113,6 +114,8 @@
 	const visibleSaveFiles = $derived(
 		filterSortSaves({ files: saveFiles, details: detailsBySaveFileId, query, sort })
 	);
+
+	const searching = $derived(query.trim() !== '');
 
 	const targets = $derived<SavesTarget[]>([
 		...visibleSaveFiles.map((saveFile) => ({ kind: 'save-file' as const, id: saveFile.id })),
@@ -321,11 +324,12 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
+		tabDirection = event.key === 'Tab' ? (event.shiftKey ? 'backward' : 'forward') : null;
 		if (
 			event.altKey ||
 			event.ctrlKey ||
 			event.metaKey ||
-			event.shiftKey ||
+			(event.shiftKey && event.key !== 'Tab') ||
 			(isTextEntryTarget(event.target) && !searchControls?.contains(document.activeElement))
 		) {
 			return;
@@ -1017,19 +1021,85 @@
 		rememberTarget(target);
 	}
 
+	function chooseSort(next: SavesSort) {
+		if (next === sort) return;
+		updateLibrary(query, next);
+		writeSavesSort(next);
+	}
+
+	function clearSearch() {
+		document.getElementById('saves-search')?.focus();
+		updateLibrary('');
+	}
+
+	function libraryControls() {
+		const field = searchControls.querySelector<HTMLInputElement>('input')!;
+		const sortGroup = searchControls.querySelector<HTMLElement>('.sort-toggle')!;
+		return {
+			field,
+			sortGroup,
+			stacked: sortGroup.getBoundingClientRect().bottom <= field.getBoundingClientRect().top
+		};
+	}
+
+	function handleSearchFocus(event: FocusEvent) {
+		const direction = tabDirection;
+		tabDirection = null;
+		if (
+			!direction ||
+			(event.relatedTarget instanceof Node && searchControls.contains(event.relatedTarget))
+		)
+			return;
+		const { field, sortGroup, stacked } = libraryControls();
+		if (!stacked) return;
+		const buttons = sortGroup.querySelectorAll<HTMLButtonElement>('button');
+		if (direction === 'forward' && event.target === field) buttons[0]?.focus();
+		else if (direction === 'backward' && (event.target === buttons[1] || event.target === field))
+			(searchControls.querySelector<HTMLButtonElement>('.search-clear') ?? field).focus();
+	}
+
 	function handleSearchKeydown(event: KeyboardEvent) {
 		const active = document.activeElement;
-		if (event.key === 'Escape' || event.key === 'ArrowDown') {
+		const { field, sortGroup, stacked } = libraryControls();
+		const inSort = sortGroup.contains(active);
+		if (event.key === 'Tab' && stacked) {
+			const clear = searchControls.querySelector<HTMLButtonElement>('.search-clear');
+			const controls = [
+				...sortGroup.querySelectorAll<HTMLElement>('button'),
+				field,
+				...(clear ? [clear] : [])
+			];
+			const index = controls.findIndex((node) => node === active);
+			const next = controls[index + (event.shiftKey ? -1 : 1)];
+			if (next) {
+				event.preventDefault();
+				next.focus();
+			} else if (!event.shiftKey) {
+				event.preventDefault();
+				void focusGrid();
+			} else field.focus();
+			return;
+		}
+		if (event.key === 'ArrowDown' && stacked && inSort) {
+			event.preventDefault();
+			field.focus();
+		} else if (event.key === 'Escape' || event.key === 'ArrowDown') {
 			event.preventDefault();
 			void focusGrid();
 		} else if (event.key === 'ArrowUp') {
 			event.preventDefault();
+			if (stacked && !inSort) {
+				sortGroup.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
+			}
 		} else if (
 			(event.key === 'ArrowRight' || event.key === 'ArrowLeft') &&
 			!(active instanceof HTMLInputElement && !isControllerKeyboardEvent(event))
 		) {
 			event.preventDefault();
 			const controls = Array.from(searchControls.querySelectorAll<HTMLElement>('input, button'));
+			if (stacked) {
+				controls.sort((a, b) => Number(sortGroup.contains(b)) - Number(sortGroup.contains(a)));
+			}
 			const index = controls.findIndex((node) => node === active);
 			controls[
 				Math.max(0, Math.min(controls.length - 1, index + (event.key === 'ArrowLeft' ? -1 : 1)))
@@ -1063,7 +1133,7 @@
 	}
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} onpointerdown={() => (tabDirection = null)} />
 
 <section
 	class="saves-route pksx-density-container"
@@ -1073,12 +1143,76 @@
 	inert={summonedWorkflow.active !== null}
 >
 	<div class="saves-density pksx-density">
-		<header class="saves-header">
-			<div>
+		<header class="library-bar">
+			<div class="library-title">
 				<h1 id="saves-title">Saves</h1>
+				<p
+					class="library-count"
+					role="status"
+					style:--count-digits={String(saveFiles.length).length}
+				>
+					{#if searching}
+						{visibleSaveFiles.length} of {saveFiles.length}<span class="sr-only">
+							Save Files match</span
+						>
+					{:else if !catalogLoading && saveFiles.length > 0}
+						{saveFiles.length}<span class="count-unit"
+							>{saveFiles.length === 1 ? ' Save File' : ' Save Files'}</span
+						>
+					{/if}
+				</p>
+			</div>
+			<div
+				class="library-tools"
+				onfocusin={handleSearchFocus}
+				{@attach (node) => {
+					searchControls = node;
+				}}
+			>
+				<div class="search-field" role="search">
+					<label class="sr-only" for="saves-search">Search Saves</label>
+					<svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true">
+						<circle cx="7" cy="7" r="4.5" />
+						<path d="m10.5 10.5 3.5 3.5" />
+					</svg>
+					<input
+						id="saves-search"
+						type="search"
+						value={query}
+						placeholder="Name, game or trainer"
+						autocomplete="off"
+						oninput={(event) => updateLibrary(event.currentTarget.value)}
+					/>
+					{#if query}
+						<button
+							type="button"
+							class="search-clear"
+							data-pksx-control-category="small"
+							aria-label="Clear search"
+							onclick={clearSearch}
+						>
+							<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8" /></svg>
+						</button>
+					{/if}
+				</div>
+				<div class="sort-toggle" role="group" aria-label="Sort">
+					<button
+						type="button"
+						aria-pressed={sort === 'alphabetical'}
+						onclick={() => chooseSort('alphabetical')}
+					>
+						<span aria-hidden="true">A–Z</span><span class="sr-only">A to Z</span>
+					</button>
+					<button
+						type="button"
+						aria-pressed={sort === 'recently-opened'}
+						onclick={() => chooseSort('recently-opened')}>Recent</button
+					>
+				</div>
 			</div>
 			<input
 				id="save-file-input"
+				tabindex="-1"
 				data-pksx-control-category="composition"
 				type="file"
 				aria-label="Import Save File"
@@ -1088,6 +1222,7 @@
 			/>
 			<input
 				id="storage-backup-input"
+				tabindex="-1"
 				data-pksx-control-category="composition"
 				type="file"
 				accept=".pksx-storage"
@@ -1096,44 +1231,11 @@
 			/>
 		</header>
 
-		<div
-			class="library-controls"
-			{@attach (node) => {
-				searchControls = node;
-			}}
-		>
-			<label class="sr-only" for="saves-search">Search Saves</label>
-			<input
-				id="saves-search"
-				type="search"
-				value={query}
-				placeholder="Name, game, trainer or filename"
-				oninput={(event) => updateLibrary(event.currentTarget.value)}
-			/>
-			<button
-				type="button"
-				onclick={() => {
-					updateLibrary('');
-					document.getElementById('saves-search')?.focus();
-				}}>Clear search</button
-			>
-			<button
-				type="button"
-				onclick={() => {
-					const next = sort === 'alphabetical' ? 'recently-opened' : 'alphabetical';
-					updateLibrary(query, next);
-					writeSavesSort(next);
-				}}
-			>
-				Sort: {sort === 'alphabetical' ? 'Alphabetical' : 'Recently opened'}
-			</button>
-		</div>
 		<div class="saves-scrollport">
-			{#if query.trim() && visibleSaveFiles.length === 0}
-				<div class="search-empty" role="status">
-					<strong>Try another search</strong>
-					<p>Look for a name, game, trainer or filename.</p>
-				</div>
+			{#if searching && visibleSaveFiles.length === 0}
+				<p class="no-matches">
+					No name, game, trainer or filename contains <strong>“{query.trim()}”</strong>.
+				</p>
 			{/if}
 			<div
 				id="saves-grid"
@@ -1393,59 +1495,220 @@
 {/if}
 
 <style>
-	.library-controls {
+	.library-bar {
+		min-height: var(--pksx-control-height);
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto auto;
+		grid-template-columns: minmax(max-content, 1fr) minmax(8rem, 22rem) auto;
+		grid-template-areas: 'title search sort';
 		align-items: center;
 		gap: var(--pksx-space-2);
-		padding: 0 var(--pksx-space-2);
-	}
-	.library-controls label,
-	.library-controls button {
-		font-size: var(--pksx-type-label);
-	}
-	.library-controls input {
-		font-size: var(--pksx-type-editable);
-		min-width: 0;
-		width: 100%;
-	}
-	.library-controls input,
-	.library-controls button {
-		min-height: var(--pksx-control-height);
-		padding: var(--pksx-space-1) var(--pksx-space-2);
-		border: var(--pksx-border-width) solid var(--rule);
-		border-radius: var(--pksx-radius-medium);
-		background: var(--paper);
-		color: var(--ink);
-	}
-	.library-controls :focus-visible {
-		outline: 2px solid var(--rust);
 	}
 
-	.search-empty {
-		margin-bottom: var(--pksx-space-3);
-		padding: var(--pksx-space-3);
-		border: var(--pksx-border-width) solid var(--rule);
+	.library-title {
+		grid-area: title;
+		min-width: 0;
+		display: flex;
+		align-items: baseline;
+		gap: var(--pksx-space-2);
+		padding-inline-end: var(--pksx-space-2);
+	}
+
+	.library-title h1,
+	.library-count {
+		margin: 0;
+	}
+
+	.library-title h1 {
+		font-size: var(--pksx-type-display);
+		line-height: 1;
+	}
+
+	.library-count {
+		/* Room for "N Save Files" plus slack, so the search field does not move. */
+		min-width: calc((var(--count-digits) + 11.5) * 1ch);
+		overflow: hidden;
+		color: var(--ink-soft);
+		font: 650 var(--pksx-type-label) / 1.2 var(--pksx-font-mono);
+		font-variant-numeric: tabular-nums;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.library-tools {
+		display: contents;
+	}
+
+	.search-field {
+		grid-area: search;
+		position: relative;
+		min-width: 0;
+	}
+
+	.search-icon,
+	.search-clear svg {
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+
+	.search-icon {
+		position: absolute;
+		inset-block: 0;
+		left: var(--pksx-space-2);
+		width: var(--pksx-icon-size);
+		height: var(--pksx-icon-size);
+		margin-block: auto;
+		color: var(--ink-soft);
+		pointer-events: none;
+	}
+
+	.search-field input {
+		width: 100%;
+		min-height: var(--pksx-control-height);
+		padding: 0 calc(var(--pksx-small-control-height) + var(--pksx-space-2)) 0
+			calc(var(--pksx-icon-size) + var(--pksx-space-2) * 2);
+		border: var(--pksx-border-width) solid var(--ink-soft);
 		border-radius: var(--pksx-radius-medium);
 		background: var(--paper-hi);
+		color: var(--ink);
+		caret-color: var(--rust);
+		font-size: var(--pksx-type-editable);
+		line-height: 1.2;
+		text-overflow: ellipsis;
 	}
-	.search-empty strong {
-		font-size: var(--pksx-type-title);
-	}
-	.search-empty p {
-		margin: var(--pksx-space-1) 0 0;
-		font-size: var(--pksx-type-body);
+
+	.search-field input::placeholder {
 		color: var(--ink-soft);
+		opacity: 1;
 	}
-	@container (max-width: 40rem) {
-		.library-controls {
-			grid-template-columns: 1fr auto;
+
+	.search-field input::selection {
+		background: var(--rust-ring);
+		color: var(--ink);
+	}
+
+	.search-field input::-webkit-search-cancel-button {
+		display: none;
+	}
+
+	.search-field input:hover {
+		border-color: var(--ink);
+	}
+
+	.search-field input:focus {
+		border-color: var(--rust);
+		outline: var(--pksx-focus-ring) solid var(--rust-ring);
+		outline-offset: 0;
+		box-shadow: none;
+	}
+
+	.search-clear {
+		position: absolute;
+		inset-block: 0;
+		right: var(--pksx-space-1);
+		width: var(--pksx-small-control-height);
+		height: var(--pksx-small-control-height);
+		margin-block: auto;
+		display: grid;
+		place-items: center;
+		padding: 0;
+		border: 0;
+		border-radius: var(--pksx-radius-small);
+		background: transparent;
+		color: var(--ink-soft);
+		cursor: pointer;
+	}
+
+	.search-clear svg {
+		width: var(--pksx-small-icon-size);
+		height: var(--pksx-small-icon-size);
+	}
+
+	.search-clear:hover,
+	.search-clear:active {
+		background: var(--rust-wash);
+		color: var(--rust);
+	}
+
+	.sort-toggle {
+		grid-area: sort;
+		/* Keeps the bar clear of the fixed Main Menu button. */
+		margin-inline-end: max(
+			0px,
+			calc(var(--pksx-control-height) + var(--pksx-space-1) - max(0px, 50cqw - 600px))
+		);
+		display: grid;
+		grid-auto-flow: column;
+		grid-auto-columns: 1fr;
+		border-radius: var(--pksx-radius-medium);
+		background: var(--paper-deep);
+		box-shadow: inset 0 0 0 var(--pksx-border-width) var(--rule);
+	}
+
+	.sort-toggle button {
+		min-height: var(--pksx-control-height);
+		padding: 0 calc(var(--pksx-space-1) + 6px);
+		border: 2px solid transparent;
+		border-radius: var(--pksx-radius-medium);
+		background: transparent padding-box;
+		color: var(--ink-soft);
+		font: 700 var(--pksx-type-label) / 1 var(--pksx-font-sans);
+		white-space: nowrap;
+		cursor: pointer;
+	}
+
+	.sort-toggle button:hover {
+		color: var(--ink);
+	}
+
+	.sort-toggle button:active {
+		background-color: var(--rust-wash);
+	}
+
+	.sort-toggle button[aria-pressed='true'] {
+		background-color: var(--paper-hi);
+		color: var(--rust);
+		color: color-mix(in srgb, var(--rust), var(--ink) 25%);
+	}
+
+	.search-clear:focus-visible,
+	.sort-toggle button:focus-visible {
+		outline: var(--pksx-focus-ring) solid var(--rust);
+		outline-offset: 0;
+	}
+
+	.no-matches {
+		margin: 0 0 var(--pksx-space-2);
+		color: var(--ink-soft);
+		font-size: var(--pksx-type-body);
+		line-height: 1.4;
+		overflow-wrap: anywhere;
+	}
+
+	.no-matches strong {
+		color: var(--ink);
+	}
+
+	@container pksx-density (max-width: 559px) {
+		.library-bar {
+			grid-template-columns: minmax(0, 1fr) auto;
+			grid-template-areas:
+				'title sort'
+				'search search';
 		}
-		.library-controls input {
-			grid-column: 1 / -1;
+
+		.library-count {
+			min-width: 0;
 		}
-		.library-controls button:first-of-type {
-			justify-self: start;
+
+		.count-unit {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip-path: inset(50%);
+			white-space: nowrap;
 		}
 	}
 
@@ -1469,29 +1732,8 @@
 		margin: 0 auto;
 		padding: var(--pksx-space-2);
 		display: grid;
-		grid-template-rows: auto auto minmax(0, 1fr);
+		grid-template-rows: auto minmax(0, 1fr);
 		gap: var(--pksx-space-2);
-	}
-
-	.saves-header {
-		min-height: 36px;
-		display: flex;
-		align-items: end;
-		justify-content: space-between;
-	}
-
-	.saves-header div {
-		display: grid;
-		gap: 2px;
-	}
-
-	.saves-header h1 {
-		margin: 0;
-	}
-
-	.saves-header h1 {
-		font-size: var(--pksx-type-display);
-		line-height: 1;
 	}
 
 	#save-file-input,

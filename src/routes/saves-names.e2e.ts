@@ -90,10 +90,11 @@ for (const height of [336, 720]) {
 		}
 		const grid = page.getByRole('grid', { name: 'Saves collections' });
 		const before = await grid.getAttribute('aria-activedescendant');
-		await page.getByRole('button', { name: 'Sort: Alphabetical', exact: true }).click();
+		const recent = page.getByRole('button', { name: 'Recent', exact: true });
+		await recent.click();
 		await expect(grid).toHaveAttribute('aria-activedescendant', before!);
 		await search.fill('nothing-matches');
-		await expect(page.getByText('Try another search', { exact: false })).toBeVisible();
+		await expect(page.getByText('filename contains')).toBeVisible();
 		await expect(
 			page.getByRole('button', { name: 'Import a Save File', exact: true })
 		).toBeVisible();
@@ -105,13 +106,9 @@ for (const height of [336, 720]) {
 		await open.click();
 		await expect(page.locator('[data-destination-root="boxes"]')).toBeVisible();
 		await page.goto('/saves');
-		await expect(
-			page.getByRole('button', { name: 'Sort: Recently opened', exact: true })
-		).toBeVisible();
+		await expect(recent).toHaveAttribute('aria-pressed', 'true');
 		await page.reload();
-		await expect(
-			page.getByRole('button', { name: 'Sort: Recently opened', exact: true })
-		).toBeVisible();
+		await expect(recent).toHaveAttribute('aria-pressed', 'true');
 		await expect(firstSave).toHaveAttribute('aria-label', 'Open emerald-011020251345.sav in Boxes');
 	});
 }
@@ -280,26 +277,51 @@ test.describe('display names across Save File consumers', () => {
 for (const viewport of [
 	{ width: 390, height: 844 },
 	{ width: 1280, height: 800 },
-	{ width: 960, height: 336 }
+	{ width: 960, height: 336 },
+	{ width: 616, height: 336 }
 ]) {
 	test(`search controls keep room for input at ${viewport.width}x${viewport.height}`, async ({
 		page
 	}) => {
 		await page.setViewportSize(viewport);
 		await page.goto('/saves');
+		await page
+			.locator('#save-file-input')
+			.setInputFiles(
+				path.resolve(
+					'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
+				)
+			);
+		await expect(page.getByRole('status').filter({ hasText: '1 Save File' })).toBeVisible();
 		const search = page.getByRole('searchbox', { name: 'Search Saves' });
+		const resting = await search.boundingBox();
 		await search.fill('nothing-matches');
-		await expect(page.getByRole('status').filter({ hasText: 'Try another search' })).toBeVisible();
+		await expect(page.getByText('filename contains')).toBeVisible();
+		await expect(page.getByRole('status').filter({ hasText: '0 of 1' })).toBeVisible();
 		const input = await search.boundingBox();
-		const sort = await page
-			.getByRole('button', { name: 'Sort: Alphabetical', exact: true })
-			.boundingBox();
+		expect(input).toEqual(resting);
+		const sort = await page.getByRole('group', { name: 'Sort' }).boundingBox();
+		const menu = await page.getByRole('button', { name: 'Open Main Menu' }).boundingBox();
 		expect(input).not.toBeNull();
 		expect(sort).not.toBeNull();
+		expect(sort!.x + sort!.width).toBeLessThanOrEqual(menu!.x);
 		if (viewport.width === 390) {
 			expect(input!.width).toBeGreaterThan(viewport.width * 0.8);
-			expect(sort!.y).toBeGreaterThanOrEqual(input!.y + input!.height);
-		} else expect(sort!.y).toBe(input!.y);
+			expect(sort!.y + sort!.height).toBeLessThanOrEqual(input!.y);
+			await page.keyboard.press('ArrowUp');
+			await expect(page.getByRole('button', { name: 'A to Z', exact: true })).toBeFocused();
+			await page.keyboard.press('ArrowRight');
+			await expect(page.getByRole('button', { name: 'Recent', exact: true })).toBeFocused();
+			await page.keyboard.press('ArrowRight');
+			await expect(search).toBeFocused();
+			await page.keyboard.press('ArrowUp');
+			await page.keyboard.press('ArrowDown');
+			await expect(search).toBeFocused();
+		} else {
+			expect(sort!.y).toBe(input!.y);
+			await page.keyboard.press('ArrowUp');
+			await expect(search).toBeFocused();
+		}
 		await page.keyboard.press('ArrowDown');
 		await expect(page.getByRole('grid', { name: 'Saves collections' })).toBeFocused();
 		await expect(
@@ -310,6 +332,8 @@ for (const viewport of [
 		).toBeVisible();
 		await page.getByRole('button', { name: 'Clear search', exact: true }).click();
 		await expect(search).toHaveValue('');
-		await expect(page.locator('.search-empty')).toHaveCount(0);
+		await expect(search).toBeFocused();
+		await expect(page.getByText('filename contains')).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Clear search' })).toHaveCount(0);
 	});
 }

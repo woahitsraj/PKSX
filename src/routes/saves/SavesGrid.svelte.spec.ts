@@ -371,21 +371,27 @@ it('retains target identity through filtering and sorting and keeps empty-result
 	const grid = container.querySelector<HTMLElement>('[role="grid"]')!;
 	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-' + file.id);
 	await filter('');
-	Array.from(container.querySelectorAll('button'))
-		.find((button) => button.textContent?.includes('Sort:'))!
-		.click();
+	container.querySelector<HTMLButtonElement>('[aria-label="Sort"] [aria-pressed="false"]')!.click();
 	await tick();
 	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-' + file.id);
 	await filter('no-such-save');
 	expect(container.querySelectorAll('.save-card').length).toBe(0);
-	expect(container.textContent).toContain('Try another search');
+	expect(container.textContent).toContain('filename contains');
+	expect(container.querySelector('.library-count')?.textContent).toContain('0 of 2');
 	expect(container.querySelector('#saves-target-import')).not.toBeNull();
 	expect(container.querySelector('#saves-target-pokemon-storage')).not.toBeNull();
 	expect(container.querySelector('#' + grid.getAttribute('aria-activedescendant'))).not.toBeNull();
-	Array.from(container.querySelectorAll('button'))
-		.find((button) => button.textContent === 'Clear search')!
-		.click();
+	const clear = container.querySelector<HTMLButtonElement>('[aria-label="Clear search"]')!;
+	clear.focus();
+	const arrow = (key: string) => window.dispatchEvent(new KeyboardEvent('keydown', { key }));
+	arrow('ArrowRight');
+	expect(document.activeElement?.getAttribute('aria-pressed')).toBe('false');
+	arrow('ArrowLeft');
+	expect(document.activeElement).toBe(clear);
+	clear.click();
 	await tick();
+	expect(document.activeElement).toBe(search);
+	expect(container.querySelector('[aria-label="Clear search"]')).toBeNull();
 	expect(container.querySelectorAll('.save-card').length).toBe(2);
 	expect((await storage.getSave(file.id))?.lastOpenedAt).toBeUndefined();
 });
