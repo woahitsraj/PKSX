@@ -16,6 +16,17 @@ async function choose(page: Page, label: string) {
 		.click();
 }
 
+async function dpad(page: Page, key: string) {
+	await page.evaluate((key) => {
+		for (const pressed of [true, false])
+			window.dispatchEvent(
+				new CustomEvent('pksxcontroller', {
+					detail: { key, pressed, discrete: true, id: 'Pokedex acceptance' }
+				})
+			);
+	}, key);
+}
+
 async function readSafetyState(page: Page) {
 	return page.evaluate(
 		() =>
@@ -57,18 +68,9 @@ for (const viewport of [
 		await choose(page, 'Pokedex');
 		const search = page.getByRole('searchbox');
 		await search.focus();
-		await page.evaluate(
-			(key) => {
-				for (const pressed of [true, false])
-					window.dispatchEvent(
-						new CustomEvent('pksxcontroller', {
-							detail: { key, pressed, discrete: true, id: 'Pokedex rail' }
-						})
-					);
-			},
-			viewport.width === 640 ? 'ArrowLeft' : 'ArrowUp'
-		);
-		if (viewport.width === 640) {
+		const wide = viewport.width === 640;
+		await dpad(page, wide ? 'ArrowLeft' : 'ArrowUp');
+		if (wide) {
 			await expect(page.locator(':focus')).toHaveAttribute(
 				'data-destination-focus',
 				/^(field|apply)-/
@@ -115,22 +117,37 @@ for (const viewport of [
 			['ArrowRight', 'Bulbasaur Caught'],
 			['ArrowRight', 'Bulbasaur Caught'],
 			['ArrowLeft', 'Bulbasaur Seen'],
-			['ArrowLeft', 'Bulbasaur Seen'],
 			['ArrowDown', 'Ivysaur Seen'],
 			['ArrowUp', 'Bulbasaur Seen'],
 			['ArrowUp', null]
 		]) {
-			await page.evaluate((key) => {
-				for (const pressed of [true, false])
-					window.dispatchEvent(
-						new CustomEvent('pksxcontroller', {
-							detail: { key, pressed, discrete: true, id: 'Pokedex acceptance' }
-						})
-					);
-			}, key);
+			await dpad(page, key as string);
 			await expect(
 				control ? page.getByRole('button', { name: control, exact: true }) : search
 			).toBeFocused();
+		}
+		// From a scrolled row, Left reaches the rail when it sits beside the list.
+		await search.fill('');
+		for (let row = 0; row < 43; row++) await dpad(page, 'ArrowDown');
+		const oddish = page.getByRole('button', { name: 'Oddish Seen', exact: true });
+		await expect(oddish).toBeFocused();
+		expect(await page.locator('.species-list').evaluate((list) => list.scrollTop)).toBeGreaterThan(
+			0
+		);
+		await dpad(page, 'ArrowLeft');
+		if (wide) {
+			const rail = page.locator('.fields-body :focus');
+			await expect(rail).toHaveAttribute('data-destination-focus', /^(field|apply)-/);
+			await expect(rail).toBeInViewport({ ratio: 1 });
+			await expect(page.locator('html')).toHaveAttribute('data-input-modality', 'controller');
+			await page.keyboard.press('ArrowRight');
+			await expect(oddish).toBeFocused();
+			await page.keyboard.press('ArrowLeft');
+			await expect(rail).toBeFocused();
+			await dpad(page, 'ArrowRight');
+			await expect(oddish).toBeFocused();
+		} else {
+			await expect(oddish).toBeFocused();
 		}
 		await search.fill('bulba');
 		await seen.focus();

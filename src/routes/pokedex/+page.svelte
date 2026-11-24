@@ -31,6 +31,7 @@
 	let fieldsOpen = $state(fieldsOpenMemory);
 	let query = $state('');
 	let mounted = false;
+	let railReturn: HTMLButtonElement | null = null;
 	const pokedex = $derived(workspace?.workspace.saveFile?.pokedex);
 	const all = $derived(pokedex?.species ?? []);
 	const species = $derived(
@@ -94,11 +95,35 @@
 		return entry ? asset(entry.path) : null;
 	}
 
+	// Nearest game-specific control, only when the rail sits left of the list.
+	function railControl(row: Element) {
+		const rail = document.querySelector<HTMLElement>('.fields-body');
+		const box = rail?.getBoundingClientRect();
+		const { left, top, height } = row.getBoundingClientRect();
+		if (!rail || !box?.width || box.right > left) return;
+		const gap = (control: HTMLElement) => {
+			const rect = control.getBoundingClientRect();
+			return Math.round(Math.abs(rect.top + rect.height / 2 - top - height / 2));
+		};
+		return Array.from(rail.querySelectorAll<HTMLElement>('input, button')).sort(
+			(a, b) => gap(a) - gap(b) || b.getBoundingClientRect().left - a.getBoundingClientRect().left
+		)[0];
+	}
+
 	function navigateSpecies(event: KeyboardEvent) {
 		if (event.altKey || event.ctrlKey || event.metaKey || !event.key.startsWith('Arrow')) return;
 		const active = isControllerKeyboardEvent(event) ? document.activeElement : event.target;
 		let target: HTMLElement | null | undefined;
-		if (active === searchInput()) {
+		const returnRow = railReturn?.closest('.species-row');
+		if (
+			event.key === 'ArrowRight' &&
+			active instanceof HTMLElement &&
+			active.closest('.fields-body') &&
+			returnRow &&
+			railControl(returnRow)
+		) {
+			target = railReturn;
+		} else if (active === searchInput()) {
 			if (event.key !== 'ArrowDown') return;
 			target = document.querySelector<HTMLElement>('.species-row button');
 			if (!target) return;
@@ -109,13 +134,9 @@
 			const controls = Array.from(row.querySelectorAll<HTMLButtonElement>('button'));
 			const column = controls.indexOf(active);
 			if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-				target =
-					controls[
-						Math.max(
-							0,
-							Math.min(controls.length - 1, column + (event.key === 'ArrowLeft' ? -1 : 1))
-						)
-					];
+				const left = event.key === 'ArrowLeft';
+				target = controls[column + (left ? -1 : 1)] ?? (left ? railControl(row) : undefined);
+				if (left && column === 0 && target) railReturn = active;
 			} else {
 				const next = event.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
 				target = next?.matches('.species-row')
@@ -159,11 +180,26 @@
 
 <svelte:window onkeydown={navigateSpecies} />
 
+{#snippet mark(label: string, on: boolean)}
+	<svg class={['mark', on && 'on']} viewBox="0 0 12 12" aria-hidden="true">
+		{#if label === 'Seen'}
+			<path
+				class="shape"
+				d="M1 6c1.4-2.4 3-3.6 5-3.6S9.6 3.6 11 6c-1.4 2.4-3 3.6-5 3.6S2.4 8.4 1 6Z"
+			/>
+			{#if on}<circle class="detail" cx="6" cy="6" r="1.25" />{/if}
+		{:else}
+			<rect class="shape" x="1" y="1" width="10" height="10" rx="2.5" />
+			{#if on}<path class="detail" d="M3.4 6.3 5.3 8l3.4-4" />{/if}
+		{/if}
+	</svg>
+{/snippet}
+
 {#snippet flag(name: string, id: number, label: 'Seen' | 'Caught', on: boolean, edit: PokedexEdit)}
 	{@const key = `species-${id}-${label.toLowerCase()}`}
 	<button
 		type="button"
-		class={['flag', label.toLowerCase()]}
+		class="flag"
 		aria-label={`${name} ${label}`}
 		aria-pressed={on}
 		aria-disabled={pendingKey !== null}
@@ -172,10 +208,7 @@
 		data-destination-fallbacks={JSON.stringify(['search'])}
 		onclick={() => apply(key, edit)}
 	>
-		<svg class="mark" viewBox="0 0 12 12" aria-hidden="true">
-			<rect x="1" y="1" width="10" height="10" rx="2.5" />
-			{#if on}<path d="M3.4 6.3 5.3 8l3.4-4" />{/if}
-		</svg>
+		{@render mark(label, on)}
 		{label}
 	</button>
 {/snippet}
@@ -240,8 +273,8 @@
 					<dl class="totals">
 						{#each totals as total (total.label)}
 							<div class={['total', total.label.toLowerCase()]}>
-								<dt>{total.label}</dt>
-								<dd><strong>{total.count}</strong> of {all.length}</dd>
+								<dt>{@render mark(total.label, true)}{total.label}</dt>
+								<dd><strong>{total.count}</strong> of <span class="num">{all.length}</span></dd>
 								<dd class="meter" aria-hidden="true">
 									<span style:inline-size={`${(total.count / all.length) * 100}%`}></span>
 								</dd>
@@ -273,6 +306,8 @@
 							>
 								{#each pokedex.fields as field (field.key)}
 									{@const error = fieldErrors[field.key]}
+									<!-- The shell names focus targets pksx-pokedex-<identity>; match it so the label holds. -->
+									{@const inputId = `pksx-pokedex-field-${field.key}`}
 									<form
 										class="field"
 										onsubmit={(event) => {
@@ -286,9 +321,9 @@
 												});
 										}}
 									>
-										<label for={`pokedex-field-${field.key}`}>{field.label}</label>
+										<label for={inputId}>{field.label}</label>
 										<input
-											id={`pokedex-field-${field.key}`}
+											id={inputId}
 											name="value"
 											type="number"
 											inputmode="numeric"
@@ -300,7 +335,7 @@
 											required
 											style:--field-ch={String(field.max).length}
 											aria-invalid={error ? 'true' : undefined}
-											aria-describedby={error ? `pokedex-field-${field.key}-error` : undefined}
+											aria-describedby={error ? `${inputId}-error` : undefined}
 											data-destination-focus={`field-${field.key}`}
 										/>
 										<button
@@ -308,10 +343,8 @@
 											aria-busy={pendingKey === `field-${field.key}`}
 											data-destination-focus={`apply-${field.key}`}>Apply</button
 										>
-										{#if error}<small
-												id={`pokedex-field-${field.key}-error`}
-												class="field-error"
-												role="alert">{error}</small
+										{#if error}<small id={`${inputId}-error`} class="field-error" role="alert"
+												>{error}</small
 											>{/if}
 									</form>
 								{/each}
@@ -338,9 +371,12 @@
 								/>
 							</label>
 							<p class="count" aria-live="polite">
-								{species.length === all.length
-									? `${all.length} species`
-									: `${species.length} of ${all.length}`}
+								{#if species.length === all.length}
+									<span class="num">{all.length}</span> species
+								{:else}
+									<span class="num">{species.length}</span> of
+									<span class="num">{all.length}</span>
+								{/if}
 							</p>
 						</div>
 						<div class="species-list">
@@ -472,11 +508,6 @@
 		padding-inline: var(--pksx-space-1);
 	}
 
-	.total,
-	.flag {
-		--tone: var(--pksx-color-accent-gold);
-	}
-
 	.total {
 		display: grid;
 		grid-template-columns: auto minmax(0, 1fr);
@@ -484,22 +515,24 @@
 		gap: var(--pksx-space-1) var(--pksx-space-2);
 	}
 
-	.total.caught,
-	.flag.caught {
-		--tone: var(--pksx-color-accent-primary);
-	}
-
 	.total dt {
+		display: flex;
+		align-items: center;
+		gap: var(--pksx-space-1);
 		font-size: var(--pksx-type-label);
 		font-weight: 700;
 	}
 
 	.total dd {
 		justify-self: end;
-		font-family: var(--pksx-font-mono);
 		font-size: var(--pksx-type-label);
-		font-variant-numeric: tabular-nums;
 		color: var(--pksx-color-text-secondary);
+	}
+
+	.num,
+	.total strong {
+		font-family: var(--pksx-font-mono);
+		font-variant-numeric: tabular-nums;
 	}
 
 	.total strong {
@@ -520,8 +553,12 @@
 		display: block;
 		block-size: 100%;
 		border-radius: inherit;
-		background: var(--tone);
+		background: var(--pksx-color-text-muted);
 		transition: inline-size 200ms var(--pksx-ease-out);
+	}
+
+	.caught .meter span {
+		background: var(--pksx-color-text-primary);
 	}
 
 	.fields,
@@ -551,6 +588,7 @@
 		display: flex;
 		align-items: center;
 		gap: var(--pksx-space-2);
+		padding-inline: max(8px, var(--pksx-space-2));
 		border: 0;
 		border-radius: 0;
 		background: none;
@@ -620,7 +658,9 @@
 	}
 
 	.field-error {
-		font-size: var(--pksx-type-caption);
+		font-size: var(--pksx-type-label);
+		font-weight: 650;
+		line-height: 1.25;
 		color: var(--pksx-color-feedback-danger);
 	}
 
@@ -670,9 +710,7 @@
 	}
 
 	.count {
-		font-family: var(--pksx-font-mono);
 		font-size: var(--pksx-type-label);
-		font-variant-numeric: tabular-nums;
 		color: var(--pksx-color-text-secondary);
 		white-space: nowrap;
 	}
@@ -699,10 +737,6 @@
 		border-bottom: var(--pksx-border-width) solid var(--pksx-color-border-subtle);
 	}
 
-	.species-row:focus-within {
-		background: var(--pksx-color-surface-subtle);
-	}
-
 	.number {
 		font-family: var(--pksx-font-mono);
 		font-size: var(--pksx-type-label);
@@ -714,6 +748,7 @@
 		inline-size: var(--pksx-control-height);
 		block-size: var(--pksx-control-height);
 		object-fit: contain;
+		image-rendering: pixelated;
 		transition:
 			filter 200ms var(--pksx-ease-out),
 			opacity 200ms var(--pksx-ease-out);
@@ -786,12 +821,17 @@
 	}
 
 	input {
-		padding-block: 0;
+		padding: 0 var(--pksx-space-2);
 	}
 
+	/* Cancel the forms-plugin focus border and ring; the outline is the one indicator. */
 	input:focus {
-		border-color: var(--pksx-color-accent-primary);
+		border-color: var(--pksx-color-border-strong);
 		box-shadow: none;
+	}
+
+	.field input[aria-invalid='true'] {
+		border-color: var(--pksx-color-feedback-danger);
 	}
 
 	.flag {
@@ -804,13 +844,8 @@
 	}
 
 	.flag[aria-pressed='true'] {
-		border-color: var(--tone);
-		background: color-mix(in srgb, var(--tone) 16%, transparent);
+		border-color: var(--pksx-color-border-strong);
 		color: var(--pksx-color-text-primary);
-	}
-
-	.flag:hover {
-		border-color: var(--tone);
 	}
 
 	svg {
@@ -829,12 +864,11 @@
 		stroke-width: 1.5;
 	}
 
-	.flag[aria-pressed='true'] .mark rect {
-		fill: var(--tone);
-		stroke: var(--tone);
+	.mark.on .shape {
+		fill: currentColor;
 	}
 
-	.mark path {
+	.mark.on .detail {
 		stroke: var(--pksx-color-surface-panel);
 	}
 
@@ -850,14 +884,17 @@
 
 	:is(button, input):focus-visible {
 		outline: var(--pksx-focus-ring) solid var(--pksx-color-accent-ring);
-		outline-offset: 1px;
+		outline-offset: calc(-1 * var(--pksx-focus-ring));
 	}
 
 	@container pokedex (min-width: 540px) {
 		.screen {
-			grid-template-columns: clamp(200px, 32cqw, 300px) minmax(0, 44rem);
+			--rail: clamp(200px, 32cqw, 300px);
+			grid-template-columns: var(--rail) minmax(0, 1fr);
 			grid-template-rows: auto auto minmax(0, 1fr);
 			column-gap: var(--pksx-space-3);
+			max-inline-size: calc(var(--rail) + var(--pksx-space-3) + 44rem);
+			margin-inline: auto;
 		}
 
 		.identity {
@@ -909,11 +946,12 @@
 		}
 
 		.flag {
-			padding-inline: var(--pksx-space-1);
+			padding-inline: max(5px, var(--pksx-space-1));
 		}
 	}
 
-	@container pokedex (min-width: 1100px) {
+	/* The centered species panel clears the Main Menu opener from here. */
+	@container pokedex (min-width: 1160px) {
 		.search-row {
 			padding-inline-end: var(--pksx-space-2);
 		}
