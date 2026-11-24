@@ -312,7 +312,10 @@ export class IndexedDbSavesStorage implements SavesStorage {
 			const transaction = database.transaction([saveFilesStore, appStateStore], 'readwrite');
 			const store = transaction.objectStore(saveFilesStore);
 			const existing = await requestToPromise<StoredSaveFile | undefined>(store.get(saveFileId));
-			if (!existing) throw new Error(`Cannot activate unknown save file: ${saveFileId}`);
+			if (!existing) {
+				await transactionDone(transaction);
+				throw new Error(`Cannot activate unknown save file: ${saveFileId}`);
+			}
 			const updated = { ...existing, updatedAt: this.#now() };
 			store.put(updated);
 			transaction

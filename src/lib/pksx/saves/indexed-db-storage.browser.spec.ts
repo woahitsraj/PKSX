@@ -500,10 +500,11 @@ describe('IndexedDbSavesStorage', () => {
 		await expect(storage.getSave(older.id)).resolves.toStrictEqual(activated);
 	});
 
-	it('rejects activating an unknown save file', async () => {
+	it('rejects activating an unknown save file without keeping its database open', async () => {
 		await expect(storage.setActiveSaveFileId('missing-save')).rejects.toThrow(
 			'Cannot activate unknown save file: missing-save'
 		);
+		await deleteIndexedDbSaves(databaseName);
 	});
 
 	it('creates and lists backup metadata for a save file', async () => {
