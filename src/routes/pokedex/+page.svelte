@@ -31,7 +31,7 @@
 	let fieldsOpen = $state(fieldsOpenMemory);
 	let query = $state('');
 	let mounted = false;
-	let railReturn: HTMLButtonElement | null = null;
+	let railReturn: { row: HTMLButtonElement; control: HTMLElement } | null = null;
 	const pokedex = $derived(workspace?.workspace.saveFile?.pokedex);
 	const all = $derived(pokedex?.species ?? []);
 	const species = $derived(
@@ -111,18 +111,20 @@
 	}
 
 	function navigateSpecies(event: KeyboardEvent) {
+		if (event.key === 'Tab') railReturn = null;
 		if (event.altKey || event.ctrlKey || event.metaKey || !event.key.startsWith('Arrow')) return;
 		const active = isControllerKeyboardEvent(event) ? document.activeElement : event.target;
 		let target: HTMLElement | null | undefined;
-		const returnRow = railReturn?.closest('.species-row');
+		const returnRow = railReturn?.row.closest('.species-row');
 		if (
 			event.key === 'ArrowRight' &&
-			active instanceof HTMLElement &&
-			active.closest('.fields-body') &&
+			active instanceof HTMLButtonElement &&
+			active === railReturn?.control &&
 			returnRow &&
 			railControl(returnRow)
 		) {
-			target = railReturn;
+			target = railReturn.row;
+			railReturn = null;
 		} else if (active === searchInput()) {
 			if (event.key !== 'ArrowDown') return;
 			target = document.querySelector<HTMLElement>('.species-row button');
@@ -136,7 +138,7 @@
 			if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
 				const left = event.key === 'ArrowLeft';
 				target = controls[column + (left ? -1 : 1)] ?? (left ? railControl(row) : undefined);
-				if (left && column === 0 && target) railReturn = active;
+				if (left && column === 0 && target) railReturn = { row: active, control: target };
 			} else {
 				const next = event.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
 				target = next?.matches('.species-row')
@@ -178,7 +180,13 @@
 	}
 </script>
 
-<svelte:window onkeydown={navigateSpecies} />
+<svelte:window
+	onkeydown={navigateSpecies}
+	onfocusin={(event) => {
+		if (event.target !== railReturn?.control) railReturn = null;
+	}}
+	onpointerdown={() => (railReturn = null)}
+/>
 
 {#snippet mark(label: string, on: boolean)}
 	<svg class={['mark', on && 'on']} viewBox="0 0 12 12" aria-hidden="true">

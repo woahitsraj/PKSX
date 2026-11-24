@@ -146,6 +146,13 @@ for (const viewport of [
 			await expect(rail).toBeFocused();
 			await dpad(page, 'ArrowRight');
 			await expect(oddish).toBeFocused();
+			await dpad(page, 'ArrowLeft');
+			const input = page.locator('[data-destination-focus="field-spinda-pid"]');
+			await input.focus();
+			await page.keyboard.press('ArrowRight');
+			await expect(input).toBeFocused();
+			await dpad(page, 'ArrowRight');
+			await expect(page.locator('[data-destination-focus="apply-spinda-pid"]')).toBeFocused();
 		} else {
 			await expect(oddish).toBeFocused();
 		}
