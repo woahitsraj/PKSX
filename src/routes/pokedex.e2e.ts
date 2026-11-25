@@ -136,6 +136,15 @@ for (const viewport of [
 			await expect(pid).toBeFocused();
 			await pid.press('ArrowUp');
 			await expect(pid).toHaveValue('12346');
+			await dpad(page, 'ArrowRight');
+			await expect(applied).toBeFocused();
+			await dpad(page, 'ArrowUp');
+			await expect(
+				page
+					.locator('.species-row')
+					.filter({ has: toggle })
+					.locator('.flag:focus, .values-toggle:focus')
+			).toHaveCount(1);
 			await toggle.click();
 			await toggle.click();
 			await expect(pid).toHaveValue('12345');
@@ -292,4 +301,34 @@ test('Pokedex explicitly reports a Save File without a Pokedex', async ({ page }
 		timeout: 90_000
 	});
 	await expect(page.getByRole('searchbox')).toHaveCount(0);
+});
+
+test('Generation 2 Unown values stay on its row and bulk Seen is backed up', async ({ page }) => {
+	await page.goto('/');
+	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready',
+		{ timeout: 60_000 }
+	);
+	await page
+		.getByLabel('Import Save File')
+		.setInputFiles(path.resolve('test-fixtures/save-files/pkmds-blazor/pokemon-silver.sav'));
+	await expect(page.getByText('pokemon-silver.sav imported and made active.')).toBeVisible({
+		timeout: 90_000
+	});
+	await choose(page, 'Pokedex');
+	await page.getByRole('searchbox').fill('Unown');
+	await page.getByRole('button', { name: 'Unown values', exact: true }).click();
+	await expect(page.locator('.species-values input')).toHaveCount(2);
+	await expect(page.locator('.fields-body')).toHaveCount(0);
+	// Silver starts complete; clear one flag so the bulk edit changes state.
+	await page.getByRole('button', { name: 'Unown Seen', exact: true }).click();
+	await expect(page.locator('.total.seen strong')).toHaveText('250', { timeout: 90_000 });
+	const markAll = page.getByRole('button', { name: 'Mark all Seen', exact: true });
+	await markAll.click();
+	await expect(page.locator('.total.seen strong')).toHaveText('251', { timeout: 90_000 });
+	await expect.poll(() => readSafetyState(page)).toEqual({ backups: 1, dirty: true });
+	await markAll.click();
+	await expect(markAll).toHaveAttribute('aria-disabled', 'false');
+	expect(await readSafetyState(page)).toEqual({ backups: 1, dirty: true });
 });
