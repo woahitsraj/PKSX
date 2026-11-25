@@ -22,7 +22,7 @@ const files: StoredSaveFile[] = [
 	},
 	{ id: 'c', originalFileName: null, byteLength: 1, importedAt: '', updatedAt: '' }
 ];
-const details: Record<string, SaveCardDetailsState> = {
+const details = {
 	b: {
 		status: 'ready',
 		details: {
@@ -43,7 +43,7 @@ const details: Record<string, SaveCardDetailsState> = {
 			pokemonCount: 0
 		}
 	}
-};
+} satisfies Record<string, SaveCardDetailsState>;
 const ids = (query: string) =>
 	filterSortSaves({ files, details, query, sort: 'alphabetical' }).map((file) => file.id);
 
@@ -57,6 +57,38 @@ describe('Saves library', () => {
 		expect(ids('missing')).toEqual([]);
 		expect(ids('  ')).toEqual(['a', 'b', 'c']);
 	});
+	it.each([
+		{ gameVersion: 'RB', queries: ['Red', 'Blue'] },
+		{ gameVersion: 'GS', queries: ['Gold', 'Silver'] },
+		{ gameVersion: 'RS', queries: ['Ruby', 'Sapphire'] },
+		{ gameVersion: 'FR', queries: ['FireRed', 'LeafGreen'] },
+		{ gameVersion: 'DP', queries: ['Diamond', 'Pearl'] },
+		{ gameVersion: 'RSBOX', queries: ['Box', 'Ruby', 'Sapphire'] },
+		{ gameVersion: 'BATREV', queries: ['Battle Revolution'] },
+		{ gameVersion: 'ZA', queries: ['Legends Z-A'] }
+	])(
+		'finds engine version $gameVersion by game name with a generic filename',
+		({ gameVersion, queries }) => {
+			for (const query of queries) {
+				expect(
+					filterSortSaves({
+						files: [{ ...files[0], originalFileName: 'main.sav', displayName: null }],
+						details: {
+							b: {
+								status: 'ready',
+								details: {
+									...details.b.details,
+									summary: { ...details.b.details.summary, gameVersion }
+								}
+							}
+						},
+						query: query.toUpperCase(),
+						sort: 'alphabetical'
+					}).map((file) => file.id)
+				).toEqual(['b']);
+			}
+		}
+	);
 	it('orders successful opens before unopened saves with stable identity ties', () => {
 		const opened = files.map((file) => ({
 			...file,
