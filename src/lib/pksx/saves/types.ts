@@ -25,6 +25,7 @@ export type StoredSaveFile = {
 	linkedDocumentId?: string;
 	emulator?: string;
 	displayName?: string | null;
+	lastOpenedAt?: string;
 	byteLength: number;
 	importedAt: string;
 	updatedAt: string;
@@ -167,6 +168,7 @@ export type SavesStorage = {
 	importSave(input: ImportSaveInput): Promise<StoredSaveFile>;
 	getSave(saveFileId: SaveFileId): Promise<StoredSaveFile | null>;
 	listSaves(): Promise<StoredSaveFile[]>;
+	recordSuccessfulOpen(saveFileId: SaveFileId): Promise<StoredSaveFile>;
 	renameSave(saveFileId: SaveFileId, name: string | null): Promise<StoredSaveFile>;
 	getSaveBytes(saveFileId: SaveFileId): Promise<Uint8Array | null>;
 	putWorkspace(input: PutWorkspaceInput): Promise<StoredWorkspace>;

@@ -10,6 +10,13 @@
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
 	import RenameSaveFile from '$lib/components/pksx/RenameSaveFile.svelte';
 	import { getSaveDisplayName } from '$lib/pksx/saves';
+	import {
+		filterSortSaves,
+		getSaveGameTitle,
+		readSavesSort,
+		writeSavesSort,
+		type SavesSort
+	} from '$lib/pksx/saves-library';
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
 	import StorageBackupMenu from '$lib/components/pksx/StorageBackupMenu.svelte';
 	import AddSavesMenu from '$lib/components/pksx/AddSavesMenu.svelte';
@@ -78,22 +85,11 @@
 	const boxesSession = getBoxesSession();
 	const summonedWorkflow = getSummonedWorkflowHost();
 	const toastHost = getToastHost();
-	const gameNames: Record<string, string> = {
-		E: 'Pokemon Emerald',
-		'Pokémon Unbound': 'Pokémon Unbound',
-		COLO: 'Pokemon Colosseum',
-		XD: 'Pokemon XD',
-		X: 'Pokemon X',
-		Y: 'Pokemon Y',
-		OR: 'Pokemon Omega Ruby',
-		AS: 'Pokemon Alpha Sapphire',
-		SN: 'Pokemon Sun',
-		MN: 'Pokemon Moon',
-		US: 'Pokemon Ultra Sun',
-		UM: 'Pokemon Ultra Moon',
-		SV: 'Pokemon Scarlet / Violet'
-	};
 
+	let query = $state('');
+	let sort = $state<SavesSort>('alphabetical');
+	let searchControls: HTMLElement;
+	let tabDirection: 'forward' | 'backward' | null = null;
 	let saveFiles = $state<StoredSaveFile[]>([]);
 	let activeSaveFileId = $state<SaveFileId | null>(null);
 	let detailsBySaveFileId = $state<Record<SaveFileId, SaveCardDetailsState>>({});
@@ -115,8 +111,14 @@
 	let recoveryRequested = $state(false);
 	let refreshRequest = 0;
 
+	const visibleSaveFiles = $derived(
+		filterSortSaves({ files: saveFiles, details: detailsBySaveFileId, query, sort })
+	);
+
+	const searching = $derived(query.trim() !== '');
+
 	const targets = $derived<SavesTarget[]>([
-		...saveFiles.map((saveFile) => ({ kind: 'save-file' as const, id: saveFile.id })),
+		...visibleSaveFiles.map((saveFile) => ({ kind: 'save-file' as const, id: saveFile.id })),
 		{ kind: 'pokemon-storage' },
 		{ kind: 'import' }
 	]);
@@ -137,9 +139,9 @@
 	const activeTargetId = $derived(targetDomId(target));
 	const rowCount = $derived(Math.max(1, Math.ceil(targets.length / columnCount)));
 	const gridEntries = $derived<SavesGridEntry[]>([
-		...saveFiles.map((saveFile, index) => ({ kind: 'save-file' as const, saveFile, index })),
-		{ kind: 'pokemon-storage', index: saveFiles.length },
-		{ kind: 'import', index: saveFiles.length + 1 }
+		...visibleSaveFiles.map((saveFile, index) => ({ kind: 'save-file' as const, saveFile, index })),
+		{ kind: 'pokemon-storage', index: visibleSaveFiles.length },
+		{ kind: 'import', index: visibleSaveFiles.length + 1 }
 	]);
 	const gridRows = $derived.by(() => {
 		const rows: SavesGridEntry[][] = [];
@@ -155,6 +157,7 @@
 	});
 
 	onMount(() => {
+		sort = readSavesSort();
 		const cached = getCachedSavesSnapshot();
 		const seeded = isCachedSavesSnapshotSeeded();
 		let hasReceivedSnapshot = false;
@@ -218,7 +221,7 @@
 			: 'saves-target-' + value.kind;
 	}
 
-	function currentTargets(saveFileList = saveFiles): SavesTarget[] {
+	function currentTargets(saveFileList = visibleSaveFiles): SavesTarget[] {
 		return [
 			...saveFileList.map((saveFile) => ({ kind: 'save-file' as const, id: saveFile.id })),
 			{ kind: 'pokemon-storage' },
@@ -243,7 +246,14 @@
 		saveFiles = snapshot.saveFiles;
 		activeSaveFileId = snapshot.activeSaveFileId;
 		detailsBySaveFileId = snapshot.detailsBySaveFileId;
-		const nextTargets = currentTargets(snapshot.saveFiles);
+		const nextTargets = currentTargets(
+			filterSortSaves({
+				files: snapshot.saveFiles,
+				details: snapshot.detailsBySaveFileId,
+				query,
+				sort
+			})
+		);
 		target = resolveSavesTarget(
 			nextTargets,
 			preferredTarget ?? rememberedTarget(),
@@ -314,16 +324,21 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
+		tabDirection = event.key === 'Tab' ? (event.shiftKey ? 'backward' : 'forward') : null;
 		if (
 			event.altKey ||
 			event.ctrlKey ||
 			event.metaKey ||
-			event.shiftKey ||
-			isTextEntryTarget(event.target)
+			(event.shiftKey && event.key !== 'Tab') ||
+			(isTextEntryTarget(event.target) && !searchControls?.contains(document.activeElement))
 		) {
 			return;
 		}
 		if (addSavesOpen) return;
+		if (!summonedWorkflow.active && searchControls?.contains(document.activeElement)) {
+			handleSearchKeydown(event);
+			return;
+		}
 		if (renameOpen) return;
 		if (storageBackupOpen || storageConfirmOpen) {
 			handleStorageBackupKeydown(event);
@@ -354,7 +369,12 @@
 		const direction = directionForKey(event.key);
 		if (direction) {
 			event.preventDefault();
-			chooseTarget(moveSavesTarget(targets, target, columnCount, direction));
+			if (
+				direction === 'up' &&
+				targets.findIndex((entry) => sameSavesTarget(entry, target)) < columnCount
+			) {
+				document.getElementById('saves-search')?.focus();
+			} else chooseTarget(moveSavesTarget(targets, target, columnCount, direction));
 			return;
 		}
 
@@ -722,6 +742,15 @@
 					: destination === 'trainer'
 						? resolve('/trainer')
 						: resolve('/bag');
+			try {
+				await storage.recordSuccessfulOpen(current.id);
+				invalidateSavesCache();
+			} catch (error) {
+				toastHost.error(
+					'Opened Save File, but could not store its recently opened history. ' +
+						getErrorMessage(error)
+				);
+			}
 			await goto(path, {
 				keepFocus: true
 			});
@@ -979,16 +1008,112 @@
 		void focusMenuCommand(5);
 	}
 
+	function updateLibrary(nextQuery = query, nextSort = sort) {
+		query = nextQuery;
+		sort = nextSort;
+		target = resolveSavesTarget(
+			currentTargets(
+				filterSortSaves({ files: saveFiles, details: detailsBySaveFileId, query, sort })
+			),
+			target,
+			null
+		);
+		rememberTarget(target);
+	}
+
+	function chooseSort(next: SavesSort) {
+		if (next === sort) return;
+		updateLibrary(query, next);
+		writeSavesSort(next);
+	}
+
+	function clearSearch() {
+		document.getElementById('saves-search')?.focus();
+		updateLibrary('');
+	}
+
+	function libraryControls() {
+		const field = searchControls.querySelector<HTMLInputElement>('input')!;
+		const sortGroup = searchControls.querySelector<HTMLElement>('.sort-toggle')!;
+		return {
+			field,
+			sortGroup,
+			stacked: sortGroup.getBoundingClientRect().bottom <= field.getBoundingClientRect().top
+		};
+	}
+
+	function handleSearchFocus(event: FocusEvent) {
+		const direction = tabDirection;
+		tabDirection = null;
+		if (
+			!direction ||
+			(event.relatedTarget instanceof Node && searchControls.contains(event.relatedTarget))
+		)
+			return;
+		const { field, sortGroup, stacked } = libraryControls();
+		if (!stacked) return;
+		const buttons = sortGroup.querySelectorAll<HTMLButtonElement>('button');
+		if (direction === 'forward' && event.target === field) buttons[0]?.focus();
+		else if (direction === 'backward' && (event.target === buttons[1] || event.target === field))
+			(searchControls.querySelector<HTMLButtonElement>('.search-clear') ?? field).focus();
+	}
+
+	function handleSearchKeydown(event: KeyboardEvent) {
+		const active = document.activeElement;
+		const { field, sortGroup, stacked } = libraryControls();
+		const inSort = sortGroup.contains(active);
+		if (event.key === 'Tab' && stacked) {
+			const clear = searchControls.querySelector<HTMLButtonElement>('.search-clear');
+			const controls = [
+				...sortGroup.querySelectorAll<HTMLElement>('button'),
+				field,
+				...(clear ? [clear] : [])
+			];
+			const index = controls.findIndex((node) => node === active);
+			const next = controls[index + (event.shiftKey ? -1 : 1)];
+			if (next) {
+				event.preventDefault();
+				next.focus();
+			} else if (!event.shiftKey) {
+				event.preventDefault();
+				void focusGrid();
+			} else field.focus();
+			return;
+		}
+		if (event.key === 'ArrowDown' && stacked && inSort) {
+			event.preventDefault();
+			field.focus();
+		} else if (event.key === 'Escape' || event.key === 'ArrowDown') {
+			event.preventDefault();
+			void focusGrid();
+		} else if (event.key === 'ArrowUp') {
+			event.preventDefault();
+			if (stacked && !inSort) {
+				sortGroup.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
+			}
+		} else if (
+			(event.key === 'ArrowRight' || event.key === 'ArrowLeft') &&
+			!(active instanceof HTMLInputElement && !isControllerKeyboardEvent(event))
+		) {
+			event.preventDefault();
+			const controls = Array.from(searchControls.querySelectorAll<HTMLElement>('input, button'));
+			if (stacked) {
+				controls.sort((a, b) => Number(sortGroup.contains(b)) - Number(sortGroup.contains(a)));
+			}
+			const index = controls.findIndex((node) => node === active);
+			controls[
+				Math.max(0, Math.min(controls.length - 1, index + (event.key === 'ArrowLeft' ? -1 : 1)))
+			]?.focus();
+		}
+	}
+
 	function displayName(saveFile: StoredSaveFile) {
 		return getSaveDisplayName(saveFile);
 	}
 
 	function gameTitle(details: SaveCardDetailsState, saveFile: StoredSaveFile) {
 		if (details.status !== 'ready') return displayName(saveFile);
-		return (
-			gameNames[details.details.summary.gameVersion] ??
-			'Pokemon ' + details.details.summary.gameVersion
-		);
+		return getSaveGameTitle(details.details.summary.gameVersion);
 	}
 
 	function getErrorMessage(error: unknown) {
@@ -1008,7 +1133,7 @@
 	}
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} onpointerdown={() => (tabDirection = null)} />
 
 <section
 	class="saves-route pksx-density-container"
@@ -1018,12 +1143,76 @@
 	inert={summonedWorkflow.active !== null}
 >
 	<div class="saves-density pksx-density">
-		<header class="saves-header">
-			<div>
+		<header class="library-bar">
+			<div class="library-title">
 				<h1 id="saves-title">Saves</h1>
+				<p
+					class="library-count"
+					role="status"
+					style:--count-digits={String(saveFiles.length).length}
+				>
+					{#if searching}
+						{visibleSaveFiles.length} of {saveFiles.length}<span class="sr-only">
+							Save Files match</span
+						>
+					{:else if !catalogLoading && saveFiles.length > 0}
+						{saveFiles.length}<span class="count-unit"
+							>{saveFiles.length === 1 ? ' Save File' : ' Save Files'}</span
+						>
+					{/if}
+				</p>
+			</div>
+			<div
+				class="library-tools"
+				onfocusin={handleSearchFocus}
+				{@attach (node) => {
+					searchControls = node;
+				}}
+			>
+				<div class="search-field" role="search">
+					<label class="sr-only" for="saves-search">Search Saves</label>
+					<svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true">
+						<circle cx="7" cy="7" r="4.5" />
+						<path d="m10.5 10.5 3.5 3.5" />
+					</svg>
+					<input
+						id="saves-search"
+						type="search"
+						value={query}
+						placeholder="Name, game or trainer"
+						autocomplete="off"
+						oninput={(event) => updateLibrary(event.currentTarget.value)}
+					/>
+					{#if query}
+						<button
+							type="button"
+							class="search-clear"
+							data-pksx-control-category="small"
+							aria-label="Clear search"
+							onclick={clearSearch}
+						>
+							<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8" /></svg>
+						</button>
+					{/if}
+				</div>
+				<div class="sort-toggle" role="group" aria-label="Sort">
+					<button
+						type="button"
+						aria-pressed={sort === 'alphabetical'}
+						onclick={() => chooseSort('alphabetical')}
+					>
+						<span aria-hidden="true">A–Z</span><span class="sr-only">A to Z</span>
+					</button>
+					<button
+						type="button"
+						aria-pressed={sort === 'recently-opened'}
+						onclick={() => chooseSort('recently-opened')}>Recent</button
+					>
+				</div>
 			</div>
 			<input
 				id="save-file-input"
+				tabindex="-1"
 				data-pksx-control-category="composition"
 				type="file"
 				aria-label="Import Save File"
@@ -1033,6 +1222,7 @@
 			/>
 			<input
 				id="storage-backup-input"
+				tabindex="-1"
 				data-pksx-control-category="composition"
 				type="file"
 				accept=".pksx-storage"
@@ -1042,6 +1232,11 @@
 		</header>
 
 		<div class="saves-scrollport">
+			{#if searching && visibleSaveFiles.length === 0}
+				<p class="no-matches">
+					No name, game, trainer or filename contains <strong>“{query.trim()}”</strong>.
+				</p>
+			{/if}
 			<div
 				id="saves-grid"
 				{@attach savesGridOwner}
@@ -1300,6 +1495,223 @@
 {/if}
 
 <style>
+	.library-bar {
+		min-height: var(--pksx-control-height);
+		display: grid;
+		grid-template-columns: minmax(max-content, 1fr) minmax(8rem, 22rem) auto;
+		grid-template-areas: 'title search sort';
+		align-items: center;
+		gap: var(--pksx-space-2);
+	}
+
+	.library-title {
+		grid-area: title;
+		min-width: 0;
+		display: flex;
+		align-items: baseline;
+		gap: var(--pksx-space-2);
+		padding-inline-end: var(--pksx-space-2);
+	}
+
+	.library-title h1,
+	.library-count {
+		margin: 0;
+	}
+
+	.library-title h1 {
+		font-size: var(--pksx-type-display);
+		line-height: 1;
+	}
+
+	.library-count {
+		/* Room for "N Save Files" plus slack, so the search field does not move. */
+		min-width: calc((var(--count-digits) + 11.5) * 1ch);
+		overflow: hidden;
+		color: var(--ink-soft);
+		font: 650 var(--pksx-type-label) / 1.2 var(--pksx-font-mono);
+		font-variant-numeric: tabular-nums;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.library-tools {
+		display: contents;
+	}
+
+	.search-field {
+		grid-area: search;
+		position: relative;
+		min-width: 0;
+	}
+
+	.search-icon,
+	.search-clear svg {
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+
+	.search-icon {
+		position: absolute;
+		inset-block: 0;
+		left: var(--pksx-space-2);
+		width: var(--pksx-icon-size);
+		height: var(--pksx-icon-size);
+		margin-block: auto;
+		color: var(--ink-soft);
+		pointer-events: none;
+	}
+
+	.search-field input {
+		width: 100%;
+		min-height: var(--pksx-control-height);
+		padding: 0 calc(var(--pksx-small-control-height) + var(--pksx-space-2)) 0
+			calc(var(--pksx-icon-size) + var(--pksx-space-2) * 2);
+		border: var(--pksx-border-width) solid var(--ink-soft);
+		border-radius: var(--pksx-radius-medium);
+		background: var(--paper-hi);
+		color: var(--ink);
+		caret-color: var(--rust);
+		font-size: var(--pksx-type-editable);
+		line-height: 1.2;
+		text-overflow: ellipsis;
+	}
+
+	.search-field input::placeholder {
+		color: var(--ink-soft);
+		opacity: 1;
+	}
+
+	.search-field input::selection {
+		background: var(--rust-ring);
+		color: var(--ink);
+	}
+
+	.search-field input::-webkit-search-cancel-button {
+		display: none;
+	}
+
+	.search-field input:hover {
+		border-color: var(--ink);
+	}
+
+	.search-field input:focus {
+		border-color: var(--rust);
+		outline: var(--pksx-focus-ring) solid var(--rust-ring);
+		outline-offset: 0;
+		box-shadow: none;
+	}
+
+	.search-clear {
+		position: absolute;
+		inset-block: 0;
+		right: var(--pksx-space-1);
+		width: var(--pksx-small-control-height);
+		height: var(--pksx-small-control-height);
+		margin-block: auto;
+		display: grid;
+		place-items: center;
+		padding: 0;
+		border: 0;
+		border-radius: var(--pksx-radius-small);
+		background: transparent;
+		color: var(--ink-soft);
+		cursor: pointer;
+	}
+
+	.search-clear svg {
+		width: var(--pksx-small-icon-size);
+		height: var(--pksx-small-icon-size);
+	}
+
+	.search-clear:hover,
+	.search-clear:active {
+		background: var(--rust-wash);
+		color: var(--rust);
+	}
+
+	.sort-toggle {
+		grid-area: sort;
+		/* Keeps the bar clear of the fixed Main Menu button. */
+		margin-inline-end: max(
+			0px,
+			calc(var(--pksx-control-height) + var(--pksx-space-1) - max(0px, 50cqw - 600px))
+		);
+		display: grid;
+		grid-auto-flow: column;
+		grid-auto-columns: 1fr;
+		border-radius: var(--pksx-radius-medium);
+		background: var(--paper-deep);
+		box-shadow: inset 0 0 0 var(--pksx-border-width) var(--rule);
+	}
+
+	.sort-toggle button {
+		min-height: var(--pksx-control-height);
+		padding: 0 calc(var(--pksx-space-1) + 6px);
+		border: 2px solid transparent;
+		border-radius: var(--pksx-radius-medium);
+		background: transparent padding-box;
+		color: var(--ink-soft);
+		font: 700 var(--pksx-type-label) / 1 var(--pksx-font-sans);
+		white-space: nowrap;
+		cursor: pointer;
+	}
+
+	.sort-toggle button:hover {
+		color: var(--ink);
+	}
+
+	.sort-toggle button:active {
+		background-color: var(--rust-wash);
+	}
+
+	.sort-toggle button[aria-pressed='true'] {
+		background-color: var(--paper-hi);
+		color: var(--rust);
+		color: color-mix(in srgb, var(--rust), var(--ink) 25%);
+	}
+
+	.search-clear:focus-visible,
+	.sort-toggle button:focus-visible {
+		outline: var(--pksx-focus-ring) solid var(--rust);
+		outline-offset: 0;
+	}
+
+	.no-matches {
+		margin: 0 0 var(--pksx-space-2);
+		color: var(--ink-soft);
+		font-size: var(--pksx-type-body);
+		line-height: 1.4;
+		overflow-wrap: anywhere;
+	}
+
+	.no-matches strong {
+		color: var(--ink);
+	}
+
+	@container pksx-density (max-width: 559px) {
+		.library-bar {
+			grid-template-columns: minmax(0, 1fr) auto;
+			grid-template-areas:
+				'title sort'
+				'search search';
+		}
+
+		.library-count {
+			min-width: 0;
+		}
+
+		.count-unit {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip-path: inset(50%);
+			white-space: nowrap;
+		}
+	}
+
 	:global(.app-shell:has(.saves-route)) {
 		height: 100dvh;
 		min-height: 100dvh;
@@ -1322,27 +1734,6 @@
 		display: grid;
 		grid-template-rows: auto minmax(0, 1fr);
 		gap: var(--pksx-space-2);
-	}
-
-	.saves-header {
-		min-height: 36px;
-		display: flex;
-		align-items: end;
-		justify-content: space-between;
-	}
-
-	.saves-header div {
-		display: grid;
-		gap: 2px;
-	}
-
-	.saves-header h1 {
-		margin: 0;
-	}
-
-	.saves-header h1 {
-		font-size: var(--pksx-type-display);
-		line-height: 1;
 	}
 
 	#save-file-input,

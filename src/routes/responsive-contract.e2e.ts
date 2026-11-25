@@ -1157,3 +1157,43 @@ test('[SURFACE-1][SURFACE-2] Menu and Backup Browser follow Safe Canvas edges wi
 			height: portraitFloor.safe.height
 		});
 });
+
+test('@responsive-matrix Saves library Tab order follows stacked and inline controls', async ({
+	page
+}, testInfo) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/saves');
+	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
+	const search = page.getByRole('searchbox', { name: 'Search Saves' });
+	const name = page.getByRole('button', { name: 'A to Z', exact: true });
+	const recent = page.getByRole('button', { name: 'Recent', exact: true });
+	const clear = page.getByRole('button', { name: 'Clear search', exact: true });
+	const grid = page.getByRole('grid', { name: 'Saves collections' });
+	await search.fill('nothing-matches');
+	await grid.focus();
+	for (const control of [clear, search, recent, name]) {
+		await page.keyboard.press('Shift+Tab');
+		await expect(control).toBeFocused();
+	}
+	await page.keyboard.press('Shift+Tab');
+	await expect(page.locator('.library-tools :focus')).toHaveCount(0);
+	for (const control of [name, recent, search, clear, grid]) {
+		await page.keyboard.press('Tab');
+		await expect(control).toBeFocused();
+	}
+	await clear.click();
+	await page.keyboard.press('Tab');
+	await expect(grid).toBeFocused();
+	await page.keyboard.press('Shift+Tab');
+	await expect(search).toBeFocused();
+	if (testInfo.project.name !== 'chromium') return;
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await search.fill('nothing-matches');
+	for (const control of [clear, name, recent, grid]) {
+		await page.keyboard.press('Tab');
+		await expect(control).toBeFocused();
+	}
+});
