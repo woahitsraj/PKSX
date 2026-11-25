@@ -72,7 +72,7 @@ export function getSavesStorage() {
 }
 
 export function getPkhexEngine() {
-	engine ??= createPkhexWorkerEngine('/pkhex-engine');
+	engine ??= createPkhexWorkerEngine();
 	return engine;
 }
 

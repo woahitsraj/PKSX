@@ -18,7 +18,7 @@ beforeAll(async () => {
 });
 
 async function workspace() {
-	const engine = createPkhexWorkerEngine('/pkhex-engine');
+	const engine = createPkhexWorkerEngine();
 	const loaded = await engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0);
 	if (!loaded.ok) throw loaded.error;
 	return {
@@ -97,7 +97,7 @@ describe('Save File-wide Legality Report with real Save File bytes', () => {
 	test('retains exact candidates across 140 previews and commits one copied-byte worker batch', async () => {
 		const bytes = new Uint8Array(await (await fetch(platinumUrl)).arrayBuffer());
 		const original = bytes.slice();
-		const engine = createPkhexWorkerEngine('/pkhex-engine');
+		const engine = createPkhexWorkerEngine();
 		const loaded = await engine.loadSaveWorkspace(bytes, 'pokemon-platinum-eu.sav', 2);
 		if (!loaded.ok) throw loaded.error;
 		const state = createCleanWorkspaceState({

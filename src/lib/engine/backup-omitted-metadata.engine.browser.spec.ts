@@ -10,7 +10,7 @@ test(
 		const worker = new Worker(new URL('./pkhex-engine.worker.ts', import.meta.url), {
 			type: 'module'
 		});
-		const engine = createPkhexWorkerEngine('/pkhex-engine', { createWorker: () => worker });
+		const engine = createPkhexWorkerEngine(undefined, { createWorker: () => worker });
 		try {
 			for (const fixture of [
 				{

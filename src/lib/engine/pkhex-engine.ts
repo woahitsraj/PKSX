@@ -155,7 +155,7 @@ const knownEngineErrorCodes = new Set<EngineErrorCode>([
 	'unknown-engine-error'
 ]);
 
-export async function createPkhexEngine(basePath = '/pkhex-engine'): Promise<EngineApi> {
+export async function createPkhexEngine(basePath = __PKHEX_ENGINE_BASE_PATH__): Promise<EngineApi> {
 	const module = (await import(
 		/* @vite-ignore */ `${basePath}/_framework/dotnet.js`
 	)) as RawDotnetModule;

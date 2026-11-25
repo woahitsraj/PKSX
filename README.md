@@ -91,7 +91,7 @@ pnpm dev -- --open
 See [Android testing](./docs/testing/android.md) and [iOS testing](./docs/testing/ios.md)
 for the one-time simulator setup and headless local acceptance-test workflows.
 
-The Svelte app loads the engine from `/pkhex-engine`, which maps to generated static files under `static/pkhex-engine`.
+The Svelte app loads the engine from `/pkhex-engine/<content-hash>`, which maps to generated static files under `static/pkhex-engine`. Vite reads the folder name when it starts, so restart it after a sync.
 
 Generate those assets with:
 
@@ -105,7 +105,7 @@ The command:
 2. Defaults to `Release`.
 3. Verifies the `.NET` SDK and `wasm-tools` workload are present.
 4. Removes any existing `static/pkhex-engine`.
-5. Copies the published `AppBundle` into `static/pkhex-engine`.
+5. Copies the published `AppBundle` into `static/pkhex-engine/<content-hash>`.
 
 `static/pkhex-engine` is generated output and is ignored by git.
 

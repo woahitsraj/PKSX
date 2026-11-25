@@ -4,6 +4,13 @@ import path from 'node:path';
 
 test.setTimeout(180_000);
 
+// A service worker from an older deployment serves its cached Engine at the old fixed path.
+test.beforeEach(async ({ context }) => {
+	await context.route(/\/pkhex-engine\/_framework\//, (route) =>
+		route.fulfill({ contentType: 'text/javascript', body: 'throw new Error("stale Engine");' })
+	);
+});
+
 const fixture = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
 );

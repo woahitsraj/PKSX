@@ -16,7 +16,7 @@ import {
 } from './trade-journal';
 
 async function harness() {
-	const engine = await createPkhexEngine('/pkhex-engine');
+	const engine = await createPkhexEngine();
 	const bytes = new Uint8Array(await (await fetch(fixtureUrl)).arrayBuffer());
 	const slots = await engine.listBoxSlots(bytes, 'sword.sav', 0);
 	if (!slots.ok) throw slots.error;

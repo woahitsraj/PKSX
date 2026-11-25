@@ -3,7 +3,7 @@ import { createPkhexEngine } from './pkhex-engine';
 import moonUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/moon/011020252257.sav?url';
 
 test('Species and Form changes reset Furfrou timers through exported Save File bytes', async () => {
-	const engine = await createPkhexEngine('/pkhex-engine');
+	const engine = await createPkhexEngine();
 	const bytes = new Uint8Array(await (await fetch(moonUrl)).arrayBuffer());
 	const workspace = await engine.loadSaveWorkspace(bytes, 'Moon', 0);
 	if (!workspace.ok) throw new Error(workspace.error.message);

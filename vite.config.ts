@@ -2,6 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { pkhexEngineBasePath } from './scripts/pkhex-engine-path.ts';
 
 export default defineConfig({
 	plugins: [
@@ -17,6 +18,7 @@ export default defineConfig({
 			}
 		}
 	],
+	define: { __PKHEX_ENGINE_BASE_PATH__: JSON.stringify(pkhexEngineBasePath('static')) },
 	assetsInclude: ['**/test-fixtures/save-files/**'],
 	// Unoptimized, so the dev plugin above sees the flasher stub imports.
 	optimizeDeps: {

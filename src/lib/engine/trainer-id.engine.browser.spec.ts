@@ -10,7 +10,7 @@ for (const [name, url, modern] of [
 	['Moon', moonUrl, true]
 ] as const) {
 	test(`${name} Original Trainer IDs use the display domain and round-trip`, async () => {
-		const engine = await createPkhexEngine('/pkhex-engine');
+		const engine = await createPkhexEngine();
 		const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
 		const workspace = await engine.loadSaveWorkspace(bytes, name, 0);
 		if (!workspace.ok) throw new Error(workspace.error.message);
@@ -116,7 +116,7 @@ for (const [name, url, modern] of [
 }
 
 test('combined origin and Trainer edits preserve the staged ID domain in both directions', async () => {
-	const engine = await createPkhexEngine('/pkhex-engine');
+	const engine = await createPkhexEngine();
 	const bytes = new Uint8Array(await (await fetch(moonUrl)).arrayBuffer());
 	const source = { zone: 'box', box: 0, slot: 2 } as const;
 	const created = await engine.createPokemon(

@@ -2,6 +2,7 @@ import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { z } from 'zod';
+import { pkhexEngineBasePath } from './pkhex-engine-path.ts';
 
 const root = path.resolve(process.argv.slice(2).find((arg) => !arg.startsWith('--')) ?? 'build');
 const reportOnly = process.argv.includes('--report-only');
@@ -50,12 +51,13 @@ for (const absolute of files) {
 		totals[key].files += 1;
 	}
 }
+const engine = pkhexEngineBasePath(root).slice(1);
 for (const required of [
 	'index.html',
 	'native.html',
 	'service-worker.js',
-	'pkhex-engine/main.js',
-	'pkhex-engine/_framework/dotnet.js'
+	`${engine}/main.js`,
+	`${engine}/_framework/dotnet.js`
 ]) {
 	if (!assets.some((asset) => asset.path === required))
 		throw new Error(`Missing ${required}. Run pnpm engine:sync && pnpm build first.`);

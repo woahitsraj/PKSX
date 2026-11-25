@@ -7,7 +7,7 @@ import { BrowserCatalogPersistence, deleteBrowserCatalog, PokemonStorageService 
 test('real engine payloads survive archive replacement and pre-restore recovery', async () => {
 	const name = `storage-archive-engine-${crypto.randomUUID()}`;
 	try {
-		const engine = await createPkhexEngine('/pkhex-engine');
+		const engine = await createPkhexEngine();
 		const bytes = new Uint8Array(await (await fetch(fixtureUrl)).arrayBuffer());
 		const slots = await engine.listBoxSlots(bytes, '011020251345.sav', 0);
 		if (!slots.ok) throw slots.error;

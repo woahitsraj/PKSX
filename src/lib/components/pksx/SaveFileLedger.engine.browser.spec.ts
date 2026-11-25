@@ -25,10 +25,7 @@ let mounted: ReturnType<typeof mount> | null = null;
 let host: HTMLElement;
 
 beforeAll(async () => {
-	const [engine, response] = await Promise.all([
-		createPkhexEngine('/pkhex-engine'),
-		fetch(fixtureUrl)
-	]);
+	const [engine, response] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 	const bytes = new Uint8Array(await response.arrayBuffer());
 	const [workspace, catalogue] = await Promise.all([
 		engine.loadSaveWorkspace(bytes, '011020251345.sav', 0),

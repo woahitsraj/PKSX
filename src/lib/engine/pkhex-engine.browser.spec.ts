@@ -226,10 +226,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			reorderSupported: false
 		}
 	] as const)('projects Box Name capability for the $name fixture', async (fixture) => {
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixture.url)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixture.url)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 		const loaded = await loadEditableWorkspace(engine, fixtureBytes, fixture.fileName, 0);
 
@@ -263,10 +260,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('reorders exported Box content and metadata without mutating the source Save File', async () => {
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 		const [originalFirst, originalSecond] = await Promise.all([
 			engine.loadSaveWorkspace(fixtureBytes, '011020251345.sav', 0),
@@ -305,10 +299,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('renames a supported Box and rejects format-invalid names without changing source bytes', async () => {
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 		const renamed = await engine.applySaveFileEditOperation(
 			fixtureBytes,
@@ -342,7 +333,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		'records editor capabilities for the $name full Save File fixture',
 		async (fixture) => {
 			const [engine, fixtureResponse] = await Promise.all([
-				createPkhexEngine('/pkhex-engine'),
+				createPkhexEngine(),
 				fetch(fixture.url)
 			]);
 			const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
@@ -380,10 +371,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	);
 
 	test('filters the Emerald inventory catalogue through its exact game and pocket rules', async () => {
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 		const catalogue = await engine.getSaveFileInventoryCatalogue(fixtureBytes, '011020251345.sav');
 		expect(catalogue.ok, JSON.stringify(catalogue.error)).toBe(true);
@@ -432,7 +420,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 
 	test('keeps valid later-generation choices and preserves invalid owned items', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			fetch(publicShieldFixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
@@ -470,10 +458,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	test('parses the Emerald Save File fixture through the published browser-wasm bundle', async () => {
 		expect.assertions(17);
 
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 
 		const version = await engine.getVersion();
@@ -589,10 +574,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('projects and applies trainer, money, and inventory edits through PKHeX.Core', async () => {
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 		const loaded = await loadEditableWorkspace(engine, fixtureBytes, '011020251345.sav', 0);
 		if (!loaded.ok || !loaded.value.saveFile) throw new Error('Expected Save File projection.');
@@ -716,7 +698,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		'parses and loads the $name Save File fixture',
 		async (fixture) => {
 			const [engine, fixtureResponse] = await Promise.all([
-				createPkhexEngine('/pkhex-engine'),
+				createPkhexEngine(),
 				fetch(fixture.url)
 			]);
 			const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
@@ -742,7 +724,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 
 	test('counts Save card Pokemon across the Party and every Box', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			fetch(heartGoldFixtureUrl)
 		]);
 		const bytes = new Uint8Array(await fixtureResponse.arrayBuffer());
@@ -762,10 +744,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('leaves edit data out of Workspace loads and loads it per slot', async () => {
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const bytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 
 		const workspace = await engine.loadSaveWorkspace(bytes, '011020251345.sav', 0);
@@ -789,10 +768,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('projects and applies Affection only for a supporting Pokemon format', async () => {
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(xFixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(xFixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 		const workspace = await loadEditableWorkspace(engine, fixtureBytes, '011020252224', 0);
 		expect(workspace.ok, JSON.stringify(workspace.error)).toBe(true);
@@ -832,7 +808,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 		"parses and loads Raj's $name Save File fixture",
 		async (fixture) => {
 			const [engine, fixtureResponse] = await Promise.all([
-				createPkhexEngine('/pkhex-engine'),
+				createPkhexEngine(),
 				fetch(fixture.url)
 			]);
 			const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
@@ -866,10 +842,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	);
 
 	test('previews and applies a Pokemon evolution through the browser-wasm bundle', async () => {
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 		const originalBytes = copyBytes(fixtureBytes);
 		const source = { zone: 'box' as const, box: 0, slot: 0 };
@@ -940,7 +913,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 
 	test('preserves Pokemon identity and source-only data across an older format projection', async () => {
 		const [engine, emeraldResponse, scarletResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			fetch(fixtureUrl),
 			fetch(scarletFixtureUrl)
 		]);
@@ -1110,7 +1083,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 
 	test('previews and atomically applies one combined legality candidate through the browser-wasm bundle', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			fetch(platinumEuFixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
@@ -1286,7 +1259,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 
 	test('describes repaired party state without offering a heal-only legality action', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			fetch(platinumEuFixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
@@ -1343,7 +1316,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 
 	test('keeps identical localized ribbon names distinct in the repair preview', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			fetch(platinumEuFixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
@@ -1431,10 +1404,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	test('applies Save File slot operations through the browser-wasm bundle', async () => {
 		expect.assertions(13);
 
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 
 		const moved = await engine.applySlotOperation(
@@ -1515,10 +1485,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('creates a Pokemon in an empty Save File Slot through the browser-wasm bundle', async () => {
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 		const catalogue = await engine.getPokemonCreationCatalogue(
 			copyBytes(fixtureBytes),
@@ -1600,10 +1567,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	test('applies Save File Pokemon edits through the browser-wasm bundle', async () => {
 		expect.assertions(44);
 
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 
 		const edited = await engine.applyPokemonEditOperation(
@@ -1980,10 +1944,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('previews and applies engine-backed Species and Form edits', async () => {
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 		const source = { zone: 'box' as const, box: 0, slot: 0 };
 
@@ -2041,10 +2002,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('projects, changes, and removes generation-safe Held Items', async () => {
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 		const workspace = await loadEditableWorkspace(engine, fixtureBytes, '011020251345.sav', 0);
 		expect(workspace.ok).toBe(true);
@@ -2111,7 +2069,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 
 	test('keeps Held Item identity in the containing Save context after Origin game edits', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			fetch(scarletFixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
@@ -2194,7 +2152,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 
 	test('projects and edits Tera Type only for supported Pokemon formats', async () => {
 		const [engine, scarletResponse, emeraldResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			fetch(scarletFixtureUrl),
 			fetch(fixtureUrl)
 		]);
@@ -2277,10 +2235,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('projects, applies, and rejects Met Data through the browser-wasm bundle', async () => {
-		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			fetch(fixtureUrl)
-		]);
+		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
 		const workspace = await loadEditableWorkspace(engine, fixtureBytes, '011020251345.sav', 0);
 		expect(workspace.ok).toBe(true);
@@ -2346,7 +2301,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 
 	test('allows Primarina Ice Beam PP edits and explains real post-edit legality failures', async () => {
 		const [engine, fixtureResponse] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			fetch(swordFixtureUrl)
 		]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());

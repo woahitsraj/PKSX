@@ -34,7 +34,7 @@ for (const { script, fault } of [
 			fault === 'join' ? 616 : fault === 'storage' ? 360 : 1280,
 			fault === 'join' ? 336 : fault === 'storage' ? 560 : 800
 		);
-		const engine = await createPkhexEngine('/pkhex-engine');
+		const engine = await createPkhexEngine();
 		const save = new Uint8Array(await (await fetch(fixtureUrl)).arrayBuffer());
 		const slots = await engine.listBoxSlots(save, 'Sword.sav', 0);
 		if (!slots.ok) throw slots.error;
