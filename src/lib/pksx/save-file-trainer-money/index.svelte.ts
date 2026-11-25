@@ -1,3 +1,4 @@
+import { getSaveDisplayName } from '$lib/pksx/saves';
 import type { SaveFileEditOperation, TrainerGender } from '$lib/engine';
 import type {
 	SaveFileLedgerCommitContext,
@@ -414,6 +415,7 @@ export function createSaveFileTrainerMoneyController(
 				view: {
 					status: 'ready',
 					originalFilename: workspace.file.originalFileName ?? 'Untitled Save File',
+					displayName: getSaveDisplayName(workspace.file),
 					summary: workspace.workspace.summary,
 					projection: current,
 					editingUnavailable

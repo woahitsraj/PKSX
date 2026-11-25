@@ -14,6 +14,7 @@
 		onBackups: () => void;
 		sourceAction?: string;
 		onSourceAction?: () => void;
+		onRename: () => void;
 		onDelete: () => void;
 		onCancelDelete: () => void;
 		onClose: () => void;
@@ -31,6 +32,7 @@
 		onBackups,
 		sourceAction,
 		onSourceAction,
+		onRename,
 		onDelete,
 		onCancelDelete,
 		onClose
@@ -93,6 +95,15 @@
 						onclick={onSourceAction}><strong>{sourceAction}</strong></button
 					>
 				{/if}
+				<button
+					id="save-file-menu-command-5"
+					type="button"
+					class={{ 'controller-focused': activeIndex === 5 }}
+					onfocus={() => onFocusCommand(5)}
+					onclick={onRename}
+				>
+					<strong>Rename</strong>
+				</button>
 				<DelayedSpinner active={busy} label="Opening Save File" />
 			{:else}
 				<button
