@@ -323,7 +323,7 @@ it('stages, cancels and applies a duplicate display name without losing target i
 			.querySelector<HTMLButtonElement>('[aria-label="Open Save File Menu for first.sav"]')!
 			.click();
 		await tick();
-		container.querySelector<HTMLButtonElement>('#save-file-menu-command-4')!.click();
+		container.querySelector<HTMLButtonElement>('#save-file-menu-command-5')!.click();
 		await tick();
 	};
 	await rename();
@@ -335,7 +335,7 @@ it('stages, cancels and applies a duplicate display name without losing target i
 		.click();
 	await tick();
 	expect(await storage.getSave(file.id)).toEqual(file);
-	container.querySelector<HTMLButtonElement>('#save-file-menu-command-4')!.click();
+	container.querySelector<HTMLButtonElement>('#save-file-menu-command-5')!.click();
 	await tick();
 	input = container.querySelector<HTMLInputElement>('#save-display-name')!;
 	input.value = '  Adventure  ';
