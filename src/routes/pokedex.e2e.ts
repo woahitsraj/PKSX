@@ -73,7 +73,7 @@ for (const viewport of [
 		if (wide) {
 			await expect(page.locator(':focus')).toHaveAttribute(
 				'data-destination-focus',
-				/^(field|apply)-/
+				/^(field|apply|mark-all)-/
 			);
 		} else {
 			await expect(page.getByRole('button', { name: /Game-specific values/ })).toBeFocused();
@@ -111,6 +111,73 @@ for (const viewport of [
 		await page.getByRole('button', { name: 'Bulbasaur Caught', exact: true }).click();
 		await expect(seen).toHaveAttribute('aria-disabled', 'false');
 		expect(await readSafetyState(page)).toEqual({ backups: before.backups + 1, dirty: true });
+		// Unown and Spinda own their display PIDs; the field label finds them too.
+		await search.fill('display pid');
+		await expect(page.locator('.species-row')).toHaveCount(2);
+		for (const [name, key] of [
+			['Unown', 'unown-pid'],
+			['Spinda', 'spinda-pid']
+		]) {
+			await search.fill(name);
+			const toggle = page.getByRole('button', { name: `${name} values`, exact: true });
+			await page.getByRole('button', { name: `${name} Caught`, exact: true }).focus();
+			await dpad(page, 'ArrowLeft');
+			await dpad(page, 'ArrowLeft');
+			await expect(toggle).toBeFocused();
+			await dpad(page, 'Enter');
+			await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+			await dpad(page, 'ArrowDown');
+			const pid = page.getByLabel(`${name} display PID`, { exact: true });
+			await expect(pid).toBeFocused();
+			await pid.fill('12345');
+			await pid.press('Enter');
+			const applied = page.locator(`[data-destination-focus="apply-${key}"]`);
+			await expect(applied).toHaveAttribute('aria-disabled', 'false', { timeout: 90_000 });
+			await expect(pid).toBeFocused();
+			await pid.press('ArrowUp');
+			await expect(pid).toHaveValue('12346');
+			await toggle.click();
+			await toggle.click();
+			await expect(pid).toHaveValue('12345');
+		}
+		await expect(page.locator('.fields-body [data-destination-focus$="-pid"]')).toHaveCount(0);
+		// The Values control and an open editor do not shift the Seen and Caught columns.
+		await search.fill('20');
+		await page.getByRole('button', { name: 'Unown Caught', exact: true }).focus();
+		for (const [key, control] of [
+			['ArrowUp', 'Misdreavus Caught'],
+			['ArrowDown', 'Unown Caught'],
+			['ArrowDown', 'Wobbuffet Caught']
+		]) {
+			await dpad(page, key);
+			await expect(page.getByRole('button', { name: control, exact: true })).toBeFocused();
+		}
+		await search.fill('Spinda');
+		// Mark all covers every species, whatever the search shows.
+		for (const label of ['Seen', 'Caught']) {
+			const markAll = page.getByRole('button', { name: `Mark all ${label}`, exact: true });
+			await markAll.click();
+			await expect(page.locator(`.total.${label.toLowerCase()} strong`)).toHaveText('386', {
+				timeout: 90_000
+			});
+			await expect(markAll).toBeFocused();
+			await expect(markAll).toHaveAttribute('aria-disabled', 'false');
+			// A finished Mark all keeps Controller Focus moving by direction.
+			const toCaught = label === 'Seen';
+			await dpad(
+				page,
+				wide ? (toCaught ? 'ArrowDown' : 'ArrowUp') : toCaught ? 'ArrowRight' : 'ArrowLeft'
+			);
+			await expect(
+				page.getByRole('button', { name: `Mark all ${toCaught ? 'Caught' : 'Seen'}`, exact: true })
+			).toBeFocused();
+		}
+		await expect(page.locator('.species-row')).toHaveCount(1);
+		await expect(page.getByRole('button', { name: 'Spinda Caught', exact: true })).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
+		expect(await readSafetyState(page)).toEqual({ backups: before.backups + 1, dirty: true });
 		await search.fill('saur');
 		await seen.focus();
 		for (const [key, control] of [
@@ -136,8 +203,8 @@ for (const viewport of [
 		);
 		await dpad(page, 'ArrowLeft');
 		if (wide) {
-			const rail = page.locator('.fields-body :focus');
-			await expect(rail).toHaveAttribute('data-destination-focus', /^(field|apply)-/);
+			const rail = page.locator('.screen :focus');
+			await expect(rail).toHaveAttribute('data-destination-focus', /^(field|apply|mark-all)-/);
 			await expect(rail).toBeInViewport({ ratio: 1 });
 			await expect(page.locator('html')).toHaveAttribute('data-input-modality', 'controller');
 			await page.keyboard.press('ArrowRight');
@@ -147,12 +214,12 @@ for (const viewport of [
 			await dpad(page, 'ArrowRight');
 			await expect(oddish).toBeFocused();
 			await dpad(page, 'ArrowLeft');
-			const input = page.locator('[data-destination-focus="field-spinda-pid"]');
+			const input = page.locator('[data-destination-focus="field-national"]');
 			await input.focus();
 			await page.keyboard.press('ArrowRight');
 			await expect(input).toBeFocused();
 			await dpad(page, 'ArrowRight');
-			await expect(page.locator('[data-destination-focus="apply-spinda-pid"]')).toBeFocused();
+			await expect(page.locator('[data-destination-focus="apply-national"]')).toBeFocused();
 		} else {
 			await expect(oddish).toBeFocused();
 		}

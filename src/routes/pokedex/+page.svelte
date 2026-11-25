@@ -1,6 +1,7 @@
 <script module lang="ts">
-	import { SvelteMap } from 'svelte/reactivity';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	const searches = new SvelteMap<string, string>();
+	const openValues = new SvelteSet<number>();
 	let fieldsOpenMemory = false;
 </script>
 
@@ -9,7 +10,7 @@
 	import { asset, resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
-	import type { PokedexEdit } from '$lib/engine/types';
+	import type { PokedexEdit, PokedexProjection } from '$lib/engine/types';
 	import type { WorkspaceState } from '$lib/pksx/backup-workflow';
 	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
 	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
@@ -21,6 +22,8 @@
 	} from '$lib/pksx/saves-cache';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 	import { getToastHost } from '$lib/pksx/toast/host.svelte';
+
+	type PokedexField = PokedexProjection['fields'][number];
 
 	const toast = getToastHost();
 	let workspace = $state.raw<WorkspaceState | null>(null);
@@ -34,13 +37,25 @@
 	let railReturn: { row: HTMLButtonElement; control: HTMLElement } | null = null;
 	const pokedex = $derived(workspace?.workspace.saveFile?.pokedex);
 	const all = $derived(pokedex?.species ?? []);
+	const fields = $derived(pokedex?.fields ?? []);
+	const railFields = $derived(fields.filter((f) => f.species === null));
+	const fieldsOf = (id: number) => fields.filter((f) => f.species === id);
 	const species = $derived(
-		all.filter((s) => `${s.id} ${s.name}`.toLowerCase().includes(query.trim().toLowerCase()))
+		all.filter((s) =>
+			[s.id, s.name, ...fieldsOf(s.id).map((f) => f.label)]
+				.join(' ')
+				.toLowerCase()
+				.includes(query.trim().toLowerCase())
+		)
 	);
-	const totals = $derived([
-		{ label: 'Seen', count: all.filter((s) => s.seen).length },
-		{ label: 'Caught', count: all.filter((s) => s.caught).length }
-	]);
+	const totals = $derived(
+		(
+			[
+				['Seen', 'all-seen', all.filter((s) => s.seen).length],
+				['Caught', 'all-caught', all.filter((s) => s.caught).length]
+			] as const
+		).map(([label, kind, count]) => ({ label, kind, count }))
+	);
 
 	onMount(() => {
 		mounted = true;
@@ -95,19 +110,23 @@
 		return entry ? asset(entry.path) : null;
 	}
 
-	// Nearest game-specific control, only when the rail sits left of the list.
+	// Nearest rail control, only when the rail sits left of the list.
 	function railControl(row: Element) {
-		const rail = document.querySelector<HTMLElement>('.fields-body');
-		const box = rail?.getBoundingClientRect();
 		const { left, top, height } = row.getBoundingClientRect();
-		if (!rail || !box?.width || box.right > left) return;
 		const gap = (control: HTMLElement) => {
 			const rect = control.getBoundingClientRect();
 			return Math.round(Math.abs(rect.top + rect.height / 2 - top - height / 2));
 		};
-		return Array.from(rail.querySelectorAll<HTMLElement>('input, button')).sort(
-			(a, b) => gap(a) - gap(b) || b.getBoundingClientRect().left - a.getBoundingClientRect().left
-		)[0];
+		return Array.from(
+			document.querySelectorAll<HTMLElement>('.mark-all, .fields-body :is(input, button)')
+		)
+			.filter((control) => {
+				const rect = control.getBoundingClientRect();
+				return rect.width && rect.right <= left && control.ariaDisabled !== 'true';
+			})
+			.sort(
+				(a, b) => gap(a) - gap(b) || b.getBoundingClientRect().left - a.getBoundingClientRect().left
+			)[0];
 	}
 
 	function navigateSpecies(event: KeyboardEvent) {
@@ -127,25 +146,34 @@
 			railReturn = null;
 		} else if (active === searchInput()) {
 			if (event.key !== 'ArrowDown') return;
-			target = document.querySelector<HTMLElement>('.species-row button');
+			target = document.querySelector<HTMLElement>('.species-row .flag');
 			if (!target) return;
 		} else {
 			if (!(active instanceof HTMLButtonElement)) return;
 			const row = active.closest('.species-row');
-			if (!row) return;
-			const controls = Array.from(row.querySelectorAll<HTMLButtonElement>('button'));
-			const column = controls.indexOf(active);
+			// Controls inside a species editor move by the shell's own rules.
+			if (!row || active.closest('.species-values')) return;
+			const controls = Array.from(row.querySelectorAll<HTMLButtonElement>('.values-toggle, .flag'));
+			const index = controls.indexOf(active);
 			if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
 				const left = event.key === 'ArrowLeft';
-				target = controls[column + (left ? -1 : 1)] ?? (left ? railControl(row) : undefined);
-				if (left && column === 0 && target) railReturn = { row: active, control: target };
+				target = controls[index + (left ? -1 : 1)] ?? (left ? railControl(row) : undefined);
+				if (left && index === 0 && target) railReturn = { row: active, control: target };
 			} else {
+				const flags = (of: Element) => Array.from(of.querySelectorAll<HTMLButtonElement>('.flag'));
+				const column = Math.max(0, flags(row).indexOf(active));
 				const next = event.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
-				target = next?.matches('.species-row')
-					? next.querySelectorAll<HTMLButtonElement>('button')[column]
-					: event.key === 'ArrowUp'
-						? searchInput()
-						: undefined;
+				const editor =
+					event.key === 'ArrowDown' && active.matches('.values-toggle')
+						? row.querySelector<HTMLElement>('.species-values input')
+						: null;
+				target =
+					editor ??
+					(next?.matches('.species-row')
+						? flags(next)[column]
+						: event.key === 'ArrowUp'
+							? searchInput()
+							: undefined);
 			}
 		}
 		event.preventDefault();
@@ -221,6 +249,51 @@
 	</button>
 {/snippet}
 
+{#snippet fieldForm(field: PokedexField, fallbacks?: string)}
+	{@const error = fieldErrors[field.key]}
+	<!-- The shell names focus targets pksx-pokedex-<identity>; match it so the label holds. -->
+	{@const inputId = `pksx-pokedex-field-${field.key}`}
+	<form
+		class="field"
+		onsubmit={(event) => {
+			event.preventDefault();
+			const value = new FormData(event.currentTarget).get('value');
+			if (typeof value === 'string')
+				void apply(`field-${field.key}`, {
+					kind: 'field',
+					field: field.key,
+					value: Number(value)
+				});
+		}}
+	>
+		<label for={inputId}>{field.label}</label>
+		<input
+			id={inputId}
+			name="value"
+			type="number"
+			inputmode="numeric"
+			enterkeyhint="done"
+			min={field.min}
+			max={field.max}
+			step="1"
+			value={field.value}
+			required
+			style:--field-ch={String(field.max).length}
+			aria-invalid={error ? 'true' : undefined}
+			aria-describedby={error ? `${inputId}-error` : undefined}
+			data-destination-focus={`field-${field.key}`}
+			data-destination-fallbacks={fallbacks}
+		/>
+		<button
+			aria-disabled={pendingKey !== null}
+			aria-busy={pendingKey === `field-${field.key}`}
+			data-destination-focus={`apply-${field.key}`}
+			data-destination-fallbacks={fallbacks}>Apply</button
+		>
+		{#if error}<small id={`${inputId}-error`} class="field-error" role="alert">{error}</small>{/if}
+	</form>
+{/snippet}
+
 {#snippet routeState(heading: string, body: string, retry: boolean)}
 	<div class="route-state" role={retry ? 'alert' : undefined}>
 		<h1 id="pokedex-title">Pokedex</h1>
@@ -280,17 +353,28 @@
 
 					<dl class="totals">
 						{#each totals as total (total.label)}
+							{@const key = `mark-${total.kind}`}
 							<div class={['total', total.label.toLowerCase()]}>
 								<dt>{@render mark(total.label, true)}{total.label}</dt>
 								<dd><strong>{total.count}</strong> of <span class="num">{all.length}</span></dd>
 								<dd class="meter" aria-hidden="true">
 									<span style:inline-size={`${(total.count / all.length) * 100}%`}></span>
 								</dd>
+								<dd class="bulk">
+									<button
+										type="button"
+										class="mark-all"
+										aria-disabled={pendingKey !== null}
+										aria-busy={pendingKey === key}
+										data-destination-focus={key}
+										onclick={() => apply(key, { kind: total.kind })}>Mark all {total.label}</button
+									>
+								</dd>
 							</div>
 						{/each}
 					</dl>
 
-					{#if pokedex.fields.length}
+					{#if railFields.length}
 						<section class="fields" aria-label="Game-specific Pokedex values">
 							<h2>Game-specific values</h2>
 							<button
@@ -302,7 +386,7 @@
 								onclick={() => openFields(!fieldsOpen)}
 							>
 								Game-specific values
-								<span class="fields-count">{pokedex.fields.length}</span>
+								<span class="fields-count">{railFields.length}</span>
 								<svg class="chevron" viewBox="0 0 12 12" aria-hidden="true"
 									><path d="m3 4.5 3 3 3-3" /></svg
 								>
@@ -312,49 +396,8 @@
 								class={['fields-body', fieldsOpen && 'open']}
 								onfocusin={() => openFields(true)}
 							>
-								{#each pokedex.fields as field (field.key)}
-									{@const error = fieldErrors[field.key]}
-									<!-- The shell names focus targets pksx-pokedex-<identity>; match it so the label holds. -->
-									{@const inputId = `pksx-pokedex-field-${field.key}`}
-									<form
-										class="field"
-										onsubmit={(event) => {
-											event.preventDefault();
-											const value = new FormData(event.currentTarget).get('value');
-											if (typeof value === 'string')
-												void apply(`field-${field.key}`, {
-													kind: 'field',
-													field: field.key,
-													value: Number(value)
-												});
-										}}
-									>
-										<label for={inputId}>{field.label}</label>
-										<input
-											id={inputId}
-											name="value"
-											type="number"
-											inputmode="numeric"
-											enterkeyhint="done"
-											min={field.min}
-											max={field.max}
-											step="1"
-											value={field.value}
-											required
-											style:--field-ch={String(field.max).length}
-											aria-invalid={error ? 'true' : undefined}
-											aria-describedby={error ? `${inputId}-error` : undefined}
-											data-destination-focus={`field-${field.key}`}
-										/>
-										<button
-											aria-disabled={pendingKey !== null}
-											aria-busy={pendingKey === `field-${field.key}`}
-											data-destination-focus={`apply-${field.key}`}>Apply</button
-										>
-										{#if error}<small id={`${inputId}-error`} class="field-error" role="alert"
-												>{error}</small
-											>{/if}
-									</form>
+								{#each railFields as field (field.key)}
+									{@render fieldForm(field)}
 								{/each}
 							</div>
 						</section>
@@ -390,6 +433,10 @@
 						<div class="species-list">
 							{#each species as entry (entry.id)}
 								{@const sprite = spriteUrl(entry.id)}
+								{@const own = fieldsOf(entry.id)}
+								{@const valuesKey = `species-${entry.id}-values`}
+								{@const valuesId = `pokedex-values-${entry.id}`}
+								{@const open = openValues.has(entry.id)}
 								<div class={['species-row', !entry.seen && !entry.caught && 'unseen']}>
 									<span class="number">{String(entry.id).padStart(3, '0')}</span>
 									{#if sprite}
@@ -403,7 +450,28 @@
 											decoding="async"
 										/>
 									{:else}<span class="sprite"></span>{/if}
-									<strong class="name">{entry.name}</strong>
+									{#if own.length}
+										<span class="who">
+											<strong class="name">{entry.name}</strong>
+											<button
+												type="button"
+												class="values-toggle"
+												aria-label={`${entry.name} values`}
+												aria-expanded={open}
+												aria-controls={open ? valuesId : undefined}
+												data-destination-focus={valuesKey}
+												data-destination-fallbacks={JSON.stringify(['search'])}
+												onclick={() => openValues.delete(entry.id) || openValues.add(entry.id)}
+											>
+												Values
+												<svg class="chevron" viewBox="0 0 12 12" aria-hidden="true"
+													><path d="m3 4.5 3 3 3-3" /></svg
+												>
+											</button>
+										</span>
+									{:else}
+										<strong class="name">{entry.name}</strong>
+									{/if}
 									{@render flag(entry.name, entry.id, 'Seen', entry.seen, {
 										kind: 'seen',
 										species: entry.id,
@@ -414,6 +482,18 @@
 										species: entry.id,
 										caught: !entry.caught
 									})}
+									{#if open && own.length}
+										<div
+											id={valuesId}
+											class="species-values"
+											role="group"
+											aria-label={`${entry.name} values`}
+										>
+											{#each own as field (field.key)}
+												{@render fieldForm(field, JSON.stringify([valuesKey, 'search']))}
+											{/each}
+										</div>
+									{/if}
 								</div>
 							{:else}
 								<div class="empty">
@@ -569,6 +649,15 @@
 		background: var(--pksx-color-text-primary);
 	}
 
+	.total .bulk {
+		justify-self: stretch;
+		grid-column: 1 / -1;
+	}
+
+	.mark-all {
+		inline-size: 100%;
+	}
+
 	.fields,
 	.species,
 	.route-state {
@@ -613,7 +702,7 @@
 		transition: rotate 160ms var(--pksx-ease-out);
 	}
 
-	.fields-toggle[aria-expanded='true'] .chevron {
+	[aria-expanded='true'] > .chevron {
 		rotate: 180deg;
 	}
 
@@ -776,6 +865,36 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.who {
+		display: flex;
+		align-items: center;
+		gap: var(--pksx-space-2);
+		min-width: 0;
+	}
+
+	.values-toggle {
+		display: inline-flex;
+		flex: none;
+		align-items: center;
+		gap: var(--pksx-space-1);
+		border-color: var(--pksx-color-border-subtle);
+		background: none;
+		color: var(--pksx-color-text-secondary);
+	}
+
+	.values-toggle[aria-expanded='true'] {
+		border-color: var(--pksx-color-border-strong);
+		color: var(--pksx-color-text-primary);
+	}
+
+	.species-values {
+		display: grid;
+		grid-column: 3 / -1;
+		gap: var(--pksx-space-2);
+		min-width: 0;
+		padding-block-end: var(--pksx-space-1);
 	}
 
 	.unseen .name {
@@ -953,8 +1072,23 @@
 			block-size: var(--pksx-small-control-height);
 		}
 
-		.flag {
+		.flag,
+		.values-toggle {
 			padding-inline: max(5px, var(--pksx-space-1));
+		}
+
+		.who {
+			flex-direction: column;
+			align-items: start;
+			gap: var(--pksx-space-1);
+		}
+
+		.who .name {
+			max-inline-size: 100%;
+		}
+
+		.species-values {
+			grid-column: 1 / -1;
 		}
 	}
 

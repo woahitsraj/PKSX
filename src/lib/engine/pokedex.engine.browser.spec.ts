@@ -48,15 +48,51 @@ for (const [file, count] of cases) {
 				0
 			);
 			expect(rejected.ok).toBe(false);
+			const bulk = await engine.applySaveFileEditOperation(
+				bytes,
+				file,
+				{ pokedex: { kind: 'all-seen' } },
+				0
+			);
+			expect(bulk.ok).toBe(false);
 			return;
 		}
-		expect(dex.fields.map((f) => f.key)).toEqual(
+		expect(dex.fields.map((f) => [f.key, f.species])).toEqual(
 			count === 151
 				? []
 				: count === 251
-					? ['unown-first', 'unown-unlocked']
-					: ['national', 'unown-pid', 'spinda-pid']
+					? [
+							['unown-first', 201],
+							['unown-unlocked', 201]
+						]
+					: [
+							['national', null],
+							['unown-pid', 201],
+							['spinda-pid', 327]
+						]
 		);
+		for (const [kind, flag, other] of [
+			['all-seen', 'seen', 'caught'],
+			['all-caught', 'caught', 'seen']
+		] as const) {
+			const bulk = await engine.applySaveFileEditOperation(bytes, file, { pokedex: { kind } }, 0);
+			expect(bulk.ok).toBe(true);
+			if (!bulk.ok) return;
+			const marked = bulk.value.workspace.saveFile?.pokedex?.species ?? [];
+			expect(marked.filter((s) => s[flag])).toHaveLength(count);
+			expect(marked.map((s) => s[other])).toEqual(dex.species.map((s) => s[other]));
+			expect(bulk.value.mutated).toBe(dex.species.some((s) => !s[flag]));
+			const again = await engine.applySaveFileEditOperation(
+				bulk.value.bytes,
+				file,
+				{ pokedex: { kind } },
+				0
+			);
+			expect(again.ok).toBe(true);
+			if (!again.ok) return;
+			expect(again.value.mutated).toBe(false);
+			expect(again.value.bytes).toEqual(bulk.value.bytes);
+		}
 		const before = dex.species[0];
 		const seenEdit = await engine.applySaveFileEditOperation(
 			bytes,

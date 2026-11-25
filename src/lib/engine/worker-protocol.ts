@@ -119,7 +119,8 @@ export const pokedexProjectionSchema = z.object({
 			label: z.string(),
 			value: z.number().int(),
 			min: z.number().int(),
-			max: z.number().int()
+			max: z.number().int(),
+			species: z.number().int().nullable()
 		})
 	)
 });
@@ -127,7 +128,9 @@ export const pokedexProjectionSchema = z.object({
 export const pokedexEditSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('seen'), species: z.number().int(), seen: z.boolean() }),
 	z.strictObject({ kind: z.literal('caught'), species: z.number().int(), caught: z.boolean() }),
-	z.strictObject({ kind: z.literal('field'), field: z.string(), value: z.number().int() })
+	z.strictObject({ kind: z.literal('field'), field: z.string(), value: z.number().int() }),
+	z.strictObject({ kind: z.literal('all-seen') }),
+	z.strictObject({ kind: z.literal('all-caught') })
 ]);
 
 export const saveFileEditableProjectionSchema = z.object({

@@ -3,7 +3,7 @@ using PKHeX.Core;
 namespace Pksx.Pkhex.Engine;
 
 public sealed record PokedexSpecies(int Id, string Name, bool Seen, bool Caught);
-public sealed record PokedexField(string Key, string Label, long Value, long Min, long Max);
+public sealed record PokedexField(string Key, string Label, long Value, long Min, long Max, int? Species = null);
 public sealed record PokedexEdit(string Kind, int? Species, bool? Seen, bool? Caught, string? Field, long? Value);
 public sealed record PokedexProjection(string Status, string? Reason, List<PokedexSpecies> Species, List<PokedexField> Fields)
 {
@@ -18,14 +18,14 @@ public sealed record PokedexProjection(string Status, string? Reason, List<Poked
         List<PokedexField> fields = [];
         if (save is SAV2 s2)
         {
-            fields.Add(new("unown-first", "Unown display letter (1 = A, 26 = Z)", s2.UnownFirstSeen, 1, 26));
-            fields.Add(new("unown-unlocked", "Unown unlocked groups (bit mask)", s2.UnownUnlocked, 0, 15));
+            fields.Add(new("unown-first", "Unown display letter (1 = A, 26 = Z)", s2.UnownFirstSeen, 1, 26, (int)PKHeX.Core.Species.Unown));
+            fields.Add(new("unown-unlocked", "Unown unlocked groups (bit mask)", s2.UnownUnlocked, 0, 15, (int)PKHeX.Core.Species.Unown));
         }
         if (save is SAV3 s3)
         {
             fields.Add(new("national", "National Pokedex (0 = off, 1 = on)", s3.NationalDex ? 1 : 0, 0, 1));
-            fields.Add(new("unown-pid", "Unown display PID", s3.SmallBlock.DexPIDUnown, 0, uint.MaxValue));
-            fields.Add(new("spinda-pid", "Spinda display PID", s3.SmallBlock.DexPIDSpinda, 0, uint.MaxValue));
+            fields.Add(new("unown-pid", "Unown display PID", s3.SmallBlock.DexPIDUnown, 0, uint.MaxValue, (int)PKHeX.Core.Species.Unown));
+            fields.Add(new("spinda-pid", "Spinda display PID", s3.SmallBlock.DexPIDSpinda, 0, uint.MaxValue, (int)PKHeX.Core.Species.Spinda));
         }
         return new("available", null, species, fields);
     }
@@ -49,6 +49,23 @@ public static partial class PkhexEngineExports
             if (edit.Caught is bool caught) save.SetCaught(species, caught);
             if (save is SAV3 s3) s3.MirrorSeenFlags();
             return SlotMutationResult.Success(beforeSeen != save.GetSeen(species) || beforeCaught != save.GetCaught(species));
+        }
+        if (edit.Kind is "all-seen" or "all-caught")
+        {
+            if (edit.Species is not null || edit.Seen is not null || edit.Caught is not null || edit.Field is not null || edit.Value is not null)
+                return SlotMutationResult.Fail("invalid-save-file-edit", "Mark all Seen or all Caught takes no other values.");
+            var seen = edit.Kind == "all-seen";
+            var mutated = false;
+            for (ushort id = 1; id <= save.MaxSpeciesID; id++)
+            {
+                if (seen ? save.GetSeen(id) : save.GetCaught(id))
+                    continue;
+                if (seen) save.SetSeen(id, true);
+                else save.SetCaught(id, true);
+                mutated = true;
+            }
+            if (mutated && save is SAV3 sav3) sav3.MirrorSeenFlags();
+            return SlotMutationResult.Success(mutated);
         }
         var field = projection.Fields.Find(f => f.Key == edit.Field);
         if (edit.Kind != "field" || edit.Species is not null || field is null || edit.Value is not long value || value < field.Min || value > field.Max || edit.Seen is not null || edit.Caught is not null)
