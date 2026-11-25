@@ -14,6 +14,11 @@ async function choose(page: Page, label: string) {
 		.getByRole('dialog', { name: 'Main Menu' })
 		.getByRole('button', { name: new RegExp(`^${label}`) })
 		.click();
+	await expect(page.locator(`[data-destination-root="${label.toLowerCase()}"]`)).toHaveAttribute(
+		'data-initial-state',
+		'ready'
+	);
+	await expect(page.locator('html')).not.toHaveAttribute('data-pksx-route-direction', /./);
 }
 
 async function dpad(page: Page, key: string) {
@@ -67,7 +72,7 @@ for (const viewport of [
 		});
 		await choose(page, 'Pokedex');
 		const search = page.getByRole('searchbox');
-		await search.focus();
+		await expect(search).toBeFocused();
 		const wide = viewport.width === 640;
 		await dpad(page, wide ? 'ArrowLeft' : 'ArrowUp');
 		if (wide) {
