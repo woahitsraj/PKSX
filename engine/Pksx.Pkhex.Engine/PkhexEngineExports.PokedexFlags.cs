@@ -35,6 +35,12 @@ internal static class PokedexFlags
                 break;
             case SAV5:
                 break;
+            case SAV9SV sv:
+                ScarletVioletPokedex.SetSeen(sv, species, seen);
+                break;
+            case SAV9ZA za:
+                LegendsZAPokedex.SetSeen(za, species, seen);
+                break;
             default:
                 save.SetSeen(species, seen);
                 break;
@@ -45,13 +51,24 @@ internal static class PokedexFlags
     {
         if (save is SAV4 s4) s4.Dex.SetCaught(species, caught);
         else if (save is SAV5 s5) s5.Zukan.SetCaught(species, caught);
+        else if (save is SAV9SV sv) ScarletVioletPokedex.SetCaught(sv, species, caught);
+        else if (save is SAV9ZA za) LegendsZAPokedex.SetCaught(za, species, caught);
         else save.SetCaught(species, caught);
     }
+
+    public static bool InDex(SaveFile save, int species) => save switch
+    {
+        SAV9SV sv => ScarletVioletPokedex.InDex(sv, species),
+        SAV9ZA za => LegendsZAPokedex.InDex(za, species),
+        _ => true,
+    };
 
     public static List<PokedexFlag> Of(SaveFile save, ushort species) => save switch
     {
         SAV4 s4 => Gen4(s4, species),
         SAV5 s5 => Gen5(s5, species),
+        SAV9SV sv => ScarletVioletPokedex.Flags(sv, species),
+        SAV9ZA za => LegendsZAPokedex.Flags(za, species),
         _ => [],
     };
 

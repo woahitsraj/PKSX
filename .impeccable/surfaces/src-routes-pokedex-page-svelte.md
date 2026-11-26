@@ -9,9 +9,9 @@ related_targets: []
 
 Scope: `src/routes/pokedex/+page.svelte`. Mode: Operate. World: the established PKSX look, unchanged.
 
-Audience and job: a person on a handheld, phone, or desktop who marks species Seen or Caught in a Generation 1 through 5 Save File, and sometimes changes the game-specific values the engine reports.
+Audience and job: a person on a handheld, phone, or desktop who marks species Seen or Caught in a Generation 1 through 5, Scarlet and Violet, or Legends: Z-A Save File, and sometimes changes the game-specific values the engine reports.
 
-Constraints: controller, keyboard, touch, and pointer. Floors 640x360 and 360x640. No ambient Dirty Workspace label. Engine labels and ranges are shown as given. A value the Engine ties to a species is edited on that species row, and so are the gender, form, and language flags that Generations 4 and 5 report as toggles; the rest stay in game-specific values. Mark all Seen and Mark all Caught each apply one Engine edit to every species.
+Constraints: controller, keyboard, touch, and pointer. Floors 640x360 and 360x640. No ambient Dirty Workspace label. Engine labels and ranges are shown as given. A value the Engine ties to a species is edited on that species row, and so are the gender, form, and language flags that Generations 4 and 5 report as toggles; the rest stay in game-specific values. Scarlet and Violet, and Legends: Z-A, list only the species their game records; each regional display value is a species value whose label names its regional Pokedex. Mark all Seen and Mark all Caught each apply one Engine edit to every species.
 
 Shared product and design authority: PRODUCT.md, DESIGN.md and .impeccable/design.json on main. This screen extends that system; it does not replace those records.
 
