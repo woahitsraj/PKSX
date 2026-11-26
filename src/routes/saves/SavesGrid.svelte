@@ -1299,12 +1299,14 @@
 											<span class="card-copy">
 												<span class="card-heading">
 													<strong>{gameTitle(details, saveFile)}</strong>
-													{#if saveFile.id === activeSaveFileId}<em>Active</em>{/if}
-													{#if discovery.sources[saveFile.id]}<em class="attention"
-															>{discovery.sources[saveFile.id].kind === 'changed'
-																? 'Updated'
-																: 'Restore'}</em
-														>{/if}
+													<span class="card-badges">
+														{#if saveFile.id === activeSaveFileId}<em>Active</em>{/if}
+														{#if discovery.sources[saveFile.id]}<em class="attention"
+																>{discovery.sources[saveFile.id].kind === 'changed'
+																	? 'Updated'
+																	: 'Restore'}</em
+															>{/if}
+													</span>
 												</span>
 												{#if details.status === 'ready'}
 													<span class="trainer"
@@ -1322,9 +1324,8 @@
 															>{saveFile.originalFileName ?? 'No original filename'}</span
 														>{/if}
 													<span class="card-stats">
-														<b>{details.details.summary.boxCount}</b> boxes
-														<i aria-hidden="true"></i>
-														<b>{details.details.pokemonCount}</b> Pokemon
+														<span><b>{details.details.summary.boxCount}</b> boxes</span>
+														<span><b>{details.details.pokemonCount}</b> Pokemon</span>
 													</span>
 												{:else}
 													<span
@@ -1769,9 +1770,10 @@
 
 	.saves-grid {
 		display: grid;
-		grid-template-columns: minmax(240px, 1fr);
+		grid-template-columns: repeat(auto-fill, minmax(clamp(136px, 16cqi, 190px), 1fr));
 		gap: var(--pksx-space-2);
 		align-content: start;
+		--game-art-size: clamp(96px, 11cqi, 136px);
 	}
 
 	.saves-grid-row {
@@ -1782,7 +1784,7 @@
 	.storage-card,
 	.import-cell {
 		position: relative;
-		min-width: 240px;
+		min-width: 0;
 		min-height: 112px;
 		border: var(--pksx-border-width) solid var(--rule);
 		border-radius: var(--pksx-radius-small) var(--pksx-radius-large) var(--pksx-radius-large)
@@ -1816,6 +1818,7 @@
 	.card-main,
 	.import-cell > button {
 		width: 100%;
+		height: 100%;
 		min-height: 110px;
 		border: 0;
 		background: transparent;
@@ -1836,18 +1839,45 @@
 
 	.card-main.save-main {
 		display: flex;
-		align-items: center;
+		flex-direction: column;
 		gap: var(--pksx-space-2);
+		padding: var(--pksx-space-2);
+	}
+
+	.save-main > :global(.game-art) {
+		align-self: center;
 	}
 
 	.card-copy {
 		flex: 1;
-		align-self: stretch;
 		min-width: 0;
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		grid-template-rows: auto auto auto 1fr;
-		gap: 2px var(--pksx-space-2);
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.card-copy .card-stats,
+	.card-copy .detail-state {
+		align-self: stretch;
+		margin-top: auto;
+	}
+
+	.card-copy .card-stats {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0 var(--pksx-space-2);
+	}
+
+	.card-copy .card-stats span {
+		white-space: nowrap;
+	}
+
+	.card-badges {
+		position: absolute;
+		top: var(--pksx-space-2);
+		left: var(--pksx-space-2);
+		display: flex;
+		gap: var(--pksx-space-1);
 	}
 
 	.card-main.storage-main {
@@ -1876,11 +1906,9 @@
 	}
 
 	.card-heading strong {
-		overflow: hidden;
 		font-size: var(--pksx-type-title);
 		line-height: 1.1;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		overflow-wrap: anywhere;
 	}
 
 	.card-heading em.attention {
@@ -1917,9 +1945,7 @@
 
 	.file-name {
 		font-family: var(--pksx-font-mono);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		overflow-wrap: anywhere;
 	}
 
 	.card-stats,
@@ -1990,23 +2016,5 @@
 	.import-cell small {
 		color: var(--ink-soft);
 		font: 600 var(--pksx-type-label) / 1.25 var(--pksx-font-sans);
-	}
-
-	@container pksx-density (min-width: 520px) {
-		.saves-grid {
-			grid-template-columns: repeat(2, minmax(240px, 1fr));
-		}
-	}
-
-	@container pksx-density (min-width: 780px) {
-		.saves-grid {
-			grid-template-columns: repeat(3, minmax(240px, 1fr));
-		}
-	}
-
-	@container pksx-density (min-width: 1040px) {
-		.saves-grid {
-			grid-template-columns: repeat(4, minmax(240px, 1fr));
-		}
 	}
 </style>

@@ -137,10 +137,12 @@ it('includes Pokemon Storage in grid navigation', async () => {
 	component = mount(SavesGrid, { target: container });
 
 	const grid = container.querySelector<HTMLElement>('#saves-grid')!;
-	const storageCard = container.querySelector<HTMLElement>('#saves-target-pokemon-storage')!;
+	const findStorageCard = () =>
+		container.querySelector<HTMLElement>('#saves-target-pokemon-storage')!;
 	await expect
-		.poll(() => storageCard.textContent?.replace(/\s+/g, ' '))
+		.poll(() => findStorageCard().textContent?.replace(/\s+/g, ' '))
 		.toContain('4 Storage Boxes');
+	const storageCard = findStorageCard();
 	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-import');
 	const storageText = storageCard.textContent?.replace(/\s+/g, ' ');
 	expect(storageCard.getAttribute('role')).toBe('gridcell');
@@ -148,14 +150,19 @@ it('includes Pokemon Storage in grid navigation', async () => {
 	expect(storageText).toContain('4 Storage Boxes');
 	expect(storageText).toContain('Automatically saved by PKSX');
 
-	grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+	// Pokemon Storage is before Import: above it in one column, left of it in more.
+	const [back, forward] =
+		grid.getAttribute('aria-colcount') === '1'
+			? ['ArrowUp', 'ArrowDown']
+			: ['ArrowLeft', 'ArrowRight'];
+	grid.dispatchEvent(new KeyboardEvent('keydown', { key: back, bubbles: true }));
 	await tick();
 	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-pokemon-storage');
-	grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+	grid.dispatchEvent(new KeyboardEvent('keydown', { key: forward, bubbles: true }));
 	await tick();
 	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-import');
 
-	grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+	grid.dispatchEvent(new KeyboardEvent('keydown', { key: back, bubbles: true }));
 	grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
 	await expect.poll(() => fakes.host?.active?.kind).toBe('storage-backup-menu');
 });
