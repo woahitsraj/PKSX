@@ -101,6 +101,7 @@
 		type WorkbenchSlotRef
 	} from '$lib/pksx/storage-workbench';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
+	import { managementOnlyBlock, type ManagementOnlyBlockedAction } from '$lib/pksx/management-only';
 	import {
 		catalogLegacyView,
 		type PokemonStorageManifest
@@ -1033,7 +1034,10 @@
 		}
 		if (action === 'carryMode') {
 			if (pendingSlotOperation) togglePendingSlotOperationMode();
-			if (virtualCarry)
+			if (
+				virtualCarry &&
+				!(virtualCarry.mode === 'move' && blockedByManagementOnly('copy-pokemon'))
+			)
 				virtualCarry = { ...virtualCarry, mode: virtualCarry.mode === 'move' ? 'copy' : 'move' };
 			return true;
 		}
@@ -1876,6 +1880,7 @@
 			!activeVirtualLocation
 		)
 			return;
+		if (mode === 'copy' && blockedByManagementOnly('copy-pokemon')) return;
 		if (!getPokemonStorageCatalog().getRecord(recordId)) return;
 		virtualCarry = {
 			recordId,
@@ -1910,6 +1915,7 @@
 	) {
 		const pending = virtualCarry;
 		if (!pending || busy || catalogViewStale) return;
+		if (pending.mode === 'copy' && blockedByManagementOnly('copy-pokemon')) return;
 		const catalog = getPokemonStorageCatalog();
 		try {
 			catalog.assertCarrySource(pending.source);
@@ -2637,6 +2643,7 @@
 		sources: SaveSlotRef[];
 	} | null>(null);
 	function openStorageBatch(mode: 'copy' | 'move', single = false) {
+		if (mode === 'copy' && blockedByManagementOnly('copy-pokemon')) return;
 		const pane = single ? summonedSlotPane : activePane;
 		const state = saveWorkspaceForPane(pane)?.state;
 		const launcher = summonedSlotLauncher;
@@ -3837,6 +3844,7 @@
 		const pending = pendingSlotOperation;
 		const ownerPane = destinationPane;
 		const destinationSlot = slotForRef(destination, ownerPane);
+		if (pending.kind === 'copy' && blockedByManagementOnly('copy-pokemon')) return;
 
 		if (isSamePendingDestination(pending.source, destination, ownerPane)) {
 			pendingSlotOperation = null;
@@ -3911,6 +3919,7 @@
 		destinationPane: BoxPaneState | undefined,
 		virtualSource?: { recordId: string; slot: SlotView }
 	) {
+		if (pending.kind === 'copy' && blockedByManagementOnly('copy-pokemon')) return;
 		const carrySource = virtualSource ? virtualCarry?.source : pending.storageSource;
 		if (!carrySource) {
 			toastHost.error('Pokemon Storage source changed.');
@@ -4296,6 +4305,7 @@
 
 	function beginPendingSlotOperation(kind: 'move' | 'copy') {
 		if (selection) return;
+		if (kind === 'copy' && blockedByManagementOnly('copy-pokemon')) return;
 		const domSource = validateTransferSource(transferDomSource ?? focusedDomSaveSlot());
 		transferDomSource = null;
 		const slot = domSource?.slot ?? focusedSlot;
@@ -4477,6 +4487,7 @@
 		if (!pendingSlotOperation || !carryState) {
 			return;
 		}
+		if (pendingSlotOperation.kind === 'move' && blockedByManagementOnly('copy-pokemon')) return;
 
 		pendingSlotOperation = {
 			...pendingSlotOperation,
@@ -5268,6 +5279,7 @@
 		) {
 			return;
 		}
+		if (blockedByManagementOnly('evolve')) return;
 
 		const location = activeSlotPositionLabel;
 		const context = pokemonActionContextForFocusedSlot();
@@ -5360,6 +5372,8 @@
 		if (!operation) {
 			return;
 		}
+		if (blockedByManagementOnly(operation.kind === 'legality-fix' ? 'legality-fix' : 'evolve'))
+			return;
 		if (pokemonActionReturnsToEditor) {
 			await applyPokemonEditorQuickFix(activeEngine, context, operation);
 			return;
@@ -5758,6 +5772,7 @@
 		) {
 			return;
 		}
+		if (blockedByManagementOnly('create-pokemon')) return;
 
 		if (!createPokemonAvailability.available) {
 			toastHost.error(createPokemonAvailability.reason);
@@ -5886,6 +5901,7 @@
 		) {
 			return;
 		}
+		if (blockedByManagementOnly('edit-pokemon')) return;
 
 		const launchingWorkflow = activeSummonedWorkflow;
 		const paneWorkspace = saveWorkspaceForPane(focusedSlotPane);
@@ -6267,6 +6283,7 @@
 
 	function openTradeWithSwitch() {
 		if (focusedSlot.kind !== 'pokemon' || !focusedSlot.entityBytesBase64) return;
+		if (blockedByManagementOnly('link-trade')) return;
 		const ref = slotRefForFocus();
 		const recordId =
 			focusedSlotOwner.type === 'pokemon-storage' && ref.zone === 'box'
@@ -6430,6 +6447,12 @@
 		const currentEditor = pokemonEditor;
 		const editor = currentEditor ? stagePokemonEditorDraftEdits(currentEditor, draft) : null;
 		if (!editor) {
+			return;
+		}
+		const blocked = managementOnlyBlock(pokemonCreation ? 'create-pokemon' : 'edit-pokemon');
+		if (blocked) {
+			pokemonEditorFeedback = blocked;
+			toastHost.error(blocked);
 			return;
 		}
 
@@ -7883,6 +7906,14 @@
 	function spriteUrlFor(slot: SlotView): string | null {
 		const entry = resolveSpriteCatalogEntry(slot.spriteIdentity);
 		return entry ? asset(entry.path) : null;
+	}
+
+	function blockedByManagementOnly(action: ManagementOnlyBlockedAction) {
+		const message = managementOnlyBlock(action);
+		if (!message) return false;
+		statusMessage = message;
+		toastHost.error(message);
+		return true;
 	}
 
 	function getErrorMessage(error: unknown) {

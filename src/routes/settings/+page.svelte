@@ -10,6 +10,11 @@
 	import { appCommands } from '$lib/pksx/app-commands';
 	import { appPlatformLabel, getAppMetadata } from '$lib/pksx/app-metadata';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
+	import {
+		isManagementOnly,
+		managementOnlyRestoreNote,
+		setManagementOnly
+	} from '$lib/pksx/management-only';
 	import { getPkhexEngine } from '$lib/pksx/saves-cache';
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 	import { theme } from '$lib/pksx/theme.svelte';
@@ -117,11 +122,13 @@
 	let appVersion = $state<string | null>(null);
 	let platform = $state<string | null>(null);
 	let pkhexCoreVersion = $state<string | null>(null);
+	let managementOnly = $state(false);
 	const aboutLoading = $derived(
 		appVersion === null || platform === null || pkhexCoreVersion === null
 	);
 
 	onMount(() => {
+		managementOnly = isManagementOnly();
 		void loadMetadata();
 		queueMicrotask(() => focusStop(rememberedStop, rememberedThemeControl));
 	});
@@ -142,6 +149,15 @@
 
 		const result = await getPkhexEngine().getVersion();
 		pkhexCoreVersion = result.ok ? result.value.pkhexCoreVersion : 'Unavailable';
+	}
+
+	function toggleManagementOnly() {
+		try {
+			setManagementOnly(!managementOnly);
+		} catch {
+			// The stored value below stays the source of truth when storage rejects the write.
+		}
+		managementOnly = isManagementOnly();
 	}
 
 	function settingsZone(node: HTMLElement) {
@@ -268,6 +284,29 @@
 							onclick={() => theme.setDark(true)}>Dark</button
 						>
 					</div>
+				</div>
+				<div class="preference-row" data-settings-row="management-only">
+					<div>
+						<strong id="management-only-label">Management only</strong>
+						<span id="management-only-description">
+							Browse, search, run Legality Checks, move Pokemon, organize Boxes, and use Backups and
+							Export. PKSX blocks Pokemon edits, Legality Fixes, Evolution, Pokemon creation, Copy
+							and Duplicate, Link Trades, and trainer, bag, and Pokedex edits.
+						</span>
+						<span>{managementOnlyRestoreNote}</span>
+					</div>
+					<button
+						type="button"
+						class="toggle"
+						role="switch"
+						aria-checked={managementOnly}
+						aria-labelledby="management-only-label"
+						aria-describedby="management-only-description"
+						data-settings-control
+						data-settings-stop
+						data-destination-focus="management-only"
+						onclick={toggleManagementOnly}>{managementOnly ? 'On' : 'Off'}</button
+					>
 				</div>
 			</section>
 
@@ -442,6 +481,10 @@
 		border-top: var(--pksx-border-width) solid var(--rule);
 	}
 
+	.preference-row + .preference-row {
+		margin-top: var(--pksx-space-2);
+	}
+
 	.preference-row > div:first-child {
 		display: grid;
 		gap: var(--pksx-space-1);
@@ -464,6 +507,24 @@
 		color: var(--ink-soft);
 		font: 700 var(--pksx-type-body) / 1 var(--pksx-font-sans);
 		cursor: pointer;
+	}
+
+	.toggle {
+		flex: none;
+		min-width: 58px;
+		min-height: var(--pksx-control-height);
+		padding: 0 var(--pksx-space-3);
+		border: var(--pksx-border-width) solid var(--rule);
+		border-radius: var(--pksx-radius-medium);
+		background: var(--paper-deep);
+		color: var(--ink-soft);
+		font: 700 var(--pksx-type-body) / 1 var(--pksx-font-sans);
+		cursor: pointer;
+	}
+
+	.toggle[aria-checked='true'] {
+		background: var(--paper-hi);
+		color: var(--rust);
 	}
 
 	.segmented button[aria-pressed='true'] {

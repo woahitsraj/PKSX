@@ -4,6 +4,7 @@
 	import { resolve } from '$app/paths';
 	import { onMount, tick } from 'svelte';
 	import { getSaveDisplayName, type BackupMetadata, type StoredSaveFile } from '$lib/pksx/saves';
+	import { isManagementOnly, managementOnlyRestoreNote } from '$lib/pksx/management-only';
 	import {
 		createManualBackup,
 		inspectBackup,
@@ -562,6 +563,9 @@
 								? 'This replaces the Dirty Workspace. The original imported Save File remains unchanged.'
 								: 'This replaces the current Workspace. The original imported Save File remains unchanged.'}
 						</p>
+						{#if isManagementOnly()}
+							<p>{managementOnlyRestoreNote}</p>
+						{/if}
 					</div>
 					<button data-backup-browser-control type="button" onclick={guardedBack}
 						>Keep current</button

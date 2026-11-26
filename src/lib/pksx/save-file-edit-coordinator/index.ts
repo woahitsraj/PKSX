@@ -1,3 +1,4 @@
+import { saveFileEditBlock } from '$lib/pksx/management-only';
 import {
 	base64ToBytes,
 	type EngineApi,
@@ -39,6 +40,7 @@ export type SaveFileEditFailureCode =
 	| 'workspace-persistence-failed'
 	| 'stale-workspace'
 	| 'save-file-deleted'
+	| 'management-only'
 	| 'queued-operation-cancelled';
 
 export type SaveFileEditResult =
@@ -513,6 +515,17 @@ export class SaveFileEditCoordinator {
 			return { ok: true, status: 'noop', origin: record.origin, workspace: latest };
 		}
 
+		const blocked = saveFileEditBlock(request.operation);
+		if (blocked) {
+			return {
+				ok: false,
+				status: 'rejected',
+				origin: record.origin,
+				code: 'management-only',
+				message: blocked,
+				workspace: copyWorkspace(latest)
+			};
+		}
 		if (request.operation.boxName || request.operation.boxMove) {
 			return this.applyAtomicBoxEdit(record, request, generation, latest);
 		}

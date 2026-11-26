@@ -49,6 +49,36 @@ const emptyDestination: SaveSlotRef = { zone: 'box', box: 0, slot: 2 };
 const occupiedDestination: SaveSlotRef = { zone: 'box', box: 0, slot: 1 };
 
 describe('storage operations', () => {
+	it('rejects Copy under Management only before any Backup, and still moves', async () => {
+		vi.stubGlobal('localStorage', { getItem: () => 'on' });
+		try {
+			const services = createServices();
+			const input = {
+				state: createWorkspaceState(),
+				activeBox: 0,
+				sourceSlot: { kind: 'pokemon' as const },
+				destinationSlot: { kind: 'empty' as const },
+				partyCount: 1,
+				services
+			};
+			const copy = await applyStorageOperation({
+				...input,
+				operation: { kind: 'copy', source, destination: emptyDestination }
+			});
+			expect(copy).toMatchObject({ ok: false, reason: 'management-only' });
+			expect(services.prepareAutomaticBackup).not.toHaveBeenCalled();
+			expect(services.engine.applySlotOperation).not.toHaveBeenCalled();
+
+			const move = await applyStorageOperation({
+				...input,
+				operation: { kind: 'move', source, destination: emptyDestination }
+			});
+			expect(move.ok).toBe(true);
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
 	it('moves an occupied source into an empty destination', async () => {
 		const services = createServices();
 		const result = await applyStorageOperation({

@@ -1,3 +1,4 @@
+import { assertManagementAllows } from '$lib/pksx/management-only';
 import { base64ToBytes, type EngineApi } from '$lib/engine';
 import type { StoredPokemonStorage } from '$lib/pksx/saves';
 import { createStore, type Store } from 'tinybase';
@@ -312,6 +313,7 @@ export class PokemonStorageService {
 		origin: PokemonOrigin,
 		placement: Placement = null
 	): Promise<PokemonRecord> {
+		if (origin.entryMode === 'copied-in') assertManagementAllows('copy-pokemon');
 		const result = await this.engine.createPreservationPayload(entityBytes);
 		if (!result.ok) throw result.error;
 		return this.#putPayload(result.value.bytes, origin, placement, null);
@@ -322,6 +324,7 @@ export class PokemonStorageService {
 	}
 
 	async copy(recordId: string, placement: Placement = null): Promise<PokemonRecord> {
+		assertManagementAllows('copy-pokemon');
 		const source = this.#required(recordId);
 		const bytes = await this.readPayload(recordId);
 		const result = await this.engine.forkPreservationPayload(bytes);
@@ -359,6 +362,7 @@ export class PokemonStorageService {
 		destination: NonNullable<Placement>
 	): Promise<void> {
 		if (mode === 'copy') {
+			assertManagementAllows('copy-pokemon');
 			const bytes = await this.readPayload(source.recordId);
 			const fork = await this.engine.forkPreservationPayload(bytes);
 			if (!fork.ok) throw fork.error;

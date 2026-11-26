@@ -1,3 +1,4 @@
+import { managementOnlyBlock } from '$lib/pksx/management-only';
 import type {
 	BoxSlotSummary,
 	EngineApi,
@@ -179,6 +180,8 @@ export async function applySaveFileLegalityFixBatch(input: {
 	}
 	if (input.signal?.aborted) return { status: 'cancelled' };
 	if (!input.isCurrent()) return staleBatchResult();
+	const blocked = managementOnlyBlock('legality-fix');
+	if (blocked) return { status: 'error', message: blocked };
 
 	let prepared: PreparedAutomaticBackup;
 	try {

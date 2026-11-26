@@ -406,6 +406,10 @@ _Avoid_: key event, button event
 A choice about how PKSX looks or behaves that belongs to the app rather than to any Save File or Pokemon Entity, and is kept between sessions.
 _Avoid_: setting, option, config
 
+**Management only**:
+A Preference that limits PKSX to browsing and organizing the Pokemon Entities a collection already holds. It blocks every action that edits, creates, or copies a Pokemon Entity, and every edit to other Save File data.
+_Avoid_: read-only mode, safe mode, achievement mode
+
 ## Relationships
 
 - A **Save File** contains zero or one **Party** and zero or more **Boxes**.
@@ -774,3 +778,34 @@ _Avoid_: setting, option, config
 ### Returning Link Trade copies
 
 The device-local trade journal records the source Record ID and the Engine's outgoing PID, EC, TID and SID. Matching those fields in a completed Trade Receipt reports a possible returning copy, never ownership. The user chooses whether to link it to the source Storage record and retain its original preservation payload, including fields unavailable in Sword/Shield, or import a separate record. A changed or unavailable source cannot be silently restored. Receipt import is idempotent by session and its durably reserved Record ID, never by Identity Fingerprint. Converted copies have no HOME tracker, and PKSX never writes one.
+
+### Management only
+
+- **Management only** is off by default and belongs to the **PKSX Installation**.
+- PKSX reads the **Preference** at each commit, before it writes a **Backup** or a **Workspace**. An editor that was open, or an operation that was staged, before the **Preference** was enabled is rejected at commit.
+- A rejected commit changes no **Save File** bytes, no **Pokemon Entity** bytes, no collection count, and creates no **Backup**.
+- Enabling **Management only** does not revert earlier edits and does not change bytes. Disabling it restores every supported action.
+- An allowed move keeps its usual meaning: the **Pokemon Entity** leaves its source **Slot**, a transfer conversion that the move needs still runs, and **Risky Change** protection still applies.
+- **Backup Restore** stays available with its usual confirmation and ownership and **Dirty Workspace** warnings. A restored **Backup** can bring back earlier **Pokemon Entities**.
+- **Management only** does not certify that a **Save File** meets the rules of an external achievement system.
+- A **Link Trade** that is already in progress still completes and recovers, so that no **Pokemon Entity** is lost.
+
+| Action                                                                       | Management only |
+| ---------------------------------------------------------------------------- | --------------- |
+| Navigate, inspect, and search                                                | Allowed         |
+| **Legality Check** and the Save File Legality Report                         | Allowed         |
+| Move or swap a **Pokemon Entity** in one **Save File** or Pokemon Storage    | Allowed         |
+| Move a **Pokemon Entity** between a **Save File** and Pokemon Storage        | Allowed         |
+| Store automatically, file, and unfile in Pokemon Storage                     | Allowed         |
+| Rename and reorder **Boxes**; add, rename, reorder, and remove Storage Boxes | Allowed         |
+| Clear a **Slot**, restore from Recently Deleted, delete permanently          | Allowed         |
+| Import, open, rename, and delete a **Save File**                             | Allowed         |
+| Manual **Backup**, confirmed **Backup Restore**, and Export                  | Allowed         |
+| Pokemon Storage archive export and restore                                   | Allowed         |
+| Edit **Pokemon Entity** fields in the Pokemon Editor                         | Blocked         |
+| Apply a Legality Fix, for one Pokemon or for a **Save File**                 | Blocked         |
+| Evolution                                                                    | Blocked         |
+| Create a **Pokemon Entity**                                                  | Blocked         |
+| Copy or Duplicate a **Pokemon Entity**, for one Pokemon or a batch           | Blocked         |
+| Start a **Link Trade**                                                       | Blocked         |
+| Edit trainer profile, money, bag, or Pokedex                                 | Blocked         |

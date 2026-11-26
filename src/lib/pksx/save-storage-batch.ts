@@ -1,5 +1,6 @@
 import { base64ToBytes, type EngineApi, type SaveSlotRef } from '$lib/engine';
 import type { WorkspaceState } from '$lib/pksx/backup-workflow';
+import { assertManagementAllows } from '$lib/pksx/management-only';
 import type { PokemonStorageService } from '$lib/pksx/pokemon-storage-catalog';
 import { bytesEqual, type SavesStorage } from '$lib/pksx/saves';
 
@@ -20,6 +21,7 @@ export async function previewSaveStorageBatch(input: {
 	catalog: PokemonStorageService;
 }) {
 	const { state, sources, mode, startingBoxId, engine, catalog } = input;
+	if (mode === 'copy') assertManagementAllows('copy-pokemon');
 	if (
 		!sources.length ||
 		new Set(sources.map((ref) => `${ref.zone}:${ref.zone === 'box' ? ref.box : ''}:${ref.slot}`))
@@ -99,6 +101,7 @@ export async function applySaveStorageBatch(
 	if (!storage.commitPreservedSaveDeletion)
 		throw new Error('Atomic batch transfers are unavailable on this platform.');
 	const { state, prepared } = batch;
+	if (batch.mode === 'copy') assertManagementAllows('copy-pokemon');
 	const owner = await storage.getSave(state.file.id);
 	if (!owner || owner.importedAt !== state.file.importedAt)
 		throw new Error('The source Save File changed. Preview again.');

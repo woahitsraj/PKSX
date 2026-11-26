@@ -1,3 +1,4 @@
+import { assertManagementAllows } from '$lib/pksx/management-only';
 import type {
 	EngineApi,
 	EngineError,
@@ -176,6 +177,7 @@ export async function applyPokemonAction(
 	operation: StoredPokemonActionOperation,
 	services: PokemonActionApplyServices
 ): Promise<PokemonActionApplyResult> {
+	assertManagementAllows(operation.kind === 'legality-fix' ? 'legality-fix' : 'evolve');
 	if (target.owner === 'pokemon-storage') {
 		const result = await engine.applyStoredPokemonAction(target.entityBytesBase64, operation);
 		if (!result.ok) return result;

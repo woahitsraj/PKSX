@@ -6,6 +6,7 @@ import type {
 	SlotOperationResult
 } from '$lib/engine';
 import type { PreparedAutomaticBackup, WorkspaceState } from '$lib/pksx/backup-workflow';
+import { managementOnlyBlock } from '$lib/pksx/management-only';
 import type { CatalogCarrySource } from '$lib/pksx/pokemon-storage-catalog';
 
 export type StorageOperationKind = SlotOperation['kind'];
@@ -28,6 +29,7 @@ export type StorageOperationFailureReason =
 	| 'empty-source'
 	| 'occupied-destination'
 	| 'invalid-destination'
+	| 'management-only'
 	| 'engine-rejected';
 
 export type StorageOperationEffect = 'move' | 'copy' | 'swap' | 'clear';
@@ -210,6 +212,9 @@ export async function applyStorageOperation(
 	if (!validation.ok) {
 		return validation;
 	}
+
+	const blocked = operation.kind === 'copy' ? managementOnlyBlock('copy-pokemon') : null;
+	if (blocked) return { ok: false, reason: 'management-only', message: blocked };
 
 	const prepared = await services.prepareAutomaticBackup(state);
 	const workingState = prepared.state;
