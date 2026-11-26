@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { loadRoute, reloadRoute } from './route-load.e2e-helper';
+import { chooseImportAsNew } from './save-import.e2e-helper';
 
 for (const height of [336, 720]) {
 	test(`rename preserves filenames, cancellation and reset at height ${height}`, async ({
@@ -73,6 +74,7 @@ for (const height of [336, 720]) {
 				)
 			)
 		});
+		await chooseImportAsNew(page);
 		await expect(
 			page.getByRole('button', { name: 'Open a-unopened.sav in Boxes', exact: true })
 		).toBeVisible();
@@ -173,6 +175,7 @@ test.describe('display names across Save File consumers', () => {
 			await page
 				.locator('#save-file-input')
 				.setInputFiles({ name: 'beta.sav', mimeType: 'application/octet-stream', buffer: bytes });
+			await chooseImportAsNew(page);
 			await page
 				.getByRole('button', { name: 'Open Save File Menu for beta.sav', exact: true })
 				.tap();

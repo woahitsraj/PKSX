@@ -1,5 +1,5 @@
 import { expectBoxesReady } from './boxes-ready.e2e-helper';
-import { importSaveThroughSaves } from './save-import.e2e-helper';
+import { importSaveAsNewThroughSaves, importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
@@ -1784,7 +1784,7 @@ test('primary and secondary Box Sources follow active Save File selection rules'
 	});
 	const emeraldId = (await emeraldContainer.getAttribute('id'))?.replace('saves-target-', '');
 	const bytes = await readFile(emeraldFixturePath);
-	await importSaveThroughSaves(page, {
+	await importSaveAsNewThroughSaves(page, {
 		name: 'second-emerald.sav',
 		mimeType: 'application/octet-stream',
 		buffer: bytes
@@ -2423,7 +2423,7 @@ test('transfer controls discard a cached source after switching collections', as
 		.locator('.save-card')
 		.filter({ hasText: 'emerald-011020251345.sav' })
 		.getByRole('button', { name: 'Open emerald-011020251345.sav in Boxes' });
-	await importSaveThroughSaves(page, {
+	await importSaveAsNewThroughSaves(page, {
 		name: 'second-emerald.sav',
 		mimeType: 'application/octet-stream',
 		buffer: await readFile(emeraldFixturePath)
