@@ -69,6 +69,8 @@ function details(input: { game: string; trainer: string; playTime: string }): Sa
 			boxSlotCount: 30,
 			gameVersion: input.game,
 			trainerName: input.trainer,
+			rawTrainerId: 0,
+			rawSecretId: 0,
 			playTime: input.playTime
 		},
 		pokemonCount: 7

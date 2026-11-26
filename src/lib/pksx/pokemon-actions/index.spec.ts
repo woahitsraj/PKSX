@@ -81,6 +81,8 @@ const workspace = createCleanWorkspaceState({
 			gameVersionId: 3,
 			generation: 3,
 			trainerId: 1,
+			rawTrainerId: 0,
+			rawSecretId: 0,
 			playTime: '',
 			playedHours: 0,
 			playedMinutes: 0,

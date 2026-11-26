@@ -115,6 +115,8 @@ describe('PKHeX Engine Save File coverage', () => {
 		expect(summary.ok, JSON.stringify(summary.error)).toBe(true);
 		if (!summary.ok) throw summary.error;
 		expect(summary.value).toMatchObject({ saveType, gameVersion });
+		for (const id of [summary.value.rawTrainerId, summary.value.rawSecretId])
+			expect(Number.isInteger(id) && id >= 0 && id <= 0xffff).toBe(true);
 
 		const [workspace, card, exported] = await Promise.all([
 			engine.loadSaveWorkspace(bytes, fileName, 0),

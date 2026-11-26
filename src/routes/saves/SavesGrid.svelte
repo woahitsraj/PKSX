@@ -20,6 +20,13 @@
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
 	import StorageBackupMenu from '$lib/components/pksx/StorageBackupMenu.svelte';
 	import AddSavesMenu from '$lib/components/pksx/AddSavesMenu.svelte';
+	import SaveImportMatchMenu from '$lib/components/pksx/SaveImportMatchMenu.svelte';
+	import {
+		findSaveImportMatches,
+		saveImportMatchChoice,
+		type SaveImportMatchChoice
+	} from '$lib/pksx/save-import-match';
+	import { confirmReplaceDirty } from '$lib/pksx/save-file-edit-coordinator';
 	import { folderOf, supportsSaveFolders } from '$lib/pksx/linked-save-folders';
 	import { recoveryBackupId } from '$lib/pksx/linked-save-sources/runtime';
 	import { fileEmulator } from '$lib/pksx/linked-save-folders/profiles';
@@ -131,6 +138,13 @@
 	const renameOpen = $derived(summonedWorkflow.active?.kind === 'save-file-rename');
 	const deleteOpen = $derived(summonedWorkflow.active?.kind === 'save-file-delete');
 	const addSavesOpen = $derived(summonedWorkflow.active?.kind === 'add-saves-menu');
+	const importMatchOpen = $derived(summonedWorkflow.active?.kind === 'save-import-match');
+	let pendingImport = $state<{
+		fileName: string;
+		bytes: Uint8Array;
+		matches: SaveImportMatchChoice[];
+		confirmDirtyId: string | null;
+	} | null>(null);
 	const folderLinking = supportsSaveFolders();
 	const storageBackupOpen = $derived(summonedWorkflow.active?.kind === 'storage-backup-menu');
 	const storageConfirmOpen = $derived(
@@ -334,7 +348,7 @@
 		) {
 			return;
 		}
-		if (addSavesOpen) return;
+		if (addSavesOpen || importMatchOpen) return;
 		if (!summonedWorkflow.active && searchControls?.contains(document.activeElement)) {
 			handleSearchKeydown(event);
 			return;
@@ -682,29 +696,106 @@
 			const bytes = new Uint8Array(await file.arrayBuffer());
 			const validation = await getPkhexEngine().loadSaveWorkspace(bytes, file.name, 0);
 			if (!validation.ok) throw validation.error;
-			const stored = await storage.importSave({ bytes, originalFileName: file.name });
-			boxesSession.selectPrimary({
-				type: 'save-file',
-				id: stored.id,
-				label: stored.originalFileName ?? 'Save File',
-				dirty: false
+			const matches = await findSaveImportMatches({
+				storage,
+				engine: getPkhexEngine(),
+				bytes,
+				summary: validation.value.summary
 			});
-			invalidateSavesCache();
-			invalidateActiveWorkspaceCache();
-			await refreshSaves({
-				force: true,
-				preferredTarget: { kind: 'save-file', id: stored.id },
-				focus: true
-			});
-			toastHost.success(file.name + ' imported and made active.');
-		} catch (error) {
-			await refreshSaves({
-				preferredTarget: { kind: 'import' },
-				focus: true
-			});
-			toastHost.error(
-				'Import failed. Current active Save File was not changed. ' + getErrorMessage(error)
+			if (matches.length === 0) return await importAsNew(bytes, file.name);
+			const active = getCachedActiveWorkspace();
+			const choices = await Promise.all(
+				matches.map(async (match) =>
+					saveImportMatchChoice(
+						match,
+						active?.file.id === match.saveFile.id
+							? active.dirty
+							: (await storage.getWorkspace(match.saveFile.id))?.dirty === true
+					)
+				)
 			);
+			pendingImport = { fileName: file.name, bytes, matches: choices, confirmDirtyId: null };
+			summonedWorkflow.open('save-import-match', { type: 'control', id: 'saves-target-import' });
+		} catch (error) {
+			await importFailed(error);
+		} finally {
+			busyTarget = null;
+		}
+	}
+
+	async function importAsNew(bytes: Uint8Array, fileName: string) {
+		const stored = await storage.importSave({ bytes, originalFileName: fileName });
+		await finishImport(stored, fileName + ' imported and made active.');
+	}
+
+	async function finishImport(stored: StoredSaveFile, message: string) {
+		boxesSession.selectPrimary({
+			type: 'save-file',
+			id: stored.id,
+			label: displayName(stored),
+			dirty: false
+		});
+		invalidateSavesCache();
+		invalidateActiveWorkspaceCache();
+		await refreshSaves({
+			force: true,
+			preferredTarget: { kind: 'save-file', id: stored.id },
+			focus: true
+		});
+		toastHost.success(message);
+	}
+
+	async function importFailed(error: unknown) {
+		await refreshSaves({ preferredTarget: { kind: 'import' }, focus: true });
+		toastHost.error(
+			'Import failed. Current active Save File was not changed. ' + getErrorMessage(error)
+		);
+	}
+
+	function closeImportMatch() {
+		pendingImport = null;
+		summonedWorkflow.dismiss();
+	}
+
+	function cancelImportMatch() {
+		if (busyTarget) return;
+		closeImportMatch();
+		chooseTarget({ kind: 'import' });
+	}
+
+	async function runImportMatch(replaceId: SaveFileId | null) {
+		const pending = pendingImport;
+		if (!pending || busyTarget) return;
+		const match = pending.matches.find((candidate) => candidate.id === replaceId);
+		if (match?.dirty && pending.confirmDirtyId !== match.id) {
+			pending.confirmDirtyId = match.id;
+			return;
+		}
+		busyTarget = 'import';
+		try {
+			if (!match) {
+				closeImportMatch();
+				return await importAsNew(pending.bytes, pending.fileName);
+			}
+			const current = await storage.getSave(match.id);
+			if (!current) throw new Error('The selected Save File is no longer available.');
+			const replaced = await getSaveFileEditCoordinator().replaceImport(current, {
+				bytes: pending.bytes,
+				originalFileName: pending.fileName,
+				allowDirty: pending.confirmDirtyId === match.id
+			});
+			closeImportMatch();
+			await storage.setActiveSaveFileId(replaced.id);
+			invalidateActiveWorkspaceCache(replaced.id);
+			await finishImport(replaced, match.name + ' replaced with ' + pending.fileName + '.');
+		} catch (error) {
+			if (getErrorMessage(error) === confirmReplaceDirty && match) {
+				pending.confirmDirtyId = match.id;
+				match.dirty = true;
+				return;
+			}
+			closeImportMatch();
+			await importFailed(error);
 		} finally {
 			busyTarget = null;
 		}
@@ -1467,6 +1558,18 @@
 		onScan={() => (discovery.scanning ? discovery.cancel() : void discovery.scan(undefined, true))}
 		onUnlink={(folder) => void discovery.unlink(folder)}
 		onClose={() => closeAddSaves()}
+	/>
+{/if}
+
+{#if importMatchOpen && pendingImport}
+	<SaveImportMatchMenu
+		fileName={pendingImport.fileName}
+		matches={pendingImport.matches}
+		confirmDirtyId={pendingImport.confirmDirtyId}
+		busy={busyTarget === 'import'}
+		onReplace={(id) => void runImportMatch(id)}
+		onImportNew={() => void runImportMatch(null)}
+		onCancel={cancelImportMatch}
 	/>
 {/if}
 

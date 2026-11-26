@@ -28,6 +28,8 @@ const workspace = {
 			generation: 9,
 			trainerName: 'PKSX',
 			trainerId: 41203,
+			rawTrainerId: 0,
+			rawSecretId: 0,
 			playTime: '1:00',
 			playedHours: 1,
 			playedMinutes: 0,

@@ -177,3 +177,20 @@ test('combined origin and Trainer edits preserve the staged ID domain in both di
 		expect(reopened.value.metDataEditConstraints?.currentOriginGameId).toBe(originGameId);
 	}
 });
+
+test('Save summaries report raw Trainer and Secret IDs beside the display Trainer ID', async () => {
+	const engine = await createPkhexEngine();
+	for (const [name, url, modern] of [
+		['Emerald', emeraldUrl, false],
+		['Moon', moonUrl, true]
+	] as const) {
+		const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
+		const summary = await engine.summarizeSave(bytes, name);
+		if (!summary.ok) throw new Error(summary.error.message);
+		const { trainerId, rawTrainerId, rawSecretId } = summary.value;
+		expect(trainerId).toBe(
+			modern ? (rawSecretId * 0x10000 + rawTrainerId) % 1_000_000 : rawTrainerId
+		);
+		if (modern) expect(rawTrainerId).not.toBe(trainerId);
+	}
+});

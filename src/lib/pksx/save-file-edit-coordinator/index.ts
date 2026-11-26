@@ -447,6 +447,58 @@ export class SaveFileEditCoordinator {
 		}
 	}
 
+	/** Replaces a Save File's imported bytes in place after backing up what it would overwrite. */
+	replaceImport(
+		saveFile: Pick<StoredSaveFile, 'id' | 'importedAt'>,
+		input: { bytes: Uint8Array; originalFileName: string | null; allowDirty: boolean }
+	): Promise<StoredSaveFile> {
+		const { storage } = this.options;
+		const record = this.currentBySaveFileId.get(saveFile.id);
+		const replacement = (record?.tail ?? Promise.resolve()).then(async () => {
+			const stored = await storage.getSave(saveFile.id);
+			if (!stored || stored.importedAt !== saveFile.importedAt || this.importIsTerminal(saveFile))
+				throw new Error('The selected Save File is no longer available.');
+			const [workspace, baseline] = await Promise.all([
+				storage.getWorkspace(saveFile.id),
+				storage.getSaveBytes(saveFile.id)
+			]);
+			if (!baseline) throw new Error('The imported baseline is missing.');
+			if (workspace?.dirty && !input.allowDirty) throw new Error(confirmReplaceDirty);
+			if (workspace && !bytesEqual(workspace.bytes, baseline))
+				await storage.createBackup({
+					saveFileId: saveFile.id,
+					bytes: workspace.bytes,
+					reason: 'workspace-before-import-replace'
+				});
+			if (!bytesEqual(baseline, input.bytes))
+				await storage.createBackup({
+					saveFileId: saveFile.id,
+					bytes: baseline,
+					reason: 'import-before-replace'
+				});
+			const replaced = await storage.replaceSave({
+				saveFileId: saveFile.id,
+				expectedImportedAt: saveFile.importedAt,
+				expectedWorkspaceUpdatedAt: workspace?.updatedAt ?? null,
+				bytes: input.bytes,
+				originalFileName: input.originalFileName
+			});
+			this.terminalSaveFiles.set(saveFile.id, saveFile.importedAt);
+			if (record && this.currentBySaveFileId.get(saveFile.id) === record) {
+				record.generation += 1;
+				record.terminal = true;
+				this.currentBySaveFileId.delete(saveFile.id);
+			}
+			return replaced;
+		});
+		if (record)
+			record.tail = replacement.then(
+				() => undefined,
+				() => undefined
+			);
+		return replacement;
+	}
+
 	deleteSave(saveFile: Pick<StoredSaveFile, 'id' | 'importedAt'>): Promise<void> {
 		const saveFileId = saveFile.id;
 		const deletionKey = `${saveFileId}\u0000${saveFile.importedAt}`;

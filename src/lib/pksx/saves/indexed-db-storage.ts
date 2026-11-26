@@ -20,6 +20,7 @@ import type {
 	EnsureAutomaticBackupInput,
 	EnsureAutomaticBackupResult,
 	ImportSaveInput,
+	ReplaceSaveInput,
 	SavesStorage,
 	StoredPokemonStorage,
 	PutWorkspaceInput,
@@ -119,6 +120,44 @@ export class IndexedDbSavesStorage implements SavesStorage {
 		}
 
 		return { ...saveFile };
+	}
+
+	async replaceSave(input: ReplaceSaveInput): Promise<StoredSaveFile> {
+		const timestamp = this.#now();
+		const database = await openSavesDatabase(this.#databaseName);
+		try {
+			const transaction = database.transaction(
+				[saveFilesStore, saveBytesStore, workspacesStore],
+				'readwrite'
+			);
+			const existing = await requestToPromise<StoredSaveFile | undefined>(
+				transaction.objectStore(saveFilesStore).get(input.saveFileId)
+			);
+			if (!existing || existing.importedAt !== input.expectedImportedAt)
+				throw new Error('The selected Save File is no longer available.');
+			const workspace = await requestToPromise<WorkspaceRecord | undefined>(
+				transaction.objectStore(workspacesStore).get(input.saveFileId)
+			);
+			if ((workspace?.updatedAt ?? null) !== input.expectedWorkspaceUpdatedAt)
+				throw new WorkspaceRevisionConflictError();
+			const saveFile: StoredSaveFile = {
+				...existing,
+				originalFileName: input.originalFileName,
+				byteLength: input.bytes.byteLength,
+				importedAt: timestamp,
+				updatedAt: timestamp
+			};
+			transaction.objectStore(saveFilesStore).put(saveFile);
+			transaction.objectStore(saveBytesStore).put({
+				saveFileId: saveFile.id,
+				bytes: copyBytes(input.bytes)
+			} satisfies SaveBytesRecord);
+			transaction.objectStore(workspacesStore).delete(saveFile.id);
+			await transactionDone(transaction);
+			return { ...saveFile };
+		} finally {
+			database.close();
+		}
 	}
 
 	async getSave(saveFileId: SaveFileId): Promise<StoredSaveFile | null> {

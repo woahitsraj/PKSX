@@ -17,7 +17,9 @@ export type BackupReason =
 	| 'linked-source-before-export'
 	| 'linked-workspace-before-refresh'
 	| 'linked-import-before-refresh'
-	| 'linked-source-before-recovery';
+	| 'linked-source-before-recovery'
+	| 'workspace-before-import-replace'
+	| 'import-before-replace';
 
 export type StoredSaveFile = {
 	id: SaveFileId;
@@ -112,6 +114,14 @@ export type ImportSaveInput = {
 	emulator?: string;
 };
 
+export type ReplaceSaveInput = {
+	saveFileId: SaveFileId;
+	expectedImportedAt: string;
+	expectedWorkspaceUpdatedAt: string | null;
+	bytes: Uint8Array;
+	originalFileName: string | null;
+};
+
 export type CreateBackupInput = {
 	id?: BackupId;
 	saveFileId: SaveFileId;
@@ -166,6 +176,8 @@ export type CommitPreservedSaveDeletionInput = CommitRiskyWorkspaceMutationInput
 
 export type SavesStorage = {
 	importSave(input: ImportSaveInput): Promise<StoredSaveFile>;
+	/** Replaces the imported bytes in place and removes the Workspace. Back up first. */
+	replaceSave(input: ReplaceSaveInput): Promise<StoredSaveFile>;
 	getSave(saveFileId: SaveFileId): Promise<StoredSaveFile | null>;
 	listSaves(): Promise<StoredSaveFile[]>;
 	recordSuccessfulOpen(saveFileId: SaveFileId): Promise<StoredSaveFile>;

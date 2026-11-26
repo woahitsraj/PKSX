@@ -413,6 +413,7 @@ _Avoid_: setting, option, config
 - For the first end-to-end slice, the Pokemon Emerald test save committed to this repository is the only required **Supported Save File**.
 - A **Save File** is accepted into **Saves** only after the **PKHeX Engine** recognizes it as a **Supported Save File**.
 - A manual import may create a separate **Save File**. Automatic discovery deduplicates linked documents by provider and document identity, not trainer values or filename.
+- A manual import whose game, raw Trainer ID, and raw Secret ID match a stored unlinked **Save File** offers Replace Existing, Import as New, or Cancel. Replace Existing keeps the **Save File** ID, backs up its Workspace and imported bytes, then replaces its imported bytes.
 - A user grants each linked folder once through the platform picker. Linked folder permissions belong to this installation and are not Cloud Sync data.
 - Automatic discovery adds recognized new linked documents to **Saves** without changing the active **Save File**, **Workspace**, navigation, or **Controller Focus**.
 - A **Party** contains one or more **Slots**.

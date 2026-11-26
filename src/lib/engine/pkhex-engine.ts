@@ -426,7 +426,13 @@ type RawStoredPokemonImportRequest = {
 };
 type RawPokemonActionRequest = PokemonActionOperation & { activeBox: number };
 
-type SaveSummaryDefaultedFields = 'trainerId' | 'playTime' | 'playedHours' | 'playedMinutes';
+type SaveSummaryDefaultedFields =
+	| 'trainerId'
+	| 'rawTrainerId'
+	| 'rawSecretId'
+	| 'playTime'
+	| 'playedHours'
+	| 'playedMinutes';
 type RawSaveSummary = Omit<SaveSummary, SaveSummaryDefaultedFields> &
 	Partial<Pick<SaveSummary, SaveSummaryDefaultedFields>>;
 type RawSaveWorkspace = Omit<SaveWorkspace, 'summary'> & { summary: RawSaveSummary };
@@ -636,6 +642,8 @@ function normalizeSaveSummary(summary: RawSaveSummary): SaveSummary {
 	return {
 		...summary,
 		trainerId: summary.trainerId ?? 0,
+		rawTrainerId: summary.rawTrainerId ?? 0,
+		rawSecretId: summary.rawSecretId ?? 0,
 		playTime: summary.playTime ?? '',
 		playedHours: summary.playedHours ?? 0,
 		playedMinutes: summary.playedMinutes ?? 0

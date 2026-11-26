@@ -38,6 +38,8 @@ const mockSaveSummary: SaveSummary = {
 	generation: 9,
 	trainerName: 'PKSX',
 	trainerId: 41203,
+	rawTrainerId: 41203,
+	rawSecretId: 0,
 	playTime: '47:12',
 	playedHours: 47,
 	playedMinutes: 12,

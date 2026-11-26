@@ -57,6 +57,10 @@ export type SaveSummary = {
 	generation: number;
 	trainerName?: string;
 	trainerId: number;
+	/** Raw 16-bit Trainer ID, not the generation 7+ display value. */
+	rawTrainerId: number;
+	/** Raw 16-bit Secret ID; 0 for formats without one. */
+	rawSecretId: number;
 	playTime: string;
 	playedHours: number;
 	playedMinutes: number;

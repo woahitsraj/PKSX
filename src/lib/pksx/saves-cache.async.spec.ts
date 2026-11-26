@@ -56,6 +56,8 @@ const workspace = (trainerName: string): SaveWorkspace =>
 			generation: 3,
 			trainerName,
 			trainerId: 1,
+			rawTrainerId: 0,
+			rawSecretId: 0,
 			playTime: '1:00',
 			playedHours: 1,
 			playedMinutes: 0,

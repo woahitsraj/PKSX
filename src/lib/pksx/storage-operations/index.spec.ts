@@ -32,6 +32,8 @@ const workspace: SaveWorkspace = {
 		generation: 3,
 		trainerName: 'CASS',
 		trainerId: 41203,
+		rawTrainerId: 0,
+		rawSecretId: 0,
 		playTime: '47:12',
 		playedHours: 47,
 		playedMinutes: 12,
