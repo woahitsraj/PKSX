@@ -1,13 +1,14 @@
 export const controllerConnection = $state({ connected: false });
 
-// Native bridges report connection state; once one reports, it wins over the Gamepad API.
+// A native connection report wins over presses and the Gamepad API; a press only infers one.
 export function trackControllerConnection() {
 	let native: boolean | null = null;
 	const update = () => {
 		controllerConnection.connected = native ?? hasGamepad();
 	};
 	const handleNativeInput = (event: Event) => {
-		if (!(event as CustomEvent<{ pressed?: boolean } | null>).detail?.pressed) return;
+		if (native !== null || !(event as CustomEvent<{ pressed?: boolean } | null>).detail?.pressed)
+			return;
 		native = true;
 		update();
 	};

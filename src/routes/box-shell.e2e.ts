@@ -5620,6 +5620,12 @@ test('Box slot density follows pane allocation without a viewport resize', async
 	await expect(label).toHaveCSS('display', 'none');
 
 	await page.setViewportSize({ width: 360, height: 360 });
+	// Without a Controller Guide, the 360px square grid must scroll to reveal row 5.
+	await page.evaluate(() =>
+		window.dispatchEvent(
+			new CustomEvent('pksxcontrollerconnection', { detail: { connected: false } })
+		)
+	);
 	const storageGrid = page.locator('.box-pane').nth(1).getByRole('grid');
 	await page.locator('#box-0-slot-7').focus();
 	await storageGrid.evaluate((element) => (element.scrollTop = 0));

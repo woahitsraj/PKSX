@@ -53,8 +53,10 @@ function guide(page: Page) {
 }
 
 async function expectAboveGuide(page: Page, selector: string) {
+	const target = page.locator(selector).last();
+	await target.scrollIntoViewIfNeeded();
 	const guideTop = (await guide(page).boundingBox())!.y;
-	const box = (await page.locator(selector).first().boundingBox())!;
+	const box = (await target.boundingBox())!;
 	expect(box.y + box.height).toBeLessThanOrEqual(guideTop + 0.5);
 }
 
@@ -174,12 +176,12 @@ for (const [width, height] of [
 		const slotActions = page.getByRole('dialog', { name: 'Slot actions' });
 		await expect(slotActions).toContainText('Clear Slot', { timeout: 15_000 });
 		await expect(guide(page)).toContainText('Close');
-		await expectAboveGuide(page, '[role="dialog"][aria-label="Slot actions"]');
+		await expectAboveGuide(page, '[role="dialog"][aria-label="Slot actions"] button');
 
 		await slotActions.getByRole('button', { name: 'Clear Slot' }).click();
 		await expect(page.getByRole('button', { name: 'Confirm Clear' })).toBeVisible();
 		await expect(guide(page)).toContainText('Cancel');
-		await expectAboveGuide(page, '[role="dialog"][aria-label^="Clear "]');
+		await expectAboveGuide(page, '[role="dialog"][aria-label^="Clear "] button');
 		await page.keyboard.press('Escape');
 		await expect(page.getByRole('button', { name: 'Confirm Clear' })).toHaveCount(0);
 		await page.keyboard.press('Escape');
@@ -188,7 +190,7 @@ for (const [width, height] of [
 		await page.getByRole('button', { name: 'Open Main Menu' }).click();
 		const mainMenu = page.getByRole('dialog', { name: 'Main Menu' });
 		await expect(mainMenu).toBeVisible();
-		await expectAboveGuide(page, '[role="dialog"][aria-label="Main Menu"]');
+		await expectAboveGuide(page, '[role="dialog"][aria-label="Main Menu"] button');
 		await mainMenu.getByRole('button', { name: /^Legality Report/ }).click();
 
 		const report = page.getByRole('dialog', { name: 'Save File Legality Report' });
