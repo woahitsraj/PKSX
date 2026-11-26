@@ -126,7 +126,14 @@ type FamilyReport = {
 	entries: Record<string, Entry>;
 };
 type Report = {
-	source: { name: string; repository: string; revision: string; mappingSource: string };
+	source: {
+		name: string;
+		repository: string;
+		revision: string;
+		mappingSource: string;
+		license: string;
+		imageCopyright: string;
+	};
 	totals: { assetCount: number; rawBytes: number; gzipBytes: number };
 	families: Record<string, FamilyReport>;
 };
@@ -162,7 +169,14 @@ function mapStem(stem: string, family: Family, variant: (typeof variants)[number
 async function acquire(localRoot: string | null) {
 	const root = localRoot ?? (await sparseCheckout());
 	const report: Report = {
-		source: { name: 'PokeAPI/sprites', repository, revision, mappingSource },
+		source: {
+			name: 'PokeAPI/sprites',
+			repository,
+			revision,
+			mappingSource,
+			license: 'CC0-1.0',
+			imageCopyright: 'Pokemon images are copyrighted by The Pokemon Company.'
+		},
 		totals: { assetCount: 0, rawBytes: 0, gzipBytes: 0 },
 		families: {}
 	};
@@ -222,7 +236,11 @@ async function sparseCheckout() {
 		'sparse-checkout',
 		'set',
 		'--no-cone',
-		...families.map((f) => `sprites/pokemon/versions/${f.directory}/`)
+		...families.flatMap((family) =>
+			variants.map((variant) =>
+				path.posix.join('sprites/pokemon/versions', family.directory, variant.subdirectory, '*.png')
+			)
+		)
 	);
 	git('fetch', '-q', '--depth', '1', '--filter=blob:none', 'origin', revision);
 	git('checkout', '-q', 'FETCH_HEAD');

@@ -3,7 +3,9 @@
 		"name": "PokeAPI/sprites",
 		"repository": "https://github.com/PokeAPI/sprites",
 		"revision": "2ecb4eeacd5a1718621fc30f12772e3f60d830b9",
-		"mappingSource": "https://github.com/PokeAPI/pokeapi/blob/8fe210b21c9abbe73de93670f3d5a346c80a3625/data/v2/csv/pokemon.csv"
+		"mappingSource": "https://github.com/PokeAPI/pokeapi/blob/8fe210b21c9abbe73de93670f3d5a346c80a3625/data/v2/csv/pokemon.csv",
+		"license": "CC0-1.0",
+		"imageCopyright": "Pokemon images are copyrighted by The Pokemon Company."
 	},
 	"totals": { "assetCount": 9852, "rawBytes": 8330645, "gzipBytes": 8456790 },
 	"families": {

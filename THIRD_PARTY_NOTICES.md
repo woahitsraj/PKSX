@@ -65,6 +65,14 @@ PKSX maps game-specific item indices with PokeAPI data from revision `8fe210b21c
 
 https://github.com/PokeAPI/pokeapi/tree/8fe210b21c9abbe73de93670f3d5a346c80a3625/data/v2/csv
 
+## PokeAPI game sprite images
+
+The game sprite images under `static/sprites/pokemon/game` come from the PokeAPI sprites repository at the same revision `2ecb4eeacd5a1718621fc30f12772e3f60d830b9`:
+
+https://github.com/PokeAPI/sprites/tree/2ecb4eeacd5a1718621fc30f12772e3f60d830b9/sprites/pokemon/versions
+
+The same CC0 dedication and The Pokemon Company image copyright statement apply. These images remain third-party content and are not licensed under the PKSX GPL license. Exact source paths and byte metadata appear in `scripts/data/game-sprite-catalog.json`. PokeAPI ids for alternate forms are mapped with `pokemon.csv` from PokeAPI data revision `8fe210b21c9abbe73de93670f3d5a346c80a3625`.
+
 ## Bl1ndBeholder Pokemon save fixtures
 
 The files under `test-fixtures/save-files/bl1ndbeholder-pokemon-saves` come from:

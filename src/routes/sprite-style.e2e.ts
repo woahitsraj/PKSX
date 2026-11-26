@@ -171,5 +171,13 @@ test('Pokemon Storage selects game sprites from the Pokemon Origin game', async 
 	await page.getByRole('button', { name: /^Box 01: Favorites, 1 of 1$/ }).click();
 	const slot = page.locator('#box-0-slot-0');
 	await expect(slot).toContainText('ARON');
-	await expectLoaded(slot.locator('img'), /^\/sprites\/pokemon\/game\/firered-leafgreen\/0304-/);
+	const gameSprite = /^\/sprites\/pokemon\/game\/firered-leafgreen\/0304-/;
+	await expectLoaded(slot.locator('img'), gameSprite);
+	await expect(page.locator('.detail-rail img').first()).toHaveAttribute('src', gameSprite);
+
+	await slot.focus();
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'Edit' }).click();
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	await expectLoaded(editor.locator('img').first(), gameSprite);
 });

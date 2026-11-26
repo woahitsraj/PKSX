@@ -22,6 +22,34 @@ describe('Game sprites', () => {
 		expect(Object.keys(gameNames).filter((name) => !(name in gameSpriteFamilies))).toEqual([]);
 	});
 
+	test('maps every game name the engine emits for Generation 1 to 5 fixtures', () => {
+		expect(
+			Object.fromEntries(
+				['RB', 'YW', 'GS', 'C', 'RS', 'E', 'FR', 'DP', 'Pt', 'HG', 'SS', 'B', 'W', 'B2', 'W2'].map(
+					(game) => [game, gameSpriteFamilies[game]]
+				)
+			)
+		).toEqual({
+			RB: 'red-blue',
+			YW: 'yellow',
+			GS: 'gold',
+			C: 'crystal',
+			RS: 'ruby-sapphire',
+			E: 'emerald',
+			FR: 'firered-leafgreen',
+			DP: 'diamond-pearl',
+			Pt: 'platinum',
+			HG: 'heartgold-soulsilver',
+			SS: 'heartgold-soulsilver',
+			B: 'black-white',
+			W: 'black-white',
+			B2: 'black-white',
+			W2: 'black-white'
+		});
+		for (const game of ['COLO', 'XD', 'RSBOX', 'BATREV', 'Pokémon Unbound'])
+			expect(gameSpriteFamilies[game]).toBeNull();
+	});
+
 	test('selects the family from the game first, then the entity format', () => {
 		expect(resolveGameSpriteFamily(emerald)).toBe('emerald');
 		expect(resolveGameSpriteFamily({ game: 'FR', format: 3 })).toBe('firered-leafgreen');

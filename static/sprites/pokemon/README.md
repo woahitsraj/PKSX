@@ -7,3 +7,5 @@ PokemonDB asks projects not to hotlink its image URLs and states that projects m
 Source gallery: https://pokemondb.net/sprites
 
 The generated `catalog.json` records the PokemonDB source URL and retrieval date for each committed image.
+
+The `game/` folder is different. It holds game front sprites from the PokeAPI sprites repository. `THIRD_PARTY_NOTICES.md` and `scripts/data/game-sprite-catalog.json` record their source and terms.

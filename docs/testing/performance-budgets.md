@@ -24,20 +24,20 @@ Baseline source is commit `e4f0d9c272ccfcbc2414b35f9fa1541df8c2b201`, measured o
 
 All values below are bytes, not KiB. Gzip uses Node's zlib level 9 independently for each file, then sums the results. It models compressed resource bodies without HTTP headers, connection overhead, or a particular host's compression settings. PNGs may grow slightly under gzip. Raw limits protect native package/cache footprint and JavaScript parse volume even when repetitive additions compress well.
 
-| Group               | Files | Baseline raw |   Raw limit | Baseline gzip |  Gzip limit |
-| ------------------- | ----: | -----------: | ----------: | ------------: | ----------: |
-| Application JS/CSS  |    49 |    2,797,362 |   3,080,000 |       405,153 |     450,000 |
-| Both workers        |     2 |      549,215 |     610,000 |       178,913 |     200,000 |
-| PKHeX Engine        |    36 |   26,678,079 |  29,350,000 |     7,675,369 |   8,450,000 |
-| Sprite catalogs     | 3,683 |   95,714,330 | 101,000,000 |    93,900,902 |  99,000,000 |
-| Other shipped files |    23 |      867,437 |     960,000 |       532,632 |     590,000 |
-| Total               | 3,793 |  126,606,423 | 133,000,000 |   102,692,969 | 108,000,000 |
+| Group               |  Files | Baseline raw |   Raw limit | Baseline gzip |  Gzip limit |
+| ------------------- | -----: | -----------: | ----------: | ------------: | ----------: |
+| Application JS/CSS  |     49 |    2,797,362 |   3,080,000 |       405,153 |     450,000 |
+| Both workers        |      2 |      549,215 |     610,000 |       178,913 |     200,000 |
+| PKHeX Engine        |     36 |   26,678,079 |  29,350,000 |     7,675,369 |   8,450,000 |
+| Sprite catalogs     | 13,535 |  104,044,975 | 110,000,000 |   102,357,649 | 108,000,000 |
+| Other shipped files |     23 |      867,437 |     960,000 |       532,632 |     590,000 |
+| Total               | 13,653 |  135,348,618 | 143,000,000 |   111,268,020 | 117,000,000 |
 
 The largest application script is the Boxes route, 139,830 bytes gzip, with a 155,000-byte limit. This catches concentration in one script even if total code stays within budget.
 
 Classification uses output paths, not hashed chunk names or a list of known files. Every new file enters a group and the total. Application includes all JS/CSS outside the dedicated worker, engine, and sprite directories, including lazy routes and the service worker. Workers include both the PKHeX Engine worker and Trade Worker. Engine includes the complete published runtime, assemblies, and associated files. Sprites include both Pokemon and item assets and their manifests. Other includes HTML, icons, legal files, firmware, and host configuration. Source maps and symbols count if shipped. `.gz` and `.br` sidecars with a corresponding uncompressed file are excluded because they are alternative representations of the same resources, so these totals are not deployment directory disk usage when precompression is enabled. Standalone compressed resources still count.
 
-Group limits allow 10% growth rounded up to 10,000 bytes for application, workers, engine, and other assets. Sprites and the overall payload allow 5% rounded up to 1,000,000 bytes. The largest-script limit allows about 11%. These are regression allowances based on today's payload, not claims that the current 103 MB compressed offline install is an ideal download size. The tighter sprite/total allowance reflects their dominant cost. The independent code limits prevent large art budgets from concealing dependency growth.
+Group limits allow 10% growth rounded up to 10,000 bytes for application, workers, engine, and other assets. The sprite and total rows were re-measured for issue 267, as described below. Sprites and the overall payload allow 5% rounded up to 1,000,000 bytes. The largest-script limit allows about 11%. These are regression allowances based on today's payload, not claims that the current 103 MB compressed offline install is an ideal download size. The tighter sprite/total allowance reflects their dominant cost. The independent code limits prevent large art budgets from concealing dependency growth.
 
 The service worker eagerly caches most shipped assets, including sprites and engine assets, so the total matters for first offline installation. It excludes firmware and debug assets from its cache. This checker conservatively counts those shipped bytes anyway. It does not claim that all resources block the first page, or measure route-specific critical request chains, LCP, memory, or interaction latency. Engine bytes can vary with .NET servicing releases; both raw and compressed budgets allow modest toolchain variation. A Linux CI run remains necessary to confirm the hosted runner's engine output.
 
