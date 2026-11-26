@@ -4,13 +4,14 @@ namespace Pksx.Pkhex.Engine;
 
 public readonly record struct PokedexFlag(string Label, bool On, Action<bool> Set);
 
-// PKHeX gives Generation 4 and 5 no save-level Seen or Caught setters, so these call each Pokedex block.
+// PKHeX gives Generations 4, 5 and 7 no save-level Seen or Caught setters, so these call each Pokedex block.
 internal static class PokedexFlags
 {
     private const byte None = Zukan4.FORM_NONE;
     // Generation 4 stores German before Italian; Generation 5 stores Italian before German.
     private static readonly string[] Languages4 = ["Japanese", "English", "French", "German", "Italian", "Spanish"];
     private static readonly string[] Languages5 = ["Japanese", "English", "French", "Italian", "German", "Spanish", "Korean"];
+    private static readonly string[] Languages7 = [.. Languages5, "Chinese (simplified)", "Chinese (traditional)"];
     private static readonly string[] Genders = ["male or genderless", "female", "shiny male or genderless", "shiny female"];
     private static readonly string[] FormStates = ["Form seen", "Form seen shiny", "Form displayed", "Form displayed shiny"];
 
@@ -35,6 +36,27 @@ internal static class PokedexFlags
                 break;
             case SAV5:
                 break;
+            case SAV6 when Dex6(save) is { } d6:
+                if (!seen)
+                    d6.ClearSeen(species);
+                else if (!d6.GetSeen(species))
+                {
+                    d6.SetSeen(species, female ? 1 : 0);
+                    if (!d6.GetDisplayedAny(species))
+                        d6.SetDisplayed(species, female ? 1 : 0);
+                }
+                break;
+            case SAV7 s7 when !seen:
+                for (var r = 0; r < 4; r++)
+                    s7.Zukan.SetSeen(species, r, false);
+                break;
+            case SAV7 s7 when !s7.Zukan.GetSeen(species):
+                s7.Zukan.SetSeen(species, female ? 1 : 0, true);
+                if (!Enumerable.Range(0, 4).Any(r => s7.Zukan.GetDisplayed(species - 1, r)))
+                    s7.Zukan.SetDisplayed(species - 1, female ? 1 : 0, true);
+                break;
+            case SAV7:
+                break;
             default:
                 save.SetSeen(species, seen);
                 break;
@@ -45,6 +67,7 @@ internal static class PokedexFlags
     {
         if (save is SAV4 s4) s4.Dex.SetCaught(species, caught);
         else if (save is SAV5 s5) s5.Zukan.SetCaught(species, caught);
+        else if (save is SAV7 s7) s7.Zukan.SetCaught(species, caught);
         else save.SetCaught(species, caught);
     }
 
@@ -52,8 +75,12 @@ internal static class PokedexFlags
     {
         SAV4 s4 => Gen4(s4, species),
         SAV5 s5 => Gen5(s5, species),
+        SAV6 when Dex6(save) is { } d6 => Gen6(save, d6, species),
+        SAV7 s7 => Gen7(s7, species),
         _ => [],
     };
+
+    public static Zukan6? Dex6(SaveFile save) => save switch { SAV6XY xy => xy.Zukan, SAV6AO ao => ao.Zukan, _ => null };
 
     private static List<PokedexFlag> Gen4(SAV4 save, ushort species)
     {
@@ -144,18 +171,88 @@ internal static class PokedexFlags
             }
         }
         var (start, count) = dex.GetFormIndex(species);
+        AddForms(flags, save, species, start, count, dex.GetFormFlag, dex.SetFormFlag);
+        return flags;
+    }
+
+    private static List<PokedexFlag> Gen6(SaveFile save, Zukan6 dex, ushort species)
+    {
+        List<PokedexFlag> flags = [];
+        AddRegions(flags, "", save.Personal[species].Gender, region => dex.GetSeen(species, region), (region, on) => dex.SetSeen(species, region, on), region => dex.GetDisplayed(species, region), (region, on) => dex.SetDisplayed(species, region, on));
+        if (dex is Zukan6XY xy && species <= (int)Species.Genesect)
+            flags.Add(new("Caught in an earlier generation", xy.GetForeignFlag(species), on => xy.SetForeignFlag(species, on)));
+        for (var language = 0; language < Languages5.Length; language++)
+        {
+            var index = language;
+            flags.Add(new($"Language: {Languages5[index]}", dex.GetLanguageFlag(species, index), on => dex.SetLanguageFlag(species, index, on)));
+        }
+        var (start, count) = dex.GetFormIndex(species);
+        AddForms(flags, save, species, start, count, dex.GetFormFlag, dex.SetFormFlag);
+        return flags;
+    }
+
+    // Generation 7 keeps a separate Seen and Displayed entry for each alternate form after the species entries.
+    private static List<PokedexFlag> Gen7(SAV7 save, ushort species)
+    {
+        var dex = save.Zukan;
+        List<PokedexFlag> flags = [];
+        var index = species - 1;
+        AddRegions(flags, "", dex.GetBaseSpeciesGenderValue(index), region => dex.GetSeen(species, region), (region, on) => dex.SetSeen(species, region, on), region => dex.GetDisplayed(index, region), (region, on) => dex.SetDisplayed(index, region, on));
+        for (var language = 0; language < Languages7.Length; language++)
+        {
+            var lang = language;
+            flags.Add(new($"Language: {Languages7[lang]}", dex.GetLanguageFlag(index, lang), on => dex.SetLanguageFlag(index, lang, on)));
+        }
+        var formCount = save.Personal[species].FormCount;
+        var names = FormNames(save, species);
+        for (var form = 1; form < formCount; form++)
+        {
+            var entry = dex.GetDexFormIndex(species, formCount, form);
+            if (entry < 0)
+                continue;
+            var name = FormName(names, form);
+            AddRegions(flags, $" ({name})", dex.GetBaseSpeciesGenderValue(entry), region => dex.GetSeen((ushort)(entry + 1), region), (region, on) => dex.SetSeen((ushort)(entry + 1), region, on), region => dex.GetDisplayed(entry, region), (region, on) => dex.SetDisplayed(entry, region, on));
+        }
+        return flags;
+    }
+
+    private static void AddRegions(List<PokedexFlag> flags, string suffix, byte gender, Func<int, bool> seen, Action<int, bool> setSeen, Func<int, bool> displayed, Action<int, bool> setDisplayed)
+    {
+        var male = gender != PersonalInfo.RatioMagicFemale;
+        var female = gender is not (PersonalInfo.RatioMagicMale or PersonalInfo.RatioMagicGenderless);
+        for (var shown = 0; shown < 2; shown++)
+        {
+            for (var region = 0; region < 4; region++)
+            {
+                var (isShown, r) = (shown == 1, region);
+                var on = isShown ? displayed(r) : seen(r);
+                if (((r & 1) == 0 ? male : female) || on)
+                    flags.Add(new($"{(isShown ? "Displayed" : "Seen")}: {Genders[r]}{suffix}", on, value =>
+                    {
+                        if (isShown) setDisplayed(r, value);
+                        else setSeen(r, value);
+                    }));
+            }
+        }
+    }
+
+    private static void AddForms(List<PokedexFlag> flags, SaveFile save, ushort species, int start, int count, Func<int, int, bool> get, Action<int, int, bool> set)
+    {
         if (count == 0)
-            return flags;
-        var names = FormConverter.GetFormList(species, GameInfo.Strings.Types, GameInfo.Strings.forms, GameInfo.GenderSymbolUnicode, save.Context);
+            return;
+        var names = FormNames(save, species);
         for (var state = 0; state < FormStates.Length; state++)
         {
             for (var form = 0; form < count; form++)
             {
                 var (region, index) = (state, start + form);
-                var name = form < names.Length && names[form].Length != 0 ? names[form] : $"Form {form}";
-                flags.Add(new($"{FormStates[region]}: {name}", dex.GetFormFlag(index, region), value => dex.SetFormFlag(index, region, value)));
+                flags.Add(new($"{FormStates[region]}: {FormName(names, form)}", get(index, region), value => set(index, region, value)));
             }
         }
-        return flags;
     }
+
+    private static string[] FormNames(SaveFile save, ushort species) =>
+        FormConverter.GetFormList(species, GameInfo.Strings.Types, GameInfo.Strings.forms, GameInfo.GenderSymbolUnicode, save.Context);
+
+    private static string FormName(string[] names, int form) => form < names.Length && names[form].Length != 0 ? names[form] : $"Form {form}";
 }

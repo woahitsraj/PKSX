@@ -27,7 +27,15 @@ const cases = [
 	['pkmds-blazor/pokemon-pearl.sav', 493],
 	['minna-pokemon-saves/pokemon-soulsilver.sav', 493],
 	['pkmds-blazor/pokemon-black.sav', 649],
-	['minna-pokemon-saves/pokemon-black-2.sav', 649]
+	['minna-pokemon-saves/pokemon-black-2.sav', 649],
+	['bl1ndbeholder-pokemon-saves/x/011020252224.sav', 721],
+	['pkmds-blazor/pokemon-y.sav', 721],
+	['pkhex-avalonia/gen6-omega-ruby.sav', 721],
+	['pkmds-blazor/pokemon-alpha-sapphire.sav', 721],
+	['pkmds-blazor/pokemon-sun.sav', 802],
+	['bl1ndbeholder-pokemon-saves/moon/011020252257.sav', 802],
+	['bl1ndbeholder-pokemon-saves/ultra-sun/011020252224.sav', 807],
+	['bl1ndbeholder-pokemon-saves/ultra-moon/011020252224.sav', 807]
 ] as const;
 
 for (const [file, count] of cases) {
@@ -81,12 +89,21 @@ for (const [file, count] of cases) {
 									...(file.includes('soulsilver') ? [] : [['upgrade', null]]),
 									['spinda-pid', 327]
 								]
-							: [
-									['national', null],
-									['national-mode', null],
-									['opens-on', null],
-									['spinda-pid', 327]
-								]
+							: count === 649 || count === 721
+								? [
+										['national', null],
+										['national-mode', null],
+										['opens-on', null],
+										['spinda-pid', 327],
+										// Omega Ruby and Alpha Sapphire also count each species seen and obtained.
+										...(/ruby|sapphire/.test(file)
+											? Array.from({ length: 721 }, (_, i) => [
+													[`seen-count-${i + 1}`, i + 1],
+													[`obtained-count-${i + 1}`, i + 1]
+												]).flat()
+											: [])
+									]
+								: []
 		);
 		expect(Boolean(dex.flagSets)).toBe(count > 386);
 		for (const [kind, flag, other] of [
@@ -161,7 +178,7 @@ for (const [file, count] of cases) {
 				Uint8Array.from(atob(baseline.value.bytesBase64), (c) => c.charCodeAt(0))
 			);
 		}
-		for (const field of dex.fields) {
+		for (const field of dex.fields.filter((f) => !f.key.includes('count-') || f.species === 25)) {
 			const value = field.value === field.max ? field.min : field.max;
 			const result = await engine.applySaveFileEditOperation(
 				bytes,
@@ -190,7 +207,23 @@ for (const [file, absent, present] of [
 	['pkhex-avalonia/gen4-diamond.sav', [479, 'Form seen'], [422, 'First seen form is East']],
 	['minna-pokemon-saves/pokemon-soulsilver.sav', [1, 'Korean'], [172, 'Form seen: Spiky']],
 	['pkmds-blazor/pokemon-black.sav', [641, 'Form seen'], [201, 'Form displayed shiny: A']],
-	['minna-pokemon-saves/pokemon-black-2.sav', [494, 'Language'], [641, 'Form seen: Therian']]
+	['minna-pokemon-saves/pokemon-black-2.sav', [494, 'Language'], [641, 'Form seen: Therian']],
+	[
+		'pkmds-blazor/pokemon-y.sav',
+		[650, 'earlier generation'],
+		[1, 'Caught in an earlier generation']
+	],
+	[
+		'pkhex-avalonia/gen6-omega-ruby.sav',
+		[1, 'earlier generation'],
+		[351, 'Form seen shiny: Rainy']
+	],
+	['pkmds-blazor/pokemon-sun.sav', [745, '(Dusk)'], [20, 'Seen: female (Alola)']],
+	[
+		'bl1ndbeholder-pokemon-saves/ultra-sun/011020252224.sav',
+		[722, 'Form'],
+		[745, 'Displayed: female (Dusk)']
+	]
 ] as const) {
 	test(`Pokedex gender, form and language flags: ${file}`, async () => {
 		const url = fixtures[`../../../test-fixtures/save-files/${file}`];

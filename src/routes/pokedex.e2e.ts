@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { loadRoute } from './route-load.e2e-helper';
+import { loadRoute, reloadRoute } from './route-load.e2e-helper';
 
 test.setTimeout(180_000);
 
@@ -380,5 +380,54 @@ for (const [generation, file, flag, absent] of [
 		);
 		await search.fill('no such species');
 		await expect(page.getByText('No matching species.')).toBeVisible();
+	});
+}
+
+for (const [generation, file, name, flag, absent] of [
+	[
+		6,
+		'pkmds-blazor/pokemon-y.sav',
+		'Pikachu',
+		'Caught in an earlier generation',
+		'Language: Chinese (traditional)'
+	],
+	[
+		7,
+		'bl1ndbeholder-pokemon-saves/ultra-sun/011020252224.sav',
+		'Raticate',
+		'Seen: female (Alola)',
+		'Caught in an earlier generation'
+	]
+] as const) {
+	test(`Generation ${generation} game-specific flag survives a reload`, async ({ page }) => {
+		await page.setViewportSize(
+			generation === 6 ? { width: 640, height: 360 } : { width: 360, height: 640 }
+		);
+		await loadRoute(page, '/');
+		await page
+			.getByLabel('Import Save File')
+			.setInputFiles(path.resolve('test-fixtures/save-files', file));
+		await expect(page.getByText(/imported and made active/)).toBeVisible({ timeout: 90_000 });
+		await choose(page, 'Pokedex');
+		const open = async () => {
+			await page.getByRole('searchbox').fill(name);
+			await expect(page.locator('.species-row')).toHaveCount(1);
+			await page.getByRole('button', { name: `${name} values`, exact: true }).click();
+			await dpad(page, 'ArrowDown');
+			await expect(page.locator('.species-values .species-flag').first()).toBeFocused();
+			return page.getByRole('button', { name: `${name} ${flag}`, exact: true });
+		};
+		const control = await open();
+		await expect(page.getByRole('button', { name: `${name} ${absent}`, exact: true })).toHaveCount(
+			0
+		);
+		const next = (await control.getAttribute('aria-pressed')) === 'true' ? 'false' : 'true';
+		await control.click();
+		await expect(control).toHaveAttribute('aria-pressed', next, { timeout: 90_000 });
+		await expect(control).toBeFocused();
+		await expect.poll(() => readSafetyState(page)).toEqual({ backups: 1, dirty: true });
+		await reloadRoute(page);
+		await expect(await open()).toHaveAttribute('aria-pressed', next);
+		expect(await readSafetyState(page)).toEqual({ backups: 1, dirty: true });
 	});
 }
