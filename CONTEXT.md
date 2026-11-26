@@ -386,6 +386,10 @@ _Avoid_: modal, dialog, full-screen overlay
 The dimmed layer behind an open Menu or Takeover; the content behind it stays visible but inert.
 _Avoid_: scrim
 
+**Controller Guide**:
+A compact strip at the bottom of the screen that lists the controller actions available now. It shows only while a controller is connected.
+_Avoid_: hint bar, button legend
+
 **Toast**:
 A brief notice that appears over the current screen and goes away on its own.
 _Avoid_: snackbar, notification banner

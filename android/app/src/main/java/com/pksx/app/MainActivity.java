@@ -1,5 +1,6 @@
 package com.pksx.app;
 
+import android.hardware.input.InputManager;
 import android.os.Bundle;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -26,6 +27,11 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         bridgeBuilder.addWebViewListener(new WebViewListener() {
             @Override
+            public void onPageLoaded(WebView view) {
+                dispatchControllerConnection();
+            }
+
+            @Override
             public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
                 android.util.Log.w("PKSX", "Recovering lost WebView renderer, crashed=" + detail.didCrash());
                 if (view.getParent() instanceof ViewGroup) {
@@ -40,6 +46,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SaveFoldersPlugin.class);
         registerPlugin(LinkedSavesPlugin.class);
         super.onCreate(savedInstanceState);
+        getSystemService(InputManager.class).registerInputDeviceListener(inputDeviceListener, null);
         if (getPackageName().endsWith(".profile")) WebView.setWebContentsDebuggingEnabled(true);
     }
 
@@ -86,6 +93,51 @@ public class MainActivity extends BridgeActivity {
             else dispatchedDirections.remove(direction);
             dispatchControllerInput(direction, pressed, false);
         }
+    }
+
+    private final InputManager.InputDeviceListener inputDeviceListener =
+        new InputManager.InputDeviceListener() {
+            @Override
+            public void onInputDeviceAdded(int deviceId) {
+                dispatchControllerConnection();
+            }
+
+            @Override
+            public void onInputDeviceRemoved(int deviceId) {
+                dispatchControllerConnection();
+            }
+
+            @Override
+            public void onInputDeviceChanged(int deviceId) {
+                dispatchControllerConnection();
+            }
+        };
+
+    @Override
+    public void onDestroy() {
+        getSystemService(InputManager.class).unregisterInputDeviceListener(inputDeviceListener);
+        super.onDestroy();
+    }
+
+    private void dispatchControllerConnection() {
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+
+        boolean connected = false;
+        for (int id : InputDevice.getDeviceIds()) {
+            InputDevice device = InputDevice.getDevice(id);
+            if (device == null || device.isVirtual()) continue;
+            int sources = device.getSources();
+            if ((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
+                || (sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) {
+                connected = true;
+            }
+        }
+        getBridge().getWebView().evaluateJavascript(
+            "window.dispatchEvent(new CustomEvent('pksxcontrollerconnection',{detail:{connected:"
+                + connected
+                + ",id:'Android controller'}}));",
+            null
+        );
     }
 
     private void dispatchControllerInput(String key, boolean pressed, boolean discrete) {

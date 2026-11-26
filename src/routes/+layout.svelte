@@ -18,6 +18,12 @@
 	import QuickSearch from '$lib/components/pksx/QuickSearch.svelte';
 	import SaveFileLegalityReport from '$lib/components/pksx/SaveFileLegalityReport.svelte';
 	import ToastRegion from '$lib/components/pksx/ToastRegion.svelte';
+	import ControllerGuide from '$lib/components/pksx/ControllerGuide.svelte';
+	import {
+		controllerConnection,
+		trackControllerConnection
+	} from '$lib/pksx/controller-connection.svelte';
+	import { controllerGuideHints } from '$lib/pksx/controller-guide';
 	import { appCommandForEvent } from '$lib/pksx/app-commands';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import { heightBandLock } from '$lib/pksx/height-band-lock';
@@ -95,6 +101,14 @@
 		'settings'
 	];
 	const activeRoute = $derived<Destination>(destinationForPathname(page.url.pathname));
+	const controllerGuide = $derived(
+		controllerGuideHints({
+			destination: activeRoute,
+			workflow: summonedWorkflow.active?.kind ?? null,
+			carry: appChrome.carryActive,
+			selection: activeRoute === 'boxes' && appChrome.selectionActive
+		})
+	);
 	const mainMenuOpen = $derived(summonedWorkflow.active?.kind === 'main-menu');
 	const quickSearchOpen = $derived(summonedWorkflow.active?.kind === 'quick-search');
 	const saveFileLegalityReportOpen = $derived(
@@ -834,6 +848,7 @@
 	onfocusin={handleShellFocusIn}
 	{@attach controllerNavigation}
 	{@attach controllerFocusSystem}
+	{@attach trackControllerConnection}
 	{@attach heightBandLock}
 >
 	{@render children()}
@@ -887,6 +902,9 @@
 	{/if}
 
 	<ToastRegion toasts={toastHost.toasts} />
+	{#if controllerConnection.connected}
+		<ControllerGuide hints={controllerGuide} />
+	{/if}
 </main>
 <AppUpdatePrompt />
 

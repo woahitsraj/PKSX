@@ -90,7 +90,7 @@
 	.update-prompt {
 		position: fixed;
 		right: 18px;
-		bottom: 18px;
+		bottom: calc(18px + var(--pksx-safe-area-bottom));
 		z-index: 1000;
 		width: min(420px, calc(100% - 28px));
 		display: flex;
