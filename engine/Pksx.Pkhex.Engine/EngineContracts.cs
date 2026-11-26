@@ -1406,15 +1406,16 @@ internal static class SlotDetailProjection
                 [],
                 "Ability Editing is not supported for this Pokemon format.");
 
-        var options = new List<PokemonAbilityOption>(pokemon.PersonalInfo.AbilityCount);
-        for (var index = 0; index < pokemon.PersonalInfo.AbilityCount; index++)
+        var slots = AbilitySlots(pokemon.PersonalInfo);
+        var options = new List<PokemonAbilityOption>(slots.Length);
+        for (var index = 0; index < slots.Length; index++)
         {
-            var ability = pokemon.PersonalInfo.GetAbilityAtIndex(index);
+            var (ability, hidden) = slots[index];
             if (ability <= 0)
                 continue;
 
             var name = NameAt(GameInfo.Strings.Ability, ability) ?? $"Ability {ability}";
-            options.Add(new PokemonAbilityOption(index, ability, name, index == 2, true, null));
+            options.Add(new PokemonAbilityOption(index, ability, name, hidden, true, null));
         }
 
         return new PokemonAbilityEditConstraints(
@@ -1633,6 +1634,13 @@ internal static class SlotDetailProjection
             TypeChroma(typeId),
             pokemon is PK3Unbound unbound ? unbound.GetUnboundMaxPp(move, 0) : MoveInfo.GetPP(pokemon.Context, move));
     }
+
+    // Only a PKHeX table that names a hidden ability has a Hidden Ability slot.
+    private static (int Ability, bool Hidden)[] AbilitySlots(PersonalInfo info) => info switch
+    {
+        IPersonalAbility12H h => [(h.Ability1, false), (h.Ability2, false), (h.AbilityH, true)],
+        _ => [.. Enumerable.Range(0, info.AbilityCount).Select(index => (info.GetAbilityAtIndex(index), false))],
+    };
 
     private static int CurrentAbilityIndex(PKM pokemon)
     {

@@ -208,6 +208,12 @@ describe('PKHeX Engine Save File coverage', () => {
 			ability: 'Clear Body'
 		});
 		expect(metang).toMatchObject({ nickname: 'Metang', nature: 'Impish' });
+		expect(
+			metang.abilityEditConstraints?.options.map(({ name, hidden }) => [name, hidden])
+		).toEqual([
+			['Clear Body', false],
+			['Light Metal', true]
+		]);
 		expect(metang.stats[0]).toMatchObject({ key: 'HP', value: 121, iv: 18, ev: 60 });
 		expect(luxray.moves.map((move) => move.name)).toEqual([
 			'Volt Switch',
