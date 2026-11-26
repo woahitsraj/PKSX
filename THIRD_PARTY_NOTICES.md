@@ -65,6 +65,14 @@ PKSX maps game-specific item indices with PokeAPI data from revision `8fe210b21c
 
 https://github.com/PokeAPI/pokeapi/tree/8fe210b21c9abbe73de93670f3d5a346c80a3625/data/v2/csv
 
+## libretro-thumbnails game box art
+
+The game cover images under `static/game-art` are resized copies of box art scans from the libretro-thumbnails project:
+
+https://github.com/libretro-thumbnails/libretro-thumbnails
+
+The project states no license for its images. The box art is the property of Nintendo, Creatures Inc., and GAME FREAK inc. These images remain third-party content and are not licensed under the PKSX GPL license. The pinned repository revision and exact source URL of each cover appear in `src/lib/pksx/game-art-catalog/catalog.generated.json`.
+
 ## Bl1ndBeholder Pokemon save fixtures
 
 The files under `test-fixtures/save-files/bl1ndbeholder-pokemon-saves` come from:

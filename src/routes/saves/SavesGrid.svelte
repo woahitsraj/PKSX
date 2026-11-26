@@ -8,6 +8,7 @@
 	import { onMount, tick } from 'svelte';
 	import SavesIntroduction from '$lib/components/pksx/SavesIntroduction.svelte';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
+	import GameArt from '$lib/components/pksx/GameArt.svelte';
 	import RenameSaveFile from '$lib/components/pksx/RenameSaveFile.svelte';
 	import { getSaveDisplayName } from '$lib/pksx/saves';
 	import {
@@ -1112,8 +1113,13 @@
 	}
 
 	function gameTitle(details: SaveCardDetailsState, saveFile: StoredSaveFile) {
-		if (details.status !== 'ready') return displayName(saveFile);
-		return getSaveGameTitle(details.details.summary.gameVersion);
+		const version = gameVersion(details);
+		return version ? getSaveGameTitle(version) : displayName(saveFile);
+	}
+
+	function gameVersion(details: SaveCardDetailsState) {
+		if (details.status === 'ready') return details.details.summary.gameVersion;
+		return details.status === 'loading' ? details.gameVersion : undefined;
 	}
 
 	function getErrorMessage(error: unknown) {
@@ -1279,7 +1285,7 @@
 									>
 										<button
 											type="button"
-											class="card-main"
+											class="card-main save-main"
 											data-pksx-control-category="card"
 											tabindex="-1"
 											aria-label={'Open ' + displayName(saveFile) + ' in Boxes'}
@@ -1289,52 +1295,55 @@
 												void activateSaveFile(saveFile, 'boxes');
 											}}
 										>
-											<span class="card-heading">
-												<strong>{gameTitle(details, saveFile)}</strong>
-												{#if saveFile.id === activeSaveFileId}<em>Active</em>{/if}
-												{#if discovery.sources[saveFile.id]}<em class="attention"
-														>{discovery.sources[saveFile.id].kind === 'changed'
-															? 'Updated'
-															: 'Restore'}</em
-													>{/if}
+											<GameArt gameVersion={gameVersion(details)} />
+											<span class="card-copy">
+												<span class="card-heading">
+													<strong>{gameTitle(details, saveFile)}</strong>
+													{#if saveFile.id === activeSaveFileId}<em>Active</em>{/if}
+													{#if discovery.sources[saveFile.id]}<em class="attention"
+															>{discovery.sources[saveFile.id].kind === 'changed'
+																? 'Updated'
+																: 'Restore'}</em
+														>{/if}
+												</span>
+												{#if details.status === 'ready'}
+													<span class="trainer"
+														>{details.details.summary.trainerName ?? 'Unknown Trainer'}</span
+													>
+													<span
+														class="file-name"
+														title={saveFile.originalFileName ?? undefined}
+														elementtiming="save-card">{displayName(saveFile)}</span
+													>
+													{#if sourceLabel(saveFile)}<span class="file-name source"
+															>{sourceLabel(saveFile)}</span
+														>{/if}
+													{#if saveFile.displayName}<span class="file-name"
+															>{saveFile.originalFileName ?? 'No original filename'}</span
+														>{/if}
+													<span class="card-stats">
+														<b>{details.details.summary.boxCount}</b> boxes
+														<i aria-hidden="true"></i>
+														<b>{details.details.pokemonCount}</b> Pokemon
+													</span>
+												{:else}
+													<span
+														class="file-name"
+														title={saveFile.originalFileName ?? undefined}
+														elementtiming="save-card">{displayName(saveFile)}</span
+													>
+													{#if sourceLabel(saveFile)}<span class="file-name source"
+															>{sourceLabel(saveFile)}</span
+														>{/if}
+													<span class="detail-state">
+														{#if details.status === 'loading'}
+															<DelayedSpinner active label={`Reading ${displayName(saveFile)}`} />
+														{:else}
+															Details unavailable
+														{/if}
+													</span>
+												{/if}
 											</span>
-											{#if details.status === 'ready'}
-												<span class="trainer"
-													>{details.details.summary.trainerName ?? 'Unknown Trainer'}</span
-												>
-												<span
-													class="file-name"
-													title={saveFile.originalFileName ?? undefined}
-													elementtiming="save-card">{displayName(saveFile)}</span
-												>
-												{#if sourceLabel(saveFile)}<span class="file-name source"
-														>{sourceLabel(saveFile)}</span
-													>{/if}
-												{#if saveFile.displayName}<span class="file-name"
-														>{saveFile.originalFileName ?? 'No original filename'}</span
-													>{/if}
-												<span class="card-stats">
-													<b>{details.details.summary.boxCount}</b> boxes
-													<i aria-hidden="true"></i>
-													<b>{details.details.pokemonCount}</b> Pokemon
-												</span>
-											{:else}
-												<span
-													class="file-name"
-													title={saveFile.originalFileName ?? undefined}
-													elementtiming="save-card">{displayName(saveFile)}</span
-												>
-												{#if sourceLabel(saveFile)}<span class="file-name source"
-														>{sourceLabel(saveFile)}</span
-													>{/if}
-												<span class="detail-state">
-													{#if details.status === 'loading'}
-														<DelayedSpinner active label={`Reading ${displayName(saveFile)}`} />
-													{:else}
-														Details unavailable
-													{/if}
-												</span>
-											{/if}
 										</button>
 										<button
 											type="button"
@@ -1823,6 +1832,22 @@
 		grid-template-rows: auto auto auto 1fr;
 		gap: 2px var(--pksx-space-2);
 		text-align: left;
+	}
+
+	.card-main.save-main {
+		display: flex;
+		align-items: center;
+		gap: var(--pksx-space-2);
+	}
+
+	.card-copy {
+		flex: 1;
+		align-self: stretch;
+		min-width: 0;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		grid-template-rows: auto auto auto 1fr;
+		gap: 2px var(--pksx-space-2);
 	}
 
 	.card-main.storage-main {

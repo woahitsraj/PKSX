@@ -12,6 +12,7 @@ import {
 	getSavesStorage,
 	getPokemonStorageCatalog,
 	ensurePokemonStorageCatalog,
+	forgetSaveCardDetails,
 	invalidateSavesCache
 } from '$lib/pksx/saves-cache';
 
@@ -176,6 +177,8 @@ it('marks a Save File card busy only while its details are loading', async () =>
 
 	const card = container.querySelector<HTMLElement>('.save-card')!;
 	expect(card.getAttribute('aria-busy')).toBe('true');
+	expect(card.querySelector('[data-game-art="fallback"]')).not.toBeNull();
+	expect(card.textContent).toContain('loading.sav');
 	const progress = card.querySelector<HTMLElement>('[role="status"]')!;
 	vi.advanceTimersByTime(499);
 	flushSync();
@@ -201,6 +204,15 @@ it('marks a Save File card busy only while its details are loading', async () =>
 	await expect.poll(() => card.getAttribute('aria-busy')).toBe('false');
 	expect(card.querySelector('[role="status"]')).toBeNull();
 	expect(card.textContent).toContain('CASS');
+	expect(card.querySelector('img')?.getAttribute('src')).toBe('/game-art/emerald.webp');
+
+	// A later session knows the game before it reads the bytes again.
+	forgetSaveCardDetails();
+	invalidateSavesCache();
+	const snapshot = await getSavesSnapshot({ force: true });
+	expect(Object.values(snapshot.detailsBySaveFileId)).toEqual([
+		{ status: 'loading', gameVersion: 'E' }
+	]);
 });
 
 it('sends confirmed deletion through the Save File edit coordinator', async () => {

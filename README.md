@@ -68,6 +68,8 @@ pnpm dev -- --open
 | `pnpm legal:sync`            | Copy the license, source location, and third-party notices into `static/legal`.             |
 | `pnpm item-sprites:download` | Refresh the pinned offline item sprite catalog.                                             |
 | `pnpm item-sprites:validate` | Validate the committed item sprite manifest and files without network access.               |
+| `pnpm game-art:download`     | Refresh the pinned offline game cover art catalog.                                          |
+| `pnpm game-art:validate`     | Validate the committed game art manifest and files without network access.                  |
 | `pnpm typecheck`             | Run `svelte-check` and TypeScript checks for `scripts/**/*.ts`.                             |
 | `pnpm check`                 | Alias for `pnpm typecheck`.                                                                 |
 | `pnpm check:watch`           | Run Svelte type checking in watch mode.                                                     |

@@ -22,7 +22,8 @@ export type SaveCardDetails = {
 };
 
 export type SaveCardDetailsState =
-	| { status: 'loading' }
+	// `gameVersion` is the last known game, so a card can name it before its bytes are read.
+	| { status: 'loading'; gameVersion?: string }
 	| { status: 'ready'; details: SaveCardDetails }
 	| { status: 'unavailable' };
 
@@ -182,7 +183,7 @@ async function loadSavesSnapshot(generation: number): Promise<SavesSnapshot> {
 				saveFile.id,
 				detailsCache.get(saveFile.id)?.fingerprint === createSaveFileFingerprint(saveFile)
 					? detailsCache.get(saveFile.id)!.state
-					: { status: 'loading' }
+					: { status: 'loading', gameVersion: stored[saveFile.id]?.details.summary.gameVersion }
 			])
 		)
 	};
