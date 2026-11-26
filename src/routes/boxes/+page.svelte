@@ -217,7 +217,7 @@
 		pokemonEditSuccessMessage,
 		stagePokemonEditorDraftEdits
 	} from '$lib/pksx/box-shell';
-	import { isControllerKeyboardEvent } from '$lib/pksx/controller-input';
+	import { destinationBack, isControllerKeyboardEvent } from '$lib/pksx/controller-input';
 	import {
 		dispatchSlotMenuAction,
 		getLaunchingSlot,
@@ -1106,7 +1106,7 @@
 			return;
 		}
 		if (action === 'back') {
-			void goto(resolve('/'), { keepFocus: true });
+			destinationBack();
 			return;
 		}
 		if (selection && action === 'confirm' && isSlotFocus(navigation.focus)) {

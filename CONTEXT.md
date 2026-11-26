@@ -754,7 +754,8 @@ _Avoid_: setting, option, config
 - Back dismisses an open **Menu** before it affects broader app navigation.
 - Back dismisses an open **Backup Browser** before it affects broader app navigation.
 - A **Backup Browser** opened from the **Main Menu** returns **Controller Focus** to the target from which the Main Menu was summoned.
-- Platform back follows destination history; with no **Menu** or **Takeover** open, controller B returns to Boxes.
+- Controller B and platform Back follow the same order: first dismiss the open **Menu** or **Takeover** or cancel **Carry**, then return to the previous destination in history.
+- At the starting destination, Back does nothing in a browser or on iOS; installed Android uses its system Back behavior.
 - At most one **Menu** or **Takeover** is open at a time; a **Takeover** presents its own confirmations inside itself instead of opening a second surface.
 - A **Takeover** opened from a **Slot Menu** or another **Takeover** replaces it; dismissing the replacement restores what it replaced, and **Controller Focus** returns along the same chain.
 - A **Takeover** does not remember **Controller Focus** after it closes and starts from its initial target each time it opens.

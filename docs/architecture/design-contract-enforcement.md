@@ -82,9 +82,9 @@ Start toggles the Main Menu using a synthetic key ordinary typing cannot produce
 
 ## NAV-2: Back and destination memory
 
-Source: [#156](https://github.com/woahitsraj/PKSX/issues/156), amended by [#201](https://github.com/woahitsraj/PKSX/issues/201).
+Source: [#156](https://github.com/woahitsraj/PKSX/issues/156), amended by [#201](https://github.com/woahitsraj/PKSX/issues/201) and [#374](https://github.com/woahitsraj/PKSX/issues/374).
 
-Back first dismisses the current Menu or Takeover through that workflow's guards. With no summoned workflow, controller B returns to Boxes. Browser Back and Android platform Back follow route history.
+Back first dismisses the current Menu or Takeover through that workflow's guards, or cancels an active Carry. With nothing left to dismiss, controller B and Android platform Back return to the previous destination in route history and restore its remembered Controller Focus. At the starting destination, installed Android uses its system Back behavior, and a browser or iOS stays in place. Browser Back follows route history. [#374](https://github.com/woahitsraj/PKSX/issues/374) replaces the earlier rule that controller B returns directly to Boxes.
 
 Dismissing the Main Menu restores its exact launching focus. Choosing the current destination has the same effect as dismissal. Choosing another entry closes the Main Menu permanently. It is a launcher, not a parent in the replacement chain. A Backup Browser opened from it returns to the focus target from which the Main Menu was summoned.
 

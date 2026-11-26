@@ -50,7 +50,9 @@
 	} from '$lib/pksx/summoned-workflow/host.svelte';
 	import {
 		controllerFocusSystem,
+		destinationBack,
 		dispatchControllerKey,
+		setDestinationBackHandler,
 		isControllerKeyboardEvent,
 		readGamepadKeys,
 		type ControllerKey
@@ -163,7 +165,7 @@
 
 	beforeNavigate((navigation) => {
 		if (navigation.willUnload) return;
-		if (summonedWorkflow.active) {
+		if (summonedWorkflow.active || (navigation.type === 'popstate' && appChrome.carryActive)) {
 			navigation.cancel();
 			dispatchControllerKey('Escape');
 			return;
@@ -221,12 +223,14 @@
 		theme.restore();
 		window.addEventListener('keydown', handleRootKeydown, true);
 		const backListener = Capacitor.isNativePlatform()
-			? CapacitorApp.addListener('backButton', ({ canGoBack }) => handlePlatformBack(canGoBack))
+			? CapacitorApp.addListener('backButton', () => dispatchControllerKey('Escape'))
 			: null;
+		const unregisterDestinationBack = setDestinationBackHandler(navigateBack);
 		void refreshActiveSaveFileAvailability(++activeSaveAvailabilityRequest);
 		return () => {
 			window.removeEventListener('keydown', handleRootKeydown, true);
 			void backListener?.then((listener) => listener.remove());
+			unregisterDestinationBack();
 			toastHost.dispose();
 		};
 	});
@@ -488,7 +492,7 @@
 		) {
 			consumeRootEvent(event);
 			if (routeBackHandler?.()) return;
-			void goto(resolve('/boxes'), { keepFocus: true });
+			destinationBack();
 		}
 	}
 
@@ -497,13 +501,10 @@
 		event.stopImmediatePropagation();
 	}
 
-	function handlePlatformBack(canGoBack: boolean) {
-		if (summonedWorkflow.active) {
-			dispatchControllerKey('Escape');
-			return;
-		}
-		if (canGoBack || platformHistoryDepth > 0) history.back();
-		else void CapacitorApp.exitApp();
+	function navigateBack() {
+		if (summonedWorkflow.active || appChrome.carryActive) return;
+		if (platformHistoryDepth > 0) history.back();
+		else if (Capacitor.getPlatform() === 'android') void CapacitorApp.exitApp();
 	}
 
 	async function focusMainMenuEntry(index: number) {

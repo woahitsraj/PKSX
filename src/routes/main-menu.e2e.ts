@@ -668,7 +668,38 @@ test('Trainer and Bag keep independent semantic focus within their separate dest
 	await expect(trainerName).toBeFocused();
 	await page.getByRole('button', { name: 'Decrease Money' }).focus();
 	await pressController(page, 'Escape');
+	await expect(page).toHaveURL(/\/bag$/);
+	await expect(page.locator(`#${pocketTargetId}`)).toBeFocused();
+});
+
+test('controller B dismisses the Main Menu, follows destination history, and stays at the start', async ({
+	page
+}) => {
+	await resetEmptyStorage(page);
+	await pressController(page, 'Escape');
+	await expect(page).toHaveURL(/\/$/);
+	await expectDestinationReady(page, 'saves');
+
+	await choose(page, 'Settings');
+	const darkTheme = page.getByRole('button', { name: 'Use dark theme' });
+	await darkTheme.focus();
+	await choose(page, 'Boxes');
+	await pressController(page, 'Menu');
+	const menu = page.getByRole('dialog', { name: 'Main Menu' });
+	await expect(menu).toBeVisible();
+	await pressController(page, 'Escape');
+	await expect(menu).toBeHidden();
 	await expect(page).toHaveURL(/\/boxes$/);
+
+	await pressController(page, 'Escape');
+	await expect(page).toHaveURL(/\/settings$/);
+	await expect(darkTheme).toBeFocused();
+	await pressController(page, 'Escape');
+	await expect(page).toHaveURL(/\/$/);
+	await expectDestinationReady(page, 'saves');
+	await pressController(page, 'Escape');
+	await expect(page).toHaveURL(/\/$/);
+	await expectDestinationReady(page, 'saves');
 });
 
 test('Saves deletion workflow owns shortcuts, controller Back, and browser history', async ({
