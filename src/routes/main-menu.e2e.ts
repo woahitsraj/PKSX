@@ -362,6 +362,7 @@ test('Start is fresh-press only and restores destination focus by identity', asy
 	await expect(savesGrid).toBeFocused();
 	await expect(savesGrid).toHaveAttribute('aria-activedescendant', 'saves-target-import');
 
+	await choose(page, 'Boxes');
 	await choose(page, 'Settings');
 	await pressController(page, 'Escape');
 	await expect(page).toHaveURL(/\/boxes$/);
