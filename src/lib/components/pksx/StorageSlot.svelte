@@ -459,7 +459,7 @@
 		font: 750 var(--pksx-type-label) / 1 var(--pksx-font-sans);
 	}
 
-	@container (width < 52px) {
+	@container (width < 46px) {
 		.carry-at-focus strong {
 			display: none;
 		}

@@ -2391,6 +2391,10 @@ test('36px Slots keep carry and selection markers inside the Slot', async ({ pag
 	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
 	await page.keyboard.press('ArrowRight');
 	await expect(badge).toBeVisible();
+	await page.setViewportSize({ width: 393, height: 852 });
+	await expect(badge).toBeVisible();
+	expect(await inside('.carry-at-focus strong')).toBe(true);
+	await page.setViewportSize({ width: 1800, height: 900 });
 	await page.addStyleTag({ content: '.location-grid { --slot-size: 36px !important; }' });
 	await expect(pane.getByRole('grid')).toHaveAttribute('data-slot-density', 'compact');
 	await expect.poll(() => target.evaluate((slot) => slot.getBoundingClientRect().width)).toBe(36);
