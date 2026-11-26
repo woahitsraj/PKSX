@@ -2250,12 +2250,10 @@ public static partial class PkhexEngineExports
         if (destination.Get(save).Species != 0)
             return SlotMutationResult.Fail("occupied-destination-slot", "Moving from Pokemon Storage needs an empty destination Slot.");
 
-        PKM pokemon;
+        PokemonPreservationPayload payload;
         try
         {
-            pokemon = PokemonPreservationPayload
-                .Parse(Convert.FromBase64String(request.PreservationPayloadBase64 ?? ""))
-                .CurrentPokemon;
+            payload = PokemonPreservationPayload.Parse(Convert.FromBase64String(request.PreservationPayloadBase64 ?? ""));
         }
         catch (PokemonPreservationException ex)
         {
@@ -2267,6 +2265,13 @@ public static partial class PkhexEngineExports
         }
 
         var target = save.BlankPKM;
+        var pokemon = payload.CurrentPokemon;
+        // Payloads made without a context can tag same-size formats, such as PK6 and PK7, wrongly.
+        if (pokemon.GetType() != target.GetType()
+            && EntityFormat.GetFromBytes(payload.CurrentBytes, save.Context) is { } native
+            && native.GetType() == target.GetType())
+            pokemon = native;
+
         if (pokemon.GetType() != target.GetType())
         {
             if (!EntityConverter.TryMakePKMCompatible(pokemon, target, out var result, out var converted))

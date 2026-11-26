@@ -164,25 +164,31 @@ test('copies a Storage Pokemon into Save File Slots and leaves its record unchan
 	expect((await persisted(page)).records).toEqual(before.records);
 });
 
-test('places a Generation 3 Storage Pokemon into a Generation 4 Save File', async ({ page }) => {
-	await storeAron(page);
-	await openSaveBesideStorage(page, heartGold);
-	const [savePane] = panes(page);
-	const before = await persisted(page);
-	const destination = savePane.locator('.box-slot.empty').first();
-	const destinationSlot = await destination.getAttribute('data-box-slot');
-	await carryAron(page, 'Duplicate');
-	await destination.click();
-	await expect(page.locator('.toast-success').last()).toContainText('Copied ARON to ');
-	await expect(savePane.locator(`[data-box-slot="${destinationSlot}"]`)).toContainText('ARON');
-	const after = await persisted(page);
-	expect(after.records).toEqual(before.records);
-	expect(after.workspaces).toMatchObject([{ dirty: true }]);
-	expect(after.backups).toMatchObject([{ reason: 'pokemon-movement' }]);
+for (const mode of ['Move', 'Duplicate'] as const) {
+	test(`${mode} places a Generation 3 Storage Pokemon into a Generation 4 Save File`, async ({
+		page
+	}) => {
+		await storeAron(page);
+		await openSaveBesideStorage(page, heartGold);
+		const [savePane] = panes(page);
+		const before = await persisted(page);
+		const destination = savePane.locator('.box-slot.empty').first();
+		const destinationSlot = await destination.getAttribute('data-box-slot');
+		await carryAron(page, mode);
+		await destination.click();
+		await expect(page.locator('.toast-success').last()).toContainText(
+			`${mode === 'Move' ? 'Moved' : 'Copied'} ARON to `
+		);
+		await expect(savePane.locator(`[data-box-slot="${destinationSlot}"]`)).toContainText('ARON');
+		const after = await persisted(page);
+		expect(after.records).toEqual(mode === 'Move' ? [] : before.records);
+		expect(after.workspaces).toMatchObject([{ dirty: true }]);
+		expect(after.backups).toMatchObject([{ reason: 'pokemon-movement' }]);
 
-	await reloadRoute(page);
-	await expect(savePane.locator(`[data-box-slot="${destinationSlot}"]`)).toContainText('ARON');
-});
+		await reloadRoute(page);
+		await expect(savePane.locator(`[data-box-slot="${destinationSlot}"]`)).toContainText('ARON');
+	});
+}
 
 test('a refused or cancelled placement changes no Storage, Workspace, or Backup state', async ({
 	page

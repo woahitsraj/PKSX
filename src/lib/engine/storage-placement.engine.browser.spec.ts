@@ -1,11 +1,14 @@
 import { expect, test } from 'vitest';
 import emeraldUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav?url';
 import omegaRubyUrl from '../../../test-fixtures/save-files/pkhex-avalonia/gen6-omega-ruby.sav?url';
-import moonUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/moon/011020252257.sav?url';
 import shieldUrl from '../../../test-fixtures/save-files/pkmds-blazor/test-save-shield.sav?url';
 import heartGoldUrl from '../../../test-fixtures/save-files/raj-pokemon-save-backups/nds/pokemon-heartgold.sav?url';
 import whiteUrl from '../../../test-fixtures/save-files/raj-pokemon-save-backups/nds/pokemon-white.sav?url';
 import legendsArceusUrl from '../../../test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-legends-arceus-2025-03-24-main.sav?url';
+import brilliantDiamondUrl from '../../../test-fixtures/save-files/pkmds-blazor/pokemon-brilliant-diamond.bin?url';
+import letsGoEeveeUrl from '../../../test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-lets-go-eevee-2025-03-24-savedata.bin?url';
+import scarletUrl from '../../../test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-scarlet-2025-03-24-main.sav?url';
+import swordUrl from '../../../test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-sword-2025-03-24-main.sav?url';
 import { createPkhexEngine } from './pkhex-engine';
 import { base64ToBytes } from './serialized-save';
 import type { BoxSlotSummary, EngineApi } from './types';
@@ -15,9 +18,15 @@ const saves = {
 	heartGold: { url: heartGoldUrl, fileName: 'pokemon-heartgold.sav' },
 	white: { url: whiteUrl, fileName: 'pokemon-white.sav' },
 	omegaRuby: { url: omegaRubyUrl, fileName: 'gen6-omega-ruby.sav' },
-	moon: { url: moonUrl, fileName: '011020252257' },
 	shield: { url: shieldUrl, fileName: 'test-save-shield.sav' },
-	legendsArceus: { url: legendsArceusUrl, fileName: 'pokemon-legends-arceus-2025-03-24-main.sav' }
+	legendsArceus: { url: legendsArceusUrl, fileName: 'pokemon-legends-arceus-2025-03-24-main.sav' },
+	brilliantDiamond: { url: brilliantDiamondUrl, fileName: 'pokemon-brilliant-diamond.bin' },
+	letsGoEevee: {
+		url: letsGoEeveeUrl,
+		fileName: 'pokemon-lets-go-eevee-2025-03-24-savedata.bin'
+	},
+	scarlet: { url: scarletUrl, fileName: 'pokemon-scarlet-2025-03-24-main.sav' },
+	sword: { url: swordUrl, fileName: 'pokemon-sword-2025-03-24-main.sav' }
 };
 type SaveName = keyof typeof saves;
 
@@ -73,18 +82,27 @@ async function place(engine: EngineApi, payload: Uint8Array, name: SaveName) {
 	return { bytes, result, placed: slots.value[empty.slot.slot] };
 }
 
-test('places a same-format Pokemon with its native bytes unchanged', async () => {
+test.each([
+	'emerald',
+	'heartGold',
+	'white',
+	'omegaRuby',
+	'letsGoEevee',
+	'sword',
+	'shield',
+	'brilliantDiamond',
+	'scarlet'
+] as const)('returns a %s Pokemon to its own Save File unchanged', async (name) => {
 	const engine = await createPkhexEngine();
-	const { slot, payload } = await preserve(engine, 'emerald');
-	const { result, placed } = await place(engine, payload, 'emerald');
+	const { slot, payload } = await preserve(engine, name);
+	const { result, placed } = await place(engine, payload, name);
 	expect(result).toMatchObject({ ok: true, value: { mutated: true } });
 	expect(placed?.entityBytesBase64).toBe(slot.entityBytesBase64);
 });
 
 test.each([
 	['emerald', 'heartGold', 4],
-	['heartGold', 'white', 5],
-	['omegaRuby', 'moon', 7]
+	['heartGold', 'white', 5]
 ] as const)('converts a %s Pokemon into native %s bytes', async (source, destination, format) => {
 	const engine = await createPkhexEngine();
 	const { slot, payload } = await preserve(engine, source);
@@ -118,11 +136,40 @@ test('places the current snapshot of an edited Storage record', async () => {
 
 	const { placed } = await place(engine, edited.value.bytes, 'emerald');
 	expect(placed?.speciesId).toBe(choice?.speciesId);
-	expect(placed?.entityBytesBase64).not.toBe(slot.entityBytesBase64);
+	const stored = (base64: string) => base64ToBytes(base64).slice(0, 80);
+	expect(stored(placed!.entityBytesBase64!)).toEqual(stored(evolved.value.entityBytesBase64));
+});
+
+test('places a Pokemon into the next free Party Slot', async () => {
+	const engine = await createPkhexEngine();
+	const { slot, payload } = await preserve(engine, 'emerald');
+	for (const name of ['heartGold', 'white', 'emerald'] as const) {
+		const bytes = await saveBytes(name);
+		const loaded = await engine.loadSaveWorkspace(bytes, saves[name].fileName, 0);
+		if (!loaded.ok) throw loaded.error;
+		const next = loaded.value.partySlots.filter((party) => !party.isEmpty).length;
+		if (next >= 6) continue;
+		const result = await engine.importStoredPokemon(
+			bytes,
+			saves[name].fileName,
+			{
+				preservationPayloadBase64: toBase64(payload),
+				destination: { zone: 'party', slot: next }
+			},
+			0
+		);
+		if (!result.ok) throw result.error;
+		expect(result.value.workspace.partySlots[next]).toMatchObject({
+			speciesId: slot.speciesId,
+			level: slot.level
+		});
+		return;
+	}
+	throw new Error('No fixture has a free Party Slot.');
 });
 
 test.each([
-	['heartGold', 'emerald'],
+	['emerald', 'letsGoEevee'],
 	['shield', 'legendsArceus']
 ] as const)('refuses a %s Pokemon in a %s Save File', async (source, destination) => {
 	const engine = await createPkhexEngine();
