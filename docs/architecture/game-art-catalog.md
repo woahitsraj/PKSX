@@ -17,7 +17,7 @@ The resolver has four results:
 | ------------ | ---------- | ---------- | ---------------- |
 | Single game  | known      | one cover  | `E`, `Pt`, `MN`  |
 | Paired games | known      | two covers | `RB`, `GS`, `FR` |
-| No cover     | known      | empty      | `SV`, `SW`, `ZA` |
+| No cover     | known      | empty      | `GSC`, `RBY`     |
 | Unknown game | `null`     | empty      | any other value  |
 
 `platform` is one of `gb`, `gbc`, `gba`, `nds`, `3ds`, `gcn`, `wii`, or `switch`. It is present for every known game, also when the game has no cover.
@@ -33,13 +33,15 @@ The resolver has four results:
 
 The covers are box art scans from [libretro-thumbnails](https://github.com/libretro-thumbnails/libretro-thumbnails), the thumbnail set that RetroArch uses. Each system has its own repository, and the acquisition script pins one commit for each. The project states no license for its images. The box art is the property of Nintendo, Creatures Inc., and GAME FREAK inc. `THIRD_PARTY_NOTICES.md` records this. Describe these files as third-party box art scans, not as open-source artwork.
 
-libretro-thumbnails has no Nintendo Switch repository. Let's Go, Sword and Shield, Brilliant Diamond and Shining Pearl, Legends Arceus, Scarlet and Violet, and Legends Z-A have a platform and no cover. Pokémon Unbound is a fan game and has no box art.
+libretro-thumbnails has no Nintendo Switch repository. The ten Nintendo Switch covers are the cover images that English Wikipedia shows for each game under its non-free content policy. Wikipedia keeps one image for a pair of games, so the script cuts the left and right halves. These files have no pinned revision, only the file URL in the manifest.
+
+Pokémon Unbound is a fan game and has no box art. `GN`, `RBY`, and `GSC` cover more than two games and have no cover.
 
 ## Files
 
-- `scripts/download-game-art-catalog.ts` holds the checked-in mapping: cover id to exact source file name, and engine game version to platform and cover ids. Source file names are never guessed. A source path that is a symbolic link fails the download.
+- `scripts/download-game-art-catalog.ts` holds the checked-in mapping: cover id to exact source file name or Wikipedia file, and engine game version to platform and cover ids. Source file names are never guessed. A source path that is a symbolic link fails the download.
 - `pnpm game-art:download` is a manual maintainer step. It downloads each pinned scan, resizes it to fit 256 by 256 pixels, and writes WebP files to `static/game-art` and the manifest to `src/lib/pksx/game-art-catalog/catalog.generated.json`. Normal installs, builds, and CI never access the network for art.
 - `pnpm game-art:validate` is offline. It checks that the manifest agrees with the mapping in the script, that each file exists with the recorded format, dimensions, and byte size, and that no file is unreferenced.
 - The service worker precaches `static/game-art` through `$service-worker.files`, the same as the sprite catalogs.
 
-The committed catalog has 32 covers and 577,140 bytes. It maps 62 engine game versions, 18 of them without a cover.
+The committed catalog has 42 covers and 739,936 bytes. It maps 62 engine game versions, 4 of them without a cover.

@@ -1,13 +1,17 @@
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { format } from 'prettier';
+import { format, resolveConfig } from 'prettier';
 import sharp from 'sharp';
 
 type Platform = 'gb' | 'gbc' | 'gba' | 'nds' | '3ds' | 'gcn' | 'wii' | 'switch';
 
+type LibretroPlatform = Exclude<Platform, 'switch'>;
+// A Wikipedia file path. A paired image holds two covers side by side.
+type WikipediaFile = { file: string; half?: 'left' | 'right' };
+
 // One pinned libretro-thumbnails repository per system. Switch has none.
-const repositories: Record<Exclude<Platform, 'switch'>, { name: string; revision: string }> = {
+const repositories: Record<LibretroPlatform, { name: string; revision: string }> = {
 	gb: { name: 'Nintendo_-_Game_Boy', revision: 'f033af49af2d9761d6821aff479bb0ba5feea5e3' },
 	gbc: { name: 'Nintendo_-_Game_Boy_Color', revision: '0931985ba8a3a9f38fb87f006611a13dc094260f' },
 	gba: {
@@ -20,8 +24,16 @@ const repositories: Record<Exclude<Platform, 'switch'>, { name: string; revision
 	wii: { name: 'Nintendo_-_Wii', revision: '1a44c6f4251dc9ef051043f22f8d9df4237c1ee8' }
 };
 
-// Cover id -> [platform, title, exact file name under Named_Boxarts].
-const covers: Record<string, [Exclude<Platform, 'switch'>, string, string]> = {
+const swordShield = 'f/fa/Pok%C3%A9mon_Sword_and_Shield.jpg';
+const letsGo = '4/47/Pok%C3%A9mon_Let%27s_Go%2C_Pikachu%21_and_Let%27s_Go%2C_Eevee%21.jpg';
+const diamondPearlRemakes = '3/3e/Pokemon_Brilliant_Diamond_Shining_Pearl.png';
+const scarletViolet = '0/00/Pok%C3%A9mon_Scarlet_and_Violet_banner.png';
+
+// Cover id -> [platform, title, exact file name under Named_Boxarts or a Wikipedia file].
+const covers: Record<
+	string,
+	[LibretroPlatform, string, string] | ['switch', string, WikipediaFile]
+> = {
 	red: ['gb', 'Pokemon Red', 'Pokemon - Red Version (USA, Europe) (SGB Enhanced)'],
 	blue: ['gb', 'Pokemon Blue', 'Pokemon - Blue Version (USA, Europe) (SGB Enhanced)'],
 	yellow: [
@@ -69,7 +81,33 @@ const covers: Record<string, [Exclude<Platform, 'switch'>, string, string]> = {
 	'box-ruby-sapphire': ['gcn', 'Pokemon Box Ruby / Sapphire', 'Pokemon Box_ Ruby _ Sapphire (USA)'],
 	colosseum: ['gcn', 'Pokemon Colosseum', 'Pokemon Colosseum (USA)'],
 	xd: ['gcn', 'Pokemon XD', 'Pokemon XD - Gale of Darkness (USA)'],
-	'battle-revolution': ['wii', 'Pokemon Battle Revolution', 'Pokemon Battle Revolution (USA)']
+	'battle-revolution': ['wii', 'Pokemon Battle Revolution', 'Pokemon Battle Revolution (USA)'],
+	'lets-go-pikachu': ['switch', "Pokemon Let's Go, Pikachu!", { file: letsGo, half: 'left' }],
+	'lets-go-eevee': ['switch', "Pokemon Let's Go, Eevee!", { file: letsGo, half: 'right' }],
+	sword: ['switch', 'Pokemon Sword', { file: swordShield, half: 'left' }],
+	shield: ['switch', 'Pokemon Shield', { file: swordShield, half: 'right' }],
+	'brilliant-diamond': [
+		'switch',
+		'Pokemon Brilliant Diamond',
+		{ file: diamondPearlRemakes, half: 'left' }
+	],
+	'shining-pearl': [
+		'switch',
+		'Pokemon Shining Pearl',
+		{ file: diamondPearlRemakes, half: 'right' }
+	],
+	'legends-arceus': [
+		'switch',
+		'Pokemon Legends: Arceus',
+		{ file: '9/9c/Pokemon_Legends_Arceus_cover.jpg' }
+	],
+	scarlet: ['switch', 'Pokemon Scarlet', { file: scarletViolet, half: 'left' }],
+	violet: ['switch', 'Pokemon Violet', { file: scarletViolet, half: 'right' }],
+	'legends-za': [
+		'switch',
+		'Pokemon Legends: Z-A',
+		{ file: '2/2d/Pokemon_Legends_Z-A_Key_Art_Logo.png' }
+	]
 };
 
 // Engine game version -> [platform, cover ids]. A paired version lists both covers.
@@ -123,20 +161,20 @@ const versions: Record<string, [Platform, ...string[]]> = {
 	COLO: ['gcn', 'colosseum'],
 	XD: ['gcn', 'xd'],
 	BATREV: ['wii', 'battle-revolution'],
-	GP: ['switch'],
-	GE: ['switch'],
-	GG: ['switch'],
-	SW: ['switch'],
-	SH: ['switch'],
-	SWSH: ['switch'],
-	BD: ['switch'],
-	SP: ['switch'],
-	BDSP: ['switch'],
-	PLA: ['switch'],
-	SL: ['switch'],
-	VL: ['switch'],
-	SV: ['switch'],
-	ZA: ['switch']
+	GP: ['switch', 'lets-go-pikachu'],
+	GE: ['switch', 'lets-go-eevee'],
+	GG: ['switch', 'lets-go-pikachu', 'lets-go-eevee'],
+	SW: ['switch', 'sword'],
+	SH: ['switch', 'shield'],
+	SWSH: ['switch', 'sword', 'shield'],
+	BD: ['switch', 'brilliant-diamond'],
+	SP: ['switch', 'shining-pearl'],
+	BDSP: ['switch', 'brilliant-diamond', 'shining-pearl'],
+	PLA: ['switch', 'legends-arceus'],
+	SL: ['switch', 'scarlet'],
+	VL: ['switch', 'violet'],
+	SV: ['switch', 'scarlet', 'violet'],
+	ZA: ['switch', 'legends-za']
 };
 
 type CoverEntry = {
@@ -170,9 +208,10 @@ const artDirectory = path.join(root, 'static/game-art');
 const manifestPath = path.join(root, 'src/lib/pksx/game-art-catalog/catalog.generated.json');
 const maxSide = 256;
 
-function sourceUrl(platform: Exclude<Platform, 'switch'>, fileName: string) {
-	const { name, revision } = repositories[platform];
-	return `https://raw.githubusercontent.com/libretro-thumbnails/${name}/${revision}/Named_Boxarts/${encodeURIComponent(fileName)}.png`;
+function sourceUrl(platform: Platform, source: string | WikipediaFile) {
+	if (typeof source !== 'string') return `https://upload.wikimedia.org/wikipedia/en/${source.file}`;
+	const { name, revision } = repositories[platform as LibretroPlatform];
+	return `https://raw.githubusercontent.com/libretro-thumbnails/${name}/${revision}/Named_Boxarts/${encodeURIComponent(source)}.png`;
 }
 
 function versionEntries() {
@@ -184,15 +223,40 @@ function versionEntries() {
 	);
 }
 
+const fetchSource = (url: string) =>
+	fetch(url, { headers: { 'User-Agent': 'pksx-game-art-catalog/1.0' } });
+
 async function download() {
 	await rm(artDirectory, { recursive: true, force: true });
 	await mkdir(artDirectory, { recursive: true });
 	const entries: Record<string, CoverEntry> = {};
-	for (const [id, [platform, title, fileName]] of Object.entries(covers)) {
-		const url = sourceUrl(platform, fileName);
-		const response = await fetch(url);
-		if (!response.ok) throw new Error(`${id}: ${response.status} ${url}`);
-		const { data, info } = await sharp(Buffer.from(await response.arrayBuffer()))
+	const fetched = new Map<string, Buffer>();
+	for (const [id, [platform, title, source]] of Object.entries(covers)) {
+		const url = sourceUrl(platform, source);
+		// Both halves of a paired image use one request.
+		if (!fetched.has(url)) {
+			let response = await fetchSource(url);
+			// Wikipedia limits request speed.
+			for (let attempt = 0; response.status === 429 && attempt < 5; attempt++) {
+				await new Promise((resolve) => setTimeout(resolve, 15_000));
+				response = await fetchSource(url);
+			}
+			if (!response.ok) throw new Error(`${id}: ${response.status} ${url}`);
+			fetched.set(url, Buffer.from(await response.arrayBuffer()));
+		}
+		let image = sharp(fetched.get(url)!);
+		const half = typeof source === 'string' ? undefined : source.half;
+		if (half) {
+			const { width = 0, height = 0 } = await image.metadata();
+			const side = Math.floor(width / 2);
+			image = image.extract({
+				left: half === 'left' ? 0 : width - side,
+				top: 0,
+				width: side,
+				height
+			});
+		}
+		const { data, info } = await image
 			.resize({ width: maxSide, height: maxSide, fit: 'inside', withoutEnlargement: true })
 			.webp({ quality: 82 })
 			.toBuffer({ resolveWithObject: true });
@@ -210,7 +274,7 @@ async function download() {
 	const versionMap = versionEntries();
 	const manifest: Manifest = {
 		source: {
-			name: 'libretro-thumbnails',
+			name: 'libretro-thumbnails, and English Wikipedia for Nintendo Switch games',
 			url: 'https://github.com/libretro-thumbnails/libretro-thumbnails',
 			imageCopyright:
 				'Box art is the property of Nintendo, Creatures Inc., and GAME FREAK inc. PKSX resizes these scans and holds no license to them.',
@@ -231,7 +295,13 @@ async function download() {
 		versions: versionMap
 	};
 	await mkdir(path.dirname(manifestPath), { recursive: true });
-	await writeFile(manifestPath, await format(JSON.stringify(manifest), { parser: 'json' }));
+	await writeFile(
+		manifestPath,
+		await format(JSON.stringify(manifest), {
+			...(await resolveConfig(manifestPath)),
+			parser: 'json'
+		})
+	);
 	console.log(`${manifest.summary.coverCount} covers, ${manifest.summary.byteSize} bytes`);
 }
 
@@ -246,8 +316,8 @@ async function validate() {
 	}
 	let byteSize = 0;
 	for (const [id, entry] of Object.entries(manifest.covers)) {
-		const [platform, title, fileName] = covers[id] ?? [];
-		if (!platform || entry.title !== title || entry.sourceUrl !== sourceUrl(platform, fileName)) {
+		const [platform, title, source] = covers[id] ?? [];
+		if (!platform || entry.title !== title || entry.sourceUrl !== sourceUrl(platform, source!)) {
 			problems.push(`${id}: entry differs from the mapping in this script`);
 		}
 		const bytes = await readFile(path.join(root, 'static', entry.path)).catch(() => null);

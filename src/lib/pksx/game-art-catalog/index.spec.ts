@@ -16,20 +16,16 @@ describe('resolveGameArt', () => {
 	});
 
 	it('keeps the platform of a known game that has no cover', () => {
-		expect(resolveGameArt('SV')).toEqual({ platform: 'switch', covers: [] });
+		expect(resolveGameArt('GSC')).toEqual({ platform: 'gbc', covers: [] });
 	});
 
 	it('knows every game version the engine reports for the committed fixtures', () => {
 		const withCover =
-			'RB YW GS C RS E FR COLO XD RSBOX DP Pt HG SS BATREV B W B2 W2 X Y OR AS SN MN US UM';
-		const withoutCover = ['GP', 'GE', 'SW', 'SH', 'BD', 'SP', 'PLA', 'SL', 'VL', 'ZA'];
+			'RB YW GS C RS E FR COLO XD RSBOX DP Pt HG SS BATREV B W B2 W2 X Y OR AS SN MN US UM GP GE SW SH BD SP PLA SL VL ZA';
 		for (const version of withCover.split(' ')) {
 			expect(resolveGameArt(version).covers.length, version).toBeGreaterThan(0);
 		}
-		for (const version of [...withoutCover, 'Pokémon Unbound']) {
-			expect(resolveGameArt(version), version).toMatchObject({ covers: [] });
-			expect(resolveGameArt(version).platform, version).not.toBeNull();
-		}
+		expect(resolveGameArt('Pokémon Unbound')).toEqual({ platform: 'gba', covers: [] });
 	});
 
 	it('falls back for an unknown or absent game', () => {

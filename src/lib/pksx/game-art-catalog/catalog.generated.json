@@ -1,6 +1,6 @@
 {
 	"source": {
-		"name": "libretro-thumbnails",
+		"name": "libretro-thumbnails, and English Wikipedia for Nintendo Switch games",
 		"url": "https://github.com/libretro-thumbnails/libretro-thumbnails",
 		"imageCopyright": "Box art is the property of Nintendo, Creatures Inc., and GAME FREAK inc. PKSX resizes these scans and holds no license to them.",
 		"repositories": {
@@ -35,29 +35,10 @@
 		}
 	},
 	"summary": {
-		"coverCount": 32,
-		"byteSize": 577140,
+		"coverCount": 42,
+		"byteSize": 739936,
 		"versionCount": 62,
-		"unmappedVersions": [
-			"GN",
-			"RBY",
-			"GSC",
-			"Pokémon Unbound",
-			"GP",
-			"GE",
-			"GG",
-			"SW",
-			"SH",
-			"SWSH",
-			"BD",
-			"SP",
-			"BDSP",
-			"PLA",
-			"SL",
-			"VL",
-			"SV",
-			"ZA"
-		]
+		"unmappedVersions": ["GN", "RBY", "GSC", "Pokémon Unbound"]
 	},
 	"covers": {
 		"red": {
@@ -347,6 +328,96 @@
 			"width": 182,
 			"height": 256,
 			"byteSize": 16020
+		},
+		"lets-go-pikachu": {
+			"title": "Pokemon Let's Go, Pikachu!",
+			"platform": "switch",
+			"path": "/game-art/lets-go-pikachu.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/4/47/Pok%C3%A9mon_Let%27s_Go%2C_Pikachu%21_and_Let%27s_Go%2C_Eevee%21.jpg",
+			"width": 223,
+			"height": 223,
+			"byteSize": 13394
+		},
+		"lets-go-eevee": {
+			"title": "Pokemon Let's Go, Eevee!",
+			"platform": "switch",
+			"path": "/game-art/lets-go-eevee.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/4/47/Pok%C3%A9mon_Let%27s_Go%2C_Pikachu%21_and_Let%27s_Go%2C_Eevee%21.jpg",
+			"width": 223,
+			"height": 223,
+			"byteSize": 13292
+		},
+		"sword": {
+			"title": "Pokemon Sword",
+			"platform": "switch",
+			"path": "/game-art/sword.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/f/fa/Pok%C3%A9mon_Sword_and_Shield.jpg",
+			"width": 223,
+			"height": 223,
+			"byteSize": 16606
+		},
+		"shield": {
+			"title": "Pokemon Shield",
+			"platform": "switch",
+			"path": "/game-art/shield.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/f/fa/Pok%C3%A9mon_Sword_and_Shield.jpg",
+			"width": 223,
+			"height": 223,
+			"byteSize": 17402
+		},
+		"brilliant-diamond": {
+			"title": "Pokemon Brilliant Diamond",
+			"platform": "switch",
+			"path": "/game-art/brilliant-diamond.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/3/3e/Pokemon_Brilliant_Diamond_Shining_Pearl.png",
+			"width": 226,
+			"height": 220,
+			"byteSize": 14738
+		},
+		"shining-pearl": {
+			"title": "Pokemon Shining Pearl",
+			"platform": "switch",
+			"path": "/game-art/shining-pearl.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/3/3e/Pokemon_Brilliant_Diamond_Shining_Pearl.png",
+			"width": 226,
+			"height": 220,
+			"byteSize": 14336
+		},
+		"legends-arceus": {
+			"title": "Pokemon Legends: Arceus",
+			"platform": "switch",
+			"path": "/game-art/legends-arceus.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/9/9c/Pokemon_Legends_Arceus_cover.jpg",
+			"width": 256,
+			"height": 256,
+			"byteSize": 16174
+		},
+		"scarlet": {
+			"title": "Pokemon Scarlet",
+			"platform": "switch",
+			"path": "/game-art/scarlet.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/0/00/Pok%C3%A9mon_Scarlet_and_Violet_banner.png",
+			"width": 210,
+			"height": 237,
+			"byteSize": 21364
+		},
+		"violet": {
+			"title": "Pokemon Violet",
+			"platform": "switch",
+			"path": "/game-art/violet.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/0/00/Pok%C3%A9mon_Scarlet_and_Violet_banner.png",
+			"width": 210,
+			"height": 237,
+			"byteSize": 17282
+		},
+		"legends-za": {
+			"title": "Pokemon Legends: Z-A",
+			"platform": "switch",
+			"path": "/game-art/legends-za.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/2/2d/Pokemon_Legends_Z-A_Key_Art_Logo.png",
+			"width": 256,
+			"height": 256,
+			"byteSize": 18208
 		}
 	},
 	"versions": {
@@ -398,19 +469,25 @@
 		"COLO": { "platform": "gcn", "covers": ["colosseum"] },
 		"XD": { "platform": "gcn", "covers": ["xd"] },
 		"BATREV": { "platform": "wii", "covers": ["battle-revolution"] },
-		"GP": { "platform": "switch", "covers": [] },
-		"GE": { "platform": "switch", "covers": [] },
-		"GG": { "platform": "switch", "covers": [] },
-		"SW": { "platform": "switch", "covers": [] },
-		"SH": { "platform": "switch", "covers": [] },
-		"SWSH": { "platform": "switch", "covers": [] },
-		"BD": { "platform": "switch", "covers": [] },
-		"SP": { "platform": "switch", "covers": [] },
-		"BDSP": { "platform": "switch", "covers": [] },
-		"PLA": { "platform": "switch", "covers": [] },
-		"SL": { "platform": "switch", "covers": [] },
-		"VL": { "platform": "switch", "covers": [] },
-		"SV": { "platform": "switch", "covers": [] },
-		"ZA": { "platform": "switch", "covers": [] }
+		"GP": { "platform": "switch", "covers": ["lets-go-pikachu"] },
+		"GE": { "platform": "switch", "covers": ["lets-go-eevee"] },
+		"GG": {
+			"platform": "switch",
+			"covers": ["lets-go-pikachu", "lets-go-eevee"]
+		},
+		"SW": { "platform": "switch", "covers": ["sword"] },
+		"SH": { "platform": "switch", "covers": ["shield"] },
+		"SWSH": { "platform": "switch", "covers": ["sword", "shield"] },
+		"BD": { "platform": "switch", "covers": ["brilliant-diamond"] },
+		"SP": { "platform": "switch", "covers": ["shining-pearl"] },
+		"BDSP": {
+			"platform": "switch",
+			"covers": ["brilliant-diamond", "shining-pearl"]
+		},
+		"PLA": { "platform": "switch", "covers": ["legends-arceus"] },
+		"SL": { "platform": "switch", "covers": ["scarlet"] },
+		"VL": { "platform": "switch", "covers": ["violet"] },
+		"SV": { "platform": "switch", "covers": ["scarlet", "violet"] },
+		"ZA": { "platform": "switch", "covers": ["legends-za"] }
 	}
 }
