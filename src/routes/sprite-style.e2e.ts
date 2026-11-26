@@ -83,6 +83,12 @@ test('Save File Slots switch between HOME and game sprites without reopening, an
 		'src',
 		/\/game\/emerald\/0304-/
 	);
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'Edit' }).click();
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	await expectLoaded(editor.locator('img').first(), /\/game\/emerald\/0304-/);
+	await page.keyboard.press('Escape');
+	await expect(editor).toBeHidden();
 
 	await page.evaluate(async () => {
 		await navigator.serviceWorker.ready;
@@ -173,11 +179,6 @@ test('Pokemon Storage selects game sprites from the Pokemon Origin game', async 
 	await expect(slot).toContainText('ARON');
 	const gameSprite = /^\/sprites\/pokemon\/game\/firered-leafgreen\/0304-/;
 	await expectLoaded(slot.locator('img'), gameSprite);
-	await expect(page.locator('.detail-rail img').first()).toHaveAttribute('src', gameSprite);
-
 	await slot.focus();
-	await page.keyboard.press('Enter');
-	await page.getByRole('button', { name: 'Edit' }).click();
-	const editor = page.getByRole('dialog', { name: 'ARON' });
-	await expectLoaded(editor.locator('img').first(), gameSprite);
+	await expect(page.locator('.detail-rail img').first()).toHaveAttribute('src', gameSprite);
 });
