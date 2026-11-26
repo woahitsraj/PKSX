@@ -1,15 +1,11 @@
-import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { expect, test } from '@playwright/test';
+import { loadRoute, reloadRoute } from './route-load.e2e-helper';
 
 const aron =
 	'rVIoJRblSsu7zMnI/xUAAwQAAgK+w9LDv///AH8OAAB+AQAAfwYAAAAoAAAhAGoAvQAdACMeCg8AAAAAAAAAAAAAAAAAN4uhozfCnwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
 
 test('migrates and browses a collection with Unfiled, Carry, and Search', async ({ page }) => {
-	await page.goto('/');
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await loadRoute(page, '/');
 	await page.route('**/__storage-migration-fixture', (route) =>
 		route.fulfill({
 			contentType: 'text/html',
@@ -84,7 +80,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		});
 	}, aron);
 
-	await page.goto('/');
+	await loadRoute(page, '/');
 	const storage = page.getByRole('button', { name: 'Open Pokemon Storage in Boxes' });
 	await expect(storage).toContainText('1 Pokemon', { timeout: 60_000 });
 	await expect(storage).toContainText('3 Storage');
@@ -148,8 +144,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	await expect(page.locator('#box-0-slot-4')).toBeFocused();
 	await page.keyboard.press('Enter');
 	await expect(page.locator('#box-0-slot-4')).toContainText('ARON');
-	await page.reload();
-	await expectBoxesReady(page);
+	await reloadRoute(page);
 	await expect(page.locator('#box-0-slot-4')).toContainText('ARON');
 	const state = await page.evaluate(async () => {
 		const read = async (name: string, store: string, key: string): Promise<unknown> => {
@@ -184,8 +179,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 	await page.getByRole('searchbox', { name: 'Filter Pokemon' }).fill('ARON');
 	await page.getByRole('combobox', { name: 'Sort Pokemon' }).click();
 	await page.getByRole('option', { name: 'Highest level' }).click();
-	await page.reload();
-	await expectBoxesReady(page);
+	await reloadRoute(page);
 	await expect(page.locator('[data-location="all-pokemon"]')).toBeVisible();
 	await expect(page.getByRole('searchbox', { name: 'Filter Pokemon' })).toHaveValue('ARON');
 	await expect(page.getByRole('combobox', { name: 'Sort Pokemon' })).toHaveAttribute(
@@ -236,8 +230,7 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		});
 		db.close();
 	});
-	await page.reload();
-	await expectBoxesReady(page);
+	await reloadRoute(page);
 	await page.getByRole('searchbox', { name: 'Filter Pokemon' }).fill('');
 	await page.getByRole('combobox', { name: 'Sort Pokemon' }).click();
 	await page.getByRole('option', { name: 'Recently added' }).click();

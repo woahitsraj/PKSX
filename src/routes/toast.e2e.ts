@@ -2,6 +2,7 @@ import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { loadRoute, reloadRoute } from './route-load.e2e-helper';
 
 const emeraldFixturePath = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
@@ -10,7 +11,7 @@ const emeraldFixturePath = path.resolve(
 test('one root Toast host delivers across Saves and Boxes without moving focus or layout', async ({
 	page
 }) => {
-	await page.goto('/');
+	await loadRoute(page, '/');
 	await page.evaluate(
 		() =>
 			new Promise<void>((resolve, reject) => {
@@ -19,7 +20,7 @@ test('one root Toast host delivers across Saves and Boxes without moving focus o
 				request.onsuccess = () => resolve();
 			})
 	);
-	await page.reload();
+	await reloadRoute(page);
 	await expect(page).toHaveURL(/\/$/);
 
 	const notifications = page.getByRole('region', { name: 'Notifications' });

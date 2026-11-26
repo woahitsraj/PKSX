@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { loadRoute } from './route-load.e2e-helper';
 
 test.setTimeout(180_000);
 
@@ -67,12 +68,7 @@ for (const viewport of [
 		page
 	}) => {
 		await page.setViewportSize(viewport);
-		await page.goto('/');
-		await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-			'data-initial-state',
-			'ready',
-			{ timeout: 60_000 }
-		);
+		await loadRoute(page, '/');
 		await page.getByLabel('Import Save File').setInputFiles(fixture);
 		await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
 			timeout: 90_000
@@ -296,12 +292,7 @@ for (const viewport of [
 }
 
 test('Pokedex explicitly reports a Save File without a Pokedex', async ({ page }) => {
-	await page.goto('/');
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready',
-		{ timeout: 60_000 }
-	);
+	await loadRoute(page, '/');
 	await page
 		.getByLabel('Import Save File')
 		.setInputFiles(
@@ -316,12 +307,7 @@ test('Pokedex explicitly reports a Save File without a Pokedex', async ({ page }
 });
 
 test('Generation 2 Unown values stay on its row and bulk Seen is backed up', async ({ page }) => {
-	await page.goto('/');
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready',
-		{ timeout: 60_000 }
-	);
+	await loadRoute(page, '/');
 	await page
 		.getByLabel('Import Save File')
 		.setInputFiles(path.resolve('test-fixtures/save-files/pkmds-blazor/pokemon-silver.sav'));

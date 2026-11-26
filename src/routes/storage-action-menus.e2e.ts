@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import path from 'node:path';
+import { loadRoute, reloadRoute } from './route-load.e2e-helper';
 
 const fixture = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
@@ -7,11 +8,7 @@ const fixture = path.resolve(
 test.use({ viewport: { width: 1280, height: 800 } });
 
 async function openSave(page: Page) {
-	await page.goto('/');
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await loadRoute(page, '/');
 	await page.getByLabel('Import Save File').setInputFiles(fixture);
 	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
 		timeout: 60000
@@ -70,14 +67,9 @@ for (const zone of ['Box', 'Party'])
 				'aria-activedescendant',
 				zone === 'Party' ? 'party-slot-1' : 'box-0-slot-1'
 			);
-			await page.reload();
-			await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
-				'data-initial-state',
-				'ready',
-				{ timeout: 60000 }
-			);
+			await reloadRoute(page);
 			await expect(occupied).toHaveCount(count - (mode === 'Move' ? 1 : 0));
-			await page.goto('/?source=pokemon-storage');
+			await loadRoute(page, '/?source=pokemon-storage');
 			await expect(page.locator('.virtual-browser [data-record-id]')).toHaveCount(1, {
 				timeout: 60000
 			});

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import path from 'node:path';
+import { loadRoute } from './route-load.e2e-helper';
 
 const fixture = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
@@ -56,7 +57,7 @@ for (const viewport of [
 		test('selects occupied Slots by touch and controller, retains boxes, and exits safely', async ({
 			page
 		}) => {
-			await page.goto('/');
+			await loadRoute(page, '/');
 			await page.waitForLoadState('networkidle');
 			await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
 				'data-initial-state',
@@ -181,11 +182,7 @@ for (const viewport of [
 
 for (const location of ['All Pokemon', 'Unfiled', 'Recently Deleted']) {
 	test(`clears physical selection before entering ${location}`, async ({ page }) => {
-		await page.goto('/?source=pokemon-storage');
-		await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
-			'data-initial-state',
-			'ready'
-		);
+		await loadRoute(page, '/?source=pokemon-storage');
 		const picker = page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' });
 		await picker.click();
 		await page.getByRole('button', { name: /^Box 01:/ }).click();
@@ -212,11 +209,7 @@ for (const location of ['All Pokemon', 'Unfiled', 'Recently Deleted']) {
 test.describe('desktop selection', () => {
 	test.use({ viewport: { width: 1280, height: 800 } });
 	test('extends with Shift+Arrow and selects with a mouse rectangle', async ({ page }) => {
-		await page.goto('/');
-		await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-			'data-initial-state',
-			'ready'
-		);
+		await loadRoute(page, '/');
 		await page.getByLabel('Import Save File').setInputFiles(fixture);
 		await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
 			timeout: 60000
@@ -288,11 +281,7 @@ test.describe('desktop selection', () => {
 
 test('Shift range remains in its originating pane at a shared edge', async ({ page }) => {
 	await page.setViewportSize({ width: 1800, height: 900 });
-	await page.goto('/');
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await loadRoute(page, '/');
 	await page.getByLabel('Import Save File').setInputFiles(fixture);
 	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
 		timeout: 60000
@@ -331,11 +320,7 @@ test('a rectangle keeps pane geometry until release, including an existing selec
 	page
 }) => {
 	await page.setViewportSize({ width: 1800, height: 900 });
-	await page.goto('/');
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await loadRoute(page, '/');
 	await page.getByLabel('Import Save File').setInputFiles(fixture);
 	await expect(page.getByText('011020251345.sav imported and made active.')).toBeVisible({
 		timeout: 60000

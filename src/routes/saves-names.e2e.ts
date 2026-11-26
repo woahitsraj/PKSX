@@ -1,17 +1,14 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
+import { loadRoute, reloadRoute } from './route-load.e2e-helper';
 
 for (const height of [336, 720]) {
 	test(`rename preserves filenames, cancellation and reset at height ${height}`, async ({
 		page
 	}) => {
 		await page.setViewportSize({ width: 960, height });
-		await page.goto('/');
-		await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-			'data-initial-state',
-			'ready'
-		);
+		await loadRoute(page, '/');
 		await page
 			.locator('#save-file-input')
 			.setInputFiles(
@@ -38,7 +35,7 @@ for (const height of [336, 720]) {
 			page.getByRole('button', { name: 'Open Adventure in Boxes', exact: true })
 		).toBeVisible();
 		await expect(page.getByRole('grid', { name: 'Saves collections' })).toBeFocused();
-		await page.reload();
+		await reloadRoute(page);
 		await page
 			.getByRole('button', { name: 'Open Save File Menu for Adventure', exact: true })
 			.click();
@@ -54,11 +51,7 @@ for (const height of [336, 720]) {
 		page
 	}) => {
 		await page.setViewportSize({ width: 960, height });
-		await page.goto('/');
-		await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-			'data-initial-state',
-			'ready'
-		);
+		await loadRoute(page, '/');
 		await page
 			.locator('#save-file-input')
 			.setInputFiles(
@@ -105,20 +98,16 @@ for (const height of [336, 720]) {
 		await expect(firstSave).toHaveAttribute('aria-label', 'Open a-unopened.sav in Boxes');
 		await open.click();
 		await expect(page.locator('[data-destination-root="boxes"]')).toBeVisible();
-		await page.goto('/saves');
+		await loadRoute(page, '/saves');
 		await expect(recent).toHaveAttribute('aria-pressed', 'true');
-		await page.reload();
+		await reloadRoute(page);
 		await expect(recent).toHaveAttribute('aria-pressed', 'true');
 		await expect(firstSave).toHaveAttribute('aria-label', 'Open emerald-011020251345.sav in Boxes');
 	});
 }
 
 test('renaming an active save preserves the cached box projection identity', async ({ page }) => {
-	await page.goto('/');
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await loadRoute(page, '/');
 	await page
 		.locator('#save-file-input')
 		.setInputFiles(
@@ -159,11 +148,7 @@ test.describe('display names across Save File consumers', () => {
 			page
 		}) => {
 			await page.setViewportSize({ width: 960, height });
-			await page.goto('/');
-			await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-				'data-initial-state',
-				'ready'
-			);
+			await loadRoute(page, '/');
 			const bytes = await readFile(
 				path.resolve(
 					'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
@@ -197,7 +182,7 @@ test.describe('display names across Save File consumers', () => {
 			await expect(
 				page.getByRole('button', { name: 'Open Journey in Boxes', exact: true })
 			).toHaveCount(2);
-			await page.reload();
+			await reloadRoute(page);
 			await expect(
 				page.getByRole('button', { name: 'Open Journey in Boxes', exact: true })
 			).toHaveCount(2);
@@ -284,7 +269,7 @@ for (const viewport of [
 		page
 	}) => {
 		await page.setViewportSize(viewport);
-		await page.goto('/saves');
+		await loadRoute(page, '/saves');
 		await page
 			.locator('#save-file-input')
 			.setInputFiles(

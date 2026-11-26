@@ -3,6 +3,7 @@ import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page, TestInfo } from '@playwright/test';
 import path from 'node:path';
+import { loadRoute, settleMotion } from './route-load.e2e-helper';
 
 type Insets = { top: number; right: number; bottom: number; left: number };
 type BudgetCase = {
@@ -105,23 +106,6 @@ const editableSelector =
 const visibleControlSelector =
 	'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false" i])';
 
-async function settleMotion(page: Page) {
-	await page.evaluate(async () => {
-		let animations: Animation[];
-		do {
-			await new Promise(requestAnimationFrame);
-			animations = document
-				.getAnimations()
-				.filter(
-					(animation) =>
-						animation.effect?.getTiming().iterations !== Infinity &&
-						animation.playState !== 'finished'
-				);
-			await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
-		} while (animations.length);
-	});
-}
-
 async function setSafeArea(page: Page, insets: Insets) {
 	await page.evaluate(({ top, right, bottom, left }) => {
 		const root = document.documentElement;
@@ -220,7 +204,7 @@ async function releaseCatalogueResponses(page: Page) {
 
 async function openDestination(page: Page, destination: Destination, budget: BudgetCase) {
 	await page.setViewportSize(budget.viewport);
-	await page.goto(destination.path);
+	await loadRoute(page, destination.path);
 	await setSafeArea(page, budget.insets);
 	const root = page.locator(`[data-destination-root="${destination.key}"]`);
 	await expect(root, `[BUDGET-1] ${destination.name} must finish initialization`).toHaveAttribute(
@@ -233,7 +217,7 @@ async function openDestination(page: Page, destination: Destination, budget: Bud
 
 async function importPublicSave(page: Page) {
 	await page.setViewportSize({ width: 1280, height: 800 });
-	await page.goto('/');
+	await loadRoute(page, '/');
 	const saves = page.locator('[data-destination-root="saves"]');
 	await expect(saves).toHaveAttribute('data-initial-state', 'ready');
 	await importSaveThroughSaves(page, emeraldFixturePath);
@@ -1004,7 +988,7 @@ test('[LARGE-1][SURFACE-1] large caps and representative surfaces use bounded ge
 	).toBeLessThanOrEqual(260);
 
 	await page.setViewportSize({ width: 1920, height: 1080 });
-	await page.goto('/');
+	await loadRoute(page, '/');
 	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });
 	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
 		'data-initial-state',
@@ -1048,8 +1032,7 @@ test('[DENSITY-1][SURFACE-1] portrait Pokemon Editor audits focused and open com
 }, testInfo) => {
 	skipNonChromium(testInfo);
 	await importPublicSave(page);
-	await page.goto('/boxes');
-	await expectBoxesReady(page);
+	await loadRoute(page, '/boxes');
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 30_000 });
 	await page.locator('#box-grid').focus();
 	await page.keyboard.press('Enter');
@@ -1162,11 +1145,7 @@ test('@responsive-matrix Saves library Tab order follows stacked and inline cont
 	page
 }, testInfo) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto('/saves');
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await loadRoute(page, '/saves');
 	const search = page.getByRole('searchbox', { name: 'Search Saves' });
 	const name = page.getByRole('button', { name: 'A to Z', exact: true });
 	const recent = page.getByRole('button', { name: 'Recent', exact: true });

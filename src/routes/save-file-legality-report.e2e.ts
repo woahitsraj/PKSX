@@ -1,8 +1,8 @@
-import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import path from 'node:path';
+import { loadRoute, reloadRoute } from './route-load.e2e-helper';
 
 const emeraldFixturePath = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
@@ -35,7 +35,7 @@ async function pressController(page: Page, key: string) {
 }
 
 async function importSaveFile(page: Page, fixturePath = emeraldFixturePath) {
-	await page.goto('/');
+	await loadRoute(page, '/');
 	await page.evaluate(
 		() =>
 			new Promise<void>((resolve, reject) => {
@@ -44,19 +44,13 @@ async function importSaveFile(page: Page, fixturePath = emeraldFixturePath) {
 				request.onsuccess = () => resolve();
 			})
 	);
-	await page.reload();
-	// The prerendered input ignores a file chosen before hydration.
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await reloadRoute(page);
 	await importSaveThroughSaves(page, fixturePath);
 }
 
 async function importActiveSaveFile(page: Page, fixturePath = emeraldFixturePath) {
 	await importSaveFile(page, fixturePath);
-	await page.goto('/boxes');
-	await expectBoxesReady(page);
+	await loadRoute(page, '/boxes');
 	await expect(
 		page.getByRole('button', { name: `Open Box Menu for ${path.basename(fixturePath)}` })
 	).toBeVisible({
@@ -276,11 +270,7 @@ test('advertises Main Menu report readiness only after its provider can open', a
 test('opens the globally scoped report from another destination', async ({ page }) => {
 	await installWorkspaceResponseHold(page);
 	await importSaveFile(page);
-	await page.goto('/settings');
-	await expect(page.locator('[data-destination-root="settings"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await loadRoute(page, '/settings');
 	await holdWorkspaceResponses(page, 'loadSaveWorkspace');
 
 	await page.getByRole('button', { name: 'Open Main Menu' }).click();
@@ -443,8 +433,7 @@ test('keeps a secondary Save File report current across Box projection loads', a
 		name: `Open Box Menu for ${path.basename(emeraldFixturePath)}`
 	});
 	await expect(primaryMenuButton).toBeVisible({ timeout: 15_000 });
-	await page.goto('/boxes');
-	await expectBoxesReady(page);
+	await loadRoute(page, '/boxes');
 	await expect(primaryMenuButton).toBeVisible({ timeout: 15_000 });
 	await primaryMenuButton.click();
 	await page
