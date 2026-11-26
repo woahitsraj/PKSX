@@ -20,6 +20,7 @@
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
 	import StorageBackupMenu from '$lib/components/pksx/StorageBackupMenu.svelte';
 	import AddSavesMenu from '$lib/components/pksx/AddSavesMenu.svelte';
+	import HiddenSavesMenu from '$lib/components/pksx/HiddenSavesMenu.svelte';
 	import { folderOf, supportsSaveFolders } from '$lib/pksx/linked-save-folders';
 	import { recoveryBackupId } from '$lib/pksx/linked-save-sources/runtime';
 	import { fileEmulator } from '$lib/pksx/linked-save-folders/profiles';
@@ -116,6 +117,16 @@
 	);
 
 	const searching = $derived(query.trim() !== '');
+	const hiddenSaveFiles = $derived(
+		filterSortSaves({
+			files: saveFiles,
+			details: detailsBySaveFileId,
+			query: '',
+			sort,
+			hidden: true
+		})
+	);
+	const libraryCount = $derived(saveFiles.length - hiddenSaveFiles.length);
 
 	const targets = $derived<SavesTarget[]>([
 		...visibleSaveFiles.map((saveFile) => ({ kind: 'save-file' as const, id: saveFile.id })),
@@ -131,6 +142,7 @@
 	const renameOpen = $derived(summonedWorkflow.active?.kind === 'save-file-rename');
 	const deleteOpen = $derived(summonedWorkflow.active?.kind === 'save-file-delete');
 	const addSavesOpen = $derived(summonedWorkflow.active?.kind === 'add-saves-menu');
+	const hiddenSavesOpen = $derived(summonedWorkflow.active?.kind === 'hidden-saves-menu');
 	const folderLinking = supportsSaveFolders();
 	const storageBackupOpen = $derived(summonedWorkflow.active?.kind === 'storage-backup-menu');
 	const storageConfirmOpen = $derived(
@@ -334,7 +346,7 @@
 		) {
 			return;
 		}
-		if (addSavesOpen) return;
+		if (addSavesOpen || hiddenSavesOpen) return;
 		if (!summonedWorkflow.active && searchControls?.contains(document.activeElement)) {
 			handleSearchKeydown(event);
 			return;
@@ -891,6 +903,7 @@
 				else if (menuIndex === 3) openBackups();
 				else if (menuIndex === 4) void runSourceAction();
 				else if (menuIndex === 5) requestRename();
+				else if (menuIndex === 6) void hideSave();
 				else void requestDelete();
 			}
 			return;
@@ -899,7 +912,7 @@
 		menuIndex = Math.max(
 			0,
 			Math.min(
-				deleteOpen ? 1 : 5,
+				deleteOpen ? 1 : 6,
 				!deleteOpen && !menuSource && menuIndex + offset === 4
 					? offset > 0
 						? 5
@@ -1008,6 +1021,58 @@
 		void focusMenuCommand(5);
 	}
 
+	async function setHidden(file: StoredSaveFile, hidden: boolean, preferredTarget: SavesTarget) {
+		busyTarget = file.id;
+		try {
+			const updated = await storage.setSaveHidden(file.id, hidden);
+			const workspace = getCachedActiveWorkspace();
+			if (workspace?.file.id === file.id) {
+				setCachedActiveWorkspace({ ...workspace, file: updated }, getCachedActiveWorkspaceBox());
+			}
+			invalidateSavesCache();
+			summonedWorkflow.closeAll();
+			menuSaveFileId = null;
+			menuReturnTarget = null;
+			await refreshSaves({ force: true, preferredTarget, focus: true });
+			return true;
+		} catch (error) {
+			toastHost.error(getErrorMessage(error));
+			return false;
+		} finally {
+			busyTarget = null;
+		}
+	}
+
+	async function hideSave() {
+		const file = menuSaveFile;
+		if (!file || busyTarget) return;
+		const fallback = deleteSavesTarget(currentTargets(), { kind: 'save-file', id: file.id });
+		if (await setHidden(file, true, fallback)) {
+			toastHost.success(displayName(file) + ' hidden. Find it in Hidden saves.');
+		}
+	}
+
+	async function unhideSave(file: StoredSaveFile) {
+		if (busyTarget) return;
+		const restored = { ...file, hidden: false };
+		if (!filterSortSaves({ files: [restored], details: detailsBySaveFileId, query, sort }).length) {
+			query = '';
+		}
+		await setHidden(file, false, { kind: 'save-file', id: file.id });
+	}
+
+	function openHiddenSaves() {
+		if (busyTarget) return;
+		summonedWorkflow.open('hidden-saves-menu', { type: 'control', id: 'saves-hidden' });
+	}
+
+	async function closeHiddenSaves() {
+		if (busyTarget) return;
+		summonedWorkflow.dismiss();
+		await tick();
+		document.getElementById('saves-hidden')?.focus();
+	}
+
 	function updateLibrary(nextQuery = query, nextSort = sort) {
 		query = nextQuery;
 		sort = nextSort;
@@ -1038,6 +1103,7 @@
 		return {
 			field,
 			sortGroup,
+			hiddenToggle: searchControls.querySelector<HTMLElement>('.hidden-toggle')!,
 			stacked: sortGroup.getBoundingClientRect().bottom <= field.getBoundingClientRect().top
 		};
 	}
@@ -1050,24 +1116,25 @@
 			(event.relatedTarget instanceof Node && searchControls.contains(event.relatedTarget))
 		)
 			return;
-		const { field, sortGroup, stacked } = libraryControls();
+		const { field, sortGroup, hiddenToggle, stacked } = libraryControls();
 		if (!stacked) return;
 		const buttons = sortGroup.querySelectorAll<HTMLButtonElement>('button');
 		if (direction === 'forward' && event.target === field) buttons[0]?.focus();
 		else if (direction === 'backward' && (event.target === buttons[1] || event.target === field))
-			(searchControls.querySelector<HTMLButtonElement>('.search-clear') ?? field).focus();
+			hiddenToggle.focus();
 	}
 
 	function handleSearchKeydown(event: KeyboardEvent) {
 		const active = document.activeElement;
-		const { field, sortGroup, stacked } = libraryControls();
+		const { field, sortGroup, hiddenToggle, stacked } = libraryControls();
 		const inSort = sortGroup.contains(active);
 		if (event.key === 'Tab' && stacked) {
 			const clear = searchControls.querySelector<HTMLButtonElement>('.search-clear');
 			const controls = [
 				...sortGroup.querySelectorAll<HTMLElement>('button'),
 				field,
-				...(clear ? [clear] : [])
+				...(clear ? [clear] : []),
+				hiddenToggle
 			];
 			const index = controls.findIndex((node) => node === active);
 			const next = controls[index + (event.shiftKey ? -1 : 1)];
@@ -1146,18 +1213,14 @@
 		<header class="library-bar">
 			<div class="library-title">
 				<h1 id="saves-title">Saves</h1>
-				<p
-					class="library-count"
-					role="status"
-					style:--count-digits={String(saveFiles.length).length}
-				>
+				<p class="library-count" role="status" style:--count-digits={String(libraryCount).length}>
 					{#if searching}
-						{visibleSaveFiles.length} of {saveFiles.length}<span class="sr-only">
+						{visibleSaveFiles.length} of {libraryCount}<span class="sr-only">
 							Save Files match</span
 						>
-					{:else if !catalogLoading && saveFiles.length > 0}
-						{saveFiles.length}<span class="count-unit"
-							>{saveFiles.length === 1 ? ' Save File' : ' Save Files'}</span
+					{:else if !catalogLoading && libraryCount > 0}
+						{libraryCount}<span class="count-unit"
+							>{libraryCount === 1 ? ' Save File' : ' Save Files'}</span
 						>
 					{/if}
 				</p>
@@ -1195,6 +1258,20 @@
 						</button>
 					{/if}
 				</div>
+				<button
+					id="saves-hidden"
+					type="button"
+					class="hidden-toggle"
+					aria-label={'Show hidden saves' +
+						(hiddenSaveFiles.length ? ', ' + hiddenSaveFiles.length + ' hidden' : '')}
+					onclick={openHiddenSaves}
+				>
+					<svg viewBox="0 0 16 16" aria-hidden="true">
+						<path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8Z" />
+						<path d="m2.5 13.5 11-11" />
+					</svg>
+					{#if hiddenSaveFiles.length}<span aria-hidden="true">{hiddenSaveFiles.length}</span>{/if}
+				</button>
 				<div class="sort-toggle" role="group" aria-label="Sort">
 					<button
 						type="button"
@@ -1235,6 +1312,10 @@
 			{#if searching && visibleSaveFiles.length === 0}
 				<p class="no-matches">
 					No name, game, trainer or filename contains <strong>“{query.trim()}”</strong>.
+				</p>
+			{:else if !catalogLoading && libraryCount === 0 && hiddenSaveFiles.length > 0}
+				<p class="no-matches">
+					Every Save File is hidden. Choose <strong>Show hidden saves</strong> to open or unhide one.
 				</p>
 			{/if}
 			<div
@@ -1449,6 +1530,7 @@
 			: undefined}
 		onSourceAction={() => void runSourceAction()}
 		onRename={requestRename}
+		onHide={() => void hideSave()}
 		onDelete={() => (deleteOpen ? void confirmDelete() : void requestDelete())}
 		onCancelDelete={cancelDelete}
 		onClose={dismissSaveFileWorkflow}
@@ -1467,6 +1549,16 @@
 		onScan={() => (discovery.scanning ? discovery.cancel() : void discovery.scan(undefined, true))}
 		onUnlink={(folder) => void discovery.unlink(folder)}
 		onClose={() => closeAddSaves()}
+	/>
+{/if}
+
+{#if hiddenSavesOpen}
+	<HiddenSavesMenu
+		files={hiddenSaveFiles}
+		busy={busyTarget !== null}
+		onUnhide={(file) => void unhideSave(file)}
+		onOpen={(file) => void activateSaveFile(file, 'boxes')}
+		onClose={() => void closeHiddenSaves()}
 	/>
 {/if}
 
@@ -1498,8 +1590,8 @@
 	.library-bar {
 		min-height: var(--pksx-control-height);
 		display: grid;
-		grid-template-columns: minmax(max-content, 1fr) minmax(8rem, 22rem) auto;
-		grid-template-areas: 'title search sort';
+		grid-template-columns: minmax(max-content, 1fr) minmax(8rem, 22rem) auto auto;
+		grid-template-areas: 'title search hidden sort';
 		align-items: center;
 		gap: var(--pksx-space-2);
 	}
@@ -1672,7 +1764,43 @@
 		color: color-mix(in srgb, var(--rust), var(--ink) 25%);
 	}
 
+	.hidden-toggle {
+		grid-area: hidden;
+		min-width: var(--pksx-control-height);
+		min-height: var(--pksx-control-height);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--pksx-space-1);
+		padding: 0 var(--pksx-space-2);
+		border: 0;
+		border-radius: var(--pksx-radius-medium);
+		background: var(--paper-deep);
+		box-shadow: inset 0 0 0 var(--pksx-border-width) var(--rule);
+		color: var(--ink-soft);
+		font: 700 var(--pksx-type-label) / 1 var(--pksx-font-mono);
+		cursor: pointer;
+	}
+
+	.hidden-toggle svg {
+		width: var(--pksx-icon-size);
+		height: var(--pksx-icon-size);
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.5;
+		stroke-linecap: round;
+	}
+
+	.hidden-toggle:hover {
+		color: var(--ink);
+	}
+
+	.hidden-toggle:active {
+		background-color: var(--rust-wash);
+	}
+
 	.search-clear:focus-visible,
+	.hidden-toggle:focus-visible,
 	.sort-toggle button:focus-visible {
 		outline: var(--pksx-focus-ring) solid var(--rust);
 		outline-offset: 0;
@@ -1692,10 +1820,10 @@
 
 	@container pksx-density (max-width: 559px) {
 		.library-bar {
-			grid-template-columns: minmax(0, 1fr) auto;
+			grid-template-columns: minmax(0, 1fr) auto auto;
 			grid-template-areas:
-				'title sort'
-				'search search';
+				'title sort sort'
+				'search search hidden';
 		}
 
 		.library-count {

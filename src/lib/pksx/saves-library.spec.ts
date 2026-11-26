@@ -57,6 +57,17 @@ describe('Saves library', () => {
 		expect(ids('missing')).toEqual([]);
 		expect(ids('  ')).toEqual(['a', 'b', 'c']);
 	});
+	it('keeps hidden Save Files out of ordinary results and lists only them when asked', () => {
+		const library = [files[0], { ...files[1], hidden: true }, { ...files[2], hidden: false }];
+		const list = (query: string, hidden?: boolean) =>
+			filterSortSaves({ files: library, details, query, sort: 'alphabetical', hidden }).map(
+				(file) => file.id
+			);
+		expect(list('')).toEqual(['b', 'c']);
+		expect(list('fallback')).toEqual([]);
+		expect(list('', true)).toEqual(['a']);
+		expect(list('fallback', true)).toEqual(['a']);
+	});
 	it.each([
 		{ gameVersion: 'RB', queries: ['Red', 'Blue'] },
 		{ gameVersion: 'GS', queries: ['Gold', 'Silver'] },

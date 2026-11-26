@@ -153,14 +153,21 @@ export class IndexedDbSavesStorage implements SavesStorage {
 	}
 
 	async renameSave(saveFileId: SaveFileId, name: string | null): Promise<StoredSaveFile> {
-		const displayName = normalizeSaveDisplayName(name);
+		return this.#updateSave(saveFileId, { displayName: normalizeSaveDisplayName(name) });
+	}
+
+	setSaveHidden(saveFileId: SaveFileId, hidden: boolean): Promise<StoredSaveFile> {
+		return this.#updateSave(saveFileId, { hidden });
+	}
+
+	async #updateSave(saveFileId: SaveFileId, patch: Partial<StoredSaveFile>) {
 		const database = await openSavesDatabase(this.#databaseName);
 		try {
 			const transaction = database.transaction(saveFilesStore, 'readwrite');
 			const store = transaction.objectStore(saveFilesStore);
 			const existing = await requestToPromise<StoredSaveFile | undefined>(store.get(saveFileId));
 			if (!existing) throw new Error('The selected Save File is no longer available.');
-			const updated = { ...existing, displayName };
+			const updated = { ...existing, ...patch };
 			store.put(updated);
 			await transactionDone(transaction);
 			return updated;

@@ -1151,27 +1151,30 @@ test('@responsive-matrix Saves library Tab order follows stacked and inline cont
 	const recent = page.getByRole('button', { name: 'Recent', exact: true });
 	const clear = page.getByRole('button', { name: 'Clear search', exact: true });
 	const grid = page.getByRole('grid', { name: 'Saves collections' });
+	const hidden = page.getByRole('button', { name: 'Show hidden saves', exact: true });
 	await search.fill('nothing-matches');
 	await grid.focus();
-	for (const control of [clear, search, recent, name]) {
+	for (const control of [hidden, clear, search, recent, name]) {
 		await page.keyboard.press('Shift+Tab');
 		await expect(control).toBeFocused();
 	}
 	await page.keyboard.press('Shift+Tab');
 	await expect(page.locator('.library-tools :focus')).toHaveCount(0);
-	for (const control of [name, recent, search, clear, grid]) {
+	for (const control of [name, recent, search, clear, hidden, grid]) {
 		await page.keyboard.press('Tab');
 		await expect(control).toBeFocused();
 	}
 	await clear.click();
 	await page.keyboard.press('Tab');
+	await expect(hidden).toBeFocused();
+	await page.keyboard.press('Tab');
 	await expect(grid).toBeFocused();
 	await page.keyboard.press('Shift+Tab');
-	await expect(search).toBeFocused();
+	await expect(hidden).toBeFocused();
 	if (testInfo.project.name !== 'chromium') return;
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await search.fill('nothing-matches');
-	for (const control of [clear, name, recent, grid]) {
+	for (const control of [clear, hidden, name, recent, grid]) {
 		await page.keyboard.press('Tab');
 		await expect(control).toBeFocused();
 	}

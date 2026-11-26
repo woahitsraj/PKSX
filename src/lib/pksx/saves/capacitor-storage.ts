@@ -110,13 +110,20 @@ export class CapacitorSavesStorage implements SavesStorage {
 	}
 
 	async renameSave(saveFileId: SaveFileId, name: string | null): Promise<StoredSaveFile> {
-		const displayName = normalizeSaveDisplayName(name);
+		return this.#updateSave(saveFileId, { displayName: normalizeSaveDisplayName(name) });
+	}
+
+	setSaveHidden(saveFileId: SaveFileId, hidden: boolean): Promise<StoredSaveFile> {
+		return this.#updateSave(saveFileId, { hidden });
+	}
+
+	#updateSave(saveFileId: SaveFileId, patch: Partial<StoredSaveFile>): Promise<StoredSaveFile> {
 		return this.#run(async () => {
 			const snapshot = await this.#journal.read();
 			const catalog = cloneCatalog(snapshot.catalog);
 			const index = catalog.saves.findIndex(({ id }) => id === saveFileId);
 			if (index < 0) throw new Error('The selected Save File is no longer available.');
-			const updated = { ...catalog.saves[index], displayName };
+			const updated = { ...catalog.saves[index], ...patch };
 			catalog.saves[index] = updated;
 			await this.#journal.commit(snapshot, catalog);
 			return { ...updated };

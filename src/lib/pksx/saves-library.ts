@@ -64,16 +64,19 @@ export function filterSortSaves({
 	files,
 	details,
 	query,
-	sort
+	sort,
+	hidden = false
 }: {
 	files: StoredSaveFile[];
 	details: Record<string, SaveCardDetailsState>;
 	query: string;
 	sort: SavesSort;
+	hidden?: boolean;
 }) {
 	const needle = query.trim().toLowerCase();
 	return files
 		.filter((file) => {
+			if (Boolean(file.hidden) !== hidden) return false;
 			const state = details[file.id];
 			const summary = state?.status === 'ready' ? state.details.summary : null;
 			return (
