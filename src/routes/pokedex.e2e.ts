@@ -350,6 +350,9 @@ for (const [generation, file, flag, absent] of [
 	[5, 'pkmds-blazor/pokemon-black.sav', 'Seen: shiny female', 'Second seen gender is female']
 ] as const) {
 	test(`Generation ${generation} species flags and Seen share one Backup`, async ({ page }) => {
+		await page.setViewportSize(
+			generation === 4 ? { width: 640, height: 360 } : { width: 360, height: 640 }
+		);
 		await page.goto('/');
 		await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
 			'data-initial-state',
@@ -387,6 +390,13 @@ for (const [generation, file, flag, absent] of [
 		}
 		// The editor stays open across edits and keeps the other species out of the filtered list.
 		await expect(values).toHaveAttribute('aria-expanded', 'true');
+		// Unown has the most flags; its editor wraps inside the floor width.
+		await search.fill('Unown');
+		await page.getByRole('button', { name: 'Unown values', exact: true }).click();
+		await expect(page.locator('.species-values .species-flag').nth(27)).toBeVisible();
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+			true
+		);
 		await search.fill('no such species');
 		await expect(page.getByText('No matching species.')).toBeVisible();
 	});

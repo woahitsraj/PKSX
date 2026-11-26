@@ -8,7 +8,9 @@ public readonly record struct PokedexFlag(string Label, bool On, Action<bool> Se
 internal static class PokedexFlags
 {
     private const byte None = Zukan4.FORM_NONE;
-    private static readonly string[] Languages = ["Japanese", "English", "French", "German", "Italian", "Spanish", "Korean"];
+    // Generation 4 stores German before Italian; Generation 5 stores Italian before German.
+    private static readonly string[] Languages4 = ["Japanese", "English", "French", "German", "Italian", "Spanish"];
+    private static readonly string[] Languages5 = ["Japanese", "English", "French", "Italian", "German", "Spanish", "Korean"];
     private static readonly string[] Genders = ["male or genderless", "female", "shiny male or genderless", "shiny female"];
     private static readonly string[] FormStates = ["Form seen", "Form seen shiny", "Form displayed", "Form displayed shiny"];
 
@@ -73,7 +75,7 @@ internal static class PokedexFlags
                 var index = bit;
                 var on = dex.GetLanguageBitIndex(species, index);
                 if (index < 6 || on)
-                    flags.Add(new(index < 6 ? $"Language: {Languages[index]}" : $"Language bit {index}", on, value => dex.SetLanguageBitIndex(species, index, value)));
+                    flags.Add(new(index < 6 ? $"Language: {Languages4[index]}" : $"Language bit {index}", on, value => dex.SetLanguageBitIndex(species, index, value)));
             }
         }
         var forms = dex.GetForms(species);
@@ -135,10 +137,10 @@ internal static class PokedexFlags
         }
         if (species <= 493) // Generation 5 keeps language flags only up to Arceus.
         {
-            for (var language = 0; language < Languages.Length; language++)
+            for (var language = 0; language < Languages5.Length; language++)
             {
                 var index = language;
-                flags.Add(new($"Language: {Languages[index]}", dex.GetLanguageFlag(species, index), value => dex.SetLanguageFlag(species, index, value)));
+                flags.Add(new($"Language: {Languages5[index]}", dex.GetLanguageFlag(species, index), value => dex.SetLanguageFlag(species, index, value)));
             }
         }
         var (start, count) = dex.GetFormIndex(species);

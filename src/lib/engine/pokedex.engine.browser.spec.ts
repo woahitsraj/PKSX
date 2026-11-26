@@ -207,6 +207,10 @@ for (const [file, absent, present] of [
 		expect(labels(absent[0]).filter((label) => label.includes(absent[1]))).toEqual([]);
 		expect(labels(present[0]).some((label) => label.startsWith(present[1]))).toBe(true);
 		const gen4 = dex?.species.length === 493;
+		// PKHeX orders German and Italian differently in each generation's language block.
+		expect(labels(25).filter((label) => /German|Italian/.test(label))).toEqual(
+			gen4 ? ['Language: German', 'Language: Italian'] : ['Language: Italian', 'Language: German']
+		);
 		const edits = [
 			[present[0], labels(present[0]).findIndex((label) => label.startsWith(present[1]))],
 			[25, labels(25).indexOf('Language: French')],
