@@ -7926,7 +7926,7 @@
 					originalFileName: pending.fileName,
 					allowDirty: pending.confirmDirtyId === match.id
 				});
-				await storage.setActiveSaveFileId(saveFile.id);
+				saveFile = await storage.setActiveSaveFileId(saveFile.id);
 				message = `${match.name} replaced with ${pending.fileName}.`;
 			} else {
 				saveFile = await storage.importSave({

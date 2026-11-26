@@ -785,9 +785,8 @@
 				allowDirty: pending.confirmDirtyId === match.id
 			});
 			closeImportMatch();
-			await storage.setActiveSaveFileId(replaced.id);
-			invalidateActiveWorkspaceCache(replaced.id);
-			await finishImport(replaced, match.name + ' replaced with ' + pending.fileName + '.');
+			const active = await storage.setActiveSaveFileId(replaced.id);
+			await finishImport(active, match.name + ' replaced with ' + pending.fileName + '.');
 		} catch (error) {
 			if (getErrorMessage(error) === confirmReplaceDirty && match) {
 				pending.confirmDirtyId = match.id;

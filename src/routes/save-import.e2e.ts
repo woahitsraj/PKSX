@@ -64,3 +64,90 @@ test('offers replace or import as new when a Save File is already in Saves', asy
 	await expect(cards).toHaveCount(2);
 	await expect(page.locator('.save-card.active')).toContainText('emerald-011020251345.sav');
 });
+
+const emeraldPath = path.resolve(
+	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
+);
+
+function emeraldCopy(name: string, change: (buffer: Buffer) => void) {
+	const buffer = readFileSync(emeraldPath);
+	change(buffer);
+	return { name, mimeType: 'application/octet-stream', buffer };
+}
+
+test('imports the same game from another trainer without asking', async ({ page }) => {
+	const otherTrainer = emeraldCopy('other-trainer.sav', (buffer) => {
+		for (let sector = 0; sector + 0x1000 <= buffer.length; sector += 0x1000)
+			if (buffer.readUInt16LE(sector + 0xff4) === 0) buffer[sector + 0x0a] ^= 0xff;
+	});
+	await loadRoute(page, '/');
+	await importSaveThroughSaves(page, emeraldPath);
+	await importSaveThroughSaves(page, otherTrainer);
+	await expect(page.locator('.save-card')).toHaveCount(2);
+});
+
+test('Replace Existing confirms and backs up unsaved changes first', async ({ page }) => {
+	await loadRoute(page, '/');
+	await importSaveThroughSaves(page, emeraldPath);
+	await loadRoute(page, '/trainer');
+	const money = page.getByRole('spinbutton', { name: 'Money' });
+	const original = await money.inputValue();
+	await money.fill('12345');
+	await money.press('Enter');
+	await expect(money).toHaveValue('12345');
+	await expect(money).not.toHaveAttribute('readonly', '');
+
+	await loadRoute(page, '/');
+	await page
+		.getByLabel('Import Save File', { exact: true })
+		.setInputFiles(
+			emeraldCopy('emerald-revised.sav', (buffer) => (buffer[buffer.length - 1] ^= 0xff))
+		);
+	const replace = page.getByRole('button', {
+		name: /Replace Existing.*Unsaved changes go to a Backup/
+	});
+	await replace.click({ timeout: 60_000 });
+	const confirm = page.getByRole('button', { name: /Replace your unsaved changes\?/ });
+	await confirm.click();
+	await expect(
+		page.getByText('emerald-011020251345.sav replaced with emerald-revised.sav.')
+	).toBeVisible();
+	await expect(page.locator('.save-card')).toHaveCount(1);
+
+	await page.getByRole('button', { name: 'Open Save File Menu for emerald-revised.sav' }).click();
+	await page.getByRole('button', { name: 'Backups', exact: true }).click();
+	const backups = page.getByLabel('Backups', { exact: true });
+	await expect(backups).toContainText('PKSX Workspace before Replace Existing');
+	await expect(backups).toContainText('Imported baseline before Replace Existing');
+
+	await loadRoute(page, '/trainer');
+	await expect(money).toHaveValue(original);
+	await money.fill('54321');
+	await money.press('Enter');
+	await expect(money).toHaveValue('54321');
+	await expect(money).not.toHaveAttribute('readonly', '');
+});
+
+test('Boxes quick import offers the same choices and keeps focus on Cancel', async ({ page }) => {
+	await loadRoute(page, '/');
+	await importSaveThroughSaves(page, emeraldPath);
+	await loadRoute(page, '/boxes');
+	const quickImport = page.locator('#quick-save-import');
+	const dialog = page.getByRole('heading', { name: 'Already in Saves' });
+	await quickImport.setInputFiles(emeraldPath);
+	await expect(dialog).toBeVisible({ timeout: 60_000 });
+	await page.keyboard.press('Escape');
+	await expect(dialog).toBeHidden();
+	await expect(page.locator('body')).not.toBeFocused();
+
+	await quickImport.setInputFiles(
+		emeraldCopy('emerald-revised.sav', (buffer) => (buffer[buffer.length - 1] ^= 0xff))
+	);
+	await page.getByRole('button', { name: /Replace Existing/ }).click({ timeout: 60_000 });
+	await expect(page.locator('.status-announcer')).toHaveText(
+		'emerald-011020251345.sav replaced with emerald-revised.sav.'
+	);
+	await loadRoute(page, '/');
+	await expect(page.locator('.save-card')).toHaveCount(1);
+	await expect(page.locator('.save-card.active')).toContainText('emerald-revised.sav');
+});
