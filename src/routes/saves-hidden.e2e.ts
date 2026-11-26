@@ -12,7 +12,12 @@ async function pressController(page: Page, key: string) {
 		const dispatch = (pressed: boolean) =>
 			window.dispatchEvent(
 				new CustomEvent('pksxcontroller', {
-					detail: { key: controllerKey, pressed, discrete: true, id: 'Test controller' }
+					detail: {
+						key: controllerKey,
+						pressed,
+						discrete: !controllerKey.startsWith('Arrow'),
+						id: 'Test controller'
+					}
 				})
 			);
 		const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -97,11 +102,26 @@ test.describe('hidden Save Files', () => {
 		await expect(card).toHaveCount(0);
 		await page.getByRole('button', { name: 'Clear search', exact: true }).tap();
 		expect(await readArtifacts(page)).toEqual(before);
+		await page.getByRole('button', { name: 'Open Main Menu' }).tap();
+		await page
+			.getByRole('dialog', { name: 'Main Menu' })
+			.getByRole('button', { name: /^Boxes/ })
+			.tap();
+		await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
+			'data-initial-state',
+			'ready'
+		);
+		await expect(page.getByRole('button', { name: /Open Box Menu for emerald/ })).toBeVisible();
 
-		await reloadRoute(page);
+		await loadRoute(page, '/');
 		await expect(card).toHaveCount(0);
 		const show = page.getByRole('button', { name: 'Show hidden saves, 1 hidden' });
-		await show.tap();
+		await expect(grid).toBeFocused();
+		await pressController(page, 'ArrowUp');
+		await expect(page.getByRole('searchbox', { name: 'Search Saves' })).toBeFocused();
+		await pressController(page, 'ArrowRight');
+		await expect(show).toBeFocused();
+		await pressController(page, 'Enter');
 		const hidden = page.getByRole('dialog', { name: 'Hidden saves' });
 		await expect(
 			hidden.getByRole('button', { name: 'Unhide emerald-011020251345.sav' })
