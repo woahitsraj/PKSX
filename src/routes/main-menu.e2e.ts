@@ -691,7 +691,15 @@ test('controller B dismisses the Main Menu, follows destination history, and sta
 	await expect(menu).toBeHidden();
 	await expect(page).toHaveURL(/\/boxes$/);
 
-	await pressController(page, 'Escape');
+	await page.evaluate(() => {
+		for (const pressed of [true, false, true, false]) {
+			window.dispatchEvent(
+				new CustomEvent('pksxcontroller', {
+					detail: { key: 'Escape', pressed, discrete: true, id: 'Acceptance controller' }
+				})
+			);
+		}
+	});
 	await expect(page).toHaveURL(/\/settings$/);
 	await expect(darkTheme).toBeFocused();
 	await pressController(page, 'Escape');
@@ -700,6 +708,15 @@ test('controller B dismisses the Main Menu, follows destination history, and sta
 	await pressController(page, 'Escape');
 	await expect(page).toHaveURL(/\/$/);
 	await expectDestinationReady(page, 'saves');
+});
+
+test('controller B treats the legacy Pokemon Storage redirect as the start', async ({ page }) => {
+	await resetEmptyStorage(page);
+	await loadRoute(page, '/?source=pokemon-storage');
+	await expect(page).toHaveURL(/\/boxes$/);
+	await pressController(page, 'Escape');
+	await expect(page).toHaveURL(/\/boxes$/);
+	await expectBoxesReady(page);
 });
 
 test('Saves deletion workflow owns shortcuts, controller Back, and browser history', async ({
