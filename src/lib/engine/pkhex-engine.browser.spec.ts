@@ -1565,7 +1565,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('applies Save File Pokemon edits through the browser-wasm bundle', async () => {
-		expect.assertions(44);
+		expect.assertions(45);
 
 		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
