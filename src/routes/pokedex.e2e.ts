@@ -339,12 +339,7 @@ for (const [generation, file, flag, absent] of [
 		await page.setViewportSize(
 			generation === 4 ? { width: 640, height: 360 } : { width: 360, height: 640 }
 		);
-		await page.goto('/');
-		await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-			'data-initial-state',
-			'ready',
-			{ timeout: 60_000 }
-		);
+		await loadRoute(page, '/');
 		await page
 			.getByLabel('Import Save File')
 			.setInputFiles(path.resolve('test-fixtures/save-files', file));
