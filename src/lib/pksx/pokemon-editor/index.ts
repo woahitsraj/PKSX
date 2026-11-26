@@ -107,6 +107,7 @@ export type PokemonEditorDraftEdits = {
 	moveSet?: PokemonMoveSetEditPayload;
 	friendship?: PokemonFriendshipEditPayload;
 	battleFields?: PokemonBattleFieldEditPayload;
+	isShiny?: boolean;
 };
 
 export type PokemonEditorApplyOutcome =
@@ -786,7 +787,8 @@ const pokemonEditOperationBuilders = [
 	{ id: 'evs', build: buildEvEdit },
 	{ id: 'move-set', build: buildMoveSetEdit },
 	{ id: 'friendship', build: buildFriendshipEdit },
-	{ id: 'battle-fields', build: buildBattleFieldEdit }
+	{ id: 'battle-fields', build: buildBattleFieldEdit },
+	{ id: 'shiny', build: buildShinyEdit }
 ] satisfies { id: string; build: PokemonEditOperationBuilder }[];
 
 function buildSpeciesFormEdit(payload: unknown): PokemonEditPatchResult {
@@ -1020,6 +1022,19 @@ export function validateBattleFieldEdits(
 	}
 
 	return { ok: true, payload, label: 'Set battle fields' };
+}
+
+function buildShinyEdit(payload: unknown): PokemonEditPatchResult {
+	if (
+		typeof payload !== 'object' ||
+		payload === null ||
+		!('isShiny' in payload) ||
+		typeof payload.isShiny !== 'boolean'
+	) {
+		return invalidPokemonEdit('Shiny edit payload is invalid.');
+	}
+
+	return { ok: true, patch: { isShiny: payload.isShiny } };
 }
 
 function buildNicknameEdit(payload: unknown): PokemonEditPatchResult {

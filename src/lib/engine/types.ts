@@ -495,6 +495,7 @@ export type PokemonEditOperation = {
 	moves?: PokemonMoveSlotEdit[];
 	friendshipEdits?: PokemonFriendshipFieldEdit[];
 	teraType?: number;
+	isShiny?: boolean;
 };
 
 export type PokemonMetDataEdit = {

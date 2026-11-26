@@ -465,7 +465,8 @@ export function createMockEngine(
 					operation.ivs !== undefined ||
 					operation.evs !== undefined ||
 					operation.moves !== undefined ||
-					operation.friendshipEdits !== undefined,
+					operation.friendshipEdits !== undefined ||
+					operation.isShiny !== undefined,
 				workspace: {
 					summary: { ...mockSaveSummary, fileName },
 					partySlots: mockPartySlots,

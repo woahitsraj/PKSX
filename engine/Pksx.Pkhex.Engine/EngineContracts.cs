@@ -877,7 +877,8 @@ public sealed record PokemonEditOperationRequest(
     PokemonStatEditSet? Evs,
     List<PokemonMoveSlotEdit>? Moves,
     List<PokemonFriendshipFieldEdit>? FriendshipEdits,
-    int? TeraType);
+    int? TeraType,
+    bool? IsShiny = null);
 
 public sealed record PokemonStatEditSet(
     [property: JsonPropertyName("HP")] int HP,

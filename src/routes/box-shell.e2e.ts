@@ -6606,6 +6606,42 @@ test('Pokemon Editor stages, cancels, and applies an engine-projected Tera Type'
 	await expect(page.locator('.toolbar-status-strip')).toHaveCount(0);
 });
 
+test('Pokemon Editor makes a Pokemon shiny and updates its sprite and label', async ({ page }) => {
+	await openEmptySaves(page);
+	await importEmeraldThroughSaves(page);
+
+	await page.locator('#box-grid').focus();
+	await page.keyboard.press('Enter');
+	await page.getByRole('button', { name: 'Edit' }).click();
+
+	const editor = page.getByRole('dialog', { name: 'ARON' });
+	const shiny = editor.locator('#pokemon-editor-shiny');
+	const identity = editor.locator('.identity-line');
+	const nature = await editor.locator('#pokemon-editor-nature').getAttribute('data-combobox-value');
+	await expect(shiny).toHaveAttribute('aria-checked', 'false');
+	await expect(identity).not.toContainText('Shiny');
+
+	await shiny.focus();
+	await page.keyboard.press('Enter');
+	await expect(shiny).toHaveAttribute('aria-checked', 'true');
+	await page.keyboard.press('Enter');
+	await expect(shiny).toHaveAttribute('aria-checked', 'false');
+	await expect(editor.locator('#pokemon-editor-staged-count')).toHaveCount(0);
+	await shiny.click();
+	await expect(shiny).toHaveAttribute('aria-checked', 'true');
+	await expect(editor.locator('#pokemon-editor-staged-count')).toHaveText('1 staged');
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 60000 });
+
+	await expect(identity).toContainText('Shiny');
+	await expect(editor.locator('.editor-identity img')).toHaveAttribute('src', /-shiny\.png$/);
+	await expect(page.locator('#box-0-slot-0 img')).toHaveAttribute('src', /-shiny\.png$/);
+	await expect(editor.locator('#pokemon-editor-nature')).toHaveAttribute(
+		'data-combobox-value',
+		nature!
+	);
+});
+
 test('controller reaches and applies a Pokemon Editor change', async ({ page }) => {
 	await openEmptySaves(page);
 	await importEmeraldThroughSaves(page);
