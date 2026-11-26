@@ -2,13 +2,17 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { BoxSlotSummary, PartySlotSummary, SaveWorkspace } from '$lib/engine';
 import type { StoredSaveFile } from '$lib/pksx/saves';
 import { createCleanWorkspaceState } from '$lib/pksx/backup-workflow';
+import { getBoxesSession } from '$lib/pksx/boxes-session';
 import {
+	consumeActiveSaveAdoption,
+	getCachedActiveWorkspace,
 	getCachedSavesSnapshot,
 	getCachedActiveWorkspaceBox,
 	getActiveWorkspaceService,
 	invalidateActiveWorkspaceCache,
 	invalidateSavesCache,
 	isCachedSavesSnapshotSeeded,
+	projectCachedActiveWorkspace,
 	seedSavesSnapshotFromActiveWorkspace,
 	setCachedActiveWorkspace,
 	subscribeSavesSnapshot
@@ -226,5 +230,75 @@ describe('Saves cache', () => {
 
 		expect(seedSavesSnapshotFromActiveWorkspace([saveFile])).toBeNull();
 		expect(getCachedSavesSnapshot()).toBeNull();
+	});
+});
+
+describe('active Workspace Box', () => {
+	const otherSaveFile: StoredSaveFile = { ...saveFile, id: 'save-2' };
+	const stateAtBox = (box: number, file = saveFile) =>
+		createCleanWorkspaceState({
+			file,
+			bytes: new Uint8Array([1, 2, 3, 4]),
+			workspace: { ...workspace, boxSlots: [{ ...boxSlot, box }] }
+		});
+	const published = () => ({
+		box: getCachedActiveWorkspaceBox(),
+		slotBox: getCachedActiveWorkspace()?.workspace.boxSlots[0]?.box,
+		saveFileId: getCachedActiveWorkspace()?.file.id
+	});
+
+	afterEach(() => {
+		invalidateSavesCache();
+		invalidateActiveWorkspaceCache();
+	});
+
+	it('keeps Box 2 when the active Save File is renamed', () => {
+		setCachedActiveWorkspace(stateAtBox(1), 1);
+
+		const current = getCachedActiveWorkspace()!;
+		setCachedActiveWorkspace(
+			{ ...current, file: { ...current.file, displayName: 'Renamed' } },
+			getCachedActiveWorkspaceBox()
+		);
+
+		expect(published()).toEqual({ box: 1, slotBox: 1, saveFileId: saveFile.id });
+		expect(getCachedActiveWorkspace()?.file.displayName).toBe('Renamed');
+	});
+
+	it('opens Box 1 of the owner when a Backup is restored from Saves', () => {
+		setCachedActiveWorkspace(stateAtBox(1), 1);
+
+		const restored = stateAtBox(0, otherSaveFile);
+		getBoxesSession().selectPrimary(
+			{ type: 'save-file', id: otherSaveFile.id, label: 'Other' },
+			14
+		);
+		setCachedActiveWorkspace(restored, 0, { adoptAsActiveSave: true });
+
+		expect(published()).toEqual({ box: 0, slotBox: 0, saveFileId: otherSaveFile.id });
+		expect(consumeActiveSaveAdoption(otherSaveFile.id)).toBe(true);
+	});
+
+	it('keeps the open Box when a Backup is restored from Boxes', () => {
+		setCachedActiveWorkspace(stateAtBox(1), 1);
+
+		setCachedActiveWorkspace(
+			stateAtBox(getCachedActiveWorkspaceBox()),
+			getCachedActiveWorkspaceBox(),
+			{
+				adoptAsActiveSave: false
+			}
+		);
+
+		expect(published()).toEqual({ box: 1, slotBox: 1, saveFileId: saveFile.id });
+		expect(consumeActiveSaveAdoption(saveFile.id)).toBe(false);
+	});
+
+	it('follows a Box switch', () => {
+		setCachedActiveWorkspace(stateAtBox(0), 0);
+
+		projectCachedActiveWorkspace(stateAtBox(2), 2);
+
+		expect(published()).toEqual({ box: 2, slotBox: 2, saveFileId: saveFile.id });
 	});
 });
