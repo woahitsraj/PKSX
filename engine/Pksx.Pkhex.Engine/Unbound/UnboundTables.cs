@@ -8,14 +8,38 @@ internal static class UnboundTables
 {
     public static readonly UnboundSpecies[] Species = LoadSpecies();
     public static readonly IdTable Moves = new("moves");
-    public static readonly IdTable Items = new("items");
+    // Unbound-only items take ids above every PKHeX item id: this base plus the Unbound id.
+    public const int OwnItemBase = 10000;
+    public static readonly IdTable Items = new("items", OwnItemBase);
 
     private static readonly Dictionary<(ushort, byte), ushort> SpeciesByNational = Species
         .Where(s => s.National != 0)
         .GroupBy(s => (s.National, s.Form))
         .ToDictionary(g => g.Key, g => g.First().Id);
 
-    public static readonly ushort[] HeldItems = [.. Items.PkhexIds.Order()];
+    // Unbound-only key items and HMs cannot be held.
+    public static readonly ushort[] HeldItems = [.. Items.PkhexIds.Where(id => id < OwnItemBase || Items.Extra(id - OwnItemBase) == 0).Order()];
+
+    private static (IReadOnlyList<string> Pkhex, string[] Names) itemNames = ([], []);
+
+    // PKHeX's item names, plus the Unbound names of Unbound-only items.
+    public static IReadOnlyList<string> ItemNames(IReadOnlyList<string> pkhex)
+    {
+        if (!ReferenceEquals(itemNames.Pkhex, pkhex))
+        {
+            var names = new string[PK3Unbound.LastItem + 1];
+            Array.Fill(names, "");
+            for (var id = 0; id < pkhex.Count && id < OwnItemBase; id++)
+                names[id] = pkhex[id];
+            foreach (var (id, name) in Items.OwnNames)
+                names[id] = name;
+            itemNames = (pkhex, names);
+        }
+        return itemNames.Names;
+    }
+
+    // A held mail needs a message record that PKSX does not write.
+    public static bool IsMail(int item) => item - OwnItemBase is >= 121 and <= 132;
 
     public static UnboundSpecies GetSpecies(ushort id) => id < Species.Length ? Species[id] : Species[0];
 
@@ -61,8 +85,9 @@ internal sealed class IdTable
     private readonly Dictionary<int, int> toPkhex = [];
     private readonly Dictionary<int, int> fromPkhex = [];
     private readonly Dictionary<int, int> extra = [];
+    private readonly Dictionary<int, string> ownNames = [];
 
-    public IdTable(string name)
+    public IdTable(string name, int ownBase = 0)
     {
         foreach (var line in UnboundTables.ReadLines(name))
         {
@@ -70,7 +95,12 @@ internal sealed class IdTable
             var pkhex = int.Parse(line[1], CultureInfo.InvariantCulture);
             extra[id] = line.Length > 3 ? int.Parse(line[3], CultureInfo.InvariantCulture) : 0;
             if (pkhex == 0)
-                continue;
+            {
+                if (ownBase == 0 || line[2] == "unknown")
+                    continue;
+                pkhex = ownBase + id;
+                ownNames[pkhex] = line[2];
+            }
             toPkhex[id] = pkhex;
             fromPkhex.TryAdd(pkhex, id);
         }
@@ -78,6 +108,7 @@ internal sealed class IdTable
 
     public IEnumerable<ushort> PkhexIds => fromPkhex.Keys.Select(id => (ushort)id);
     public IEnumerable<int> MappedIds => toPkhex.Keys;
+    public IReadOnlyDictionary<int, string> OwnNames => ownNames;
 
     public bool HasPkhex(int id) => fromPkhex.ContainsKey(id);
 

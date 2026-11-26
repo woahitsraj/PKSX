@@ -460,6 +460,68 @@ describe('PKHeX Engine Save File coverage', () => {
 		expect(rawAfter).toHaveLength(rawBefore.length - 1);
 		expect(rawAfter).toEqual(rawBefore.filter((id) => rawAfter.includes(id)));
 	});
+
+	test('shows and edits Pokemon Unbound-only items', async () => {
+		const fileName = 'pokemon-unbound-2.1.1.1.sav';
+		const [engine, original] = await Promise.all([
+			createPkhexEngine(),
+			readFixture(`${raj}/gba/${fileName}`)
+		]);
+		const items = async (bytes: Uint8Array, pocket: string) => {
+			const loaded = await engine.loadSaveWorkspace(bytes, fileName, 0);
+			if (!loaded.ok) throw loaded.error;
+			const found = loaded.value.saveFile?.inventory.pockets.find((entry) => entry.key === pocket);
+			return new Map(found?.items.map((item) => [item.name, item]));
+		};
+
+		const before = await items(original, 'Items');
+		expect(before.get('Dream Mist')?.quantity).toBe(1);
+		expect(before.get('Link Stone')?.quantity).toBe(1);
+		expect((await items(original, 'KeyItems')).get('Motorcycle')?.quantity).toBe(1);
+
+		const hisuiRock = 10000 + 728;
+		const edited = await engine.applySaveFileEditOperation(
+			original,
+			fileName,
+			{
+				inventory: [
+					{ kind: 'set', pocket: 'Items', itemId: before.get('Dream Mist')!.id, quantity: 5 },
+					{ kind: 'remove', pocket: 'Items', itemId: before.get('Link Stone')!.id },
+					{ kind: 'add', pocket: 'Items', itemId: hisuiRock, quantity: 2 }
+				]
+			},
+			0
+		);
+		if (!edited.ok) throw edited.error;
+		const after = await items(edited.value.bytes, 'Items');
+		expect(after.get('Dream Mist')?.quantity).toBe(5);
+		expect(after.has('Link Stone')).toBe(false);
+		expect(after.get('Hisui Rock')?.quantity).toBe(2);
+		const raw = unboundItemIds(edited.value.bytes, unboundLiveSlot(edited.value.bytes));
+		expect(raw).toContain(89);
+		expect(raw).not.toContain(91);
+		expect(raw.at(-1)).toBe(728);
+
+		const source = { zone: 'box', box: 0, slot: 0 } as const;
+		const slot = await engine.loadSlotEditData(original, fileName, source);
+		if (!slot.ok) throw slot.error;
+		const options = slot.value.heldItemEditConstraints?.options ?? [];
+		expect(options.find((option) => option.name === 'Hisui Rock')).toMatchObject({
+			id: hisuiRock,
+			available: true
+		});
+		expect(options.find((option) => option.name === 'Orange Mail')?.available).toBe(false);
+		expect(options.some((option) => option.name === 'Motorcycle')).toBe(false);
+		const held = await engine.applyPokemonEditOperation(
+			original,
+			fileName,
+			{ source, heldItemId: hisuiRock },
+			0
+		);
+		if (!held.ok) throw held.error;
+		const reloaded = await engine.loadSlotEditData(held.value.bytes, fileName, source);
+		expect(reloaded.ok && reloaded.value.heldItem).toBe('Hisui Rock');
+	});
 });
 
 // Sectors 30 and 31 hold boxes 20 to 22 for both save slots.

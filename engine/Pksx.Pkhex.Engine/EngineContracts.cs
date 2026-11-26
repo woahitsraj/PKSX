@@ -619,7 +619,7 @@ public sealed record SaveFileEditableProjection(
         var moneySupported = SaveFileFieldSupport.IsOverridden(save, nameof(SaveFile.Money));
         var bag = save.Inventory;
         var inventorySupported = bag.Pouches.Count > 0;
-        var itemNames = GameInfo.Strings.GetItemStrings(save.Context, save.Version);
+        var itemNames = SlotDetailProjection.ItemNames(save.Context, save.Version, save is SAV3Unbound);
 
         return new SaveFileEditableProjection(
             new TrainerProfileProjection(
@@ -658,7 +658,7 @@ public sealed record SaveFileInventoryCatalogue(
         var bag = save.Inventory;
         if (bag.Pouches.Count == 0)
             return new SaveFileInventoryCatalogue(false, "Inventory editing is not supported for this Save File format.", []);
-        var itemNames = GameInfo.Strings.GetItemStrings(save.Context, save.Version);
+        var itemNames = SlotDetailProjection.ItemNames(save.Context, save.Version, save is SAV3Unbound);
 
         return new SaveFileInventoryCatalogue(
             true,
@@ -1130,10 +1130,16 @@ internal static class SlotDetailProjection
     public static string? Ability(PKM pokemon) =>
         pokemon.Species == 0 ? null : NameAt(GameInfo.Strings.Ability, pokemon.Ability);
 
+    internal static IReadOnlyList<string> ItemNames(EntityContext context, GameVersion version, bool unbound)
+    {
+        var names = GameInfo.Strings.GetItemStrings(context, version);
+        return unbound ? UnboundTables.ItemNames(names) : names;
+    }
+
     public static string? HeldItem(PKM pokemon) =>
         pokemon.Species == 0 || pokemon.HeldItem <= 0
             ? null
-            : NameAt(GameInfo.Strings.GetItemStrings(pokemon.Context, pokemon.Version), pokemon.HeldItem);
+            : NameAt(ItemNames(pokemon.Context, pokemon.Version, pokemon is PK3Unbound), pokemon.HeldItem);
 
     public static PokemonFriendshipEditConstraints FriendshipEditConstraints(PKM pokemon)
     {
@@ -1453,7 +1459,7 @@ internal static class SlotDetailProjection
         {
             new(0, "No item", true, null, null)
         };
-        var itemNames = GameInfo.Strings.GetItemStrings(pokemon.Context, pokemon.Version);
+        var itemNames = ItemNames(pokemon.Context, pokemon.Version, pokemon is PK3Unbound);
 
         foreach (var item in save.HeldItems)
         {
@@ -1656,7 +1662,7 @@ internal static class SlotDetailProjection
     }
 
     private static string? HeldItemUnavailableReason(PKM pokemon, ushort item, string name) =>
-        pokemon is PK3Unbound ? null
+        pokemon is PK3Unbound ? UnboundTables.IsMail(item) ? $"{name} needs a written message, which PKSX cannot add." : null
         : !ItemRestrictions.IsHeldItemAllowed(item, pokemon.Context) ? $"{name} is not supported for this Pokemon."
         : IsEnigmaBerryRejected(pokemon, item) ? $"{name} is not legal for this Pokemon in this Save File."
         : null;
