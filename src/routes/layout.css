@@ -285,8 +285,8 @@ html[data-input-modality='controller']
 	outline-offset: -3px !important;
 }
 
-/* Inline text links ring outside the text; an inset ring would cross the glyphs. */
-html[data-input-modality='controller'] body a:focus {
+/* Inline text links ring outside the text. [href] outranks the :is() inset rule above. */
+html[data-input-modality='controller'] body a[href]:focus {
 	outline-offset: 2px !important;
 }
 

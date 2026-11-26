@@ -1597,7 +1597,6 @@
 	}
 
 	.search-field input:focus {
-		border-color: var(--rust);
 		outline: var(--pksx-focus-ring) solid var(--rust-ring);
 		outline-offset: 0;
 		box-shadow: none;
