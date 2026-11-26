@@ -10,8 +10,9 @@
 		failed: Record<string, boolean>;
 		scanning: boolean;
 		busy: boolean;
-		onLink: () => void;
+		onLink?: () => void;
 		onImport: () => void;
+		onScanFolder?: () => void;
 		onScan: () => void;
 		onUnlink: (folder: FolderLink) => void;
 		onClose: () => void;
@@ -25,6 +26,7 @@
 		busy,
 		onLink,
 		onImport,
+		onScanFolder,
 		onScan,
 		onUnlink,
 		onClose
@@ -33,13 +35,28 @@
 	type Command = { id: string; label: string; detail?: string; mark?: string; run: () => void };
 	const commands = $derived<Command[]>([
 		{ id: 'file', label: 'Import file', mark: '+', run: onImport },
-		{
-			id: 'folder',
-			label: 'Link folder',
-			detail: "Pick an emulator's save folder, like Dolphin's GC",
-			mark: '⇄',
-			run: onLink
-		},
+		...(onScanFolder
+			? [
+					{
+						id: 'scan-folder',
+						label: 'Scan a folder',
+						detail: 'Import several saves at once',
+						mark: '⌕',
+						run: onScanFolder
+					}
+				]
+			: []),
+		...(onLink
+			? [
+					{
+						id: 'folder',
+						label: 'Link folder',
+						detail: "Pick an emulator's save folder, like Dolphin's GC",
+						mark: '⇄',
+						run: onLink
+					}
+				]
+			: []),
 		...(folders.length
 			? [{ id: 'scan', label: scanning ? 'Stop scan' : 'Scan again', run: onScan }]
 			: []),
@@ -57,7 +74,9 @@
 			run: () => onUnlink(folder)
 		}))
 	]);
-	const linkedCount = 2;
+	const linkedCount = $derived(
+		commands.findIndex((command) => command.id === 'scan' || command.id.startsWith('unlink-'))
+	);
 	const saveCount = (count: number) => `${count} ${count === 1 ? 'save' : 'saves'}`;
 	let index = $state(0);
 
