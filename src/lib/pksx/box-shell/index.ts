@@ -140,6 +140,7 @@ export function createSlotView(slot: PartySlotSummary | BoxSlotSummary): SlotVie
 		form: slot.form,
 		isEgg: slot.isEgg,
 		spriteIdentity: slot.spriteIdentity,
+		format: slot.format,
 		kind: 'pokemon',
 		...details
 	};

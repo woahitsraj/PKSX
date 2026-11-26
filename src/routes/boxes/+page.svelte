@@ -100,7 +100,7 @@
 		type SourcePickerCard,
 		type WorkbenchSlotRef
 	} from '$lib/pksx/storage-workbench';
-	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
+	import { resolvePokemonSpritePath } from '$lib/pksx/sprite-catalog';
 	import {
 		catalogLegacyView,
 		type PokemonStorageManifest
@@ -790,7 +790,10 @@
 	const sharedFocusedSlot = $derived(
 		activeVirtualLocation
 			? virtualFocusedRecord
-				? createSlotView({ ...virtualFocusedRecord.projection, entityBytesBase64: null })
+				? {
+						...createSlotView({ ...virtualFocusedRecord.projection, entityBytesBase64: null }),
+						spriteGame: virtualFocusedRecord.origin.originGame
+					}
 				: noSelectedSlot
 			: focusedSlot
 	);
@@ -798,7 +801,10 @@
 	const carriedSpriteUrl = $derived(carryState?.spriteUrl ?? null);
 	const virtualCarrySprite = $derived(
 		virtualCarryRecord
-			? resolveSpriteCatalogEntry(virtualCarryRecord.projection.spriteIdentity)
+			? resolvePokemonSpritePath(virtualCarryRecord.projection.spriteIdentity, {
+					game: virtualCarryRecord.origin.originGame,
+					format: virtualCarryRecord.projection.format ?? null
+				})
 			: null
 	);
 	const carriedAtFocus = $derived(
@@ -815,7 +821,7 @@
 							virtualCarryRecord.projection.speciesName ||
 							'Pokemon',
 						mode: virtualCarry.mode,
-						spriteUrl: virtualCarrySprite ? asset(virtualCarrySprite.path) : null
+						spriteUrl: virtualCarrySprite ? asset(virtualCarrySprite) : null
 					}
 				: null
 	);
@@ -4331,7 +4337,7 @@
 			source: workbenchSlotRefForSaveRef(sourcePaneId, source),
 			sourceOwner,
 			pokemonLabel: slot.label,
-			spriteUrl: spriteUrlFor(slot),
+			spriteUrl: spriteUrlFor(slot, sourceWorkspace?.workspace.summary.gameVersion ?? null),
 			sourceLabel: locationForSlotRef(source),
 			origin: {
 				entryMode: kind === 'copy' ? 'copied-in' : 'moved-in',
@@ -5124,6 +5130,8 @@
 			form: pokemon.form,
 			isEgg: pokemon.isEgg,
 			spriteIdentity: pokemon.spriteIdentity,
+			format: pokemon.format,
+			spriteGame: pokemon.origin.originGame,
 			kind: 'pokemon',
 			gender: pokemon.gender,
 			nature: pokemon.nature,
@@ -7880,9 +7888,15 @@
 		return slot ? createSlotView(slot) : null;
 	}
 
-	function spriteUrlFor(slot: SlotView): string | null {
-		const entry = resolveSpriteCatalogEntry(slot.spriteIdentity);
-		return entry ? asset(entry.path) : null;
+	function spriteUrlFor(
+		slot: SlotView,
+		game: string | null = saveSummary?.gameVersion ?? null
+	): string | null {
+		const path = resolvePokemonSpritePath(slot.spriteIdentity, {
+			game: slot.spriteGame !== undefined ? slot.spriteGame : game,
+			format: slot.format ?? null
+		});
+		return path ? asset(path) : null;
 	}
 
 	function getErrorMessage(error: unknown) {
@@ -8236,7 +8250,10 @@
 												style={slotStyle(slot, paneParty ? -1 : paneGridBox)}
 												rowIndex={position.row + 1}
 												colIndex={position.column + 1}
-												spriteUrl={spriteUrlFor(slot)}
+												spriteUrl={spriteUrlFor(
+													slot,
+													saveWorkspaceForPane(pane)?.state.workspace.summary.gameVersion ?? null
+												)}
 												carried={paneActive &&
 												activeSlotFocus?.zone === slotRef.zone &&
 												activeSlotFocus.slot === slot.slot

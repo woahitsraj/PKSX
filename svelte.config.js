@@ -7,7 +7,9 @@ const config = {
 		runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true)
 	},
 	kit: {
-		adapter: adapter({ fallback: 'native.html' })
+		adapter: adapter({ fallback: 'native.html' }),
+		// The service worker derives game sprite URLs from the compact game sprite catalog.
+		serviceWorker: { files: (file) => !file.startsWith('sprites/pokemon/game/') }
 	}
 };
 

@@ -43,6 +43,7 @@
 	} from '$lib/pksx/quick-search/host.svelte';
 	import { setRouteBackRegistrar } from '$lib/pksx/route-back-context.svelte';
 	import { theme } from '$lib/pksx/theme.svelte';
+	import { spriteStyle } from '$lib/pksx/sprite-style.svelte';
 	import { createToastHost, setToastHost } from '$lib/pksx/toast/host.svelte';
 	import {
 		createSummonedWorkflowHost,
@@ -219,6 +220,7 @@
 
 	onMount(() => {
 		theme.restore();
+		spriteStyle.restore();
 		window.addEventListener('keydown', handleRootKeydown, true);
 		const backListener = Capacitor.isNativePlatform()
 			? CapacitorApp.addListener('backButton', ({ canGoBack }) => handlePlatformBack(canGoBack))

@@ -3,13 +3,18 @@
 /// <reference lib="esnext" />
 /// <reference lib="webworker" />
 
-import { build, files, version } from '$service-worker';
+import { base, build, files, version } from '$service-worker';
+import { gameSpriteAssetPaths } from '$lib/pksx/sprite-catalog/game';
 
 const worker = self as unknown as ServiceWorkerGlobalScope;
 const cacheName = `pksx-${version}`;
 const cachePrefix = 'pksx-';
 const debugAssetPattern = /\.(map|symbols)$/;
-const assets = [...build, ...files.filter((file) => !isSkippedAsset(file))];
+const assets = [
+	...build,
+	...files.filter((file) => !isSkippedAsset(file)),
+	...gameSpriteAssetPaths().map((path) => base + path)
+];
 
 worker.addEventListener('install', (event) => {
 	event.waitUntil(

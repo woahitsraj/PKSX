@@ -162,6 +162,10 @@ _Avoid_: overwrite, replace
 The offline table that maps a Pokemon display identity to the images PKSX ships with, used in party, box, and Pokemon Storage views.
 _Avoid_: remote sprites, CDN images
 
+**Sprite Style**:
+A Preference that shows Pokemon as HOME artwork or as the front sprites of the game that a Pokemon belongs to.
+_Avoid_: sprite mode, art setting
+
 **Sprite Identity**:
 The display identity that the PKHeX Engine reports, used to find a Pokemon Entity in the Sprite Catalog.
 _Avoid_: nickname, slot position, UI state
@@ -657,6 +661,7 @@ _Avoid_: setting, option, config
 - A **Sprite Identity** may include a **Sex Difference** through **Display Sex** when that difference changes the displayed sprite.
 - A **Sprite Identity** describes visible Pokemon characteristics, not save format or current location.
 - A **Sprite Catalog** may or may not contain an asset for a **Sprite Identity**.
+- The **Sprite Style** chooses the art family. The game, the entity format, and the **Pokemon Origin** select a game family, but they never become part of the **Sprite Identity**.
 - A **Peer Transfer** sends **Pokemon Entities** or **Storage Boxes** between two devices running PKSX.
 - A **Pokemon Entity** received through **Peer Transfer** enters **Pokemon Storage** before it can be moved into a **Save File**.
 - A **Link Trade** sends one **Pokemon Entity** and receives one **Pokemon Entity** from a retail game through a **Trade Radio**.

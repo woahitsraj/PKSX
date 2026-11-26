@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PokemonRecord } from '$lib/pksx/pokemon-storage-catalog';
 	import { asset } from '$app/paths';
-	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
+	import { resolvePokemonSpritePath } from '$lib/pksx/sprite-catalog';
 	import { virtualRecordControlId } from './virtual-pokemon-grid-layout';
 
 	type Props = {
@@ -26,8 +26,11 @@
 		return () => observer.disconnect();
 	}
 	function spriteUrl(record: PokemonRecord) {
-		const entry = resolveSpriteCatalogEntry(record.projection.spriteIdentity);
-		return entry ? asset(entry.path) : null;
+		const path = resolvePokemonSpritePath(record.projection.spriteIdentity, {
+			game: record.origin.originGame,
+			format: record.projection.format ?? null
+		});
+		return path ? asset(path) : null;
 	}
 </script>
 

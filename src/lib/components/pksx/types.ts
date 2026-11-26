@@ -25,6 +25,9 @@ export type SlotView = {
 	form: number | null;
 	isEgg: boolean;
 	spriteIdentity: SpriteIdentity | null;
+	/** Entity format and, for Pokemon Storage, origin game used to pick game sprites. */
+	format?: number;
+	spriteGame?: string | null;
 	kind: 'pokemon' | 'empty';
 	gender?: string;
 	nature?: string;

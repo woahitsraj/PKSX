@@ -47,6 +47,8 @@ After rebasing onto main commit `e9a38b9d6f26d1fe9f481971ae373550cd7d991b`, veri
 
 A second production build changed the total by +82 raw bytes and -8 gzip bytes, with identical file counts. Engine, sprite, and worker sizes were identical. Generated service-worker version and content hashes cause small application/HTML differences.
 
+Issue 267 (Switch between HOME and game sprites) adds the Game sprite style. It ships 9,852 Generation 1 to 5 front sprites, 8,330,645 raw / 8,456,790 gzip bytes. The sprite group grows from 95,714,330 to 104,044,975 raw bytes and from 93,900,902 to 102,357,649 gzip bytes, across 13,535 files. The total grows to 135,348,618 raw / 111,268,020 gzip bytes. The sprite limits are now 110,000,000 raw / 108,000,000 gzip and the total limits 143,000,000 raw / 117,000,000 gzip, which keeps the 5% allowance rounded up to 1,000,000 bytes. Application code stays within its unchanged limits: game sprite paths are left out of the inlined SvelteKit service-worker file list, and the service worker derives them from the 40 KB compact game sprite catalog.
+
 ## Navigation work budgets
 
 The existing Emerald import journey now counts outgoing engine requests through the real browser worker, rather than counting only responses intercepted by its hold helper:
