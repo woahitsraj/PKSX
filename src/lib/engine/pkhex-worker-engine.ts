@@ -62,7 +62,7 @@ type WorkerEngineOptions = {
 let nextRequestId = 1;
 
 export function createPkhexWorkerEngine(
-	basePath = '/pkhex-engine',
+	basePath = __PKHEX_ENGINE_BASE_PATH__,
 	options: WorkerEngineOptions = {}
 ): EngineApi {
 	const worker = (options.createWorker ?? createDefaultWorker)();

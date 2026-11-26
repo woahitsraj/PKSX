@@ -9,7 +9,8 @@ import {
 	parseEngineWorkerRequest,
 	parseEngineWorkerResponse,
 	parseEngineWorkerStatusMessage,
-	pokemonActionPreviewSchema
+	pokemonActionPreviewSchema,
+	pokedexEditSchema
 } from './worker-protocol';
 import type { EngineWorkerGetVersionRequest } from './worker-protocol';
 
@@ -654,4 +655,26 @@ describe('pokemonActionPreviewSchema', () => {
 		});
 		expect(preview.actions[0]).toHaveProperty('applyAllToken', 'all-fixes:preview-token');
 	});
+});
+
+test('Pokedex edits require one complete action and reject mixed payloads', () => {
+	for (const edit of [
+		{ kind: 'seen', species: 1, seen: true },
+		{ kind: 'caught', species: 1, caught: false },
+		{ kind: 'field', field: 'national', value: 0 },
+		{ kind: 'all-seen' },
+		{ kind: 'all-caught' }
+	])
+		expect(pokedexEditSchema.safeParse(edit).success).toBe(true);
+	for (const edit of [
+		{},
+		{ seen: true },
+		{ kind: 'seen', species: 1 },
+		{ kind: 'field', field: 'national' },
+		{ kind: 'all-seen', species: 1 },
+		{ kind: 'all-caught', caught: true },
+		{ kind: 'all' },
+		{ kind: 'seen', species: 1, seen: true, field: 'national', value: 1 }
+	])
+		expect(pokedexEditSchema.safeParse(edit).success).toBe(false);
 });

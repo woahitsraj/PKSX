@@ -1,4 +1,5 @@
-import { cp, mkdir, rm, access } from 'node:fs/promises';
+import { cp, mkdir, rm, access, readdir, readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -183,9 +184,18 @@ async function syncAppBundle(configuration: string): Promise<void> {
 		'Published AppBundle is missing _framework/dotnet.js.'
 	);
 
+	// A service worker from an older deployment serves cached paths first, so each Engine gets its own path.
+	const hash = createHash('sha256');
+	for (const file of (await readdir(sourceAppBundle, { recursive: true })).sort()) {
+		const bytes = await readFile(path.join(sourceAppBundle, file)).catch(() => null);
+		if (bytes) hash.update(file.split(path.sep).join('/')).update(bytes);
+	}
+
 	await rm(staticEnginePath, { recursive: true, force: true });
-	await mkdir(path.dirname(staticEnginePath), { recursive: true });
-	await cp(sourceAppBundle, staticEnginePath, { recursive: true });
+	await mkdir(staticEnginePath, { recursive: true });
+	await cp(sourceAppBundle, path.join(staticEnginePath, hash.digest('hex').slice(0, 16)), {
+		recursive: true
+	});
 }
 
 async function ensureFile(filePath: string, message: string): Promise<void> {

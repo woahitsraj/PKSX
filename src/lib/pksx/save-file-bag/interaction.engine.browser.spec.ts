@@ -25,7 +25,7 @@ let host: HTMLElement;
 let mounted: ReturnType<typeof mount> | null = null;
 
 beforeAll(async () => {
-	engine = await createPkhexEngine('/pkhex-engine');
+	engine = await createPkhexEngine();
 }, 60_000);
 
 afterEach(async () => {

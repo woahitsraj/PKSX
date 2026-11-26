@@ -41,7 +41,7 @@ The worker should have an explicit initialization state:
 
 ## PWA And Capacitor
 
-For the browser/PWA target, the worker can load static engine assets from the same published `/pkhex-engine` path that the current main-thread adapter uses. Service worker caching should cache the engine assets as immutable versioned files once the sync/publish pipeline is formalized.
+For the browser/PWA target, `pnpm engine:sync` publishes the engine assets to `/pkhex-engine/<content-hash>/`, and Vite gives that path to the UI as `__PKHEX_ENGINE_BASE_PATH__`. The service worker serves cached paths first and stays active until the user applies an update. A fixed path would let it serve an old Engine to a new UI.
 
 For Capacitor, the worker should still load local packaged web assets rather than a server endpoint. The worker boundary remains useful because Capacitor WebViews still share a UI thread for rendering and input.
 

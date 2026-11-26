@@ -128,6 +128,7 @@ test('empty first run lands on Saves and exposes the amended selectable destinat
 		'Legality Report',
 		'Trainer',
 		'Bag',
+		'Pokedex',
 		'Saves',
 		'Settings',
 		'Backup Browser'
@@ -138,6 +139,7 @@ test('empty first run lands on Saves and exposes the amended selectable destinat
 	);
 	await expect(menu.getByRole('button', { name: /^Trainer/ })).toContainText('No active Save File');
 	await expect(menu.getByRole('button', { name: /^Bag/ })).toContainText('No active Save File');
+	await expect(menu.getByRole('button', { name: /^Pokedex/ })).toContainText('No active Save File');
 	await expect(menu.getByRole('button', { name: /^Backup Browser/ })).toContainText(
 		'No active Save File'
 	);

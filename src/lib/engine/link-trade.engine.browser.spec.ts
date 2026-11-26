@@ -13,7 +13,7 @@ const storedSize = 0x148;
 
 describe('Outgoing Link Trades through the browser-wasm bundle', () => {
 	test('offers a native Sword/Shield Pokemon as its exact encrypted party bytes', async () => {
-		const engine = await createPkhexEngine('/pkhex-engine');
+		const engine = await createPkhexEngine();
 		const slots = await loadSlots(engine, swordFixtureUrl, 'pokemon-sword-2025-03-24-main.sav');
 		const { source, offer } = await findOffer(
 			engine,
@@ -72,7 +72,7 @@ describe('Outgoing Link Trades through the browser-wasm bundle', () => {
 	});
 
 	test('converts a Scarlet Pokemon to a sendable PK8 without fixing legality', async () => {
-		const engine = await createPkhexEngine('/pkhex-engine');
+		const engine = await createPkhexEngine();
 		const slots = await loadSlots(engine, scarletFixtureUrl, 'pokemon-scarlet-2025-03-24-main.sav');
 
 		const { source, offer } = await findOffer(engine, slots, (offer) => offer.ready);
@@ -115,7 +115,7 @@ describe('Outgoing Link Trades through the browser-wasm bundle', () => {
 	});
 
 	test('rejects a Pokemon that PKHeX cannot convert to PK8', async () => {
-		const engine = await createPkhexEngine('/pkhex-engine');
+		const engine = await createPkhexEngine();
 		const slots = await loadSlots(
 			engine,
 			letsGoEeveeFixtureUrl,
@@ -136,7 +136,7 @@ describe('Outgoing Link Trades through the browser-wasm bundle', () => {
 	});
 
 	test('treats a same-generation Legends: Arceus Pokemon as a conversion, not a native offer', async () => {
-		const engine = await createPkhexEngine('/pkhex-engine');
+		const engine = await createPkhexEngine();
 		const slots = await loadSlots(
 			engine,
 			legendsArceusFixtureUrl,
@@ -166,7 +166,7 @@ describe('Outgoing Link Trades through the browser-wasm bundle', () => {
 	});
 
 	test('keeps malformed received bytes as an unparseable result', async () => {
-		const engine = await createPkhexEngine('/pkhex-engine');
+		const engine = await createPkhexEngine();
 		for (const received of [new Uint8Array(partySize).fill(0x5a), new Uint8Array(12)]) {
 			const parsed = await engine.readLinkTradePartnerPokemon(received, 'sword');
 			expect(parsed.ok && parsed.value).toMatchObject({

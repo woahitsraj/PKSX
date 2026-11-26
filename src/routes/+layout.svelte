@@ -30,7 +30,7 @@
 		type DestinationFocus
 	} from '$lib/pksx/destination-focus';
 	import { setDestinationFocusIdentityGetter } from '$lib/pksx/destination-focus-context.svelte';
-	import { getSavesStorage } from '$lib/pksx/saves-cache';
+	import { getSavesStorage, getCachedActiveWorkspace, getPkhexEngine } from '$lib/pksx/saves-cache';
 	import {
 		createSaveFileLegalityReportHost,
 		setSaveFileLegalityReportHost
@@ -82,10 +82,18 @@
 	let platformHistoryDepth = 0;
 	let replaceNextRouteHistory = false;
 	let hasActiveSaveFile = $state(false);
+	let pokedexReason = $state<string | null>(null);
 	let quickSearchSaveFile = $state<QuickSearchSaveFile | null>(null);
 	let activeSaveAvailabilityRequest = 0;
 	let routeTransitionRequest = 0;
-	const destinationOrder: Destination[] = ['saves', 'boxes', 'trainer', 'bag', 'settings'];
+	const destinationOrder: Destination[] = [
+		'saves',
+		'boxes',
+		'trainer',
+		'bag',
+		'pokedex',
+		'settings'
+	];
 	const activeRoute = $derived<Destination>(destinationForPathname(page.url.pathname));
 	const mainMenuOpen = $derived(summonedWorkflow.active?.kind === 'main-menu');
 	const quickSearchOpen = $derived(summonedWorkflow.active?.kind === 'quick-search');
@@ -112,6 +120,13 @@
 				description: hasActiveSaveFile
 					? 'Edit the active Save File Bag.'
 					: 'No active Save File. Open Bag to see how to continue.'
+			},
+			{
+				key: 'pokedex',
+				label: 'Pokedex',
+				description: hasActiveSaveFile
+					? (pokedexReason ?? 'Search and edit the active Save File Pokedex.')
+					: 'No active Save File. Open Pokedex to see how to continue.'
 			},
 			{ key: 'saves', label: 'Saves', description: 'Import and choose Save Files.' },
 			{ key: 'settings', label: 'Settings', description: 'Theme, controls, and build details.' },
@@ -232,8 +247,27 @@
 	async function refreshActiveSaveFileAvailability(request: number) {
 		try {
 			const activeSaveFileId = await storage.getActiveSaveFileId();
-			const available = Boolean(activeSaveFileId && (await storage.getSave(activeSaveFileId)));
-			if (request === activeSaveAvailabilityRequest) hasActiveSaveFile = available;
+			const saveFile = activeSaveFileId ? await storage.getSave(activeSaveFileId) : null;
+			if (request !== activeSaveAvailabilityRequest) return;
+			hasActiveSaveFile = Boolean(saveFile);
+			pokedexReason = null;
+			if (!saveFile) return;
+			const cached = getCachedActiveWorkspace();
+			if (cached?.file.id === saveFile.id) {
+				pokedexReason = cached.workspace.saveFile?.pokedex?.reason ?? null;
+				return;
+			}
+			const persisted = await storage.getWorkspace(saveFile.id);
+			const bytes = persisted?.bytes ?? (await storage.getSaveBytes(saveFile.id));
+			if (!bytes || request !== activeSaveAvailabilityRequest) return;
+			const result = await getPkhexEngine().loadSaveWorkspace(
+				bytes,
+				saveFile.originalFileName ?? undefined,
+				0,
+				{ background: true }
+			);
+			if (request === activeSaveAvailabilityRequest && result.ok)
+				pokedexReason = result.value.saveFile?.pokedex?.reason ?? null;
 		} catch {
 			if (request === activeSaveAvailabilityRequest) {
 				hasActiveSaveFile = appChrome.hasLoadedSave;
@@ -364,6 +398,8 @@
 				return resolve('/boxes');
 			case 'trainer':
 				return resolve('/trainer');
+			case 'pokedex':
+				return resolve('/pokedex');
 			case 'bag':
 				return resolve('/bag');
 			case 'saves':
@@ -376,6 +412,7 @@
 	function destinationForPathname(pathname: string): Destination {
 		if (!pathname || pathname === '/' || pathname.startsWith('/saves')) return 'saves';
 		if (pathname.startsWith('/trainer') || pathname.startsWith('/save-file')) return 'trainer';
+		if (pathname.startsWith('/pokedex')) return 'pokedex';
 		if (pathname.startsWith('/bag')) return 'bag';
 		if (pathname.startsWith('/settings')) return 'settings';
 		return 'boxes';

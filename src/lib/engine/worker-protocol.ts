@@ -107,7 +107,34 @@ export const itemSpriteIdentitySchema = z.object({
 	gameVersionId: z.number().int()
 });
 
+export const pokedexProjectionSchema = z.object({
+	status: z.enum(['available', 'unavailable']),
+	reason: z.string().nullable(),
+	species: z.array(
+		z.object({ id: z.number().int(), name: z.string(), seen: z.boolean(), caught: z.boolean() })
+	),
+	fields: z.array(
+		z.object({
+			key: z.string(),
+			label: z.string(),
+			value: z.number().int(),
+			min: z.number().int(),
+			max: z.number().int(),
+			species: z.number().int().nullable()
+		})
+	)
+});
+
+export const pokedexEditSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('seen'), species: z.number().int(), seen: z.boolean() }),
+	z.strictObject({ kind: z.literal('caught'), species: z.number().int(), caught: z.boolean() }),
+	z.strictObject({ kind: z.literal('field'), field: z.string(), value: z.number().int() }),
+	z.strictObject({ kind: z.literal('all-seen') }),
+	z.strictObject({ kind: z.literal('all-caught') })
+]);
+
 export const saveFileEditableProjectionSchema = z.object({
+	pokedex: pokedexProjectionSchema.optional(),
 	trainerProfile: z.object({
 		trainerName: z.string().nullable(),
 		trainerNameSupported: z.boolean(),
@@ -623,6 +650,7 @@ export const pokemonSpeciesFormEditProjectionSchema = z.object({
 });
 
 export const saveFileEditOperationSchema = z.object({
+	pokedex: pokedexEditSchema.optional(),
 	boxName: z
 		.object({
 			box: z.number().int(),

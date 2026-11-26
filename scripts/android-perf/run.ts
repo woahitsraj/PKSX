@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { connect, sleep, stats, type Cdp } from './cdp.ts';
+import { pkhexEngineBasePath } from '../pkhex-engine-path.ts';
 
 type Window = {
 	worker?: { m: string; box?: number; wait: number | null }[];
@@ -403,7 +404,7 @@ const scenarios: Record<string, () => Promise<void>> = {
 		await cdp.run(`
 			window.__bench = new Worker(P.workerUrl, P.workerOptions);
 			const ready = new Promise((r) => __bench.addEventListener('message', (e) => e.data?.status === 'ready' && r()));
-			__bench.postMessage({ type: 'init', basePath: '/pkhex-engine' });
+			__bench.postMessage({ type: 'init', basePath: '${pkhexEngineBasePath('static')}' });
 			await ready;`);
 		await sleep(300);
 		const session = workers[existing];

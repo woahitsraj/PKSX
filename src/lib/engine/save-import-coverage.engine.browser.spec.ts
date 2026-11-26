@@ -109,10 +109,7 @@ const nativeCryptographyExports = [
 describe('PKHeX Engine Save File coverage', () => {
 	test.each(saves)('imports and re-exports %s', async (path, saveType, gameVersion) => {
 		const fileName = path.split('/').at(-1)!;
-		const [engine, bytes] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
-			readFixture(path)
-		]);
+		const [engine, bytes] = await Promise.all([createPkhexEngine(), readFixture(path)]);
 
 		const summary = await engine.summarizeSave(bytes, fileName);
 		expect(summary.ok, JSON.stringify(summary.error)).toBe(true);
@@ -140,10 +137,7 @@ describe('PKHeX Engine Save File coverage', () => {
 		'exports %s with the same bytes as native PKHeX',
 		async (path, digest) => {
 			const fileName = path.split('/').at(-1)!;
-			const [engine, bytes] = await Promise.all([
-				createPkhexEngine('/pkhex-engine'),
-				readFixture(path)
-			]);
+			const [engine, bytes] = await Promise.all([createPkhexEngine(), readFixture(path)]);
 
 			const exported = await engine.serializeSave(bytes, fileName);
 			expect(exported.ok, JSON.stringify(exported.error)).toBe(true);
@@ -156,10 +150,7 @@ describe('PKHeX Engine Save File coverage', () => {
 		'keeps an edit to %s after export and import',
 		async (path) => {
 			const fileName = path.split('/').at(-1)!;
-			const [engine, bytes] = await Promise.all([
-				createPkhexEngine('/pkhex-engine'),
-				readFixture(path)
-			]);
+			const [engine, bytes] = await Promise.all([createPkhexEngine(), readFixture(path)]);
 
 			const edited = await engine.applySaveFileEditOperation(
 				bytes,
@@ -189,7 +180,7 @@ describe('PKHeX Engine Save File coverage', () => {
 	test('reads the party and all 25 boxes of a Pokemon Unbound Save File', async () => {
 		const fileName = 'pokemon-unbound-2.1.1.1.sav';
 		const [engine, bytes] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			readFixture(`${raj}/gba/${fileName}`)
 		]);
 
@@ -239,7 +230,7 @@ describe('PKHeX Engine Save File coverage', () => {
 	test('reads the intact older slot when the newer Pokemon Unbound slot is damaged', async () => {
 		const fileName = 'pokemon-unbound-2.1.1.1.sav';
 		const [engine, damaged] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			readFixture(`${raj}/gba/${fileName}`)
 		]);
 		const counter = (slot: number) => new DataView(damaged.buffer).getUint32(slot + 0xffc, true);
@@ -256,7 +247,7 @@ describe('PKHeX Engine Save File coverage', () => {
 	test('moves, copies and clears Pokemon Unbound slots with valid checksums', async () => {
 		const fileName = 'pokemon-unbound-2.1.1.1.sav';
 		const [engine, original] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			readFixture(`${raj}/gba/${fileName}`)
 		]);
 		let bytes: Uint8Array = original;
@@ -313,7 +304,7 @@ describe('PKHeX Engine Save File coverage', () => {
 	test('edits only the intact older slot when the newer Pokemon Unbound slot is damaged', async () => {
 		const fileName = 'pokemon-unbound-2.1.1.1.sav';
 		const [engine, original] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			readFixture(`${raj}/gba/${fileName}`)
 		]);
 		const damaged = original.slice();
@@ -336,7 +327,7 @@ describe('PKHeX Engine Save File coverage', () => {
 	test('edits a Pokemon Unbound Pokemon without changing its gender or shininess', async () => {
 		const fileName = 'pokemon-unbound-2.1.1.1.sav';
 		const [engine, original] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			readFixture(`${raj}/gba/${fileName}`)
 		]);
 		const source = { zone: 'box', box: 0, slot: 0 } as const;
@@ -404,7 +395,7 @@ describe('PKHeX Engine Save File coverage', () => {
 	test('reads and edits the Pokemon Unbound bag', async () => {
 		const fileName = 'pokemon-unbound-2.1.1.1.sav';
 		const [engine, original] = await Promise.all([
-			createPkhexEngine('/pkhex-engine'),
+			createPkhexEngine(),
 			readFixture(`${raj}/gba/${fileName}`)
 		]);
 		const pockets = async (bytes: Uint8Array) => {

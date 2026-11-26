@@ -16,7 +16,7 @@ afterEach(async () => {
 async function setup() {
 	const name = `batch-${crypto.randomUUID()}`;
 	names.push(name);
-	const engine = await createPkhexEngine('/pkhex-engine');
+	const engine = await createPkhexEngine();
 	const bytes = new Uint8Array(await (await fetch(fixtureUrl)).arrayBuffer());
 	const loaded = await engine.loadSaveWorkspace(bytes, 'emerald.sav', 0);
 	if (!loaded.ok) throw loaded.error;

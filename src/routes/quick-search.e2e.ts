@@ -43,6 +43,7 @@ async function openSearchFromMainMenu(page: Page) {
 		'Legality Report',
 		'Trainer',
 		'Bag',
+		'Pokedex',
 		'Saves',
 		'Settings',
 		'Backup Browser'
