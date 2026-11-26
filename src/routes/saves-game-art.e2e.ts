@@ -121,5 +121,7 @@ test('cover art loads on an offline start', async ({ page, context }) => {
 	await page.reload();
 	await expect(page.locator('.save-card')).toHaveCount(3, { timeout: 60_000 });
 	await expectCoverLoaded(page.locator('.save-card').filter({ hasText: moonSaves[0] }));
+	// No card showed this cover, so only the service worker precache can serve it.
+	expect(await page.evaluate(async () => (await fetch('/game-art/emerald.webp')).ok)).toBe(true);
 	await context.setOffline(false);
 });

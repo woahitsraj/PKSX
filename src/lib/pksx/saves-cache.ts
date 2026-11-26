@@ -183,7 +183,7 @@ async function loadSavesSnapshot(generation: number): Promise<SavesSnapshot> {
 				saveFile.id,
 				detailsCache.get(saveFile.id)?.fingerprint === createSaveFileFingerprint(saveFile)
 					? detailsCache.get(saveFile.id)!.state
-					: { status: 'loading', gameVersion: stored[saveFile.id]?.details.summary.gameVersion }
+					: loadingCardDetails(saveFile.id)
 			])
 		)
 	};
@@ -287,7 +287,7 @@ export function seedSavesSnapshotFromActiveWorkspace(saveFiles: StoredSaveFile[]
 		activeSaveFileId: workspace.file.id,
 		saveFiles: nextSaveFiles,
 		detailsBySaveFileId: Object.fromEntries(
-			nextSaveFiles.map((saveFile) => [saveFile.id, { status: 'loading' }])
+			nextSaveFiles.map((saveFile) => [saveFile.id, loadingCardDetails(saveFile.id)])
 		)
 	};
 
@@ -334,6 +334,13 @@ export async function loadWorkspaceForOpening(saveFileId: SaveFileId) {
 	}
 	const state = await service.load(saveFileId, 0);
 	return state ? { state, published: false } : null;
+}
+
+function loadingCardDetails(saveFileId: SaveFileId): SaveCardDetailsState {
+	return {
+		status: 'loading',
+		gameVersion: readStoredCardDetails()[saveFileId]?.details.summary.gameVersion
+	};
 }
 
 function supersedeSaveCardDetails(saveFileId: SaveFileId) {
@@ -401,9 +408,11 @@ function mergeWorkspaceIntoSnapshot(snapshot: SavesSnapshot, workspace: Workspac
 		activeSaveFileId: workspace.file.id,
 		saveFiles,
 		detailsBySaveFileId: {
-			...Object.fromEntries(saveFiles.map((saveFile) => [saveFile.id, { status: 'loading' }])),
+			...Object.fromEntries(
+				saveFiles.map((saveFile) => [saveFile.id, loadingCardDetails(saveFile.id)])
+			),
 			...snapshot.detailsBySaveFileId,
-			[workspace.file.id]: { status: 'loading' }
+			[workspace.file.id]: loadingCardDetails(workspace.file.id)
 		}
 	} satisfies SavesSnapshot;
 }

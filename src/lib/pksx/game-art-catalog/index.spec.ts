@@ -19,6 +19,19 @@ describe('resolveGameArt', () => {
 		expect(resolveGameArt('SV')).toEqual({ platform: 'switch', covers: [] });
 	});
 
+	it('knows every game version the engine reports for the committed fixtures', () => {
+		const withCover =
+			'RB YW GS C RS E FR COLO XD RSBOX DP Pt HG SS BATREV B W B2 W2 X Y OR AS SN MN US UM';
+		const withoutCover = ['GP', 'GE', 'SW', 'SH', 'BD', 'SP', 'PLA', 'SL', 'VL', 'ZA'];
+		for (const version of withCover.split(' ')) {
+			expect(resolveGameArt(version).covers.length, version).toBeGreaterThan(0);
+		}
+		for (const version of [...withoutCover, 'Pokémon Unbound']) {
+			expect(resolveGameArt(version), version).toMatchObject({ covers: [] });
+			expect(resolveGameArt(version).platform, version).not.toBeNull();
+		}
+	});
+
 	it('falls back for an unknown or absent game', () => {
 		expect(resolveGameArt('NotAGame')).toEqual({ platform: null, covers: [] });
 		expect(resolveGameArt(null)).toEqual({ platform: null, covers: [] });
