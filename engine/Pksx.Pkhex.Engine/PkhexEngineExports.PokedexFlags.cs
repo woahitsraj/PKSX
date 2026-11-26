@@ -35,6 +35,9 @@ internal static class PokedexFlags
                 break;
             case SAV5:
                 break;
+            case SAV8BS bdsp:
+                BrilliantDiamondShiningPearlPokedex.SetSeen(bdsp, species, seen);
+                break;
             default:
                 save.SetSeen(species, seen);
                 break;
@@ -45,6 +48,7 @@ internal static class PokedexFlags
     {
         if (save is SAV4 s4) s4.Dex.SetCaught(species, caught);
         else if (save is SAV5 s5) s5.Zukan.SetCaught(species, caught);
+        else if (save is SAV8BS bdsp) BrilliantDiamondShiningPearlPokedex.SetCaught(bdsp, species, caught);
         else save.SetCaught(species, caught);
     }
 
@@ -52,6 +56,7 @@ internal static class PokedexFlags
     {
         SAV4 s4 => Gen4(s4, species),
         SAV5 s5 => Gen5(s5, species),
+        SAV8BS bdsp => BrilliantDiamondShiningPearlPokedex.Flags(bdsp, species),
         _ => [],
     };
 
