@@ -54,7 +54,7 @@ The existing Emerald import journey now counts outgoing engine requests through 
 - Twenty alternating Controller Focus moves must update the selected Slot with zero engine requests.
 - Five rapid Next Box presses, with an engine response held to model a slow device, must finish on Box 06 with one or two `listBoxSlots` requests and no `loadSaveWorkspace` request.
 
-The baseline and three repeated production-browser runs each measured zero focus requests and one Box load. The two-load limit is the accepted coalescing allowance in [Android performance testing](android-performance.md). The test controls response delivery and verifies final UI state, without a millisecond performance threshold or fixed post-operation sleep. Playwright timeouts only detect a stuck journey. Its JSON attachment and console output expose the measured work counts. This does not benchmark engine parsing speed or replace the documented Retroid device p90 latency measurements.
+The baseline and three repeated production-browser runs each measured zero focus requests and one Box load. The two-load limit is the accepted coalescing allowance in [Android performance testing](android-performance.md). The test controls response delivery and verifies final UI state, without a millisecond performance threshold or fixed post-operation sleep. Playwright timeouts only detect a stuck journey. Its JSON attachment and console output expose the measured work counts. This does not benchmark engine parsing speed or replace the documented Retroid device p90 latency measurements. For wall-clock numbers on a PR that changes Box switching, run the [Box-switch benchmark](box-switch-benchmark.md).
 
 ## Review and update
 
