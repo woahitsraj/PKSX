@@ -38,12 +38,12 @@ work=$(mktemp -d)
 cp "$model/LinkedSaveExport.tla" "$work/"
 ALL="TypeOK PendingKeepsSaveFile PendingKeepsBackup NoWriteWithoutBackup NoDuplicateSaveFile SourceStaysUsable"
 
-# check NAME EXPECTED SAVE_GUARD BACKUP_GUARD SOURCE_CAN_VANISH RULE...
+# check NAME EXPECTED SAVE_GUARD BACKUP_GUARD SOURCE_CAN_VANISH DELETE_RACES_EXPORT RULE...
 check() {
-  name=$1 expected=$2 save_guard=$3 backup_guard=$4 vanish=$5
-  shift 5
+  name=$1 expected=$2 save_guard=$3 backup_guard=$4 vanish=$5 race=$6
+  shift 6
   {
-    echo "CONSTANTS GuardDeleteSave = $save_guard GuardDeleteBackup = $backup_guard SourceCanVanish = $vanish"
+    echo "CONSTANTS GuardDeleteSave = $save_guard GuardDeleteBackup = $backup_guard SourceCanVanish = $vanish DeleteRacesExport = $race"
     echo "CONSTANTS MaxSaves = 2 MaxLiveBackups = 2 MaxExports = 3"
     echo "INIT Init"
     echo "NEXT Next"
@@ -71,10 +71,11 @@ check() {
   fi
 }
 
-check guarded holds TRUE TRUE FALSE $ALL
-check reaches-pending-recovery breaks TRUE TRUE FALSE NeverPending
-check source-can-vanish breaks TRUE TRUE TRUE PendingKeepsSaveFile
-check without-delete-save-guard breaks FALSE TRUE FALSE PendingKeepsSaveFile
-check without-delete-save-guard-symptom breaks FALSE TRUE FALSE SourceStaysUsable
-check without-delete-backup-guard breaks TRUE FALSE FALSE PendingKeepsBackup
+check guarded holds TRUE TRUE FALSE FALSE $ALL
+check reaches-pending-recovery breaks TRUE TRUE FALSE FALSE NeverPending
+check source-can-vanish breaks TRUE TRUE TRUE FALSE PendingKeepsSaveFile
+check delete-races-export breaks TRUE TRUE FALSE TRUE NoWriteWithoutBackup
+check without-delete-save-guard breaks FALSE TRUE FALSE FALSE PendingKeepsSaveFile
+check without-delete-save-guard-symptom breaks FALSE TRUE FALSE FALSE SourceStaysUsable
+check without-delete-backup-guard breaks TRUE FALSE FALSE FALSE PendingKeepsBackup
 exit $status

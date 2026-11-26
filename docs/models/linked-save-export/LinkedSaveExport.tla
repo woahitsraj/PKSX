@@ -7,6 +7,7 @@ CONSTANTS
     GuardDeleteSave,    \* SavesGrid.confirmDelete checks recoveryBackupId
     GuardDeleteBackup,  \* BackupBrowser.deleteBackup checks recoveryBackupId
     SourceCanVanish,    \* the folder can be unlinked or the file moved, then come back
+    DeleteRacesExport,  \* a delete can commit while an Export or recovery runs
     MaxSaves,           \* Save Files created in one run
     MaxLiveBackups,     \* Backups that exist at one time
     MaxExports          \* Export and recovery attempts in one run
@@ -23,15 +24,17 @@ VARIABLES
     op,           \* the Export or recovery that runs now
     scan,         \* the rescan that runs now
     exports,
+    deleting,     \* a delete whose guard passed and that has not committed
     readable,     \* the plugin can read the emulator file
     unsafeWrite   \* ghost: the emulator file was opened for write without the Backup
 
 vars == <<ext, imported, nextSave, backups, nextBackup, owner, baseline, pending,
-          op, scan, exports, readable, unsafeWrite>>
+          op, scan, deleting, exports, readable, unsafeWrite>>
 
 Valid == {"a", "b", "c"}   \* bytes that the engine accepts; a hash is the bytes
 Torn == "torn"             \* a truncated or partly written file
 Content == Valid \cup {Torn}
+NoDelete == [kind |-> "none", id |-> 0]
 Idle == [step |-> "idle", save |-> 0, bytes |-> "a", expected |-> "a",
          backup |-> 0, recover |-> FALSE]
 
@@ -49,6 +52,7 @@ TypeOK ==
     /\ pending \subseteq Pending /\ Cardinality(pending) <= 1
     /\ op.step \in {"idle", "backup", "write", "truncate", "writing", "verify"}
     /\ scan \in {"idle", "missing"}
+    /\ deleting \in [kind : {"none", "save", "backup"}, id : Nat]
     /\ readable \in BOOLEAN
     /\ unsafeWrite \in BOOLEAN
 
@@ -59,7 +63,7 @@ Init ==
     /\ backups = [b \in {} |-> 0]
     /\ nextBackup = 1
     /\ owner = 0 /\ baseline = "none" /\ pending = {}
-    /\ op = Idle /\ scan = "idle"
+    /\ op = Idle /\ scan = "idle" /\ deleting = NoDelete
     /\ exports = 0 /\ readable = TRUE /\ unsafeWrite = FALSE
 
 \* ---- LinkedSavesPlugin.inspect for Save File s ----
@@ -80,7 +84,7 @@ Storage == <<imported, nextSave, backups, nextBackup, readable>>
 RescanSnapshot ==
     /\ scan = "idle" /\ saves = {}
     /\ scan' = "missing"
-    /\ UNCHANGED <<ext, Storage, Journal, op, exports, unsafeWrite>>
+    /\ UNCHANGED <<ext, Storage, Journal, op, deleting, exports, unsafeWrite>>
 
 \* importSave returns the existing Save File when one has this linkedDocumentId.
 RescanImport ==
@@ -90,19 +94,19 @@ RescanImport ==
        THEN /\ imported' = [s \in {nextSave} |-> ext]
             /\ nextSave' = nextSave + 1
        ELSE UNCHANGED <<imported, nextSave>>
-    /\ UNCHANGED <<ext, backups, nextBackup, readable, Journal, op, exports, unsafeWrite>>
+    /\ UNCHANGED <<ext, backups, nextBackup, readable, Journal, op, deleting, exports, unsafeWrite>>
 
 \* checkSources after a scan, and each guard, call observe.
 Observe(s) ==
     /\ op = Idle /\ s \in saves /\ ~Rejected(s)
     /\ Inspect(s)
-    /\ UNCHANGED <<ext, Storage, op, scan, exports, unsafeWrite>>
+    /\ UNCHANGED <<ext, Storage, op, scan, deleting, exports, unsafeWrite>>
 
 LoadExternal(s) ==
     /\ op = Idle /\ readable /\ s \in saves /\ ~Rejected(s)
     /\ InsPending(s) = {} /\ ext \in Valid
     /\ owner' = s /\ baseline' = ext /\ pending' = {}
-    /\ UNCHANGED <<ext, Storage, op, scan, exports, unsafeWrite>>
+    /\ UNCHANGED <<ext, Storage, op, scan, deleting, exports, unsafeWrite>>
 
 \* ---- Export ----
 ExportStart(s, v) ==
@@ -116,7 +120,7 @@ ExportStart(s, v) ==
             /\ baseline' = InsBaseline(s)
             /\ op' = [step |-> "backup", save |-> s, bytes |-> v, expected |-> ext,
                       backup |-> 0, recover |-> FALSE]
-    /\ UNCHANGED <<ext, Storage, scan, unsafeWrite>>
+    /\ UNCHANGED <<ext, Storage, scan, deleting, unsafeWrite>>
 
 RecoverStart(s) ==
     /\ op = Idle /\ s \in saves /\ ~Rejected(s) /\ exports < MaxExports
@@ -128,7 +132,7 @@ RecoverStart(s) ==
                   expected |-> ext, backup |-> 0, recover |-> TRUE]
     /\ Inspect(s)
     /\ exports' = exports + 1
-    /\ UNCHANGED <<ext, Storage, scan, unsafeWrite>>
+    /\ UNCHANGED <<ext, Storage, scan, deleting, unsafeWrite>>
 
 \* storage.createBackup with the emulator bytes that inspect returned.
 ExportBackup ==
@@ -139,7 +143,7 @@ ExportBackup ==
                      ELSE backups[b]]
     /\ nextBackup' = nextBackup + 1
     /\ op' = [op EXCEPT !.step = "write", !.backup = nextBackup]
-    /\ UNCHANGED <<ext, imported, nextSave, readable, Journal, scan, exports, unsafeWrite>>
+    /\ UNCHANGED <<ext, imported, nextSave, readable, Journal, scan, deleting, exports, unsafeWrite>>
 
 \* LinkedSavesPlugin.write, up to the first persist.
 WriteJournal ==
@@ -154,7 +158,7 @@ WriteJournal ==
             /\ pending' = {[before |-> ext, after |-> op.bytes, backupId |-> op.backup,
                             recoveryBackupId |-> op.backup, recoveryHash |-> ext]}
     /\ op' = [op EXCEPT !.step = "truncate"]
-    /\ UNCHANGED <<ext, Storage, owner, baseline, scan, exports, unsafeWrite>>
+    /\ UNCHANGED <<ext, Storage, owner, baseline, scan, deleting, exports, unsafeWrite>>
 
 BackupHeld ==
     /\ owner \in saves
@@ -167,63 +171,83 @@ WriteTruncate ==
     /\ ext' = Torn
     /\ unsafeWrite' = (unsafeWrite \/ ~BackupHeld)
     /\ op' = [op EXCEPT !.step = "writing"]
-    /\ UNCHANGED <<Storage, Journal, scan, exports>>
+    /\ UNCHANGED <<Storage, Journal, scan, deleting, exports>>
 
 WriteBytes ==
     /\ op.step = "writing"
     /\ ext' = op.bytes
     /\ op' = [op EXCEPT !.step = "verify"]
-    /\ UNCHANGED <<Storage, Journal, scan, exports, unsafeWrite>>
+    /\ UNCHANGED <<Storage, Journal, scan, deleting, exports, unsafeWrite>>
 
 \* The read-back matches: the second persist clears the pending record.
 WriteCommit ==
     /\ op.step = "verify" /\ ext = op.bytes
     /\ baseline' = ext /\ pending' = {}
     /\ op' = Idle
-    /\ UNCHANGED <<ext, Storage, owner, scan, exports, unsafeWrite>>
+    /\ UNCHANGED <<ext, Storage, owner, scan, deleting, exports, unsafeWrite>>
 
 \* ---- Delete ----
+\* The guard calls observe, which queues behind a running Export or recovery.
 \* observe returns "unavailable" when inspect rejects or the file is unreadable,
-\* and then the guard passes.
-DeleteSave(s) ==
-    /\ op = Idle /\ s \in saves
+\* and then the guard passes. The delete itself is not in that queue.
+DeleteSaveCheck(s) ==
+    /\ op = Idle /\ deleting = NoDelete /\ s \in saves
     /\ IF GuardDeleteSave /\ readable /\ ~Rejected(s)
        THEN InsPending(s) = {} /\ Inspect(s)
        ELSE UNCHANGED Journal
-    /\ imported' = [t \in saves \ {s} |-> imported[t]]
-    /\ backups' = [b \in {c \in DOMAIN backups : backups[c].owner # s} |-> backups[b]]
-    /\ UNCHANGED <<ext, nextSave, nextBackup, readable, op, scan, exports, unsafeWrite>>
+    /\ deleting' = [kind |-> "save", id |-> s]
+    /\ UNCHANGED <<ext, Storage, op, scan, exports, unsafeWrite>>
 
-DeleteBackup(b) ==
-    /\ op = Idle /\ b \in DOMAIN backups /\ backups[b].owner \in saves
+\* SaveFileEditCoordinator.deleteSave, then CapacitorSavesStorage.deleteSave.
+DeleteSaveCommit ==
+    /\ deleting.kind = "save" /\ (DeleteRacesExport \/ op = Idle)
+    /\ LET s == deleting.id IN
+       /\ imported' = [t \in saves \ {s} |-> imported[t]]
+       /\ backups' = [b \in {c \in DOMAIN backups : backups[c].owner # s} |-> backups[b]]
+    /\ deleting' = NoDelete
+    /\ UNCHANGED <<ext, nextSave, nextBackup, readable, Journal, op, scan, exports, unsafeWrite>>
+
+DeleteBackupCheck(b) ==
+    /\ op = Idle /\ deleting = NoDelete
+    /\ b \in DOMAIN backups /\ backups[b].owner \in saves
     /\ LET s == backups[b].owner IN
        IF GuardDeleteBackup /\ readable /\ ~Rejected(s)
        THEN (\A p \in InsPending(s) : p.recoveryBackupId # b) /\ Inspect(s)
        ELSE UNCHANGED Journal
-    /\ backups' = [c \in DOMAIN backups \ {b} |-> backups[c]]
-    /\ UNCHANGED <<ext, imported, nextSave, nextBackup, readable, op, scan, exports, unsafeWrite>>
+    /\ deleting' = [kind |-> "backup", id |-> b]
+    /\ UNCHANGED <<ext, Storage, op, scan, exports, unsafeWrite>>
+
+\* deleteOwnedBackup checks that the Save File and the Backup still exist.
+DeleteBackupCommit ==
+    /\ deleting.kind = "backup" /\ (DeleteRacesExport \/ op = Idle)
+    /\ LET b == deleting.id IN
+       IF b \in DOMAIN backups /\ backups[b].owner \in saves
+       THEN backups' = [c \in DOMAIN backups \ {b} |-> backups[c]]
+       ELSE UNCHANGED backups
+    /\ deleting' = NoDelete
+    /\ UNCHANGED <<ext, imported, nextSave, nextBackup, readable, Journal, op, scan, exports, unsafeWrite>>
 
 \* ---- Environment ----
 EmulatorWrite(v) ==
     /\ v # ext
     /\ ext' = v
-    /\ UNCHANGED <<Storage, Journal, op, scan, exports, unsafeWrite>>
+    /\ UNCHANGED <<Storage, Journal, op, scan, deleting, exports, unsafeWrite>>
 
 \* Unlink the folder or move the file away, and link or move it back.
 SourceVanishes ==
     /\ SourceCanVanish /\ readable
     /\ readable' = FALSE
-    /\ UNCHANGED <<ext, imported, nextSave, backups, nextBackup, Journal, op, scan, exports, unsafeWrite>>
+    /\ UNCHANGED <<ext, imported, nextSave, backups, nextBackup, Journal, op, scan, deleting, exports, unsafeWrite>>
 
 SourceReturns ==
     /\ ~readable
     /\ readable' = TRUE
-    /\ UNCHANGED <<ext, imported, nextSave, backups, nextBackup, Journal, op, scan, exports, unsafeWrite>>
+    /\ UNCHANGED <<ext, imported, nextSave, backups, nextBackup, Journal, op, scan, deleting, exports, unsafeWrite>>
 
 \* An error in a step also ends the Export; it has the same effect on op.
 AppKill ==
-    /\ op # Idle \/ scan # "idle"
-    /\ op' = Idle /\ scan' = "idle"
+    /\ op # Idle \/ scan # "idle" \/ deleting # NoDelete
+    /\ op' = Idle /\ scan' = "idle" /\ deleting' = NoDelete
     /\ UNCHANGED <<ext, Storage, Journal, exports, unsafeWrite>>
 
 \* One named disjunct per action, so that TLC names each step of a trace.
@@ -231,15 +255,15 @@ ObserveAny == \E s \in saves : Observe(s)
 LoadExternalAny == \E s \in saves : LoadExternal(s)
 ExportStartAny == \E s \in saves, v \in Valid : ExportStart(s, v)
 RecoverStartAny == \E s \in saves : RecoverStart(s)
-DeleteSaveAny == \E s \in saves : DeleteSave(s)
-DeleteBackupAny == \E b \in DOMAIN backups : DeleteBackup(b)
+DeleteSaveCheckAny == \E s \in saves : DeleteSaveCheck(s)
+DeleteBackupCheckAny == \E b \in DOMAIN backups : DeleteBackupCheck(b)
 EmulatorWriteAny == \E v \in Valid : EmulatorWrite(v)
 
 Next ==
     \/ RescanSnapshot \/ RescanImport \/ ObserveAny \/ LoadExternalAny
     \/ ExportStartAny \/ RecoverStartAny
     \/ ExportBackup \/ WriteJournal \/ WriteTruncate \/ WriteBytes \/ WriteCommit
-    \/ DeleteSaveAny \/ DeleteBackupAny
+    \/ DeleteSaveCheckAny \/ DeleteSaveCommit \/ DeleteBackupCheckAny \/ DeleteBackupCommit
     \/ EmulatorWriteAny \/ SourceVanishes \/ SourceReturns \/ AppKill
 
 Spec == Init /\ [][Next]_vars
@@ -260,6 +284,6 @@ NoDuplicateSaveFile == Cardinality(saves) <= 1
 \* so that a pass of the other rules is not vacuous.
 NeverPending == pending = {}
 
-\* The symptom of the first #488 finding: a Save File that inspect always rejects.
+\* The harm of the first Codex finding on PR 488: a Save File that inspect always rejects.
 SourceStaysUsable == \A s \in saves : ~Rejected(s)
 ====
