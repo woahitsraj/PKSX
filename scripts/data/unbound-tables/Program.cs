@@ -70,6 +70,33 @@ foreach (var (id, name) in speciesNames.OrderBy(p => p.Key))
 
 Directory.CreateDirectory(output);
 File.WriteAllText(Path.Combine(output, "species.tsv"), species.ToString());
+
+// Learnsets carry no levels; a Pokémon also keeps the moves of the species it evolved from.
+var unboundIds = new Dictionary<(ushort, byte), int>();
+foreach (var (id, name) in speciesNames.OrderBy(p => p.Key).Where(p => p.Key > 0))
+{
+    var entry = ResolveSpecies(id, constants.GetValueOrDefault(id.ToString(CultureInfo.InvariantCulture), "").Replace("SPECIES_", ""), name);
+    if (entry.National != 0)
+        unboundIds.TryAdd(entry, id);
+}
+failures.Clear();
+var learnsets = new StringBuilder("# unbound\tevolves from\tlevel-up moves\tother moves\n");
+foreach (var (key, sets) in ReadJson<JsonElement>("species_learnsets.json").GetProperty("learnsets").EnumerateObject().Select(p => (int.Parse(p.Name, CultureInfo.InvariantCulture), p.Value)).OrderBy(p => p.Item1))
+{
+    int[] Ids(string name) => [.. sets.GetProperty(name).EnumerateArray().Select(m => m.GetInt32())];
+    var levelUp = Ids("level_up");
+    var previous = 0;
+    var self = unboundIds.FirstOrDefault(p => p.Value == key).Key;
+    foreach (var context in FormContexts)
+    {
+        if (self.Item1 == 0 || previous != 0)
+            break;
+        var link = EvolutionTree.GetEvolutionTree(context).Reverse.GetReverse(self.Item1, self.Item2).First;
+        previous = link.Species == 0 ? 0 : unboundIds.GetValueOrDefault((link.Species, link.Form));
+    }
+    learnsets.AppendLine($"{key}\t{previous}\t{string.Join(',', levelUp)}\t{string.Join(',', Ids("all").Except(levelUp))}");
+}
+File.WriteAllText(Path.Combine(output, "learnsets.tsv"), learnsets.ToString());
 File.WriteAllText(Path.Combine(output, "moves.tsv"), moves.Table("pp", movePp));
 // Pocket: 0 items, 1 balls, 2 TMs and HMs, 3 berries, 4 key items.
 var pockets = JsonDocument.Parse(File.ReadAllText(Path.Combine(source, "item_pocket_map.json"))).RootElement.GetProperty("pockets");
