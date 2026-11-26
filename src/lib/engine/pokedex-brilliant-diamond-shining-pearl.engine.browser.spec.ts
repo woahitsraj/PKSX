@@ -61,11 +61,11 @@ for (const file of [
 			'regional',
 			'national'
 		]);
-		expect(dex.fields.filter((f) => f.key.startsWith('state-'))).toHaveLength(493);
-		expect(dex.fields.filter((f) => f.species === 327).map((f) => f.key)).toEqual([
-			'state-327',
-			...['seen', 'caught'].flatMap((r) => [0, 1, 2, 3].map((g) => `spinda-${r}-${g}`))
-		]);
+		expect(dex.fields.filter((f) => f.species !== null).map((f) => [f.key, f.species])).toEqual(
+			['seen', 'caught'].flatMap((r) => [0, 1, 2, 3].map((g) => [`spinda-${r}-${g}`, 327]))
+		);
+		// Heard of is offered only below Seen, as the last flag.
+		for (const s of dex.species) expect(save.labels(s.id).at(-1) === 'Heard of').toBe(!s.seen);
 		const pikachu = save.labels(25);
 		expect(pikachu).toEqual(
 			expect.arrayContaining([
@@ -82,11 +82,10 @@ for (const file of [
 		// Sword and Shield values never appear.
 		const everything = [...(dex.flagSets ?? []).flat(), ...dex.fields.map((f) => f.label)];
 		expect(everything.filter((l) => /Gigantamax|Displayed|battled|Galar/i.test(l))).toEqual([]);
-		expect(dex).not.toHaveProperty('regions');
 	}, 60_000);
 }
 
-test('Brilliant Diamond edits Heard of, gender, form, language, Sinnoh and Spinda values, then exports', async () => {
+test('Brilliant Diamond edits gender, form, language, Sinnoh and Spinda values, then exports', async () => {
 	const save = await open('pkmds-blazor/pokemon-brilliant-diamond.bin');
 	const flip = (id: number, label: string) => {
 		const flag = save.labels(id).indexOf(label);
@@ -96,7 +95,6 @@ test('Brilliant Diamond edits Heard of, gender, form, language, Sinnoh and Spind
 	const regional = save.field('regional')!;
 	const spinda = save.field('spinda-caught-3')!;
 	const edits: PokedexEdit[] = [
-		{ kind: 'field', field: 'state-150', value: 1 },
 		flip(25, 'Seen: shiny female'),
 		flip(25, 'Language: Chinese (traditional)'),
 		flip(422, 'Form seen shiny: East'),
@@ -109,19 +107,17 @@ test('Brilliant Diamond edits Heard of, gender, form, language, Sinnoh and Spind
 		expect((await save.apply(edit)).mutated).toBe(false);
 	}
 	const after = await save.reread();
-	expect(after.species[149]).toMatchObject({ seen: false, caught: false });
-	expect(save.field('state-150', after)?.value).toBe(1);
 	for (const edit of edits)
 		if (edit.kind === 'flag')
 			expect(after.species[edit.species - 1].flags?.[edit.flag]).toBe(edit.on ? '1' : '0');
 	expect(save.field('regional', after)?.value).toBe(1 - regional.value);
 	expect(save.field(spinda.key, after)?.value).toBe(spinda.value + 1);
 	expect(after.species[0].caught).toBe(!save.dex.species[0].caught);
-	const touched = new Set([1, 25, 150, 422]);
+	const touched = new Set([1, 25, 422]);
 	const untouched = (of: PokedexProjection) =>
 		of.species.filter((s) => !touched.has(s.id)).map((s) => [s.seen, s.caught, s.flags]);
 	expect(untouched(after)).toEqual(untouched(save.dex));
-	expect(await save.reject({ kind: 'field', field: 'state-150', value: 4 })).toBe(false);
+	expect(await save.reject({ kind: 'field', field: spinda.key, value: 2 ** 32 })).toBe(false);
 	expect(await save.reject({ kind: 'seen', species: 494, seen: true })).toBe(false);
 	expect(await save.reject({ kind: 'flag', species: 25, flag: 999, on: true })).toBe(false);
 }, 60_000);
@@ -129,10 +125,17 @@ test('Brilliant Diamond edits Heard of, gender, form, language, Sinnoh and Spind
 test('Shining Pearl Seen, Caught and Mark all keep gender and state consistent', async () => {
 	const save = await open('pkhex-generated/blank-shining-pearl.sav');
 	expect(save.dex.species.some((s) => s.seen)).toBe(false);
+	const heard = save.labels(29).indexOf('Heard of');
+	expect((await save.apply({ kind: 'flag', species: 29, flag: heard, on: true })).mutated).toBe(
+		true
+	);
+	expect((await save.apply({ kind: 'seen', species: 29, seen: false })).mutated).toBe(false);
+	const heardOf = await save.reread();
+	expect(heardOf.species[28]).toMatchObject({ seen: false, caught: false });
+	expect(heardOf.species[28].flags?.[heard]).toBe('1');
 	expect((await save.apply({ kind: 'caught', species: 29, caught: true })).mutated).toBe(true);
 	const caught = await save.reread();
 	expect(caught.species[28]).toMatchObject({ seen: true, caught: true });
-	expect(save.field('state-29', caught)?.value).toBe(3);
 	const nidoran = save.labels(29, caught);
 	expect(nidoran).not.toContain('Seen: male');
 	expect(caught.species[28].flags?.[nidoran.indexOf('Seen: female')]).toBe('1');

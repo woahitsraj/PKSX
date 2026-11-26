@@ -17,13 +17,13 @@ internal static class BrilliantDiamondShiningPearlPokedex
     public static void SetSeen(SAV8BS save, ushort species, bool seen)
     {
         var dex = save.Zukan;
+        if (dex.GetSeen(species) == seen)
+            return;
         if (!seen)
         {
             dex.ClearDexEntryAll(species);
             return;
         }
-        if (dex.GetSeen(species))
-            return;
         dex.SetState(species, ZukanState8b.Seen);
         SeenGender(save, species);
     }
@@ -74,8 +74,6 @@ internal static class BrilliantDiamondShiningPearlPokedex
         foreach (var (id, name) in Languages)
             flags.Add(new($"Language: {name}", dex.GetLanguageFlag(species, (int)id), on => dex.SetLanguageFlag(species, (int)id, on)));
         var count = Zukan8b.GetFormCount(species);
-        if (count == 0)
-            return flags;
         var names = FormConverter.GetFormList(species, GameInfo.Strings.Types, GameInfo.Strings.forms, GameInfo.GenderSymbolUnicode, save.Context);
         foreach (var shiny in (bool[])[false, true])
         {
@@ -86,6 +84,9 @@ internal static class BrilliantDiamondShiningPearlPokedex
                 flags.Add(new($"{(shiny ? "Form seen shiny" : "Form seen")}: {name}", dex.GetHasFormFlag(species, value, shiny), on => dex.SetHasFormFlag(species, value, shiny, on)));
             }
         }
+        // Heard of is the state below Seen; it comes last so the other flag indexes stay stable.
+        if (!dex.GetSeen(species))
+            flags.Add(new("Heard of", dex.GetHeard(species), on => dex.SetState(species, on ? ZukanState8b.HeardOf : ZukanState8b.None)));
         return flags;
     }
 
@@ -94,16 +95,9 @@ internal static class BrilliantDiamondShiningPearlPokedex
         var dex = save.Zukan;
         yield return new("regional", "Sinnoh Pokedex (0 = off, 1 = on)", dex.HasRegionalDex ? 1 : 0, 0, 1);
         yield return new("national", "National Pokedex (0 = off, 1 = on)", dex.HasNationalDex ? 1 : 0, 0, 1);
-        for (ushort species = 1; species <= save.MaxSpeciesID; species++)
-        {
-            var state = (int)dex.GetState(species);
-            yield return new($"state-{species}", "Pokedex state (0 = none, 1 = heard of, 2 = seen, 3 = caught)", state, 0, Math.Max(3, state), species);
-            if (species != (int)Species.Spinda)
-                continue;
-            for (var record = 0; record < SpindaRecords.Length; record++)
-                for (var gender = 0; gender < Genders.Length; gender++)
-                    yield return new($"spinda-{SpindaRecords[record]}-{gender}", $"Spinda first {SpindaRecords[record]} PID: {Genders[gender]}", SpindaPid(save, record, gender), 0, uint.MaxValue, species);
-        }
+        for (var record = 0; record < SpindaRecords.Length; record++)
+            for (var gender = 0; gender < Genders.Length; gender++)
+                yield return new($"spinda-{SpindaRecords[record]}-{gender}", $"Spinda first {SpindaRecords[record]} PID: {Genders[gender]}", SpindaPid(save, record, gender), 0, uint.MaxValue, (int)Species.Spinda);
     }
 
     public static void SetField(SAV8BS save, PokedexField field, long value)
@@ -111,7 +105,6 @@ internal static class BrilliantDiamondShiningPearlPokedex
         var dex = save.Zukan;
         if (field.Key == "regional") dex.HasRegionalDex = value != 0;
         else if (field.Key == "national") dex.HasNationalDex = value != 0;
-        else if (field.Key.StartsWith("state-")) dex.SetState((ushort)field.Species!.Value, (ZukanState8b)value);
         else if (field.Key.StartsWith("spinda-"))
         {
             var parts = field.Key.Split('-');
