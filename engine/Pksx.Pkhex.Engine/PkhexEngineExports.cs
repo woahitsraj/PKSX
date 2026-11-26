@@ -2250,21 +2250,24 @@ public static partial class PkhexEngineExports
         if (destination.Get(save).Species != 0)
             return SlotMutationResult.Fail("occupied-destination-slot", "Moving from Pokemon Storage needs an empty destination Slot.");
 
-        PKM? pokemon;
+        PKM pokemon;
         try
         {
-            pokemon = EntityFormat.GetFromBytes(Convert.FromBase64String(request.EntityBytesBase64), save.Context);
+            pokemon = PokemonPreservationPayload
+                .Parse(Convert.FromBase64String(request.PreservationPayloadBase64 ?? ""))
+                .CurrentPokemon;
         }
-        catch (Exception ex)
+        catch (PokemonPreservationException ex)
+        {
+            return SlotMutationResult.Fail(ex.Code, ex.Message);
+        }
+        catch (FormatException ex)
         {
             return SlotMutationResult.Fail("invalid-stored-pokemon", ex.Message);
         }
 
-        if (pokemon is null || pokemon.Species == 0)
-            return SlotMutationResult.Fail("invalid-stored-pokemon", "Pokemon Storage entry is missing entity data.");
-
         var target = save.BlankPKM;
-        if (pokemon.Format != target.Format)
+        if (pokemon.GetType() != target.GetType())
         {
             if (!EntityConverter.TryMakePKMCompatible(pokemon, target, out var result, out var converted))
                 return SlotMutationResult.Fail("incompatible-stored-pokemon", result.GetDisplayString(pokemon, target.GetType()));

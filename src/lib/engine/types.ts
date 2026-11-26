@@ -468,7 +468,7 @@ export type SlotOperationResult = {
 };
 
 export type StoredPokemonImportOperation = {
-	entityBytesBase64: string;
+	preservationPayloadBase64: string;
 	destination: SaveSlotRef;
 };
 

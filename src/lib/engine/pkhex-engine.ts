@@ -420,7 +420,7 @@ type RawPokemonEditOperationRequest = PokemonEditOperation & { activeBox: number
 type RawPokemonCreationRequest = PokemonCreationOperation & { activeBox: number };
 type RawSaveFileEditOperationRequest = SaveFileEditOperation & { activeBox: number };
 type RawStoredPokemonImportRequest = {
-	entityBytesBase64: string;
+	preservationPayloadBase64: string;
 	destination: import('./types').SaveSlotRef;
 	activeBox: number;
 };
