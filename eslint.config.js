@@ -8,6 +8,7 @@ import globals from 'globals';
 import ts from 'typescript-eslint';
 import svelteConfig from './svelte.config.js';
 import pksx from './eslint-local-rules/design-contract.js';
+import pksxE2e from './eslint-local-rules/e2e-page-load.js';
 
 const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
 
@@ -32,6 +33,19 @@ export default defineConfig(
 	{
 		files: ['**/*.{test,spec,e2e}.{js,ts}', 'tests/**/*.{js,ts}'],
 		rules: { 'pksx/no-responsive-classifier': 'off' }
+	},
+	{
+		files: ['**/*.e2e.ts', '**/*.e2e-helper.ts'],
+		ignores: ['src/routes/route-load.e2e-helper.ts'],
+		plugins: { 'pksx-e2e': pksxE2e },
+		rules: { 'pksx-e2e/no-raw-page-load': 'error' }
+	},
+	{
+		// Known exceptions. A stale entry fails, so this list only gets shorter.
+		files: ['src/routes/pokemon-storage-migration.e2e.ts'],
+		rules: {
+			'pksx-e2e/no-raw-page-load': ['error', { exceptions: ['/__storage-migration-fixture'] }]
+		}
 	},
 	{
 		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],

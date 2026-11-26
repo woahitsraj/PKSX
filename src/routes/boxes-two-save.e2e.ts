@@ -2,6 +2,7 @@ import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { loadRoute } from './route-load.e2e-helper';
 
 const emeraldFixturePath = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
@@ -14,11 +15,7 @@ test('keeps the original save visible after opening a second save on Android lan
 	page
 }) => {
 	await page.setViewportSize({ width: 640, height: 360 });
-	await page.goto('/');
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await loadRoute(page, '/');
 
 	await importSaveThroughSaves(page, emeraldFixturePath);
 

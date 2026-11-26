@@ -1,6 +1,7 @@
 import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { expect, test, type Page } from '@playwright/test';
 import { waitForPokemonStorageRoot } from './pokemon-storage-seed.e2e-helper';
+import { loadRoute, reloadRoute } from './route-load.e2e-helper';
 
 const aron =
 	'rVIoJRblSsu7zMnI/xUAAwQAAgK+w9LDv///AH8OAAB+AQAAfwYAAAAoAAAhAGoAvQAdACMeCg8AAAAAAAAAAAAAAAAAN4uhozfCnwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
@@ -15,11 +16,7 @@ async function waitForStorageBoxesReady(page: Page) {
 }
 
 async function seedStorage(page: Page, slots = [0]) {
-	await page.goto('/');
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await loadRoute(page, '/');
 	await waitForPokemonStorageRoot(page);
 	await page.evaluate(
 		async ({ entityBytesBase64, occupied }) => {
@@ -91,12 +88,12 @@ async function seedStorage(page: Page, slots = [0]) {
 		},
 		{ entityBytesBase64: aron, occupied: slots }
 	);
-	await page.reload();
+	await reloadRoute(page);
 	await expect(page.getByRole('button', { name: 'Open Pokemon Storage in Boxes' })).toContainText(
 		`${slots.length} Pokemon`,
 		{ timeout: 60_000 }
 	);
-	await page.goto('/?source=pokemon-storage');
+	await loadRoute(page, '/?source=pokemon-storage');
 	await waitForStorageBoxesReady(page);
 	await page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' }).click();
 	await page.getByRole('button', { name: /^Box 01: Favorites, 1 of 1$/ }).click();
@@ -160,8 +157,7 @@ test('Clear Slot can be restored or permanently deleted', async ({ page }) => {
 	await expect(
 		page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' })
 	).toBeFocused();
-	await page.reload();
-	await expectBoxesReady(page);
+	await reloadRoute(page);
 	await expect(page.locator('[data-location="recently-deleted"]')).toBeVisible();
 	await expect(
 		page.getByRole('grid', { name: 'Recently Deleted Pokemon' }).getByRole('gridcell')
@@ -196,8 +192,7 @@ test('Empty Recently Deleted needs confirmation', async ({ page }) => {
 	await expect(
 		page.getByRole('button', { name: 'Open Box Picker for Pokemon Storage' })
 	).toBeFocused();
-	await page.reload();
-	await expectBoxesReady(page);
+	await reloadRoute(page);
 	await expect(page.locator('[data-location="recently-deleted"]')).toBeVisible();
 	await expect(
 		page.getByRole('grid', { name: 'Recently Deleted Pokemon' }).getByRole('gridcell')
@@ -229,7 +224,7 @@ test('expired recovery leaves a lightweight tombstone and disappears after reloa
 		});
 		db.close();
 	});
-	await page.reload();
+	await reloadRoute(page);
 	await waitForStorageBoxesReady(page);
 	await openRecentlyDeleted(page);
 	await expect(

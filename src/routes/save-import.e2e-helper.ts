@@ -1,10 +1,11 @@
 import { expect, type Page } from '@playwright/test';
 import path from 'node:path';
+import { loadRoute } from './route-load.e2e-helper';
 
 type SaveFile = string | { name: string; mimeType: string; buffer: Buffer };
 
 export async function importSaveThroughSaves(page: Page, file: SaveFile, message?: string) {
-	if (!['/', '/saves'].includes(new URL(page.url()).pathname)) await page.goto('/');
+	if (!['/', '/saves'].includes(new URL(page.url()).pathname)) await loadRoute(page, '/');
 	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
 		'data-initial-state',
 		'ready',

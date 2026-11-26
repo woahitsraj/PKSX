@@ -1,7 +1,7 @@
-import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { loadRoute } from './route-load.e2e-helper';
 
 test('homepage explains PKSX in HTML and keeps Saves immediately usable', async ({
 	page,
@@ -14,7 +14,7 @@ test('homepage explains PKSX in HTML and keeps Saves immediately usable', async 
 	expect(html).toContain('name="description"');
 	expect(html).toContain('rel="canonical" href="https://pksx.app/"');
 	expect(html).toContain('property="og:image"');
-	await page.goto('/');
+	await loadRoute(page, '/');
 	await expect(page.getByRole('heading', { name: 'Saves', exact: true })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Import a Save File', exact: true })).toBeVisible();
 	await expect(page.locator('#about-pksx details')).toHaveAttribute('open', '');
@@ -25,8 +25,7 @@ test('homepage explains PKSX in HTML and keeps Saves immediately usable', async 
 test('saved collections compact the introduction and open at the dedicated Boxes URL', async ({
 	page
 }) => {
-	await page.goto('/');
-	await expect(page.locator('.saves-route')).toHaveAttribute('data-initial-state', 'ready');
+	await loadRoute(page, '/');
 	await importSaveThroughSaves(
 		page,
 		path.resolve('test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav')
@@ -36,7 +35,7 @@ test('saved collections compact the introduction and open at the dedicated Boxes
 	await page.locator('.save-card .card-main').click();
 	await expect(page).toHaveURL(/\/boxes$/);
 	await expect(page.locator('#box-grid')).toBeVisible();
-	await page.goto('/');
+	await loadRoute(page, '/');
 	await expect(page.getByRole('heading', { name: 'Saves', exact: true })).toBeVisible();
 	await expect(page.locator('#about-pksx details')).not.toHaveAttribute('open');
 	await page.getByText('About PKSX', { exact: true }).click();
@@ -47,10 +46,9 @@ test('old Saves links work, Boxes opens directly, and only public content is in 
 	page,
 	request
 }) => {
-	await page.goto('/saves');
+	await loadRoute(page, '/saves');
 	await expect(page).toHaveURL(/\/$/);
-	await page.goto('/boxes');
-	await expectBoxesReady(page);
+	await loadRoute(page, '/boxes');
 	await expect(page.getByRole('grid', { name: 'All Pokemon', exact: true })).toBeVisible();
 	await expect(page).toHaveURL(/\/boxes$/);
 	for (const route of ['/boxes', '/prototype/density']) {

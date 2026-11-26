@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { loadRoute, reloadRoute } from './route-load.e2e-helper';
 
 const fixture = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
@@ -8,7 +9,7 @@ const fixture = path.resolve(
 test.use({ actionTimeout: 15000, hasTouch: true, viewport: { width: 360, height: 740 } });
 for (const mode of ['Copy', 'Move']) {
 	test(`${mode} selected Pokemon to Storage after reviewing destinations`, async ({ page }) => {
-		await page.goto('/');
+		await loadRoute(page, '/');
 		await page.waitForLoadState('networkidle');
 		await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
 			'data-initial-state',
@@ -83,12 +84,7 @@ for (const mode of ['Copy', 'Move']) {
 		await expect(page.locator('.box-pane .slot.pokemon')).toHaveCount(
 			occupiedBefore - (mode === 'Move' ? 2 : 0)
 		);
-		await page.reload();
-		await expect(page.locator('[data-destination-root="boxes"]')).toHaveAttribute(
-			'data-initial-state',
-			'ready',
-			{ timeout: 60_000 }
-		);
+		await reloadRoute(page);
 		await expect(page.locator('.box-pane .slot.pokemon')).toHaveCount(
 			occupiedBefore - (mode === 'Move' ? 2 : 0)
 		);

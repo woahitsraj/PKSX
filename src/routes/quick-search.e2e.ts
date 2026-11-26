@@ -1,15 +1,15 @@
-import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import path from 'node:path';
+import { loadRoute, reloadRoute } from './route-load.e2e-helper';
 
 const emeraldFixturePath = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
 );
 
 async function resetStorage(page: Page) {
-	await page.goto('/');
+	await loadRoute(page, '/');
 	await page.evaluate(
 		() =>
 			new Promise<void>((resolve, reject) => {
@@ -18,19 +18,14 @@ async function resetStorage(page: Page) {
 				request.onsuccess = () => resolve();
 			})
 	);
-	await page.reload();
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await reloadRoute(page);
 }
 
 async function importActiveSaveFile(page: Page) {
 	await resetStorage(page);
 	await importSaveThroughSaves(page, emeraldFixturePath);
 	await expect(page.getByText(/imported and made active/)).toBeVisible({ timeout: 15_000 });
-	await page.goto('/boxes');
-	await expectBoxesReady(page);
+	await loadRoute(page, '/boxes');
 	await expect(page.locator('#box-0-slot-0')).toContainText('ARON', { timeout: 15_000 });
 }
 
@@ -184,11 +179,7 @@ test('keyboard and controller shortcuts open and navigate Search', async ({ page
 
 test('Cmd/Ctrl+K opens Search from another destination', async ({ page }) => {
 	await importActiveSaveFile(page);
-	await page.goto('/settings');
-	await expect(page.locator('[data-destination-root="settings"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await loadRoute(page, '/settings');
 	await page.keyboard.press('Control+k');
 	await expect(page).toHaveURL(/\/boxes/);
 	await expect(

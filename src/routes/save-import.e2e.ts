@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
+import { loadRoute } from './route-load.e2e-helper';
 
 for (const fixture of [
 	'bl1ndbeholder-pokemon-saves/emerald-011020251345.sav',
@@ -11,7 +12,7 @@ for (const fixture of [
 	test(`imports ${path.basename(fixture)} immediately after a cold navigation`, async ({
 		page
 	}) => {
-		await page.goto('/');
+		await loadRoute(page, '/');
 		await importSaveThroughSaves(page, path.resolve('test-fixtures/save-files', fixture));
 		await expect(page.locator('.save-card.active')).toContainText(path.basename(fixture));
 	});

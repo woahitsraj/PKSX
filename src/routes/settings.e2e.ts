@@ -1,9 +1,9 @@
-import { expectBoxesReady } from './boxes-ready.e2e-helper';
 import { importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import path from 'node:path';
 import { appCommands } from '$lib/pksx/app-commands';
+import { loadRoute, reloadRoute } from './route-load.e2e-helper';
 
 const emeraldFixturePath = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
@@ -11,20 +11,15 @@ const emeraldFixturePath = path.resolve(
 
 async function openSettings(page: Page, width = 1280, height = 800) {
 	await page.setViewportSize({ width, height });
-	await page.goto('/settings');
+	await loadRoute(page, '/settings');
 	await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
 }
 
 async function openPokemonEditor(page: Page) {
-	await page.goto('/');
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await loadRoute(page, '/');
 	await importSaveThroughSaves(page, emeraldFixturePath);
 
-	await page.goto('/boxes');
-	await expectBoxesReady(page);
+	await loadRoute(page, '/boxes');
 	const slot = page.locator('#box-0-slot-0');
 	await expect(slot).toContainText('ARON', { timeout: 15_000 });
 	await slot.focus();
@@ -167,18 +162,14 @@ test('Settings is available without a Save File and reports live build metadata'
 });
 
 test('fresh Settings reload reports the active Save File in the Main Menu', async ({ page }) => {
-	await page.goto('/');
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready'
-	);
+	await loadRoute(page, '/');
 	await importSaveThroughSaves(page, emeraldFixturePath);
 	await expect(page.locator('.save-card.active')).toContainText('011020251345.sav', {
 		timeout: 30_000
 	});
 	await expect(page.locator('.save-card.active').getByText('Active')).toBeVisible();
-	await page.goto('/settings');
-	await page.reload();
+	await loadRoute(page, '/settings');
+	await reloadRoute(page);
 
 	await page.getByRole('button', { name: 'Open Main Menu' }).click();
 	const menu = page.getByRole('dialog', { name: 'Main Menu' });
@@ -345,7 +336,7 @@ test('Settings owns floor overflow and uses shared theme state', async ({ page }
 		'aria-pressed',
 		'true'
 	);
-	await page.reload();
+	await reloadRoute(page);
 	await expect(page.locator('.app-shell')).toHaveClass(/dark/);
 });
 
@@ -356,7 +347,7 @@ test('Settings uses the system theme until the user chooses an override', async 
 	await expect(page.locator('.app-shell')).toHaveClass(/dark/);
 
 	await page.getByRole('button', { name: 'Use light theme' }).click();
-	await page.reload();
+	await reloadRoute(page);
 	await expect(page.locator('html')).toHaveAttribute('data-pksx-theme', 'light');
 	await expect(page.locator('.app-shell')).not.toHaveClass(/dark/);
 });
@@ -372,18 +363,18 @@ test('editable focus locks Height Band across pointer transfer and releases afte
 	page
 }) => {
 	await openSettings(page, 800, 700);
-	await page.goto('/');
+	await loadRoute(page, '/');
 	await expect(page.getByRole('grid', { name: 'Saves collections' })).toBeFocused();
 	await importSaveThroughSaves(page, emeraldFixturePath);
 
-	await page.goto('/trainer');
+	await loadRoute(page, '/trainer');
 	const trainerName = page.getByLabel('Trainer name');
 	await expect(trainerName).toBeVisible({ timeout: 30_000 });
 	await expectSharedEditableType(trainerName);
 	const money = page.getByRole('spinbutton', { name: 'Money' });
 	await expect(money).toBeVisible({ timeout: 30_000 });
 	await expectSharedEditableType(money);
-	await page.goto('/bag');
+	await loadRoute(page, '/bag');
 	const quantities = page.locator(
 		'[data-destination-root="bag"] input[data-ledger-draft="item-quantity"]'
 	);

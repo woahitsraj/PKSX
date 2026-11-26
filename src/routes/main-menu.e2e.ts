@@ -4,6 +4,7 @@ import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import path from 'node:path';
 import { waitForPokemonStorageRoot } from './pokemon-storage-seed.e2e-helper';
+import { loadRoute, reloadRoute } from './route-load.e2e-helper';
 
 const emeraldFixturePath = path.resolve(
 	'test-fixtures/save-files/bl1ndbeholder-pokemon-saves/emerald-011020251345.sav'
@@ -26,7 +27,7 @@ async function expectDestinationReady(page: Page, destination: string) {
 }
 
 async function resetEmptyStorage(page: Page) {
-	await page.goto('/');
+	await loadRoute(page, '/');
 	await page.evaluate(
 		() =>
 			new Promise<void>((resolve, reject) => {
@@ -35,7 +36,7 @@ async function resetEmptyStorage(page: Page) {
 				request.onsuccess = () => resolve();
 			})
 	);
-	await page.reload();
+	await reloadRoute(page);
 	await expect(page).toHaveURL(/\/$/);
 	await expectDestinationReady(page, 'saves');
 }
@@ -388,7 +389,7 @@ test('reloading with the Main Menu open does not prompt and resets session focus
 		unloadDialogs += 1;
 		void dialog.dismiss();
 	});
-	await page.reload();
+	await reloadRoute(page);
 
 	await expectBoxesReady(page);
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
@@ -473,7 +474,7 @@ test('stored Pokemon keeps the default entry on Saves with a compact introductio
 			})
 	);
 
-	await page.goto('/');
+	await loadRoute(page, '/');
 	await expect(page).toHaveURL(/\/$/);
 	await expectDestinationReady(page, 'saves');
 	await expect(page.locator('#about-pksx details')).not.toHaveAttribute('open');
@@ -483,7 +484,7 @@ test('Saves restores an asynchronously loaded control by stable identity', async
 	await resetEmptyStorage(page);
 	await importSaveThroughSaves(page, emeraldFixturePath);
 
-	await page.reload();
+	await reloadRoute(page);
 	await expectDestinationReady(page, 'saves');
 	const grid = await expectSavesFocus(page, /saves-target-.+/);
 	const rememberedTarget = await grid.getAttribute('aria-activedescendant');
@@ -515,7 +516,7 @@ test('Trainer and Bag keep independent semantic focus within their separate dest
 	await expect(trainerRoot.getByText(/^\d+ boxes?$/i)).toHaveCount(0);
 
 	await page.setViewportSize({ width: 390, height: 700 });
-	await page.reload();
+	await reloadRoute(page);
 	await expectDestinationReady(page, 'trainer');
 	await expect(trainerName).toBeFocused();
 	const money = page.getByRole('spinbutton', { name: 'Money' });
