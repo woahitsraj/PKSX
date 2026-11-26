@@ -13,6 +13,7 @@ This record assembles the locked controller-first shell decisions from [the desi
 - [#167](https://github.com/woahitsraj/PKSX/issues/167) and the resolved [#209](https://github.com/woahitsraj/PKSX/issues/209) supersede the page-wide Save File staging inherited by #202, #164, and the original SAVEFILE-1 wording in #210. Their direct-commit contract applies only to Trainer, Money, and Bag. [ADR 0010](../adr/0010-use-engine-backed-pokemon-editor-apply-contract.md) continues to govern Pokemon Editor staging and atomic Apply.
 - [#169](https://github.com/woahitsraj/PKSX/issues/169) selects the Ledger direction. [#170](https://github.com/woahitsraj/PKSX/issues/170) owns its detailed specification and implementation issue breakdown.
 - [#354](https://github.com/woahitsraj/PKSX/issues/354) removes Firefox from the supported browser baseline and automated test matrix. Chromium and WebKit remain supported.
+- [#376](https://github.com/woahitsraj/PKSX/issues/376) and [ADR 0023](../adr/0023-show-a-controller-guide-while-a-controller-is-connected.md) amend SHELL-1 with one exception: the Controller Guide, shown only while a controller is connected. It adds its height to the bottom safe-area alias in BUDGET-1.
 - [#257](https://github.com/woahitsraj/PKSX/issues/257) amends BOXES-2 so the Save File-wide Legality Report can explicitly preview and atomically apply supported Legality Fixes for Illegal Pokemon.
 - The 2026-09-10 amendments to [#151](https://github.com/woahitsraj/PKSX/issues/151), [#207](https://github.com/woahitsraj/PKSX/issues/207), and [#210](https://github.com/woahitsraj/PKSX/issues/210) replace the combined Save File destination with Trainer and Bag, make Pokemon Storage a focusable Saves card and collection-picker option, rename Open another, set the editable-text floor, and reserve Search. They supersede every conflicting line above, in the earlier decision tickets, and in historical CONTEXT.md relationships. CONTEXT.md remains authoritative for vocabulary.
 
@@ -40,7 +41,10 @@ Every edge-anchored element uses resolved safe-area aliases and combines the ins
 ```css
 --pksx-safe-area-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
 --pksx-safe-area-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
---pksx-safe-area-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+--pksx-device-safe-area-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+--pksx-safe-area-bottom: calc(
+	var(--pksx-device-safe-area-bottom) + var(--pksx-controller-guide-space, 0px)
+);
 --pksx-safe-area-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
 ```
 

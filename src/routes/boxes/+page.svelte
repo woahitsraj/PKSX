@@ -9263,7 +9263,7 @@
 
 	.source-picker {
 		width: min(780px, 100%);
-		max-height: min(760px, 92vh);
+		max-height: min(760px, 92vh, 100%);
 		display: flex;
 		flex-direction: column;
 		gap: 14px;

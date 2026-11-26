@@ -8,6 +8,7 @@ export type ControllerGuideContext = {
 	workflow: SummonedWorkflowKind | null;
 	carry: boolean;
 	selection: boolean;
+	takeoverBack?: string | null;
 };
 
 const confirmations = new Set<SummonedWorkflowKind>([
@@ -28,30 +29,46 @@ const menus = new Set<SummonedWorkflowKind>([
 	'selection-actions'
 ]);
 
-const move = { button: 'D-pad', action: 'Move' };
-
 export function controllerGuideHints(context: ControllerGuideContext): ControllerGuideHint[] {
-	const { workflow } = context;
+	const { workflow, takeoverBack } = context;
+	if (workflow && takeoverBack != null) {
+		const select = { button: 'A', action: 'Select' };
+		return takeoverBack ? [select, { button: 'B', action: takeoverBack }] : [select];
+	}
 	if (workflow === 'main-menu')
-		return [move, { button: 'A', action: 'Open' }, { button: 'B', action: 'Close' }];
+		return [
+			{ button: 'A', action: 'Open' },
+			{ button: 'B', action: 'Close' }
+		];
 	if (workflow === 'quick-search')
-		return [move, { button: 'A', action: 'Go to Pokemon' }, { button: 'B', action: 'Close' }];
+		return [
+			{ button: 'A', action: 'Go to Pokemon' },
+			{ button: 'B', action: 'Close' }
+		];
 	if (workflow === 'pokemon-editor')
 		return [
-			move,
 			{ button: 'A', action: 'Select' },
 			{ button: 'L2 / R2', action: 'Section' },
 			{ button: 'B', action: 'Back' }
 		];
 	if (workflow && confirmations.has(workflow))
-		return [move, { button: 'A', action: 'Confirm' }, { button: 'B', action: 'Cancel' }];
+		return [
+			{ button: 'A', action: 'Confirm' },
+			{ button: 'B', action: 'Cancel' }
+		];
 	if (workflow && menus.has(workflow))
-		return [move, { button: 'A', action: 'Select' }, { button: 'B', action: 'Close' }];
-	if (workflow) return [move, { button: 'A', action: 'Select' }, { button: 'B', action: 'Back' }];
+		return [
+			{ button: 'A', action: 'Select' },
+			{ button: 'B', action: 'Close' }
+		];
+	if (workflow)
+		return [
+			{ button: 'A', action: 'Select' },
+			{ button: 'B', action: 'Back' }
+		];
 
 	if (context.carry)
 		return [
-			move,
 			{ button: 'A', action: 'Place' },
 			{ button: 'Y', action: 'Move / Copy' },
 			{ button: 'L1 / R1', action: 'Box' },
@@ -73,7 +90,6 @@ export function controllerGuideHints(context: ControllerGuideContext): Controlle
 	];
 	if (context.destination === 'boxes')
 		return [
-			move,
 			{ button: 'A', action: 'Slot Menu' },
 			{ button: 'X', action: 'Box Menu' },
 			{ button: 'Select', action: 'Select' },
@@ -81,6 +97,6 @@ export function controllerGuideHints(context: ControllerGuideContext): Controlle
 			...shared
 		];
 	if (context.destination === 'saves')
-		return [move, { button: 'A', action: 'Open' }, { button: 'X', action: 'Options' }, ...shared];
-	return [move, { button: 'A', action: 'Select' }, { button: 'B', action: 'Boxes' }, ...shared];
+		return [{ button: 'A', action: 'Open' }, { button: 'X', action: 'Options' }, ...shared];
+	return [{ button: 'A', action: 'Select' }, { button: 'B', action: 'Boxes' }, ...shared];
 }

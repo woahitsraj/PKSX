@@ -22,12 +22,14 @@ public class MainActivity extends BridgeActivity {
 
     private final Set<String> motionDirections = new HashSet<>();
     private final Set<String> dispatchedDirections = new HashSet<>();
+    private Boolean controllerConnected = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         bridgeBuilder.addWebViewListener(new WebViewListener() {
             @Override
             public void onPageLoaded(WebView view) {
+                controllerConnected = null;
                 dispatchControllerConnection();
             }
 
@@ -132,6 +134,8 @@ public class MainActivity extends BridgeActivity {
                 connected = true;
             }
         }
+        if (Boolean.valueOf(connected).equals(controllerConnected)) return;
+        controllerConnected = connected;
         getBridge().getWebView().evaluateJavascript(
             "window.dispatchEvent(new CustomEvent('pksxcontrollerconnection',{detail:{connected:"
                 + connected

@@ -137,3 +137,65 @@ test('follows Menus and compact legality review without losing focus or a draft'
 	await expect(editor).toBeVisible();
 	await expect(editor.locator('#pokemon-editor-staged-count')).toHaveText('1 staged');
 });
+
+test('follows the Gamepad API on the web', async ({ page }) => {
+	await page.addInitScript(() => {
+		const testWindow = window as typeof window & { __pads: unknown[] };
+		testWindow.__pads = [];
+		navigator.getGamepads = () => testWindow.__pads as Gamepad[];
+	});
+	await loadRoute(page, '/settings');
+	const toggle = (connected: boolean) =>
+		page.evaluate((value) => {
+			const testWindow = window as typeof window & { __pads: unknown[] };
+			testWindow.__pads = value ? [{ id: 'Test', mapping: 'standard', buttons: [], axes: [] }] : [];
+			window.dispatchEvent(new Event(value ? 'gamepadconnected' : 'gamepaddisconnected'));
+		}, connected);
+
+	await toggle(true);
+	await expect(guide(page)).toContainText('Boxes');
+	await toggle(false);
+	await expect(guide(page)).toHaveCount(0);
+});
+
+for (const [width, height] of [
+	[640, 360],
+	[360, 640]
+]) {
+	test(`keeps Menus, confirmations and reports above the guide at ${width}x${height}`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height });
+		await openEmeraldBoxes(page);
+		await setConnected(page, true);
+
+		await page.locator('#box-grid').focus();
+		await page.keyboard.press('Enter');
+		const slotActions = page.getByRole('dialog', { name: 'Slot actions' });
+		await expect(slotActions).toContainText('Clear Slot', { timeout: 15_000 });
+		await expect(guide(page)).toContainText('Close');
+		await expectAboveGuide(page, '[role="dialog"][aria-label="Slot actions"]');
+
+		await slotActions.getByRole('button', { name: 'Clear Slot' }).click();
+		await expect(page.getByRole('button', { name: 'Confirm Clear' })).toBeVisible();
+		await expect(guide(page)).toContainText('Cancel');
+		await expectAboveGuide(page, '[role="dialog"][aria-label^="Clear "]');
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('button', { name: 'Confirm Clear' })).toHaveCount(0);
+		await page.keyboard.press('Escape');
+		await expect(slotActions).toHaveCount(0);
+
+		await page.getByRole('button', { name: 'Open Main Menu' }).click();
+		const mainMenu = page.getByRole('dialog', { name: 'Main Menu' });
+		await expect(mainMenu).toBeVisible();
+		await expectAboveGuide(page, '[role="dialog"][aria-label="Main Menu"]');
+		await mainMenu.getByRole('button', { name: /^Legality Report/ }).click();
+
+		const report = page.getByRole('dialog', { name: 'Save File Legality Report' });
+		await expect(report.getByRole('list', { name: /Legality Report results/ })).toBeVisible({
+			timeout: 120_000
+		});
+		await expect(guide(page)).toContainText('Back');
+		await expectAboveGuide(page, '.takeover-frame');
+	});
+}

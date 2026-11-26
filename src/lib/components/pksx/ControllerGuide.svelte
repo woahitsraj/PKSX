@@ -41,7 +41,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: center;
-		gap: var(--pksx-space-1, 4px) var(--pksx-space-3, 12px);
+		gap: var(--pksx-space-1, 4px) var(--pksx-space-2, 8px);
 		margin: 0;
 		padding: 0;
 		list-style: none;

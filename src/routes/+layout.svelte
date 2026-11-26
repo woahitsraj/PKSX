@@ -106,7 +106,8 @@
 			destination: activeRoute,
 			workflow: summonedWorkflow.active?.kind ?? null,
 			carry: appChrome.carryActive,
-			selection: activeRoute === 'boxes' && appChrome.selectionActive
+			selection: activeRoute === 'boxes' && appChrome.selectionActive,
+			takeoverBack: appChrome.takeoverBack
 		})
 	);
 	const mainMenuOpen = $derived(summonedWorkflow.active?.kind === 'main-menu');
