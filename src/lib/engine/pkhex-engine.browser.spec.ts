@@ -2341,6 +2341,63 @@ describe('PKHeX Engine browser runtime smoke', () => {
 				message: expect.stringContaining('Pokemon encounter')
 			}
 		});
+
+		const combined = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				level: constraints.currentMetLevel - 1,
+				metData: {
+					locationId: constraints.currentLocationId,
+					metLevel: constraints.currentMetLevel,
+					originGameId: constraints.currentOriginGameId,
+					ballId: nextBall.id
+				}
+			},
+			0
+		);
+		expect(combined).toMatchObject({
+			ok: false,
+			error: {
+				code: 'invalid-pokemon-edit',
+				message: expect.stringMatching(/^Pokemon edit is not valid for this Pokemon\. /)
+			}
+		});
+
+		const previewed = await engine.previewPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{
+				source: { zone: 'box', box: 0, slot: 0 },
+				level: constraints.currentMetLevel - 1,
+				metData: {
+					locationId: constraints.currentLocationId,
+					metLevel: constraints.currentMetLevel,
+					originGameId: constraints.currentOriginGameId,
+					ballId: nextBall.id
+				}
+			},
+			0
+		);
+		if (!previewed.ok) throw new Error('Expected the combined preview to apply.');
+		const scope = { moves: false, metData: true, originalTrainer: false };
+		const validate = (otherEdits: boolean) =>
+			engine.validatePokemonEditPreview(
+				copyBytes(fixtureBytes),
+				copyBytes(previewed.value.bytes),
+				'011020251345.sav',
+				{ zone: 'box', box: 0, slot: 0 },
+				{ ...scope, otherEdits }
+			);
+		expect(await validate(false)).toMatchObject({
+			ok: false,
+			error: { message: expect.stringMatching(/^Met Data edit is not valid/) }
+		});
+		expect(await validate(true)).toMatchObject({
+			ok: false,
+			error: { message: expect.stringMatching(/^Pokemon edit is not valid for this Pokemon\. /) }
+		});
 	});
 
 	test('allows Primarina Ice Beam PP edits and explains real post-edit legality failures', async () => {

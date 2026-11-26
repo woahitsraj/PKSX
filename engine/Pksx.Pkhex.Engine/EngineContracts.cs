@@ -915,7 +915,8 @@ public sealed record PokemonEditPreviewValidationRequest(
     SaveSlotRef Source,
     bool Moves,
     bool MetData,
-    bool OriginalTrainer);
+    bool OriginalTrainer,
+    bool OtherEdits);
 
 public sealed record SaveFileEditOperationRequest(
     TrainerProfileEdit? TrainerProfile,

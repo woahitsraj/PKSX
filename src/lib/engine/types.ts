@@ -544,6 +544,7 @@ export type PokemonEditPreviewValidationScope = {
 	moves: boolean;
 	metData: boolean;
 	originalTrainer: boolean;
+	otherEdits: boolean;
 };
 
 export type PokemonCreationOperation = {
