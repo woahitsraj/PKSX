@@ -63,6 +63,7 @@
 	} from '$lib/pksx/saves-cache';
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 	import { getToastHost } from '$lib/pksx/toast/host.svelte';
+	import { pulse } from '$lib/pksx/haptics';
 
 	function cardRise(node: Element, { index }: { index: number }) {
 		void node;
@@ -283,7 +284,7 @@
 		} catch (error) {
 			if (request !== refreshRequest) return;
 			catalogLoading = false;
-			toastHost.error(getErrorMessage(error));
+			toastHost.error(getErrorMessage(error), { haptic: false });
 			if (options.focus) await focusGrid();
 		}
 	}
@@ -457,7 +458,7 @@
 		try {
 			storageRecoveryAvailable = Boolean(await getPokemonStorageCatalog().preRestoreRecovery());
 		} catch (error) {
-			toastHost.error(getErrorMessage(error));
+			toastHost.error(getErrorMessage(error), { haptic: false });
 		}
 		void focusStorageBackupCommand();
 	}
@@ -985,6 +986,7 @@
 		busyTarget = id;
 		try {
 			const file = await storage.renameSave(id, name);
+			pulse('success');
 			const workspace = getCachedActiveWorkspace();
 			if (workspace?.file.id === id) {
 				setCachedActiveWorkspace({ ...workspace, file }, getCachedActiveWorkspaceBox());

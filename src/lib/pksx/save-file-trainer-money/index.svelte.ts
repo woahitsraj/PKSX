@@ -1,3 +1,4 @@
+import { pulse } from '$lib/pksx/haptics';
 import { getSaveDisplayName } from '$lib/pksx/saves';
 import type { SaveFileEditOperation, TrainerGender } from '$lib/engine';
 import type {
@@ -277,6 +278,7 @@ export function createSaveFileTrainerMoneyController(
 		if (!sameOrigin(requestOrigin, origin)) return 'complete';
 
 		if (result.ok) {
+			if (context.mode !== 'operator') pulse('success');
 			refreshWorkspace(result.workspace, context.field);
 			clearFieldError(context.field);
 			return 'complete';

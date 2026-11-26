@@ -22,6 +22,7 @@
 	} from '$lib/pksx/saves-cache';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
 	import { getToastHost } from '$lib/pksx/toast/host.svelte';
+	import { pulse } from '$lib/pksx/haptics';
 
 	type PokedexField = PokedexProjection['fields'][number];
 
@@ -204,6 +205,7 @@
 		} finally {
 			if (mounted) pendingKey = null;
 		}
+		if (mounted && !failure) pulse('success');
 		if (!mounted || !failure) return;
 		if (edit.kind === 'field') fieldErrors = { [edit.field]: failure };
 		else toast.error(failure);
