@@ -193,6 +193,11 @@ test('migrates and browses a collection with Unfiled, Carry, and Search', async 
 		.click();
 	const search = page.getByRole('dialog', { name: 'Search Pokemon Storage' });
 	await search.getByRole('searchbox').fill('ARON');
+	await search.getByRole('button', { name: 'Advanced' }).click();
+	await expect(search.getByRole('combobox', { name: 'Legality' })).toBeDisabled();
+	await expect(search).toContainText('Pokemon Storage does not keep legality results.');
+	await expect(search.getByRole('combobox', { name: 'Form' })).toBeDisabled();
+	await search.getByRole('button', { name: 'Quick' }).click();
 	await search.getByRole('button', { name: /ARON, Aron/ }).click();
 	await expect(page.getByRole('button', { name: 'ARON, level 11', exact: true })).toBeFocused();
 

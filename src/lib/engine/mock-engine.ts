@@ -1,4 +1,5 @@
 import type {
+	SaveFileSearchProjection,
 	BoxSlotSummary,
 	EngineApi,
 	EngineResult,
@@ -571,6 +572,34 @@ export function createMockEngine(
 				fixableProblems: [],
 				warnings: [],
 				messages: [{ severity: 'Valid', identifier: 'Encounter', message: 'Encounter is valid.' }]
+			}),
+		listSearchEntries: async (_bytes, _fileName, includeLegality) =>
+			success<SaveFileSearchProjection>({
+				entries: [
+					...mockPartySlots.map((slot) => ({ ...slot, zone: 'party' as const, box: null })),
+					...mockBoxSlots.map((slot) => ({ ...slot, zone: 'box' as const }))
+				]
+					.filter((slot) => !slot.isEmpty)
+					.map((slot) => ({
+						zone: slot.zone,
+						box: slot.box,
+						slot: slot.slot,
+						speciesName: slot.speciesName ?? '',
+						nickname: slot.nickname,
+						form: slot.form,
+						formName: 'Default',
+						isShiny: slot.spriteIdentity.isShiny,
+						legal: includeLegality ? true : null,
+						nature: slot.nature ?? null,
+						ability: slot.ability ?? null,
+						heldItem: slot.heldItem ?? null,
+						moves: slot.moves.map((move) => move.name),
+						level: slot.level,
+						ivs: slot.stats.map((stat) => stat.iv ?? 0),
+						evs: slot.stats.map((stat) => stat.ev ?? 0),
+						originGame: 'Emerald'
+					})),
+				unavailable: []
 			}),
 		previewPokemonActions: async () => success(mockPokemonActionPreview()),
 		applyPokemonAction: async (bytes, fileName, _operation, activeBox) =>
