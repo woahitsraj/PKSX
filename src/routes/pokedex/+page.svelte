@@ -40,6 +40,8 @@
 	const fields = $derived(pokedex?.fields ?? []);
 	const railFields = $derived(fields.filter((f) => f.species === null));
 	const fieldsOf = (id: number) => fields.filter((f) => f.species === id);
+	const flagsOf = (entry: PokedexProjection['species'][number]) =>
+		typeof entry.flagSet === 'number' ? (pokedex?.flagSets?.[entry.flagSet] ?? []) : [];
 	const species = $derived(
 		all.filter((s) =>
 			[s.id, s.name, ...fieldsOf(s.id).map((f) => f.label)]
@@ -165,7 +167,7 @@
 				const next = event.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
 				const editor =
 					event.key === 'ArrowDown' && active.matches('.values-toggle')
-						? row.querySelector<HTMLElement>('.species-values input')
+						? row.querySelector<HTMLElement>('.species-values :is(input, .species-flag)')
 						: null;
 				target =
 					editor ??
@@ -434,6 +436,7 @@
 							{#each species as entry (entry.id)}
 								{@const sprite = spriteUrl(entry.id)}
 								{@const own = fieldsOf(entry.id)}
+								{@const flags = flagsOf(entry)}
 								{@const valuesKey = `species-${entry.id}-values`}
 								{@const valuesId = `pokedex-values-${entry.id}`}
 								{@const open = openValues.has(entry.id)}
@@ -450,7 +453,7 @@
 											decoding="async"
 										/>
 									{:else}<span class="sprite"></span>{/if}
-									{#if own.length}
+									{#if own.length || flags.length}
 										<span class="who">
 											<strong class="name">{entry.name}</strong>
 											<button
@@ -482,7 +485,7 @@
 										species: entry.id,
 										caught: !entry.caught
 									})}
-									{#if open && own.length}
+									{#if open && (own.length || flags.length)}
 										<div
 											id={valuesId}
 											class="species-values"
@@ -492,6 +495,34 @@
 											{#each own as field (field.key)}
 												{@render fieldForm(field, JSON.stringify([valuesKey, 'search']))}
 											{/each}
+											{#if flags.length}
+												<div class="details">
+													{#each flags as label, index (index)}
+														{@const on = entry.flags?.[index] === '1'}
+														{@const key = `flag-${entry.id}-${index}`}
+														<button
+															type="button"
+															class="species-flag"
+															aria-label={`${entry.name} ${label}`}
+															aria-pressed={on}
+															aria-disabled={pendingKey !== null}
+															aria-busy={pendingKey === key}
+															data-destination-focus={key}
+															data-destination-fallbacks={JSON.stringify([valuesKey, 'search'])}
+															onclick={() =>
+																apply(key, {
+																	kind: 'flag',
+																	species: entry.id,
+																	flag: index,
+																	on: !on
+																})}
+														>
+															{@render mark('Caught', on)}
+															{label}
+														</button>
+													{/each}
+												</div>
+											{/if}
 										</div>
 									{/if}
 								</div>
@@ -897,6 +928,12 @@
 		padding-block-end: var(--pksx-space-1);
 	}
 
+	.details {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--pksx-space-1);
+	}
+
 	.unseen .name {
 		font-weight: 500;
 		color: var(--pksx-color-text-secondary);
@@ -961,7 +998,8 @@
 		border-color: var(--pksx-color-feedback-danger);
 	}
 
-	.flag {
+	.flag,
+	.species-flag {
 		display: inline-flex;
 		align-items: center;
 		gap: var(--pksx-space-1);
@@ -970,7 +1008,7 @@
 		color: var(--pksx-color-text-secondary);
 	}
 
-	.flag[aria-pressed='true'] {
+	:is(.flag, .species-flag)[aria-pressed='true'] {
 		border-color: var(--pksx-color-border-strong);
 		color: var(--pksx-color-text-primary);
 	}
@@ -1073,6 +1111,7 @@
 		}
 
 		.flag,
+		.species-flag,
 		.values-toggle {
 			padding-inline: max(5px, var(--pksx-space-1));
 		}

@@ -344,3 +344,50 @@ test('Generation 2 Unown values stay on its row and bulk Seen is backed up', asy
 	await expect(markAll).toHaveAttribute('aria-disabled', 'false');
 	expect(await readSafetyState(page)).toEqual({ backups: 1, dirty: true });
 });
+
+for (const [generation, file, flag, absent] of [
+	[4, 'minna-pokemon-saves/pokemon-soulsilver.sav', 'Language: French', 'Seen: shiny female'],
+	[5, 'pkmds-blazor/pokemon-black.sav', 'Seen: shiny female', 'Second seen gender is female']
+] as const) {
+	test(`Generation ${generation} species flags and Seen share one Backup`, async ({ page }) => {
+		await page.goto('/');
+		await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
+			'data-initial-state',
+			'ready',
+			{ timeout: 60_000 }
+		);
+		await page
+			.getByLabel('Import Save File')
+			.setInputFiles(path.resolve('test-fixtures/save-files', file));
+		await expect(page.getByText(/imported and made active/)).toBeVisible({ timeout: 90_000 });
+		await choose(page, 'Pokedex');
+		const search = page.getByRole('searchbox');
+		await search.fill('Pikachu');
+		await expect(page.locator('.species-row')).toHaveCount(1);
+		const values = page.getByRole('button', { name: 'Pikachu values', exact: true });
+		await values.click();
+		await dpad(page, 'ArrowDown');
+		await expect(page.locator('.species-values .species-flag').first()).toBeFocused();
+		await expect(page.getByRole('button', { name: `Pikachu ${absent}`, exact: true })).toHaveCount(
+			0
+		);
+		for (const name of [`Pikachu ${flag}`, 'Pikachu Seen']) {
+			const control = page.getByRole('button', { name, exact: true });
+			const previous = await control.getAttribute('aria-pressed');
+			await control.click();
+			await expect(control).toHaveAttribute(
+				'aria-pressed',
+				previous === 'true' ? 'false' : 'true',
+				{
+					timeout: 90_000
+				}
+			);
+			await expect(control).toBeFocused();
+			await expect.poll(() => readSafetyState(page)).toEqual({ backups: 1, dirty: true });
+		}
+		// The editor stays open across edits and keeps the other species out of the filtered list.
+		await expect(values).toHaveAttribute('aria-expanded', 'true');
+		await search.fill('no such species');
+		await expect(page.getByText('No matching species.')).toBeVisible();
+	});
+}
