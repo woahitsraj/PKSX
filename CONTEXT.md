@@ -374,6 +374,14 @@ _Avoid_: Box Source menu, source menu, pane menu
 The Menu for the Save File under Controller Focus in Saves.
 _Avoid_: save menu, card menu
 
+**Game Group**:
+One card in **Saves** that stands for two or more **Save Files** of the same game, as the **PKHeX Engine** identifies it, when the Saves view **Preference** is By game. It is only a view: it owns no bytes, **Workspace**, or **Backup**.
+_Avoid_: merged save, save family
+
+**Save File Chooser**:
+The **Menu** that a **Game Group** opens, listing each of its **Save Files** by name, trainer, and original filename.
+_Avoid_: playthrough picker, group menu
+
 **Main Menu**:
 The Menu of app destinations.
 _Avoid_: global command surface, navigation menu, tab bar
@@ -719,6 +727,11 @@ _Avoid_: setting, option, config
 - A successful import in **Saves** makes the imported **Save File** active and moves **Controller Focus** to it without leaving **Saves**.
 - Cancelling import returns **Controller Focus** to Import.
 - Deleting the **Save File** under **Controller Focus** moves focus to the next **Save File**, then the previous one, then Import.
+- The Saves view **Preference** is Flat or By game. By game puts **Save Files** into a **Game Group** only by the engine's game version. Filename and trainer never join a group. Versions that the engine reports apart, such as Ruby / Sapphire and Ruby, stay apart, and a **Save File** without engine details stays its own card.
+- A **Game Group** sits where its first member sorts and appears only for two or more matching **Save Files**; one match shows as its **Save File**.
+- **Controller Focus** in **Saves** binds to a **Save File** or a **Game Group** by identity. A focused **Save File** that joins a group moves focus to that group, and a group that drops to one member gives focus to the surviving **Save File**.
+- Confirming a **Game Group** opens its **Save File Chooser**; confirming a **Save File** there makes it active and opens Boxes. Dismissing the chooser returns **Controller Focus** to its **Game Group**.
+- A **Game Group** has no **Save File Menu**. The **Save File Chooser** opens the **Save File Menu** for its focused **Save File**, and dismissing that **Menu** returns to the chooser. Deleting a member removes only that **Save File** and its **Backups**.
 - Browser tab navigation moves between major interactive regions; directional input moves **Controller Focus** inside the active party or box grid.
 - Party and box slot collections present as grids to assistive technology.
 - Keyboard and gamepad input produce the same **Navigation Actions** before changing **Controller Focus**.

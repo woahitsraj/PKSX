@@ -21,6 +21,7 @@ const fakes = vi.hoisted(() => ({
 	databaseName: 'pksx-grid-test-' + crypto.randomUUID(),
 	host: null as ReturnType<typeof createSummonedWorkflowHost> | null,
 	detailsRequest: null as Promise<CardResult> | null,
+	mockCards: false,
 	toastHost: {
 		success: vi.fn(),
 		error: vi.fn()
@@ -46,10 +47,16 @@ vi.mock('$lib/engine', async (importOriginal) => {
 	const { createMockEngine } = await import('$lib/engine/mock-engine');
 	return {
 		...(await importOriginal<typeof import('$lib/engine')>()),
-		createPkhexWorkerEngine: () => ({
-			...createMockEngine(),
-			summarizeSaveCard: () => fakes.detailsRequest ?? Promise.resolve({ ok: false } as CardResult)
-		})
+		createPkhexWorkerEngine: () => {
+			const engine = createMockEngine();
+			return {
+				...engine,
+				summarizeSaveCard: (bytes: Uint8Array, fileName?: string) =>
+					fakes.mockCards && !fileName?.startsWith('missing')
+						? engine.summarizeSaveCard(bytes, fileName)
+						: (fakes.detailsRequest ?? Promise.resolve({ ok: false } as CardResult))
+			};
+		}
 	};
 });
 vi.mock('$lib/pksx/linked-save-folders', async (original) => ({
@@ -76,6 +83,8 @@ afterEach(async () => {
 	component = null;
 	container?.remove();
 	fakes.detailsRequest = null;
+	fakes.mockCards = false;
+	localStorage.removeItem('pksx-saves-view-v1');
 	await ensurePokemonStorageCatalog();
 	await deleteIndexedDbSaves(fakes.databaseName);
 	await deleteIndexedDbSaves('pksx-saves');
@@ -494,4 +503,48 @@ it('opens Add saves with file and folder options and labels discovered saves by 
 	container.querySelector<HTMLButtonElement>('[aria-label="Add saves"]')!.click();
 	await expect.element(page.getByRole('button', { name: /^Import file/ })).toBeVisible();
 	await expect.element(page.getByRole('button', { name: /^Link folder/ })).toBeVisible();
+});
+
+it('groups Save Files by game and returns focus along the chooser chain', async () => {
+	fakes.mockCards = true;
+	localStorage.setItem('pksx-saves-view-v1', 'by-game');
+	const host = createSummonedWorkflowHost();
+	fakes.host = host;
+	const storage = getSavesStorage();
+	for (const [index, name] of ['a.sav', 'b.sav', 'missing.sav'].entries()) {
+		await storage.importSave({ bytes: new Uint8Array([index + 1]), originalFileName: name });
+	}
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(SavesGrid, { target: container });
+	const grid = container.querySelector<HTMLElement>('#saves-grid')!;
+	const key = (key: string) =>
+		window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+
+	await expect.poll(() => container.querySelectorAll('.game-card').length).toBe(1);
+	expect(container.querySelectorAll('.save-card:not(.game-card)')).toHaveLength(1);
+	expect(
+		container.querySelector('[aria-label="Open Save File Menu for missing.sav"]')
+	).not.toBeNull();
+	container.querySelector<HTMLButtonElement>('.game-card .card-main')!.click();
+	await expect.poll(() => host.active?.kind).toBe('save-file-chooser');
+	key('Escape');
+	await expect.poll(() => host.active).toBeNull();
+	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-game-SV');
+	key('x');
+	await tick();
+	expect(host.active).toBeNull();
+	key('Enter');
+	await expect.poll(() => host.active?.kind).toBe('save-file-chooser');
+	await expect.poll(() => document.activeElement?.id).toBe('save-file-chooser-row-0');
+	key('ArrowDown');
+	await expect.poll(() => document.activeElement?.id).toBe('save-file-chooser-row-1');
+	key('x');
+	await expect.poll(() => host.active?.kind).toBe('save-file-menu');
+	key('Escape');
+	await expect.poll(() => host.active?.kind).toBe('save-file-chooser');
+	await expect.poll(() => document.activeElement?.id).toBe('save-file-chooser-row-1');
+	key('Escape');
+	await expect.poll(() => host.active).toBeNull();
+	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-game-SV');
 });

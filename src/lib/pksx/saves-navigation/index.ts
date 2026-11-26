@@ -1,10 +1,58 @@
-import type { SaveFileId } from '$lib/pksx/saves';
+import type { SaveFileId, StoredSaveFile } from '$lib/pksx/saves';
 
 export type SavesTarget =
 	| { kind: 'save-file'; id: SaveFileId }
+	| { kind: 'game'; game: string }
 	| { kind: 'pokemon-storage' }
 	| { kind: 'import' };
 export type SavesDirection = 'left' | 'right' | 'up' | 'down';
+/** A Saves card: one Save File, or a game group holding two or more Save Files. */
+export type SavesEntry =
+	| { kind: 'save-file'; saveFile: StoredSaveFile; game: string | null }
+	| { kind: 'game'; game: string; saveFiles: StoredSaveFile[] };
+
+export function savesEntryTargets(entries: SavesEntry[]): SavesTarget[] {
+	return [
+		...entries.map(
+			(entry): SavesTarget =>
+				entry.kind === 'game'
+					? { kind: 'game', game: entry.game }
+					: { kind: 'save-file', id: entry.saveFile.id }
+		),
+		{ kind: 'pokemon-storage' },
+		{ kind: 'import' }
+	];
+}
+
+/** Maps a target to the card that now shows it, so focus follows identity across grouping changes. */
+export function normalizeSavesTarget(entries: SavesEntry[], target: SavesTarget): SavesTarget {
+	if (target.kind === 'save-file') {
+		const group = entries.find(
+			(entry) => entry.kind === 'game' && entry.saveFiles.some((file) => file.id === target.id)
+		);
+		return group?.kind === 'game' ? { kind: 'game', game: group.game } : target;
+	}
+	if (target.kind !== 'game' || entries.some((e) => e.kind === 'game' && e.game === target.game))
+		return target;
+	const member = entries.find((entry) => entry.kind === 'save-file' && entry.game === target.game);
+	return member?.kind === 'save-file' ? { kind: 'save-file', id: member.saveFile.id } : target;
+}
+
+export function resolveSavesEntryTarget(
+	entries: SavesEntry[],
+	remembered: SavesTarget | null,
+	activeSaveFileId: SaveFileId | null
+): SavesTarget {
+	const targets = savesEntryTargets(entries);
+	const candidates: SavesTarget[] = [
+		...(remembered ? [remembered] : []),
+		...(activeSaveFileId ? [{ kind: 'save-file' as const, id: activeSaveFileId }] : [])
+	].map((candidate) => normalizeSavesTarget(entries, candidate));
+	return (
+		candidates.find((candidate) => targetIndex(targets, candidate) >= 0) ??
+		resolveSavesTarget(targets, null, null)
+	);
+}
 
 export function resolveSavesTarget(
 	targets: SavesTarget[],
@@ -18,7 +66,7 @@ export function resolveSavesTarget(
 		: null;
 	return (
 		active ??
-		targets.find((target) => target.kind === 'save-file') ??
+		targets.find((target) => target.kind === 'save-file' || target.kind === 'game') ??
 		targets.find((target) => target.kind === 'import') ?? { kind: 'pokemon-storage' }
 	);
 }
@@ -64,7 +112,7 @@ export function deleteSavesTarget(
 	deleted: Extract<SavesTarget, { kind: 'save-file' }>
 ): SavesTarget {
 	const saveFiles = preDeleteTargets.filter(
-		(target): target is Extract<SavesTarget, { kind: 'save-file' }> => target.kind === 'save-file'
+		(target) => target.kind === 'save-file' || target.kind === 'game'
 	);
 	const deletedIndex = targetIndex(saveFiles, deleted);
 	const remaining = saveFiles.filter((target) => !sameSavesTarget(target, deleted));
@@ -76,9 +124,9 @@ export function deleteSavesTarget(
 }
 
 export function sameSavesTarget(left: SavesTarget, right: SavesTarget) {
-	if (left.kind !== right.kind) return false;
-	if (left.kind !== 'save-file') return true;
-	return right.kind === 'save-file' && left.id === right.id;
+	if (left.kind === 'save-file') return right.kind === 'save-file' && left.id === right.id;
+	if (left.kind === 'game') return right.kind === 'game' && left.game === right.game;
+	return left.kind === right.kind;
 }
 
 function targetIndex(targets: SavesTarget[], target: SavesTarget) {

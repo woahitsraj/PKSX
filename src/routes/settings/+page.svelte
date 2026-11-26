@@ -11,6 +11,7 @@
 	import { appPlatformLabel, getAppMetadata } from '$lib/pksx/app-metadata';
 	import { appChrome } from '$lib/pksx/app-chrome.svelte';
 	import { getPkhexEngine } from '$lib/pksx/saves-cache';
+	import { readSavesView, writeSavesView, type SavesView } from '$lib/pksx/saves-library';
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 	import { theme } from '$lib/pksx/theme.svelte';
 
@@ -114,6 +115,7 @@
 
 	let route: HTMLElement;
 	const summonedWorkflow = getSummonedWorkflowHost();
+	let savesView = $state<SavesView>('flat');
 	let appVersion = $state<string | null>(null);
 	let platform = $state<string | null>(null);
 	let pkhexCoreVersion = $state<string | null>(null);
@@ -122,6 +124,7 @@
 	);
 
 	onMount(() => {
+		savesView = readSavesView();
 		void loadMetadata();
 		queueMicrotask(() => focusStop(rememberedStop, rememberedThemeControl));
 	});
@@ -267,6 +270,27 @@
 							data-destination-focus="theme-dark"
 							onclick={() => theme.setDark(true)}>Dark</button
 						>
+					</div>
+				</div>
+				<div class="preference-row" data-settings-row="saves-view">
+					<div>
+						<strong>Saves view</strong>
+						<span>Show each Save File, or group them by game.</span>
+					</div>
+					<div class="segmented" role="group" aria-label="Saves view">
+						{#each [['flat', 'Flat'], ['by-game', 'By game']] as const as [value, label] (value)}
+							<button
+								type="button"
+								aria-pressed={savesView === value}
+								data-settings-control
+								data-settings-stop={value === 'flat' || undefined}
+								data-destination-focus={'saves-view-' + value}
+								onclick={() => {
+									savesView = value;
+									writeSavesView(value);
+								}}>{label}</button
+							>
+						{/each}
 					</div>
 				</div>
 			</section>

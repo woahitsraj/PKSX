@@ -19,6 +19,7 @@ export type SummonedWorkflowKind =
 	| 'save-file-rename'
 	| 'storage-backup-menu'
 	| 'add-saves-menu'
+	| 'save-file-chooser'
 	| 'storage-backup-confirmation'
 	| 'source-picker'
 	| 'box-picker'
