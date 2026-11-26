@@ -61,6 +61,7 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
+		if (event.altKey || event.ctrlKey || event.metaKey) return;
 		if (event.key === 'Escape') onCancel();
 		else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') void focus(index + 1);
 		else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') void focus(index - 1);

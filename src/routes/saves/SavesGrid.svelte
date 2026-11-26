@@ -758,7 +758,7 @@
 	}
 
 	function cancelImportMatch() {
-		if (busyTarget) return;
+		if (busyTarget || !pendingImport) return;
 		closeImportMatch();
 		chooseTarget({ kind: 'import' });
 	}

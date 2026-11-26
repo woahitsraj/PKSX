@@ -8680,7 +8680,7 @@
 		{busy}
 		onReplace={(id) => void runImportMatch(id)}
 		onImportNew={() => void runImportMatch(null)}
-		onCancel={() => !busy && closeImportMatch()}
+		onCancel={() => !busy && pendingImport && closeImportMatch()}
 	/>
 {/if}
 
