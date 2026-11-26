@@ -39,12 +39,18 @@
 	const all = $derived(pokedex?.species ?? []);
 	const fields = $derived(pokedex?.fields ?? []);
 	const railFields = $derived(fields.filter((f) => f.species === null));
-	const fieldsOf = (id: number) => fields.filter((f) => f.species === id);
+	const speciesFields = $derived(
+		fields.reduce<Record<number, PokedexField[]>>((byId, f) => {
+			if (f.species != null) (byId[f.species] ??= []).push(f);
+			return byId;
+		}, {})
+	);
+	const fieldsOf = (id: number) => speciesFields[id] ?? [];
 	const flagsOf = (entry: PokedexProjection['species'][number]) =>
 		typeof entry.flagSet === 'number' ? (pokedex?.flagSets?.[entry.flagSet] ?? []) : [];
 	const species = $derived(
 		all.filter((s) =>
-			[s.id, s.name, ...fieldsOf(s.id).map((f) => f.label)]
+			[s.id, s.name, s.regional ?? '', ...fieldsOf(s.id).map((f) => f.label)]
 				.join(' ')
 				.toLowerCase()
 				.includes(query.trim().toLowerCase())
@@ -296,6 +302,17 @@
 	</form>
 {/snippet}
 
+{#snippet nameOf(entry: PokedexProjection['species'][number])}
+	{#if entry.regional}
+		<span class="named">
+			<strong class="name">{entry.name}</strong>
+			<small class="regional">{entry.regional}</small>
+		</span>
+	{:else}
+		<strong class="name">{entry.name}</strong>
+	{/if}
+{/snippet}
+
 {#snippet routeState(heading: string, body: string, retry: boolean)}
 	<div class="route-state" role={retry ? 'alert' : undefined}>
 		<h1 id="pokedex-title">Pokedex</h1>
@@ -351,6 +368,16 @@
 								>{workspace.file.originalFileName ?? 'Untitled Save File'}</span
 							>
 						</p>
+						{#if pokedex.regions}
+							<ul class="regions" aria-label="Regional Pokedexes">
+								{#each pokedex.regions as region (region.label)}
+									<li class={[!region.available && 'missing']}>
+										{region.label}:
+										{#if region.available}<span class="num">{region.count}</span> species{:else}{region.reason}{/if}
+									</li>
+								{/each}
+							</ul>
+						{/if}
 					</header>
 
 					<dl class="totals">
@@ -455,7 +482,7 @@
 									{:else}<span class="sprite"></span>{/if}
 									{#if own.length || flags.length}
 										<span class="who">
-											<strong class="name">{entry.name}</strong>
+											{@render nameOf(entry)}
 											<button
 												type="button"
 												class="values-toggle"
@@ -473,7 +500,7 @@
 											</button>
 										</span>
 									{:else}
-										<strong class="name">{entry.name}</strong>
+										{@render nameOf(entry)}
 									{/if}
 									{@render flag(entry.name, entry.id, 'Seen', entry.seen, {
 										kind: 'seen',
@@ -896,6 +923,31 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.named {
+		display: grid;
+		min-width: 0;
+	}
+
+	.regional,
+	.regions {
+		overflow: hidden;
+		font-size: var(--pksx-type-label);
+		color: var(--pksx-color-text-secondary);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.regions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0 var(--pksx-space-2);
+		white-space: normal;
+	}
+
+	.regions .missing {
+		color: var(--pksx-color-text-primary);
 	}
 
 	.who {

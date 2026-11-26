@@ -2,21 +2,21 @@ using PKHeX.Core;
 
 namespace Pksx.Pkhex.Engine;
 
-public sealed record PokedexSpecies(int Id, string Name, bool Seen, bool Caught, int? FlagSet = null, string? Flags = null);
+public sealed record PokedexSpecies(int Id, string Name, bool Seen, bool Caught, int? FlagSet = null, string? Flags = null, string? Regional = null);
 public sealed record PokedexField(string Key, string Label, long Value, long Min, long Max, int? Species = null);
 public sealed record PokedexEdit(string Kind, int? Species, bool? Seen, bool? Caught, string? Field, long? Value, int? Flag = null, bool? On = null);
 // FlagSets holds each distinct list of flag labels once; a species names its list and packs its values as 0 and 1.
-public sealed record PokedexProjection(string Status, string? Reason, List<PokedexSpecies> Species, List<PokedexField> Fields, List<string[]>? FlagSets = null)
+public sealed record PokedexProjection(string Status, string? Reason, List<PokedexSpecies> Species, List<PokedexField> Fields, List<string[]>? FlagSets = null, List<PokedexRegion>? Regions = null)
 {
     public static PokedexProjection From(SaveFile save)
     {
         if (!save.HasPokeDex)
             return new("unavailable", "This Save File format has no Pokedex.", [], []);
-        if (save is not (SAV1 or SAV2 or SAV3 or SAV4 or SAV5))
-            return new("unavailable", "Pokedex editing currently supports Generations 1 through 5 handheld Save Files.", [], []);
+        if (save is not (SAV1 or SAV2 or SAV3 or SAV4 or SAV5 or SAV8SWSH))
+            return new("unavailable", "Pokedex editing currently supports Generations 1 through 5 handheld Save Files and Sword and Shield.", [], []);
         List<string[]> flagSets = [];
         Dictionary<string, int> flagSetIds = [];
-        var species = Enumerable.Range(1, save.MaxSpeciesID).Select(id =>
+        var species = Enumerable.Range(1, save.MaxSpeciesID).Where(id => PokedexFlags.InDex(save, id)).Select(id =>
         {
             var flags = PokedexFlags.Of(save, (ushort)id);
             int? set = null;
@@ -31,7 +31,7 @@ public sealed record PokedexProjection(string Status, string? Reason, List<Poked
                 }
                 set = index;
             }
-            return new PokedexSpecies(id, GameInfo.Strings.specieslist[id], save.GetSeen((ushort)id), save.GetCaught((ushort)id), set, set is null ? null : string.Concat(flags.Select(f => f.On ? '1' : '0')));
+            return new PokedexSpecies(id, GameInfo.Strings.specieslist[id], save.GetSeen((ushort)id), save.GetCaught((ushort)id), set, set is null ? null : string.Concat(flags.Select(f => f.On ? '1' : '0')), save is SAV8SWSH sw ? SwordShieldPokedex.Regional(sw, (ushort)id) : null);
         }).ToList();
         List<PokedexField> fields = [];
         if (save is SAV2 s2)
@@ -61,7 +61,9 @@ public sealed record PokedexProjection(string Status, string? Reason, List<Poked
             fields.Add(new("opens-on", "Species number the Pokedex opens on", s5.Zukan.InitialSpecies, 0, save.MaxSpeciesID));
             fields.Add(new("spinda-pid", "Spinda display PID", s5.Zukan.Spinda, 0, uint.MaxValue, (int)PKHeX.Core.Species.Spinda));
         }
-        return new("available", null, species, fields, flagSets.Count == 0 ? null : flagSets);
+        if (save is SAV8SWSH swsh)
+            fields.AddRange(SwordShieldPokedex.Fields(swsh));
+        return new("available", null, species, fields, flagSets.Count == 0 ? null : flagSets, save is SAV8SWSH galar ? SwordShieldPokedex.Regions(galar) : null);
     }
 }
 
@@ -74,7 +76,7 @@ public static partial class PkhexEngineExports
             return SlotMutationResult.Fail("unsupported-save-file-edit", projection.Reason!);
         if (edit.Kind == "flag")
         {
-            if (edit.Species is not int owner || owner < 1 || owner > save.MaxSpeciesID || edit.On is not bool on || edit.Seen is not null || edit.Caught is not null || edit.Field is not null || edit.Value is not null)
+            if (edit.Species is not int owner || owner < 1 || owner > save.MaxSpeciesID || !PokedexFlags.InDex(save, owner) || edit.On is not bool on || edit.Seen is not null || edit.Caught is not null || edit.Field is not null || edit.Value is not null)
                 return SlotMutationResult.Fail("invalid-save-file-edit", "Choose a supported Pokedex species and flag.");
             var flags = PokedexFlags.Of(save, (ushort)owner);
             if (edit.Flag is not int flag || flag < 0 || flag >= flags.Count)
@@ -88,7 +90,7 @@ public static partial class PkhexEngineExports
             return SlotMutationResult.Fail("invalid-save-file-edit", "Only a Pokedex flag edit takes a flag.");
         if (edit.Kind is "seen" or "caught")
         {
-            if (edit.Species is not int id || id < 1 || id > save.MaxSpeciesID || edit.Field is not null || edit.Value is not null || (edit.Kind == "seen" && (edit.Seen is null || edit.Caught is not null)) || (edit.Kind == "caught" && (edit.Caught is null || edit.Seen is not null)))
+            if (edit.Species is not int id || id < 1 || id > save.MaxSpeciesID || !PokedexFlags.InDex(save, id) || edit.Field is not null || edit.Value is not null || (edit.Kind == "seen" && (edit.Seen is null || edit.Caught is not null)) || (edit.Kind == "caught" && (edit.Caught is null || edit.Seen is not null)))
                 return SlotMutationResult.Fail("invalid-save-file-edit", "Choose a supported Pokedex species and flag.");
             var species = (ushort)id;
             var beforeSeen = save.GetSeen(species);
@@ -106,7 +108,7 @@ public static partial class PkhexEngineExports
             var mutated = false;
             for (ushort id = 1; id <= save.MaxSpeciesID; id++)
             {
-                if (seen ? save.GetSeen(id) : save.GetCaught(id))
+                if (!PokedexFlags.InDex(save, id) || (seen ? save.GetSeen(id) : save.GetCaught(id)))
                     continue;
                 if (seen) PokedexFlags.SetSeen(save, id, true);
                 else PokedexFlags.SetCaught(save, id, true);
@@ -134,6 +136,7 @@ public static partial class PkhexEngineExports
             case (SAV5 s5, "national-mode"): s5.Zukan.IsNationalDexMode = value != 0; break;
             case (SAV5 s5, "opens-on"): s5.Zukan.InitialSpecies = (ushort)value; break;
             case (SAV5 s5, "spinda-pid"): s5.Zukan.Spinda = (uint)value; break;
+            case (SAV8SWSH swsh, _): SwordShieldPokedex.SetField(swsh, field, value); break;
         }
         return SlotMutationResult.Success(value != field.Value);
     }
