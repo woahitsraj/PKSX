@@ -1,18 +1,14 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import path from 'node:path';
 import { expectBoxesReady } from './boxes-ready.e2e-helper';
+import { loadRoute, reloadRoute } from './route-load.e2e-helper';
 
 const fixtures = 'test-fixtures/save-files';
 const moonSaves = ['011020252257.sav', '021020252230'];
 const unbound = 'pokemon-unbound-2.1.1.1.sav';
 
 async function importSaves(page: Page) {
-	await page.goto('/saves');
-	await expect(page.locator('[data-destination-root="saves"]')).toHaveAttribute(
-		'data-initial-state',
-		'ready',
-		{ timeout: 60_000 }
-	);
+	await loadRoute(page, '/saves');
 	const files = [
 		...moonSaves.map((name) => `bl1ndbeholder-pokemon-saves/moon/${name}`),
 		`raj-pokemon-save-backups/gba/${unbound}`
@@ -122,11 +118,11 @@ test('cover art loads on an offline start', async ({ page, context }) => {
 	await page.evaluate(async () => {
 		await navigator.serviceWorker.ready;
 	});
-	await page.reload();
+	await reloadRoute(page);
 	await expect(page.locator('.save-card')).toHaveCount(3, { timeout: 60_000 });
 
 	await context.setOffline(true);
-	await page.reload();
+	await reloadRoute(page);
 	await expect(page.locator('.save-card')).toHaveCount(3, { timeout: 60_000 });
 	await expectCoverLoaded(page.locator('.save-card').filter({ hasText: moonSaves[0] }));
 	// No card showed this cover, so only the service worker precache can serve it.
