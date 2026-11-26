@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadRoute } from './route-load.e2e-helper';
+import { importSaveThroughSaves } from './save-import.e2e-helper';
 
 test.setTimeout(180_000);
 
@@ -115,15 +116,14 @@ for (const [game, file, flag, absent, viewport] of [
 
 		// The exported Save File carries the game-specific flag into a fresh import.
 		await choose(page, 'Saves');
-		await page.getByLabel('Import Save File').setInputFiles({
-			name: path.basename(file),
+		await importSaveThroughSaves(page, {
+			name: 'exported.sav',
 			mimeType: 'application/octet-stream',
 			buffer: await readFile(exported)
 		});
-		await expect(page.getByText(/imported and made active/)).toBeVisible({ timeout: 90_000 });
 		await choose(page, 'Pokedex');
+		await expect(page.locator('.filename')).toHaveText('exported.sav');
 		await page.getByRole('searchbox').fill('Pikachu');
-		// The open values editor is remembered across destinations.
 		const reopened = page.getByRole('button', { name: 'Pikachu values', exact: true });
 		if ((await reopened.getAttribute('aria-expanded')) !== 'true') await reopened.click();
 		for (const [index, name] of ['Pikachu Seen', `Pikachu ${flag}`].entries())

@@ -5,7 +5,7 @@ namespace Pksx.Pkhex.Engine;
 // Scarlet and Violet keep one Kitakami-layout entry per species, with a displayed form, gender, and shiny state per regional Pokedex.
 internal static class ScarletVioletPokedex
 {
-    public const string OldLayout = "This Scarlet or Violet Save File uses the Pokedex layout from before version 2.0.1. Open it in the game once, save, and import it again.";
+    public const string OldLayout = "This Scarlet or Violet Save File uses the Pokedex layout from before version 2.0.1. Update the game to version 2.0.1 or later, save in the game, and import it again.";
     private static readonly (LanguageID Id, string Name)[] Languages =
     [
         (LanguageID.Japanese, "Japanese"), (LanguageID.English, "English"), (LanguageID.French, "French"), (LanguageID.Italian, "Italian"), (LanguageID.German, "German"),
@@ -149,7 +149,8 @@ internal static class ScarletVioletPokedex
                 if (!InRegion(save, species, region) && form == 0 && gender == 0)
                     continue;
                 var key = Regions[region].ToLowerInvariant();
-                yield return new($"{key}-form-{species}", $"{Regions[region]} Pokedex: displayed form (0 to {count - 1})", form, 0, Math.Max(count - 1, form), species);
+                if (count > 1 || form != 0)
+                    yield return new($"{key}-form-{species}", $"{Regions[region]} Pokedex: displayed form (0 to {count - 1})", form, 0, Math.Max(count - 1, form), species);
                 yield return new($"{key}-gender-{species}", $"{Regions[region]} Pokedex: displayed gender (0 = male, 1 = female, 2 = genderless)", gender, 0, Math.Max((byte)2, gender), species);
             }
         }
@@ -316,7 +317,8 @@ internal static class LegendsZAPokedex
             var entry = save.Zukan.GetEntry(species);
             var (form, gender) = (entry.DisplayForm, (byte)entry.DisplayGender);
             var count = save.Personal[species].FormCount;
-            yield return new($"za-form-{species}", $"Displayed form (0 to {count - 1})", form, 0, Math.Max(count - 1, form), species);
+            if (count > 1 || form != 0)
+                yield return new($"za-form-{species}", $"Displayed form (0 to {count - 1})", form, 0, Math.Max(count - 1, form), species);
             yield return new($"za-gender-{species}", "Displayed gender (0 = genderless, 1 = male, 2 = female, 3 = no gender difference)", gender, 0, Math.Max((byte)3, gender), species);
         }
     }
