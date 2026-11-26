@@ -478,6 +478,8 @@ describe('PKHeX Engine browser runtime smoke', () => {
 				generation: 3,
 				trainerName: 'DIXIE',
 				trainerId: expect.any(Number),
+				rawTrainerId: 58646,
+				rawSecretId: 52042,
 				playTime: expect.any(String),
 				playedHours: expect.any(Number),
 				playedMinutes: expect.any(Number),

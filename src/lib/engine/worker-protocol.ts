@@ -91,6 +91,8 @@ export const saveSummarySchema = z.object({
 	generation: z.number(),
 	trainerName: z.string().optional(),
 	trainerId: z.number().default(0),
+	rawTrainerId: z.number().int().default(0),
+	rawSecretId: z.number().int().default(0),
 	playTime: z.string().default(''),
 	playedHours: z.number().default(0),
 	playedMinutes: z.number().default(0),
