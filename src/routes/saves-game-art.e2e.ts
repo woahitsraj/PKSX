@@ -33,14 +33,22 @@ async function expectCoverLoaded(card: Locator) {
 }
 
 for (const viewport of [
-	{ width: 640, height: 360 },
-	{ width: 360, height: 640 }
+	{ width: 640, height: 360, columns: 4 },
+	{ width: 360, height: 640, columns: 2 }
 ]) {
 	test(`cards show cover art and stay distinct at ${viewport.width}x${viewport.height}`, async ({
 		page
 	}) => {
 		await page.setViewportSize(viewport);
 		await importSaves(page);
+
+		// [SAVES-1] Tile columns, and one full row above the fold.
+		const grid = await page.locator('.saves-grid').evaluate((element) => ({
+			columns: getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/).length,
+			firstRowBottom: element.querySelector('.save-card')!.getBoundingClientRect().bottom
+		}));
+		expect(grid.columns).toBe(viewport.columns);
+		expect(grid.firstRowBottom).toBeLessThanOrEqual(viewport.height);
 
 		const moonCards = page.locator('.save-card').filter({ hasText: 'Pokemon Moon' });
 		await expect(moonCards).toHaveCount(2);
