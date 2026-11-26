@@ -382,3 +382,67 @@ for (const [generation, file, flag, absent] of [
 		await expect(page.getByText('No matching species.')).toBeVisible();
 	});
 }
+
+test("Let's Go Pokedex edits flags and size records, then exports", async ({ page }) => {
+	const file = path.resolve(
+		'test-fixtures/save-files/raj-pokemon-save-backups/switch/pokemon-lets-go-eevee-2025-03-24-savedata.bin'
+	);
+	await page.setViewportSize({ width: 360, height: 640 });
+	await loadRoute(page, '/');
+	await page.getByLabel('Import Save File').setInputFiles(file);
+	await expect(page.getByText(/imported and made active/)).toBeVisible({ timeout: 90_000 });
+	await choose(page, 'Pokedex');
+	await expect(page.locator('.count')).toHaveText(/153 species/);
+	// Kanto plus Meltan and Melmetal only, and no main-series National Pokedex or Spinda values.
+	await expect(page.locator('.fields')).toHaveCount(0);
+	const search = page.getByRole('searchbox');
+	await search.fill('Chikorita');
+	await expect(page.getByText('No matching species.')).toBeVisible();
+	await search.fill('Melmetal');
+	await expect(page.locator('.species-row')).toHaveCount(1);
+	await search.fill('Pikachu');
+	await expect(page.locator('.species-row')).toHaveCount(1);
+	const values = page.getByRole('button', { name: 'Pikachu values', exact: true });
+	await values.click();
+	await dpad(page, 'ArrowDown');
+	await expect(page.locator('.species-values input').first()).toBeFocused();
+	const flag = page.getByRole('button', { name: 'Pikachu Seen: shiny female', exact: true });
+	const next = (await flag.getAttribute('aria-pressed')) === 'true' ? 'false' : 'true';
+	await flag.click();
+	await expect(flag).toHaveAttribute('aria-pressed', next, { timeout: 90_000 });
+	await expect(flag).toBeFocused();
+	await expect.poll(() => readSafetyState(page)).toEqual({ backups: 1, dirty: true });
+	// Size records exist only in the Let's Go Pokedex.
+	const height = page.getByLabel('Tallest record height (no record: height 254, weight 127)', {
+		exact: true
+	});
+	await height.fill('300');
+	await height.press('Enter');
+	await expect(height).toHaveJSProperty('validity.valid', false);
+	const value = (await height.inputValue()) === '200' ? '100' : '200';
+	await height.fill(value);
+	await height.press('Enter');
+	await expect(page.locator('[data-destination-focus="apply-tallest-height-24"]')).toHaveAttribute(
+		'aria-disabled',
+		'false',
+		{ timeout: 90_000 }
+	);
+	await expect(height).toBeFocused();
+	expect(await readSafetyState(page)).toEqual({ backups: 1, dirty: true });
+	await values.click();
+	await values.click();
+	await expect(height).toHaveValue(value);
+	await choose(page, 'Boxes');
+	await page
+		.getByRole('button', { name: /Open Box Menu for/ })
+		.first()
+		.click();
+	const downloadPromise = page.waitForEvent('download');
+	await page
+		.getByRole('dialog', { name: 'Box Menu' })
+		.getByRole('button', { name: 'Export', exact: true })
+		.click();
+	const exported = await (await downloadPromise).path();
+	if (!exported) throw new Error('Missing export');
+	expect(await readFile(exported)).not.toEqual(await readFile(file));
+});
