@@ -1,0 +1,23 @@
+{
+	"src/lib/components/pksx/AddSavesMenu.svelte": 1,
+	"src/lib/components/pksx/BackupBrowser.svelte": 5,
+	"src/lib/components/pksx/BoxPicker.svelte": 7,
+	"src/lib/components/pksx/Combobox.svelte": 3,
+	"src/lib/components/pksx/LegalityReportDialog.svelte": 1,
+	"src/lib/components/pksx/PokemonEditor.svelte": 1,
+	"src/lib/components/pksx/QuickSearch.svelte": 5,
+	"src/lib/components/pksx/RenameSaveFile.svelte": 4,
+	"src/lib/components/pksx/SaveFileLedger.svelte": 1,
+	"src/lib/components/pksx/SaveFileLegalityReport.svelte": 2,
+	"src/lib/components/pksx/StorageBatch.svelte": 2,
+	"src/lib/components/pksx/StorageBoxOrganizer.svelte": 3,
+	"src/lib/components/pksx/StorageSlot.svelte": 1,
+	"src/lib/components/pksx/TradeWithSwitch.svelte": 4,
+	"src/lib/pksx/controller-input.ts": 3,
+	"src/lib/pksx/save-file-legality-report/host.svelte.ts": 3,
+	"src/routes/+layout.svelte": 5,
+	"src/routes/boxes/+page.svelte": 42,
+	"src/routes/pokedex/+page.svelte": 2,
+	"src/routes/saves/SavesGrid.svelte": 12,
+	"src/routes/settings/+page.svelte": 3
+}

@@ -74,6 +74,7 @@
 		type PendingStorageSlotOperation
 	} from '$lib/pksx/storage-operations';
 	import { updateAppChrome } from '$lib/pksx/app-chrome.svelte';
+	import { requestFocus } from '$lib/pksx/focus-owner';
 	import { getBoxesSession, type BoxesVirtualPaneView } from '$lib/pksx/boxes-session';
 	import { preserveAndClearSaveSlot, SaveDeletionPendingError } from '$lib/pksx/save-deletion';
 	import {
@@ -3110,11 +3111,7 @@
 				};
 			}
 		}
-		queueMicrotask(() => {
-			const target = document.getElementById(launcher.id);
-			if (target) target.focus();
-			else focusActiveControl();
-		});
+		requestFocus(launcher.id, { orElse: focusActiveControl });
 	}
 
 	function closeSlotMenu() {
@@ -3428,10 +3425,7 @@
 	function focusBoxMenuCommand(index: number) {
 		const clamped = Math.max(0, Math.min(index, boxMenuCommands.length - 1));
 		navigation = { ...navigation, focus: { zone: 'actions', index: clamped } };
-		queueMicrotask(() => {
-			const latest = navigation.focus.zone === 'actions' ? navigation.focus.index : clamped;
-			document.getElementById(`box-menu-command-${latest}`)?.focus();
-		});
+		requestFocus(`box-menu-command-${clamped}`);
 	}
 
 	function selectBoxMenuCommand(command: BoxMenuCommandKey) {

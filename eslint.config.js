@@ -7,8 +7,10 @@ import { defineConfig } from 'eslint/config';
 import globals from 'globals';
 import ts from 'typescript-eslint';
 import svelteConfig from './svelte.config.js';
+import directFocusBaseline from './eslint-local-rules/direct-focus-baseline.json' with { type: 'json' };
 import pksx from './eslint-local-rules/design-contract.js';
 import pksxE2e from './eslint-local-rules/e2e-page-load.js';
+import noDirectFocus from './eslint-local-rules/no-direct-focus.js';
 
 const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
 
@@ -21,7 +23,7 @@ export default defineConfig(
 	svelte.configs.prettier,
 	{
 		languageOptions: { globals: { ...globals.browser, ...globals.node } },
-		plugins: { pksx },
+		plugins: { pksx: { rules: { ...pksx.rules, 'no-direct-focus': noDirectFocus } } },
 		rules: {
 			// typescript-eslint strongly recommend that you do not use the no-undef lint rule on TypeScript projects.
 			// see: https://typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
@@ -46,6 +48,11 @@ export default defineConfig(
 		rules: {
 			'pksx-e2e/no-raw-page-load': ['error', { exceptions: ['/__storage-migration-fixture'] }]
 		}
+	},
+	{
+		files: ['src/**/*.{js,ts,svelte}'],
+		ignores: ['**/*.{test,spec,e2e}.{js,ts}', 'src/lib/pksx/focus-owner.ts'],
+		rules: { 'pksx/no-direct-focus': ['error', { baseline: directFocusBaseline }] }
 	},
 	{
 		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
