@@ -1,9 +1,10 @@
-import { cp, mkdir, rm, access, readdir, readFile } from 'node:fs/promises';
+import { cp, mkdir, rm, access, readdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pkhexEngineSourceHash, pkhexEngineStampName } from './pkhex-engine-path.ts';
 
 type Options = {
 	configuration: string;
@@ -196,6 +197,7 @@ async function syncAppBundle(configuration: string): Promise<void> {
 	await cp(sourceAppBundle, path.join(staticEnginePath, hash.digest('hex').slice(0, 16)), {
 		recursive: true
 	});
+	await writeFile(path.join(staticEnginePath, pkhexEngineStampName), pkhexEngineSourceHash());
 }
 
 async function ensureFile(filePath: string, message: string): Promise<void> {

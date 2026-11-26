@@ -106,6 +106,9 @@ The command:
 3. Verifies the `.NET` SDK and `wasm-tools` workload are present.
 4. Removes any existing `static/pkhex-engine`.
 5. Copies the published `AppBundle` into `static/pkhex-engine/<content-hash>`.
+6. Writes a hash of the engine source to `static/pkhex-engine/source-hash`.
+
+Playwright runs stop before the build when this bundle is missing or its hash does not match the engine source. They use a free port unless `PKSX_E2E_PORT` is set.
 
 `static/pkhex-engine` is generated output and is ignored by git.
 

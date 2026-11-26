@@ -1,10 +1,28 @@
 import { defineConfig, devices } from '@playwright/test';
+import { createServer, type AddressInfo } from 'node:net';
+import { assertPkhexEngineCurrent } from './scripts/pkhex-engine-path.ts';
 
-const port = Number(process.env.PKSX_E2E_PORT ?? 4173);
+const prebuilt = process.env.PKSX_E2E_PREBUILT === '1';
+assertPkhexEngineCurrent();
+
+// Workers load this config again, so the first load stores the port for them.
+process.env.PKSX_E2E_PORT ??= String(await freePort());
+const port = Number(process.env.PKSX_E2E_PORT);
+
+function freePort(): Promise<number> {
+	return new Promise((resolve, reject) => {
+		const server = createServer()
+			.once('error', reject)
+			.listen(0, '127.0.0.1', () => {
+				const { port } = server.address() as AddressInfo;
+				server.close(() => resolve(port));
+			});
+	});
+}
 
 export default defineConfig({
 	webServer: {
-		command: `${process.env.PKSX_E2E_PREBUILT === '1' ? '' : 'pnpm build && '}pnpm preview --host 127.0.0.1 --port ${port}`,
+		command: `${prebuilt ? '' : 'pnpm build && '}pnpm preview --host 127.0.0.1 --port ${port} --strictPort`,
 		port
 	},
 	testMatch: '**/*.e2e.{ts,js}',
