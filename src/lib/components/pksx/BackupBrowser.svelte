@@ -21,7 +21,6 @@
 		getPkhexEngine,
 		getSavesStorage,
 		getSavesSnapshot,
-		invalidateSavesCache,
 		setCachedActiveWorkspace
 	} from '$lib/pksx/saves-cache';
 	import { getBoxesSession } from '$lib/pksx/boxes-session';
@@ -145,7 +144,6 @@
 				owner,
 				workspaceBytes: (await loadOwnerWorkspace(owner)).bytes
 			});
-			invalidateSavesCache();
 			await reloadBackups();
 			selectedBackupId = created.id;
 			browserState = { kind: 'browsing' };
@@ -181,7 +179,6 @@
 					getSaveFileEditCoordinator().replaceWorkspace(state, box);
 				}
 			});
-			invalidateSavesCache();
 			dismissBrowser();
 		} catch (error) {
 			errorMessage = getErrorMessage(error);
@@ -200,7 +197,6 @@
 			if ((await recoveryBackupId(owner)) === backup.id)
 				throw new Error('Restore the emulator file first.');
 			await deleteOwnedBackup({ storage, owner, backup });
-			invalidateSavesCache();
 			await reloadBackups();
 			selectedBackupId = backups[deletedIndex]?.id ?? backups[deletedIndex - 1]?.id ?? null;
 			browserState = { kind: 'browsing' };
@@ -234,7 +230,6 @@
 					});
 				}
 			});
-			invalidateSavesCache();
 			await goto(resolve('/boxes'), { keepFocus: true });
 			await new Promise<void>((resolveFocus) => {
 				const focusDestination = () => {

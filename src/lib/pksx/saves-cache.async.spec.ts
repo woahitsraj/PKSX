@@ -9,7 +9,11 @@ const fakes = vi.hoisted(() => ({
 		listSaves: vi.fn(),
 		getSave: vi.fn(),
 		getSaveBytes: vi.fn(),
-		getWorkspace: vi.fn()
+		getWorkspace: vi.fn(),
+		importSave: vi.fn(),
+		renameSave: vi.fn(),
+		deleteSave: vi.fn(),
+		putWorkspace: vi.fn()
 	},
 	engine: {
 		summarizeSaveCard: vi.fn(),
@@ -31,6 +35,7 @@ import {
 	forgetSaveCardDetails,
 	getCachedSavesSnapshot,
 	getSavesSnapshot,
+	getSavesStorage,
 	invalidateActiveWorkspaceCache,
 	invalidateSavesCache,
 	loadWorkspaceForOpening,
@@ -84,6 +89,28 @@ describe('Saves cache async settlement', () => {
 		invalidateActiveWorkspaceCache();
 		vi.clearAllMocks();
 	});
+
+	it.each(['importSave', 'renameSave', 'deleteSave', 'putWorkspace'] as const)(
+		'publishes the stored Saves list after %s without a reload call',
+		async (write) => {
+			const added = saveFile('added');
+			fakes.storage.getActiveSaveFileId.mockResolvedValue(null);
+			fakes.storage.listSaves.mockResolvedValue([]);
+			fakes.storage.getSaveBytes.mockResolvedValue(null);
+			fakes.storage.getWorkspace.mockResolvedValue(null);
+			await getSavesSnapshot({ force: true });
+			const lists: StoredSaveFile[][] = [];
+			const unsubscribe = subscribeSavesSnapshot((snapshot) => lists.push(snapshot.saveFiles));
+
+			await getSavesStorage().getSave(added.id);
+			expect(fakes.storage.listSaves).toHaveBeenCalledTimes(1);
+			fakes.storage.listSaves.mockResolvedValue([added]);
+			await (getSavesStorage()[write] as () => Promise<unknown>)();
+
+			await vi.waitFor(() => expect(lists.at(-1)).toEqual([added]));
+			unsubscribe();
+		}
+	);
 
 	it('settles an immediately invalidated Workspace publication without rescanning the catalog', async () => {
 		const file = saveFile('workspace-refresh');

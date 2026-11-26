@@ -8,6 +8,7 @@ import {
 import {
 	bytesEqual,
 	createSavesStorage,
+	notifyOnWrite,
 	type SaveFileId,
 	type StoredSaveFile
 } from '$lib/pksx/saves';
@@ -45,7 +46,7 @@ type SavesSnapshotOptions = {
 
 // Bump when the engine summarizes a Save File format differently.
 const storedCardDetailsKey = 'pksx-save-card-details-v2';
-const storage = createSavesStorage();
+const storage = notifyOnWrite(createSavesStorage(), refreshSavesAfterWrite);
 const detailsCache = new Map<SaveFileId, SaveDetailsCacheEntry>();
 const snapshotListeners = new Set<(snapshot: SavesSnapshot) => void>();
 const catalogRequests = new Map<number, Promise<SavesSnapshot>>();
@@ -208,6 +209,12 @@ async function loadSavesSnapshot(generation: number): Promise<SavesSnapshot> {
 	}
 
 	return snapshot;
+}
+
+/** Every storage write lands here, so no caller reloads the Saves list by hand. */
+function refreshSavesAfterWrite() {
+	invalidateSavesCache();
+	if (snapshotListeners.size > 0) void getSavesSnapshot().catch(() => undefined);
 }
 
 export function invalidateSavesCache() {

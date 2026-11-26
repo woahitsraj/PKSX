@@ -6,6 +6,7 @@ export { CapacitorSavesStorage } from './capacitor-storage';
 export { deleteIndexedDbSaves, IndexedDbSavesStorage } from './indexed-db-storage';
 export { createEmptyPokemonStorage } from './pokemon-storage';
 export { createSavesStorage } from './runtime-storage';
+export { notifyOnWrite } from './notify-on-write';
 export type { CapacitorSavesStorageOptions, NativeFileStore } from './capacitor-storage';
 export type {
 	BackupId,

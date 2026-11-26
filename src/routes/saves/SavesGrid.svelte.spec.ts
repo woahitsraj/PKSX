@@ -115,9 +115,7 @@ it.each(['save-file-menu', 'save-file-delete', 'main-menu'] as const)(
 			host.open(kind, { type: 'control', id: 'saves-grid' });
 		}
 		await storage.deleteSave(removed.id);
-		invalidateSavesCache();
-		await getSavesSnapshot({ force: true });
-		await tick();
+		await expect.poll(() => container.querySelectorAll('.save-card').length).toBe(1);
 
 		expect(host.active?.kind ?? null).toBe(kind === 'main-menu' ? 'main-menu' : null);
 		expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-' + survivor.id);
