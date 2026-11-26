@@ -22,7 +22,7 @@ const blockedLabels: Record<ManagementOnlyBlockedAction, string> = {
 };
 
 export const managementOnlyRestoreNote =
-	'Management only stays on. A restored Backup can bring back earlier Pokemon, and PKSX does not certify that a Save File meets the rules of an external achievement system.';
+	'A restored Backup can bring back earlier Pokemon, and PKSX does not certify that a Save File meets the rules of an external achievement system.';
 
 export class ManagementOnlyError extends Error {
 	readonly code = 'management-only';

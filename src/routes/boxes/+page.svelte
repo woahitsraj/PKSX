@@ -101,7 +101,11 @@
 		type WorkbenchSlotRef
 	} from '$lib/pksx/storage-workbench';
 	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
-	import { managementOnlyBlock, type ManagementOnlyBlockedAction } from '$lib/pksx/management-only';
+	import {
+		assertManagementAllows,
+		managementOnlyBlock,
+		type ManagementOnlyBlockedAction
+	} from '$lib/pksx/management-only';
 	import {
 		catalogLegacyView,
 		type PokemonStorageManifest
@@ -8734,6 +8738,7 @@
 			return new TradeJournal(browserTradeJournal(), engine, getPokemonStorageCatalog());
 		}}
 		prepare={async (destinationGame) => {
+			assertManagementAllows('link-trade');
 			if (engine) {
 				if (target.source.recordId) {
 					await getPokemonStorageCatalog().load();

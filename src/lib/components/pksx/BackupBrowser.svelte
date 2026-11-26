@@ -564,7 +564,7 @@
 								: 'This replaces the current Workspace. The original imported Save File remains unchanged.'}
 						</p>
 						{#if isManagementOnly()}
-							<p>{managementOnlyRestoreNote}</p>
+							<p>Management only stays on. {managementOnlyRestoreNote}</p>
 						{/if}
 					</div>
 					<button data-backup-browser-control type="button" onclick={guardedBack}

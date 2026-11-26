@@ -82,21 +82,13 @@ test('Management only allows moves and blocks edits, creation, and copies at com
 		'true'
 	);
 
-	// Allowed: move one Pokemon from the Save File to Pokemon Storage.
+	// Blocked actions run on the clean Save File: no Workspace record and no Backup yet.
 	await openBoxes(page);
 	const occupied = page.locator('.box-pane .slot.pokemon');
 	const menu = page.getByRole('dialog', { name: 'Slot actions', exact: true });
 	const occupiedBefore = await occupied.count();
-	await occupied.first().focus();
-	await page.keyboard.press('Enter');
-	await menu.getByRole('button', { name: 'Move to Storage', exact: true }).click();
-	const preview = page.getByRole('dialog', { name: 'Move to Storage', exact: true });
-	await preview.getByRole('button', { name: /Storage Box 1/ }).click();
-	await preview.getByRole('button', { name: 'Apply', exact: true }).click();
-	await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 60_000 });
-	await expect(occupied).toHaveCount(occupiedBefore - 1);
-	const afterMove = await storedState(page);
-	expect(JSON.parse(afterMove)).toMatchObject({ dirty: true, storageRecords: 1 });
+	const clean = await storedState(page);
+	expect(JSON.parse(clean)).toMatchObject({ dirty: false, backups: 0, storageRecords: 0 });
 
 	// Blocked: copy, by Slot Menu and by the Carry mode shortcut.
 	await occupied.first().focus();
@@ -130,12 +122,31 @@ test('Management only allows moves and blocks edits, creation, and copies at com
 	await money.press('Enter');
 	await expectBlocked(page, 'trainer, bag, and Pokedex edits');
 	await expect(money).toHaveValue(moneyBefore);
-	expect(await storedState(page)).toBe(afterMove);
+	expect(await storedState(page)).toBe(clean);
 
 	// An edit staged while the Preference is off must not commit after it is turned on.
 	await setManagementOnly(page, false);
 	await openBoxes(page);
-	await expect(occupied).toHaveCount(occupiedBefore - 1);
+	await expect(occupied).toHaveCount(occupiedBefore);
+
+	// A Copy batch previewed while the Preference is off must not commit after it is turned on.
+	await occupied.first().focus();
+	await page.keyboard.press('Enter');
+	await menu.getByRole('button', { name: 'Copy to Storage', exact: true }).click();
+	const copyPreview = page.getByRole('dialog', { name: 'Copy to Storage', exact: true });
+	await copyPreview.getByRole('button', { name: /Storage Box 1/ }).click();
+	const applyCopy = copyPreview.getByRole('button', { name: 'Apply', exact: true });
+	await expect(applyCopy).toBeFocused();
+	await page.evaluate(() => localStorage.setItem('pksx-management-only', 'on'));
+	await applyCopy.click();
+	await expect(copyPreview.getByRole('alert')).toContainText(
+		'Management only blocks Copy and Duplicate'
+	);
+	expect(await storedState(page)).toBe(clean);
+	await page.evaluate(() => localStorage.removeItem('pksx-management-only'));
+	await page.keyboard.press('Escape');
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await occupied.first().focus();
 	await page.keyboard.press('Enter');
 	await menu.getByRole('button', { name: 'Edit', exact: true }).click();
@@ -148,12 +159,25 @@ test('Management only allows moves and blocks edits, creation, and copies at com
 	await page.evaluate(() => localStorage.setItem('pksx-management-only', 'on'));
 	await apply.click();
 	await expectBlocked(page, 'Pokemon edits');
-	expect(await storedState(page)).toBe(afterMove);
+	expect(await storedState(page)).toBe(clean);
 
 	// Disabling restores the edit.
 	await page.evaluate(() => localStorage.removeItem('pksx-management-only'));
 	await apply.click();
-	await expect.poll(() => storedState(page), { timeout: 60_000 }).not.toBe(afterMove);
+	await expect.poll(() => storedState(page), { timeout: 60_000 }).not.toBe(clean);
+
+	// Allowed: move one Pokemon from the Save File to Pokemon Storage.
+	await setManagementOnly(page, true);
+	await openBoxes(page);
+	await occupied.first().focus();
+	await page.keyboard.press('Enter');
+	await menu.getByRole('button', { name: 'Move to Storage', exact: true }).click();
+	const preview = page.getByRole('dialog', { name: 'Move to Storage', exact: true });
+	await preview.getByRole('button', { name: /Storage Box 1/ }).click();
+	await preview.getByRole('button', { name: 'Apply', exact: true }).click();
+	await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 60_000 });
+	await expect(occupied).toHaveCount(occupiedBefore - 1);
+	expect(JSON.parse(await storedState(page))).toMatchObject({ dirty: true, storageRecords: 1 });
 
 	// Backup, Backup Restore, and Export stay available.
 	await setManagementOnly(page, true);
