@@ -2041,6 +2041,16 @@ describe('PKHeX Engine browser runtime smoke', () => {
 			heldItemSpriteIdentity: item.itemSpriteIdentity,
 			heldItemEditConstraints: { currentItemId: item.id }
 		});
+		expect(
+			slot?.heldItemEditConstraints.options.find((option) => option.name === 'Enigma Berry')
+		).toMatchObject({ available: false, unavailableReason: expect.any(String) });
+		const enigma = await engine.applyPokemonEditOperation(
+			copyBytes(fixtureBytes),
+			'011020251345.sav',
+			{ source: { zone: 'box', box: 0, slot: 0 }, heldItemId: 175 },
+			0
+		);
+		expect(enigma).toMatchObject({ ok: false, error: { code: 'invalid-pokemon-edit' } });
 		const unsupported = await engine.applyPokemonEditOperation(
 			copyBytes(fixtureBytes),
 			'011020251345.sav',
