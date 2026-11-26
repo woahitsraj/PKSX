@@ -15,7 +15,7 @@ async function open(file: string) {
 	const url = fixtures[`../../../test-fixtures/save-files/${file}`];
 	if (typeof url !== 'string') throw new Error(`Missing ${file}`);
 	const engine = await enginePromise;
-	let current = new Uint8Array(await (await fetch(url)).arrayBuffer());
+	let current: Uint8Array = new Uint8Array(await (await fetch(url)).arrayBuffer());
 	const loaded = await engine.loadSaveWorkspace(current, file, 0);
 	if (!loaded.ok) throw new Error(loaded.error.message);
 	const dex = loaded.value.saveFile?.pokedex;
