@@ -111,8 +111,16 @@ export const pokedexProjectionSchema = z.object({
 	status: z.enum(['available', 'unavailable']),
 	reason: z.string().nullable(),
 	species: z.array(
-		z.object({ id: z.number().int(), name: z.string(), seen: z.boolean(), caught: z.boolean() })
+		z.object({
+			id: z.number().int(),
+			name: z.string(),
+			seen: z.boolean(),
+			caught: z.boolean(),
+			flagSet: z.number().int().nullish(),
+			flags: z.string().nullish()
+		})
 	),
+	flagSets: z.array(z.array(z.string())).nullish(),
 	fields: z.array(
 		z.object({
 			key: z.string(),
@@ -129,6 +137,12 @@ export const pokedexEditSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('seen'), species: z.number().int(), seen: z.boolean() }),
 	z.strictObject({ kind: z.literal('caught'), species: z.number().int(), caught: z.boolean() }),
 	z.strictObject({ kind: z.literal('field'), field: z.string(), value: z.number().int() }),
+	z.strictObject({
+		kind: z.literal('flag'),
+		species: z.number().int(),
+		flag: z.number().int(),
+		on: z.boolean()
+	}),
 	z.strictObject({ kind: z.literal('all-seen') }),
 	z.strictObject({ kind: z.literal('all-caught') })
 ]);

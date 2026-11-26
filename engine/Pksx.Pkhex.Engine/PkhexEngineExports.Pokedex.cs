@@ -2,19 +2,37 @@ using PKHeX.Core;
 
 namespace Pksx.Pkhex.Engine;
 
-public sealed record PokedexSpecies(int Id, string Name, bool Seen, bool Caught);
+public sealed record PokedexSpecies(int Id, string Name, bool Seen, bool Caught, int? FlagSet = null, string? Flags = null);
 public sealed record PokedexField(string Key, string Label, long Value, long Min, long Max, int? Species = null);
-public sealed record PokedexEdit(string Kind, int? Species, bool? Seen, bool? Caught, string? Field, long? Value);
-public sealed record PokedexProjection(string Status, string? Reason, List<PokedexSpecies> Species, List<PokedexField> Fields)
+public sealed record PokedexEdit(string Kind, int? Species, bool? Seen, bool? Caught, string? Field, long? Value, int? Flag = null, bool? On = null);
+// FlagSets holds each distinct list of flag labels once; a species names its list and packs its values as 0 and 1.
+public sealed record PokedexProjection(string Status, string? Reason, List<PokedexSpecies> Species, List<PokedexField> Fields, List<string[]>? FlagSets = null)
 {
     public static PokedexProjection From(SaveFile save)
     {
         if (!save.HasPokeDex)
             return new("unavailable", "This Save File format has no Pokedex.", [], []);
-        if (save is not (SAV1 or SAV2 or SAV3))
-            return new("unavailable", "Pokedex editing currently supports Generations 1 through 3 handheld Save Files.", [], []);
-        var species = Enumerable.Range(1, save.MaxSpeciesID)
-            .Select(id => new PokedexSpecies(id, GameInfo.Strings.specieslist[id], save.GetSeen((ushort)id), save.GetCaught((ushort)id))).ToList();
+        if (save is not (SAV1 or SAV2 or SAV3 or SAV4 or SAV5))
+            return new("unavailable", "Pokedex editing currently supports Generations 1 through 5 handheld Save Files.", [], []);
+        List<string[]> flagSets = [];
+        Dictionary<string, int> flagSetIds = [];
+        var species = Enumerable.Range(1, save.MaxSpeciesID).Select(id =>
+        {
+            var flags = PokedexFlags.Of(save, (ushort)id);
+            int? set = null;
+            if (flags.Count != 0)
+            {
+                var labels = flags.Select(f => f.Label).ToArray();
+                var key = string.Join('\n', labels);
+                if (!flagSetIds.TryGetValue(key, out var index))
+                {
+                    flagSetIds[key] = index = flagSets.Count;
+                    flagSets.Add(labels);
+                }
+                set = index;
+            }
+            return new PokedexSpecies(id, GameInfo.Strings.specieslist[id], save.GetSeen((ushort)id), save.GetCaught((ushort)id), set, set is null ? null : string.Concat(flags.Select(f => f.On ? '1' : '0')));
+        }).ToList();
         List<PokedexField> fields = [];
         if (save is SAV2 s2)
         {
@@ -27,7 +45,23 @@ public sealed record PokedexProjection(string Status, string? Reason, List<Poked
             fields.Add(new("unown-pid", "Unown display PID", s3.SmallBlock.DexPIDUnown, 0, uint.MaxValue, (int)PKHeX.Core.Species.Unown));
             fields.Add(new("spinda-pid", "Spinda display PID", s3.SmallBlock.DexPIDSpinda, 0, uint.MaxValue, (int)PKHeX.Core.Species.Spinda));
         }
-        return new("available", null, species, fields);
+        if (save is SAV4 s4)
+        {
+            var modes = s4 is SAV4HGSS ? "1 = simple, 2 = National, 3 = other languages" : "1 = simple, 2 = forms, 3 = National, 4 = other languages";
+            fields.Add(new("national", "National Pokedex (0 = off, 1 = on)", s4.NationalDex ? 1 : 0, 0, 1));
+            // PKHeX reads and writes the upgrade only when the save reports a paired version.
+            if (s4.Version is GameVersion.DP or GameVersion.Pt or GameVersion.HGSS)
+                fields.Add(new("upgrade", $"Pokedex upgrade (0 = not given, {modes})", s4.DexUpgraded, 0, s4 is SAV4HGSS ? 3 : 4));
+            fields.Add(new("spinda-pid", "Spinda display PID", s4.Dex.SpindaPID, 0, uint.MaxValue, (int)PKHeX.Core.Species.Spinda));
+        }
+        if (save is SAV5 s5)
+        {
+            fields.Add(new("national", "National Pokedex (0 = off, 1 = on)", s5.Zukan.IsNationalDexUnlocked ? 1 : 0, 0, 1));
+            fields.Add(new("national-mode", "National Pokedex mode (0 = off, 1 = on)", s5.Zukan.IsNationalDexMode ? 1 : 0, 0, 1));
+            fields.Add(new("opens-on", "Species number the Pokedex opens on", s5.Zukan.InitialSpecies, 0, save.MaxSpeciesID));
+            fields.Add(new("spinda-pid", "Spinda display PID", s5.Zukan.Spinda, 0, uint.MaxValue, (int)PKHeX.Core.Species.Spinda));
+        }
+        return new("available", null, species, fields, flagSets.Count == 0 ? null : flagSets);
     }
 }
 
@@ -38,6 +72,20 @@ public static partial class PkhexEngineExports
         var projection = PokedexProjection.From(save);
         if (projection.Status != "available")
             return SlotMutationResult.Fail("unsupported-save-file-edit", projection.Reason!);
+        if (edit.Kind == "flag")
+        {
+            if (edit.Species is not int owner || owner < 1 || owner > save.MaxSpeciesID || edit.On is not bool on || edit.Seen is not null || edit.Caught is not null || edit.Field is not null || edit.Value is not null)
+                return SlotMutationResult.Fail("invalid-save-file-edit", "Choose a supported Pokedex species and flag.");
+            var flags = PokedexFlags.Of(save, (ushort)owner);
+            if (edit.Flag is not int flag || flag < 0 || flag >= flags.Count)
+                return SlotMutationResult.Fail("invalid-save-file-edit", "Choose a supported Pokedex species and flag.");
+            if (flags[flag].On == on)
+                return SlotMutationResult.Success(false);
+            flags[flag].Set(on);
+            return SlotMutationResult.Success(!PokedexFlags.Of(save, (ushort)owner).Select(f => f.On).SequenceEqual(flags.Select(f => f.On)));
+        }
+        if (edit.Flag is not null || edit.On is not null)
+            return SlotMutationResult.Fail("invalid-save-file-edit", "Only a Pokedex flag edit takes a flag.");
         if (edit.Kind is "seen" or "caught")
         {
             if (edit.Species is not int id || id < 1 || id > save.MaxSpeciesID || edit.Field is not null || edit.Value is not null || (edit.Kind == "seen" && (edit.Seen is null || edit.Caught is not null)) || (edit.Kind == "caught" && (edit.Caught is null || edit.Seen is not null)))
@@ -45,8 +93,8 @@ public static partial class PkhexEngineExports
             var species = (ushort)id;
             var beforeSeen = save.GetSeen(species);
             var beforeCaught = save.GetCaught(species);
-            if (edit.Seen is bool seen) save.SetSeen(species, seen);
-            if (edit.Caught is bool caught) save.SetCaught(species, caught);
+            if (edit.Seen is bool seen) PokedexFlags.SetSeen(save, species, seen);
+            if (edit.Caught is bool caught) PokedexFlags.SetCaught(save, species, caught);
             if (save is SAV3 s3) s3.MirrorSeenFlags();
             return SlotMutationResult.Success(beforeSeen != save.GetSeen(species) || beforeCaught != save.GetCaught(species));
         }
@@ -60,8 +108,8 @@ public static partial class PkhexEngineExports
             {
                 if (seen ? save.GetSeen(id) : save.GetCaught(id))
                     continue;
-                if (seen) save.SetSeen(id, true);
-                else save.SetCaught(id, true);
+                if (seen) PokedexFlags.SetSeen(save, id, true);
+                else PokedexFlags.SetCaught(save, id, true);
                 mutated = true;
             }
             if (mutated && save is SAV3 sav3) sav3.MirrorSeenFlags();
@@ -79,6 +127,13 @@ public static partial class PkhexEngineExports
             case (SAV3 s3, "national"): s3.NationalDex = value != 0; break;
             case (SAV3 s3, "unown-pid"): s3.SmallBlock.DexPIDUnown = (uint)value; break;
             case (SAV3 s3, "spinda-pid"): s3.SmallBlock.DexPIDSpinda = (uint)value; break;
+            case (SAV4 s4, "national"): s4.NationalDex = value != 0; break;
+            case (SAV4 s4, "upgrade"): s4.DexUpgraded = (int)value; break;
+            case (SAV4 s4, "spinda-pid"): s4.Dex.SpindaPID = (uint)value; break;
+            case (SAV5 s5, "national"): s5.Zukan.IsNationalDexUnlocked = value != 0; break;
+            case (SAV5 s5, "national-mode"): s5.Zukan.IsNationalDexMode = value != 0; break;
+            case (SAV5 s5, "opens-on"): s5.Zukan.InitialSpecies = (ushort)value; break;
+            case (SAV5 s5, "spinda-pid"): s5.Zukan.Spinda = (uint)value; break;
         }
         return SlotMutationResult.Success(value != field.Value);
     }

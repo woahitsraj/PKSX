@@ -23,7 +23,11 @@ const cases = [
 	['pkmds-blazor/pokemon-box-ruby-sapphire.gci', 0],
 	['bl1ndbeholder-pokemon-saves/colosseum/011020251345.gci', 0],
 	['libpkmn-test-files/pokemon-xd.gci', 0],
-	['pkhex-avalonia/gen4-diamond.sav', 0]
+	['pkhex-avalonia/gen4-diamond.sav', 493],
+	['pkmds-blazor/pokemon-pearl.sav', 493],
+	['minna-pokemon-saves/pokemon-soulsilver.sav', 493],
+	['pkmds-blazor/pokemon-black.sav', 649],
+	['minna-pokemon-saves/pokemon-black-2.sav', 649]
 ] as const;
 
 for (const [file, count] of cases) {
@@ -65,12 +69,26 @@ for (const [file, count] of cases) {
 							['unown-first', 201],
 							['unown-unlocked', 201]
 						]
-					: [
-							['national', null],
-							['unown-pid', 201],
-							['spinda-pid', 327]
-						]
+					: count === 386
+						? [
+								['national', null],
+								['unown-pid', 201],
+								['spinda-pid', 327]
+							]
+						: count === 493
+							? [
+									['national', null],
+									...(file.includes('soulsilver') ? [] : [['upgrade', null]]),
+									['spinda-pid', 327]
+								]
+							: [
+									['national', null],
+									['national-mode', null],
+									['opens-on', null],
+									['spinda-pid', 327]
+								]
 		);
+		expect(Boolean(dex.flagSets)).toBe(count > 386);
 		for (const [kind, flag, other] of [
 			['all-seen', 'seen', 'caught'],
 			['all-caught', 'caught', 'seen']
@@ -161,6 +179,77 @@ for (const [file, count] of cases) {
 			bytes,
 			file,
 			{ pokedex: { kind: 'caught', species: count + 1, caught: true } },
+			0
+		);
+		expect(rejected.ok).toBe(false);
+	}, 60_000);
+}
+
+// One representative save per block layout: the flags each game reports, and one edit of each kind.
+for (const [file, absent, present] of [
+	['pkhex-avalonia/gen4-diamond.sav', [479, 'Form seen'], [422, 'First seen form is East']],
+	['minna-pokemon-saves/pokemon-soulsilver.sav', [1, 'Korean'], [172, 'Form seen: Spiky']],
+	['pkmds-blazor/pokemon-black.sav', [641, 'Form seen'], [201, 'Form displayed shiny: A']],
+	['minna-pokemon-saves/pokemon-black-2.sav', [494, 'Language'], [641, 'Form seen: Therian']]
+] as const) {
+	test(`Pokedex gender, form and language flags: ${file}`, async () => {
+		const url = fixtures[`../../../test-fixtures/save-files/${file}`];
+		if (typeof url !== 'string') throw new Error(`Missing ${file}`);
+		let bytes: Uint8Array = new Uint8Array(await (await fetch(url)).arrayBuffer());
+		const engine = await enginePromise;
+		const loaded = await engine.loadSaveWorkspace(bytes, file, 0);
+		if (!loaded.ok) throw new Error(loaded.error.message);
+		let dex = loaded.value.saveFile?.pokedex;
+		const labels = (id: number) => {
+			const set = dex?.species[id - 1].flagSet;
+			return typeof set === 'number' ? (dex?.flagSets?.[set] ?? []) : [];
+		};
+		expect(labels(absent[0]).filter((label) => label.includes(absent[1]))).toEqual([]);
+		expect(labels(present[0]).some((label) => label.startsWith(present[1]))).toBe(true);
+		const gen4 = dex?.species.length === 493;
+		// PKHeX orders German and Italian differently in each generation's language block.
+		expect(labels(25).filter((label) => /German|Italian/.test(label))).toEqual(
+			gen4 ? ['Language: German', 'Language: Italian'] : ['Language: Italian', 'Language: German']
+		);
+		const edits = [
+			[present[0], labels(present[0]).findIndex((label) => label.startsWith(present[1]))],
+			[25, labels(25).indexOf('Language: French')],
+			[25, labels(25).indexOf(gen4 ? 'Second seen gender is female' : 'Seen: shiny female')]
+		];
+		const expected = edits.map(([id, flag]) => {
+			expect(flag).toBeGreaterThanOrEqual(0);
+			return dex?.species[id - 1].flags?.[flag] !== '1';
+		});
+		for (const [index, [species, flag]] of edits.entries()) {
+			const edit = { pokedex: { kind: 'flag', species, flag, on: expected[index] } } as const;
+			const result = await engine.applySaveFileEditOperation(bytes, file, edit, 0);
+			if (!result.ok) throw new Error(result.error.message);
+			expect(result.value.mutated).toBe(true);
+			const again = await engine.applySaveFileEditOperation(result.value.bytes, file, edit, 0);
+			expect(again.ok && !again.value.mutated).toBe(true);
+			bytes = result.value.bytes;
+		}
+		const exported = await engine.serializeSave(bytes, file);
+		if (!exported.ok) throw new Error(exported.error.message);
+		const reread = await engine.loadSaveWorkspace(
+			Uint8Array.from(atob(exported.value.bytesBase64), (c) => c.charCodeAt(0)),
+			file,
+			0
+		);
+		if (!reread.ok) throw new Error(reread.error.message);
+		const before = dex;
+		dex = reread.value.saveFile?.pokedex;
+		for (const [index, [id, flag]] of edits.entries())
+			expect(dex?.species[id - 1].flags?.[flag]).toBe(expected[index] ? '1' : '0');
+		// Every flag outside the edited species keeps its imported value.
+		const touched = new Set(edits.map(([id]) => id));
+		expect(dex?.species.filter((s) => !touched.has(s.id)).map((s) => s.flags)).toEqual(
+			before?.species.filter((s) => !touched.has(s.id)).map((s) => s.flags)
+		);
+		const rejected = await engine.applySaveFileEditOperation(
+			bytes,
+			file,
+			{ pokedex: { kind: 'flag', species: 25, flag: 999, on: true } },
 			0
 		);
 		expect(rejected.ok).toBe(false);
