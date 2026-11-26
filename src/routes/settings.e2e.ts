@@ -352,6 +352,21 @@ test('Settings uses the system theme until the user chooses an override', async 
 	await expect(page.locator('.app-shell')).not.toHaveClass(/dark/);
 });
 
+test('Settings keeps a device-local haptics off switch', async ({ page }) => {
+	await openSettings(page);
+	const on = page.getByRole('button', { name: 'Turn haptics on' });
+	const off = page.getByRole('button', { name: 'Turn haptics off' });
+	await expect(on).toHaveAttribute('aria-pressed', 'true');
+
+	await page.keyboard.press('ArrowDown');
+	await expect(on).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('Enter');
+	await reloadRoute(page);
+	await expect(off).toHaveAttribute('aria-pressed', 'true');
+	await expect(on).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('raw viewport height selects the inherited Height Band at 560px', async ({ page }) => {
 	await openSettings(page, 640, 559);
 	await expect(page.locator('.settings-density')).toHaveCSS('--pksx-height-band', 'short');

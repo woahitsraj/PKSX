@@ -5580,7 +5580,7 @@
 				updatedSlot.label,
 				preview.value
 			);
-			toastHost.success('Legality Fix applied to the Editor draft.');
+			toastHost.success('Legality Fix applied to the Editor draft.', { haptic: false });
 			await tick();
 			(
 				document.getElementById('legality-quick-fix-apply') ??

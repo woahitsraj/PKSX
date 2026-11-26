@@ -2,6 +2,7 @@ import { getLinkedSaveSources } from '$lib/pksx/linked-save-sources/runtime';
 import type { LinkedSourceStatus } from '$lib/pksx/linked-save-sources';
 import type { StoredSaveFile } from '$lib/pksx/saves';
 import { SvelteSet } from 'svelte/reactivity';
+import type { ToastOptions } from '$lib/pksx/toast/host.svelte';
 import { confirmReplaceDirty } from '$lib/pksx/save-file-edit-coordinator';
 import {
 	getPkhexEngine,
@@ -19,7 +20,7 @@ import {
 	type FolderLink
 } from './index';
 
-type Notice = (tone: 'success' | 'error', text: string) => void;
+type Notice = (tone: 'success' | 'error', text: string, options?: ToastOptions) => void;
 const dismissedKey = 'pksx.linked-saves.dismissed';
 const rescanAfter = 5 * 60_000;
 export type SourceAttention = Extract<LinkedSourceStatus, { kind: 'changed' | 'recovery' }>;
@@ -43,7 +44,7 @@ export class LinkedSaveDiscovery {
 			if (Date.now() - this.#scannedAt < rescanAfter) await this.checkSources();
 			else await this.scan();
 		} catch (error) {
-			this.notify('error', errorMessage(error));
+			this.notify('error', errorMessage(error), { haptic: false });
 		}
 	}
 
@@ -138,7 +139,7 @@ export class LinkedSaveDiscovery {
 		this.scanning = true;
 		const signal = this.#controller.signal;
 		this.#task = this.#scan(folders, signal, announce)
-			.catch((error) => this.notify('error', errorMessage(error)))
+			.catch((error) => this.notify('error', errorMessage(error), { haptic: announce }))
 			.finally(() => {
 				this.#scannedAt = Date.now();
 				this.scanning = false;
@@ -183,7 +184,10 @@ export class LinkedSaveDiscovery {
 			}
 		}
 		await this.checkSources(signal).catch(() => undefined);
-		if (added) this.notify('success', `Found ${added} new ${added === 1 ? 'save' : 'saves'}`);
+		if (added)
+			this.notify('success', `Found ${added} new ${added === 1 ? 'save' : 'saves'}`, {
+				haptic: announce
+			});
 		else if (announce && !failed && !signal.aborted) this.notify('success', 'No new saves');
 	}
 }
