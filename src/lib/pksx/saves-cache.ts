@@ -108,7 +108,7 @@ export function getSaveFileEditCoordinator() {
 	saveFileEditCoordinator ??= new SaveFileEditCoordinator({
 		storage,
 		engine: getPkhexEngine,
-		publish: setCachedActiveWorkspace,
+		publish: (workspace) => publishActiveWorkspace(workspace),
 		isResultCurrent: ({ saveFileId }) => workspaceService?.current?.file.id === saveFileId
 	});
 	return saveFileEditCoordinator;
@@ -227,17 +227,16 @@ export function getCachedActiveWorkspaceBox() {
 	return activeWorkspaceBox;
 }
 
-export function setCachedActiveWorkspace(
-	workspace: WorkspaceState | null,
-	box = 0,
+/** The only way to publish the active Workspace; its Box comes from the slots it holds. */
+export function publishActiveWorkspace(
+	workspace: WorkspaceState,
 	options: { adoptAsActiveSave?: boolean } = {}
 ) {
-	pendingActiveSaveAdoption = workspace && options.adoptAsActiveSave ? workspace.file.id : null;
-	activeWorkspaceBox = box;
-	getActiveWorkspaceService().set(workspace, box);
+	pendingActiveSaveAdoption = options.adoptAsActiveSave ? workspace.file.id : null;
+	activeWorkspaceBox = workspaceBox(workspace);
+	getActiveWorkspaceService().set(workspace, activeWorkspaceBox);
 	const previousBytes = publishedBytes;
-	publishedBytes = workspace ? { saveFileId: workspace.file.id, bytes: workspace.bytes } : null;
-	if (!workspace) return;
+	publishedBytes = { saveFileId: workspace.file.id, bytes: workspace.bytes };
 	if (
 		previousBytes?.saveFileId === workspace.file.id &&
 		detailsCache.has(workspace.file.id) &&
@@ -258,9 +257,13 @@ export function setCachedActiveWorkspace(
 	queueSaveCardDetails(workspace.file, detailGeneration);
 }
 
-export function projectCachedActiveWorkspace(workspace: WorkspaceState, box: number) {
-	activeWorkspaceBox = box;
+export function projectCachedActiveWorkspace(workspace: WorkspaceState) {
+	activeWorkspaceBox = workspaceBox(workspace);
 	getActiveWorkspaceService().project(workspace);
+}
+
+function workspaceBox(workspace: WorkspaceState) {
+	return workspace.workspace.boxSlots[0]?.box ?? 0;
 }
 
 export function consumeActiveSaveAdoption(saveFileId: SaveFileId) {

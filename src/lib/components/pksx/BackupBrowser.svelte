@@ -22,7 +22,7 @@
 		getSavesStorage,
 		getSavesSnapshot,
 		invalidateSavesCache,
-		setCachedActiveWorkspace
+		publishActiveWorkspace
 	} from '$lib/pksx/saves-cache';
 	import { getBoxesSession } from '$lib/pksx/boxes-session';
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
@@ -175,9 +175,7 @@
 				box,
 				publish: (state, box) => {
 					if (!fromBoxes) selectRecoveredOwner(state);
-					setCachedActiveWorkspace(state, box, {
-						adoptAsActiveSave: !fromBoxes
-					});
+					publishActiveWorkspace(state, { adoptAsActiveSave: !fromBoxes });
 					getSaveFileEditCoordinator().replaceWorkspace(state, box);
 				}
 			});
@@ -229,9 +227,7 @@
 				publish: (state) => {
 					host.closeAll();
 					selectRecoveredOwner(state);
-					setCachedActiveWorkspace(state, box, {
-						adoptAsActiveSave: true
-					});
+					publishActiveWorkspace(state, { adoptAsActiveSave: true });
 				}
 			});
 			invalidateSavesCache();

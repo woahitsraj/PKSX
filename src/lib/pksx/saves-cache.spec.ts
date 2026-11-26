@@ -14,7 +14,7 @@ import {
 	isCachedSavesSnapshotSeeded,
 	projectCachedActiveWorkspace,
 	seedSavesSnapshotFromActiveWorkspace,
-	setCachedActiveWorkspace,
+	publishActiveWorkspace,
 	subscribeSavesSnapshot
 } from './saves-cache';
 
@@ -167,7 +167,7 @@ describe('Saves cache', () => {
 			workspace
 		});
 
-		setCachedActiveWorkspace(activeWorkspace, 0);
+		publishActiveWorkspace(activeWorkspace);
 		const seeded = seedSavesSnapshotFromActiveWorkspace([saveFile]);
 
 		expect(seeded).not.toBeNull();
@@ -184,7 +184,7 @@ describe('Saves cache', () => {
 			bytes: new Uint8Array([1, 2, 3, 4]),
 			workspace
 		});
-		setCachedActiveWorkspace(activeWorkspace, 0);
+		publishActiveWorkspace(activeWorkspace);
 		seedSavesSnapshotFromActiveWorkspace([saveFile]);
 
 		const firstUpdates: unknown[] = [];
@@ -193,7 +193,7 @@ describe('Saves cache', () => {
 		unsubscribeFirst();
 		const unsubscribeSecond = subscribeSavesSnapshot((snapshot) => secondUpdates.push(snapshot));
 
-		setCachedActiveWorkspace(activeWorkspace, 0);
+		publishActiveWorkspace(activeWorkspace);
 		unsubscribeSecond();
 
 		expect(firstUpdates).toHaveLength(1);
@@ -219,7 +219,7 @@ describe('Saves cache', () => {
 			});
 		});
 
-		setCachedActiveWorkspace(boxTwoWorkspace, 1);
+		publishActiveWorkspace(boxTwoWorkspace);
 		unsubscribe();
 
 		expect(observed.at(-1)).toEqual({ box: 1, nickname: 'MAKUHITA' });
@@ -253,52 +253,50 @@ describe('active Workspace Box', () => {
 	});
 
 	it('keeps Box 2 when the active Save File is renamed', () => {
-		setCachedActiveWorkspace(stateAtBox(1), 1);
+		publishActiveWorkspace(stateAtBox(1));
 
 		const current = getCachedActiveWorkspace()!;
-		setCachedActiveWorkspace(
-			{ ...current, file: { ...current.file, displayName: 'Renamed' } },
-			getCachedActiveWorkspaceBox()
-		);
+		publishActiveWorkspace({ ...current, file: { ...current.file, displayName: 'Renamed' } });
 
 		expect(published()).toEqual({ box: 1, slotBox: 1, saveFileId: saveFile.id });
 		expect(getCachedActiveWorkspace()?.file.displayName).toBe('Renamed');
 	});
 
 	it('opens Box 1 of the owner when a Backup is restored from Saves', () => {
-		setCachedActiveWorkspace(stateAtBox(1), 1);
+		publishActiveWorkspace(stateAtBox(1));
 
 		const restored = stateAtBox(0, otherSaveFile);
 		getBoxesSession().selectPrimary(
-			{ type: 'save-file', id: otherSaveFile.id, label: 'Other' },
+			{ type: 'save-file', id: otherSaveFile.id, label: 'Other', dirty: false },
 			14
 		);
-		setCachedActiveWorkspace(restored, 0, { adoptAsActiveSave: true });
+		publishActiveWorkspace(restored, { adoptAsActiveSave: true });
 
 		expect(published()).toEqual({ box: 0, slotBox: 0, saveFileId: otherSaveFile.id });
 		expect(consumeActiveSaveAdoption(otherSaveFile.id)).toBe(true);
 	});
 
 	it('keeps the open Box when a Backup is restored from Boxes', () => {
-		setCachedActiveWorkspace(stateAtBox(1), 1);
+		publishActiveWorkspace(stateAtBox(1));
 
-		setCachedActiveWorkspace(
-			stateAtBox(getCachedActiveWorkspaceBox()),
-			getCachedActiveWorkspaceBox(),
-			{
-				adoptAsActiveSave: false
-			}
-		);
+		publishActiveWorkspace(stateAtBox(getCachedActiveWorkspaceBox()), { adoptAsActiveSave: false });
 
 		expect(published()).toEqual({ box: 1, slotBox: 1, saveFileId: saveFile.id });
 		expect(consumeActiveSaveAdoption(saveFile.id)).toBe(false);
 	});
 
 	it('follows a Box switch', () => {
-		setCachedActiveWorkspace(stateAtBox(0), 0);
+		publishActiveWorkspace(stateAtBox(0));
 
-		projectCachedActiveWorkspace(stateAtBox(2), 2);
+		projectCachedActiveWorkspace(stateAtBox(2));
 
 		expect(published()).toEqual({ box: 2, slotBox: 2, saveFileId: saveFile.id });
+	});
+
+	it('rejects a Box number from callers', () => {
+		const state = stateAtBox(1);
+		// @ts-expect-error The Box comes from the Workspace slots, never from the caller.
+		expect(() => publishActiveWorkspace(state, 0)).not.toThrow();
+		expect(getCachedActiveWorkspaceBox()).toBe(1);
 	});
 });
