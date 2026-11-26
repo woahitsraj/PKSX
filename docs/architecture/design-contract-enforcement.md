@@ -154,7 +154,7 @@ Source: [#203](https://github.com/woahitsraj/PKSX/issues/203). This section amen
 
 At an allocated container size of at least 900×700, step the type ladder once to 11/13/15/18/28px. Both dimensions must meet the threshold. This is a container refinement, not a viewport mode or Height Band.
 
-Center bounded Boxes compositions in the Safe Canvas. Cap a single Box Pane at 800px and the Active Slot Detail Rail at 260px. In an explicitly opened two-pane composition, cap each pane at 640px around the same rail. Cap Saves at 1200px and six columns, keeping it top-aligned. Tall Takeovers have a 760×560 maximum.
+Center bounded Boxes compositions in the Safe Canvas. Cap a single Box Pane at 800px and the Active Slot Detail Rail at 260px. In an explicitly opened two-pane composition, cap each pane at 640px around the same rail. Cap Saves at 1200px and five columns, keeping it top-aligned. Tall Takeovers have a 760×560 maximum.
 
 A large canvas never opens another pane automatically and never adds desktop-only actions.
 
@@ -314,7 +314,7 @@ Source: [#180](https://github.com/woahitsraj/PKSX/issues/180), amended by [#210]
 
 Saves contains cartridge-style Save File cards, a Pokemon Storage collection card, and Import. Pokemon Storage shows Pokemon and Storage Box counts and identifies that PKSX owns and automatically persists it. It remains visibly and behaviorally distinct from a Save File. Saves does not contain the Backup Browser or Box Source switching. Backup Browser remains globally accessible and scoped to the active Save File.
 
-The title stays fixed while the card grid owns overflow. Cards are cover-first tiles: the game art is above the text, and the game title wraps and is never cut off. The minimum tile width grows with the container from 136px to 190px, and the grid has at most six columns. The landscape floor uses four columns and the portrait floor uses two. One row of four grid targets fits fully at 616×336. A fifth target starts grid scrolling. Pokemon Storage counts as a grid target at every floor, target, and large-grid case.
+The title stays fixed while the card grid owns overflow. Cards are cover-first tiles: the game art is above the text, and the game title wraps and is never cut off. The minimum tile width grows with the container from 136px to 190px, and the grid has at most five columns. The landscape floor uses four columns and the portrait floor uses two. One row of four grid targets fits fully at 616×336. A fifth target starts grid scrolling. Pokemon Storage counts as a grid target at every floor, target, and large-grid case.
 
 Each Save File card shows game title, Trainer name, original filename, active state, box count, and Pokemon count. Omit Party preview, Trainer ID, generation, play time, import year, and last-opened metadata.
 
