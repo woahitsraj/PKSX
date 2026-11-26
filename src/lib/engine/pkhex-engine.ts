@@ -8,6 +8,7 @@ import type {
 	LegalityReport,
 	PartySlotSummary,
 	PokemonActionOperation,
+	AutoLegalPreview,
 	PokemonActionPreview,
 	PokemonActionResult,
 	PokemonCreationCatalogue,
@@ -115,6 +116,8 @@ type DotnetPkhexEngineExports = {
 		actionJson: string
 	): string;
 	PreviewStoredPokemonActionsJson(entityBytesBase64: string): string;
+	PreviewAutoLegalJson(bytes: Uint8Array, fileName: string | undefined, sourceJson: string): string;
+	PreviewStoredAutoLegalJson(entityBytesBase64: string): string;
 	ApplyStoredPokemonActionJson(entityBytesBase64: string, actionJson: string): string;
 	CreatePreservationPayloadJson(entityBytes: Uint8Array): string;
 	ForkPreservationPayloadJson(payloadBytes: Uint8Array): string;
@@ -346,6 +349,12 @@ export async function createPkhexEngine(basePath = __PKHEX_ENGINE_BASE_PATH__): 
 			parseEngineResult<PokemonActionPreview>(
 				engine.PreviewStoredPokemonActionsJson(entityBytesBase64)
 			),
+		previewAutoLegal: async (bytes, fileName, source) =>
+			parseEngineResult<AutoLegalPreview>(
+				engine.PreviewAutoLegalJson(bytes, fileName, JSON.stringify(source))
+			),
+		previewStoredAutoLegal: async (entityBytesBase64) =>
+			parseEngineResult<AutoLegalPreview>(engine.PreviewStoredAutoLegalJson(entityBytesBase64)),
 		applyStoredPokemonAction: async (entityBytesBase64, operation) =>
 			parseEngineResult<StoredPokemonActionResult>(
 				engine.ApplyStoredPokemonActionJson(entityBytesBase64, JSON.stringify(operation))

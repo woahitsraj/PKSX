@@ -102,6 +102,10 @@ _Avoid_: raw legality output
 An engine-backed change that tries to repair one or more fixable problems from a Legality Report.
 _Avoid_: auto-fix when implying a guaranteed or silent repair
 
+**Auto Legal**:
+A Legality Fix that makes one checked legal candidate for the whole Pokemon, using the targeted fixes first and AutoMod after. It never changes the species, form, shiny state or original trainer, and the user reviews every changed field before Apply.
+_Avoid_: auto-fix, legalize when implying a guaranteed repair
+
 **Pokemon Action**:
 A user-invoked operation on a Pokemon Entity, such as move, copy, evolve, export, Legality Check, or Legality Fix.
 _Avoid_: button when referring to the domain operation

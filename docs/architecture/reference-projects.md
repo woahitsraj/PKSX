@@ -55,8 +55,9 @@ PKSX is a Svelte/Capacitor app, but its save-editing behavior should stay closel
 
 - Repository: https://github.com/architdate/PKHeX-Plugins
 - Purpose: Plugin ecosystem around PKHeX, including automation such as legality helpers.
+- Maintained fork: https://github.com/santacrab2/PKHeX-Plugins. Its tags match `PKHeX.Core` versions.
 - PKSX rule:
-  - Treat plugin and auto-legality integration as future work unless an issue explicitly includes it. Do not couple the MVP PKHeX Engine spike to plugin support.
+  - Auto Legal builds `PKHeX.Core.AutoMod` from source in `engine/vendor`. See [ADR 0023](../adr/0023-repair-legality-with-automod-candidates.md). Other plugins remain future work unless an issue includes them.
 
 ## Local source preference
 

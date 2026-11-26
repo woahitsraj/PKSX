@@ -33,6 +33,7 @@ export type {
 	PokemonActionChange,
 	PokemonActionKind,
 	PokemonActionOperation,
+	AutoLegalPreview,
 	PokemonActionPreview,
 	PokemonActionResult,
 	PokemonEvolutionChoice,

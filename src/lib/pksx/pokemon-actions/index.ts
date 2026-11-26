@@ -1,4 +1,5 @@
 import type {
+	AutoLegalPreview,
 	EngineApi,
 	EngineError,
 	PokemonActionChange,
@@ -168,6 +169,28 @@ export async function requestPokemonActionPreview(engine: EngineApi, target: Pok
 				target.source
 			)
 		: engine.previewStoredPokemonActions(target.entityBytesBase64);
+}
+
+export type AutoLegalState =
+	| { status: 'idle' }
+	| { status: 'loading' }
+	| { status: 'ready'; preview: AutoLegalPreview }
+	| { status: 'error'; message: string };
+
+export async function requestAutoLegalPreview(engine: EngineApi, target: PokemonActionTarget) {
+	return target.owner === 'save-file'
+		? engine.previewAutoLegal(
+				target.workspace.bytes,
+				target.workspace.file.originalFileName ?? undefined,
+				target.source
+			)
+		: engine.previewStoredAutoLegal(target.entityBytesBase64);
+}
+
+export function autoLegalOperation(state: AutoLegalState): StoredPokemonActionOperation | null {
+	return state.status === 'ready' && state.preview.status === 'repaired' && state.preview.token
+		? { kind: 'legality-fix', choiceId: state.preview.token }
+		: null;
 }
 
 export async function applyPokemonAction(

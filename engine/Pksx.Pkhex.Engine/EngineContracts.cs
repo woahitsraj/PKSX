@@ -1007,6 +1007,17 @@ public sealed record PokemonActionPreview(
     LegalityReport LegalityReport,
     List<PokemonActionAvailability> Actions);
 
+public sealed record AutoLegalPreview(
+    string Status,
+    string Method,
+    string? Reason,
+    string? Token,
+    List<PokemonActionChange> Changes,
+    LegalityReport Source,
+    LegalityReport? Candidate,
+    string? CandidateBytesBase64,
+    long ElapsedMilliseconds);
+
 public sealed record PokemonActionRequest(
     string Kind,
     SaveSlotRef? Source,

@@ -5309,6 +5309,138 @@ test('Pokemon Editor Quick Fix cannot publish a rejected staged Met Data edit', 
 	await expect(slot).toContainText('MEW');
 });
 
+async function stageHpIvEdit(page: Page, slot: Locator) {
+	await slot.focus();
+	await page.keyboard.press('Enter');
+	await page
+		.getByRole('dialog', { name: 'Slot actions' })
+		.getByRole('button', { name: 'Edit' })
+		.click();
+	const editor = page.getByRole('dialog').filter({ has: page.locator('#pokemon-editor-apply') });
+	await expect(editor).toBeVisible({ timeout: 15000 });
+	await choosePokemonEditorSection(page, 'stats');
+	const hpIv = editor.locator('#pokemon-editor-hp-iv');
+	const original = Number(await hpIv.inputValue());
+	await fillEditorInput(hpIv, String(original === 31 ? 30 : original + 1));
+	return editor;
+}
+
+async function reviewAutoLegal(report: Locator) {
+	await report.getByRole('button', { name: 'Auto Legal' }).click();
+	const changes = report.locator('[data-auto-legal-changes]');
+	await expect(changes).toBeVisible({ timeout: 15000 });
+	await expect(report.getByRole('heading', { name: 'Auto Legal' })).toBeVisible();
+	await expect(changes).toContainText('PID');
+	await expect(changes).toContainText('IVs');
+	await expect(changes).not.toContainText('Original Trainer');
+	await expect(report.locator('#auto-legal-apply')).toBeFocused();
+}
+
+test('Auto Legal repairs a staged edit only in the Pokemon Editor draft until Editor Apply', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 640, height: 360 });
+	await openEmptySaves(page);
+	await importPlatinumThroughSaves(page);
+	const fileName = 'pokemon-platinum-eu.sav';
+	const workspaceBefore = await workspaceBytesHashForFile(page, fileName);
+	const backupsBefore = await backupCount(page);
+	const editor = await stageHpIvEdit(page, page.locator('#box-2-slot-13'));
+	await editor.getByRole('button', { name: 'Legality' }).click();
+
+	const report = page.getByRole('dialog', { name: /Legality Check|Auto Legal/ });
+	await expect(report).toContainText('This Pokemon has legality issues.', { timeout: 15000 });
+	await reviewAutoLegal(report);
+	await expect(page.getByRole('dialog')).toHaveCount(1);
+	await report.locator('#auto-legal-apply').click();
+	await expect(report).toContainText('This Pokemon is legal.', { timeout: 15000 });
+	await expect(report.getByRole('button', { name: 'Auto Legal' })).toHaveCount(0);
+	expect(await workspaceBytesHashForFile(page, fileName)).toBe(workspaceBefore);
+	expect(await backupCount(page)).toBe(backupsBefore);
+
+	await report.getByRole('button', { name: 'Close report' }).click();
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
+	await expect.poll(() => workspaceBytesHashForFile(page, fileName)).not.toBe(workspaceBefore);
+	expect(await backupCount(page)).toBe(backupsBefore + 1);
+});
+
+test('Auto Legal previews, cancels and applies one candidate to a Save File Slot with a Backup', async ({
+	page
+}) => {
+	await installWorkspaceResponseHold(page);
+	await page.setViewportSize({ width: 360, height: 640 });
+	await openEmptySaves(page);
+	await importPlatinumThroughSaves(page);
+	const fileName = 'pokemon-platinum-eu.sav';
+	const editor = await stageHpIvEdit(page, page.locator('#box-2-slot-13'));
+	await editor.getByRole('button', { name: 'Apply edits' }).click();
+	await expect(editor).toContainText('Pokemon edits applied.', { timeout: 15000 });
+	await editor.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(editor).toBeHidden();
+	const illegal = await workspaceBytesHashForFile(page, fileName);
+	const backupsBefore = await backupCount(page);
+
+	const slotActions = page.getByRole('dialog', { name: 'Slot actions' });
+	await slotActions.getByRole('button', { name: 'Legality Check' }).click();
+	const report = page.getByRole('dialog', { name: /Legality Check|Auto Legal/ });
+	await expect(report.getByRole('button', { name: 'Auto Legal' })).toBeVisible({ timeout: 15000 });
+
+	await holdWorkspaceResponses(page, 1, 'previewAutoLegal');
+	await report.getByRole('button', { name: 'Auto Legal' }).click();
+	await waitForHeldWorkspaceResponses(page);
+	await expect(report.locator('#auto-legal-back')).toHaveText('Cancel');
+	await expect(report.locator('#auto-legal-apply')).toHaveCount(0);
+	await page.keyboard.press('Escape');
+	await expect(report.getByRole('button', { name: 'Auto Legal' })).toBeFocused();
+	await releaseWorkspaceResponses(page);
+	await expect(report.locator('[data-auto-legal-review]')).toHaveCount(0);
+	expect(await workspaceBytesHashForFile(page, fileName)).toBe(illegal);
+	expect(await backupCount(page)).toBe(backupsBefore);
+
+	await reviewAutoLegal(report);
+	const applyBox = await report.locator('#auto-legal-apply').boundingBox();
+	expect(applyBox && applyBox.y + applyBox.height).toBeLessThanOrEqual(640);
+	await report.locator('#auto-legal-back').click();
+	await expect(report).toContainText('This Pokemon has legality issues.');
+	expect(await backupCount(page)).toBe(backupsBefore);
+
+	await reviewAutoLegal(report);
+	await report.locator('#auto-legal-apply').click();
+	await expect(report).toContainText('This Pokemon is legal.', { timeout: 15000 });
+	await expect.poll(() => workspaceBytesHashForFile(page, fileName)).not.toBe(illegal);
+	// The staged edit already made this Workspace's automatic Backup.
+	expect(backupsBefore).toBeGreaterThan(0);
+	expect(await backupCount(page)).toBe(backupsBefore);
+});
+
+test('Auto Legal leaves an unrepairable Pokemon unchanged and lists the remaining findings', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	await importPlatinumThroughSaves(page);
+	const fileName = 'pokemon-platinum-eu.sav';
+	const workspaceBefore = await workspaceBytesHashForFile(page, fileName);
+	const backupsBefore = await backupCount(page);
+	await page.locator('#box-2-slot-18').focus();
+	await page.keyboard.press('Enter');
+	await page
+		.getByRole('dialog', { name: 'Slot actions' })
+		.getByRole('button', { name: 'Legality Check' })
+		.click();
+	const report = page.getByRole('dialog', { name: /Legality Check|Auto Legal/ });
+	await report.getByRole('button', { name: 'Auto Legal' }).click({ timeout: 15000 });
+	await expect(report).toContainText('Not repaired', { timeout: 15000 });
+	await expect(report).toContainText('Nothing changes.');
+	await expect(report.getByLabel('Remaining findings')).toContainText('Encounter');
+	await expect(report.locator('#auto-legal-apply')).toHaveCount(0);
+	await expect(report.locator('#auto-legal-back')).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(report.getByRole('button', { name: 'Apply all Fixes' })).toBeVisible();
+	expect(await workspaceBytesHashForFile(page, fileName)).toBe(workspaceBefore);
+	expect(await backupCount(page)).toBe(backupsBefore);
+});
+
 test('Boxes navigation clamps at workspace edges while Main Menu owns destinations', async ({
 	page
 }) => {

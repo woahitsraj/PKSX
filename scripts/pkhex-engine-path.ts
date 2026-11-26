@@ -4,7 +4,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const engineSource = path.join(repoRoot, 'engine/Pksx.Pkhex.Engine');
+const engineSources = ['engine/Pksx.Pkhex.Engine', 'engine/vendor'].map((dir) =>
+	path.join(repoRoot, dir)
+);
 const buildInputs = ['Directory.Build.targets', 'Directory.Packages.props', 'global.json'];
 
 export const pkhexEngineStampName = 'source-hash';
@@ -20,7 +22,8 @@ export function pkhexEngineBasePath(publicRoot: string): string {
 
 // File times do not survive a checkout or a CI artifact, so the bundle records a hash of its source.
 export function pkhexEngineSourceHash(): string {
-	const sources = readdirSync(engineSource, { recursive: true, withFileTypes: true })
+	const sources = engineSources
+		.flatMap((dir) => readdirSync(dir, { recursive: true, withFileTypes: true }))
 		.filter((file) => file.isFile())
 		.map((file) => path.relative(repoRoot, path.join(file.parentPath, file.name)))
 		.filter((file) => !/[\\/](bin|obj)[\\/]/.test(file));

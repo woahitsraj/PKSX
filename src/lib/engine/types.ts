@@ -645,6 +645,20 @@ export type PokemonActionPreview = {
 	actions: PokemonActionAvailability[];
 };
 
+export type AutoLegalStatus = 'repaired' | 'already-legal' | 'unresolved';
+
+export type AutoLegalPreview = {
+	status: AutoLegalStatus;
+	method: string;
+	reason: string | null;
+	token: string | null;
+	changes: PokemonActionChange[];
+	source: LegalityReport;
+	candidate: LegalityReport | null;
+	candidateBytesBase64: string | null;
+	elapsedMilliseconds: number;
+};
+
 export type PokemonActionOperation = {
 	kind: PokemonActionKind;
 	source: SaveSlotRef;
@@ -839,6 +853,12 @@ export type EngineApi = {
 	previewStoredPokemonActions(
 		entityBytesBase64: string
 	): Promise<EngineResult<PokemonActionPreview>>;
+	previewAutoLegal(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		source: SaveSlotRef
+	): Promise<EngineResult<AutoLegalPreview>>;
+	previewStoredAutoLegal(entityBytesBase64: string): Promise<EngineResult<AutoLegalPreview>>;
 	applyStoredPokemonAction(
 		entityBytesBase64: string,
 		operation: StoredPokemonActionOperation
