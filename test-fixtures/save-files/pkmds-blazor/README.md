@@ -33,3 +33,5 @@ The fixture bytes are unchanged from upstream. File names are normalized. They c
 | `pokemon-brilliant-diamond.bin` | Brilliant Diamond           |          8 | `TestFiles/bdsp.bin`                                 |      973856 | `89aad04612dcb5f03639f48e60d5da8bf1df66dd1c218f83b3d4453c7ab0762d` | `e7c4d7d608512e89279ecd5d82999d5067eea02a` |
 | `pokemon-violet.sav`            | Violet                      |          9 | `TestFiles/violet_main`                              |     4435308 | `33a831fa5b8b729895e47bf74d48d5a391bb06467dbc7b49c5bcd82b9f293eae` | `69a32197e02a0b0a46d8601197a681e15f0998e5` |
 | `pokemon-legends-za.sav`        | Legends Z-A                 |          9 | `TestFiles/legends-za`                               |     3186598 | `ba0f282d10a056092bb4b6e3b985d6d618631f242e6730f2206fa544c6d86fd1` | `92ab38d009827aed81e8bae174283fcdff610aa8` |
+
+`pokemon-battle-revolution.sav` is the public unsupported-capability fixture for the Save File editor. The PKHeX Engine parses it as Generation 4 and reports Money as editable, but not Trainer name, Trainer gender, Bag pockets, or the item catalogue.

@@ -13,6 +13,7 @@ import sunMoonDemoFixtureUrl from '../../../test-fixtures/save-files/bl1ndbehold
 import ultraMoonFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/ultra-moon/011020252224.sav?url';
 import ultraSunFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/ultra-sun/011020252224.sav?url';
 import xFixtureUrl from '../../../test-fixtures/save-files/bl1ndbeholder-pokemon-saves/x/011020252224.sav?url';
+import battleRevolutionFixtureUrl from '../../../test-fixtures/save-files/pkmds-blazor/pokemon-battle-revolution.sav?url';
 import publicShieldFixtureUrl from '../../../test-fixtures/save-files/pkmds-blazor/test-save-shield.sav?url';
 import pocketMonstersWhite2JpFixtureUrl from '../../../test-fixtures/save-files/raj-pokemon-save-backups/nds/pocket-monsters-white-2-jp.sav?url';
 import heartGoldFixtureUrl from '../../../test-fixtures/save-files/raj-pokemon-save-backups/nds/pokemon-heartgold.sav?url';
@@ -117,7 +118,40 @@ const rajSaveFixtureCases = [
 	}
 ] as const;
 
-const editorCapabilityFixtures = [...supportedFixtureCases, ...rajSaveFixtureCases];
+// Public fixtures whose game does not expose every editor capability.
+const unsupportedCapabilityFixtureCases = [
+	{
+		name: 'Battle Revolution (public)',
+		fileName: 'pokemon-battle-revolution.sav',
+		url: battleRevolutionFixtureUrl,
+		byteLength: 3670016
+	}
+] as const;
+
+const editorCapabilityFixtures = [
+	...supportedFixtureCases,
+	...rajSaveFixtureCases,
+	...unsupportedCapabilityFixtureCases
+];
+type EditorCapabilityFixtureName = (typeof editorCapabilityFixtures)[number]['name'];
+const allEditorCapabilities = {
+	trainerName: true,
+	trainerGender: true,
+	money: true,
+	bag: true,
+	catalogue: true
+};
+const expectedEditorCapabilities: Partial<
+	Record<EditorCapabilityFixtureName, typeof allEditorCapabilities>
+> = {
+	'Battle Revolution (public)': {
+		trainerName: false,
+		trainerGender: false,
+		money: true,
+		bag: false,
+		catalogue: false
+	}
+};
 const expectedEditorGenerations: Record<(typeof editorCapabilityFixtures)[number]['name'], number> =
 	{
 		Emerald: 3,
@@ -136,7 +170,8 @@ const expectedEditorGenerations: Record<(typeof editorCapabilityFixtures)[number
 		Sword: 8,
 		"Let's Go Eevee": 7,
 		'Legends Arceus': 8,
-		Scarlet: 9
+		Scarlet: 9,
+		'Battle Revolution (public)': 4
 	};
 const expectedEditorPockets: Record<(typeof editorCapabilityFixtures)[number]['name'], string[]> = {
 	Emerald: ['Items', 'KeyItems', 'Balls', 'TMHMs', 'Berries', 'PCItems'],
@@ -204,7 +239,8 @@ const expectedEditorPockets: Record<(typeof editorCapabilityFixtures)[number]['n
 		'Ingredients',
 		'KeyItems',
 		'Candy'
-	]
+	],
+	'Battle Revolution (public)': []
 };
 
 describe('PKHeX Engine browser runtime smoke', () => {
@@ -359,12 +395,8 @@ describe('PKHeX Engine browser runtime smoke', () => {
 				cataloguePockets: catalogue.value.pockets.map((pocket) => pocket.key)
 			}).toEqual({
 				generation: expectedEditorGenerations[fixture.name],
-				trainerName: true,
-				trainerGender: true,
-				money: true,
-				bag: true,
+				...(expectedEditorCapabilities[fixture.name] ?? allEditorCapabilities),
 				pockets: expectedEditorPockets[fixture.name],
-				catalogue: true,
 				cataloguePockets: expectedEditorPockets[fixture.name]
 			});
 		}
