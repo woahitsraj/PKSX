@@ -5,6 +5,7 @@ import type {
 	EngineVersion,
 	LegalityReport,
 	PartySlotSummary,
+	AutoLegalPreview,
 	PokemonActionPreview,
 	PokemonActionResult,
 	PokemonCreationCatalogue,
@@ -131,6 +132,8 @@ export type DotnetPkhexEngineExports = {
 		actionJson: string
 	): string;
 	PreviewStoredPokemonActionsJson(entityBytesBase64: string): string;
+	PreviewAutoLegalJson(bytes: Uint8Array, fileName: string | undefined, sourceJson: string): string;
+	PreviewStoredAutoLegalJson(entityBytesBase64: string): string;
 	ApplyStoredPokemonActionJson(entityBytesBase64: string, actionJson: string): string;
 	CreatePreservationPayloadJson(entityBytes: Uint8Array): string;
 	ForkPreservationPayloadJson(payloadBytes: Uint8Array): string;
@@ -370,6 +373,30 @@ export function createPkhexEngineWorkerRuntime({
 			case 'previewStoredPokemonActions':
 				postMessage(
 					createEngineWorkerResponse(request, previewStoredPokemonActions(engine, request))
+				);
+				return;
+			case 'previewAutoLegal':
+				postMessage(
+					createEngineWorkerResponse(
+						request,
+						parseEngineResult<AutoLegalPreview>(
+							engine.PreviewAutoLegalJson(
+								new Uint8Array(request.payload.bytes),
+								request.payload.fileName,
+								JSON.stringify(request.payload.source)
+							)
+						)
+					)
+				);
+				return;
+			case 'previewStoredAutoLegal':
+				postMessage(
+					createEngineWorkerResponse(
+						request,
+						parseEngineResult<AutoLegalPreview>(
+							engine.PreviewStoredAutoLegalJson(request.payload.entityBytesBase64)
+						)
+					)
 				);
 				return;
 			case 'applyStoredPokemonAction':
@@ -1147,6 +1174,9 @@ function unavailableResult(request: EngineWorkerRequest) {
 		case 'previewPokemonActions':
 		case 'previewStoredPokemonActions':
 			return result satisfies EngineResult<PokemonActionPreview>;
+		case 'previewAutoLegal':
+		case 'previewStoredAutoLegal':
+			return result satisfies EngineResult<AutoLegalPreview>;
 		case 'applyPokemonAction':
 			return result satisfies EngineResult<PokemonActionResult>;
 		case 'applyStoredPokemonAction':

@@ -4,18 +4,38 @@
 		createLegalityReportFindings,
 		type LegalityReportState
 	} from '$lib/pksx/legality-report';
-	import { allLegalityFixOperation, type PokemonActionState } from '$lib/pksx/pokemon-actions';
+	import {
+		allLegalityFixOperation,
+		autoLegalOperation,
+		type AutoLegalState,
+		type PokemonActionState
+	} from '$lib/pksx/pokemon-actions';
+	import AutoLegalReview from './AutoLegalReview.svelte';
 	import DelayedSpinner from './DelayedSpinner.svelte';
 
 	interface Props {
 		state: Exclude<LegalityReportState, { status: 'idle' }>;
 		actionState: PokemonActionState;
+		autoLegal: AutoLegalState;
 		onApplyFix: (fixId: string) => void;
 		onApplyAllFixes: () => void;
+		onAutoLegal: () => void;
+		onApplyAutoLegal: () => void;
+		onLeaveAutoLegal: () => void;
 		onClose: () => void;
 	}
 
-	let { state, actionState, onApplyFix, onApplyAllFixes, onClose }: Props = $props();
+	let {
+		state,
+		actionState,
+		autoLegal,
+		onApplyFix,
+		onApplyAllFixes,
+		onAutoLegal,
+		onApplyAutoLegal,
+		onLeaveAutoLegal,
+		onClose
+	}: Props = $props();
 	const report = $derived(state.status === 'ready' ? state.report : null);
 	const blockingMessage = $derived(
 		state.status === 'error' || state.status === 'unavailable' ? state.message : null
@@ -40,6 +60,8 @@
 	);
 	const canApplyAllFixes = $derived(Boolean(actionReady && allLegalityFixOperation(actionReady)));
 	const applying = $derived(actionState.status === 'applying');
+	const canAutoLegal = $derived(Boolean(actionReady && report && !report.legal));
+	const canApplyAutoLegal = $derived(Boolean(autoLegalOperation(autoLegal)));
 
 	onMount(() => {
 		void tick().then(() => {
@@ -51,7 +73,9 @@
 <div class="legality-report" class:legal={report?.legal} class:illegal={report && !report.legal}>
 	<header>
 		<div>
-			<h2 id="legality-report-title">Legality Check</h2>
+			<h2 id="legality-report-title">
+				{autoLegal.status === 'idle' ? 'Legality Check' : 'Auto Legal'}
+			</h2>
 			<p class="kicker">{state.location}</p>
 		</div>
 		<button
@@ -66,152 +90,194 @@
 		</button>
 	</header>
 
-	<div class="report-scroll" role="region" aria-label="Legality Report findings">
-		<div class="summary">
-			<div class="judgement">
-				{#if report}<span>{report.judgement}</span>{:else if state.status !== 'loading'}<span
-						>Unavailable</span
-					>{/if}
-				<strong>{state.pokemonLabel}</strong>
-			</div>
-			{#if state.status === 'loading'}
-				<DelayedSpinner active label="Checking legality" />
-			{:else}
-				<p>
-					{#if report}
-						{report.summary}
-					{:else}
-						{blockingMessage}
-					{/if}
-				</p>
-				{#each findings?.unmatchedFixes ?? [] as fix (fix.id)}
-					<div
-						class="proposed-fixes"
-						aria-label={`${fix.label} proposed fixes`}
-						data-legality-proposed-fixes
-					>
-						<p class="proposal-label">{fix.label}</p>
-						{#each fix.changes as change (JSON.stringify( [change.field, change.before, change.after] ))}
-							<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
-						{/each}
-						<button
-							data-legality-report-control
-							type="button"
-							class="apply-fix"
-							onclick={() => onApplyFix(fix.id)}
-							disabled={applying}>Apply {fix.label} Fix</button
+	{#if autoLegal.status !== 'idle'}
+		<AutoLegalReview state={autoLegal} pokemonLabel={state.pokemonLabel} />
+	{:else}
+		<div class="report-scroll" role="region" aria-label="Legality Report findings">
+			<div class="summary">
+				<div class="judgement">
+					{#if report}<span>{report.judgement}</span>{:else if state.status !== 'loading'}<span
+							>Unavailable</span
+						>{/if}
+					<strong>{state.pokemonLabel}</strong>
+				</div>
+				{#if state.status === 'loading'}
+					<DelayedSpinner active label="Checking legality" />
+				{:else}
+					<p>
+						{#if report}
+							{report.summary}
+						{:else}
+							{blockingMessage}
+						{/if}
+					</p>
+					{#each findings?.unmatchedFixes ?? [] as fix (fix.id)}
+						<div
+							class="proposed-fixes"
+							aria-label={`${fix.label} proposed fixes`}
+							data-legality-proposed-fixes
 						>
-					</div>
-				{/each}
-				{#if findings && findings.combinedProposals.length > 0}
-					<div
-						class="proposed-fixes"
-						aria-label="Apply all Fixes proposed changes"
-						data-legality-proposed-fixes
-					>
-						<p class="proposal-label">Apply all Fixes changes</p>
-						{#each findings.combinedProposals as change (JSON.stringify( [change.field, change.before, change.after] ))}
-							<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
-						{/each}
-					</div>
+							<p class="proposal-label">{fix.label}</p>
+							{#each fix.changes as change (JSON.stringify( [change.field, change.before, change.after] ))}
+								<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
+							{/each}
+							<button
+								data-legality-report-control
+								type="button"
+								class="apply-fix"
+								onclick={() => onApplyFix(fix.id)}
+								disabled={applying}>Apply {fix.label} Fix</button
+							>
+						</div>
+					{/each}
+					{#if findings && findings.combinedProposals.length > 0}
+						<div
+							class="proposed-fixes"
+							aria-label="Apply all Fixes proposed changes"
+							data-legality-proposed-fixes
+						>
+							<p class="proposal-label">Apply all Fixes changes</p>
+							{#each findings.combinedProposals as change (JSON.stringify( [change.field, change.before, change.after] ))}
+								<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
+							{/each}
+						</div>
+					{/if}
 				{/if}
+			</div>
+
+			{#if report}
+				<div class="report-columns">
+					<section aria-label="Warnings">
+						<h3>Warnings</h3>
+						{#if report.warnings.length > 0}
+							<ul>
+								{#each findings?.warnings ?? [] as finding, index (`warning-${index}-${finding.line.identifier}`)}
+									{@const fix = finding.fix}
+									<li>
+										<span>{finding.line.identifier}</span>
+										<p>{finding.line.message}</p>
+										{#if finding.proposals.length > 0 || fix}
+											<div
+												class="proposed-fixes"
+												aria-label="Proposed fixes"
+												data-legality-proposed-fixes
+											>
+												{#each finding.proposals as change (JSON.stringify( [change.field, change.before, change.after] ))}
+													<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
+												{/each}
+												{#if fix}
+													<button
+														data-legality-report-control
+														type="button"
+														class="apply-fix"
+														onclick={() => onApplyFix(fix.id)}
+														disabled={applying}>Apply {fix.label} Fix</button
+													>
+												{/if}
+											</div>
+										{/if}
+									</li>
+								{/each}
+							</ul>
+						{:else}
+							<p class="empty-copy">No warnings returned.</p>
+						{/if}
+					</section>
+
+					{#if messages.length > 0}
+						<section aria-label="Messages">
+							<h3>Messages</h3>
+							<ul>
+								{#each messages as finding, index (`message-${index}-${finding.line.identifier}`)}
+									{@const fix = finding.fix}
+									<li>
+										<span>{finding.line.identifier}</span>
+										<p>{finding.line.message}</p>
+										{#if finding.proposals.length > 0 || fix}
+											<div
+												class="proposed-fixes"
+												aria-label="Proposed fixes"
+												data-legality-proposed-fixes
+											>
+												{#each finding.proposals as change (JSON.stringify( [change.field, change.before, change.after] ))}
+													<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
+												{/each}
+												{#if fix}
+													<button
+														data-legality-report-control
+														type="button"
+														class="apply-fix"
+														onclick={() => onApplyFix(fix.id)}
+														disabled={applying}>Apply {fix.label} Fix</button
+													>
+												{/if}
+											</div>
+										{/if}
+									</li>
+								{/each}
+							</ul>
+						</section>
+					{/if}
+				</div>
 			{/if}
 		</div>
-
-		{#if report}
-			<div class="report-columns">
-				<section aria-label="Warnings">
-					<h3>Warnings</h3>
-					{#if report.warnings.length > 0}
-						<ul>
-							{#each findings?.warnings ?? [] as finding, index (`warning-${index}-${finding.line.identifier}`)}
-								{@const fix = finding.fix}
-								<li>
-									<span>{finding.line.identifier}</span>
-									<p>{finding.line.message}</p>
-									{#if finding.proposals.length > 0 || fix}
-										<div
-											class="proposed-fixes"
-											aria-label="Proposed fixes"
-											data-legality-proposed-fixes
-										>
-											{#each finding.proposals as change (JSON.stringify( [change.field, change.before, change.after] ))}
-												<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
-											{/each}
-											{#if fix}
-												<button
-													data-legality-report-control
-													type="button"
-													class="apply-fix"
-													onclick={() => onApplyFix(fix.id)}
-													disabled={applying}>Apply {fix.label} Fix</button
-												>
-											{/if}
-										</div>
-									{/if}
-								</li>
-							{/each}
-						</ul>
-					{:else}
-						<p class="empty-copy">No warnings returned.</p>
-					{/if}
-				</section>
-
-				{#if messages.length > 0}
-					<section aria-label="Messages">
-						<h3>Messages</h3>
-						<ul>
-							{#each messages as finding, index (`message-${index}-${finding.line.identifier}`)}
-								{@const fix = finding.fix}
-								<li>
-									<span>{finding.line.identifier}</span>
-									<p>{finding.line.message}</p>
-									{#if finding.proposals.length > 0 || fix}
-										<div
-											class="proposed-fixes"
-											aria-label="Proposed fixes"
-											data-legality-proposed-fixes
-										>
-											{#each finding.proposals as change (JSON.stringify( [change.field, change.before, change.after] ))}
-												<p><strong>{change.field}:</strong> {change.before} → {change.after}</p>
-											{/each}
-											{#if fix}
-												<button
-													data-legality-report-control
-													type="button"
-													class="apply-fix"
-													onclick={() => onApplyFix(fix.id)}
-													disabled={applying}>Apply {fix.label} Fix</button
-												>
-											{/if}
-										</div>
-									{/if}
-								</li>
-							{/each}
-						</ul>
-					</section>
-				{/if}
-			</div>
-		{/if}
-	</div>
+	{/if}
 
 	<footer>
-		{#if canApplyAllFixes}
+		{#if autoLegal.status !== 'idle'}
 			<button
-				id="legality-quick-fix-apply"
+				id="auto-legal-back"
 				data-legality-report-control
 				type="button"
-				class="close-report"
-				onclick={onApplyAllFixes}
+				class="secondary"
+				onclick={onLeaveAutoLegal}
 				disabled={applying}
 			>
-				Apply all Fixes
+				{autoLegal.status === 'loading' ? 'Cancel' : 'Back'}
 			</button>
-			<DelayedSpinner active={applying} label="Applying fixes" />
+			{#if canApplyAutoLegal}
+				<button
+					id="auto-legal-apply"
+					data-legality-report-control
+					type="button"
+					class="close-report"
+					onclick={onApplyAutoLegal}
+					disabled={applying}
+				>
+					Apply
+				</button>
+			{/if}
+			<DelayedSpinner active={applying} label="Applying Auto Legal" />
 		{:else}
-			<button data-legality-report-control type="button" class="close-report" onclick={onClose}
-				>Close</button
-			>
+			{#if canAutoLegal}
+				<button
+					id="legality-auto-legal"
+					data-legality-report-control
+					type="button"
+					class="secondary"
+					onclick={onAutoLegal}
+					disabled={applying}
+				>
+					Auto Legal
+				</button>
+			{/if}
+			{#if canApplyAllFixes}
+				<button
+					id="legality-quick-fix-apply"
+					data-legality-report-control
+					type="button"
+					class="close-report"
+					onclick={onApplyAllFixes}
+					disabled={applying}
+				>
+					Apply all Fixes
+				</button>
+				<DelayedSpinner active={applying} label="Applying fixes" />
+			{:else}
+				<button data-legality-report-control type="button" class="close-report" onclick={onClose}
+					>Close</button
+				>
+			{/if}
 		{/if}
 	</footer>
 </div>
@@ -305,6 +371,18 @@
 
 	footer button {
 		min-height: var(--pksx-control-height);
+	}
+
+	footer .secondary {
+		padding: var(--pksx-space-1) var(--pksx-space-3);
+		border: 1px solid var(--rule-hi);
+		background: var(--paper-hi);
+		font-weight: 700;
+	}
+
+	.secondary:focus-visible {
+		outline: 3px solid var(--pksx-color-accent-ring);
+		outline-offset: -3px;
 	}
 
 	.proposed-fixes {

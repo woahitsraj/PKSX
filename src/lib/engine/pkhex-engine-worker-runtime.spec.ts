@@ -294,6 +294,8 @@ function createEngineExports(): DotnetPkhexEngineExports {
 		ReadPreservationPayloadJson: () => unavailableInTestEngine(),
 		ProjectPreservationPayloadJson: () => unavailableInTestEngine(),
 		PrepareOutgoingLinkTradeJson: () => unavailableInTestEngine(),
+		PreviewAutoLegalJson: () => unavailableInTestEngine(),
+		PreviewStoredAutoLegalJson: () => unavailableInTestEngine(),
 		ReadLinkTradePartnerPokemonJson: () => unavailableInTestEngine()
 	};
 }

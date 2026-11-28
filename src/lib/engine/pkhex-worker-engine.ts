@@ -6,6 +6,7 @@ import type {
 	EngineVersion,
 	LegalityReport,
 	PartySlotSummary,
+	AutoLegalPreview,
 	PokemonActionPreview,
 	PokemonActionResult,
 	PokemonCreationCatalogue,
@@ -439,6 +440,27 @@ export function createPkhexWorkerEngine(
 				method: 'previewStoredPokemonActions',
 				payload: { entityBytesBase64 }
 			}),
+		previewAutoLegal: (bytes, fileName, source) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'previewAutoLegal',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'previewAutoLegal',
+					payload: { bytes: buffer, fileName, source: cloneSlotRef(source) }
+				},
+				[buffer]
+			);
+		},
+		previewStoredAutoLegal: (entityBytesBase64) =>
+			sendRequest('previewStoredAutoLegal', {
+				type: 'request',
+				id: createRequestId(),
+				method: 'previewStoredAutoLegal',
+				payload: { entityBytesBase64 }
+			}),
 		applyStoredPokemonAction: (entityBytesBase64, operation) =>
 			sendRequest('applyStoredPokemonAction', {
 				type: 'request',
@@ -640,6 +662,15 @@ export function createPkhexWorkerEngine(
 		method: 'previewStoredPokemonActions',
 		request: Extract<EngineWorkerRequest, { method: 'previewStoredPokemonActions' }>
 	): Promise<EngineResult<PokemonActionPreview>>;
+	async function sendRequest(
+		method: 'previewAutoLegal',
+		request: Extract<EngineWorkerRequest, { method: 'previewAutoLegal' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<AutoLegalPreview>>;
+	async function sendRequest(
+		method: 'previewStoredAutoLegal',
+		request: Extract<EngineWorkerRequest, { method: 'previewStoredAutoLegal' }>
+	): Promise<EngineResult<AutoLegalPreview>>;
 	async function sendRequest(
 		method: 'applyStoredPokemonAction',
 		request: Extract<EngineWorkerRequest, { method: 'applyStoredPokemonAction' }>

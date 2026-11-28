@@ -24,6 +24,8 @@ export const engineWorkerMethodSchema = z.enum([
 	'previewPokemonActions',
 	'applyPokemonAction',
 	'previewStoredPokemonActions',
+	'previewAutoLegal',
+	'previewStoredAutoLegal',
 	'applyStoredPokemonAction',
 	'createPreservationPayload',
 	'forkPreservationPayload',
@@ -769,6 +771,18 @@ export const pokemonActionPreviewSchema = z.object({
 	actions: z.array(pokemonActionAvailabilitySchema)
 });
 
+export const autoLegalPreviewSchema = z.object({
+	status: z.enum(['repaired', 'already-legal', 'unresolved']),
+	method: z.string(),
+	reason: z.string().nullable(),
+	token: z.string().nullable(),
+	changes: z.array(pokemonActionChangeSchema),
+	source: legalityReportSchema,
+	candidate: legalityReportSchema.nullable(),
+	candidateBytesBase64: z.string().nullable(),
+	elapsedMilliseconds: z.number()
+});
+
 export const pokemonActionOperationSchema = z.object({
 	kind: pokemonActionKindSchema,
 	source: saveSlotRefSchema,
@@ -880,6 +894,8 @@ export const legalityReportResultSchema = engineResultSchema(legalityReportSchem
 export const pokemonActionPreviewResultSchema = engineResultSchema(pokemonActionPreviewSchema);
 
 export const pokemonActionResultResultSchema = engineResultSchema(pokemonActionResultSchema);
+
+export const autoLegalPreviewResultSchema = engineResultSchema(autoLegalPreviewSchema);
 
 export const storedPokemonActionResultResultSchema = engineResultSchema(
 	storedPokemonActionResultSchema
@@ -1171,6 +1187,26 @@ export const engineWorkerPreviewStoredPokemonActionsRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerPreviewAutoLegalRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('previewAutoLegal'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional(),
+		source: saveSlotRefSchema
+	})
+});
+
+export const engineWorkerPreviewStoredAutoLegalRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('previewStoredAutoLegal'),
+	payload: z.object({
+		entityBytesBase64: z.string().min(1)
+	})
+});
+
 export const engineWorkerApplyStoredPokemonActionRequestSchema = z.object({
 	type: z.literal('request'),
 	id: engineWorkerRequestIdSchema,
@@ -1262,6 +1298,8 @@ export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerPreviewPokemonActionsRequestSchema,
 	engineWorkerApplyPokemonActionRequestSchema,
 	engineWorkerPreviewStoredPokemonActionsRequestSchema,
+	engineWorkerPreviewAutoLegalRequestSchema,
+	engineWorkerPreviewStoredAutoLegalRequestSchema,
 	engineWorkerApplyStoredPokemonActionRequestSchema,
 	engineWorkerCreatePreservationPayloadRequestSchema,
 	engineWorkerForkPreservationPayloadRequestSchema,
@@ -1419,6 +1457,20 @@ export const engineWorkerPreviewStoredPokemonActionsResponseSchema = z.object({
 	result: pokemonActionPreviewResultSchema
 });
 
+export const engineWorkerPreviewAutoLegalResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('previewAutoLegal'),
+	result: autoLegalPreviewResultSchema
+});
+
+export const engineWorkerPreviewStoredAutoLegalResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('previewStoredAutoLegal'),
+	result: autoLegalPreviewResultSchema
+});
+
 export const engineWorkerApplyStoredPokemonActionResponseSchema = z.object({
 	type: z.literal('response'),
 	id: engineWorkerRequestIdSchema,
@@ -1497,6 +1549,8 @@ export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerPreviewPokemonActionsResponseSchema,
 	engineWorkerApplyPokemonActionResponseSchema,
 	engineWorkerPreviewStoredPokemonActionsResponseSchema,
+	engineWorkerPreviewAutoLegalResponseSchema,
+	engineWorkerPreviewStoredAutoLegalResponseSchema,
 	engineWorkerApplyStoredPokemonActionResponseSchema,
 	engineWorkerCreatePreservationPayloadResponseSchema,
 	engineWorkerForkPreservationPayloadResponseSchema,
@@ -1619,6 +1673,12 @@ export type EngineWorkerApplyPokemonActionRequest = z.infer<
 
 export type EngineWorkerPreviewStoredPokemonActionsRequest = z.infer<
 	typeof engineWorkerPreviewStoredPokemonActionsRequestSchema
+>;
+export type EngineWorkerPreviewAutoLegalRequest = z.infer<
+	typeof engineWorkerPreviewAutoLegalRequestSchema
+>;
+export type EngineWorkerPreviewStoredAutoLegalRequest = z.infer<
+	typeof engineWorkerPreviewStoredAutoLegalRequestSchema
 >;
 
 export type EngineWorkerApplyStoredPokemonActionRequest = z.infer<

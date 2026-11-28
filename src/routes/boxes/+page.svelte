@@ -196,13 +196,16 @@
 	import {
 		allLegalityFixOperation,
 		applyPokemonAction,
+		autoLegalOperation,
 		clearPokemonActionSelection,
 		createPokemonActionLoadingState,
 		createPokemonActionReadyState,
 		legalityFixOperation,
+		requestAutoLegalPreview,
 		requestPokemonActionPreview,
 		selectPokemonAction,
 		selectedPokemonActionOperation,
+		type AutoLegalState,
 		type PokemonActionState,
 		type PokemonActionTarget
 	} from '$lib/pksx/pokemon-actions';
@@ -457,6 +460,8 @@
 	let legalityReportRequest = 0;
 	let pokemonAction = $state<PokemonActionState>({ status: 'idle' });
 	let pokemonActionRequest = 0;
+	let autoLegal = $state<AutoLegalState>({ status: 'idle' });
+	let autoLegalRequest = 0;
 	let pokemonActionContext = $state<PokemonActionContext | null>(null);
 	let pokemonActionReturnsToEditor = $state(false);
 	let slotMenuPokemonActionPreview = $state<PokemonActionPreview | null>(null);
@@ -5339,6 +5344,56 @@
 		if (operation) await applySelectedPokemonAction(operation);
 	}
 
+	async function startAutoLegal() {
+		const activeEngine = engine;
+		const context = pokemonActionContext;
+		if (!activeEngine || !context || pokemonAction.status !== 'ready') return;
+		const request = (autoLegalRequest += 1);
+		autoLegal = { status: 'loading' };
+		await tick();
+		document.getElementById('auto-legal-back')?.focus();
+		try {
+			const result = await requestAutoLegalPreview(activeEngine, context.target);
+			if (request !== autoLegalRequest) return;
+			autoLegal = result.ok
+				? { status: 'ready', preview: result.value }
+				: { status: 'error', message: result.error.message };
+		} catch (error) {
+			if (request !== autoLegalRequest) return;
+			autoLegal = { status: 'error', message: getErrorMessage(error) };
+		}
+		await tick();
+		(
+			document.getElementById('auto-legal-apply') ?? document.getElementById('auto-legal-back')
+		)?.focus();
+	}
+
+	function leaveAutoLegal() {
+		if (pokemonAction.status === 'applying') return;
+		autoLegalRequest += 1;
+		autoLegal = { status: 'idle' };
+		void tick().then(() => {
+			(
+				document.getElementById('legality-auto-legal') ??
+				document.getElementById('legality-report-close')
+			)?.focus();
+		});
+	}
+
+	async function applyAutoLegal() {
+		const operation = autoLegalOperation(autoLegal);
+		if (!operation || pokemonAction.status !== 'ready') return;
+		await applySelectedPokemonAction(operation);
+		autoLegalRequest += 1;
+		autoLegal = { status: 'idle' };
+		await tick();
+		(
+			document.getElementById('legality-quick-fix-apply') ??
+			document.getElementById('legality-auto-legal') ??
+			document.getElementById('legality-report-close')
+		)?.focus();
+	}
+
 	async function applyLegalityFix(fixId: string) {
 		if (pokemonAction.status !== 'ready') return;
 		const operation = legalityFixOperation(pokemonAction, fixId);
@@ -6304,6 +6359,8 @@
 		if (pokemonAction.status === 'applying') return;
 		legalityReportRequest += 1;
 		legalityReport = { status: 'idle' };
+		autoLegalRequest += 1;
+		autoLegal = { status: 'idle' };
 		pokemonActionRequest += 1;
 		pokemonAction = { status: 'idle' };
 		pokemonActionContext = null;
@@ -6325,6 +6382,10 @@
 	}
 
 	function backLegalityReport() {
+		if (autoLegal.status !== 'idle') {
+			leaveAutoLegal();
+			return;
+		}
 		if (pokemonAction.status === 'ready' && pokemonAction.selection) {
 			clearPokemonActionPreview();
 			return;
@@ -8742,8 +8803,12 @@
 		<LegalityReportDialog
 			state={legalityReport}
 			actionState={pokemonAction}
+			{autoLegal}
 			onApplyFix={applyLegalityFix}
 			onApplyAllFixes={applyAllLegalityFixes}
+			onAutoLegal={startAutoLegal}
+			onApplyAutoLegal={applyAutoLegal}
+			onLeaveAutoLegal={leaveAutoLegal}
 			onClose={closeLegalityReport}
 		/>
 	</TakeoverFrame>

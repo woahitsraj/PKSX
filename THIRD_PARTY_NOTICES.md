@@ -14,6 +14,38 @@ PKSX links and distributes `PKHeX.Core`, copyright Kaphotics and PKHeX contribut
 
 The full GNU General Public License appears in [`LICENSE`](./LICENSE).
 
+## PKHeX.Core.AutoMod (Auto Legal)
+
+The PKHeX Engine builds the `PKHeX.Core.AutoMod` sources from PKHeX-Plugins without changes. They are in `engine/vendor/PKHeX.Core.AutoMod`.
+
+- Version: tag `26.05.05`, revision `bb57f2e1a785ac65edf6f5d233a113f80046ef04`
+- License: MIT
+- Source: https://github.com/santacrab2/PKHeX-Plugins/tree/26.05.05/PKHeX.Core.AutoMod
+
+```text
+MIT License
+
+Copyright (c) 2018 Archit Date
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
 ## pokeldn and LDN (the trade worker)
 
 The trade worker in `src/lib/link-trade/trade-worker` is a TypeScript port of the Sword/Shield Link Trade joiner from pokeldn, which includes code from LDN. That module keeps their licenses. Its own notice is `src/lib/link-trade/trade-worker/NOTICE.md`.

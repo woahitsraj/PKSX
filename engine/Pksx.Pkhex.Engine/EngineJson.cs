@@ -30,6 +30,7 @@ internal static class EngineJson
 [JsonSerializable(typeof(EngineResult<PokemonCreationResult>))]
 [JsonSerializable(typeof(EngineResult<LegalityReport>))]
 [JsonSerializable(typeof(EngineResult<PokemonActionPreview>))]
+[JsonSerializable(typeof(EngineResult<AutoLegalPreview>))]
 [JsonSerializable(typeof(EngineResult<PokemonActionResult>))]
 [JsonSerializable(typeof(EngineResult<StoredPokemonActionResult>))]
 [JsonSerializable(typeof(EngineResult<PreservationPayloadResult>))]

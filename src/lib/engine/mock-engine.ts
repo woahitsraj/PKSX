@@ -4,6 +4,7 @@ import type {
 	EngineResult,
 	EngineVersion,
 	LegalityReport,
+	AutoLegalPreview,
 	PokemonActionPreview,
 	PokemonActionResult,
 	PokemonCreationCatalogue,
@@ -586,6 +587,8 @@ export function createMockEngine(
 				changes: [{ field: 'Species', before: 'Pikachu', after: 'Raichu' }]
 			}),
 		previewStoredPokemonActions: async () => success(mockPokemonActionPreview()),
+		previewAutoLegal: async () => success(mockAutoLegalPreview()),
+		previewStoredAutoLegal: async () => success(mockAutoLegalPreview()),
 		applyStoredPokemonAction: async () =>
 			success<StoredPokemonActionResult>({
 				entityBytesBase64: 'bW9jay1yYWljaHU=',
@@ -647,6 +650,21 @@ function mockPreservationSummary(): PreservationPayloadSummary {
 		originalByteLength: 12,
 		currentByteLength: 12,
 		originalEntitySha256: 'mock'
+	};
+}
+
+function mockAutoLegalPreview(): AutoLegalPreview {
+	const report = mockPokemonActionPreview().legalityReport;
+	return {
+		status: 'already-legal',
+		method: 'none',
+		reason: null,
+		token: null,
+		changes: [],
+		source: report,
+		candidate: null,
+		candidateBytesBase64: null,
+		elapsedMilliseconds: 0
 	};
 }
 
