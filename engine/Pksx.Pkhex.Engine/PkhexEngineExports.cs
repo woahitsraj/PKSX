@@ -800,12 +800,10 @@ public static partial class PkhexEngineExports
         {
             var save = LoadSave(bytes, fileName);
 
-            if (save is null or SAV3Unbound)
+            if (save is null)
             {
                 return EngineJson.Serialize(
-                    EngineResult.Fail(
-                        "unsupported-save",
-                        save is null ? UnsupportedSaveMessage : UnboundLegalityMessage),
+                    EngineResult.Fail("unsupported-save", UnsupportedSaveMessage),
                     EngineJsonContext.Default.EngineResultObject);
             }
 
@@ -861,13 +859,6 @@ public static partial class PkhexEngineExports
                     EngineJsonContext.Default.EngineResultObject);
             }
 
-            if (save is SAV3Unbound)
-            {
-                return EngineJson.Serialize(
-                    EngineResult.Fail("unsupported-save", UnboundLegalityMessage),
-                    EngineJsonContext.Default.EngineResultObject);
-            }
-
             var source = System.Text.Json.JsonSerializer.Deserialize(
                 sourceJson,
                 EngineJsonContext.Default.SaveSlotRef);
@@ -912,12 +903,12 @@ public static partial class PkhexEngineExports
                     EngineJsonContext.Default.EngineResultObject);
             }
 
-            if (RefuseUnboundEdit(save) is { } refused)
-                return refused;
-
             var request = System.Text.Json.JsonSerializer.Deserialize(
                 actionJson,
                 EngineJsonContext.Default.PokemonActionRequest);
+            // Unbound saves take Legality Fixes; other actions need PKHeX rules.
+            if (request?.Kind != "legality-fix" && RefuseUnboundEdit(save) is { } refused)
+                return refused;
             if (request?.Source is null)
             {
                 return EngineJson.Serialize(
@@ -1144,7 +1135,6 @@ public static partial class PkhexEngineExports
         UnboundSave.IsUnbound(bytes) ? new SAV3Unbound(bytes) : SaveUtil.GetSaveFile(bytes, fileName);
 
     private const string UnsupportedSaveMessage = "This file is not a supported Save File.";
-    private const string UnboundLegalityMessage = "Legality is unavailable for Pokémon Unbound, because PKHeX has no rules for it.";
 
     // Unbound saves stay read-only until each kind of change is supported.
     private static string? RefuseUnboundEdit(SaveFile save) =>
@@ -2318,6 +2308,9 @@ public static partial class PkhexEngineExports
 
     private static LegalityReport CreateLegalityReport(PKM pokemon, StorageSlotType storageSlotType)
     {
+        if (pokemon is PK3Unbound unbound)
+            return UnboundLegality.CreateReport(unbound, storageSlotType);
+
         var analysis = new LegalityAnalysis(pokemon, storageSlotType);
         var messages = CreateLegalityMessages(analysis, includeGeneric: false);
 
@@ -2344,15 +2337,17 @@ public static partial class PkhexEngineExports
         StorageSlotType storageSlotType)
     {
         var legalityFix = PreviewLegalityFix(pokemon, storageSlotType);
-        var evolutionChoices = CreateEvolutionChoices(pokemon);
+        List<PokemonEvolutionChoice> evolutionChoices = pokemon is PK3Unbound ? [] : CreateEvolutionChoices(pokemon);
         var evolve = evolutionChoices.Count > 0
             ? new PokemonActionAvailability("evolve", true, null, [], evolutionChoices, [], null)
             : new PokemonActionAvailability(
                 "evolve",
                 false,
-                pokemon.IsEgg
-                    ? "Eggs cannot evolve."
-                    : "No direct evolution is available for this Pokemon.",
+                pokemon is PK3Unbound
+                    ? "Evolution is unavailable for Pokémon Unbound, because PKHeX has no rules for it."
+                    : pokemon.IsEgg
+                        ? "Eggs cannot evolve."
+                        : "No direct evolution is available for this Pokemon.",
                 [],
                 [],
                 [],
@@ -2401,13 +2396,13 @@ public static partial class PkhexEngineExports
         StorageSlotType storageSlotType)
     {
         var fixes = new List<PokemonLegalityFixChoice>();
-        foreach (var (id, label) in new[]
-        {
+        foreach (var (id, label) in pokemon is PK3Unbound ? UnboundLegality.Fixes :
+        [
             ("move-set", "Move Set"),
             ("relearn-moves", "Relearn Moves"),
             ("ball", "Ball"),
             ("ribbons", "Ribbons"),
-        })
+        ])
         {
             var result = ApplyTargetedLegalityFix(pokemon.Clone(), storageSlotType, id);
             if (result.Changes.Count == 0)
@@ -2544,6 +2539,12 @@ public static partial class PkhexEngineExports
         string? fixId)
     {
         var before = pokemon.Clone();
+        if (pokemon is PK3Unbound unbound)
+        {
+            UnboundLegality.Fix(unbound, storageSlotType, fixId);
+            return PokemonActionMutation.Success(pokemon, DescribeLegalityFixChanges(before, pokemon));
+        }
+
         var analysis = new LegalityAnalysis(pokemon, storageSlotType);
         var repaired = false;
 
@@ -2756,7 +2757,7 @@ public static partial class PkhexEngineExports
 
         for (var index = 0; index < 4; index++)
         {
-            AddChange(changes, $"Move {index + 1}", MoveName(beforeMoves[index]), MoveName(afterMoves[index]));
+            AddChange(changes, $"Move {index + 1}", FixMoveName(before, index, beforeMoves[index]), FixMoveName(after, index, afterMoves[index]));
             AddChange(changes, $"Move {index + 1} PP", beforePp[index].ToString(), afterPp[index].ToString());
             AddChange(changes, $"Move {index + 1} PP Ups", beforePpUps[index].ToString(), afterPpUps[index].ToString());
             AddChange(
@@ -2767,6 +2768,10 @@ public static partial class PkhexEngineExports
         }
 
         AddChange(changes, "Move Records", MoveRecordsLabel(before), MoveRecordsLabel(after));
+        AddChange(changes, "Form", FormLabel(before), FormLabel(after));
+        AddChange(changes, "Ability", AbilityName(before.Ability), AbilityName(after.Ability));
+        AddChange(changes, "Held Item", FixItemName(before), FixItemName(after));
+        AddChange(changes, "EXP", before.EXP.ToString(), after.EXP.ToString());
         AddChange(changes, "Ball", BallName(before.Ball), BallName(after.Ball));
         AddRibbonChanges(changes, before, after);
         AddChange(changes, "Current HP", before.Stat_HPCurrent.ToString(), after.Stat_HPCurrent.ToString());
@@ -2780,6 +2785,17 @@ public static partial class PkhexEngineExports
         AddChange(changes, "Status", StatusLabel(before), StatusLabel(after));
         return changes;
     }
+
+    // Unbound moves and items that PKHeX has no id for keep their Unbound names.
+    private static string FixMoveName(PKM pokemon, int index, ushort move) =>
+        pokemon is PK3Unbound unbound && unbound.GetUnboundMove(index) is > 0 and var id ? UnboundTables.Moves.Name(id) : MoveName(move);
+
+    private static string FixItemName(PKM pokemon) =>
+        pokemon is PK3Unbound unbound
+            ? unbound.UnboundHeldItem == 0 ? "None" : UnboundTables.Items.Name(unbound.UnboundHeldItem)
+            : pokemon.HeldItem.ToString();
+
+    private static string FormLabel(PKM pokemon) => $"{PokemonName(pokemon.Species)} (form {pokemon.Form})";
 
     private static void AddChange(
         List<PokemonActionChange> changes,

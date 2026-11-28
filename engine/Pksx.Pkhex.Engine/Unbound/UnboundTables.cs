@@ -24,6 +24,26 @@ internal static class UnboundTables
 
     public static byte GetPp(ushort move) => (byte)Moves.Extra(move);
 
+    private static readonly Lazy<Dictionary<int, UnboundLearnset>> Learnsets = new(() => ReadLines("learnsets").ToDictionary(
+        r => int.Parse(r[0], CultureInfo.InvariantCulture),
+        r => new UnboundLearnset(ushort.Parse(r[1], CultureInfo.InvariantCulture), MoveIds(r[2]), [.. MoveIds(r[2]), .. MoveIds(r[3])])));
+
+    public static ushort[] LevelUpMoves(ushort species) => Learnsets.Value.TryGetValue(species, out var set) ? set.LevelUp : [];
+
+    // Unbound ids. A species also knows what the species it evolved from can learn.
+    public static bool CanLearn(ushort species, ushort move)
+    {
+        for (var depth = 0; depth < 4 && Learnsets.Value.TryGetValue(species, out var set); depth++, species = set.EvolvesFrom)
+        {
+            if (set.Moves.Contains(move))
+                return true;
+        }
+        return false;
+    }
+
+    private static ushort[] MoveIds(string list) =>
+        list.Length == 0 ? [] : [.. list.Split(',').Select(id => ushort.Parse(id, CultureInfo.InvariantCulture))];
+
     private static UnboundSpecies[] LoadSpecies()
     {
         var rows = ReadRows("species");
@@ -53,6 +73,8 @@ internal static class UnboundTables
     }
 }
 
+internal sealed record UnboundLearnset(ushort EvolvesFrom, ushort[] LevelUp, HashSet<ushort> Moves);
+
 internal sealed record UnboundSpecies(ushort Id, ushort National, byte Form, PersonalInfoUnbound Personal);
 
 // Rows are: Unbound id, PKHeX id, Unbound name, then an optional number.
@@ -61,6 +83,7 @@ internal sealed class IdTable
     private readonly Dictionary<int, int> toPkhex = [];
     private readonly Dictionary<int, int> fromPkhex = [];
     private readonly Dictionary<int, int> extra = [];
+    private readonly Dictionary<int, string> names = [];
 
     public IdTable(string name)
     {
@@ -68,6 +91,7 @@ internal sealed class IdTable
         {
             var id = int.Parse(line[0], CultureInfo.InvariantCulture);
             var pkhex = int.Parse(line[1], CultureInfo.InvariantCulture);
+            names[id] = line[2];
             extra[id] = line.Length > 3 ? int.Parse(line[3], CultureInfo.InvariantCulture) : 0;
             if (pkhex == 0)
                 continue;
@@ -85,5 +109,7 @@ internal sealed class IdTable
         id == 0 ? 0 : fromPkhex.TryGetValue(id, out var unbound) ? unbound : throw new ArgumentException($"Pokémon Unbound has no id for {id}.");
 
     public int ToPkhex(int id) => toPkhex.GetValueOrDefault(id);
+    public bool Has(int id) => names.ContainsKey(id);
+    public string Name(int id) => names.GetValueOrDefault(id, $"#{id}");
     public int Extra(int id) => extra.GetValueOrDefault(id);
 }

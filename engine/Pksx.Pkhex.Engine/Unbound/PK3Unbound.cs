@@ -136,6 +136,12 @@ public sealed class PK3Unbound : PKM
     }
 
     public ushort GetUnboundMove(int index) => ReadUInt16LittleEndian(Data[(0x2C + (index * 2))..]);
+    public void SetUnboundMove(int index, ushort move, int pp, int ppUps)
+    {
+        WriteUInt16LittleEndian(Data[(0x2C + (index * 2))..], move);
+        Data[0x34 + index] = (byte)pp;
+        PPUps = (byte)((PPUps & ~(3 << (index * 2))) | ((ppUps & 3) << (index * 2)));
+    }
     private ushort PkhexMove(int index) => (ushort)UnboundTables.Moves.ToPkhex(GetUnboundMove(index));
     private void SetPkhexMove(int index, ushort move)
     {

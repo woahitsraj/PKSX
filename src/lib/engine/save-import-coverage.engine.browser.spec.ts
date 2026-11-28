@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { createPkhexEngine } from './pkhex-engine';
-import type { SlotOperation } from './types';
+import type { SaveSlotRef, SlotOperation } from './types';
 
 const fixtureUrls = import.meta.glob('../../../test-fixtures/save-files/**/*.{sav,bin,gci,dat}', {
 	query: '?url',
@@ -219,11 +219,115 @@ describe('PKHeX Engine Save File coverage', () => {
 		expect(workspace.value.boxSlots[24].entityBytesBase64 ?? null).toBeNull();
 		expect(workspace.value.boxSlots[24].moves[0]).toMatchObject({ name: 'Crunch', pp: 15 });
 		expect(decodeBase64(exported.value.bytesBase64)).toEqual(bytes);
-		expect(
-			await engine.checkSlotLegality(bytes, fileName, { zone: 'party', slot: 0 })
-		).toMatchObject({
-			ok: false,
-			error: { code: 'unsupported-save', message: expect.stringContaining('Pokémon Unbound') }
+		const sources: SaveSlotRef[] = workspace.value.partySlots.map((_, slot) => ({
+			zone: 'party',
+			slot
+		}));
+		for (let box = 0; box < 25; box++) {
+			const boxView = await engine.loadSaveWorkspace(bytes, fileName, box);
+			if (!boxView.ok) throw boxView.error;
+			for (const slot of boxView.value.boxSlots)
+				if (slot.speciesId) sources.push({ zone: 'box', box, slot: slot.slot });
+		}
+		expect(sources).toHaveLength(92);
+		for (const source of sources)
+			expect(
+				await engine.checkSlotLegality(bytes, fileName, source),
+				JSON.stringify(source)
+			).toMatchObject({
+				ok: true,
+				value: { legal: true, warnings: [] }
+			});
+	});
+
+	test('checks and fixes a Pokemon Unbound Pokemon against Unbound rules', async () => {
+		const fileName = 'pokemon-unbound-2.1.1.1.sav';
+		const [engine, original] = await Promise.all([
+			createPkhexEngine(),
+			readFixture(`${raj}/gba/${fileName}`)
+		]);
+		// Metang leads the party: hold the Mega Cuff key item and pass the level 100 EXP.
+		const bytes = original.slice();
+		const live = unboundLiveSlot(bytes);
+		const section1 = unboundSections(bytes, live).find(([id]) => id === 1)![1];
+		const metang = section1 + 0x38;
+		new DataView(bytes.buffer).setUint16(metang + 0x22, 119, true);
+		new DataView(bytes.buffer).setUint32(metang + 0x24, 0xffffff, true);
+		new DataView(bytes.buffer).setUint16(
+			section1 + 0xff6,
+			unboundChecksum(bytes, section1, 1),
+			true
+		);
+		const source = { zone: 'party', slot: 0 } as const;
+		const report = await engine.checkSlotLegality(bytes, fileName, source);
+		if (!report.ok) throw report.error;
+		expect(report.value).toMatchObject({
+			legal: false,
+			fixableProblems: ['Held Item', 'Level and EXP']
+		});
+		expect(report.value.warnings.map((line) => [line.identifier, line.fixId])).toEqual([
+			['HeldItem', 'held-item'],
+			['Level', 'level-exp']
+		]);
+
+		const preview = await engine.previewPokemonActions(bytes, fileName, source);
+		if (!preview.ok) throw preview.error;
+		const fix = preview.value.actions.find((action) => action.kind === 'legality-fix');
+		expect(fix?.fixes.map((choice) => choice.id)).toEqual(['held-item', 'level-exp']);
+		const itemFix = fix!.fixes[0];
+		expect(itemFix.changes).toEqual([{ field: 'Held Item', before: 'Mega Cuff', after: 'None' }]);
+		const fixedItem = await engine.applyPokemonAction(
+			bytes,
+			fileName,
+			{ kind: 'legality-fix', source, choiceId: itemFix.token },
+			0
+		);
+		if (!fixedItem.ok) throw fixedItem.error;
+		const all = await engine.applyPokemonAction(
+			fixedItem.value.bytes,
+			fileName,
+			{ kind: 'legality-fix', source },
+			0
+		);
+		if (!all.ok) throw all.error;
+		expect(all.value.workspace.partySlots[0]).toMatchObject({ speciesName: 'Metang', level: 100 });
+		expect(await engine.checkSlotLegality(all.value.bytes, fileName, source)).toMatchObject({
+			ok: true,
+			value: { legal: true }
+		});
+
+		// Snorunt cannot learn Surf in Unbound; the fix keeps its other moves.
+		const boxSource = { zone: 'box', box: 0, slot: 0 } as const;
+		const surf = await engine.applyPokemonEditOperation(
+			original,
+			fileName,
+			{ source: boxSource, moves: [{ slot: 3, move: 57 }] },
+			0
+		);
+		if (!surf.ok) throw surf.error;
+		const moveReport = await engine.checkSlotLegality(surf.value.bytes, fileName, boxSource);
+		expect(moveReport.ok && moveReport.value.warnings).toEqual([
+			expect.objectContaining({
+				identifier: 'CurrentMove',
+				fixId: 'move-set',
+				message: 'Move 4: Snorunt cannot learn Surf in Pokémon Unbound.'
+			})
+		]);
+		const moveFix = await engine.applyPokemonAction(
+			surf.value.bytes,
+			fileName,
+			{ kind: 'legality-fix', source: boxSource },
+			0
+		);
+		if (!moveFix.ok) throw moveFix.error;
+		expect(moveFix.value.changes).toContainEqual({
+			field: 'Move 4',
+			before: 'Surf',
+			after: 'Empty'
+		});
+		expect(await engine.checkSlotLegality(moveFix.value.bytes, fileName, boxSource)).toMatchObject({
+			ok: true,
+			value: { legal: true }
 		});
 	});
 
