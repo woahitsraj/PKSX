@@ -30,4 +30,4 @@ Some extensionless source files are stored with a `.sav` suffix in this fixture 
 Native PKHeX.Core 26.5.5 and PKSX reject these files because they do not hold a completed save, so tests do not use them as importable saves:
 
 - `alpha-sapphire/011020252224`, `moon/011020252224`, `moon/031020250637`, `omega-ruby/011020252224`, `sun/011020252224`, and `y/011020252224`: the `BEEF` footer that PKHeX uses to detect Gen 6 and Gen 7 saves is blank. With a footer copied from a valid save, the block checksums fail and the save has no trainer name, no Pokemon, and zero play time.
-- `xd-gale-of-darkness/011020251345.gci`: the GCI header is valid, but both save slots are empty.
+- `xd-gale-of-darkness/011020251345.gci`: the GCI header is valid, but both save slots hold no valid save data, so PKHeX throws `ArgumentOutOfRangeException` in `SAV3XD.InitializeData`. PKSX reports it as an unsupported Save File. `libpkmn-test-files/pokemon-xd.gci` covers Pokemon XD in the engine smoke tests.

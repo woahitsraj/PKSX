@@ -133,6 +133,19 @@ describe('PKHeX Engine Save File coverage', () => {
 		expect(reimported).toEqual(summary);
 	});
 
+	test('rejects a Pokemon XD memory card file with empty save slots', async () => {
+		const path = `${bl1nd}/xd-gale-of-darkness/011020251345.gci`;
+		const [engine, bytes] = await Promise.all([createPkhexEngine(), readFixture(path)]);
+		const error = { code: 'unsupported-save', message: 'This file is not a supported Save File.' };
+
+		for (const result of [
+			await engine.summarizeSave(bytes, 'xd.gci'),
+			await engine.summarizeSaveCard(bytes, 'xd.gci'),
+			await engine.loadSaveWorkspace(bytes, 'xd.gci', 0)
+		])
+			expect(result).toMatchObject({ ok: false, error });
+	});
+
 	test.each(nativeCryptographyExports)(
 		'exports %s with the same bytes as native PKHeX',
 		async (path, digest) => {

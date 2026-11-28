@@ -1140,8 +1140,20 @@ public static partial class PkhexEngineExports
         }
     }
 
-    private static SaveFile? LoadSave(byte[] bytes, string? fileName) =>
-        UnboundSave.IsUnbound(bytes) ? new SAV3Unbound(bytes) : SaveUtil.GetSaveFile(bytes, fileName);
+    private static SaveFile? LoadSave(byte[] bytes, string? fileName)
+    {
+        if (UnboundSave.IsUnbound(bytes))
+            return new SAV3Unbound(bytes);
+        try
+        {
+            return SaveUtil.GetSaveFile(bytes, fileName);
+        }
+        catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException)
+        {
+            // PKHeX detects some formats by size, then fails to read an empty or damaged file.
+            return null;
+        }
+    }
 
     private const string UnsupportedSaveMessage = "This file is not a supported Save File.";
     private const string UnboundLegalityMessage = "Legality is unavailable for Pokémon Unbound, because PKHeX has no rules for it.";
