@@ -12,8 +12,8 @@ public sealed record PokedexProjection(string Status, string? Reason, List<Poked
     {
         if (!save.HasPokeDex)
             return new("unavailable", "This Save File format has no Pokedex.", [], []);
-        if (save is not (SAV1 or SAV2 or SAV3 or SAV4 or SAV5))
-            return new("unavailable", "Pokedex editing currently supports Generations 1 through 5 handheld Save Files.", [], []);
+        if (save is not (SAV1 or SAV2 or SAV3 or SAV4 or SAV5 or SAV8BS))
+            return new("unavailable", "Pokedex editing currently supports Generations 1 through 5 handheld Save Files and Brilliant Diamond and Shining Pearl.", [], []);
         List<string[]> flagSets = [];
         Dictionary<string, int> flagSetIds = [];
         var species = Enumerable.Range(1, save.MaxSpeciesID).Select(id =>
@@ -61,6 +61,8 @@ public sealed record PokedexProjection(string Status, string? Reason, List<Poked
             fields.Add(new("opens-on", "Species number the Pokedex opens on", s5.Zukan.InitialSpecies, 0, save.MaxSpeciesID));
             fields.Add(new("spinda-pid", "Spinda display PID", s5.Zukan.Spinda, 0, uint.MaxValue, (int)PKHeX.Core.Species.Spinda));
         }
+        if (save is SAV8BS bdsp)
+            fields.AddRange(BrilliantDiamondShiningPearlPokedex.Fields(bdsp));
         return new("available", null, species, fields, flagSets.Count == 0 ? null : flagSets);
     }
 }
@@ -134,6 +136,7 @@ public static partial class PkhexEngineExports
             case (SAV5 s5, "national-mode"): s5.Zukan.IsNationalDexMode = value != 0; break;
             case (SAV5 s5, "opens-on"): s5.Zukan.InitialSpecies = (ushort)value; break;
             case (SAV5 s5, "spinda-pid"): s5.Zukan.Spinda = (uint)value; break;
+            case (SAV8BS bdsp, _): BrilliantDiamondShiningPearlPokedex.SetField(bdsp, field, value); break;
         }
         return SlotMutationResult.Success(value != field.Value);
     }
