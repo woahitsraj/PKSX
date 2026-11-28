@@ -31,7 +31,8 @@ export type SummonedWorkflowKind =
 	| 'legality-report'
 	| 'save-file-legality-report'
 	| 'backup-browser'
-	| 'trade-with-switch';
+	| 'trade-with-switch'
+	| 'folder-import';
 
 export type SummonedWorkflowLauncher =
 	| {

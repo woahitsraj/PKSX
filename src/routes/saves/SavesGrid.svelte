@@ -20,6 +20,8 @@
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
 	import StorageBackupMenu from '$lib/components/pksx/StorageBackupMenu.svelte';
 	import AddSavesMenu from '$lib/components/pksx/AddSavesMenu.svelte';
+	import FolderImport from '$lib/components/pksx/FolderImport.svelte';
+	import { supportsFolderSelection } from '$lib/pksx/folder-import';
 	import { folderOf, supportsSaveFolders } from '$lib/pksx/linked-save-folders';
 	import { recoveryBackupId } from '$lib/pksx/linked-save-sources/runtime';
 	import { fileEmulator } from '$lib/pksx/linked-save-folders/profiles';
@@ -132,6 +134,10 @@
 	const deleteOpen = $derived(summonedWorkflow.active?.kind === 'save-file-delete');
 	const addSavesOpen = $derived(summonedWorkflow.active?.kind === 'add-saves-menu');
 	const folderLinking = supportsSaveFolders();
+	const folderImportOpen = $derived(summonedWorkflow.active?.kind === 'folder-import');
+	let folderScanning = $state<boolean | null>(null);
+	let folderFiles = $state.raw<File[]>([]);
+	onMount(() => (folderScanning = supportsFolderSelection()));
 	const storageBackupOpen = $derived(summonedWorkflow.active?.kind === 'storage-backup-menu');
 	const storageConfirmOpen = $derived(
 		summonedWorkflow.active?.kind === 'storage-backup-confirmation'
@@ -334,7 +340,7 @@
 		) {
 			return;
 		}
-		if (addSavesOpen) return;
+		if (addSavesOpen || folderImportOpen) return;
 		if (!summonedWorkflow.active && searchControls?.contains(document.activeElement)) {
 			handleSearchKeydown(event);
 			return;
@@ -642,7 +648,7 @@
 	}
 
 	function openAddSaves() {
-		if (!folderLinking) return openImportPicker();
+		if (!folderLinking && !folderScanning) return openImportPicker();
 		if (
 			busyTarget ||
 			!summonedWorkflow.open('add-saves-menu', { type: 'control', id: 'saves-target-import' })
@@ -655,6 +661,45 @@
 		summonedWorkflow.dismiss();
 		void focusGrid();
 		then?.();
+	}
+
+	function openFolderPicker() {
+		if (busyTarget) return;
+		chooseTarget({ kind: 'import' });
+		document.getElementById('save-folder-input')?.click();
+	}
+
+	function handleFolderChoice(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const files = Array.from(input.files ?? []);
+		input.value = '';
+		if (!files.length) return handleImportCancel();
+		if (summonedWorkflow.open('folder-import', { type: 'control', id: 'saves-target-import' }))
+			folderFiles = files;
+	}
+
+	async function finishFolderImport(saves: StoredSaveFile[]) {
+		const last = saves.at(-1)!;
+		boxesSession.selectPrimary({
+			type: 'save-file',
+			id: last.id,
+			label: displayName(last),
+			dirty: false
+		});
+		invalidateSavesCache();
+		invalidateActiveWorkspaceCache();
+		await refreshSaves({ force: true, preferredTarget: { kind: 'save-file', id: last.id } });
+		toastHost.success(
+			(saves.length > 1 ? `${saves.length} Save Files imported. ` : '') +
+				displayName(last) +
+				' imported and made active.'
+		);
+	}
+
+	function closeFolderImport() {
+		if (folderImportOpen) summonedWorkflow.dismiss();
+		folderFiles = [];
+		void focusGrid();
 	}
 
 	function openImportPicker() {
@@ -1221,6 +1266,17 @@
 				oncancel={handleImportCancel}
 			/>
 			<input
+				id="save-folder-input"
+				tabindex="-1"
+				data-pksx-control-category="composition"
+				type="file"
+				webkitdirectory
+				aria-label="Scan a folder for Save Files"
+				disabled={busyTarget !== null}
+				onchange={handleFolderChoice}
+				oncancel={handleImportCancel}
+			/>
+			<input
 				id="storage-backup-input"
 				tabindex="-1"
 				data-pksx-control-category="composition"
@@ -1413,7 +1469,11 @@
 											<small
 												>{folderLinking
 													? 'Link an emulator or import a file'
-													: 'Choose a compatible file from this device.'}</small
+													: folderScanning
+														? 'Choose a file or scan a folder.'
+														: folderScanning === false
+															? 'Choose a compatible file. This browser imports one file at a time.'
+															: 'Choose a compatible file from this device.'}</small
 											>
 										</button>
 									</div>
@@ -1462,11 +1522,20 @@
 		failed={discovery.failed}
 		scanning={discovery.scanning}
 		busy={discovery.picking || discovery.sourceBusy}
-		onLink={() => closeAddSaves(() => void discovery.link())}
+		onLink={folderLinking ? () => closeAddSaves(() => void discovery.link()) : undefined}
 		onImport={() => closeAddSaves(openImportPicker)}
+		onScanFolder={folderScanning ? () => closeAddSaves(openFolderPicker) : undefined}
 		onScan={() => (discovery.scanning ? discovery.cancel() : void discovery.scan(undefined, true))}
 		onUnlink={(folder) => void discovery.unlink(folder)}
 		onClose={() => closeAddSaves()}
+	/>
+{/if}
+
+{#if folderImportOpen && folderFiles.length}
+	<FolderImport
+		files={folderFiles}
+		onImported={(saves) => void finishFolderImport(saves)}
+		onClose={closeFolderImport}
 	/>
 {/if}
 
@@ -1737,6 +1806,7 @@
 	}
 
 	#save-file-input,
+	#save-folder-input,
 	#storage-backup-input {
 		position: absolute;
 		width: 1px;
