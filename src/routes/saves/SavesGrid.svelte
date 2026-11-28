@@ -53,7 +53,6 @@
 		getSavesStorage,
 		ensurePokemonStorageCatalog,
 		invalidateActiveWorkspaceCache,
-		invalidateSavesCache,
 		isCachedSavesSnapshotSeeded,
 		loadWorkspaceForOpening,
 		setCachedActiveWorkspace,
@@ -689,10 +688,8 @@
 				label: stored.originalFileName ?? 'Save File',
 				dirty: false
 			});
-			invalidateSavesCache();
 			invalidateActiveWorkspaceCache();
 			await refreshSaves({
-				force: true,
 				preferredTarget: { kind: 'save-file', id: stored.id },
 				focus: true
 			});
@@ -723,7 +720,6 @@
 
 			if (current.id !== activeSaveFileId) {
 				await storage.setActiveSaveFileId(current.id);
-				invalidateSavesCache();
 			}
 			if (!opening.published) setCachedActiveWorkspace(opening.state, 0);
 			boxesSession.selectPrimary({
@@ -744,7 +740,6 @@
 						: resolve('/bag');
 			try {
 				await storage.recordSuccessfulOpen(current.id);
-				invalidateSavesCache();
 			} catch (error) {
 				toastHost.error(
 					'Opened Save File, but could not store its recently opened history. ' +
@@ -852,13 +847,12 @@
 			if (await recoveryBackupId(saveFile)) throw new Error('Restore the emulator file first.');
 			await getSaveFileEditCoordinator().deleteSave(saveFile);
 			discovery.forget(saveFile);
-			invalidateSavesCache();
 			invalidateActiveWorkspaceCache(saveFile.id);
 			summonedWorkflow.closeAll();
 			menuSaveFileId = null;
 			menuReturnTarget = null;
 			deleteDescription = null;
-			await refreshSaves({ force: true, preferredTarget: fallback, focus: true });
+			await refreshSaves({ preferredTarget: fallback, focus: true });
 			toastHost.success(displayName(saveFile) + ' deleted.');
 		} catch (error) {
 			toastHost.error('Could not delete Save File. ' + getErrorMessage(error));
@@ -989,11 +983,10 @@
 			if (workspace?.file.id === id) {
 				setCachedActiveWorkspace({ ...workspace, file }, getCachedActiveWorkspaceBox());
 			}
-			invalidateSavesCache();
 			summonedWorkflow.closeAll();
 			menuSaveFileId = null;
 			menuReturnTarget = null;
-			await refreshSaves({ force: true, preferredTarget: { kind: 'save-file', id }, focus: true });
+			await refreshSaves({ preferredTarget: { kind: 'save-file', id }, focus: true });
 		} catch (error) {
 			toastHost.error(getErrorMessage(error));
 		} finally {

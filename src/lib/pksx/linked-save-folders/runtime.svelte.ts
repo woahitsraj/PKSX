@@ -3,12 +3,7 @@ import type { LinkedSourceStatus } from '$lib/pksx/linked-save-sources';
 import type { StoredSaveFile } from '$lib/pksx/saves';
 import { SvelteSet } from 'svelte/reactivity';
 import { confirmReplaceDirty } from '$lib/pksx/save-file-edit-coordinator';
-import {
-	getPkhexEngine,
-	getSavesStorage,
-	getSavesSnapshot,
-	invalidateSavesCache
-} from '$lib/pksx/saves-cache';
+import { getPkhexEngine, getSavesStorage } from '$lib/pksx/saves-cache';
 import {
 	saveFolders,
 	supportsSaveFolders,
@@ -105,7 +100,6 @@ export class LinkedSaveDiscovery {
 		} catch (error) {
 			this.notify('error', errorMessage(error));
 		} finally {
-			invalidateSavesCache();
 			await this.checkSources().catch(() => undefined);
 			this.sourceBusy = false;
 		}
@@ -170,8 +164,6 @@ export class LinkedSaveDiscovery {
 						await importLinkedSave(storage, save, bytes);
 						known.add(save.identity);
 						added++;
-						invalidateSavesCache();
-						await getSavesSnapshot();
 					}
 				});
 				this.failed = { ...this.failed, [folder.tree]: false };

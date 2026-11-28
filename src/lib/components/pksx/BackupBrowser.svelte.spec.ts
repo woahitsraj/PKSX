@@ -30,7 +30,6 @@ vi.mock('$lib/pksx/saves-cache', () => ({
 	getCachedActiveWorkspaceBox: () => 0,
 	getCachedActiveWorkspace: () => null,
 	getSaveFileEditCoordinator: () => ({}),
-	invalidateSavesCache: () => undefined,
 	setCachedActiveWorkspace: () => undefined,
 	getSavesStorage: () => ({
 		getActiveSaveFileId: async () => 'owner',

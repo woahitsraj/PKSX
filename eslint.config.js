@@ -27,12 +27,24 @@ export default defineConfig(
 			// see: https://typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
 			'no-undef': 'off',
 			'pksx/no-owned-token-writes': 'error',
-			'pksx/no-responsive-classifier': 'error'
+			'pksx/no-responsive-classifier': 'error',
+			'no-restricted-imports': [
+				'error',
+				{
+					paths: [
+						{
+							name: '$lib/pksx/saves-cache',
+							importNames: ['invalidateSavesCache'],
+							message: 'Saves storage writes refresh the Saves list. Do not reload it by hand.'
+						}
+					]
+				}
+			]
 		}
 	},
 	{
 		files: ['**/*.{test,spec,e2e}.{js,ts}', 'tests/**/*.{js,ts}'],
-		rules: { 'pksx/no-responsive-classifier': 'off' }
+		rules: { 'pksx/no-responsive-classifier': 'off', 'no-restricted-imports': 'off' }
 	},
 	{
 		files: ['**/*.e2e.ts', '**/*.e2e-helper.ts'],

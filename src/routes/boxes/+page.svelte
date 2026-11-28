@@ -129,7 +129,6 @@
 		getPokemonStorageCatalog,
 		ensurePokemonStorageCatalog,
 		getPkhexEngine,
-		invalidateSavesCache,
 		loadActiveWorkspaceFromSaves,
 		projectCachedActiveWorkspace,
 		seedSavesSnapshotFromActiveWorkspace,
@@ -2710,7 +2709,6 @@
 				setCachedActiveWorkspace(next, next.workspace.boxSlots[0]?.box ?? activePaneBox);
 			}
 			installMutatedSaveProjection(next, next.workspace.boxSlots[0]?.box ?? activePaneBox);
-			invalidateSavesCache();
 			await refreshCommittedCatalogView();
 			toastHost.success(
 				`${batch.mode === 'copy' ? 'Copied' : 'Moved'} ${batch.labels.length} Pokemon to Storage.`
@@ -3419,7 +3417,6 @@
 			loadedSave = state;
 			setCachedActiveWorkspace(state, publishedBox);
 		}
-		invalidateSavesCache();
 		for (const projection of missingProjections) {
 			void loadWorkspaceForSave(state, projection.box, projection.paneId);
 		}
@@ -3618,7 +3615,6 @@
 				statusMessage = exported.written
 					? `Exported ${exported.name}`
 					: `${exported.name} is up to date`;
-				invalidateSavesCache();
 			} else {
 				const bytes = await editCoordinator.export(origin);
 				if (!resolveBoxMenuSaveTarget(target)) return;
@@ -3649,7 +3645,6 @@
 				workspaceBytes: resolved.workspace.state.bytes
 			});
 			if (!resolveBoxMenuSaveTarget(target)) return;
-			invalidateSavesCache();
 			statusMessage = `Backup saved for ${getSaveDisplayName(resolved.workspace.state.file)}.`;
 			toastHost.success(statusMessage);
 			closeBoxMenu();
@@ -3984,7 +3979,6 @@
 			if (loadedSave?.file.id === nextState.file.id) {
 				setCachedActiveWorkspace(nextState, operationBox);
 			}
-			invalidateSavesCache();
 			pendingSlotOperation = null;
 			carryState = null;
 			if (virtualSource) virtualCarry = null;
@@ -4244,7 +4238,6 @@
 			}
 			installMutatedSaveProjection(nextState, operationBox);
 			if (context?.preserveDeletion) void refreshCommittedCatalogView();
-			invalidateSavesCache();
 			pendingSlotOperation = null;
 			carryState = null;
 			if (slotNavigationRevision === navigationRevision) {
@@ -4862,7 +4855,6 @@
 			await storage.setActiveSaveFileId(source.id);
 			loadedSave = targetWorkspace.state;
 			setCachedActiveWorkspace(targetWorkspace.state, targetWorkspace.loadedBox);
-			invalidateSavesCache();
 		}
 		sourcePickerTargetPaneId = null;
 		boxMenuTarget = null;
@@ -4876,7 +4868,6 @@
 	async function rememberSaveOpen(saveFileId: string) {
 		try {
 			await storage.recordSuccessfulOpen(saveFileId);
-			invalidateSavesCache();
 		} catch (error) {
 			toastHost.error('Could not store recently opened history. ' + getErrorMessage(error));
 		}
@@ -4927,7 +4918,6 @@
 				loadedSave = promotedWorkspace.state;
 				setCachedActiveWorkspace(promotedWorkspace.state, promotedWorkspace.loadedBox);
 			}
-			invalidateSavesCache();
 		}
 		workbenchPanes = closeBoxPane(workbenchPanes, paneId);
 		virtualPaneIds = virtualPaneIds.filter((id) => id !== paneId);
@@ -5646,7 +5636,6 @@
 		if (loadedSave?.file.id === nextState.file.id) {
 			loadedSave = nextState;
 			setCachedActiveWorkspace(nextState, target.activeBox);
-			invalidateSavesCache();
 		}
 
 		installMutatedSaveProjection(nextState, target.activeBox);
@@ -6750,7 +6739,6 @@
 		if (loadedSave?.file.id === nextState.file.id) {
 			setCachedActiveWorkspace(nextState, editorBox);
 		}
-		invalidateSavesCache();
 		// Cancel resets to this slot if the pane later reloads without edit data.
 		if (pokemonEditor?.source.owner === 'save-file') {
 			const slot = slotViewForRefFromWorkspace(nextState.workspace, pokemonEditor.source.slotRef);
@@ -6958,7 +6946,6 @@
 					if (loadedSave?.file.id === applied.workspace.file.id) {
 						loadedSave = applied.workspace;
 						setCachedActiveWorkspace(applied.workspace, activeBox);
-						invalidateSavesCache();
 					}
 					installMutatedSaveProjection(applied.workspace, activeBox);
 				}
@@ -7813,7 +7800,6 @@
 				loadedSave = createCleanWorkspaceState({ file: saveFile, bytes, workspace });
 				saveFiles = await storage.listSaves();
 				setCachedActiveWorkspace(loadedSave, 0);
-				invalidateSavesCache();
 				seedSavesSnapshotFromActiveWorkspace(saveFiles);
 				installActiveSavePane(loadedSave, 0);
 				statusMessage = `${file.name} imported and made active.`;
