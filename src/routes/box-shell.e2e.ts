@@ -5167,6 +5167,58 @@ test('Legality Check opens an engine report from an occupied Slot and dismisses 
 	expect(await backupCount(page)).toBe(backupsBefore + 1);
 });
 
+test('Back cancels Carry and guards a dirty Pokemon Editor before it leaves Boxes', async ({
+	page
+}) => {
+	await openEmptySaves(page);
+	await importPlatinumThroughSaves(page);
+	const slot = page.locator('#box-2-slot-18');
+	await expect(slot).toContainText('MEW');
+	for (const destination of ['Saves', 'Boxes']) {
+		await page.getByRole('button', { name: 'Open Main Menu' }).click();
+		await page
+			.getByRole('dialog', { name: 'Main Menu' })
+			.getByRole('button', { name: new RegExp(`^${destination}`) })
+			.click();
+	}
+	await expect(slot).toContainText('MEW');
+
+	await slot.focus();
+	await page.keyboard.press('Enter');
+	await page
+		.getByRole('dialog', { name: 'Slot actions' })
+		.getByRole('button', { name: 'Move', exact: true })
+		.click();
+	await expect(page.locator('.carry-at-focus')).toHaveCount(1);
+	await page.goBack();
+	await expect(page.locator('.carry-at-focus')).toHaveCount(0);
+	await expect(page).toHaveURL(/\/boxes$/);
+
+	await slot.focus();
+	await page.keyboard.press('Enter');
+	await page
+		.getByRole('dialog', { name: 'Slot actions' })
+		.getByRole('button', { name: 'Edit' })
+		.click();
+	const editor = page.getByRole('dialog', { name: 'MEW' });
+	const apply = editor.getByRole('button', { name: 'Apply edits' });
+	await applyMoveSetQuickFixToEditorDraft(page, editor);
+	await pressController(page, 'Escape');
+	await expect(editor.getByRole('heading', { name: 'Discard staged edits?' })).toBeVisible();
+	await editor.getByRole('button', { name: 'Keep editing' }).click();
+	await expect(apply).toBeEnabled();
+	await pressController(page, 'Escape');
+	await editor.getByRole('button', { name: 'Discard edits' }).click();
+	await expect(editor).toBeHidden();
+	const slotActions = page.getByRole('dialog', { name: 'Slot actions' });
+	await expect(slotActions).toBeVisible();
+	await pressController(page, 'Escape');
+	await expect(slotActions).toBeHidden();
+	await expect(page).toHaveURL(/\/boxes$/);
+	await pressController(page, 'Escape');
+	await expect(page).toHaveURL(/\/$/);
+});
+
 test('Pokemon Editor keeps a Quick Fix private until Apply and guards discard', async ({
 	page
 }) => {

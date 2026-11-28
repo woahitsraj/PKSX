@@ -13,6 +13,19 @@ export type ControllerKey =
 	| 'y';
 
 const controllerEvents = new WeakSet<KeyboardEvent>();
+let destinationBackHandler: (() => void) | null = null;
+
+/** Registers what Back does when no local interaction is left to dismiss. */
+export function setDestinationBackHandler(handler: () => void) {
+	destinationBackHandler = handler;
+	return () => {
+		if (destinationBackHandler === handler) destinationBackHandler = null;
+	};
+}
+
+export function destinationBack() {
+	destinationBackHandler?.();
+}
 
 export function isControllerKeyboardEvent(event: KeyboardEvent) {
 	return controllerEvents.has(event);
@@ -117,7 +130,8 @@ function activateBackControl() {
 			? '[data-controller-back]'
 			: '[data-controller-back], button[aria-label^="Close"], button[aria-label^="Cancel"], .close-command, .close-editor, .close-report';
 	const control = Array.from(scope.querySelectorAll<HTMLElement>(selector)).findLast(isVisible);
-	control?.click();
+	if (control) control.click();
+	else if (scope === document) destinationBack();
 }
 
 function controllerScope(): Document | HTMLElement {
