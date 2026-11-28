@@ -704,7 +704,7 @@ export const saveFileEditOperationResultSchema = z.object({
 });
 
 export const storedPokemonImportOperationSchema = z.object({
-	entityBytesBase64: z.string(),
+	preservationPayloadBase64: z.string(),
 	destination: saveSlotRefSchema
 });
 

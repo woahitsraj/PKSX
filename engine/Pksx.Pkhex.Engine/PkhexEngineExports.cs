@@ -2250,21 +2250,29 @@ public static partial class PkhexEngineExports
         if (destination.Get(save).Species != 0)
             return SlotMutationResult.Fail("occupied-destination-slot", "Moving from Pokemon Storage needs an empty destination Slot.");
 
-        PKM? pokemon;
+        PokemonPreservationPayload payload;
         try
         {
-            pokemon = EntityFormat.GetFromBytes(Convert.FromBase64String(request.EntityBytesBase64), save.Context);
+            payload = PokemonPreservationPayload.Parse(Convert.FromBase64String(request.PreservationPayloadBase64 ?? ""));
         }
-        catch (Exception ex)
+        catch (PokemonPreservationException ex)
+        {
+            return SlotMutationResult.Fail(ex.Code, ex.Message);
+        }
+        catch (FormatException ex)
         {
             return SlotMutationResult.Fail("invalid-stored-pokemon", ex.Message);
         }
 
-        if (pokemon is null || pokemon.Species == 0)
-            return SlotMutationResult.Fail("invalid-stored-pokemon", "Pokemon Storage entry is missing entity data.");
-
         var target = save.BlankPKM;
-        if (pokemon.Format != target.Format)
+        var pokemon = payload.CurrentPokemon;
+        // Payloads made without a context can tag same-size formats, such as PK6 and PK7, wrongly.
+        if (pokemon.GetType() != target.GetType()
+            && EntityFormat.GetFromBytes(payload.CurrentBytes, save.Context) is { } native
+            && native.GetType() == target.GetType())
+            pokemon = native;
+
+        if (pokemon.GetType() != target.GetType())
         {
             if (!EntityConverter.TryMakePKMCompatible(pokemon, target, out var result, out var converted))
                 return SlotMutationResult.Fail("incompatible-stored-pokemon", result.GetDisplayString(pokemon, target.GetType()));

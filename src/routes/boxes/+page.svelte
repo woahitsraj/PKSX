@@ -3958,11 +3958,12 @@
 		let pendingReconciliation = false;
 
 		try {
+			const payload = await getPokemonStorageCatalog().readPayload(carrySource.recordId);
 			const result = await activeEngine.importStoredPokemon(
 				destinationWorkspace.bytes,
 				destinationWorkspace.file.originalFileName ?? undefined,
 				{
-					entityBytesBase64: sourceSlot.entityBytesBase64,
+					preservationPayloadBase64: btoa(String.fromCharCode(...payload)),
 					destination
 				},
 				operationBox

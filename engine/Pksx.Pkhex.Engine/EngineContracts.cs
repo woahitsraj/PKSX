@@ -954,7 +954,7 @@ public sealed record PokemonCreationResult(
     SaveWorkspace Workspace);
 
 public sealed record StoredPokemonImportRequest(
-    string EntityBytesBase64,
+    string PreservationPayloadBase64,
     SaveSlotRef Destination,
     int ActiveBox);
 
