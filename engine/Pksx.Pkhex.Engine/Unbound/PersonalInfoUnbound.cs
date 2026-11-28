@@ -3,7 +3,7 @@ using PKHeX.Core;
 namespace Pksx.Pkhex.Engine.Unbound;
 
 // Read-only species data from the Unbound ROM. Row: id, national, form, gender, growth, six stats, two types, three abilities.
-internal sealed class PersonalInfoUnbound(int[] row) : PersonalInfo
+internal sealed class PersonalInfoUnbound(int[] row) : PersonalInfo, IPersonalAbility12H
 {
     private int Column(int index) => index < row.Length ? row[index] : 0;
 
@@ -32,6 +32,9 @@ internal sealed class PersonalInfoUnbound(int[] row) : PersonalInfo
     public override int EscapeRate { get => 0; set { } }
     public override int BaseEXP { get => 0; set { } }
     public override int Color { get => 0; set { } }
+    public int Ability1 { get => Column(13); set { } }
+    public int Ability2 { get => Column(14); set { } }
+    public int AbilityH { get => Column(15); set { } }
     public override int AbilityCount => 3;
     public override int GetAbilityAtIndex(int abilityIndex) => abilityIndex is >= 0 and < 3 ? Column(13 + abilityIndex) : 0;
 

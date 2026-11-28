@@ -1565,7 +1565,7 @@ describe('PKHeX Engine browser runtime smoke', () => {
 	});
 
 	test('applies Save File Pokemon edits through the browser-wasm bundle', async () => {
-		expect.assertions(44);
+		expect.assertions(45);
 
 		const [engine, fixtureResponse] = await Promise.all([createPkhexEngine(), fetch(fixtureUrl)]);
 		const fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
@@ -1610,6 +1610,8 @@ describe('PKHeX Engine browser runtime smoke', () => {
 				})
 			])
 		});
+		// Generation 3 species data names no Hidden Ability.
+		expect(abilityConstraints?.options.map((option) => option.hidden)).toEqual([false, false]);
 		const nextAbility = abilityConstraints?.options.find(
 			(option) => option.available && option.index !== abilityConstraints.currentAbilityIndex
 		);
@@ -2362,9 +2364,17 @@ describe('PKHeX Engine browser runtime smoke', () => {
 
 		expect(primarina, 'Expected Sword fixture to include Primarina.').toBeDefined();
 		if (!primarina) return;
-		expect(primarina.abilityEditConstraints?.options).toEqual(
-			expect.arrayContaining([expect.objectContaining({ hidden: true })])
-		);
+		expect(
+			primarina.abilityEditConstraints?.options.map(({ index, name, hidden }) => [
+				index,
+				name,
+				hidden
+			])
+		).toEqual([
+			[0, 'Torrent', false],
+			[1, 'Torrent', false],
+			[2, 'Liquid Voice', true]
+		]);
 		const iceBeamSlot = primarina.moves.findIndex((move) => move.id === 58);
 		expect(
 			iceBeamSlot,

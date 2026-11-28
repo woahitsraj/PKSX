@@ -332,6 +332,14 @@ describe('PKHeX Engine Save File coverage', () => {
 		]);
 		const source = { zone: 'box', box: 0, slot: 0 } as const;
 		const before = await engine.loadSlotEditData(original, fileName, source);
+		const party = await engine.loadSlotEditData(original, fileName, { zone: 'party', slot: 0 });
+		expect(
+			party.ok &&
+				party.value.abilityEditConstraints?.options.map(({ name, hidden }) => [name, hidden])
+		).toEqual([
+			['Clear Body', false],
+			['Light Metal', true]
+		]);
 		const met = before.ok ? before.value.metDataEditConstraints : undefined;
 		if (!met) throw new Error('Unbound slot has no met data.');
 		const leechLife = before.ok
