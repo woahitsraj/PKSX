@@ -607,7 +607,7 @@ public static partial class PkhexEngineExports
                     return EngineJson.Serialize(
                         EngineResult<bool>.Failure(
                             "invalid-pokemon-edit",
-                            $"{LegalityEditFailurePrefix(request.MetData, request.OriginalTrainer)} {introduced.Message}"),
+                            $"{LegalityEditFailurePrefix(request.MetData, request.OriginalTrainer, request.Moves || request.OtherEdits)} {introduced.Message}"),
                         EngineJsonContext.Default.EngineResultBoolean);
                 }
             }
@@ -1825,11 +1825,18 @@ public static partial class PkhexEngineExports
     }
 
     private static string LegalityEditFailurePrefix(PokemonEditOperationRequest operation)
-        => LegalityEditFailurePrefix(operation.MetData is not null, operation.OriginalTrainer is not null);
+        => LegalityEditFailurePrefix(
+            operation.MetData is not null,
+            operation.OriginalTrainer is not null,
+            operation.SpeciesId is not null || operation.Form is not null || operation.Nickname is not null ||
+            operation.Level is not null || operation.Experience is not null || operation.NatureId is not null ||
+            operation.HeldItemId is not null || operation.AbilityIndex is not null || operation.Ivs is not null ||
+            operation.Evs is not null || operation.Moves is not null || operation.FriendshipEdits is not null ||
+            operation.TeraType is not null);
 
-    private static string LegalityEditFailurePrefix(bool hasMetData, bool hasOriginalTrainer)
+    private static string LegalityEditFailurePrefix(bool hasMetData, bool hasOriginalTrainer, bool hasOtherEdits)
     {
-        if (hasMetData && hasOriginalTrainer)
+        if (hasMetData == hasOriginalTrainer || hasOtherEdits)
             return "Pokemon edit is not valid for this Pokemon.";
 
         return hasMetData

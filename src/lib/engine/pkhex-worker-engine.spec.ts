@@ -362,7 +362,7 @@ describe('createPkhexWorkerEngine', () => {
 			new Uint8Array([3, 4]),
 			'main.sav',
 			{ zone: 'box', box: 0, slot: 1 },
-			{ moves: true, metData: false, originalTrainer: false }
+			{ moves: true, metData: false, originalTrainer: false, otherEdits: false }
 		);
 		await Promise.resolve();
 
@@ -373,7 +373,7 @@ describe('createPkhexWorkerEngine', () => {
 		expect(request.payload).toMatchObject({
 			fileName: 'main.sav',
 			source: { zone: 'box', box: 0, slot: 1 },
-			scope: { moves: true, metData: false, originalTrainer: false }
+			scope: { moves: true, metData: false, originalTrainer: false, otherEdits: false }
 		});
 		expect(worker.posted[1]?.transfer).toEqual([
 			request.payload.baselineBytes,

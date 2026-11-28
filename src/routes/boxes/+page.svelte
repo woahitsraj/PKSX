@@ -6225,13 +6225,14 @@
 			? {
 					ok: true as const,
 					workspace: { ...workspace, bytes: result.value.bytes, workspace: result.value.workspace },
-					validation: hasPreviewValidationScope(scope)
-						? mergePokemonEditorPreviewValidation(
-								pokemonEditorPreviewValidation,
-								workspace.bytes,
-								scope
-							)
-						: pokemonEditorPreviewValidation
+					validation:
+						hasPreviewValidationScope(scope) || pokemonEditorPreviewValidation
+							? mergePokemonEditorPreviewValidation(
+									pokemonEditorPreviewValidation,
+									workspace.bytes,
+									scope
+								)
+							: pokemonEditorPreviewValidation
 				}
 			: { ok: false as const, message: result.error.message };
 	}
@@ -6242,7 +6243,11 @@
 		return {
 			moves: operation.moves !== undefined,
 			metData: operation.metData !== undefined,
-			originalTrainer: operation.originalTrainer !== undefined
+			originalTrainer: operation.originalTrainer !== undefined,
+			otherEdits: Object.entries(operation).some(
+				([key, value]) =>
+					value !== undefined && !['source', 'moves', 'metData', 'originalTrainer'].includes(key)
+			)
 		};
 	}
 
@@ -6260,7 +6265,8 @@
 			scope: {
 				moves: pending?.scope.moves === true || scope.moves,
 				metData: pending?.scope.metData === true || scope.metData,
-				originalTrainer: pending?.scope.originalTrainer === true || scope.originalTrainer
+				originalTrainer: pending?.scope.originalTrainer === true || scope.originalTrainer,
+				otherEdits: pending?.scope.otherEdits === true || scope.otherEdits
 			}
 		};
 	}

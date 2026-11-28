@@ -624,7 +624,8 @@ export const pokemonEditOperationResultSchema = z.object({
 export const pokemonEditPreviewValidationScopeSchema = z.object({
 	moves: z.boolean(),
 	metData: z.boolean(),
-	originalTrainer: z.boolean()
+	originalTrainer: z.boolean(),
+	otherEdits: z.boolean()
 });
 
 export const pokemonCreationOperationSchema = z.object({
