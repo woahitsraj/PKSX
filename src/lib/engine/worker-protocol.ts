@@ -117,10 +117,21 @@ export const pokedexProjectionSchema = z.object({
 			seen: z.boolean(),
 			caught: z.boolean(),
 			flagSet: z.number().int().nullish(),
-			flags: z.string().nullish()
+			flags: z.string().nullish(),
+			regional: z.string().nullish()
 		})
 	),
 	flagSets: z.array(z.array(z.string())).nullish(),
+	regions: z
+		.array(
+			z.object({
+				label: z.string(),
+				count: z.number().int(),
+				available: z.boolean(),
+				reason: z.string().nullable()
+			})
+		)
+		.nullish(),
 	fields: z.array(
 		z.object({
 			key: z.string(),
