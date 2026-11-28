@@ -35,6 +35,9 @@ internal static class PokedexFlags
                 break;
             case SAV5:
                 break;
+            case SAV8LA la:
+                LegendsArceusPokedex.SetSeen(la, species, seen);
+                break;
             default:
                 save.SetSeen(species, seen);
                 break;
@@ -45,8 +48,11 @@ internal static class PokedexFlags
     {
         if (save is SAV4 s4) s4.Dex.SetCaught(species, caught);
         else if (save is SAV5 s5) s5.Zukan.SetCaught(species, caught);
+        else if (save is SAV8LA la) LegendsArceusPokedex.SetCaught(la, species, caught);
         else save.SetCaught(species, caught);
     }
+
+    public static bool InDex(SaveFile save, int species) => save is not SAV8LA || LegendsArceusPokedex.InDex(species);
 
     public static List<PokedexFlag> Of(SaveFile save, ushort species) => save switch
     {

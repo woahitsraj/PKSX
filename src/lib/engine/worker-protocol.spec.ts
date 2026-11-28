@@ -663,6 +663,8 @@ test('Pokedex edits require one complete action and reject mixed payloads', () =
 		{ kind: 'caught', species: 1, caught: false },
 		{ kind: 'field', field: 'national', value: 0 },
 		{ kind: 'flag', species: 1, flag: 0, on: true },
+		{ kind: 'research', species: 1, task: 0, value: 3 },
+		{ kind: 'report', species: 1 },
 		{ kind: 'all-seen' },
 		{ kind: 'all-caught' }
 	])
@@ -673,6 +675,8 @@ test('Pokedex edits require one complete action and reject mixed payloads', () =
 		{ kind: 'seen', species: 1 },
 		{ kind: 'field', field: 'national' },
 		{ kind: 'flag', species: 1, flag: 0 },
+		{ kind: 'research', species: 1, task: 0 },
+		{ kind: 'report', species: 1, task: 0 },
 		{ kind: 'all-seen', species: 1 },
 		{ kind: 'all-caught', caught: true },
 		{ kind: 'all' },

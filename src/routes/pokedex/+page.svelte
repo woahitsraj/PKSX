@@ -205,7 +205,7 @@
 			if (mounted) pendingKey = null;
 		}
 		if (!mounted || !failure) return;
-		if (edit.kind === 'field') fieldErrors = { [edit.field]: failure };
+		if (key.startsWith('field-')) fieldErrors = { [key.slice('field-'.length)]: failure };
 		else toast.error(failure);
 	}
 </script>
@@ -251,7 +251,11 @@
 	</button>
 {/snippet}
 
-{#snippet fieldForm(field: PokedexField, fallbacks?: string)}
+{#snippet fieldForm(
+	field: PokedexField,
+	fallbacks?: string,
+	edit = (value: number): PokedexEdit => ({ kind: 'field', field: field.key, value })
+)}
 	{@const error = fieldErrors[field.key]}
 	<!-- The shell names focus targets pksx-pokedex-<identity>; match it so the label holds. -->
 	{@const inputId = `pksx-pokedex-field-${field.key}`}
@@ -260,12 +264,7 @@
 		onsubmit={(event) => {
 			event.preventDefault();
 			const value = new FormData(event.currentTarget).get('value');
-			if (typeof value === 'string')
-				void apply(`field-${field.key}`, {
-					kind: 'field',
-					field: field.key,
-					value: Number(value)
-				});
+			if (typeof value === 'string') void apply(`field-${field.key}`, edit(Number(value)));
 		}}
 	>
 		<label for={inputId}>{field.label}</label>
@@ -294,6 +293,48 @@
 		>
 		{#if error}<small id={`${inputId}-error`} class="field-error" role="alert">{error}</small>{/if}
 	</form>
+{/snippet}
+
+{#snippet research(entry: PokedexProjection['species'][number], fallbacks: string)}
+	{@const { level, pending, complete, perfect, tasks } = entry.research!}
+	{@const key = `report-${entry.id}`}
+	<div class="research">
+		<p class="research-level">
+			Research points <strong class="num">{level}</strong>, complete at 100
+			{#if pending !== level}<span>{pending} after report</span>{/if}
+			{#if complete}<span>Complete</span>{/if}
+			{#if perfect}<span>Perfect</span>{/if}
+		</p>
+		<button
+			type="button"
+			class={['report', pending === level && 'done']}
+			aria-disabled={pendingKey !== null || pending === level}
+			aria-busy={pendingKey === key}
+			data-destination-focus={key}
+			data-destination-fallbacks={fallbacks}
+			onclick={() => pending !== level && apply(key, { kind: 'report', species: entry.id })}
+			>Report research</button
+		>
+	</div>
+	{#each tasks as task, index (index)}
+		{@const label = `${task.label}${task.required ? ', required' : ''} (goals ${task.goals.join(', ')}; ${task.reported} reported)`}
+		{#if task.editable}
+			{@render fieldForm(
+				{
+					key: `research-${entry.id}-${index}`,
+					label,
+					value: task.value,
+					min: 0,
+					max: task.max,
+					species: entry.id
+				},
+				fallbacks,
+				(value) => ({ kind: 'research', species: entry.id, task: index, value })
+			)}
+		{:else}
+			<p class="task">{label}: <strong class="num">{task.value}</strong>, set by the game</p>
+		{/if}
+	{/each}
 {/snippet}
 
 {#snippet routeState(heading: string, body: string, retry: boolean)}
@@ -453,7 +494,7 @@
 											decoding="async"
 										/>
 									{:else}<span class="sprite"></span>{/if}
-									{#if own.length || flags.length}
+									{#if own.length || flags.length || entry.research}
 										<span class="who">
 											<strong class="name">{entry.name}</strong>
 											<button
@@ -485,7 +526,7 @@
 										species: entry.id,
 										caught: !entry.caught
 									})}
-									{#if open && (own.length || flags.length)}
+									{#if open && (own.length || flags.length || entry.research)}
 										<div
 											id={valuesId}
 											class="species-values"
@@ -495,6 +536,9 @@
 											{#each own as field (field.key)}
 												{@render fieldForm(field, JSON.stringify([valuesKey, 'search']))}
 											{/each}
+											{#if entry.research}
+												{@render research(entry, JSON.stringify([valuesKey, 'search']))}
+											{/if}
 											{#if flags.length}
 												<div class="details">
 													{#each flags as label, index (index)}
@@ -932,6 +976,30 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--pksx-space-1);
+	}
+
+	.research {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--pksx-space-1);
+	}
+
+	.report.done {
+		border-color: var(--pksx-color-border-subtle);
+		color: var(--pksx-color-text-secondary);
+	}
+
+	.research-level span::before {
+		content: ' · ';
+	}
+
+	.task {
+		font-size: var(--pksx-type-label);
+		font-weight: 650;
+		line-height: 1.25;
+		color: var(--pksx-color-text-secondary);
 	}
 
 	.unseen .name {

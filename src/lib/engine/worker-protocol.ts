@@ -117,7 +117,27 @@ export const pokedexProjectionSchema = z.object({
 			seen: z.boolean(),
 			caught: z.boolean(),
 			flagSet: z.number().int().nullish(),
-			flags: z.string().nullish()
+			flags: z.string().nullish(),
+			research: z
+				.object({
+					level: z.number().int(),
+					pending: z.number().int(),
+					complete: z.boolean(),
+					perfect: z.boolean(),
+					tasks: z.array(
+						z.object({
+							label: z.string(),
+							value: z.number().int(),
+							max: z.number().int(),
+							goals: z.array(z.number().int()),
+							reported: z.number().int(),
+							points: z.number().int(),
+							required: z.boolean(),
+							editable: z.boolean()
+						})
+					)
+				})
+				.nullish()
 		})
 	),
 	flagSets: z.array(z.array(z.string())).nullish(),
@@ -143,6 +163,13 @@ export const pokedexEditSchema = z.discriminatedUnion('kind', [
 		flag: z.number().int(),
 		on: z.boolean()
 	}),
+	z.strictObject({
+		kind: z.literal('research'),
+		species: z.number().int(),
+		task: z.number().int(),
+		value: z.number().int()
+	}),
+	z.strictObject({ kind: z.literal('report'), species: z.number().int() }),
 	z.strictObject({ kind: z.literal('all-seen') }),
 	z.strictObject({ kind: z.literal('all-caught') })
 ]);
