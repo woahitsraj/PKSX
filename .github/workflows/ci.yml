@@ -75,6 +75,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Model-check linked-save Export
+        run: pnpm check:export-model
+
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 

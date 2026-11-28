@@ -9,6 +9,7 @@
 		"prebuild": "pnpm legal:sync",
 		"build": "vite build",
 		"check:performance": "node scripts/check-performance-budgets.ts",
+		"check:export-model": "sh scripts/check-linked-save-export-model.sh",
 		"preview": "vite preview",
 		"deploy:preview": "wrangler versions upload --env staging",
 		"deploy:staging": "wrangler deploy --env staging",
