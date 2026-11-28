@@ -1,9 +1,10 @@
 import { expect, test } from 'vitest';
 import { createPkhexEngine } from './pkhex-engine';
+import type { PokedexEdit } from './types';
 
 const enginePromise = createPkhexEngine();
 
-const fixtures = import.meta.glob('../../../test-fixtures/save-files/**/*.{sav,gci}', {
+const fixtures = import.meta.glob('../../../test-fixtures/save-files/**/*.{sav,gci,bin}', {
 	query: '?url',
 	import: 'default',
 	eager: true
@@ -253,5 +254,86 @@ for (const [file, absent, present] of [
 			0
 		);
 		expect(rejected.ok).toBe(false);
+	}, 60_000);
+}
+
+// Let's Go is not a main-series Generation 7 save: Kanto plus Meltan and Melmetal, and size records.
+for (const file of [
+	'pkmds-blazor/pokemon-lets-go-pikachu.bin',
+	'raj-pokemon-save-backups/switch/pokemon-lets-go-eevee-2025-03-24-savedata.bin'
+]) {
+	test(`Let's Go Pokedex: ${file}`, async () => {
+		const url = fixtures[`../../../test-fixtures/save-files/${file}`];
+		if (typeof url !== 'string') throw new Error(`Missing ${file}`);
+		let bytes: Uint8Array = new Uint8Array(await (await fetch(url)).arrayBuffer());
+		const engine = await enginePromise;
+		const load = async (from: Uint8Array) => {
+			const loaded = await engine.loadSaveWorkspace(from, file, 0);
+			if (!loaded.ok) throw new Error(loaded.error.message);
+			const dex = loaded.value.saveFile?.pokedex;
+			if (dex?.status !== 'available') throw new Error('Pokedex unavailable');
+			return dex;
+		};
+		const apply = async (edit: PokedexEdit, mutated = true) => {
+			const result = await engine.applySaveFileEditOperation(bytes, file, { pokedex: edit }, 0);
+			if (!result.ok) throw new Error(result.error.message);
+			expect(result.value.mutated).toBe(mutated);
+			bytes = result.value.bytes;
+		};
+		const dex = await load(bytes);
+		const ids = dex.species.map((s) => s.id);
+		expect(ids).toEqual([...Array.from({ length: 151 }, (_, i) => i + 1), 808, 809]);
+		const labels = (id: number) => {
+			const set = dex.species.find((s) => s.id === id)?.flagSet;
+			return typeof set === 'number' ? (dex.flagSets?.[set] ?? []) : [];
+		};
+		// No main-series switches such as National Pokedex, opening species or Spinda.
+		expect(dex.fields.filter((f) => f.species === null)).toEqual([]);
+		expect(labels(25)).toContain('Seen: shiny female');
+		expect(labels(25)).toContain('Language: Chinese (traditional)');
+		expect(labels(19)).toContain('Displayed: female (Alola)');
+		expect(labels(6)).toContain('Tallest record flag (Mega X)');
+		expect(labels(129).filter((label) => /Alola|Mega/.test(label))).toEqual([]);
+		for (const id of [152, 807]) {
+			const rejected = await engine.applySaveFileEditOperation(
+				bytes,
+				file,
+				{ pokedex: { kind: 'seen', species: id, seen: true } },
+				0
+			);
+			expect(rejected.ok).toBe(false);
+		}
+		// Size records exist only in the Let's Go block; main-series Generation 7 has no such storage.
+		const height = dex.fields.find((f) => f.key === 'tallest-height-24');
+		expect(height).toMatchObject({ species: 25, min: 0, max: 255 });
+		const pikachu = dex.species.find((s) => s.id === 25);
+		const flag = labels(25).indexOf('Seen: female');
+		const recordFlag = labels(25).indexOf('Heaviest record flag');
+		const value = height?.value === 200 ? 100 : 200;
+		const seenFemale = pikachu?.flags?.[flag] !== '1';
+		const flagged = pikachu?.flags?.[recordFlag] !== '1';
+		await apply({ kind: 'field', field: 'tallest-height-24', value });
+		await apply({ kind: 'flag', species: 25, flag, on: seenFemale });
+		await apply({ kind: 'flag', species: 25, flag: recordFlag, on: flagged });
+		await apply(
+			{ kind: 'all-caught' },
+			dex.species.some((s) => !s.caught)
+		);
+		const exported = await engine.serializeSave(bytes, file);
+		if (!exported.ok) throw new Error(exported.error.message);
+		const reread = await load(
+			Uint8Array.from(atob(exported.value.bytesBase64), (c) => c.charCodeAt(0))
+		);
+		expect(reread.fields.find((f) => f.key === 'tallest-height-24')?.value).toBe(value);
+		const after = reread.species.find((s) => s.id === 25)?.flags;
+		expect([after?.[flag], after?.[recordFlag]]).toEqual([
+			seenFemale ? '1' : '0',
+			flagged ? '1' : '0'
+		]);
+		expect(reread.species.filter((s) => !s.caught).map((s) => s.id)).toEqual([]);
+		// Other species keep their imported flags.
+		expect(reread.species.filter((s) => s.id !== 25).map((s) => s.flags)).toEqual(
+			dex.species.filter((s) => s.id !== 25).map((s) => s.flags)
+		);
 	}, 60_000);
 }
