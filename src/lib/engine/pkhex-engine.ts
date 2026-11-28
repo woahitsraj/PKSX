@@ -1,4 +1,5 @@
 import type {
+	SaveFileSearchProjection,
 	BoxSlotSummary,
 	EngineApi,
 	EngineError,
@@ -103,6 +104,11 @@ type DotnetPkhexEngineExports = {
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		sourceJson: string
+	): string;
+	ListSaveFileSearchEntriesJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		includeLegality: boolean
 	): string;
 	PreviewPokemonActionsJson(
 		bytes: Uint8Array,
@@ -324,6 +330,10 @@ export async function createPkhexEngine(basePath = __PKHEX_ENGINE_BASE_PATH__): 
 		checkSlotLegality: async (bytes, fileName, source) =>
 			parseEngineResult<LegalityReport>(
 				engine.CheckSlotLegalityJson(bytes, fileName, JSON.stringify(source))
+			),
+		listSearchEntries: async (bytes, fileName, includeLegality) =>
+			parseEngineResult<SaveFileSearchProjection>(
+				engine.ListSaveFileSearchEntriesJson(bytes, fileName, includeLegality)
 			),
 		previewPokemonActions: async (bytes, fileName, source) =>
 			parseEngineResult<PokemonActionPreview>(

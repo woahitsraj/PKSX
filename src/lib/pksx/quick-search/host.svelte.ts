@@ -1,5 +1,6 @@
 import { getContext, setContext } from 'svelte';
 import type { QuickSearchResult } from '.';
+import type { UnavailableCriteria } from './advanced';
 
 const quickSearchHostKey = Symbol('pksx-quick-search-host');
 
@@ -7,8 +8,13 @@ export type QuickSearchSaveFile = {
 	scope: 'save-file' | 'pokemon-storage';
 	fileName: string;
 	isAvailable(): Promise<boolean>;
-	loadResults(): Promise<QuickSearchResult[]>;
+	loadResults(options?: { includeLegality?: boolean }): Promise<QuickSearchCollection>;
 	focusResult(result: QuickSearchResult): Promise<string | null>;
+};
+
+export type QuickSearchCollection = {
+	results: QuickSearchResult[];
+	unavailable: UnavailableCriteria;
 };
 
 export type QuickSearchProvider = {

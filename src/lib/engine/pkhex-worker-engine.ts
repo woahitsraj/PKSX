@@ -1,4 +1,5 @@
 import type {
+	SaveFileSearchProjection,
 	BoxSlotSummary,
 	EngineApi,
 	EngineError,
@@ -399,6 +400,20 @@ export function createPkhexWorkerEngine(
 				[buffer]
 			);
 		},
+		listSearchEntries: (bytes, fileName, includeLegality) => {
+			const buffer = copyBytesToArrayBuffer(bytes);
+
+			return sendRequest(
+				'listSearchEntries',
+				{
+					type: 'request',
+					id: createRequestId(),
+					method: 'listSearchEntries',
+					payload: { bytes: buffer, fileName, includeLegality }
+				},
+				[buffer]
+			);
+		},
 		previewPokemonActions: (bytes, fileName, source) => {
 			const buffer = copyBytesToArrayBuffer(bytes);
 
@@ -626,6 +641,11 @@ export function createPkhexWorkerEngine(
 		request: Extract<EngineWorkerRequest, { method: 'checkSlotLegality' }>,
 		transfer: Transferable[]
 	): Promise<EngineResult<LegalityReport>>;
+	async function sendRequest(
+		method: 'listSearchEntries',
+		request: Extract<EngineWorkerRequest, { method: 'listSearchEntries' }>,
+		transfer: Transferable[]
+	): Promise<EngineResult<SaveFileSearchProjection>>;
 	async function sendRequest(
 		method: 'previewPokemonActions',
 		request: Extract<EngineWorkerRequest, { method: 'previewPokemonActions' }>,

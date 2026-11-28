@@ -1,8 +1,15 @@
 import type { z } from 'zod';
-import type { pokedexProjectionSchema, pokedexEditSchema } from './worker-protocol';
+import type {
+	pokedexProjectionSchema,
+	pokedexEditSchema,
+	saveFileSearchProjectionSchema,
+	searchCriterionSchema
+} from './worker-protocol';
 
 export type PokedexProjection = z.infer<typeof pokedexProjectionSchema>;
 export type PokedexEdit = z.infer<typeof pokedexEditSchema>;
+export type SaveFileSearchProjection = z.infer<typeof saveFileSearchProjectionSchema>;
+export type SearchCriterion = z.infer<typeof searchCriterionSchema>;
 
 export type EngineErrorCode =
 	| 'unsupported-save'
@@ -825,6 +832,12 @@ export type EngineApi = {
 		fileName: string | undefined,
 		source: SaveSlotRef
 	): Promise<EngineResult<LegalityReport>>;
+	/** Lists every occupied Slot with the facts Advanced Search filters on. */
+	listSearchEntries(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		includeLegality: boolean
+	): Promise<EngineResult<SaveFileSearchProjection>>;
 	previewPokemonActions(
 		bytes: Uint8Array,
 		fileName: string | undefined,

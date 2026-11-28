@@ -1,5 +1,6 @@
 import { parseEngineResult } from './pkhex-engine';
 import type {
+	SaveFileSearchProjection,
 	BoxSlotSummary,
 	EngineResult,
 	EngineVersion,
@@ -42,6 +43,7 @@ import {
 	type EngineWorkerGetSaveFileInventoryCatalogueRequest,
 	type EngineWorkerImportStoredPokemonRequest,
 	type EngineWorkerCheckSlotLegalityRequest,
+	type EngineWorkerListSearchEntriesRequest,
 	type EngineWorkerPreviewPokemonActionsRequest,
 	type EngineWorkerApplyPokemonActionRequest,
 	type EngineWorkerPreviewStoredPokemonActionsRequest,
@@ -119,6 +121,11 @@ export type DotnetPkhexEngineExports = {
 		bytes: Uint8Array,
 		fileName: string | undefined,
 		sourceJson: string
+	): string;
+	ListSaveFileSearchEntriesJson(
+		bytes: Uint8Array,
+		fileName: string | undefined,
+		includeLegality: boolean
 	): string;
 	PreviewPokemonActionsJson(
 		bytes: Uint8Array,
@@ -360,6 +367,9 @@ export function createPkhexEngineWorkerRuntime({
 				return;
 			case 'checkSlotLegality':
 				postMessage(createEngineWorkerResponse(request, checkSlotLegality(engine, request)));
+				return;
+			case 'listSearchEntries':
+				postMessage(createEngineWorkerResponse(request, listSearchEntries(engine, request)));
 				return;
 			case 'previewPokemonActions':
 				postMessage(createEngineWorkerResponse(request, previewPokemonActions(engine, request)));
@@ -720,6 +730,19 @@ function checkSlotLegality(
 			new Uint8Array(request.payload.bytes),
 			request.payload.fileName,
 			JSON.stringify(request.payload.source)
+		)
+	);
+}
+
+function listSearchEntries(
+	engine: DotnetPkhexEngineExports,
+	request: EngineWorkerListSearchEntriesRequest
+): EngineResult<SaveFileSearchProjection> {
+	return parseEngineResult<SaveFileSearchProjection>(
+		engine.ListSaveFileSearchEntriesJson(
+			new Uint8Array(request.payload.bytes),
+			request.payload.fileName,
+			request.payload.includeLegality
 		)
 	);
 }
@@ -1144,6 +1167,8 @@ function unavailableResult(request: EngineWorkerRequest) {
 			return result satisfies EngineResult<BoxSlotSummary | PartySlotSummary>;
 		case 'checkSlotLegality':
 			return result satisfies EngineResult<LegalityReport>;
+		case 'listSearchEntries':
+			return result satisfies EngineResult<SaveFileSearchProjection>;
 		case 'previewPokemonActions':
 		case 'previewStoredPokemonActions':
 			return result satisfies EngineResult<PokemonActionPreview>;

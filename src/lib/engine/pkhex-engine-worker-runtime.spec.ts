@@ -245,6 +245,8 @@ function createEngineExports(): DotnetPkhexEngineExports {
 				},
 				error: null
 			}),
+		ListSaveFileSearchEntriesJson: () =>
+			JSON.stringify({ ok: true, value: { entries: [], unavailable: [] }, error: null }),
 		CheckSlotLegalityJson: () =>
 			JSON.stringify({
 				ok: true,

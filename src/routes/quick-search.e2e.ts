@@ -215,3 +215,57 @@ test('reports when the Active Save File disappears', async ({ page }) => {
 	await search.getByRole('button', { name: 'Close Search' }).click();
 	await expect(page.locator('#box-0-slot-0')).toBeFocused();
 });
+
+test('Advanced Search combines criteria, resets, and opens the matching Slot', async ({ page }) => {
+	await importActiveSaveFile(page);
+	const search = await openSearchFromMainMenu(page);
+	const input = search.getByRole('searchbox', { name: 'Search Active Save File' });
+	await input.fill('Aron');
+	await search.getByRole('button', { name: 'Advanced' }).click();
+	await expect(input).toHaveValue('Aron');
+	const aron = search.getByRole('button', { name: /ARON, Aron, Box 01, Slot 1/ });
+	await expect(aron).toBeVisible({ timeout: 15_000 });
+
+	await search.getByRole('combobox', { name: 'Species' }).click();
+	await search.getByRole('option', { name: 'Aron', exact: true }).click();
+	await input.fill('');
+	await expect(aron).toBeVisible();
+	await search.getByRole('combobox', { name: 'Legality' }).click();
+	await search.getByRole('option', { name: 'Legal', exact: true }).click();
+	await expect(aron).toBeVisible({ timeout: 30_000 });
+
+	await search.getByRole('button', { name: 'Quick' }).click();
+	await search.getByRole('button', { name: 'Advanced' }).click();
+	await expect(search.getByRole('combobox', { name: 'Species' })).toHaveAttribute(
+		'data-combobox-value',
+		'Aron'
+	);
+
+	await search.getByRole('spinbutton', { name: 'Minimum level' }).fill('100');
+	await expect(search).toContainText('No Pokemon match these filters.');
+
+	await search.getByRole('button', { name: 'Reset' }).click();
+	await expect(search.getByRole('combobox', { name: 'Species' })).toHaveAttribute(
+		'data-combobox-value',
+		''
+	);
+	await expect(search.getByRole('spinbutton', { name: 'Minimum level' })).toHaveValue('');
+	await expect(search).toContainText('Choose a filter');
+	await input.click();
+
+	for (const viewport of [
+		{ width: 640, height: 360 },
+		{ width: 360, height: 640 }
+	]) {
+		await expectSearchViewport(page, viewport.width, viewport.height);
+		for (const field of ['Minimum level', 'Maximum level', 'Minimum IV', 'Minimum EV']) {
+			await expect(search.getByRole('spinbutton', { name: field })).toHaveCSS('font-size', '16px');
+		}
+	}
+
+	await search.getByRole('combobox', { name: 'Species' }).click();
+	await search.getByRole('option', { name: 'Aron', exact: true }).click();
+	await aron.click();
+	await expect(search).toBeHidden();
+	await expect(page.locator('#box-0-slot-0')).toBeFocused();
+});

@@ -20,6 +20,7 @@ export const engineWorkerMethodSchema = z.enum([
 	'getSaveFileInventoryCatalogue',
 	'importStoredPokemon',
 	'checkSlotLegality',
+	'listSearchEntries',
 	'loadSlotEditData',
 	'previewPokemonActions',
 	'applyPokemonAction',
@@ -877,6 +878,40 @@ export const storedPokemonImportResultResultSchema = engineResultSchema(
 
 export const legalityReportResultSchema = engineResultSchema(legalityReportSchema);
 
+export const searchCriterionSchema = z.enum([
+	'form',
+	'legality',
+	'nature',
+	'ability',
+	'heldItem',
+	'originGame'
+]);
+
+export const saveFileSearchProjectionSchema = z.object({
+	entries: z.array(
+		z.object({
+			zone: z.enum(['party', 'box']),
+			box: z.number().int().nullable(),
+			slot: z.number().int(),
+			speciesName: z.string(),
+			nickname: z.string(),
+			form: z.number().int(),
+			formName: z.string(),
+			isShiny: z.boolean(),
+			legal: z.boolean().nullable(),
+			nature: z.string().nullable(),
+			ability: z.string().nullable(),
+			heldItem: z.string().nullable(),
+			moves: z.array(z.string()),
+			level: z.number().int(),
+			ivs: z.array(z.number().int()),
+			evs: z.array(z.number().int()),
+			originGame: z.string().nullable()
+		})
+	),
+	unavailable: z.array(z.object({ criterion: searchCriterionSchema, reason: z.string() }))
+});
+
 export const pokemonActionPreviewResultSchema = engineResultSchema(pokemonActionPreviewSchema);
 
 export const pokemonActionResultResultSchema = engineResultSchema(pokemonActionResultSchema);
@@ -1139,6 +1174,17 @@ export const engineWorkerCheckSlotLegalityRequestSchema = z.object({
 	})
 });
 
+export const engineWorkerListSearchEntriesRequestSchema = z.object({
+	type: z.literal('request'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('listSearchEntries'),
+	payload: z.object({
+		bytes: z.instanceof(ArrayBuffer),
+		fileName: z.string().optional(),
+		includeLegality: z.boolean()
+	})
+});
+
 export const engineWorkerPreviewPokemonActionsRequestSchema = z.object({
 	type: z.literal('request'),
 	id: engineWorkerRequestIdSchema,
@@ -1258,6 +1304,7 @@ export const engineWorkerRequestSchema = z.discriminatedUnion('method', [
 	engineWorkerGetSaveFileInventoryCatalogueRequestSchema,
 	engineWorkerImportStoredPokemonRequestSchema,
 	engineWorkerCheckSlotLegalityRequestSchema,
+	engineWorkerListSearchEntriesRequestSchema,
 	engineWorkerLoadSlotEditDataRequestSchema,
 	engineWorkerPreviewPokemonActionsRequestSchema,
 	engineWorkerApplyPokemonActionRequestSchema,
@@ -1398,6 +1445,13 @@ export const engineWorkerCheckSlotLegalityResponseSchema = z.object({
 	result: legalityReportResultSchema
 });
 
+export const engineWorkerListSearchEntriesResponseSchema = z.object({
+	type: z.literal('response'),
+	id: engineWorkerRequestIdSchema,
+	method: z.literal('listSearchEntries'),
+	result: engineResultSchema(saveFileSearchProjectionSchema)
+});
+
 export const engineWorkerPreviewPokemonActionsResponseSchema = z.object({
 	type: z.literal('response'),
 	id: engineWorkerRequestIdSchema,
@@ -1493,6 +1547,7 @@ export const engineWorkerResponseSchema = z.discriminatedUnion('method', [
 	engineWorkerGetSaveFileInventoryCatalogueResponseSchema,
 	engineWorkerImportStoredPokemonResponseSchema,
 	engineWorkerCheckSlotLegalityResponseSchema,
+	engineWorkerListSearchEntriesResponseSchema,
 	engineWorkerLoadSlotEditDataResponseSchema,
 	engineWorkerPreviewPokemonActionsResponseSchema,
 	engineWorkerApplyPokemonActionResponseSchema,
@@ -1607,6 +1662,10 @@ export type EngineWorkerImportStoredPokemonRequest = z.infer<
 
 export type EngineWorkerCheckSlotLegalityRequest = z.infer<
 	typeof engineWorkerCheckSlotLegalityRequestSchema
+>;
+
+export type EngineWorkerListSearchEntriesRequest = z.infer<
+	typeof engineWorkerListSearchEntriesRequestSchema
 >;
 
 export type EngineWorkerPreviewPokemonActionsRequest = z.infer<

@@ -232,7 +232,11 @@
 		createVirtualQuickSearchResults,
 		type QuickSearchResult
 	} from '$lib/pksx/quick-search';
-	import { getQuickSearchHost, type QuickSearchSaveFile } from '$lib/pksx/quick-search/host.svelte';
+	import {
+		getQuickSearchHost,
+		type QuickSearchCollection,
+		type QuickSearchSaveFile
+	} from '$lib/pksx/quick-search/host.svelte';
 	import {
 		applySaveFileLegalityFixBatch,
 		previewSaveFileLegalityFixBatch,
@@ -6825,8 +6829,8 @@
 				scope: 'pokemon-storage',
 				fileName: 'Pokemon Storage',
 				isAvailable: async () => Boolean(getPokemonStorageCatalog().current),
-				loadResults: async () =>
-					createVirtualQuickSearchResults(
+				loadResults: async () => ({
+					results: createVirtualQuickSearchResults(
 						virtualRecords(getPokemonStorageCatalog().current, {
 							...defaultVirtualViewPreferences,
 							location
@@ -6834,6 +6838,11 @@
 						paneId,
 						location
 					),
+					unavailable: {
+						form: 'Pokemon Storage does not list form names.',
+						legality: 'Pokemon Storage does not keep legality results.'
+					}
+				}),
 				focusResult: async (result) => {
 					if (!result.recordId || !getPokemonStorageCatalog().getRecord(result.recordId))
 						return null;
@@ -6878,7 +6887,8 @@
 				if (!matchesActiveQuickSearchSaveFile(pane.id, source)) return false;
 				return Boolean(source.id && (await storage.getSave(source.id)));
 			},
-			loadResults: () => loadQuickSearchResults(pane.id, source),
+			loadResults: (options) =>
+				loadQuickSearchResults(pane.id, source, options?.includeLegality ?? false),
 			focusResult: (result) => focusQuickSearchResult(result, pane.id, source)
 		};
 	}
@@ -7030,33 +7040,40 @@
 		);
 	}
 
-	async function loadQuickSearchResults(paneId: string, source: BoxSourceRef) {
-		if (!matchesActiveQuickSearchSaveFile(paneId, source)) return [];
-		if (!source.id || !engine) return [];
+	async function loadQuickSearchResults(
+		paneId: string,
+		source: BoxSourceRef,
+		includeLegality: boolean
+	): Promise<QuickSearchCollection> {
+		const empty = { results: [], unavailable: {} };
+		if (!matchesActiveQuickSearchSaveFile(paneId, source)) return empty;
+		if (!source.id || !engine) return empty;
 
 		const [saveFile, saveBytes, persistedWorkspace] = await Promise.all([
 			storage.getSave(source.id),
 			storage.getSaveBytes(source.id),
 			storage.getWorkspace(source.id)
 		]);
-		if (!saveFile || !saveBytes || !matchesActiveQuickSearchSaveFile(paneId, source)) return [];
-		const bytes = persistedWorkspace?.bytes ?? saveBytes;
-		const workspace = await loadWorkspace(bytes, saveFile.originalFileName ?? undefined, 0);
-		const boxSlots = [...workspace.boxSlots];
-		for (let box = 1; box < workspace.summary.boxCount; box += 1) {
-			const result = await engine.listBoxSlots(bytes, saveFile.originalFileName ?? undefined, box);
-			if (!result.ok) throw result.error;
-			boxSlots.push(...result.value);
-		}
-		if (!matchesActiveQuickSearchSaveFile(paneId, source)) return [];
+		if (!saveFile || !saveBytes || !matchesActiveQuickSearchSaveFile(paneId, source)) return empty;
+		const result = await engine.listSearchEntries(
+			persistedWorkspace?.bytes ?? saveBytes,
+			saveFile.originalFileName ?? undefined,
+			includeLegality
+		);
+		if (!result.ok) throw result.error;
+		if (!matchesActiveQuickSearchSaveFile(paneId, source)) return empty;
 
-		return createSaveFileQuickSearchResults({
-			saveFileId: source.id,
-			saveFileName: source.label,
-			paneId,
-			partySlots: workspace.partySlots,
-			boxSlots
-		});
+		return {
+			results: createSaveFileQuickSearchResults({
+				saveFileId: source.id,
+				saveFileName: source.label,
+				paneId,
+				projection: result.value
+			}),
+			unavailable: Object.fromEntries(
+				result.value.unavailable.map(({ criterion, reason }) => [criterion, reason])
+			)
+		};
 	}
 
 	async function focusQuickSearchResult(
