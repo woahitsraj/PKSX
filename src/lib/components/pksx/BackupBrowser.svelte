@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { publishTakeoverBack } from '$lib/pksx/app-chrome.svelte';
 	import { recoveryBackupId } from '$lib/pksx/linked-save-sources/runtime';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -309,6 +310,10 @@
 	function confirmDelete() {
 		if (browserState.kind === 'confirm-delete') void deleteBackup(browserState.backup);
 	}
+
+	$effect(() =>
+		publishTakeoverBack(browserState.kind === 'working' ? '' : confirming ? 'Cancel' : null)
+	);
 
 	function guardedBack() {
 		if (browserState.kind === 'working') return;

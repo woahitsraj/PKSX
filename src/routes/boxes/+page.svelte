@@ -910,11 +910,12 @@
 	function syncAppChrome() {
 		updateAppChrome({
 			hasLoadedSave: loadedSave !== null,
-			carryActive: carryState !== null || virtualCarry !== null
+			carryActive: carryState !== null || virtualCarry !== null,
+			selectionActive: selection !== null
 		});
 
 		return () => {
-			updateAppChrome({ carryActive: false });
+			updateAppChrome({ carryActive: false, selectionActive: false });
 		};
 	}
 
@@ -9256,13 +9257,13 @@
 		z-index: 500;
 		display: grid;
 		place-items: center;
-		padding: 18px;
+		padding: 18px 18px calc(18px + var(--pksx-safe-area-bottom));
 		background: var(--pksx-color-backdrop);
 	}
 
 	.source-picker {
 		width: min(780px, 100%);
-		max-height: min(760px, 92vh);
+		max-height: min(760px, 92vh, 100%);
 		display: flex;
 		flex-direction: column;
 		gap: 14px;

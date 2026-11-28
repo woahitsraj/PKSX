@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { publishTakeoverBack } from '$lib/pksx/app-chrome.svelte';
 	import { onMount, tick } from 'svelte';
 	import {
 		countSaveFileLegalityResults,
@@ -127,6 +128,10 @@
 			}
 		});
 	}
+
+	$effect(() =>
+		publishTakeoverBack(loading || batchCancelable ? 'Cancel' : batchCommitting ? '' : null)
+	);
 
 	function handleBack() {
 		if (loading || batchCancelable) onCancel();

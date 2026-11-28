@@ -85,7 +85,7 @@ final class PKSXBridgeViewController: CAPBridgeViewController {
         guard let gamepad = controller.extendedGamepad else { return }
         let controllerID = ObjectIdentifier(controller).hashValue
 
-        sendConnection(controller)
+        sendConnection(controller, connected: true)
 
         gamepad.dpad.valueChangedHandler = { [weak self, weak controller] _, x, y in
             guard let controller else { return }
@@ -185,6 +185,10 @@ final class PKSXBridgeViewController: CAPBridgeViewController {
                 send(key: key, pressed: false, discrete: false, controller: controller)
             }
         }
+        let remaining = GCController.controllers().contains {
+            $0 !== controller && $0.extendedGamepad != nil
+        }
+        sendConnection(controller, connected: remaining)
     }
 
     private func send(
@@ -211,8 +215,11 @@ final class PKSXBridgeViewController: CAPBridgeViewController {
         }
     }
 
-    private func sendConnection(_ controller: GCController) {
-        let detail = ["id": controller.vendorName ?? "iOS controller"]
+    private func sendConnection(_ controller: GCController, connected: Bool) {
+        let detail: [String: Any] = [
+            "id": controller.vendorName ?? "iOS controller",
+            "connected": connected,
+        ]
         guard
             let data = try? JSONSerialization.data(withJSONObject: detail),
             let json = String(data: data, encoding: .utf8)

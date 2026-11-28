@@ -6,6 +6,12 @@
 	--breakpoint-*: initial;
 }
 
+@property --pksx-safe-area-bottom {
+	syntax: '<length>';
+	inherits: true;
+	initial-value: 0px;
+}
+
 @property --pksx-type-caption {
 	syntax: '<length>';
 	inherits: true;
@@ -114,8 +120,12 @@
 	--pksx-height-band: short;
 	--pksx-safe-area-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
 	--pksx-safe-area-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
-	--pksx-safe-area-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+	--pksx-device-safe-area-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
 	--pksx-safe-area-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+	/* SHELL-1 exception: the Controller Guide reserves its height through the bottom inset. */
+	--pksx-safe-area-bottom: calc(
+		var(--pksx-device-safe-area-bottom) + var(--pksx-controller-guide-space, 0px)
+	);
 
 	--pksx-color-surface-canvas: #f4ecdf;
 	--pksx-color-surface-panel: #fbf6ec;

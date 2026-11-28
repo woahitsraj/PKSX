@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { publishTakeoverBack } from '$lib/pksx/app-chrome.svelte';
 	import { tick, untrack } from 'svelte';
 	import type {
 		PokemonBattleFieldProjection,
@@ -101,6 +102,8 @@
 		onCancelEdits,
 		onClose
 	}: Props = $props();
+
+	$effect(() => publishTakeoverBack(session.view === 'discard' ? 'Keep editing' : null));
 
 	let editMode = $state<'level' | 'experience'>(untrack(() => initialDraft?.editMode ?? 'level'));
 	let editingInputId = $state<string | null>(null);
