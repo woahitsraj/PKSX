@@ -1,5 +1,6 @@
 import { getContext, setContext } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
+import { pulse } from '../haptics';
 
 const toastHostContextKey = Symbol('pksx-toast-host');
 const maxVisibleToasts = 3;
@@ -7,6 +8,9 @@ const successLifetime = 3_400;
 const errorLifetime = 5_200;
 
 export type ToastTone = 'success' | 'error';
+
+/** Set haptic to false for outcomes the user did not trigger, such as a background rescan. */
+export type ToastOptions = { haptic?: boolean };
 
 export type ToastView = {
 	id: string;
@@ -16,8 +20,8 @@ export type ToastView = {
 
 export type ToastHost = {
 	readonly toasts: readonly ToastView[];
-	success(message: string): void;
-	error(message: string): void;
+	success(message: string, options?: ToastOptions): void;
+	error(message: string, options?: ToastOptions): void;
 	dispose(): void;
 };
 
@@ -34,7 +38,8 @@ export function createToastHost(): ToastHost {
 		timers.delete(id);
 	}
 
-	function deliver(tone: ToastTone, message: string) {
+	function deliver(tone: ToastTone, message: string, { haptic = true }: ToastOptions = {}) {
+		if (haptic) pulse(tone === 'error' ? 'failure' : 'success');
 		while (toasts.length >= maxVisibleToasts) dismiss(toasts[0].id);
 		const toast = { id: `toast-${nextId++}`, tone, message };
 		toasts.push(toast);
@@ -48,11 +53,11 @@ export function createToastHost(): ToastHost {
 		get toasts() {
 			return toasts;
 		},
-		success(message) {
-			deliver('success', message);
+		success(message, options) {
+			deliver('success', message, options);
 		},
-		error(message) {
-			deliver('error', message);
+		error(message, options) {
+			deliver('error', message, options);
 		},
 		dispose() {
 			for (const id of [...timers.keys()]) dismiss(id);

@@ -13,6 +13,7 @@
 	import { getPkhexEngine } from '$lib/pksx/saves-cache';
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 	import { theme } from '$lib/pksx/theme.svelte';
+	import { hapticsEnabled, setHapticsEnabled } from '$lib/pksx/haptics';
 
 	type ReferenceRow = { action: string; controller: string; keyboard: string };
 	type ReferenceGroup = { id: string; title: string; rows: readonly ReferenceRow[] };
@@ -113,6 +114,7 @@
 	];
 
 	let route: HTMLElement;
+	let haptics = $state(true);
 	const summonedWorkflow = getSummonedWorkflowHost();
 	let appVersion = $state<string | null>(null);
 	let platform = $state<string | null>(null);
@@ -122,6 +124,7 @@
 	);
 
 	onMount(() => {
+		haptics = hapticsEnabled();
 		void loadMetadata();
 		queueMicrotask(() => focusStop(rememberedStop, rememberedThemeControl));
 	});
@@ -267,6 +270,26 @@
 							data-destination-focus="theme-dark"
 							onclick={() => theme.setDark(true)}>Dark</button
 						>
+					</div>
+				</div>
+				<div class="preference-row" data-settings-row="haptics">
+					<div>
+						<strong>Haptics</strong>
+						<span>Pulse on supported devices for menus, saves, and failures.</span>
+					</div>
+					<div class="segmented" aria-label="Haptics">
+						{#each [true, false] as enabled (enabled)}
+							<button
+								type="button"
+								aria-label={enabled ? 'Turn haptics on' : 'Turn haptics off'}
+								aria-pressed={haptics === enabled}
+								data-settings-control
+								data-settings-stop={enabled || undefined}
+								data-destination-focus={enabled ? 'haptics-on' : 'haptics-off'}
+								onclick={() => setHapticsEnabled((haptics = enabled))}
+								>{enabled ? 'On' : 'Off'}</button
+							>
+						{/each}
 					</div>
 				</div>
 			</section>

@@ -199,7 +199,8 @@ describe('Save File Legality Report host', () => {
 		host.cancel();
 		expect(host.state).toMatchObject({ batch: { status: 'cancelled' } });
 		expect(toast.success).toHaveBeenCalledWith(
-			'Legality Fix batch cancelled. No Pokemon changes were committed.'
+			'Legality Fix batch cancelled. No Pokemon changes were committed.',
+			{ haptic: false }
 		);
 		document.body.replaceChildren();
 	});

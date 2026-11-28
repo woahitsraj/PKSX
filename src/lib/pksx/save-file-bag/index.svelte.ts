@@ -1,3 +1,4 @@
+import { pulse } from '$lib/pksx/haptics';
 import type { EngineApi, InventoryItemProjection, SaveFileEditOperation } from '$lib/engine';
 import type {
 	SaveFileLedgerCatalogue,
@@ -325,6 +326,7 @@ export function createSaveFileBagController(options: SaveFileBagControllerOption
 		}
 		if (!sameOrigin(requestOrigin, options.getOrigin())) return 'complete';
 		if (result.ok) {
+			if (context.kind !== 'quantity' || context.mode !== 'operator') pulse('success');
 			options.acceptWorkspace(result.workspace);
 			clearSettledState(context);
 			return 'complete';

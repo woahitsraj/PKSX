@@ -9,7 +9,7 @@
 
 	onMount(() => {
 		if (!supportsSaveFolders()) return;
-		linkedSaveDiscovery.notify = (tone, text) => toastHost[tone](text);
+		linkedSaveDiscovery.notify = (tone, text, options) => toastHost[tone](text, options);
 		void linkedSaveDiscovery.initialize();
 		const listener = App.addListener('appStateChange', ({ isActive }) => {
 			if (isActive && !linkedSaveDiscovery.picking) void linkedSaveDiscovery.initialize();

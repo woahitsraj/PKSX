@@ -1,5 +1,6 @@
 import { getContext, setContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
+import { pulse } from '../haptics';
 import {
 	closeSummonedWorkflows,
 	createSummonedWorkflowOwner,
@@ -48,10 +49,12 @@ export function createSummonedWorkflowHost(): SummonedWorkflowHost {
 			const next = openSummonedWorkflow(owner, ...launch);
 			if (next === owner) return false;
 			publish(next);
+			pulse('open');
 			return true;
 		},
 		openRelated(kind, launcher) {
 			publish(openRelatedSummonedWorkflow(owner, kind, launcher));
+			pulse('open');
 		},
 		dismiss() {
 			const dismissed = dismissSummonedWorkflow(owner);

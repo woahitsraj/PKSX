@@ -4878,7 +4878,9 @@
 			await storage.recordSuccessfulOpen(saveFileId);
 			invalidateSavesCache();
 		} catch (error) {
-			toastHost.error('Could not store recently opened history. ' + getErrorMessage(error));
+			toastHost.error('Could not store recently opened history. ' + getErrorMessage(error), {
+				haptic: false
+			});
 		}
 	}
 
@@ -5580,7 +5582,7 @@
 				updatedSlot.label,
 				preview.value
 			);
-			toastHost.success('Legality Fix applied to the Editor draft.');
+			toastHost.success('Legality Fix applied to the Editor draft.', { haptic: false });
 			await tick();
 			(
 				document.getElementById('legality-quick-fix-apply') ??
@@ -7221,7 +7223,7 @@
 						const remaining = { ...savePaneWorkspaces };
 						delete remaining[pane.id];
 						savePaneWorkspaces = remaining;
-						toastHost.error(getErrorMessage(error));
+						toastHost.error(getErrorMessage(error), { haptic: false });
 						statusMessage = 'Could not refresh that Save File pane.';
 					}
 				} finally {
@@ -7320,7 +7322,7 @@
 		} catch (error) {
 			importError = getErrorMessage(error);
 			statusMessage = 'Could not restore Boxes.';
-			toastHost.error(importError);
+			toastHost.error(importError, { haptic: false });
 		} finally {
 			busy = false;
 			initialStateReady = true;
@@ -7428,7 +7430,7 @@
 		} catch (error) {
 			if (request === workspaceLoadRequest && paneWorkspaceRequests[paneId] === paneRequest) {
 				importError = getErrorMessage(error);
-				toastHost.error(importError);
+				toastHost.error(importError, { haptic: false });
 			}
 		} finally {
 			finishPaneWorkspaceRequest(paneId, paneRequest);
@@ -7475,7 +7477,7 @@
 				currentPane.source.id === sourceId &&
 				currentPane.activeBox === box
 			) {
-				toastHost.error(getErrorMessage(error));
+				toastHost.error(getErrorMessage(error), { haptic: false });
 				statusMessage = 'Could not load that Save File pane.';
 			}
 		} finally {
@@ -7582,7 +7584,7 @@
 			}
 		} catch (error) {
 			if (paneWorkspaceRequests[target.paneId] === target.request) {
-				toastHost.error(getErrorMessage(error));
+				toastHost.error(getErrorMessage(error), { haptic: false });
 				statusMessage = 'Could not load that Box.';
 			}
 		} finally {

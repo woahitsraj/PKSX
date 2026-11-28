@@ -179,7 +179,8 @@ export function createSaveFileLegalityReportHost(
 								? { status: 'cancelled', entries: preview.entries }
 								: { status: 'preview-ready', entries: preview.entries }
 					};
-					if (preview.status === 'cancelled') toast.success('Legality Fix preview cancelled.');
+					if (preview.status === 'cancelled')
+						toast.success('Legality Fix preview cancelled.', { haptic: false });
 				})
 				.catch((error: unknown) => failBatch(currentRequest, [], error));
 		},
@@ -213,7 +214,9 @@ export function createSaveFileLegalityReportHost(
 					if (currentRequest !== request || state.status !== 'ready') return;
 					if (result.status === 'cancelled') {
 						state = { ...state, batch: { status: 'cancelled', entries } };
-						toast.success('Legality Fix batch cancelled. No Pokemon changes were committed.');
+						toast.success('Legality Fix batch cancelled. No Pokemon changes were committed.', {
+							haptic: false
+						});
 						return;
 					}
 					if (result.status === 'error') {
@@ -252,7 +255,9 @@ export function createSaveFileLegalityReportHost(
 				const entries = state.batch.status === 'applying' ? state.batch.entries : [];
 				request += 1;
 				state = { ...state, batch: { status: 'cancelled', entries } };
-				toast.success('Legality Fix batch cancelled. No Pokemon changes were committed.');
+				toast.success('Legality Fix batch cancelled. No Pokemon changes were committed.', {
+					haptic: false
+				});
 			}
 		},
 		close() {
