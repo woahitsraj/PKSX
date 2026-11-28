@@ -17,6 +17,29 @@ const sharedEditableFloor = `.pksx-density :where(
 
 describe('responsive design contract', () => {
 	it.each([
+		['src/example.css', '.label { text-transform: uppercase; }'],
+		['src/example.css', '.label { @apply text-sm uppercase; }'],
+		['src/Example.svelte', '<span class="label uppercase">Level</span>'],
+		['src/Example.svelte', '<span class={["label", wide && "tall:uppercase"]}>Level</span>'],
+		['src/Example.svelte', '<span class:uppercase={loud}>Level</span>'],
+		['src/Example.svelte', '<span style:text-transform="uppercase">Level</span>'],
+		['src/Example.svelte', '<span style="text-transform: uppercase">Level</span>'],
+		['src/Example.svelte', '<span>Level</span><style>span { text-transform: uppercase; }</style>'],
+		['src/app.html', '<body class="uppercase"></body>']
+	])('[SENTENCE-CASE] rejects uppercase text in %s: %s', (file, source) => {
+		expect(names(file, source)).toContain('SENTENCE-CASE uppercase');
+	});
+
+	it('[SENTENCE-CASE] permits other text transforms and words that contain uppercase', () => {
+		expect(
+			names(
+				'src/Example.svelte',
+				'<span class="uppercase-note">Level</span><style>span { text-transform: capitalize; }</style>'
+			)
+		).toEqual([]);
+	});
+
+	it.each([
 		'@media (width >= 40rem) { .x { display: grid } }',
 		'@media not (orientation: portrait) { .x { display: grid } }',
 		'@custom-media --wide (min-aspect-ratio: 1 / 1);',

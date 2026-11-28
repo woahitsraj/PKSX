@@ -420,8 +420,9 @@ The executable checker is `node scripts/design-contract/check.ts`. It parses eve
 and `.svelte` file under `src` with `svelte/compiler`, then ESLint checks JavaScript and Svelte
 script ASTs. Diagnostics use the stable forms `[RESP-1] viewport-query`, `[RESP-1]
 height-band-owner`, `[RESP-1] viewport-classifier`, `[RESP-1] viewport-variant`, `[DENSITY-1]
-token-owner`, `[DENSITY-1] type-token`, `[DENSITY-1] editable-floor`, and `[DENSITY-1]
-control-owner`.
+token-owner`, `[DENSITY-1] type-token`, `[DENSITY-1] editable-floor`, `[DENSITY-1]
+control-owner`, and `[SENTENCE-CASE] uppercase`. The last one enforces the Sentence Case Rule in
+[DESIGN.md](../../DESIGN.md).
 
 - Reject viewport width, aspect, or orientation layout queries in shipping code; Tailwind viewport variants; duplicate Height Band thresholds; unauthorized `--pksx-height-band` assignments; raw type sizes where semantic tokens apply; and standard controls without token ownership.
 - Permit the sole app-level `min-height: 560px` authority, the named `tall:` and container-query refinements, non-layout media features, and explicit custom categories for Slots, cards, icon-only controls, and composition-owned surfaces. Small controls must derive from the 24–33px token in DENSITY-1.

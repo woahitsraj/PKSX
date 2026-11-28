@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'svelte/compiler';
 
-export type ContractId = 'RESP-1' | 'DENSITY-1';
+export type ContractId = 'RESP-1' | 'DENSITY-1' | 'SENTENCE-CASE';
 
 export interface DesignContractDiagnostic {
 	contract: ContractId;
@@ -15,7 +15,8 @@ export interface DesignContractDiagnostic {
 		| 'token-owner'
 		| 'type-token'
 		| 'editable-floor'
-		| 'control-owner';
+		| 'control-owner'
+		| 'uppercase';
 	path: string;
 	offset: number;
 	message: string;
@@ -66,6 +67,8 @@ const layoutFeatures =
 const viewportVariant =
 	/(?<![@\w-])(?:(?:sm|md|lg|xl|2xl|max-[^:\s]+|min-[^:\s]+|portrait|landscape|\[@media[^\]]*\]):)/;
 const viewportVariantName = /^(?:sm|md|lg|xl|2xl|portrait|landscape|min-|max-|\[@media)/;
+const uppercaseClass = /(?:^|[\s:])uppercase(?:\s|$)/;
+const uppercaseMessage = 'Uppercase text is forbidden. Write labels in sentence case.';
 const typeToken =
 	/^var\(--pksx-(?:type-(?:caption|label|body|title|display|editable)|(?:small-)?icon-size)\)$/;
 const canonicalEditable = /^max\(16px,\s*var\(--pksx-type-editable(?:,\s*16px)?\)\)$/;
@@ -503,6 +506,8 @@ export function checkDesignContract(filePath: string, source: string): DesignCon
 					match.index,
 					'Viewport Tailwind variants are forbidden.'
 				);
+			if (uppercaseClass.test(match[1] ?? ''))
+				report('SENTENCE-CASE', 'uppercase', match.index, uppercaseMessage);
 		}
 		return diagnostics;
 	}
@@ -616,8 +621,22 @@ export function checkDesignContract(filePath: string, source: string): DesignCon
 							classAttribute?.start ?? node.start ?? 0,
 							'Viewport Tailwind variants are forbidden.'
 						);
+					if (uppercaseClass.test(value))
+						report(
+							'SENTENCE-CASE',
+							'uppercase',
+							classAttribute?.start ?? node.start ?? 0,
+							uppercaseMessage
+						);
 				}
 			}
+			if (
+				(node.type === 'ClassDirective' && node.name === 'uppercase') ||
+				(node.type === 'StyleDirective' &&
+					node.name === 'text-transform' &&
+					literalStrings(node.value).some((value) => /\buppercase\b/i.test(value)))
+			)
+				report('SENTENCE-CASE', 'uppercase', node.start ?? 0, uppercaseMessage);
 			if (node.type === 'StyleDirective') {
 				const property = node.name ?? '';
 				if (ownedTokens.has(property))
@@ -648,6 +667,8 @@ export function checkDesignContract(filePath: string, source: string): DesignCon
 				'Literal inline styles cannot write owned density properties.'
 			);
 		}
+		for (const match of markup.matchAll(/style\s*=\s*["'][^"']*text-transform\s*:\s*uppercase/gi))
+			report('SENTENCE-CASE', 'uppercase', match.index, uppercaseMessage);
 	}
 
 	if (!css) {
@@ -758,6 +779,8 @@ export function checkDesignContract(filePath: string, source: string): DesignCon
 					(node.start ?? 0) - cssOffset,
 					'Media-bearing imports cannot classify layout.'
 				);
+			if (name === 'apply' && uppercaseClass.test(prelude))
+				report('SENTENCE-CASE', 'uppercase', (node.start ?? 0) - cssOffset, uppercaseMessage);
 			const variantName = prelude.split(/[\s(]/, 1)[0]?.toLowerCase() ?? '';
 			const invalidTallDefinition =
 				name === 'custom-variant' &&
@@ -784,6 +807,9 @@ export function checkDesignContract(filePath: string, source: string): DesignCon
 		const rule = [...ancestors].reverse().find((item) => item.type === 'Rule');
 		const selector = rule?.prelude ? textFor(cssSource, rule.prelude as AstNode) : '';
 		const offset = (node.start ?? 0) - cssOffset;
+
+		if (property === 'text-transform' && /\buppercase\b/i.test(value))
+			report('SENTENCE-CASE', 'uppercase', offset, uppercaseMessage);
 
 		if (property === '--pksx-height-band') {
 			const media = ancestors.find(

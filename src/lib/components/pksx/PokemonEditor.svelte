@@ -3401,6 +3401,7 @@
 	.pokemon-editor :is(button, input):focus-visible {
 		outline: 3px solid var(--pksx-color-accent-ring);
 		outline-offset: -3px;
+		box-shadow: none;
 	}
 
 	.pokemon-editor :is(input, button).staged-field {

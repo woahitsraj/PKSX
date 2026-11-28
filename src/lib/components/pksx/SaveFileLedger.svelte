@@ -2061,6 +2061,7 @@
 		outline: var(--pksx-focus-ring, 2px) solid
 			var(--pksx-color-accent-ring, rgba(184, 88, 56, 0.35));
 		outline-offset: 1px;
+		box-shadow: none;
 	}
 
 	@container save-file-ledger (min-width: 540px) {
