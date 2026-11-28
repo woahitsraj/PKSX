@@ -1011,7 +1011,7 @@ test('[LARGE-1][SURFACE-1] large caps and representative surfaces use bounded ge
 		1200
 	);
 	expect(saves.top, '[LARGE-1] Saves stays top-aligned').toBe(saves.routeTop);
-	expect(saves.columns, '[LARGE-1] Saves must use four columns on a large canvas').toBe(4);
+	expect(saves.columns, '[LARGE-1] Saves must use five columns on a large canvas').toBe(5);
 
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await setSafeArea(page, { top: 0, right: 0, bottom: 0, left: 0 });

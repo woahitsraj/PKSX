@@ -8,6 +8,7 @@
 	import { onMount, tick } from 'svelte';
 	import SavesIntroduction from '$lib/components/pksx/SavesIntroduction.svelte';
 	import DelayedSpinner from '$lib/components/pksx/DelayedSpinner.svelte';
+	import GameArt from '$lib/components/pksx/GameArt.svelte';
 	import RenameSaveFile from '$lib/components/pksx/RenameSaveFile.svelte';
 	import { getSaveDisplayName } from '$lib/pksx/saves';
 	import {
@@ -1112,8 +1113,13 @@
 	}
 
 	function gameTitle(details: SaveCardDetailsState, saveFile: StoredSaveFile) {
-		if (details.status !== 'ready') return displayName(saveFile);
-		return getSaveGameTitle(details.details.summary.gameVersion);
+		const version = gameVersion(details);
+		return version ? getSaveGameTitle(version) : displayName(saveFile);
+	}
+
+	function gameVersion(details: SaveCardDetailsState) {
+		if (details.status === 'ready') return details.details.summary.gameVersion;
+		return details.status === 'loading' ? details.gameVersion : undefined;
 	}
 
 	function getErrorMessage(error: unknown) {
@@ -1279,7 +1285,7 @@
 									>
 										<button
 											type="button"
-											class="card-main"
+											class="card-main save-main"
 											data-pksx-control-category="card"
 											tabindex="-1"
 											aria-label={'Open ' + displayName(saveFile) + ' in Boxes'}
@@ -1289,52 +1295,56 @@
 												void activateSaveFile(saveFile, 'boxes');
 											}}
 										>
-											<span class="card-heading">
-												<strong>{gameTitle(details, saveFile)}</strong>
-												{#if saveFile.id === activeSaveFileId}<em>Active</em>{/if}
-												{#if discovery.sources[saveFile.id]}<em class="attention"
-														>{discovery.sources[saveFile.id].kind === 'changed'
-															? 'Updated'
-															: 'Restore'}</em
-													>{/if}
+											<GameArt gameVersion={gameVersion(details)} />
+											<span class="card-copy">
+												<span class="card-heading">
+													<strong>{gameTitle(details, saveFile)}</strong>
+													<span class="card-badges">
+														{#if saveFile.id === activeSaveFileId}<em>Active</em>{/if}
+														{#if discovery.sources[saveFile.id]}<em class="attention"
+																>{discovery.sources[saveFile.id].kind === 'changed'
+																	? 'Updated'
+																	: 'Restore'}</em
+															>{/if}
+													</span>
+												</span>
+												{#if details.status === 'ready'}
+													<span class="trainer"
+														>{details.details.summary.trainerName ?? 'Unknown Trainer'}</span
+													>
+													<span
+														class="file-name"
+														title={saveFile.originalFileName ?? undefined}
+														elementtiming="save-card">{displayName(saveFile)}</span
+													>
+													{#if sourceLabel(saveFile)}<span class="file-name source"
+															>{sourceLabel(saveFile)}</span
+														>{/if}
+													{#if saveFile.displayName}<span class="file-name"
+															>{saveFile.originalFileName ?? 'No original filename'}</span
+														>{/if}
+													<span class="card-stats">
+														<span><b>{details.details.summary.boxCount}</b> boxes</span>
+														<span><b>{details.details.pokemonCount}</b> Pokemon</span>
+													</span>
+												{:else}
+													<span
+														class="file-name"
+														title={saveFile.originalFileName ?? undefined}
+														elementtiming="save-card">{displayName(saveFile)}</span
+													>
+													{#if sourceLabel(saveFile)}<span class="file-name source"
+															>{sourceLabel(saveFile)}</span
+														>{/if}
+													<span class="detail-state">
+														{#if details.status === 'loading'}
+															<DelayedSpinner active label={`Reading ${displayName(saveFile)}`} />
+														{:else}
+															Details unavailable
+														{/if}
+													</span>
+												{/if}
 											</span>
-											{#if details.status === 'ready'}
-												<span class="trainer"
-													>{details.details.summary.trainerName ?? 'Unknown Trainer'}</span
-												>
-												<span
-													class="file-name"
-													title={saveFile.originalFileName ?? undefined}
-													elementtiming="save-card">{displayName(saveFile)}</span
-												>
-												{#if sourceLabel(saveFile)}<span class="file-name source"
-														>{sourceLabel(saveFile)}</span
-													>{/if}
-												{#if saveFile.displayName}<span class="file-name"
-														>{saveFile.originalFileName ?? 'No original filename'}</span
-													>{/if}
-												<span class="card-stats">
-													<b>{details.details.summary.boxCount}</b> boxes
-													<i aria-hidden="true"></i>
-													<b>{details.details.pokemonCount}</b> Pokemon
-												</span>
-											{:else}
-												<span
-													class="file-name"
-													title={saveFile.originalFileName ?? undefined}
-													elementtiming="save-card">{displayName(saveFile)}</span
-												>
-												{#if sourceLabel(saveFile)}<span class="file-name source"
-														>{sourceLabel(saveFile)}</span
-													>{/if}
-												<span class="detail-state">
-													{#if details.status === 'loading'}
-														<DelayedSpinner active label={`Reading ${displayName(saveFile)}`} />
-													{:else}
-														Details unavailable
-													{/if}
-												</span>
-											{/if}
 										</button>
 										<button
 											type="button"
@@ -1760,9 +1770,10 @@
 
 	.saves-grid {
 		display: grid;
-		grid-template-columns: minmax(240px, 1fr);
+		grid-template-columns: repeat(auto-fill, minmax(clamp(136px, 16cqi, 190px), 1fr));
 		gap: var(--pksx-space-2);
 		align-content: start;
+		--game-art-size: clamp(96px, 11cqi, 136px);
 	}
 
 	.saves-grid-row {
@@ -1773,7 +1784,7 @@
 	.storage-card,
 	.import-cell {
 		position: relative;
-		min-width: 240px;
+		min-width: 0;
 		min-height: 112px;
 		border: var(--pksx-border-width) solid var(--rule);
 		border-radius: var(--pksx-radius-small) var(--pksx-radius-large) var(--pksx-radius-large)
@@ -1807,6 +1818,7 @@
 	.card-main,
 	.import-cell > button {
 		width: 100%;
+		height: 100%;
 		min-height: 110px;
 		border: 0;
 		background: transparent;
@@ -1823,6 +1835,49 @@
 		grid-template-rows: auto auto auto 1fr;
 		gap: 2px var(--pksx-space-2);
 		text-align: left;
+	}
+
+	.card-main.save-main {
+		display: flex;
+		flex-direction: column;
+		gap: var(--pksx-space-2);
+		padding: var(--pksx-space-2);
+	}
+
+	.save-main > :global(.game-art) {
+		align-self: center;
+	}
+
+	.card-copy {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.card-copy .card-stats,
+	.card-copy .detail-state {
+		align-self: stretch;
+		margin-top: auto;
+	}
+
+	.card-copy .card-stats {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0 var(--pksx-space-2);
+	}
+
+	.card-copy .card-stats span {
+		white-space: nowrap;
+	}
+
+	.card-badges {
+		position: absolute;
+		top: var(--pksx-space-2);
+		left: var(--pksx-space-2);
+		display: flex;
+		gap: var(--pksx-space-1);
 	}
 
 	.card-main.storage-main {
@@ -1851,11 +1906,9 @@
 	}
 
 	.card-heading strong {
-		overflow: hidden;
 		font-size: var(--pksx-type-title);
 		line-height: 1.1;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		overflow-wrap: anywhere;
 	}
 
 	.card-heading em.attention {
@@ -1892,9 +1945,7 @@
 
 	.file-name {
 		font-family: var(--pksx-font-mono);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		overflow-wrap: anywhere;
 	}
 
 	.card-stats,
@@ -1965,23 +2016,5 @@
 	.import-cell small {
 		color: var(--ink-soft);
 		font: 600 var(--pksx-type-label) / 1.25 var(--pksx-font-sans);
-	}
-
-	@container pksx-density (min-width: 520px) {
-		.saves-grid {
-			grid-template-columns: repeat(2, minmax(240px, 1fr));
-		}
-	}
-
-	@container pksx-density (min-width: 780px) {
-		.saves-grid {
-			grid-template-columns: repeat(3, minmax(240px, 1fr));
-		}
-	}
-
-	@container pksx-density (min-width: 1040px) {
-		.saves-grid {
-			grid-template-columns: repeat(4, minmax(240px, 1fr));
-		}
 	}
 </style>

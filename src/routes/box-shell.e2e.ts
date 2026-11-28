@@ -7588,7 +7588,7 @@ test('Saves uses one identity grid with internal scrolling at the landscape floo
 		});
 	}
 	await expect(page.locator('.save-card')).toHaveCount(4);
-	await expect(grid).toHaveAttribute('aria-colcount', '2');
+	await expect(grid).toHaveAttribute('aria-colcount', '4');
 	await expect(grid).toHaveAttribute('aria-activedescendant', /saves-target-.+/);
 	const floorFit = await page.locator('.saves-scrollport').evaluate((scrollport) => {
 		const viewport = scrollport.getBoundingClientRect();
@@ -7625,7 +7625,7 @@ test('Saves uses one identity grid with internal scrolling at the landscape floo
 	await page.keyboard.press('ArrowUp');
 	const targetBeforeResize = await grid.getAttribute('aria-activedescendant');
 	await page.setViewportSize({ width: 360, height: 640 });
-	await expect(grid).toHaveAttribute('aria-colcount', '1');
+	await expect(grid).toHaveAttribute('aria-colcount', '2');
 	await expect(grid).toHaveAttribute('aria-activedescendant', targetBeforeResize!);
 
 	const scrollState = await page.locator('.saves-scrollport').evaluate((panel) => ({
@@ -7642,7 +7642,7 @@ test('Saves uses one identity grid with internal scrolling at the landscape floo
 	await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });
 
-test('portrait Saves keeps the document fixed and the grid at one column', async ({ page }) => {
+test('portrait Saves keeps the document fixed and the grid at two columns', async ({ page }) => {
 	await openEmptySaves(page);
 	await page.setViewportSize({ width: 360, height: 640 });
 	await loadRoute(page, '/');
@@ -7693,7 +7693,7 @@ test('portrait Saves keeps the document fixed and the grid at one column', async
 	const gridColumns = await page
 		.locator('.saves-grid')
 		.evaluate((gridElement) => getComputedStyle(gridElement).gridTemplateColumns);
-	expect(gridColumns.trim().split(/\s+/)).toHaveLength(1);
+	expect(gridColumns.trim().split(/\s+/)).toHaveLength(2);
 
 	const scrollState = await page.evaluate(() => ({
 		innerHeight,
@@ -8046,7 +8046,7 @@ test('Saves keeps unavailable cards actionable and restores semantic focus after
 	await expect(grid).toBeFocused();
 
 	await page.setViewportSize({ width: 1920, height: 1080 });
-	await expect(grid).toHaveAttribute('aria-colcount', '4');
+	await expect(grid).toHaveAttribute('aria-colcount', '5');
 	await expect
 		.poll(() => page.locator('.saves-density').evaluate((element) => element.clientWidth))
 		.toBeLessThanOrEqual(1200);

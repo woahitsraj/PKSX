@@ -1,0 +1,493 @@
+{
+	"source": {
+		"name": "libretro-thumbnails, and English Wikipedia for Nintendo Switch games",
+		"url": "https://github.com/libretro-thumbnails/libretro-thumbnails",
+		"imageCopyright": "Box art is the property of Nintendo, Creatures Inc., and GAME FREAK inc. PKSX resizes these scans and holds no license to them.",
+		"repositories": {
+			"gb": {
+				"repository": "https://github.com/libretro-thumbnails/Nintendo_-_Game_Boy",
+				"revision": "f033af49af2d9761d6821aff479bb0ba5feea5e3"
+			},
+			"gbc": {
+				"repository": "https://github.com/libretro-thumbnails/Nintendo_-_Game_Boy_Color",
+				"revision": "0931985ba8a3a9f38fb87f006611a13dc094260f"
+			},
+			"gba": {
+				"repository": "https://github.com/libretro-thumbnails/Nintendo_-_Game_Boy_Advance",
+				"revision": "23b8665408e767fd3220bfb83fd5ad8dfe1a9aa1"
+			},
+			"nds": {
+				"repository": "https://github.com/libretro-thumbnails/Nintendo_-_Nintendo_DS",
+				"revision": "a119dcab8fa04c9974b9c229eda824318d923322"
+			},
+			"3ds": {
+				"repository": "https://github.com/libretro-thumbnails/Nintendo_-_Nintendo_3DS",
+				"revision": "a1e242aca9d194ba7c168e38e14c637ff206189f"
+			},
+			"gcn": {
+				"repository": "https://github.com/libretro-thumbnails/Nintendo_-_GameCube",
+				"revision": "c0e778f3242811f31f4815ff2807022c1c5ac7bd"
+			},
+			"wii": {
+				"repository": "https://github.com/libretro-thumbnails/Nintendo_-_Wii",
+				"revision": "1a44c6f4251dc9ef051043f22f8d9df4237c1ee8"
+			}
+		}
+	},
+	"summary": {
+		"coverCount": 42,
+		"byteSize": 739936,
+		"versionCount": 62,
+		"unmappedVersions": ["GN", "RBY", "GSC", "Pokémon Unbound"]
+	},
+	"covers": {
+		"red": {
+			"title": "Pokemon Red",
+			"platform": "gb",
+			"path": "/game-art/red.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Game_Boy/f033af49af2d9761d6821aff479bb0ba5feea5e3/Named_Boxarts/Pokemon%20-%20Red%20Version%20(USA%2C%20Europe)%20(SGB%20Enhanced).png",
+			"width": 256,
+			"height": 256,
+			"byteSize": 22730
+		},
+		"blue": {
+			"title": "Pokemon Blue",
+			"platform": "gb",
+			"path": "/game-art/blue.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Game_Boy/f033af49af2d9761d6821aff479bb0ba5feea5e3/Named_Boxarts/Pokemon%20-%20Blue%20Version%20(USA%2C%20Europe)%20(SGB%20Enhanced).png",
+			"width": 256,
+			"height": 256,
+			"byteSize": 22684
+		},
+		"yellow": {
+			"title": "Pokemon Yellow",
+			"platform": "gb",
+			"path": "/game-art/yellow.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Game_Boy/f033af49af2d9761d6821aff479bb0ba5feea5e3/Named_Boxarts/Pokemon%20-%20Yellow%20Version%20-%20Special%20Pikachu%20Edition%20(USA%2C%20Europe)%20(CGB%2BSGB%20Enhanced).png",
+			"width": 256,
+			"height": 256,
+			"byteSize": 20876
+		},
+		"gold": {
+			"title": "Pokemon Gold",
+			"platform": "gbc",
+			"path": "/game-art/gold.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Game_Boy_Color/0931985ba8a3a9f38fb87f006611a13dc094260f/Named_Boxarts/Pokemon%20-%20Gold%20Version%20(USA%2C%20Europe)%20(SGB%20Enhanced)%20(GB%20Compatible).png",
+			"width": 256,
+			"height": 256,
+			"byteSize": 25220
+		},
+		"silver": {
+			"title": "Pokemon Silver",
+			"platform": "gbc",
+			"path": "/game-art/silver.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Game_Boy_Color/0931985ba8a3a9f38fb87f006611a13dc094260f/Named_Boxarts/Pokemon%20-%20Silver%20Version%20(USA%2C%20Europe)%20(SGB%20Enhanced)%20(GB%20Compatible).png",
+			"width": 256,
+			"height": 256,
+			"byteSize": 20594
+		},
+		"crystal": {
+			"title": "Pokemon Crystal",
+			"platform": "gbc",
+			"path": "/game-art/crystal.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Game_Boy_Color/0931985ba8a3a9f38fb87f006611a13dc094260f/Named_Boxarts/Pokemon%20-%20Crystal%20Version%20(USA).png",
+			"width": 256,
+			"height": 256,
+			"byteSize": 22278
+		},
+		"ruby": {
+			"title": "Pokemon Ruby",
+			"platform": "gba",
+			"path": "/game-art/ruby.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Game_Boy_Advance/23b8665408e767fd3220bfb83fd5ad8dfe1a9aa1/Named_Boxarts/Pokemon%20-%20Ruby%20Version%20(USA%2C%20Europe).png",
+			"width": 256,
+			"height": 256,
+			"byteSize": 18304
+		},
+		"sapphire": {
+			"title": "Pokemon Sapphire",
+			"platform": "gba",
+			"path": "/game-art/sapphire.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Game_Boy_Advance/23b8665408e767fd3220bfb83fd5ad8dfe1a9aa1/Named_Boxarts/Pokemon%20-%20Sapphire%20Version%20(USA%2C%20Europe).png",
+			"width": 256,
+			"height": 256,
+			"byteSize": 17992
+		},
+		"emerald": {
+			"title": "Pokemon Emerald",
+			"platform": "gba",
+			"path": "/game-art/emerald.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Game_Boy_Advance/23b8665408e767fd3220bfb83fd5ad8dfe1a9aa1/Named_Boxarts/Pokemon%20-%20Emerald%20Version%20(USA%2C%20Europe).png",
+			"width": 256,
+			"height": 256,
+			"byteSize": 18866
+		},
+		"firered": {
+			"title": "Pokemon FireRed",
+			"platform": "gba",
+			"path": "/game-art/firered.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Game_Boy_Advance/23b8665408e767fd3220bfb83fd5ad8dfe1a9aa1/Named_Boxarts/Pokemon%20-%20FireRed%20Version%20(USA%2C%20Europe).png",
+			"width": 256,
+			"height": 256,
+			"byteSize": 19586
+		},
+		"leafgreen": {
+			"title": "Pokemon LeafGreen",
+			"platform": "gba",
+			"path": "/game-art/leafgreen.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Game_Boy_Advance/23b8665408e767fd3220bfb83fd5ad8dfe1a9aa1/Named_Boxarts/Pokemon%20-%20LeafGreen%20Version%20(USA%2C%20Europe).png",
+			"width": 256,
+			"height": 256,
+			"byteSize": 19034
+		},
+		"diamond": {
+			"title": "Pokemon Diamond",
+			"platform": "nds",
+			"path": "/game-art/diamond.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_DS/a119dcab8fa04c9974b9c229eda824318d923322/Named_Boxarts/Pokemon%20-%20Diamond%20Version%20(USA)%20(Rev%205).png",
+			"width": 256,
+			"height": 230,
+			"byteSize": 14982
+		},
+		"pearl": {
+			"title": "Pokemon Pearl",
+			"platform": "nds",
+			"path": "/game-art/pearl.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_DS/a119dcab8fa04c9974b9c229eda824318d923322/Named_Boxarts/Pokemon%20-%20Pearl%20Version%20(USA)%20(Rev%205).png",
+			"width": 256,
+			"height": 230,
+			"byteSize": 16274
+		},
+		"platinum": {
+			"title": "Pokemon Platinum",
+			"platform": "nds",
+			"path": "/game-art/platinum.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_DS/a119dcab8fa04c9974b9c229eda824318d923322/Named_Boxarts/Pokemon%20-%20Platinum%20Version%20(USA).png",
+			"width": 256,
+			"height": 230,
+			"byteSize": 18262
+		},
+		"heartgold": {
+			"title": "Pokemon HeartGold",
+			"platform": "nds",
+			"path": "/game-art/heartgold.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_DS/a119dcab8fa04c9974b9c229eda824318d923322/Named_Boxarts/Pokemon%20-%20HeartGold%20Version%20(USA).png",
+			"width": 256,
+			"height": 229,
+			"byteSize": 15260
+		},
+		"soulsilver": {
+			"title": "Pokemon SoulSilver",
+			"platform": "nds",
+			"path": "/game-art/soulsilver.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_DS/a119dcab8fa04c9974b9c229eda824318d923322/Named_Boxarts/Pokemon%20-%20SoulSilver%20Version%20(USA).png",
+			"width": 256,
+			"height": 234,
+			"byteSize": 16888
+		},
+		"black": {
+			"title": "Pokemon Black",
+			"platform": "nds",
+			"path": "/game-art/black.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_DS/a119dcab8fa04c9974b9c229eda824318d923322/Named_Boxarts/Pokemon%20-%20Black%20Version%20(USA%2C%20Europe)%20(NDSi%20Enhanced).png",
+			"width": 256,
+			"height": 231,
+			"byteSize": 15164
+		},
+		"white": {
+			"title": "Pokemon White",
+			"platform": "nds",
+			"path": "/game-art/white.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_DS/a119dcab8fa04c9974b9c229eda824318d923322/Named_Boxarts/Pokemon%20-%20White%20Version%20(USA%2C%20Europe)%20(NDSi%20Enhanced).png",
+			"width": 256,
+			"height": 230,
+			"byteSize": 12454
+		},
+		"black-2": {
+			"title": "Pokemon Black 2",
+			"platform": "nds",
+			"path": "/game-art/black-2.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_DS/a119dcab8fa04c9974b9c229eda824318d923322/Named_Boxarts/Pokemon%20-%20Black%20Version%202%20(USA%2C%20Europe)%20(NDSi%20Enhanced).png",
+			"width": 256,
+			"height": 227,
+			"byteSize": 16868
+		},
+		"white-2": {
+			"title": "Pokemon White 2",
+			"platform": "nds",
+			"path": "/game-art/white-2.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_DS/a119dcab8fa04c9974b9c229eda824318d923322/Named_Boxarts/Pokemon%20-%20White%20Version%202%20(USA%2C%20Europe)%20(NDSi%20Enhanced).png",
+			"width": 256,
+			"height": 227,
+			"byteSize": 17150
+		},
+		"x": {
+			"title": "Pokemon X",
+			"platform": "3ds",
+			"path": "/game-art/x.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_3DS/a1e242aca9d194ba7c168e38e14c637ff206189f/Named_Boxarts/Pokemon%20X%20(USA)%20(En%2CJa%2CFr%2CDe%2CEs%2CIt%2CKo).png",
+			"width": 256,
+			"height": 227,
+			"byteSize": 16450
+		},
+		"y": {
+			"title": "Pokemon Y",
+			"platform": "3ds",
+			"path": "/game-art/y.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_3DS/a1e242aca9d194ba7c168e38e14c637ff206189f/Named_Boxarts/Pokemon%20Y%20(USA)%20(En%2CJa%2CFr%2CDe%2CEs%2CIt%2CKo).png",
+			"width": 256,
+			"height": 227,
+			"byteSize": 18090
+		},
+		"omega-ruby": {
+			"title": "Pokemon Omega Ruby",
+			"platform": "3ds",
+			"path": "/game-art/omega-ruby.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_3DS/a1e242aca9d194ba7c168e38e14c637ff206189f/Named_Boxarts/Pokemon%20Omega%20Ruby%20(USA)%20(En%2CJa%2CFr%2CDe%2CEs%2CIt%2CKo).png",
+			"width": 256,
+			"height": 227,
+			"byteSize": 18786
+		},
+		"alpha-sapphire": {
+			"title": "Pokemon Alpha Sapphire",
+			"platform": "3ds",
+			"path": "/game-art/alpha-sapphire.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_3DS/a1e242aca9d194ba7c168e38e14c637ff206189f/Named_Boxarts/Pokemon%20Alpha%20Sapphire%20(USA)%20(En%2CJa%2CFr%2CDe%2CEs%2CIt%2CKo).png",
+			"width": 256,
+			"height": 227,
+			"byteSize": 16198
+		},
+		"sun": {
+			"title": "Pokemon Sun",
+			"platform": "3ds",
+			"path": "/game-art/sun.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_3DS/a1e242aca9d194ba7c168e38e14c637ff206189f/Named_Boxarts/Pokemon%20Sun%20(USA)%20(En%2CJa%2CFr%2CDe%2CEs%2CIt%2CZh%2CKo).png",
+			"width": 256,
+			"height": 229,
+			"byteSize": 18452
+		},
+		"moon": {
+			"title": "Pokemon Moon",
+			"platform": "3ds",
+			"path": "/game-art/moon.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_3DS/a1e242aca9d194ba7c168e38e14c637ff206189f/Named_Boxarts/Pokemon%20Moon%20(USA)%20(En%2CJa%2CFr%2CDe%2CEs%2CIt%2CZh%2CKo).png",
+			"width": 256,
+			"height": 229,
+			"byteSize": 18380
+		},
+		"ultra-sun": {
+			"title": "Pokemon Ultra Sun",
+			"platform": "3ds",
+			"path": "/game-art/ultra-sun.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_3DS/a1e242aca9d194ba7c168e38e14c637ff206189f/Named_Boxarts/Pokemon%20Ultra%20Sun%20(USA)%20(En%2CJa%2CFr%2CDe%2CEs%2CIt%2CZh%2CKo).png",
+			"width": 256,
+			"height": 227,
+			"byteSize": 19378
+		},
+		"ultra-moon": {
+			"title": "Pokemon Ultra Moon",
+			"platform": "3ds",
+			"path": "/game-art/ultra-moon.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_3DS/a1e242aca9d194ba7c168e38e14c637ff206189f/Named_Boxarts/Pokemon%20Ultra%20Moon%20(USA)%20(En%2CJa%2CFr%2CDe%2CEs%2CIt%2CZh%2CKo).png",
+			"width": 256,
+			"height": 227,
+			"byteSize": 19330
+		},
+		"box-ruby-sapphire": {
+			"title": "Pokemon Box Ruby / Sapphire",
+			"platform": "gcn",
+			"path": "/game-art/box-ruby-sapphire.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_GameCube/c0e778f3242811f31f4815ff2807022c1c5ac7bd/Named_Boxarts/Pokemon%20Box_%20Ruby%20_%20Sapphire%20(USA).png",
+			"width": 185,
+			"height": 256,
+			"byteSize": 16636
+		},
+		"colosseum": {
+			"title": "Pokemon Colosseum",
+			"platform": "gcn",
+			"path": "/game-art/colosseum.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_GameCube/c0e778f3242811f31f4815ff2807022c1c5ac7bd/Named_Boxarts/Pokemon%20Colosseum%20(USA).png",
+			"width": 183,
+			"height": 256,
+			"byteSize": 15902
+		},
+		"xd": {
+			"title": "Pokemon XD",
+			"platform": "gcn",
+			"path": "/game-art/xd.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_GameCube/c0e778f3242811f31f4815ff2807022c1c5ac7bd/Named_Boxarts/Pokemon%20XD%20-%20Gale%20of%20Darkness%20(USA).png",
+			"width": 183,
+			"height": 256,
+			"byteSize": 12052
+		},
+		"battle-revolution": {
+			"title": "Pokemon Battle Revolution",
+			"platform": "wii",
+			"path": "/game-art/battle-revolution.webp",
+			"sourceUrl": "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Wii/1a44c6f4251dc9ef051043f22f8d9df4237c1ee8/Named_Boxarts/Pokemon%20Battle%20Revolution%20(USA).png",
+			"width": 182,
+			"height": 256,
+			"byteSize": 16020
+		},
+		"lets-go-pikachu": {
+			"title": "Pokemon Let's Go, Pikachu!",
+			"platform": "switch",
+			"path": "/game-art/lets-go-pikachu.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/4/47/Pok%C3%A9mon_Let%27s_Go%2C_Pikachu%21_and_Let%27s_Go%2C_Eevee%21.jpg",
+			"width": 223,
+			"height": 223,
+			"byteSize": 13394
+		},
+		"lets-go-eevee": {
+			"title": "Pokemon Let's Go, Eevee!",
+			"platform": "switch",
+			"path": "/game-art/lets-go-eevee.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/4/47/Pok%C3%A9mon_Let%27s_Go%2C_Pikachu%21_and_Let%27s_Go%2C_Eevee%21.jpg",
+			"width": 223,
+			"height": 223,
+			"byteSize": 13292
+		},
+		"sword": {
+			"title": "Pokemon Sword",
+			"platform": "switch",
+			"path": "/game-art/sword.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/f/fa/Pok%C3%A9mon_Sword_and_Shield.jpg",
+			"width": 223,
+			"height": 223,
+			"byteSize": 16606
+		},
+		"shield": {
+			"title": "Pokemon Shield",
+			"platform": "switch",
+			"path": "/game-art/shield.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/f/fa/Pok%C3%A9mon_Sword_and_Shield.jpg",
+			"width": 223,
+			"height": 223,
+			"byteSize": 17402
+		},
+		"brilliant-diamond": {
+			"title": "Pokemon Brilliant Diamond",
+			"platform": "switch",
+			"path": "/game-art/brilliant-diamond.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/3/3e/Pokemon_Brilliant_Diamond_Shining_Pearl.png",
+			"width": 226,
+			"height": 220,
+			"byteSize": 14738
+		},
+		"shining-pearl": {
+			"title": "Pokemon Shining Pearl",
+			"platform": "switch",
+			"path": "/game-art/shining-pearl.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/3/3e/Pokemon_Brilliant_Diamond_Shining_Pearl.png",
+			"width": 226,
+			"height": 220,
+			"byteSize": 14336
+		},
+		"legends-arceus": {
+			"title": "Pokemon Legends: Arceus",
+			"platform": "switch",
+			"path": "/game-art/legends-arceus.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/9/9c/Pokemon_Legends_Arceus_cover.jpg",
+			"width": 256,
+			"height": 256,
+			"byteSize": 16174
+		},
+		"scarlet": {
+			"title": "Pokemon Scarlet",
+			"platform": "switch",
+			"path": "/game-art/scarlet.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/0/00/Pok%C3%A9mon_Scarlet_and_Violet_banner.png",
+			"width": 210,
+			"height": 237,
+			"byteSize": 21364
+		},
+		"violet": {
+			"title": "Pokemon Violet",
+			"platform": "switch",
+			"path": "/game-art/violet.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/0/00/Pok%C3%A9mon_Scarlet_and_Violet_banner.png",
+			"width": 210,
+			"height": 237,
+			"byteSize": 17282
+		},
+		"legends-za": {
+			"title": "Pokemon Legends: Z-A",
+			"platform": "switch",
+			"path": "/game-art/legends-za.webp",
+			"sourceUrl": "https://upload.wikimedia.org/wikipedia/en/2/2d/Pokemon_Legends_Z-A_Key_Art_Logo.png",
+			"width": 256,
+			"height": 256,
+			"byteSize": 18208
+		}
+	},
+	"versions": {
+		"RD": { "platform": "gb", "covers": ["red"] },
+		"BU": { "platform": "gb", "covers": ["blue"] },
+		"GN": { "platform": "gb", "covers": [] },
+		"YW": { "platform": "gb", "covers": ["yellow"] },
+		"RB": { "platform": "gb", "covers": ["red", "blue"] },
+		"RBY": { "platform": "gb", "covers": [] },
+		"GD": { "platform": "gbc", "covers": ["gold"] },
+		"SI": { "platform": "gbc", "covers": ["silver"] },
+		"GS": { "platform": "gbc", "covers": ["gold", "silver"] },
+		"C": { "platform": "gbc", "covers": ["crystal"] },
+		"GSC": { "platform": "gbc", "covers": [] },
+		"R": { "platform": "gba", "covers": ["ruby"] },
+		"S": { "platform": "gba", "covers": ["sapphire"] },
+		"RS": { "platform": "gba", "covers": ["ruby", "sapphire"] },
+		"E": { "platform": "gba", "covers": ["emerald"] },
+		"FR": { "platform": "gba", "covers": ["firered", "leafgreen"] },
+		"LG": { "platform": "gba", "covers": ["leafgreen"] },
+		"FRLG": { "platform": "gba", "covers": ["firered", "leafgreen"] },
+		"Pokémon Unbound": { "platform": "gba", "covers": [] },
+		"D": { "platform": "nds", "covers": ["diamond"] },
+		"P": { "platform": "nds", "covers": ["pearl"] },
+		"DP": { "platform": "nds", "covers": ["diamond", "pearl"] },
+		"Pt": { "platform": "nds", "covers": ["platinum"] },
+		"HG": { "platform": "nds", "covers": ["heartgold"] },
+		"SS": { "platform": "nds", "covers": ["soulsilver"] },
+		"HGSS": { "platform": "nds", "covers": ["heartgold", "soulsilver"] },
+		"B": { "platform": "nds", "covers": ["black"] },
+		"W": { "platform": "nds", "covers": ["white"] },
+		"BW": { "platform": "nds", "covers": ["black", "white"] },
+		"B2": { "platform": "nds", "covers": ["black-2"] },
+		"W2": { "platform": "nds", "covers": ["white-2"] },
+		"B2W2": { "platform": "nds", "covers": ["black-2", "white-2"] },
+		"X": { "platform": "3ds", "covers": ["x"] },
+		"Y": { "platform": "3ds", "covers": ["y"] },
+		"XY": { "platform": "3ds", "covers": ["x", "y"] },
+		"OR": { "platform": "3ds", "covers": ["omega-ruby"] },
+		"AS": { "platform": "3ds", "covers": ["alpha-sapphire"] },
+		"ORAS": { "platform": "3ds", "covers": ["omega-ruby", "alpha-sapphire"] },
+		"SN": { "platform": "3ds", "covers": ["sun"] },
+		"MN": { "platform": "3ds", "covers": ["moon"] },
+		"SM": { "platform": "3ds", "covers": ["sun", "moon"] },
+		"US": { "platform": "3ds", "covers": ["ultra-sun"] },
+		"UM": { "platform": "3ds", "covers": ["ultra-moon"] },
+		"USUM": { "platform": "3ds", "covers": ["ultra-sun", "ultra-moon"] },
+		"RSBOX": { "platform": "gcn", "covers": ["box-ruby-sapphire"] },
+		"COLO": { "platform": "gcn", "covers": ["colosseum"] },
+		"XD": { "platform": "gcn", "covers": ["xd"] },
+		"BATREV": { "platform": "wii", "covers": ["battle-revolution"] },
+		"GP": { "platform": "switch", "covers": ["lets-go-pikachu"] },
+		"GE": { "platform": "switch", "covers": ["lets-go-eevee"] },
+		"GG": {
+			"platform": "switch",
+			"covers": ["lets-go-pikachu", "lets-go-eevee"]
+		},
+		"SW": { "platform": "switch", "covers": ["sword"] },
+		"SH": { "platform": "switch", "covers": ["shield"] },
+		"SWSH": { "platform": "switch", "covers": ["sword", "shield"] },
+		"BD": { "platform": "switch", "covers": ["brilliant-diamond"] },
+		"SP": { "platform": "switch", "covers": ["shining-pearl"] },
+		"BDSP": {
+			"platform": "switch",
+			"covers": ["brilliant-diamond", "shining-pearl"]
+		},
+		"PLA": { "platform": "switch", "covers": ["legends-arceus"] },
+		"SL": { "platform": "switch", "covers": ["scarlet"] },
+		"VL": { "platform": "switch", "covers": ["violet"] },
+		"SV": { "platform": "switch", "covers": ["scarlet", "violet"] },
+		"ZA": { "platform": "switch", "covers": ["legends-za"] }
+	}
+}

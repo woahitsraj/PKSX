@@ -31,7 +31,7 @@ for (const absolute of files) {
 	const bytes = await readFile(absolute);
 	const group = name.startsWith('pkhex-engine/')
 		? 'engine'
-		: name.startsWith('sprites/')
+		: name.startsWith('sprites/') || name.startsWith('game-art/')
 			? 'sprites'
 			: name.startsWith('_app/immutable/workers/')
 				? 'workers'
