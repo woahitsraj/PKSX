@@ -39,7 +39,13 @@
 	const all = $derived(pokedex?.species ?? []);
 	const fields = $derived(pokedex?.fields ?? []);
 	const railFields = $derived(fields.filter((f) => f.species === null));
-	const fieldsOf = (id: number) => fields.filter((f) => f.species === id);
+	const speciesFields = $derived(
+		fields.reduce<Record<number, PokedexField[]>>((byId, f) => {
+			if (f.species != null) (byId[f.species] ??= []).push(f);
+			return byId;
+		}, {})
+	);
+	const fieldsOf = (id: number) => speciesFields[id] ?? [];
 	const flagsOf = (entry: PokedexProjection['species'][number]) =>
 		typeof entry.flagSet === 'number' ? (pokedex?.flagSets?.[entry.flagSet] ?? []) : [];
 	const species = $derived(

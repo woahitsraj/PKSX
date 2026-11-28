@@ -12,8 +12,8 @@ public sealed record PokedexProjection(string Status, string? Reason, List<Poked
     {
         if (!save.HasPokeDex)
             return new("unavailable", "This Save File format has no Pokedex.", [], []);
-        if (save is not (SAV1 or SAV2 or SAV3 or SAV4 or SAV5))
-            return new("unavailable", "Pokedex editing currently supports Generations 1 through 5 handheld Save Files.", [], []);
+        if (save is not (SAV1 or SAV2 or SAV3 or SAV4 or SAV5 or SAV6XY or SAV6AO or SAV7SM or SAV7USUM))
+            return new("unavailable", "Pokedex editing currently supports Generations 1 through 7 handheld Save Files.", [], []);
         List<string[]> flagSets = [];
         Dictionary<string, int> flagSetIds = [];
         var species = Enumerable.Range(1, save.MaxSpeciesID).Select(id =>
@@ -60,6 +60,21 @@ public sealed record PokedexProjection(string Status, string? Reason, List<Poked
             fields.Add(new("national-mode", "National Pokedex mode (0 = off, 1 = on)", s5.Zukan.IsNationalDexMode ? 1 : 0, 0, 1));
             fields.Add(new("opens-on", "Species number the Pokedex opens on", s5.Zukan.InitialSpecies, 0, save.MaxSpeciesID));
             fields.Add(new("spinda-pid", "Spinda display PID", s5.Zukan.Spinda, 0, uint.MaxValue, (int)PKHeX.Core.Species.Spinda));
+        }
+        if (PokedexFlags.Dex6(save) is { } d6)
+        {
+            fields.Add(new("national", "National Pokedex (0 = off, 1 = on)", d6.IsNationalDexUnlocked ? 1 : 0, 0, 1));
+            fields.Add(new("national-mode", "National Pokedex mode (0 = off, 1 = on)", d6.IsNationalDexMode ? 1 : 0, 0, 1));
+            fields.Add(new("opens-on", "Species number the Pokedex opens on", d6.InitialSpecies, 0, save.MaxSpeciesID));
+            fields.Add(new("spinda-pid", "Spinda display PID", d6.Spinda, 0, uint.MaxValue, (int)PKHeX.Core.Species.Spinda));
+        }
+        if (save is SAV6AO ao)
+        {
+            for (ushort id = 1; id <= save.MaxSpeciesID; id++)
+            {
+                fields.Add(new($"seen-count-{id}", "Times seen", ao.Zukan.GetCountSeen(id), 0, ushort.MaxValue, id));
+                fields.Add(new($"obtained-count-{id}", "Times obtained", ao.Zukan.GetCountObtained(id), 0, ushort.MaxValue, id));
+            }
         }
         return new("available", null, species, fields, flagSets.Count == 0 ? null : flagSets);
     }
@@ -134,6 +149,12 @@ public static partial class PkhexEngineExports
             case (SAV5 s5, "national-mode"): s5.Zukan.IsNationalDexMode = value != 0; break;
             case (SAV5 s5, "opens-on"): s5.Zukan.InitialSpecies = (ushort)value; break;
             case (SAV5 s5, "spinda-pid"): s5.Zukan.Spinda = (uint)value; break;
+            case (SAV6AO ao, _) when field.Species is int id && field.Key.StartsWith("seen-count-"): ao.Zukan.SetCountSeen((ushort)id, (ushort)value); break;
+            case (SAV6AO ao, _) when field.Species is int id && field.Key.StartsWith("obtained-count-"): ao.Zukan.SetCountObtained((ushort)id, (ushort)value); break;
+            case (SAV6, "national"): PokedexFlags.Dex6(save)!.IsNationalDexUnlocked = value != 0; break;
+            case (SAV6, "national-mode"): PokedexFlags.Dex6(save)!.IsNationalDexMode = value != 0; break;
+            case (SAV6, "opens-on"): PokedexFlags.Dex6(save)!.InitialSpecies = (ushort)value; break;
+            case (SAV6, "spinda-pid"): PokedexFlags.Dex6(save)!.Spinda = (uint)value; break;
         }
         return SlotMutationResult.Success(value != field.Value);
     }
