@@ -339,6 +339,8 @@ function workspaceFor(revision: number) {
 			generation: 3,
 			trainerName,
 			trainerId: 12345,
+			rawTrainerId: 0,
+			rawSecretId: 0,
 			playTime: '10:22',
 			playedHours: 10,
 			playedMinutes: 22,

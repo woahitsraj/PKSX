@@ -132,6 +132,44 @@ describe('CapacitorSavesStorage', () => {
 		expect(await storage.listSaves()).toHaveLength(2);
 	});
 
+	it('replaces imported bytes in place and removes the Workspace', async () => {
+		const file = await storage.importSave({
+			bytes: new Uint8Array([1]),
+			originalFileName: 'a.sav'
+		});
+		await storage.renameSave(file.id, 'Main');
+		const workspace = await storage.putWorkspace({
+			saveFileId: file.id,
+			bytes: new Uint8Array([9]),
+			dirty: true,
+			automaticBackupCreated: false
+		});
+		const input = {
+			saveFileId: file.id,
+			expectedImportedAt: file.importedAt,
+			expectedWorkspaceUpdatedAt: null,
+			bytes: new Uint8Array([2, 3]),
+			originalFileName: 'b.sav'
+		};
+		await expect(storage.replaceSave(input)).rejects.toBeInstanceOf(WorkspaceRevisionConflictError);
+		const replaced = await storage.replaceSave({
+			...input,
+			expectedWorkspaceUpdatedAt: workspace.updatedAt
+		});
+		expect(replaced).toMatchObject({
+			id: file.id,
+			displayName: 'Main',
+			originalFileName: 'b.sav',
+			byteLength: 2
+		});
+		expect(await storage.getSaveBytes(file.id)).toEqual(new Uint8Array([2, 3]));
+		expect(await storage.getWorkspace(file.id)).toBeNull();
+		expect(await storage.listSaves()).toHaveLength(1);
+		await expect(storage.replaceSave({ ...input, expectedImportedAt: 'stale' })).rejects.toThrow(
+			'no longer available'
+		);
+	});
+
 	it('keeps open history separate from import, activation and metadata changes', async () => {
 		const file = await storage.importSave({
 			bytes: new Uint8Array([1]),

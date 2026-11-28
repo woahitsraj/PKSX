@@ -54,7 +54,9 @@
 		'linked-source-before-export': 'Emulator source before Export',
 		'linked-workspace-before-refresh': 'PKSX Workspace before loading external save',
 		'linked-import-before-refresh': 'Imported baseline before loading external save',
-		'linked-source-before-recovery': 'External bytes before source recovery'
+		'linked-source-before-recovery': 'External bytes before source recovery',
+		'workspace-before-import-replace': 'PKSX Workspace before Replace Existing',
+		'import-before-replace': 'Imported baseline before Replace Existing'
 	};
 
 	let mounted = false;

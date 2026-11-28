@@ -34,6 +34,7 @@ import type {
 	EnsureAutomaticBackupResult,
 	ImportSaveInput,
 	PutWorkspaceInput,
+	ReplaceSaveInput,
 	SaveFileId,
 	SavesStorage,
 	StoredPokemonStorage,
@@ -88,6 +89,36 @@ export class CapacitorSavesStorage implements SavesStorage {
 			await this.#journal.commit(snapshot, catalog, {
 				stagedBytes: [{ path: saveBytesPath(saveFile.id), bytes: input.bytes }]
 			});
+			return { ...saveFile };
+		});
+	}
+
+	replaceSave(input: ReplaceSaveInput): Promise<StoredSaveFile> {
+		return this.#run(async () => {
+			const snapshot = await this.#journal.read();
+			const catalog = cloneCatalog(snapshot.catalog);
+			const index = catalog.saves.findIndex(({ id }) => id === input.saveFileId);
+			if (index < 0 || catalog.saves[index].importedAt !== input.expectedImportedAt)
+				throw new Error('The selected Save File is no longer available.');
+			if (
+				(catalog.workspaces[input.saveFileId]?.updatedAt ?? null) !==
+				input.expectedWorkspaceUpdatedAt
+			)
+				throw new WorkspaceRevisionConflictError();
+			const timestamp = this.#now();
+			const saveFile: StoredSaveFile = {
+				...catalog.saves[index],
+				originalFileName: input.originalFileName,
+				byteLength: input.bytes.byteLength,
+				importedAt: timestamp,
+				updatedAt: timestamp
+			};
+			catalog.saves[index] = saveFile;
+			delete catalog.workspaces[input.saveFileId];
+			await this.#journal.commit(snapshot, catalog, {
+				stagedBytes: [{ path: saveBytesPath(saveFile.id), bytes: input.bytes }]
+			});
+			await this.#journal.cleanupWorkspace(input.saveFileId);
 			return { ...saveFile };
 		});
 	}

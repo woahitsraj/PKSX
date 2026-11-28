@@ -16,6 +16,7 @@
 	import {
 		type BoxSlotSummary,
 		type EngineApi,
+		type SaveWorkspace,
 		base64ToBytes,
 		type EngineError,
 		type PokemonActionOperation,
@@ -136,6 +137,13 @@
 		setCachedActiveWorkspace
 	} from '$lib/pksx/saves-cache';
 	import BoxMenu from '$lib/components/pksx/BoxMenu.svelte';
+	import SaveImportMatchMenu from '$lib/components/pksx/SaveImportMatchMenu.svelte';
+	import {
+		findSaveImportMatches,
+		saveImportMatchChoice,
+		type SaveImportMatchChoice
+	} from '$lib/pksx/save-import-match';
+	import { confirmReplaceDirty } from '$lib/pksx/save-file-edit-coordinator';
 	import BoxPicker from '$lib/components/pksx/BoxPicker.svelte';
 	import BoxSourceControls from '$lib/components/pksx/BoxSourceControls.svelte';
 	import StorageBoxOrganizer from '$lib/components/pksx/StorageBoxOrganizer.svelte';
@@ -2773,7 +2781,8 @@
 		if (activeSummonedWorkflow?.kind === 'storage-batch') return;
 		if (
 			activeSummonedWorkflow?.kind === 'backup-browser' ||
-			activeSummonedWorkflow?.kind === 'quick-search'
+			activeSummonedWorkflow?.kind === 'quick-search' ||
+			activeSummonedWorkflow?.kind === 'save-import-match'
 		)
 			return;
 		if (
@@ -7792,6 +7801,15 @@
 		});
 	}
 
+	type PendingImport = {
+		fileName: string;
+		bytes: Uint8Array;
+		workspace: SaveWorkspace;
+		matches: SaveImportMatchChoice[];
+		confirmDirtyId: string | null;
+	};
+	let pendingImport = $state<PendingImport | null>(null);
+
 	async function importSaveFile(file: File) {
 		const request = (workspaceLoadRequest += 1);
 		busy = true;
@@ -7800,40 +7818,135 @@
 		try {
 			const bytes = new Uint8Array(await file.arrayBuffer());
 			const workspace = await loadWorkspace(bytes, file.name, 0);
+			const matches = engine
+				? await findSaveImportMatches({ storage, engine, bytes, summary: workspace.summary })
+				: [];
+			if (matches.length > 0) {
+				if (request !== workspaceLoadRequest) return;
+				const choices = await Promise.all(
+					matches.map(async (match) =>
+						saveImportMatchChoice(
+							match,
+							loadedSave?.file.id === match.saveFile.id
+								? loadedSave.dirty
+								: (await storage.getWorkspace(match.saveFile.id))?.dirty === true
+						)
+					)
+				);
+				pendingImport = {
+					fileName: file.name,
+					bytes,
+					workspace,
+					matches: choices,
+					confirmDirtyId: null
+				};
+				summonedWorkflow.open('save-import-match', controlLauncher('quick-save-import'));
+				return;
+			}
 			const saveFile = await storage.importSave({ bytes, originalFileName: file.name });
-			await storage.clearWorkspace(saveFile.id);
-
-			if (request === workspaceLoadRequest) {
-				loadedSave = createCleanWorkspaceState({ file: saveFile, bytes, workspace });
-				saveFiles = await storage.listSaves();
-				setCachedActiveWorkspace(loadedSave, 0);
-				invalidateSavesCache();
-				seedSavesSnapshotFromActiveWorkspace(saveFiles);
-				installActiveSavePane(loadedSave, 0);
-				statusMessage = `${file.name} imported and made active.`;
-				queueMicrotask(() => {
-					if (
-						!destroyed &&
-						request === workspaceLoadRequest &&
-						loadedSave?.file.id === saveFile.id &&
-						activePaneId === primaryPaneId &&
-						navigation.focus.zone === 'box' &&
-						navigation.focus.slot === 0
-					) {
-						void focusActiveControl();
-					}
-				});
-			}
+			await finishImport(
+				request,
+				saveFile,
+				bytes,
+				workspace,
+				`${file.name} imported and made active.`
+			);
 		} catch (error) {
-			if (request === workspaceLoadRequest) {
-				importError = getErrorMessage(error);
-				statusMessage = 'Import failed. Current active Save File was not changed.';
-				toastHost.error(importError);
-			}
+			importFailed(request, error);
 		} finally {
 			if (request === workspaceLoadRequest) {
 				busy = false;
 			}
+		}
+	}
+
+	async function finishImport(
+		request: number,
+		saveFile: StoredSaveFile,
+		bytes: Uint8Array,
+		workspace: SaveWorkspace,
+		message: string
+	) {
+		await storage.clearWorkspace(saveFile.id);
+
+		if (request === workspaceLoadRequest) {
+			loadedSave = createCleanWorkspaceState({ file: saveFile, bytes, workspace });
+			saveFiles = await storage.listSaves();
+			setCachedActiveWorkspace(loadedSave, 0);
+			invalidateSavesCache();
+			seedSavesSnapshotFromActiveWorkspace(saveFiles);
+			installActiveSavePane(loadedSave, 0);
+			statusMessage = message;
+			queueMicrotask(() => {
+				if (
+					!destroyed &&
+					request === workspaceLoadRequest &&
+					loadedSave?.file.id === saveFile.id &&
+					activePaneId === primaryPaneId &&
+					navigation.focus.zone === 'box' &&
+					navigation.focus.slot === 0
+				) {
+					void focusActiveControl();
+				}
+			});
+		}
+	}
+
+	function importFailed(request: number, error: unknown) {
+		if (request === workspaceLoadRequest) {
+			importError = getErrorMessage(error);
+			statusMessage = 'Import failed. Current active Save File was not changed.';
+			toastHost.error(importError);
+		}
+	}
+
+	function closeImportMatch() {
+		pendingImport = null;
+		dismissActiveWorkflow();
+	}
+
+	async function runImportMatch(replaceId: string | null) {
+		const pending = pendingImport;
+		if (!pending || busy) return;
+		const match = pending.matches.find((candidate) => candidate.id === replaceId);
+		if (match?.dirty && pending.confirmDirtyId !== match.id) {
+			pending.confirmDirtyId = match.id;
+			return;
+		}
+		const request = (workspaceLoadRequest += 1);
+		busy = true;
+		try {
+			let saveFile: StoredSaveFile;
+			let message: string;
+			if (match) {
+				const current = await storage.getSave(match.id);
+				if (!current) throw new Error('The selected Save File is no longer available.');
+				saveFile = await getSaveFileEditCoordinator().replaceImport(current, {
+					bytes: pending.bytes,
+					originalFileName: pending.fileName,
+					allowDirty: pending.confirmDirtyId === match.id
+				});
+				saveFile = await storage.setActiveSaveFileId(saveFile.id);
+				message = `${match.name} replaced with ${pending.fileName}.`;
+			} else {
+				saveFile = await storage.importSave({
+					bytes: pending.bytes,
+					originalFileName: pending.fileName
+				});
+				message = `${pending.fileName} imported and made active.`;
+			}
+			closeImportMatch();
+			await finishImport(request, saveFile, pending.bytes, pending.workspace, message);
+		} catch (error) {
+			if (match && getErrorMessage(error) === confirmReplaceDirty) {
+				pending.confirmDirtyId = match.id;
+				match.dirty = true;
+				return;
+			}
+			closeImportMatch();
+			importFailed(request, error);
+		} finally {
+			if (request === workspaceLoadRequest) busy = false;
 		}
 	}
 
@@ -8556,6 +8669,18 @@
 		onMove={moveStorageBox}
 		onDelete={deleteStorageBox}
 		onClose={dismissActiveWorkflow}
+	/>
+{/if}
+
+{#if activeSummonedWorkflow?.kind === 'save-import-match' && pendingImport}
+	<SaveImportMatchMenu
+		fileName={pendingImport.fileName}
+		matches={pendingImport.matches}
+		confirmDirtyId={pendingImport.confirmDirtyId}
+		{busy}
+		onReplace={(id) => void runImportMatch(id)}
+		onImportNew={() => void runImportMatch(null)}
+		onCancel={() => !busy && pendingImport && closeImportMatch()}
 	/>
 {/if}
 

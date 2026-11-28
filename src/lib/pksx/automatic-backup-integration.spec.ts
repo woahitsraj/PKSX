@@ -430,6 +430,8 @@ function saveWorkspace(): SaveWorkspace {
 			generation: 3,
 			trainerName: 'RED',
 			trainerId: 1,
+			rawTrainerId: 0,
+			rawSecretId: 0,
 			playTime: '1:00',
 			playedHours: 1,
 			playedMinutes: 0,

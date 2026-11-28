@@ -1,5 +1,5 @@
 import { expectBoxesReady } from './boxes-ready.e2e-helper';
-import { importSaveThroughSaves } from './save-import.e2e-helper';
+import { importSaveAsNewThroughSaves, importSaveThroughSaves } from './save-import.e2e-helper';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
@@ -1784,7 +1784,7 @@ test('primary and secondary Box Sources follow active Save File selection rules'
 	});
 	const emeraldId = (await emeraldContainer.getAttribute('id'))?.replace('saves-target-', '');
 	const bytes = await readFile(emeraldFixturePath);
-	await importSaveThroughSaves(page, {
+	await importSaveAsNewThroughSaves(page, {
 		name: 'second-emerald.sav',
 		mimeType: 'application/octet-stream',
 		buffer: bytes
@@ -2423,7 +2423,7 @@ test('transfer controls discard a cached source after switching collections', as
 		.locator('.save-card')
 		.filter({ hasText: 'emerald-011020251345.sav' })
 		.getByRole('button', { name: 'Open emerald-011020251345.sav in Boxes' });
-	await importSaveThroughSaves(page, {
+	await importSaveAsNewThroughSaves(page, {
 		name: 'second-emerald.sav',
 		mimeType: 'application/octet-stream',
 		buffer: await readFile(emeraldFixturePath)
@@ -6303,7 +6303,7 @@ test('pending Money reaches Boxes Export and the exported bytes contain the conf
 	await expect(boxMenu).toBeHidden();
 
 	await loadRoute(page, '/');
-	await importSaveThroughSaves(page, {
+	await importSaveAsNewThroughSaves(page, {
 		name: 'confirmed-money.sav',
 		mimeType: 'application/octet-stream',
 		buffer: exported
@@ -7581,7 +7581,7 @@ test('Saves uses one identity grid with internal scrolling at the landscape floo
 
 	const fixture = await readFile(emeraldFixturePath);
 	for (const name of ['alpha.sav', 'beta.sav', 'gamma.sav', 'delta.sav']) {
-		await importSaveThroughSaves(page, {
+		await (name === 'alpha.sav' ? importSaveThroughSaves : importSaveAsNewThroughSaves)(page, {
 			name,
 			mimeType: 'application/octet-stream',
 			buffer: fixture
@@ -7650,7 +7650,7 @@ test('portrait Saves keeps the document fixed and the grid at one column', async
 
 	const fixture = await readFile(emeraldFixturePath);
 	for (const name of ['alpha.sav', 'beta.sav', 'gamma.sav']) {
-		await importSaveThroughSaves(page, {
+		await (name === 'alpha.sav' ? importSaveThroughSaves : importSaveAsNewThroughSaves)(page, {
 			name,
 			mimeType: 'application/octet-stream',
 			buffer: fixture
@@ -7774,7 +7774,7 @@ test('Saves imports distinct cards, opens cards and menus, and preserves failure
 	await chooseMainMenu(page, 'Saves');
 	await expect(grid).toHaveAttribute('aria-activedescendant', alphaTarget!);
 
-	await importSaveThroughSaves(page, {
+	await importSaveAsNewThroughSaves(page, {
 		name: 'beta.sav',
 		mimeType: 'application/octet-stream',
 		buffer: fixture
@@ -7957,7 +7957,7 @@ test('Saves menu activates its Save File before opening Trainer or Bag', async (
 	await expect(page.locator('.save-card')).toHaveCount(1);
 	await expect(page.locator('.save-card[aria-busy="true"]')).toHaveCount(0);
 
-	await importSaveThroughSaves(page, {
+	await importSaveAsNewThroughSaves(page, {
 		name: 'beta.sav',
 		mimeType: 'application/octet-stream',
 		buffer: fixture

@@ -17,6 +17,7 @@ export type {
 	EnsureAutomaticBackupInput,
 	EnsureAutomaticBackupResult,
 	ImportSaveInput,
+	ReplaceSaveInput,
 	PutWorkspaceInput,
 	SavesStorage,
 	PokemonStorageId,

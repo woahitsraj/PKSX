@@ -11,6 +11,7 @@ import type {
 	CommitRiskyWorkspaceMutationInput,
 	EnsureAutomaticBackupInput,
 	PutWorkspaceInput,
+	ReplaceSaveInput,
 	SavesStorage,
 	StoredSaveFile,
 	StoredWorkspace
@@ -172,6 +173,25 @@ function createHarness(...states: WorkspaceState[]) {
 			}
 		}),
 		importSave: vi.fn(),
+		replaceSave: vi.fn(async (input: ReplaceSaveInput) => {
+			const file = files.get(input.saveFileId);
+			if (!file || file.importedAt !== input.expectedImportedAt)
+				throw new Error('The selected Save File is no longer available.');
+			if (
+				(workspaces.get(input.saveFileId)?.updatedAt ?? null) !== input.expectedWorkspaceUpdatedAt
+			)
+				throw new WorkspaceRevisionConflictError();
+			const replaced = {
+				...file,
+				originalFileName: input.originalFileName,
+				byteLength: input.bytes.byteLength,
+				importedAt: '2026-09-11T00:00:00.000Z'
+			};
+			files.set(file.id, replaced);
+			imported.set(file.id, new Uint8Array(input.bytes));
+			workspaces.delete(file.id);
+			return replaced;
+		}),
 		listSaves: vi.fn(),
 		clearWorkspace: vi.fn(),
 		getPokemonStorage: vi.fn(),
@@ -201,7 +221,7 @@ function createHarness(...states: WorkspaceState[]) {
 		}))
 	} as unknown as EngineApi;
 
-	return { storage, engine, files, workspaces, backups };
+	return { storage, engine, files, imported, workspaces, backups };
 }
 
 function mutationResult(
@@ -296,6 +316,8 @@ function workspace(id = 'save-1', byte = 1, automaticBackupCreated = false): Wor
 				generation: 3,
 				trainerName: 'RED',
 				trainerId: 1,
+				rawTrainerId: 0,
+				rawSecretId: 0,
 				playTime: '1:00',
 				playedHours: 1,
 				playedMinutes: 0,
@@ -676,6 +698,38 @@ describe('Save File edit coordinator', () => {
 		await during.deleteSave(duringState.file);
 		load.resolve({ ok: true, value: duringState.workspace, error: null });
 		await expect(recovery).resolves.toMatchObject({ ok: false, code: 'save-file-deleted' });
+	});
+
+	it('replaces an import only after confirming and backing up its Dirty Workspace', async () => {
+		const state = workspace('save-replace', 1, true);
+		const harness = createHarness(state);
+		harness.workspaces.set(state.file.id, {
+			...storedWorkspace(state, '2026-09-10T12:00:00.000Z'),
+			bytes: new Uint8Array([5]),
+			dirty: true
+		});
+		const edits = coordinator(harness);
+		const origin = edits.openWorkspace(state);
+		const input = { bytes: new Uint8Array([7]), originalFileName: 'new.sav', allowDirty: false };
+
+		await expect(edits.replaceImport(state.file, input)).rejects.toThrow('Confirm');
+		expect(harness.backups.size).toBe(0);
+		expect(harness.workspaces.get(state.file.id)?.bytes).toEqual(new Uint8Array([5]));
+
+		const replaced = await edits.replaceImport(state.file, { ...input, allowDirty: true });
+		expect(replaced).toMatchObject({ id: state.file.id, originalFileName: 'new.sav' });
+		expect(
+			[...harness.backups.values()].map(({ metadata, bytes }) => [metadata.reason, bytes[0]])
+		).toEqual([
+			['workspace-before-import-replace', 5],
+			['import-before-replace', 1]
+		]);
+		expect(harness.imported.get(state.file.id)).toEqual(new Uint8Array([7]));
+		expect(harness.workspaces.has(state.file.id)).toBe(false);
+		expect(edits.isCurrent(origin)).toBe(false);
+		await expect(edits.replaceImport(state.file, { ...input, allowDirty: true })).rejects.toThrow(
+			'no longer available'
+		);
 	});
 
 	it('rejects a late result after caller lifetime, active owner, or import changes', async () => {
