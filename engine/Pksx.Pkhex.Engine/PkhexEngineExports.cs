@@ -1853,7 +1853,7 @@ public static partial class PkhexEngineExports
             operation.Level is not null || operation.Experience is not null || operation.NatureId is not null ||
             operation.HeldItemId is not null || operation.AbilityIndex is not null || operation.Ivs is not null ||
             operation.Evs is not null || operation.Moves is not null || operation.FriendshipEdits is not null ||
-            operation.TeraType is not null);
+            operation.TeraType is not null || operation.IsShiny is not null);
 
     private static string LegalityEditFailurePrefix(bool hasMetData, bool hasOriginalTrainer, bool hasOtherEdits)
     {
