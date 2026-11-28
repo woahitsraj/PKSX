@@ -20,7 +20,7 @@
 		getSaveFileEditCoordinator,
 		loadActiveWorkspaceFromSaves
 	} from '$lib/pksx/saves-cache';
-	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
+	import { resolvePokemonSpritePath } from '$lib/pksx/sprite-catalog';
 	import { getToastHost } from '$lib/pksx/toast/host.svelte';
 
 	type PokedexField = PokedexProjection['fields'][number];
@@ -102,14 +102,12 @@
 	}
 
 	function spriteUrl(speciesId: number) {
-		const entry = resolveSpriteCatalogEntry({
-			speciesId,
-			form: 0,
-			isEgg: false,
-			isShiny: false,
-			displaySex: 'default'
-		});
-		return entry ? asset(entry.path) : null;
+		const summary = workspace?.workspace.summary;
+		const path = resolvePokemonSpritePath(
+			{ speciesId, form: 0, isEgg: false, isShiny: false, displaySex: 'default' },
+			summary ? { game: summary.gameVersion, format: summary.generation } : null
+		);
+		return path ? asset(path) : null;
 	}
 
 	// Nearest rail control, only when the rail sits left of the list.

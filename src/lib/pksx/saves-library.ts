@@ -4,7 +4,7 @@ import type { SaveCardDetailsState } from './saves-cache';
 export type SavesSort = 'alphabetical' | 'recently-opened';
 const sortKey = 'pksx-saves-sort-v1';
 
-const gameNames: Record<string, string> = {
+export const gameNames: Record<string, string> = {
 	RB: 'Pokemon Red / Blue',
 	RD: 'Pokemon Red',
 	BU: 'Pokemon Blue',

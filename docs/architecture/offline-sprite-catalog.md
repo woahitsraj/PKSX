@@ -108,6 +108,52 @@ Existing Emerald Bag labels come from PKHeX's global item string table and can d
 
 Pokemon Storage schema version 1 may cache `heldItemSpriteIdentity` beside the existing held-item text and entity bytes. The field is additive. Older records load with a null identity and retain a stable text fallback. `StoredWorkspace` remains unchanged.
 
+## Game Sprite Catalog
+
+Issue 267 adds the **Sprite Style** Preference. HOME stays the default. Game shows the front sprite of the game that a Pokemon belongs to. Settings offers both choices in one segmented row that uses the shared Controller Focus model. The choice is kept in `localStorage` under `pksx-sprite-style` and is restored when the app starts. Every Pokemon image consumer calls `resolvePokemonSpritePath`, so a change applies at once without reopening a Save File.
+
+Game sprites come from the pinned PokeAPI/sprites revision `2ecb4eeacd5a1718621fc30f12772e3f60d830b9`, under `sprites/pokemon/versions/`. PKSX ships these families: Red and Blue, Yellow, Gold, Silver, Crystal, Ruby and Sapphire, Emerald, FireRed and LeafGreen, Diamond and Pearl, Platinum, HeartGold and SoulSilver, and Black and White. Generation 1 and 2 use the `transparent/` copies, because the top-level files have an opaque background. Generation 6 and later games have no pixel sprite family, so they use HOME. Black and White covers Black 2 and White 2. The `black-white` folder also has fan-made sprites for species after 649. PKSX does not ship them.
+
+Base sprites map from `<species>.png` only when the species is in the dex of that family. Forms, `10xxx` PokeAPI ids, and eggs map only through the checked-in table in `scripts/download-game-sprite-catalog.ts`. The PokeAPI `10xxx` ids come from `pokemon.csv` at PokeAPI/pokeapi revision `8fe210b21c9abbe73de93670f3d5a346c80a3625`. Generation 3 stores no Deoxys or Castform form, so those forms start at Generation 4. Arceus is unmapped, because its Generation 4 and 5 form order differs from later games. Unmapped source files are listed per family in the report.
+
+### Family precedence
+
+The resolver receives the game and the entity format as a separate context. They are not part of the **Sprite Identity**.
+
+1. If the game is known and its family has the same generation as the entity format, use that family.
+2. If the game is known and has no packaged family, such as Pokémon Unbound, Colosseum, XD, or Generation 6 and later, use HOME.
+3. Otherwise, use the default family for the entity format: Red and Blue, Crystal, Emerald, Platinum, or Black and White. If the format has no default, use HOME.
+
+Save File Slots use the game of the Save File that owns the pane and the format of the Slot. Pokemon Storage records use `origin.originGame` and the projected entity format. Records without an origin game, or with a name that the table does not know, use rule 3.
+
+### Fallback
+
+Within the chosen family, lookup keeps the exact form. It tries the exact Display Sex and then default, and inside each it tries the exact Shiny State and then normal coloration. A game never shows its base form for a non-base form. Egg identities use the Manaphy egg or the generic egg of the family, when the family has one. If the family has no match, the resolver uses the HOME rules above, and then the generic fallback.
+
+### Packaging
+
+`pnpm game-sprites:download -- --sprites-root <checkout>` regenerates the assets from a local checkout. Without that option, it makes a sparse clone of the pinned revision. Normal install and build commands never fetch these files. `pnpm game-sprites:validate` is offline. It checks every file, dimension, byte count, gzip total, and the runtime list against `scripts/data/game-sprite-catalog.json`.
+
+Assets are in `static/sprites/pokemon/game/<family>/<species>-<form>-<sex>-<normal|shiny>.png`. The report records the source path, dimensions, and size of each asset, plus the total for each family. The runtime list `src/lib/pksx/sprite-catalog/game-catalog.generated.json` is 40,279 raw bytes. It stores one space-separated token list for each variant. The SvelteKit service-worker file list leaves out game sprite paths. The service worker builds the same URLs from the runtime list and precaches them, so Game mode works offline without a large inlined path list.
+
+| Family               | Assets | Raw bytes | Gzip bytes |
+| -------------------- | -----: | --------: | ---------: |
+| red-blue             |    151 |    94,495 |     97,922 |
+| yellow               |    151 |    90,442 |     93,913 |
+| gold                 |    552 |   517,270 |    500,332 |
+| silver               |    552 |   669,037 |    624,617 |
+| crystal              |    552 |   270,587 |    283,156 |
+| ruby-sapphire        |    826 |   581,490 |    599,796 |
+| emerald              |    826 |   581,474 |    599,780 |
+| firered-leafgreen    |    826 |   577,576 |    595,895 |
+| diamond-pearl        |  1,252 | 1,325,319 |  1,352,067 |
+| platinum             |  1,266 | 1,002,053 |  1,030,725 |
+| heartgold-soulsilver |  1,270 | 1,323,834 |  1,344,162 |
+| black-white          |  1,628 | 1,297,068 |  1,334,425 |
+| Total                |  9,852 | 8,330,645 |  8,456,790 |
+
+Game art is 56 to 116 pixels square. Every consumer keeps its fixed image box and `object-fit: contain`, so Slot dimensions do not change. Game sprites render with `image-rendering: pixelated`.
+
 ## Open Questions
 
 None.

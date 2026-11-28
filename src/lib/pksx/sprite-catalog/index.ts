@@ -1,5 +1,9 @@
 import catalogManifest from './catalog.generated.json';
 import pkhexFormNames from '../../../../scripts/data/pkhex-form-names.generated.json';
+import { spriteStyle, type SpriteStyle } from '../sprite-style.svelte';
+import { resolveGameSpriteFamily, resolveGameSpritePath, type SpriteGameContext } from './game';
+
+export type { SpriteGameContext } from './game';
 
 export type DisplaySex = 'default' | 'male' | 'female';
 
@@ -81,6 +85,19 @@ export function resolveSpriteCatalogEntry(
 	identity: SpriteIdentity | null
 ): SpriteCatalogEntry | null {
 	return resolveSpriteCatalogEntryFromEntries(identity, manifest.entries);
+}
+
+/** Every Pokemon image consumer resolves its local sprite path here. */
+export function resolvePokemonSpritePath(
+	identity: SpriteIdentity | null,
+	context: SpriteGameContext | null,
+	style: SpriteStyle = spriteStyle.current
+): string | null {
+	if (style === 'game' && context) {
+		const path = resolveGameSpritePath(identity, resolveGameSpriteFamily(context));
+		if (path) return path;
+	}
+	return resolveSpriteCatalogEntry(identity)?.path ?? null;
 }
 
 export function resolveSpriteCatalogEntryFromEntries(

@@ -13,16 +13,16 @@
 			"gzip": 8450000
 		},
 		"sprites": {
-			"raw": 101000000,
-			"gzip": 99000000
+			"raw": 110000000,
+			"gzip": 108000000
 		},
 		"other": {
 			"raw": 960000,
 			"gzip": 590000
 		},
 		"total": {
-			"raw": 133000000,
-			"gzip": 108000000
+			"raw": 143000000,
+			"gzip": 117000000
 		}
 	},
 	"largestApplicationScriptGzip": 155000

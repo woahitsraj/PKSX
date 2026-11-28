@@ -40,6 +40,7 @@ export async function catalogLegacyView(
 			speciesId: projection.speciesId,
 			form: projection.form,
 			isEgg: projection.isEgg,
+			format: projection.format,
 			spriteIdentity: projection.spriteIdentity,
 			gender: projection.gender ?? undefined,
 			nature: projection.nature ?? undefined,

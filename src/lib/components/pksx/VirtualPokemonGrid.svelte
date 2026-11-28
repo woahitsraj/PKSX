@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PokemonRecord } from '$lib/pksx/pokemon-storage-catalog';
 	import type { VirtualViewPreferences } from '$lib/pksx/pokemon-storage-catalog/virtual-views';
-	import { resolveSpriteCatalogEntry } from '$lib/pksx/sprite-catalog';
+	import { resolvePokemonSpritePath } from '$lib/pksx/sprite-catalog';
 	import { asset } from '$app/paths';
 	import Combobox, { type ComboboxOption } from './Combobox.svelte';
 	import {
@@ -90,8 +90,11 @@
 	}
 
 	function spriteUrl(record: PokemonRecord) {
-		const entry = resolveSpriteCatalogEntry(record.projection.spriteIdentity);
-		return entry ? asset(entry.path) : null;
+		const path = resolvePokemonSpritePath(record.projection.spriteIdentity, {
+			game: record.origin.originGame,
+			format: record.projection.format ?? null
+		});
+		return path ? asset(path) : null;
 	}
 </script>
 

@@ -24,20 +24,20 @@ Baseline source is commit `e4f0d9c272ccfcbc2414b35f9fa1541df8c2b201`, measured o
 
 All values below are bytes, not KiB. Gzip uses Node's zlib level 9 independently for each file, then sums the results. It models compressed resource bodies without HTTP headers, connection overhead, or a particular host's compression settings. PNGs may grow slightly under gzip. Raw limits protect native package/cache footprint and JavaScript parse volume even when repetitive additions compress well.
 
-| Group               | Files | Baseline raw |   Raw limit | Baseline gzip |  Gzip limit |
-| ------------------- | ----: | -----------: | ----------: | ------------: | ----------: |
-| Application JS/CSS  |    49 |    2,797,362 |   3,080,000 |       405,153 |     450,000 |
-| Both workers        |     2 |      549,215 |     610,000 |       178,913 |     200,000 |
-| PKHeX Engine        |    36 |   26,678,079 |  29,350,000 |     7,675,369 |   8,450,000 |
-| Sprite catalogs     | 3,683 |   95,714,330 | 101,000,000 |    93,900,902 |  99,000,000 |
-| Other shipped files |    23 |      867,437 |     960,000 |       532,632 |     590,000 |
-| Total               | 3,793 |  126,606,423 | 133,000,000 |   102,692,969 | 108,000,000 |
+| Group               |  Files | Baseline raw |   Raw limit | Baseline gzip |  Gzip limit |
+| ------------------- | -----: | -----------: | ----------: | ------------: | ----------: |
+| Application JS/CSS  |     49 |    2,797,362 |   3,080,000 |       405,153 |     450,000 |
+| Both workers        |      2 |      549,215 |     610,000 |       178,913 |     200,000 |
+| PKHeX Engine        |     36 |   26,678,079 |  29,350,000 |     7,675,369 |   8,450,000 |
+| Sprite catalogs     | 13,535 |  104,044,975 | 110,000,000 |   102,357,649 | 108,000,000 |
+| Other shipped files |     23 |      867,437 |     960,000 |       532,632 |     590,000 |
+| Total               | 13,653 |  135,348,618 | 143,000,000 |   111,268,020 | 117,000,000 |
 
 The largest application script is the Boxes route, 139,830 bytes gzip, with a 155,000-byte limit. This catches concentration in one script even if total code stays within budget.
 
 Classification uses output paths, not hashed chunk names or a list of known files. Every new file enters a group and the total. Application includes all JS/CSS outside the dedicated worker, engine, and sprite directories, including lazy routes and the service worker. Workers include both the PKHeX Engine worker and Trade Worker. Engine includes the complete published runtime, assemblies, and associated files. Sprites include both Pokemon and item assets and their manifests. Other includes HTML, icons, legal files, firmware, and host configuration. Source maps and symbols count if shipped. `.gz` and `.br` sidecars with a corresponding uncompressed file are excluded because they are alternative representations of the same resources, so these totals are not deployment directory disk usage when precompression is enabled. Standalone compressed resources still count.
 
-Group limits allow 10% growth rounded up to 10,000 bytes for application, workers, engine, and other assets. Sprites and the overall payload allow 5% rounded up to 1,000,000 bytes. The largest-script limit allows about 11%. These are regression allowances based on today's payload, not claims that the current 103 MB compressed offline install is an ideal download size. The tighter sprite/total allowance reflects their dominant cost. The independent code limits prevent large art budgets from concealing dependency growth.
+Group limits allow 10% growth rounded up to 10,000 bytes for application, workers, engine, and other assets. The sprite and total rows were re-measured for issue 267, as described below. Sprites and the overall payload allow 5% rounded up to 1,000,000 bytes. The largest-script limit allows about 11%. These are regression allowances based on today's payload, not claims that the current 103 MB compressed offline install is an ideal download size. The tighter sprite/total allowance reflects their dominant cost. The independent code limits prevent large art budgets from concealing dependency growth.
 
 The service worker eagerly caches most shipped assets, including sprites and engine assets, so the total matters for first offline installation. It excludes firmware and debug assets from its cache. This checker conservatively counts those shipped bytes anyway. It does not claim that all resources block the first page, or measure route-specific critical request chains, LCP, memory, or interaction latency. Engine bytes can vary with .NET servicing releases; both raw and compressed budgets allow modest toolchain variation. A Linux CI run remains necessary to confirm the hosted runner's engine output.
 
@@ -46,6 +46,8 @@ One local size-check run took 49.31 seconds wall time, 4.81 seconds user CPU, an
 After rebasing onto main commit `e9a38b9d6f26d1fe9f481971ae373550cd7d991b`, verification under the exclusive `perf-budgets` Mac lock measured 126,623,775 raw / 102,698,040 gzip bytes and a 144,774-byte largest application script. All existing budgets passed without raising limits. The exclusive size check took 2.81 seconds wall time, 2.67 seconds user CPU and 0.31 seconds system CPU. All 707 unit tests and three repeated Chromium journeys passed. This supersedes the earlier contended run as the local check-cost observation; hosted-runner cost is still unmeasured.
 
 A second production build changed the total by +82 raw bytes and -8 gzip bytes, with identical file counts. Engine, sprite, and worker sizes were identical. Generated service-worker version and content hashes cause small application/HTML differences.
+
+Issue 267 (Switch between HOME and game sprites) adds the Game sprite style. It ships 9,852 Generation 1 to 5 front sprites, 8,330,645 raw / 8,456,790 gzip bytes. The sprite group grows from 95,714,330 to 104,044,975 raw bytes and from 93,900,902 to 102,357,649 gzip bytes, across 13,535 files. The total grows to 135,348,618 raw / 111,268,020 gzip bytes. The sprite limits are now 110,000,000 raw / 108,000,000 gzip and the total limits 143,000,000 raw / 117,000,000 gzip, which keeps the 5% allowance rounded up to 1,000,000 bytes. Application code stays within its unchanged limits: game sprite paths are left out of the inlined SvelteKit service-worker file list, and the service worker derives them from the 40 KB compact game sprite catalog.
 
 ## Navigation work budgets
 

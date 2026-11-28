@@ -419,3 +419,7 @@ html[data-pksx-route-direction='backward']::view-transition-new(pksx-route) {
 	min-height: 100dvh;
 	overflow: hidden;
 }
+
+img[src*='/sprites/pokemon/game/'] {
+	image-rendering: pixelated;
+}

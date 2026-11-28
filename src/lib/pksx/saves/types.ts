@@ -79,6 +79,7 @@ export type StoredPokemonStoragePokemon = {
 	speciesId: number | null;
 	form: number | null;
 	isEgg: boolean;
+	format?: number;
 	spriteIdentity: {
 		speciesId: number;
 		form: number;

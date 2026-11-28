@@ -1,6 +1,6 @@
 <script module lang="ts">
 	let rememberedStop = 'theme';
-	let rememberedThemeControl = 0;
+	const rememberedColumns: Record<string, number> = {};
 </script>
 
 <script lang="ts">
@@ -13,6 +13,7 @@
 	import { getPkhexEngine } from '$lib/pksx/saves-cache';
 	import { getSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
 	import { theme } from '$lib/pksx/theme.svelte';
+	import { spriteStyle } from '$lib/pksx/sprite-style.svelte';
 
 	type ReferenceRow = { action: string; controller: string; keyboard: string };
 	type ReferenceGroup = { id: string; title: string; rows: readonly ReferenceRow[] };
@@ -123,7 +124,7 @@
 
 	onMount(() => {
 		void loadMetadata();
-		queueMicrotask(() => focusStop(rememberedStop, rememberedThemeControl));
+		queueMicrotask(() => focusStop(rememberedStop, rememberedColumns[rememberedStop]));
 	});
 
 	$effect(() => {
@@ -173,9 +174,7 @@
 		const row = event.target.closest<HTMLElement>('[data-settings-row]');
 		if (!row) return;
 		rememberedStop = row.dataset.settingsRow ?? 'theme';
-		if (rememberedStop === 'theme') {
-			rememberedThemeControl = Math.max(0, controlsFor(row).indexOf(event.target));
-		}
+		rememberedColumns[rememberedStop] = Math.max(0, controlsFor(row).indexOf(event.target));
 		event.target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 
@@ -184,7 +183,7 @@
 		const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 		if (!active || !route.contains(active)) {
 			if ((!active || active === document.body) && event.key.startsWith('Arrow')) {
-				focusStop(rememberedStop, rememberedThemeControl);
+				focusStop(rememberedStop, rememberedColumns[rememberedStop]);
 				event.preventDefault();
 			}
 			return;
@@ -210,7 +209,7 @@
 		} else {
 			const offset = event.key === 'ArrowUp' ? -1 : 1;
 			const nextRow = currentRows[Math.max(0, Math.min(rowIndex + offset, currentRows.length - 1))];
-			const nextColumn = nextRow?.dataset.settingsRow === 'theme' ? rememberedThemeControl : 0;
+			const nextColumn = rememberedColumns[nextRow?.dataset.settingsRow ?? ''] ?? 0;
 			controlsFor(nextRow ?? row)[nextColumn]?.focus();
 		}
 		event.preventDefault();
@@ -231,7 +230,7 @@
 	<div class="settings-density pksx-density">
 		<header class="settings-header">
 			<h1 id="screen-title">Settings</h1>
-			<p>Theme, controls, and build information.</p>
+			<p>Theme, sprites, controls, and build information.</p>
 		</header>
 
 		<div class="settings-scrollport">
@@ -266,6 +265,31 @@
 							data-settings-control
 							data-destination-focus="theme-dark"
 							onclick={() => theme.setDark(true)}>Dark</button
+						>
+					</div>
+				</div>
+				<div class="preference-row" data-settings-row="sprite-style">
+					<div>
+						<strong>Sprite style</strong>
+						<span>Show HOME artwork, or the front sprites of each Pokemon's game.</span>
+					</div>
+					<div class="segmented" aria-label="Sprite style">
+						<button
+							type="button"
+							aria-label="Use HOME sprites"
+							aria-pressed={spriteStyle.current === 'home'}
+							data-settings-control
+							data-settings-stop
+							data-destination-focus="sprite-style-home"
+							onclick={() => spriteStyle.set('home')}>HOME</button
+						>
+						<button
+							type="button"
+							aria-label="Use game sprites"
+							aria-pressed={spriteStyle.current === 'game'}
+							data-settings-control
+							data-destination-focus="sprite-style-game"
+							onclick={() => spriteStyle.set('game')}>Game</button
 						>
 					</div>
 				</div>
