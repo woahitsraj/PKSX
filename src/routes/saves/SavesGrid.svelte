@@ -13,10 +13,14 @@
 	import {
 		filterSortSaves,
 		getSaveGameTitle,
+		groupSaves,
 		readSavesSort,
+		readSavesView,
 		writeSavesSort,
-		type SavesSort
+		type SavesSort,
+		type SavesView
 	} from '$lib/pksx/saves-library';
+	import SaveFileChooser from '$lib/components/pksx/SaveFileChooser.svelte';
 	import SaveFileMenu from '$lib/components/pksx/SaveFileMenu.svelte';
 	import StorageBackupMenu from '$lib/components/pksx/StorageBackupMenu.svelte';
 	import AddSavesMenu from '$lib/components/pksx/AddSavesMenu.svelte';
@@ -32,9 +36,12 @@
 	import {
 		deleteSavesTarget,
 		moveSavesTarget,
-		resolveSavesTarget,
+		normalizeSavesTarget,
+		resolveSavesEntryTarget,
 		sameSavesTarget,
+		savesEntryTargets,
 		type SavesDirection,
+		type SavesEntry,
 		type SavesTarget
 	} from '$lib/pksx/saves-navigation';
 	import type { SaveFileId, StoredSaveFile } from '$lib/pksx/saves';
@@ -79,6 +86,7 @@
 	type PokemonStorageSummary = { boxCount: number; pokemonCount: number };
 	type SavesGridEntry =
 		| { kind: 'save-file'; saveFile: StoredSaveFile; index: number }
+		| { kind: 'game'; game: string; saveFiles: StoredSaveFile[]; index: number }
 		| { kind: 'pokemon-storage'; index: number }
 		| { kind: 'import'; index: number };
 	const storage = getSavesStorage();
@@ -88,6 +96,9 @@
 
 	let query = $state('');
 	let sort = $state<SavesSort>('alphabetical');
+	let view = $state<SavesView>('flat');
+	let chooserGame = $state<string | null>(null);
+	let chooserIndex = $state(0);
 	let searchControls: HTMLElement;
 	let tabDirection: 'forward' | 'backward' | null = null;
 	let saveFiles = $state<StoredSaveFile[]>([]);
@@ -116,12 +127,15 @@
 	);
 
 	const searching = $derived(query.trim() !== '');
-
-	const targets = $derived<SavesTarget[]>([
-		...visibleSaveFiles.map((saveFile) => ({ kind: 'save-file' as const, id: saveFile.id })),
-		{ kind: 'pokemon-storage' },
-		{ kind: 'import' }
-	]);
+	const entries = $derived(groupSaves(visibleSaveFiles, detailsBySaveFileId, view));
+	const targets = $derived(savesEntryTargets(entries));
+	const chooserOpen = $derived(summonedWorkflow.active?.kind === 'save-file-chooser');
+	const chooserGroup = $derived(
+		entries.find(
+			(entry): entry is Extract<SavesEntry, { kind: 'game' }> =>
+				entry.kind === 'game' && entry.game === chooserGame
+		) ?? null
+	);
 	const menuSaveFile = $derived(
 		saveFiles.find((saveFile) => saveFile.id === menuSaveFileId) ?? null
 	);
@@ -139,9 +153,9 @@
 	const activeTargetId = $derived(targetDomId(target));
 	const rowCount = $derived(Math.max(1, Math.ceil(targets.length / columnCount)));
 	const gridEntries = $derived<SavesGridEntry[]>([
-		...visibleSaveFiles.map((saveFile, index) => ({ kind: 'save-file' as const, saveFile, index })),
-		{ kind: 'pokemon-storage', index: visibleSaveFiles.length },
-		{ kind: 'import', index: visibleSaveFiles.length + 1 }
+		...entries.map((entry, index) => ({ ...entry, index })),
+		{ kind: 'pokemon-storage', index: entries.length },
+		{ kind: 'import', index: entries.length + 1 }
 	]);
 	const gridRows = $derived.by(() => {
 		const rows: SavesGridEntry[][] = [];
@@ -158,6 +172,7 @@
 
 	onMount(() => {
 		sort = readSavesSort();
+		view = readSavesView();
 		const cached = getCachedSavesSnapshot();
 		const seeded = isCachedSavesSnapshotSeeded();
 		let hasReceivedSnapshot = false;
@@ -194,18 +209,24 @@
 	}
 
 	function targetKey(value: SavesTarget) {
-		return value.kind === 'save-file' ? 'save-file:' + value.id : value.kind;
+		if (value.kind === 'save-file') return 'save-file:' + value.id;
+		return value.kind === 'game' ? 'game:' + value.game : value.kind;
+	}
+
+	function entryKey(entry: SavesGridEntry) {
+		if (entry.kind === 'save-file') return 'save-file:' + entry.saveFile.id;
+		return entry.kind === 'game' ? 'game:' + entry.game : entry.kind;
 	}
 
 	function gridRowKey(row: SavesGridEntry[]) {
-		return row
-			.map((entry) => (entry.kind === 'save-file' ? 'save-file:' + entry.saveFile.id : entry.kind))
-			.join('|');
+		return row.map(entryKey).join('|');
 	}
 
 	function rememberedTarget(): SavesTarget | null {
 		if (rememberedTargetKey === 'import') return { kind: 'import' };
 		if (rememberedTargetKey === 'pokemon-storage') return { kind: 'pokemon-storage' };
+		if (rememberedTargetKey?.startsWith('game:'))
+			return { kind: 'game', game: rememberedTargetKey.slice('game:'.length) };
 		return rememberedTargetKey?.startsWith('save-file:')
 			? { kind: 'save-file', id: rememberedTargetKey.slice('save-file:'.length) }
 			: null;
@@ -216,17 +237,23 @@
 	}
 
 	function targetDomId(value: SavesTarget) {
-		return value.kind === 'save-file'
-			? 'saves-target-' + encodeURIComponent(value.id)
+		if (value.kind === 'save-file') return 'saves-target-' + encodeURIComponent(value.id);
+		return value.kind === 'game'
+			? 'saves-target-game-' + encodeURIComponent(value.game)
 			: 'saves-target-' + value.kind;
 	}
 
-	function currentTargets(saveFileList = visibleSaveFiles): SavesTarget[] {
-		return [
-			...saveFileList.map((saveFile) => ({ kind: 'save-file' as const, id: saveFile.id })),
-			{ kind: 'pokemon-storage' },
-			{ kind: 'import' }
-		];
+	function entriesFor(
+		files = saveFiles,
+		details = detailsBySaveFileId,
+		nextQuery = query,
+		nextSort = sort
+	): SavesEntry[] {
+		return groupSaves(
+			filterSortSaves({ files, details, query: nextQuery, sort: nextSort }),
+			details,
+			view
+		);
 	}
 
 	function applySnapshot(
@@ -246,16 +273,15 @@
 		saveFiles = snapshot.saveFiles;
 		activeSaveFileId = snapshot.activeSaveFileId;
 		detailsBySaveFileId = snapshot.detailsBySaveFileId;
-		const nextTargets = currentTargets(
-			filterSortSaves({
-				files: snapshot.saveFiles,
-				details: snapshot.detailsBySaveFileId,
-				query,
-				sort
-			})
-		);
-		target = resolveSavesTarget(
-			nextTargets,
+		const nextEntries = entriesFor(snapshot.saveFiles, snapshot.detailsBySaveFileId);
+		if (chooserGame && !nextEntries.some((e) => e.kind === 'game' && e.game === chooserGame)) {
+			if (chooserOpen) {
+				summonedWorkflow.closeAll();
+				shouldFocus = true;
+			}
+		}
+		target = resolveSavesEntryTarget(
+			nextEntries,
 			preferredTarget ?? rememberedTarget(),
 			snapshot.activeSaveFileId
 		);
@@ -296,7 +322,7 @@
 	}
 
 	function chooseTarget(next: SavesTarget, focus = true) {
-		target = next;
+		target = normalizeSavesTarget(entries, next);
 		rememberTarget(next);
 		if (focus) void focusGrid();
 		else void scrollTargetIntoView();
@@ -335,6 +361,7 @@
 			return;
 		}
 		if (addSavesOpen) return;
+		if (chooserOpen) return;
 		if (!summonedWorkflow.active && searchControls?.contains(document.activeElement)) {
 			handleSearchKeydown(event);
 			return;
@@ -427,6 +454,10 @@
 		}
 		if (currentTarget.kind === 'pokemon-storage') {
 			void openPokemonStorage();
+			return;
+		}
+		if (currentTarget.kind === 'game') {
+			openChooser(currentTarget.game);
 			return;
 		}
 		const saveFile = saveFiles.find((candidate) => candidate.id === currentTarget.id);
@@ -757,15 +788,46 @@
 		} catch (error) {
 			toastHost.error('Could not open Save File. ' + getErrorMessage(error));
 			if (menuOpen) void focusMenuCommand(menuIndex);
+			else if (chooserOpen) void focusChooserRow();
 			else void focusGrid();
 		} finally {
 			busyTarget = null;
 		}
 	}
 
+	function openChooser(game: string) {
+		if (
+			busyTarget ||
+			!summonedWorkflow.open('save-file-chooser', { type: 'control', id: 'saves-grid' })
+		)
+			return;
+		chooseTarget({ kind: 'game', game }, false);
+		chooserGame = game;
+		chooserIndex = 0;
+		void focusChooserRow();
+	}
+
+	function closeChooser() {
+		if (busyTarget || !chooserOpen) return;
+		summonedWorkflow.dismiss();
+		if (chooserGame) chooseTarget({ kind: 'game', game: chooserGame });
+	}
+
+	async function focusChooserRow() {
+		await tick();
+		[...document.querySelectorAll<HTMLElement>(`#save-file-chooser-row-${chooserIndex}`)]
+			.at(-1)
+			?.focus();
+	}
+
 	function openSaveFileMenu(saveFileId: SaveFileId) {
 		if (busyTarget || !saveFiles.some((saveFile) => saveFile.id === saveFileId)) return;
-		if (
+		if (chooserOpen) {
+			summonedWorkflow.openRelated('save-file-menu', {
+				type: 'control',
+				id: `save-file-chooser-row-${chooserIndex}`
+			});
+		} else if (
 			!summonedWorkflow.open('save-file-menu', {
 				type: 'control',
 				id: gridElement?.id ?? 'saves-grid'
@@ -839,11 +901,11 @@
 	async function confirmDelete() {
 		const saveFile = menuSaveFile;
 		if (!saveFile || busyTarget) return;
-		const preDeleteTargets = currentTargets();
-		const fallback = deleteSavesTarget(preDeleteTargets, {
-			kind: 'save-file',
-			id: saveFile.id
-		});
+		const member = normalizeSavesTarget(entries, { kind: 'save-file', id: saveFile.id });
+		const fallback =
+			member.kind === 'game'
+				? member
+				: deleteSavesTarget(targets, { kind: 'save-file', id: saveFile.id });
 		busyTarget = saveFile.id;
 		try {
 			if (!(await storage.getSave(saveFile.id))) {
@@ -937,7 +999,9 @@
 		menuSaveFileId = null;
 		menuReturnTarget = null;
 		deleteDescription = null;
-		chooseTarget(resolveSavesTarget(targets, returnTarget, activeSaveFileId));
+		if (chooserOpen && chooserGroup) return;
+		if (chooserOpen) summonedWorkflow.closeAll();
+		chooseTarget(resolveSavesEntryTarget(entries, returnTarget, activeSaveFileId));
 	}
 
 	function cancelDelete() {
@@ -1011,13 +1075,7 @@
 	function updateLibrary(nextQuery = query, nextSort = sort) {
 		query = nextQuery;
 		sort = nextSort;
-		target = resolveSavesTarget(
-			currentTargets(
-				filterSortSaves({ files: saveFiles, details: detailsBySaveFileId, query, sort })
-			),
-			target,
-			null
-		);
+		target = resolveSavesEntryTarget(entriesFor(), target, null);
 		rememberTarget(target);
 	}
 
@@ -1105,6 +1163,11 @@
 				Math.max(0, Math.min(controls.length - 1, index + (event.key === 'ArrowLeft' ? -1 : 1)))
 			]?.focus();
 		}
+	}
+
+	function trainerOf(id: SaveFileId) {
+		const details = detailsBySaveFileId[id];
+		return details?.status === 'ready' ? details.details.summary.trainerName : undefined;
 	}
 
 	function displayName(saveFile: StoredSaveFile) {
@@ -1255,7 +1318,7 @@
 				<div class="saves-grid" {@attach savesGridContent}>
 					{#each gridRows as row, rowIndex (gridRowKey(row))}
 						<div class="saves-grid-row" role="row" aria-rowindex={rowIndex + 1}>
-							{#each row as entry (entry.kind === 'save-file' ? entry.saveFile.id : entry.kind)}
+							{#each row as entry (entryKey(entry))}
 								{#if entry.kind === 'save-file'}
 									{@const saveFile = entry.saveFile}
 									{@const index = entry.index}
@@ -1350,6 +1413,46 @@
 											active={busyTarget === saveFile.id}
 											label={`Opening ${displayName(saveFile)}`}
 										/>
+									</div>
+								{:else if entry.kind === 'game'}
+									{@const groupTarget = { kind: 'game' as const, game: entry.game }}
+									{@const title = getSaveGameTitle(entry.game)}
+									{@const active = entry.saveFiles.some((file) => file.id === activeSaveFileId)}
+									<div
+										id={targetDomId(groupTarget)}
+										class={[
+											'save-card',
+											'game-card',
+											sameSavesTarget(target, groupTarget) && 'controller-focused',
+											active && 'active'
+										]}
+										role="gridcell"
+										aria-colindex={(entry.index % columnCount) + 1}
+										aria-current={active ? 'true' : undefined}
+										in:cardRise={{ index: entry.index }}
+									>
+										<button
+											type="button"
+											class="card-main"
+											data-pksx-control-category="card"
+											tabindex="-1"
+											aria-label={`Choose a ${title} Save File, ${entry.saveFiles.length} Save Files`}
+											onpointerdown={(event) => event.preventDefault()}
+											onclick={() => openChooser(entry.game)}
+										>
+											<span class="card-heading">
+												<strong>{title}</strong>
+												{#if active}<em>Active</em>{/if}
+											</span>
+											<span class="trainer"
+												>{[
+													...new Set(
+														entry.saveFiles.map((file) => trainerOf(file.id) ?? 'Unknown Trainer')
+													)
+												].join(', ')}</span
+											>
+											<span class="card-stats"><b>{entry.saveFiles.length}</b> Save Files</span>
+										</button>
 									</div>
 								{:else if entry.kind === 'pokemon-storage'}
 									{@const selected = target.kind === 'pokemon-storage'}
@@ -1452,6 +1555,27 @@
 		onDelete={() => (deleteOpen ? void confirmDelete() : void requestDelete())}
 		onCancelDelete={cancelDelete}
 		onClose={dismissSaveFileWorkflow}
+	/>
+{/if}
+
+{#if chooserOpen && chooserGroup}
+	<SaveFileChooser
+		title={getSaveGameTitle(chooserGroup?.game ?? '')}
+		saveFiles={chooserGroup?.saveFiles ?? []}
+		trainers={Object.fromEntries(
+			(chooserGroup?.saveFiles ?? []).map((file) => [file.id, trainerOf(file.id)])
+		)}
+		{activeSaveFileId}
+		activeIndex={Math.min(chooserIndex, (chooserGroup?.saveFiles.length ?? 1) - 1)}
+		busyId={typeof busyTarget === 'string' &&
+		busyTarget !== 'import' &&
+		busyTarget !== 'pokemon-storage'
+			? busyTarget
+			: null}
+		onFocusIndex={(index) => (chooserIndex = index)}
+		onOpen={(saveFile) => chooserOpen && void activateSaveFile(saveFile, 'boxes')}
+		onMenu={(saveFile) => chooserOpen && openSaveFileMenu(saveFile.id)}
+		onClose={closeChooser}
 	/>
 {/if}
 

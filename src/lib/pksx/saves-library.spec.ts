@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { filterSortSaves } from './saves-library';
+import { filterSortSaves, groupSaves } from './saves-library';
+import { normalizeSavesTarget, resolveSavesEntryTarget } from './saves-navigation';
 import type { StoredSaveFile } from './saves';
 import type { SaveCardDetailsState } from './saves-cache';
 
@@ -116,5 +117,39 @@ describe('Saves library', () => {
 			}).map((file) => file.id)
 		).toEqual(['a', 'b', 'c']);
 		expect(files.every((file) => !file.lastOpenedAt)).toBe(true);
+	});
+	it('groups by engine game identity, keeping unknown and indistinct games separate', () => {
+		const ready = (gameVersion: string) => ({
+			status: 'ready' as const,
+			details: { ...details.b.details, summary: { ...details.b.details.summary, gameVersion } }
+		});
+		const pool = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ ...files[2], id }));
+		const states: Record<string, SaveCardDetailsState> = {
+			a: ready('E'),
+			b: { status: 'unavailable' },
+			c: ready('E'),
+			d: ready('RS'),
+			e: ready('R')
+		};
+		const grouped = groupSaves(pool, states, 'by-game');
+		expect(
+			grouped.map((entry) => (entry.kind === 'game' ? entry.game : entry.saveFile.id))
+		).toEqual(['E', 'b', 'd', 'e']);
+		expect(groupSaves(pool, states, 'flat')).toHaveLength(5);
+
+		const group = { kind: 'game', game: 'E' } as const;
+		expect(normalizeSavesTarget(grouped, { kind: 'save-file', id: 'c' })).toEqual(group);
+		expect(resolveSavesEntryTarget(grouped, null, 'c')).toEqual(group);
+		const afterDelete = groupSaves(
+			pool.filter((file) => file.id !== 'a'),
+			states,
+			'by-game'
+		);
+		expect(resolveSavesEntryTarget(afterDelete, group, null)).toEqual({
+			kind: 'save-file',
+			id: 'c'
+		});
+		const loading = groupSaves(pool, { ...states, a: { status: 'loading' } }, 'by-game');
+		expect(resolveSavesEntryTarget(loading, group, null)).toEqual({ kind: 'save-file', id: 'c' });
 	});
 });

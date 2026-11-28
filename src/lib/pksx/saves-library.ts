@@ -1,8 +1,11 @@
 import { getSaveDisplayName, type StoredSaveFile } from './saves';
 import type { SaveCardDetailsState } from './saves-cache';
+import type { SavesEntry } from './saves-navigation';
 
 export type SavesSort = 'alphabetical' | 'recently-opened';
+export type SavesView = 'flat' | 'by-game';
 const sortKey = 'pksx-saves-sort-v1';
+const viewKey = 'pksx-saves-view-v1';
 
 const gameNames: Record<string, string> = {
 	RB: 'Pokemon Red / Blue',
@@ -111,6 +114,53 @@ export function readSavesSort(): SavesSort {
 export function writeSavesSort(sort: SavesSort) {
 	try {
 		localStorage.setItem(sortKey, sort);
+	} catch {
+		/* Storage may be unavailable. */
+	}
+}
+
+/** The engine's game identity, or null while details are loading or unavailable. */
+export function saveGameOf(details: SaveCardDetailsState | undefined) {
+	return (details?.status === 'ready' && details.details.summary.gameVersion) || null;
+}
+
+/** Groups already sorted Save Files by game; each group sits where its first member sorts. */
+export function groupSaves(
+	files: StoredSaveFile[],
+	details: Record<string, SaveCardDetailsState>,
+	view: SavesView
+): SavesEntry[] {
+	const byGame = new Map<string, StoredSaveFile[]>();
+	if (view === 'by-game') {
+		for (const file of files) {
+			const game = saveGameOf(details[file.id]);
+			if (game) byGame.set(game, [...(byGame.get(game) ?? []), file]);
+		}
+	}
+	const entries: SavesEntry[] = [];
+	for (const file of files) {
+		const game = saveGameOf(details[file.id]);
+		const members = game ? byGame.get(game) : undefined;
+		if (!game || !members || members.length < 2) {
+			entries.push({ kind: 'save-file', saveFile: file, game });
+		} else if (members[0] === file) {
+			entries.push({ kind: 'game', game, saveFiles: members });
+		}
+	}
+	return entries;
+}
+
+export function readSavesView(): SavesView {
+	try {
+		return localStorage.getItem(viewKey) === 'by-game' ? 'by-game' : 'flat';
+	} catch {
+		return 'flat';
+	}
+}
+
+export function writeSavesView(view: SavesView) {
+	try {
+		localStorage.setItem(viewKey, view);
 	} catch {
 		/* Storage may be unavailable. */
 	}
