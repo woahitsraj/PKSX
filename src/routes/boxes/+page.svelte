@@ -133,7 +133,7 @@
 		loadActiveWorkspaceFromSaves,
 		projectCachedActiveWorkspace,
 		seedSavesSnapshotFromActiveWorkspace,
-		setCachedActiveWorkspace
+		publishActiveWorkspace
 	} from '$lib/pksx/saves-cache';
 	import BoxMenu from '$lib/components/pksx/BoxMenu.svelte';
 	import BoxPicker from '$lib/components/pksx/BoxPicker.svelte';
@@ -2707,7 +2707,7 @@
 			summonedWorkflow.closeAll();
 			if (loadedSave?.file.id === next.file.id) {
 				loadedSave = next;
-				setCachedActiveWorkspace(next, next.workspace.boxSlots[0]?.box ?? activePaneBox);
+				publishActiveWorkspace(next);
 			}
 			installMutatedSaveProjection(next, next.workspace.boxSlots[0]?.box ?? activePaneBox);
 			invalidateSavesCache();
@@ -3417,7 +3417,7 @@
 
 		if (loadedSave?.file.id === state.file.id) {
 			loadedSave = state;
-			setCachedActiveWorkspace(state, publishedBox);
+			publishActiveWorkspace(state);
 		}
 		invalidateSavesCache();
 		for (const projection of missingProjections) {
@@ -3982,7 +3982,7 @@
 			if (loadedSave?.file.id === nextState.file.id) loadedSave = nextState;
 			installMutatedSaveProjection(nextState, operationBox);
 			if (loadedSave?.file.id === nextState.file.id) {
-				setCachedActiveWorkspace(nextState, operationBox);
+				publishActiveWorkspace(nextState);
 			}
 			invalidateSavesCache();
 			pendingSlotOperation = null;
@@ -4240,7 +4240,7 @@
 			const nextState: WorkspaceState = result.state;
 			if (loadedSave?.file.id === nextState.file.id) {
 				loadedSave = nextState;
-				setCachedActiveWorkspace(nextState, operationBox);
+				publishActiveWorkspace(nextState);
 			}
 			installMutatedSaveProjection(nextState, operationBox);
 			if (context?.preserveDeletion) void refreshCommittedCatalogView();
@@ -4861,7 +4861,7 @@
 		if (switchingPrimaryPane && source.type === 'save-file' && source.id && targetWorkspace) {
 			await storage.setActiveSaveFileId(source.id);
 			loadedSave = targetWorkspace.state;
-			setCachedActiveWorkspace(targetWorkspace.state, targetWorkspace.loadedBox);
+			publishActiveWorkspace(targetWorkspace.state);
 			invalidateSavesCache();
 		}
 		sourcePickerTargetPaneId = null;
@@ -4925,7 +4925,7 @@
 			const promotedWorkspace = savePaneWorkspaces[promotedPane.id];
 			if (promotedWorkspace) {
 				loadedSave = promotedWorkspace.state;
-				setCachedActiveWorkspace(promotedWorkspace.state, promotedWorkspace.loadedBox);
+				publishActiveWorkspace(promotedWorkspace.state);
 			}
 			invalidateSavesCache();
 		}
@@ -5645,7 +5645,7 @@
 
 		if (loadedSave?.file.id === nextState.file.id) {
 			loadedSave = nextState;
-			setCachedActiveWorkspace(nextState, target.activeBox);
+			publishActiveWorkspace(nextState);
 			invalidateSavesCache();
 		}
 
@@ -6748,7 +6748,7 @@
 		if (loadedSave?.file.id === nextState.file.id) loadedSave = nextState;
 		installMutatedSaveProjection(nextState, editorBox);
 		if (loadedSave?.file.id === nextState.file.id) {
-			setCachedActiveWorkspace(nextState, editorBox);
+			publishActiveWorkspace(nextState);
 		}
 		invalidateSavesCache();
 		// Cancel resets to this slot if the pane later reloads without edit data.
@@ -6957,7 +6957,7 @@
 				if (applied.status === 'complete') {
 					if (loadedSave?.file.id === applied.workspace.file.id) {
 						loadedSave = applied.workspace;
-						setCachedActiveWorkspace(applied.workspace, activeBox);
+						publishActiveWorkspace(applied.workspace);
 						invalidateSavesCache();
 					}
 					installMutatedSaveProjection(applied.workspace, activeBox);
@@ -7157,10 +7157,10 @@
 		void refreshPublishedSavePanes(state, publishedBox);
 	}
 
-	function installActiveBoxProjection(state: WorkspaceState, box: number) {
+	function installActiveBoxProjection(state: WorkspaceState) {
 		installingActiveBoxProjection = true;
 		try {
-			projectCachedActiveWorkspace(state, box);
+			projectCachedActiveWorkspace(state);
 		} finally {
 			installingActiveBoxProjection = false;
 		}
@@ -7428,7 +7428,7 @@
 					loadedSave?.file.id === save.file.id
 				) {
 					loadedSave = state;
-					installActiveBoxProjection(state, box);
+					installActiveBoxProjection(state);
 				}
 			}
 		} catch (error) {
@@ -7584,7 +7584,7 @@
 				loadedSave?.file.id === target.sourceId &&
 				bytesEqual(loadedSave.bytes, state.bytes)
 			) {
-				installActiveBoxProjection(state, target.box);
+				installActiveBoxProjection(state);
 			}
 		} catch (error) {
 			if (paneWorkspaceRequests[target.paneId] === target.request) {
@@ -7812,7 +7812,7 @@
 			if (request === workspaceLoadRequest) {
 				loadedSave = createCleanWorkspaceState({ file: saveFile, bytes, workspace });
 				saveFiles = await storage.listSaves();
-				setCachedActiveWorkspace(loadedSave, 0);
+				publishActiveWorkspace(loadedSave);
 				invalidateSavesCache();
 				seedSavesSnapshotFromActiveWorkspace(saveFiles);
 				installActiveSavePane(loadedSave, 0);

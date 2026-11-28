@@ -34,7 +34,7 @@ import {
 	invalidateActiveWorkspaceCache,
 	invalidateSavesCache,
 	loadWorkspaceForOpening,
-	setCachedActiveWorkspace,
+	publishActiveWorkspace,
 	subscribeSavesSnapshot
 } from './saves-cache';
 
@@ -101,7 +101,7 @@ describe('Saves cache async settlement', () => {
 		await vi.waitFor(() => expect(fakes.engine.summarizeSaveCard).toHaveBeenCalledTimes(1));
 		const updates: Array<ReturnType<typeof getCachedSavesSnapshot>> = [];
 		const unsubscribe = subscribeSavesSnapshot((snapshot) => updates.push(snapshot));
-		setCachedActiveWorkspace(
+		publishActiveWorkspace(
 			createCleanWorkspaceState({
 				file,
 				bytes: new Uint8Array([5, 6, 7, 8]),
@@ -144,7 +144,7 @@ describe('Saves cache async settlement', () => {
 		await getSavesSnapshot({ force: true });
 		await vi.waitFor(() => expect(fakes.engine.summarizeSaveCard).toHaveBeenCalledTimes(1));
 		unsubscribe();
-		setCachedActiveWorkspace(
+		publishActiveWorkspace(
 			createCleanWorkspaceState({
 				file,
 				bytes: new Uint8Array([5, 6, 7, 8]),
@@ -266,7 +266,7 @@ describe('Saves cache async settlement', () => {
 
 		const first = await loadWorkspaceForOpening(file.id);
 		expect(first).toMatchObject({ published: false, state: { file } });
-		setCachedActiveWorkspace(first!.state, 0);
+		publishActiveWorkspace(first!.state);
 		const second = await loadWorkspaceForOpening(file.id);
 
 		expect(second).toMatchObject({ published: true, state: { file } });
@@ -318,13 +318,13 @@ describe('Saves cache async settlement', () => {
 			workspace: workspace('ACTIVE')
 		});
 		await getSavesSnapshot({ force: true });
-		setCachedActiveWorkspace(state, 0);
+		publishActiveWorkspace(state);
 		await vi.waitFor(() =>
 			expect(getCachedSavesSnapshot()?.detailsBySaveFileId[file.id]?.status).toBe('ready')
 		);
 		fakes.engine.summarizeSaveCard.mockClear();
 
-		setCachedActiveWorkspace({ ...state, bytes: new Uint8Array([5, 6, 7, 8]) }, 1);
+		publishActiveWorkspace({ ...state, bytes: new Uint8Array([5, 6, 7, 8]) });
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(getCachedSavesSnapshot()?.detailsBySaveFileId[file.id]?.status).toBe('ready');
@@ -353,7 +353,7 @@ describe('Saves cache async settlement', () => {
 		await getSavesSnapshot({ force: true });
 		await vi.waitFor(() => expect(fakes.engine.summarizeSaveCard).toHaveBeenCalledTimes(2));
 		const unsubscribe = subscribeSavesSnapshot(() => undefined);
-		setCachedActiveWorkspace(
+		publishActiveWorkspace(
 			createCleanWorkspaceState({
 				file: active,
 				bytes: new Uint8Array([5, 6, 7, 8]),

@@ -2,15 +2,19 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { BoxSlotSummary, PartySlotSummary, SaveWorkspace } from '$lib/engine';
 import type { StoredSaveFile } from '$lib/pksx/saves';
 import { createCleanWorkspaceState } from '$lib/pksx/backup-workflow';
+import { getBoxesSession } from '$lib/pksx/boxes-session';
 import {
+	consumeActiveSaveAdoption,
+	getCachedActiveWorkspace,
 	getCachedSavesSnapshot,
 	getCachedActiveWorkspaceBox,
 	getActiveWorkspaceService,
 	invalidateActiveWorkspaceCache,
 	invalidateSavesCache,
 	isCachedSavesSnapshotSeeded,
+	projectCachedActiveWorkspace,
 	seedSavesSnapshotFromActiveWorkspace,
-	setCachedActiveWorkspace,
+	publishActiveWorkspace,
 	subscribeSavesSnapshot
 } from './saves-cache';
 
@@ -163,7 +167,7 @@ describe('Saves cache', () => {
 			workspace
 		});
 
-		setCachedActiveWorkspace(activeWorkspace, 0);
+		publishActiveWorkspace(activeWorkspace);
 		const seeded = seedSavesSnapshotFromActiveWorkspace([saveFile]);
 
 		expect(seeded).not.toBeNull();
@@ -180,7 +184,7 @@ describe('Saves cache', () => {
 			bytes: new Uint8Array([1, 2, 3, 4]),
 			workspace
 		});
-		setCachedActiveWorkspace(activeWorkspace, 0);
+		publishActiveWorkspace(activeWorkspace);
 		seedSavesSnapshotFromActiveWorkspace([saveFile]);
 
 		const firstUpdates: unknown[] = [];
@@ -189,7 +193,7 @@ describe('Saves cache', () => {
 		unsubscribeFirst();
 		const unsubscribeSecond = subscribeSavesSnapshot((snapshot) => secondUpdates.push(snapshot));
 
-		setCachedActiveWorkspace(activeWorkspace, 0);
+		publishActiveWorkspace(activeWorkspace);
 		unsubscribeSecond();
 
 		expect(firstUpdates).toHaveLength(1);
@@ -215,7 +219,7 @@ describe('Saves cache', () => {
 			});
 		});
 
-		setCachedActiveWorkspace(boxTwoWorkspace, 1);
+		publishActiveWorkspace(boxTwoWorkspace);
 		unsubscribe();
 
 		expect(observed.at(-1)).toEqual({ box: 1, nickname: 'MAKUHITA' });
@@ -226,5 +230,73 @@ describe('Saves cache', () => {
 
 		expect(seedSavesSnapshotFromActiveWorkspace([saveFile])).toBeNull();
 		expect(getCachedSavesSnapshot()).toBeNull();
+	});
+});
+
+describe('active Workspace Box', () => {
+	const otherSaveFile: StoredSaveFile = { ...saveFile, id: 'save-2' };
+	const stateAtBox = (box: number, file = saveFile) =>
+		createCleanWorkspaceState({
+			file,
+			bytes: new Uint8Array([1, 2, 3, 4]),
+			workspace: { ...workspace, boxSlots: [{ ...boxSlot, box }] }
+		});
+	const published = () => ({
+		box: getCachedActiveWorkspaceBox(),
+		slotBox: getCachedActiveWorkspace()?.workspace.boxSlots[0]?.box,
+		saveFileId: getCachedActiveWorkspace()?.file.id
+	});
+
+	afterEach(() => {
+		invalidateSavesCache();
+		invalidateActiveWorkspaceCache();
+	});
+
+	it('keeps Box 2 when the active Save File is renamed', () => {
+		publishActiveWorkspace(stateAtBox(1));
+
+		const current = getCachedActiveWorkspace()!;
+		publishActiveWorkspace({ ...current, file: { ...current.file, displayName: 'Renamed' } });
+
+		expect(published()).toEqual({ box: 1, slotBox: 1, saveFileId: saveFile.id });
+		expect(getCachedActiveWorkspace()?.file.displayName).toBe('Renamed');
+	});
+
+	it('opens Box 1 of the owner when a Backup is restored from Saves', () => {
+		publishActiveWorkspace(stateAtBox(1));
+
+		const restored = stateAtBox(0, otherSaveFile);
+		getBoxesSession().selectPrimary(
+			{ type: 'save-file', id: otherSaveFile.id, label: 'Other', dirty: false },
+			14
+		);
+		publishActiveWorkspace(restored, { adoptAsActiveSave: true });
+
+		expect(published()).toEqual({ box: 0, slotBox: 0, saveFileId: otherSaveFile.id });
+		expect(consumeActiveSaveAdoption(otherSaveFile.id)).toBe(true);
+	});
+
+	it('keeps the open Box when a Backup is restored from Boxes', () => {
+		publishActiveWorkspace(stateAtBox(1));
+
+		publishActiveWorkspace(stateAtBox(getCachedActiveWorkspaceBox()), { adoptAsActiveSave: false });
+
+		expect(published()).toEqual({ box: 1, slotBox: 1, saveFileId: saveFile.id });
+		expect(consumeActiveSaveAdoption(saveFile.id)).toBe(false);
+	});
+
+	it('follows a Box switch', () => {
+		publishActiveWorkspace(stateAtBox(0));
+
+		projectCachedActiveWorkspace(stateAtBox(2));
+
+		expect(published()).toEqual({ box: 2, slotBox: 2, saveFileId: saveFile.id });
+	});
+
+	it('rejects a Box number from callers', () => {
+		const state = stateAtBox(1);
+		// @ts-expect-error The Box comes from the Workspace slots, never from the caller.
+		expect(() => publishActiveWorkspace(state, 0)).not.toThrow();
+		expect(getCachedActiveWorkspaceBox()).toBe(1);
 	});
 });
