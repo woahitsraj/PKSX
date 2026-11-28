@@ -4,6 +4,6 @@ PKSX uses a base type ladder in every **Height Band**: caption 10, label 12, bod
 
 Two facts drove this. The portrait floor (360×640 raw) sits in the Tall band, so any density stepped by band gives the smallest phone the largest tokens and overflowed the **Pokemon Editor** there. Fluid type keyed on height overshot the 393px portrait target on width, because width is the scarce axis in portrait while height is scarce in landscape; a fixed ladder holds both. **Slots** never shrink below 36px, then the pane scrolls; Slot text keys on the Slot's own size and degrades in the order name and level, index, then the sprite fills the Slot.
 
-The Slot minimum was reduced from 44px to 36px with user approval for [Select Pokemon across boxes with controller and touch](https://github.com/woahitsraj/PKSX/issues/384). Slots still grow to fit available space, and selection help uses the compact type ladder.
+The Slot minimum was reduced from 44px to 36px with user approval for [Select Pokemon across boxes with controller and touch](https://github.com/woahitsraj/PKSX/issues/384). Slots still grow to fit available space, and selection help uses the compact type ladder. At 36px, optional Slot text and the carry mode label hide before any marker overlaps a neighbor Slot.
 
 Considered and rejected: two ladders stepped by Height Band, and one fluid ladder derived from a height-keyed body size. The base scale was decided on the shell redesign map, issue #196; issue #203 added the bounded large-container step.

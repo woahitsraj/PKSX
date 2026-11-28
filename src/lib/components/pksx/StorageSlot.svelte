@@ -438,6 +438,7 @@
 		background: color-mix(in srgb, var(--paper-hi), transparent 12%);
 		box-shadow: 0 0 0 var(--pksx-focus-ring) var(--rust-ring);
 		pointer-events: none;
+		container-type: size;
 	}
 
 	.carry-at-focus img {
@@ -456,6 +457,12 @@
 		background: var(--rust);
 		color: var(--pksx-color-on-accent);
 		font: 750 var(--pksx-type-label) / 1 var(--pksx-font-sans);
+	}
+
+	@container (width < 46px) {
+		.carry-at-focus strong {
+			display: none;
+		}
 	}
 
 	:global(.location-grid[data-slot-density='number']) .slot-number,

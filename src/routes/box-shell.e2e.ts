@@ -2370,6 +2370,53 @@ test('duplicate Save panes order workspace loads with mutation publication', asy
 	});
 });
 
+test('36px Slots keep carry and selection markers inside the Slot', async ({ page }) => {
+	await page.setViewportSize({ width: 1800, height: 900 });
+	const pane = (await openDuplicateEmeraldPanes(page)).first();
+	const target = pane.locator('[id$="box-0-slot-1"]');
+	const badge = target.locator('.carry-at-focus strong');
+	const inside = (selector: string) =>
+		target.evaluate((slot, selector) => {
+			const outer = slot.getBoundingClientRect();
+			const inner = slot.querySelector(selector)!.getBoundingClientRect();
+			return (
+				inner.left >= outer.left &&
+				inner.top >= outer.top &&
+				inner.right <= outer.right &&
+				inner.bottom <= outer.bottom
+			);
+		}, selector);
+
+	await pane.locator('[id$="box-0-slot-0"]').focus();
+	await page.getByLabel('Transfer controls').getByRole('button', { name: 'Move' }).click();
+	await page.keyboard.press('ArrowRight');
+	await expect(badge).toBeVisible();
+	await page.setViewportSize({ width: 393, height: 852 });
+	await expect(badge).toBeVisible();
+	expect(await inside('.carry-at-focus strong')).toBe(true);
+	await page.setViewportSize({ width: 1800, height: 900 });
+	await page.addStyleTag({ content: '.location-grid { --slot-size: 36px !important; }' });
+	await expect(pane.getByRole('grid')).toHaveAttribute('data-slot-density', 'compact');
+	await expect.poll(() => target.evaluate((slot) => slot.getBoundingClientRect().width)).toBe(36);
+	await expect(badge).toBeHidden();
+	expect(await inside('.carry-at-focus')).toBe(true);
+	await expect(target.locator('.carry-at-focus')).toHaveAttribute('aria-label', 'move ARON');
+
+	await page.keyboard.press('Escape');
+	await expect(target.locator('.carry-at-focus')).toHaveCount(0);
+	const actions = page.getByRole('group', { name: 'Selection actions' });
+	await expect(async () => {
+		await target.focus();
+		if (!(await actions.count())) await page.keyboard.press('-');
+		await expect(actions).toContainText('0 selected', { timeout: 1000 });
+	}).toPass();
+	await target.focus();
+	await page.keyboard.press('Enter');
+	await expect(target.locator('.selection-check')).toBeVisible();
+	expect(await inside('.selection-check')).toBe(true);
+	expect(await inside('.slot-sprite')).toBe(true);
+});
+
 test('transfer controls use current Controller Focus during deferred DOM focus', async ({
 	page
 }) => {
@@ -2848,7 +2895,7 @@ test('two Box Panes keep Controller Focus and Carry through rotation, mutation, 
 			.locator('.slot')
 			.first()
 			.evaluate((slot) => slot.getBoundingClientRect().width);
-		expect(minimumSlot).toBeGreaterThanOrEqual(44);
+		expect(minimumSlot).toBeGreaterThanOrEqual(36);
 
 		if (viewport.width === 640 && viewport.height <= 480) {
 			const compact = await page.evaluate(() => {
