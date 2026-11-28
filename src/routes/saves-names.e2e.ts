@@ -291,7 +291,9 @@ for (const viewport of [
 		expect(sort).not.toBeNull();
 		expect(sort!.x + sort!.width).toBeLessThanOrEqual(menu!.x);
 		if (viewport.width === 390) {
-			expect(input!.width).toBeGreaterThan(viewport.width * 0.8);
+			const hidden = await page.getByRole('button', { name: 'Show hidden saves' }).boundingBox();
+			expect(input!.width).toBeGreaterThan(viewport.width * 0.7);
+			expect(hidden!.y).toBe(input!.y);
 			expect(sort!.y + sort!.height).toBeLessThanOrEqual(input!.y);
 			await page.keyboard.press('ArrowUp');
 			await expect(page.getByRole('button', { name: 'A to Z', exact: true })).toBeFocused();

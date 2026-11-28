@@ -147,6 +147,30 @@ describe('CapacitorSavesStorage', () => {
 		expect(await restarted.getSaveBytes(file.id)).toEqual(new Uint8Array([1]));
 	});
 
+	it('hides and unhides without touching artifacts across restart', async () => {
+		const bytes = new Uint8Array([1, 2, 3]);
+		const file = await storage.importSave({ bytes, originalFileName: 'original.sav' });
+		await storage.putWorkspace({
+			saveFileId: file.id,
+			bytes: new Uint8Array([4, 5]),
+			dirty: true,
+			automaticBackupCreated: false
+		});
+		await storage.createBackup({ saveFileId: file.id, bytes, reason: 'manual' });
+		await storage.setActiveSaveFileId(file.id);
+		const workspace = await storage.getWorkspace(file.id);
+		const backups = await storage.listBackups(file.id);
+		await storage.setSaveHidden(file.id, true);
+		const restarted = new CapacitorSavesStorage({ fileStore });
+		expect(await restarted.getSave(file.id)).toEqual({ ...file, hidden: true });
+		expect(await restarted.getActiveSaveFileId()).toBe(file.id);
+		expect(await restarted.getWorkspace(file.id)).toEqual(workspace);
+		expect(await restarted.listBackups(file.id)).toEqual(backups);
+		expect(await restarted.getSaveBytes(file.id)).toEqual(bytes);
+		await restarted.setSaveHidden(file.id, false);
+		expect(await restarted.getSave(file.id)).toEqual({ ...file, hidden: false });
+	});
+
 	it('renames legacy metadata and resets without touching artifacts across restart', async () => {
 		const bytes = new Uint8Array([1, 2, 3]);
 		const file = await storage.importSave({ bytes, originalFileName: 'original.sav' });

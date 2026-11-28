@@ -4,7 +4,11 @@ import { flushSync, mount, tick, unmount } from 'svelte';
 import type { EngineApi } from '$lib/engine';
 import SavesGrid from './SavesGrid.svelte';
 import { createSummonedWorkflowHost } from '$lib/pksx/summoned-workflow/host.svelte';
-import { createEmptyPokemonStorage, deleteIndexedDbSaves } from '$lib/pksx/saves';
+import {
+	createEmptyPokemonStorage,
+	deleteIndexedDbSaves,
+	type StoredSaveFile
+} from '$lib/pksx/saves';
 import { deleteBrowserCatalog } from '$lib/pksx/pokemon-storage-catalog';
 import {
 	getSaveFileEditCoordinator,
@@ -349,6 +353,47 @@ it('stages, cancels and applies a duplicate display name without losing target i
 	expect(container.querySelectorAll('[aria-label="Open Adventure in Boxes"]').length).toBe(2);
 });
 
+it('hides to a surviving neighbor and unhides back to the restored card', async () => {
+	const storage = getSavesStorage();
+	const first = await storage.importSave({ bytes: new Uint8Array([1]), originalFileName: 'a.sav' });
+	const second = await storage.importSave({
+		bytes: new Uint8Array([2]),
+		originalFileName: 'b.sav'
+	});
+	await storage.setActiveSaveFileId(first.id);
+	fakes.host = createSummonedWorkflowHost();
+	container = document.createElement('div');
+	document.body.append(container);
+	component = mount(SavesGrid, { target: container });
+	await expect.poll(() => container.querySelectorAll('.save-card').length).toBe(2);
+	const grid = container.querySelector<HTMLElement>('#saves-grid')!;
+	const hide = async (file: StoredSaveFile) => {
+		container
+			.querySelector<HTMLButtonElement>(
+				`[aria-label="Open Save File Menu for ${file.originalFileName}"]`
+			)!
+			.click();
+		await tick();
+		container.querySelector<HTMLButtonElement>('#save-file-menu-command-6')!.click();
+	};
+	await hide(first);
+	await expect.poll(() => container.querySelectorAll('.save-card').length).toBe(1);
+	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-' + second.id);
+	await expect.poll(() => document.activeElement).toBe(grid);
+	expect(await storage.getActiveSaveFileId()).toBe(first.id);
+	await hide(second);
+	await expect.poll(() => container.textContent).toContain('Every Save File is hidden');
+	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-pokemon-storage');
+	container.querySelector<HTMLButtonElement>('#saves-hidden')!.click();
+	await tick();
+	expect(fakes.host.active?.kind).toBe('hidden-saves-menu');
+	container.querySelector<HTMLButtonElement>('[aria-label="Unhide b.sav"]')!.click();
+	await expect.poll(() => container.querySelectorAll('.save-card').length).toBe(1);
+	expect(fakes.host.active).toBeNull();
+	expect(grid.getAttribute('aria-activedescendant')).toBe('saves-target-' + second.id);
+	expect(await storage.getSaveBytes(second.id)).toEqual(new Uint8Array([2]));
+});
+
 it('retains target identity through filtering and sorting and keeps empty-result actions reachable', async () => {
 	const storage = getSavesStorage();
 	const file = await storage.importSave({
@@ -385,7 +430,10 @@ it('retains target identity through filtering and sorting and keeps empty-result
 	clear.focus();
 	const arrow = (key: string) => window.dispatchEvent(new KeyboardEvent('keydown', { key }));
 	arrow('ArrowRight');
+	expect(document.activeElement?.id).toBe('saves-hidden');
+	arrow('ArrowRight');
 	expect(document.activeElement?.getAttribute('aria-pressed')).toBe('false');
+	arrow('ArrowLeft');
 	arrow('ArrowLeft');
 	expect(document.activeElement).toBe(clear);
 	clear.click();

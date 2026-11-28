@@ -746,7 +746,8 @@ _Avoid_: setting, option, config
 - The **Slot Menu** acts on the **Slot** under **Controller Focus**.
 - The **Box Menu** acts on the active **Box Source**: **Export**, create a **Backup**, run a Save File-wide **Legality Report**, switch it, open another, or close it.
 - The **Box Menu** opens from the control that names the active **Box Source**, which is a **Controller Focus** target.
-- The **Save File Menu** opens the focused **Save File** in Trainer, Bag, or the **Backup Browser**, or deletes it from **Saves**.
+- The **Save File Menu** opens the focused **Save File** in Trainer, Bag, or the **Backup Browser**, hides it, or deletes it from **Saves**.
+- Hiding a **Save File** only removes it from ordinary **Saves** results; its bytes, **Workspace**, **Backups**, and active state stay unchanged. Show hidden saves lists hidden Save Files to open or unhide.
 - **Export** from the **Box Menu** writes the **Workspace** bytes.
 - The **Main Menu** order is Boxes, Search, Save File-wide **Legality Report**, Trainer, Bag, Saves, Settings, and **Backup Browser**; it never hides or dims an entry.
 - Choosing an entry in the **Main Menu** closes it; returning from that destination does not reopen it.

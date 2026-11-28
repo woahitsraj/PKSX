@@ -15,6 +15,7 @@
 		sourceAction?: string;
 		onSourceAction?: () => void;
 		onRename: () => void;
+		onHide: () => void;
 		onDelete: () => void;
 		onCancelDelete: () => void;
 		onClose: () => void;
@@ -33,6 +34,7 @@
 		sourceAction,
 		onSourceAction,
 		onRename,
+		onHide,
 		onDelete,
 		onCancelDelete,
 		onClose
@@ -103,6 +105,16 @@
 					onclick={onRename}
 				>
 					<strong>Rename</strong>
+				</button>
+				<button
+					id="save-file-menu-command-6"
+					type="button"
+					class={{ 'controller-focused': activeIndex === 6 }}
+					disabled={busy}
+					onfocus={() => onFocusCommand(6)}
+					onclick={onHide}
+				>
+					<strong>Hide</strong>
 				</button>
 				<DelayedSpinner active={busy} label="Opening Save File" />
 			{:else}
