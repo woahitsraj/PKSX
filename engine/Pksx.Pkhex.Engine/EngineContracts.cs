@@ -1655,9 +1655,16 @@ internal static class SlotDetailProjection
     }
 
     private static string? HeldItemUnavailableReason(PKM pokemon, ushort item, string name) =>
-        pokemon is PK3Unbound || ItemRestrictions.IsHeldItemAllowed(item, pokemon.Context)
-            ? null
-            : $"{name} is not supported for this Pokemon.";
+        pokemon is PK3Unbound ? null
+        : !ItemRestrictions.IsHeldItemAllowed(item, pokemon.Context) ? $"{name} is not supported for this Pokemon."
+        : IsEnigmaBerryRejected(pokemon, item) ? $"{name} is not legal for this Pokemon in this Save File."
+        : null;
+
+    // Mirrors the Enigma Berry rule in PKHeX ItemVerifier, the only Held Item check beyond ItemRestrictions.
+    private static bool IsEnigmaBerryRejected(PKM pokemon, ushort item) =>
+        item == 175 && pokemon is G3PKM &&
+        (pokemon is CK3 or XK3 ||
+            EReaderBerrySettings.GetStatus() is not (EReaderBerryMatch.ValidAny or EReaderBerryMatch.ValidUSA or EReaderBerryMatch.ValidJPN));
 
     private static string NatureEffect(int nature)
     {

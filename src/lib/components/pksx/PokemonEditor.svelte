@@ -279,7 +279,7 @@
 						option.id === 0
 							? undefined
 							: (resolveItemSpriteCatalogEntry(option.itemSpriteIdentity)?.path ?? null),
-					detail: option.available ? undefined : 'Unavailable for format',
+					detail: option.available ? undefined : 'Unavailable',
 					disabled: !option.available
 				}) satisfies ComboboxOption
 		)
