@@ -212,19 +212,20 @@ public sealed class PK3Unbound : PKM
             HiddenAbility = value == 4;
             var slot = value == 2 ? 1u : 0u;
             if (!HiddenAbility && (PID & 1) != slot)
-                RerollPid(Nature, slot);
+                RerollPid(Nature, slot, IsShiny);
         }
     }
     public override int Ability { get => PersonalInfo.GetAbilityAtIndex(HiddenAbility ? 2 : (int)(PID & 1)) is var a && a != 0 ? a : PersonalInfo.GetAbilityAtIndex(0); set { } }
-    public override Nature Nature { get => (Nature)(PID % 25); set => RerollPid(value, PID & 1); }
+    public override Nature Nature { get => (Nature)(PID % 25); set => RerollPid(value, PID & 1, IsShiny); }
+
+    public void SetIsShiny(bool shiny) => RerollPid(Nature, PID & 1, shiny);
 
     // Nature, ability slot, gender and shininess all come from the PID, so a new PID keeps the other three.
-    private void RerollPid(Nature nature, uint abilitySlot)
+    private void RerollPid(Nature nature, uint abilitySlot, bool shiny)
     {
         // These species also read their letter, evolution or spots from the PID.
         if (Species is (ushort)PKHeX.Core.Species.Unown or (ushort)PKHeX.Core.Species.Wurmple or (ushort)PKHeX.Core.Species.Spinda)
-            throw new InvalidOperationException($"Changing nature or ability would change this {SpeciesName.GetSpeciesName(Species, (int)LanguageID.English)}'s PID-based traits.");
-        var shiny = IsShiny;
+            throw new InvalidOperationException($"Changing nature, ability or shininess would change this {SpeciesName.GetSpeciesName(Species, (int)LanguageID.English)}'s PID-based traits.");
         var gender = Gender;
         var ratio = PersonalInfo.Gender;
         var trainer = (uint)(TID16 ^ SID16);
@@ -244,7 +245,7 @@ public sealed class PK3Unbound : PKM
                 }
             }
         }
-        throw new InvalidOperationException("No PID keeps this Pokémon's gender, ability and shininess with that nature.");
+        throw new InvalidOperationException("No PID gives this Pokémon that nature, gender, ability and shininess.");
     }
     public override byte Gender { get => EntityGender.GetFromPIDAndRatio(PID, PersonalInfo.Gender); set { } }
 

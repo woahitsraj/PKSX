@@ -214,6 +214,10 @@
 	let draftBattleFields = $state<Record<string, number>>(
 		untrack(() => initialDraft?.battleFields ?? battleFieldsToDraft(battleFields))
 	);
+	const baseIsShiny = $derived(slot.spriteIdentity?.isShiny ?? false);
+	let draftIsShiny = $state(
+		untrack(() => initialDraft?.isShiny ?? slot.spriteIdentity?.isShiny ?? false)
+	);
 	let lastAppliedDraftSignature = $state('');
 	const statEditConstraints = $derived(slot.statEditConstraints);
 	const moveSetEditConstraints = $derived(slot.moveSetEditConstraints);
@@ -547,6 +551,11 @@
 		publishDraftChange();
 	}
 
+	function toggleShiny() {
+		draftIsShiny = !draftIsShiny;
+		publishDraftChange();
+	}
+
 	function setBattleField(key: string, value: string) {
 		draftBattleFields = { ...draftBattleFields, [key]: Number(value) };
 		publishDraftChange();
@@ -677,7 +686,8 @@
 			evs: { ...draftEvs },
 			moves: draftMoves.map((move) => ({ ...move })),
 			friendship: { ...draftFriendship },
-			battleFields: { ...draftBattleFields }
+			battleFields: { ...draftBattleFields },
+			isShiny: draftIsShiny
 		};
 	}
 
@@ -880,7 +890,8 @@
 				'pokemon-editor-pokemon-language': 'Pokemon language',
 				'pokemon-editor-level': 'Level',
 				'pokemon-editor-experience': 'Experience',
-				'pokemon-editor-battle-field-tera-type': 'Tera Type'
+				'pokemon-editor-battle-field-tera-type': 'Tera Type',
+				'pokemon-editor-shiny': 'Shiny'
 			}[control] ?? 'Field'
 		);
 	}
@@ -1041,6 +1052,11 @@
 						.map(({ key, label }) => `${label} ${draftBattleFields[key]}`)
 						.join(', ')
 				};
+			case 'shiny':
+				return {
+					before: baseIsShiny ? 'Shiny' : 'Not shiny',
+					after: draftIsShiny ? 'Shiny' : 'Not shiny'
+				};
 			default:
 				return { before: 'Current value', after: 'Staged value' };
 		}
@@ -1168,6 +1184,7 @@
 		}));
 		draftFriendship = { ...baseFriendship };
 		draftBattleFields = battleFieldsToDraft(battleFields);
+		draftIsShiny = baseIsShiny;
 		publishDraftChange();
 	}
 
@@ -1186,6 +1203,7 @@
 		if (isDraftMoveSetDirty()) count += 1;
 		if (isDraftFriendshipDirty()) count += 1;
 		count += changedBattleFields().length;
+		if (draftIsShiny !== baseIsShiny) count += 1;
 		return count;
 	}
 
@@ -1232,6 +1250,7 @@
 		}
 		const battleFieldEdits = changedBattleFields();
 		if (battleFieldEdits.length > 0) draft.battleFields = { fields: battleFieldEdits };
+		if (draftIsShiny !== baseIsShiny) draft.isShiny = draftIsShiny;
 		return draft;
 	}
 
@@ -1547,6 +1566,31 @@
 										'Species and Form Editing is not supported for this Pokemon.'}
 								</p>
 							{/if}
+						</div>
+
+						<div
+							class="editor-panel"
+							aria-label="Shiny Editing"
+							data-editor-active={session.section === 'species-form'}
+						>
+							<div class="panel-title"><span>Shiny</span></div>
+							<!-- The Species column width keeps ArrowLeft from Species going to the rail. -->
+							<div class="species-form-controls">
+								<button
+									id="pokemon-editor-shiny"
+									type="button"
+									class={['mode-switch', { 'staged-field': draftIsShiny !== baseIsShiny }]}
+									role="switch"
+									aria-checked={draftIsShiny}
+									aria-label="Shiny"
+									disabled={applying}
+									onclick={toggleShiny}
+								>
+									<span>Normal</span>
+									<span>Shiny</span>
+									<i aria-hidden="true"></i>
+								</button>
+							</div>
 						</div>
 
 						{#if battleFields.length > 0}

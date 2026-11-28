@@ -337,6 +337,47 @@ describe('PKHeX Engine Save File coverage', () => {
 		expect(changed, 'the damaged slot stays as it was').toBe(-1);
 	});
 
+	test.for(saves)(
+		'makes a Pokemon shiny and not shiny in %s',
+		async ([path, saveType], { skip }) => {
+			const fileName = path.split('/').at(-1)!;
+			const [engine, bytes] = await Promise.all([createPkhexEngine(), readFixture(path)]);
+			const workspace = await engine.loadSaveWorkspace(bytes, fileName, 0);
+			if (!workspace.ok) throw workspace.error;
+			const box = workspace.value.boxSlots.find((slot) => !slot.isEmpty && !slot.isEgg);
+			const party = workspace.value.partySlots.find((slot) => !slot.isEmpty && !slot.isEgg);
+			const before = box ?? party;
+			if (!before) return skip('This fixture holds no Pokemon in Box 1 or the Party.');
+			const source = box
+				? ({ zone: 'box', box: 0, slot: box.slot } as const)
+				: ({ zone: 'party', slot: party!.slot } as const);
+			// Generation 1 and 2 read gender and shininess from the same DVs.
+			const kept = (slot: typeof before) =>
+				saveType === 'SAV1' || saveType === 'SAV2'
+					? [slot.speciesId, slot.form]
+					: [slot.speciesId, slot.form, slot.nature, slot.gender, slot.ability];
+
+			let current: Uint8Array = bytes;
+			for (const isShiny of [!before.spriteIdentity.isShiny, before.spriteIdentity.isShiny]) {
+				const edited = await engine.applyPokemonEditOperation(
+					current,
+					fileName,
+					{ source, isShiny },
+					0
+				);
+				if (!edited.ok) throw edited.error;
+				expect(edited.value.mutated).toBe(true);
+				current = edited.value.bytes;
+				const after =
+					source.zone === 'box'
+						? edited.value.workspace.boxSlots.find((slot) => slot.slot === source.slot)!
+						: edited.value.workspace.partySlots.find((slot) => slot.slot === source.slot)!;
+				expect(after.spriteIdentity.isShiny).toBe(isShiny);
+				expect(kept(after)).toEqual(kept(before));
+			}
+		}
+	);
+
 	test('edits a Pokemon Unbound Pokemon without changing its gender or shininess', async () => {
 		const fileName = 'pokemon-unbound-2.1.1.1.sav';
 		const [engine, original] = await Promise.all([

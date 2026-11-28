@@ -277,7 +277,15 @@ export function stagePokemonEditorDraftEdits(
 					label: 'Set battle fields',
 					payload: draft.battleFields
 				}
-			: null
+			: null,
+		draft.isShiny === undefined
+			? null
+			: {
+					id: 'shiny',
+					capability: 'shiny-editing',
+					label: draft.isShiny ? 'Make shiny' : 'Make not shiny',
+					payload: { isShiny: draft.isShiny }
+				}
 	].filter((edit) => edit !== null);
 
 	for (const edit of edits) nextState = stagePokemonEditorEdit(nextState, edit);
@@ -325,7 +333,8 @@ export function pokemonEditorDraftResetKey(state: PokemonEditorState): string {
 			key: field.key,
 			value: field.value
 		})),
-		battleFields: state.slot.battleFields?.map((field) => ({ key: field.key, value: field.value }))
+		battleFields: state.slot.battleFields?.map((field) => ({ key: field.key, value: field.value })),
+		isShiny: state.slot.spriteIdentity?.isShiny
 	});
 }
 
@@ -350,7 +359,8 @@ export function pokemonEditSuccessMessage(
 		'evs',
 		'moves',
 		'friendshipEdits',
-		'teraType'
+		'teraType',
+		'isShiny'
 	].filter((field) => operation[field as keyof PokemonEditOperation] !== undefined);
 	return editedFields.length === 1 && editedFields[0] === 'nickname'
 		? 'Pokemon nickname updated.'

@@ -1243,7 +1243,8 @@ public static partial class PkhexEngineExports
             operation.Evs is null &&
             operation.Moves is null &&
             operation.FriendshipEdits is null &&
-            operation.TeraType is null)
+            operation.TeraType is null &&
+            operation.IsShiny is null)
             return SlotMutationResult.Fail("invalid-pokemon-edit", "Choose a Pokemon edit to apply.");
 
         if (operation.Level is not null && operation.Experience is not null)
@@ -1463,6 +1464,14 @@ public static partial class PkhexEngineExports
                 return SlotMutationResult.Fail("invalid-pokemon-edit", $"Total EV values must be {maxTotalEv} or less for this Pokemon format.");
 
             pokemon.SetEVs(evs);
+        }
+
+        // Runs after the Trainer ID, origin, nature, ability and IV edits, which all feed the shiny rule.
+        if (operation.IsShiny is bool shiny && shiny != pokemon.IsShiny)
+        {
+            var shinyResult = ApplyShinyEdit(pokemon, shiny);
+            if (!shinyResult.Ok)
+                return shinyResult;
         }
 
         if (operation.Moves is not null)
@@ -1844,7 +1853,7 @@ public static partial class PkhexEngineExports
             operation.Level is not null || operation.Experience is not null || operation.NatureId is not null ||
             operation.HeldItemId is not null || operation.AbilityIndex is not null || operation.Ivs is not null ||
             operation.Evs is not null || operation.Moves is not null || operation.FriendshipEdits is not null ||
-            operation.TeraType is not null);
+            operation.TeraType is not null || operation.IsShiny is not null);
 
     private static string LegalityEditFailurePrefix(bool hasMetData, bool hasOriginalTrainer, bool hasOtherEdits)
     {
@@ -2110,6 +2119,47 @@ public static partial class PkhexEngineExports
         pokemon is ITeraType tera
             ? ((byte)tera.TeraTypeOriginal, (byte)tera.TeraTypeOverride)
             : (null, null);
+
+    private static SlotMutationResult ApplyShinyEdit(PKM pokemon, bool shiny)
+    {
+        const string unsupported = "Shiny editing is not supported for this Pokemon.";
+        if (pokemon is PK3Unbound unbound)
+        {
+            try
+            {
+                unbound.SetIsShiny(shiny);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return SlotMutationResult.Fail("unsupported-pokemon-edit", ex.Message);
+            }
+        }
+        else if (pokemon is GBPKM)
+        {
+            // Generation 1 and 2 read shininess from the DVs; Defense 11 keeps gender and Unown letter.
+            if (shiny)
+                pokemon.SetShiny();
+            else
+                pokemon.IV_DEF = 11;
+        }
+        else
+        {
+            // PKHeX searches Generation 3 to 5 PIDs at random and never stops for a value no PID gives.
+            var pidBound = pokemon.Version is not 0 and < GameVersion.X;
+            if (pidBound && ((byte)pokemon.Nature >= 25 ||
+                (pokemon.Gender > 1 && !PersonalInfo.IsSingleGender(PersonalTable.B2W2[pokemon.Species].Gender))))
+                return SlotMutationResult.Fail("unsupported-pokemon-edit", unsupported);
+
+            if (shiny)
+                pokemon.SetShiny();
+            else
+                pokemon.SetPIDGender(pokemon.Gender);
+        }
+
+        return pokemon.IsShiny == shiny
+            ? SlotMutationResult.Success(true)
+            : SlotMutationResult.Fail("unsupported-pokemon-edit", unsupported);
+    }
 
     private static SlotMutationResult ApplyFriendshipEdits(PKM pokemon, List<PokemonFriendshipFieldEdit> edits)
     {

@@ -39,6 +39,7 @@ export type PokemonEditorDraftSnapshot = {
 	moves: { slot: number; move: number; pp: string; ppUps: string }[];
 	friendship: Record<string, string>;
 	battleFields: Record<string, number>;
+	isShiny: boolean;
 };
 
 export type PokemonEditorFocus =
@@ -67,6 +68,7 @@ const editTargets: Record<string, { section: PokemonEditorSectionId; control: st
 		section: 'species-form',
 		control: 'pokemon-editor-battle-field-tera-type'
 	},
+	shiny: { section: 'species-form', control: 'pokemon-editor-shiny' },
 	nickname: { section: 'nickname', control: 'pokemon-editor-nickname' },
 	nature: { section: 'nature', control: 'pokemon-editor-nature' },
 	'held-item': { section: 'held-item', control: 'pokemon-editor-held-item' },

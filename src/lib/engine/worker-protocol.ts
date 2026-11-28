@@ -612,7 +612,8 @@ export const pokemonEditOperationSchema = z.object({
 			})
 		)
 		.optional(),
-	teraType: z.number().int().optional()
+	teraType: z.number().int().optional(),
+	isShiny: z.boolean().optional()
 });
 
 export const pokemonEditOperationResultSchema = z.object({
